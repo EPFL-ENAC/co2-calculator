@@ -80,13 +80,3 @@ These guidelines aim to ensure the quality, security, maintainability, and longe
 
 - Each delivery must include documentation and guides needed to enable the internal team to operate autonomously.
 - Training sessions should be organized to ensure the EPFL teams can take over the system.
-
----
-
-👉 These guidelines can be published in the repository as the `CONTRIBUTING.md` file.
-
-Would you like me to generate a ready-to-use GitHub-flavored Markdown version for direct commit to the repo?
-
-
-Medical References:
-1. None — DOI: file-SACQCkqjEb9KesQCKns7QE

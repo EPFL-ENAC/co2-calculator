@@ -87,7 +87,7 @@ We use conventional commits for consistency:
 
 - Get review from domain expert + tech expert
 - Address all comments before next iteration
-- Add screenshots/GIFs for UI changes
+- Add screenshots/GIFs/Videos for UI changes
 - Link related issues
 
 </details>
