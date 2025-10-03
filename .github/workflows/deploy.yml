@@ -17,6 +17,6 @@ jobs:
       token: ${{ secrets.CD_TOKEN }}
     with:
       # Optional inputs can be passed here
-      ORG: { YOUR-LAB-NAME } #.e.g epfl-cryos
-      REPO: { YOUR-REPO-NAME } # ex. lgb-trsc
+      ORG: epfl #.e.g epfl-cryos
+      REPO: epfl-calculator-co2 # ex. lgb-trsc
       build_context: '[ "./"]'

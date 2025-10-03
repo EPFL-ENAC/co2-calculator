@@ -9,13 +9,6 @@ help:
 	@echo "  uninstall  - Remove git hooks and clean dependencies"
 	@echo "  help       - Show this help message"
 
-# SETUP SECTION START
-# Setup repository from template
-setup:
-	@echo "Setting up repository from template..."
-	./setup-repo.sh
-
-# SETUP SECTION END
 
 # Install dependencies and set up git hooks
 install:

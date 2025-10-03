@@ -3,7 +3,7 @@ name: Issue template request
 about: Suggest an idea for a new issue template
 title: ""
 labels: enhancement
-assignees: githubusernameassignee
+assignees: guilbep
 ---
 
 **Bug and Feature issues are not enough ?**
