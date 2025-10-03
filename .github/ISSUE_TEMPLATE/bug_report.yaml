@@ -1,0 +1,78 @@
+name: 🐛 Bug Report
+description: Report a problem or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: githubusernameassignee
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue! Please fill out the information below to help us fix it quickly.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What went wrong?
+      description: Describe what happened and what you expected to happen instead.
+      placeholder: "Example: I clicked the 'Save' button but nothing happened. I expected my changes to be saved."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we reproduce this?
+      description: Tell us step-by-step what you did when the problem occurred.
+      placeholder: |
+        1. Go to page X
+        2. Click on button Y
+        3. Fill in field Z
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Please attach a screenshot showing the problem (drag & drop or paste an image here).
+      placeholder: "Drag and drop your screenshot here, or click to upload"
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Which browser are you using?
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other (please specify in additional info)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: What device are you using?
+      options:
+        - Desktop/Laptop
+        - Tablet
+        - Mobile phone
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional information
+      description: Anything else that might help us understand the problem?
+      placeholder: "Browser version, operating system, or any other details you think might be relevant"
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting
+      options:
+        - label: I've checked that this issue hasn't already been reported
+          required: true

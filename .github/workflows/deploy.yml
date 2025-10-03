@@ -1,0 +1,22 @@
+# https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action#readme
+name: deploy
+
+"on":
+  push:
+    branches:
+      - dev
+    tags: ["v*.*.*"]
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      packages: write
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.4.0
+    secrets:
+      token: ${{ secrets.CD_TOKEN }}
+    with:
+      # Optional inputs can be passed here
+      ORG: { YOUR-LAB-NAME } #.e.g epfl-cryos
+      REPO: { YOUR-REPO-NAME } # ex. lgb-trsc
+      build_context: '[ "./"]'
