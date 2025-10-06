@@ -51,7 +51,7 @@
 * **Production:** Kubernetes manifests (Helm optional), **nginx-ingress** in k8s as ingress controller (as requested)
 * **Reverse proxy / TLS:** nginx-ingress (k8s); Traefik for compose/dev.
 * **Cache / ephemeral store / broker:** **Redis** (recommended) — details & tradeoffs below
-* **Background jobs:** Celery / Dramatiq / RQ (broker: Redis) — chosen pattern explained later
+* **Background jobs:** Celery + Redis
 * **Observability:** Prometheus (metrics), Grafana (dashboards), OpenTelemetry traces, ELK or fluentd/Vector for logs (forwarded to EPFL SIEM)
 * **Secrets management:** Kubernetes Secrets in k8s + sealed-secrets / HashiCorp Vault for production; env vars locally with Dynaconf/.env
 * **CI/CD:** GitHub Actions or GitLab CI (pipeline: lint, test, build images, scan, push registry, deploy to staging/prod)
@@ -127,8 +127,6 @@
 ### 3.4 Background processing
 
 * **Option A (recommended):** Celery with Redis broker + Redis result backend. Mature, widely-known.
-* **Option B:** Dramatiq (simpler and modern) with Redis.
-* **Option C:** RQ (lightweight) if needs are very simple.
 
 **Recommendation:** Celery for max flexibility (scheduling, retries, priorities). Use it for heavy tasks: ingest CSVs, long-running factor recalculations, export generation (PDF), and optionally for auto-ingestion jobs.
 
