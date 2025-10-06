@@ -163,10 +163,12 @@ make clean install  # Clean and reinstall all dependencies
 
 ### General Principles
 
-** not sure about SOLID: explain what we take from SOLID **
-- Follow **SOLID principles** and general programming best practices
-- Use consistent naming conventions (camelCase or snake_case according to the language)
-    - Don't mix or translate naming convention accross env (if backend is python and snake_case is database + api choice, then frontend will use snake_case always (no exception))
+- Use consistent naming conventions
+   - camelCase: JAVASCRIPT + TYPESCRIPT
+   - snake_case: PYTHON
+   - KEBAB-case: file name
+   - (DTO) +database column name: snake_case
+   - For data: don't mix or translate naming convention accross env (if database columns backend is python and snake_case is database + api choice, then frontend will use snake_case always (no exception))
 - Keep a clear, coherent file structure that matches the project architecture
 
 ### JavaScript/TypeScript
