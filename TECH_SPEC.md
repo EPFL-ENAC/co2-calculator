@@ -42,7 +42,7 @@
 * **DB driver & ORM:** asyncpg (async driver) + SQLAlchemy (async) + Alembic for migrations; psycopg2 available for tooling/legacy scripts
 * **Config / env:** Dynaconf + python-dotenv (cli extras)
 * **EPFL helpers:** enacit4r-files, enacit4r-auth, enacit4r-sql (git refs provided)
-* **Package manager / dependency tool:** **Poetry** (recommended) — explanation below
+* **Package manager / dependency tool:** **UV** (recommended) — explanation below
 * **Container runtime:** OCI-compliant images (Docker / buildx)
 
 ### Infrastructure & ops
@@ -90,9 +90,9 @@
 * **Alembic**: migrations management standard for SQLAlchemy.
 * **Dynaconf + python-dotenv**: structured config that supports env vars, multiple environments; Dynaconf integrates well with Docker/K8s patterns.
 * **EPFL enacit4r-* packages**: reuse EPFL-specific helpers (files, auth, sql). Pin exact git revisions for reproducibility.
-* **Poetry (recommended)** as package manager: produces lockfile, reproducible installs, good support for building wheels and publishing, great dev experience. It also handles Python dependency resolution and can output `requirements.txt` for docker builds. (If EPFL requires pip-tools / pip, we can easily provide a `requirements.txt` from Poetry).
+* **Uv (recommended)** as package manager
 
-  * *Why not pip alone?* Pip doesn't produce a lockfile by default; Poetry gives locked, reproducible builds. This is important in production.
+  * *Why not pip alone?* Pip doesn't produce a lockfile by default; Uv gives locked, reproducible builds. This is important in production.
 
 **Security & standards**
 
@@ -191,11 +191,11 @@
 
 ---
 
-### 3.10 Security & compliance
+### 3.10 Security & compliance /!\ I DON'T KNOW, TOD DICsCUSS
 
 * **OWASP best practices:** Input validation, output escaping, CSRF protection where needed, secure cookies.
-* **Dependency scanning:** GitHub/GitLab Dependabot + Snyk/Trivy.
-* **Static analysis:** Bandit/semgrep in CI.
+* **Dependency scanning:** GitHub/GitLab Dependabot + ( Snyk/Trivy ?? )
+* **Static analysis:** Bandit/semgrep in CI. ???
 * **Secrets:** Use Vault or sealed-secrets; never store secrets in repo.
 * **Penetration tests / audits:** EPFL may request an external security audit. Provide budget in options.
 * **Data retention policy:** Implement app logic to purge/retain according to cahier (10 years, 5 years for travel). Ensure backups mirror retention rules.
@@ -204,26 +204,7 @@
 
 ## 4 — Developer ergonomics & repo structure (recommended)
 
-Monorepo or two repos (frontend / backend). Suggested backend layout:
-
-```
-/backend
-  /app
-    main.py
-    api/
-    services/
-    models/
-    db/
-    auth/
-    core/  # config, logging, metrics
-    workers/
-    migrations/  # alembic
-  pyproject.toml  # poetry
-  Dockerfile
-  tests/
-```
-
-Frontend layout: standard Vite + Quasar app with `src/components`, `src/pages`, `stores/` (pinia), `i18n/`, `charts/`.
+Monorepo
 
 ---
 
@@ -269,7 +250,7 @@ Frontend layout: standard Vite + Quasar app with `src/components`, `src/pages`, 
   * vue: ^3.5.13
   * vue-i18n: ^11.1.7
   * vue-router: ^4.3.2
-* **Backend deps**: pin the listed ones and exact git rev references you provided for enacit4r-* packages, alembic ^1.14.0, asyncpg ^0.30.0, psycopg2 ^2.9.10, dynaconf ^3.2.6, python-dotenv ^1.0.1. Use Poetry lock for reproducible builds.
+* **Backend deps**: pin the listed ones and exact git rev references you provided for enacit4r-* packages, alembic ^1.14.0, asyncpg ^0.30.0, psycopg2 ^2.9.10, dynaconf ^3.2.6, python-dotenv ^1.0.1. Use UV lock for reproducible builds.
 
 ---
 
@@ -289,7 +270,7 @@ Frontend layout: standard Vite + Quasar app with `src/components`, `src/pages`, 
 | Topic                     |                                                                 Decision |
 | ------------------------- | -----------------------------------------------------------------------: |
 | Python runtime            | **3.13** (target) — compatible with specified deps (they declare 3.10+). |
-| Package manager (backend) |                **Poetry** (recommended for locks & reproducible builds). |
+| Package manager (backend) |                **UV** (recommended for locks & reproducible builds). |
 | Web framework             |                                                              **FastAPI** |
 | ASGI server               |                            **Uvicorn** (with Gunicorn in prod if needed) |
 | DB                        |                                                             **Postgres** |
