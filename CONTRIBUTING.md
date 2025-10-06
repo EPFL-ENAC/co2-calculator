@@ -201,9 +201,6 @@ make clean install  # Clean and reinstall all dependencies
 
 ## Security
 
-- Follow **OWASP best practices** (input validation, secure session management, etc.)
-- Identified vulnerabilities must be fixed immediately
-- EPFL reserves the right to perform external security audits
 - [MANDATORY] Never commit secrets, API keys, or sensitive data
 
 ---
