@@ -23,17 +23,13 @@ This guide ensures quality, security, maintainability, and longevity of our code
 - [Commit Messages](#commit-messages)
 - [Dependencies Management](#dependencies-management)
 
-### 🔄 Workflow & Process
+### 🔄 Processes
+- [Project Management](#project-management)
 - [Git Workflow](#git-workflow)
 - [RFC Process](#rfc-process-request-for-comments)
 - [Release Process](#release-process)
 - [Emergency Hotfix Process](#emergency-hotfix-process)
 - [Issue Management](#issue-management)
-
-### 🏢 Governance
-- [Project Management & Governance](#project-management--governance)
-- [Technical Standards](#technical-standards)
-- [Knowledge Transfer](#knowledge-transfer)
 
 ---
 
@@ -291,6 +287,13 @@ npm install package-name@X.Y.Z --save-exact
 
 ---
 
+
+## Project Management 
+
+- All development planning _MUST_ go through github projects and issues.
+- Each delivery must include documentation and guides needed to enable the internal team to operate autonomously
+
+
 ## Git Workflow
 
 ### Branch Strategy
@@ -480,45 +483,5 @@ Use our [issue templates](https://github.com/EPFL-ENAC/epfl-calculator-co2/issue
 
 ---
 
-## Project Management & Governance
-
-### EPFL Requirements
-
-- Development planned and documented per phase: design → implementation → validation → deployment
-- **All work must be approved** by EPFL project manager before implementation
-- Evolution and changes require EPFL validation
-- Track all tasks using the project ticketing tool
-
-### Intellectual Property
-*WARNING* : is this what we want ?
-- All code becomes **property of EPFL** (internal license)
-- By contributing, you agree to this transfer of ownership
-
----
-
-## Technical Standards
-
-### Containerization & APIs
-
-- **Container**: Must remain containerized (Docker/OCI) and deployable via public registry
-- **APIs**: REST/JSON compliant with OpenAPI specifications
-- **CI/CD**: Automated pipeline handles testing and deployment
-
-### Maintenance
-
-- Keep dependencies up-to-date
-- Address security vulnerabilities promptly
-- Monitor and fix issues reported in ticketing tool
-
----
-
-## Knowledge Transfer
-
-- Each delivery must include documentation and guides needed to enable the internal team to operate autonomously
-- Training sessions should be organized to ensure the EPFL teams can take over the system
-- Maintain up-to-date technical documentation
-- Document architectural decisions and rationale
-
----
 
 _Thank you for helping make the CO₂ Calculator project better! Your contributions make a difference in advancing sustainability research at EPFL._
