@@ -316,14 +316,8 @@ main (production) ← stage (staging) ← dev (development) ← feature/fix bran
 | Environment | Branch | URL | Deployment |
 |-------------|--------|-----|------------|
 | **Development** | `dev` | https://{NAME}-dev.epfl.ch | Automatic on merge |
-| **Staging** | `stage` | https://{NAME}-stage.epfl.ch | Manual: `dev` → `stage` |
-| **Production** | `main` | https://{NAME}.epfl.ch | Bi-weekly: `stage` → `main` |
-
-### Team Roles
-
-- **Lead Developer**: Implementation and technical decisions
-- **Code Reviewer**: Quality assurance and code review
-- **Project Manager**: Coordination, approvals, and release management
+| **Staging** | `stage` | https://{NAME}-stage.epfl.ch | Manual End of sprint: `dev` → `stage` |
+| **Production** | `main` | https://{NAME}.epfl.ch | /!\ TBD /!\ : `stage` → `main` |
 
 ### Development Process
 
@@ -340,23 +334,24 @@ Issue → Branch → PR → Code Review → Merge to Dev → Staging → Product
 3. **Develop** your changes with proper documentation
 4. **Test locally** - `make test` must pass
 5. **Push** and create **pull request** to `dev`
-6. **Code review** - address all feedback
+6. **Code review** - address all feedback (< 2 days)
 7. **Merge to `dev`** → Auto-deploys to development environment
 8. **Validate** in dev environment
-9. **Promote to `stage`** → Manual deployment
-10. **Staging validation** → Final testing before production
-11. **Promote to `main`** → Production release
+9. **Promote to `stage`** → Manual deployment end of sprint: TBD
+10. **Staging validation** → Final testing before production: TBD
+11. **Promote to `main`** → Production release: TBD
 
 ### Timeline & SLA
 
 | Activity | Timeframe |
 |----------|----------|
 | Code Review | 1-2 business days |
-| Staging Release | Bi-weekly cycle |
-| Production Release | Bi-weekly cycle |
+| Staging Release | End of sprint |
+| Production Release | TBD |
 
 ### PR Review Criteria
-
+TBD (should be in pull_REQUEST_TEMPlate.md)
+- [ ] description of changes
 - [ ] Code documentation
 - [ ] Adherence to standards and best practices
 - [ ] Security considerations
@@ -364,12 +359,11 @@ Issue → Branch → PR → Code Review → Merge to Dev → Staging → Product
 - [ ] Test coverage
 - [ ] Responsiveness (for UI changes)
 
-### For UI Changes
-
-- Add screenshots/GIFs/videos demonstrating the changes
-- Verify accessibility (keyboard navigation, screen readers)
-- Test on different screen sizes
-- Link related issues
+- For UI Changes:
+   - [ ] screenshots/GIFs/videos demonstrating the changes
+   - [ ] accessibility (keyboard navigation, screen readers)
+   - [ ] Test on different screen sizes
+   - [ ] Link related issues
 
 ---
 
@@ -387,8 +381,8 @@ We follow **Semantic Versioning (SemVer)**:
 
 - **Changelog**: Auto-generated via `release-please` GitHub workflow
 - **Release Notes**: Automatically created from conventional commits
-- **Tagging**: Automatic on merge to `main`
-- **Cycle**: Bi-weekly promotions through dev → stage → main (see [Git Workflow](#git-workflow))
+- **Tagging**: Automatic on merge to `main`: TBD ()
+- **Cycle**: End of sprint promotions through dev → stage → main (see [Git Workflow](#git-workflow))
 
 ### Migration Guides
 
