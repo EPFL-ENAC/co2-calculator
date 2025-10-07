@@ -365,12 +365,13 @@ TBD with code reviewer (should be in pull_REQUEST_TEMPLATE.md)
    - [ ] Link related issues
  
 ### Definition of Done
-✅ Code completed — all planned functionalities implemented. (Developer)
-📘 Documentation updated — relevant documentation, user guides, or release notes are updated. (Developer)
-🧪 Code reviewed and tested — acceptance tests succeed, PR merged (Code reviewer)
-🧩 Meets acceptance criteria — fulfills all user story acceptance criteria (PM)
-🧼 No critical bugs — the feature works as intended with no blocking defects (tested in stage - QA by TBD ?)
-🚀 Integrated and deployed (to Prod.) (Developer)
+
+- ✅ Code completed — all planned functionalities implemented. (Developer)
+- 📘 Documentation updated — relevant documentation, user guides, or release notes are updated. (Developer)
+- 🧪 Code reviewed and tested — acceptance tests succeed, PR merged (Code reviewer)
+- 🧩 Meets acceptance criteria — fulfills all user story acceptance criteria (PM)
+- 🧼 No critical bugs — the feature works as intended with no blocking defects (tested in stage - QA by TBD ?)
+- 🚀 Integrated and deployed (to Prod.) (Developer)
 
 ---
 
