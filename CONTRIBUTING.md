@@ -349,7 +349,7 @@ Issue → Branch → PR → Code Review → Merge to Dev → Staging → Product
 | Production Release | TBD |
 
 ### PR Review Criteria
-TBD (should be in pull_REQUEST_TEMPlate.md)
+TBD with code reviewer (should be in pull_REQUEST_TEMPLATE.md)
 - [ ] description of changes
 - [ ] Code documentation
 - [ ] Adherence to standards and best practices
@@ -363,6 +363,14 @@ TBD (should be in pull_REQUEST_TEMPlate.md)
    - [ ] accessibility (keyboard navigation, screen readers)
    - [ ] Test on different screen sizes
    - [ ] Link related issues
+ 
+### Definition of Done
+✅ Code completed — all planned functionalities implemented. (Developer)
+📘 Documentation updated — relevant documentation, user guides, or release notes are updated. (Developer)
+🧪 Code reviewed and tested — acceptance tests succeed, PR merged (Code reviewer)
+🧩 Meets acceptance criteria — fulfills all user story acceptance criteria (PM)
+🧼 No critical bugs — the feature works as intended with no blocking defects (tested in stage - QA by TBD ?)
+🚀 Integrated and deployed (to Prod.) (Developer)
 
 ---
 
@@ -459,9 +467,9 @@ For **critical production bugs** that can't wait for the regular release cycle:
 
 1. **Open** - Issue created with template
 2. **Triaged** - Labeled and prioritized by team
-3. **Assigned** - Developer starts work (create branch)
-4. **In Progress** - Active development (PR created)
-5. **Review** - Code review in progress
+3. **Ready** - In developer's to-do list
+4. **In Progress** - Active development 
+5. **Review** - Code review in progress (PR created)
 6. **Merged** - PR merged to `dev`
 7. **Validated** - Tested in dev environment
 8. **Closed** - Issue resolved and deployed
