@@ -305,23 +305,23 @@ npm install package-name@X.Y.Z --save-exact
 We use a three-tier branching model:
 
 ```
-main (production) ← stage (staging) ← dev (development) ← feature/fix branches
+main (pre-production) ← stage (staging) ← dev (development) ← feature/fix branches
 ```
 
 **Branch Descriptions:**
 
-- \*`main`\*\*: Production-ready code, deployed to https://{NAME}.epfl.ch
-- \*`stage`\*\*: Pre-production staging, deployed to https://{NAME}-stage.epfl.ch
+- \*`main`\*\*: Pre-production code, deployed to https://{NAME}.epfl.ch
+- \*`stage`\*\*: Staging environment, deployed to https://{NAME}-stage.epfl.ch
 - \*`dev`\*\*: Active development, auto-deployed to https://{NAME}-dev.epfl.ch
 - \*`feature/fix branches`\*\*: Individual feature or bug fix branches created from `dev`
 
 ### Environments
 
-| Environment     | Branch  | URL                          | Deployment                            |
-| --------------- | ------- | ---------------------------- | ------------------------------------- |
-| **Development** | `dev`   | https://{NAME}-dev.epfl.ch   | Automatic on merge                    |
-| **Staging**     | `stage` | https://{NAME}-stage.epfl.ch | Manual End of sprint: `dev` → `stage` |
-| **Production**  | `main`  | https://{NAME}.epfl.ch       | /!\ TBD /!\ : `stage` → `main`        |
+| Environment        | Branch  | URL                          | Deployment                            |
+| ------------------ | ------- | ---------------------------- | ------------------------------------- |
+| **Development**    | `dev`   | https://{NAME}-dev.epfl.ch   | Automatic on merge                    |
+| **Staging**        | `stage` | https://{NAME}-stage.epfl.ch | Manual End of sprint: `dev` → `stage` |
+| **Pre-Production** | `main`  | https://{NAME}.epfl.ch       | /!\ TBD /!\ : `stage` → `main`        |
 
 ### Development Process
 
@@ -343,7 +343,7 @@ Issue → Branch → PR → Code Review → Merge to Dev → Staging → Product
 8. **Validate** in dev environment
 9. **Promote to `stage`** → Manual deployment end of sprint: TBD
 10. **Staging validation** → Final testing before production: TBD
-11. **Promote to `main`** → Production release: TBD
+11. **Promote to `main`** → Pre-Production release: use `v0.x.x` versioning TBD
 
 ### PR Lifecycle Process
 
@@ -440,12 +440,29 @@ Use our [issue templates](https://github.com/EPFL-ENAC/epfl-calculator-co2/issue
 
 ### Versioning
 
-We follow **Semantic Versioning (SemVer)**:
+We follow **Semantic Versioning (SemVer)** with a phased approach:
 
-- `MAJOR.MINOR.PATCH` (e.g., `2.1.3`)
+- `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
 - **MAJOR**: Breaking changes
 - **MINOR**: New features (backward compatible)
 - **PATCH**: Bug fixes
+
+### Versioning Strategy
+
+Our versioning strategy distinguishes between internal/non-public releases and public-facing releases:
+
+1. **Internal/Non-Public Releases** (`v0.x.x`):
+   - Tagged versions released at the end of each sprint (sprints 1-9)
+   - Format: `v0.MINOR.PATCH` (e.g., `v0.1.2`)
+   - Intended for internal testing and validation only
+   - Not public-facing releases
+   - Represent pre-production status
+
+2. **Public-Facing Release** (`v1.0.0`):
+   - First official public release
+   - Released at the end of the 10-sprint development process
+   - Format: `v1.0.0` (following semantic versioning)
+   - Production-ready with full functionality and documentation
 
 ### Automated Releases
 
@@ -469,19 +486,35 @@ For breaking changes, document in `MIGRATION.md`:
 
 ### Pre-Production vs Production
 
-- **Pre-prod environment** is used during active development cycles
-- **Production environment** will be activated at the end of the project
+Our release process distinguishes between internal/non-public releases and public-facing releases:
+
+1. **Pre-Production Environment** (Internal/Non-Public Releases):
+   - Used during active development cycles (sprints 1-9)
+   - Includes `dev` and `stage` environments
+   - Runs `v0.x.x` tagged versions released at the end of each sprint
+   - Intended for internal testing and validation only
+   - Not public-facing
+
+2. **Production Environment** (Public-Facing Release):
+   - Activated at the end of the project (after sprint 10)
+   - Runs stable `v1.0.0` and subsequent versions
+   - First public-facing release is `v1.0.0`
+   - Requires full validation and approval
+   - Only production-ready code should be promoted here
 
 ### PM Testing Process
 
 - PM conducts pre-sprint release testing in the dev environment
 - Testing occurs 2-3 days before sprint completion
+- Final validation happens in stage environment before pre-production promotion
 
 ### Environment Promotion Rules
 
 - All code must pass through dev → stage → main progression
 - Each environment has specific validation requirements
 - Manual approvals required for stage and production promotions
+- Pre-prod releases use `v0.x.x` versioning
+- Production releases begin with `v1.0.0`
 
 ---
 
