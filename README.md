@@ -2,10 +2,16 @@
 
 200 - Calculator Co2 (enacit4r-project-200-st, enacit4r-project-200-dev)
 
+**Project Status:** Under active development (v0.x.x internal/non-public releases)
+
 **Access the platform here:**
 
-**dev url: [https://epfl-calculator-co2-dev.epfl.ch/](https://epfl-calculator-co2-dev.epfl.ch/)**  
-**prod url: [https://epfl-calculator-co2.epfl.ch/](https://epfl-calculator-co2.epfl.ch/)**
+**dev url: [https://epfl-calculator-co2-dev.epfl.ch/](https://epfl-calculator-co2-dev.epfl.ch/)**
+**pre-production url: [https://epfl-calculator-co2.epfl.ch/](https://epfl-calculator-co2.epfl.ch/)**
+
+**Note:** The pre-production url currently serves internal/non-public releases (v0.x.x) until the final v1.0.0 public release at the end of the 10-sprint development process.
+
+**Note:** The production environment will be activated with the v1.0.0 public-facing release at the end of the 10-sprint development process. Current releases are internal/non-public versions (v0.x.x) released at the end of each sprint for internal testing.
 
 ## Contributors
 
