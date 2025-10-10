@@ -349,8 +349,8 @@ Issue → Branch → PR → Code Review → Merge to Dev → Staging → Product
 
 **Pull Request Validation Requirements:**
 
-- **feat → dev**: PR must be created by (1) another dev IT4R (Pierre if you're not Pierre), (2) validated by Dominique, (3) merged by Charlie (PO)
-- **dev → stage**: PR must be created by lead dev and validated (merged) by Charlie (PO)
+- **feat → dev**: PR must be created by (1) another dev IT4R, (2) validated by third party, (3) merged by product owner
+- **dev → stage**: PR must be created by lead dev and validated (merged) by product owner
 
 ### Timeline & SLA
 
@@ -492,7 +492,6 @@ Our release process distinguishes between internal/non-public releases and publi
 1. **Pre-Production Environment** (Internal/Non-Public Releases):
 
    - Used during active development cycles (sprints 1-9)
-   - Includes `dev` and `stage` environments
    - Runs `v0.x.x` tagged versions released at the end of each sprint
    - Intended for internal testing and validation only
    - Not public-facing
