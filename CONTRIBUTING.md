@@ -455,12 +455,30 @@ TBD with code reviewer (should be in pull_REQUEST_TEMPLATE.md)
 7. **Validated** - Tested in dev environment
 8. **Closed** - Issue resolved and deployed
 
+### Definition of Ready
+
+#### Clear functional specs (Durabilité, PO)
+
+- 🎯 Feature Overview (Why?) is clear
+- 🧩 Solution (What?) is validated by
+- 🎨 Designs are validated
+- 💾 (Sample) data accessible
+- ✅ Success criteria – Clear, testable acceptance criteria agreed, including a defined Test strategy (knows who will test and how to test it).
+
+#### Clear technical specs (Devs)
+
+- ⚙️ Technical implementation details and impacts clarified
+- 🔗 Dependencies – identified and managed
+- ⏱️ Time Estimation
+
+🤝 Scheduled at Sprint planning !
+
 ### Issue Templates
 
 Use our [issue templates](https://github.com/EPFL-ENAC/epfl-calculator-co2/issues/new/choose):
 
 - Bug Report
-- Feature Request
+- Feature
 - Documentation Update
 - Security Vulnerability
 

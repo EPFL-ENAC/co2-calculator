@@ -1,0 +1,128 @@
+---
+name: ✨ Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels: ["enhancement", "triage", "needs-triage"]
+assignees: githubusernameassignee
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🎯 Feature Overview (Why?)
+        Outline the motivation driving this feature.
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What challenge are we trying to solve?
+      placeholder: "Users struggle to ... because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-story
+    attributes:
+      label: User Story
+      description: Frame the need with a user story (As a..., I want..., so that...).
+      placeholder: "As a [role], I want [capability] so that [outcome]."
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 🧩 Solution (What?)
+        Describe the envisioned solution scope.
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Summarize the solution you have in mind.
+      placeholder: "Introduce a ... that allows ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: High-level Approach & Key Functionalities
+      description: List the main capabilities or changes required.
+      placeholder: "1. Users can ...\n2. System updates ..."
+
+  - type: textarea
+    id: frontend-artifacts
+    attributes:
+      label: 🎨 Front-end Assets
+      description: Provide screenshots, Figma links, or other visual references.
+      placeholder: "https://www.figma.com/file/...\nScreenshot: ..."
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 💾 Sample Data
+        Attach or link to any representative datasets.
+
+  - type: textarea
+    id: sample-data
+    attributes:
+      label: Sample Data
+      description: Include small datasets, payloads, or references.
+      placeholder: "Example JSON payload, CSV snippet, or dataset link..."
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ✅ Success Criteria
+        How will we measure success for this feature?
+
+  - type: checkboxes
+    id: success-criteria
+    attributes:
+      label: Success Criteria
+      description: Tick the criteria that must be satisfied.
+      options:
+        - label: Key features are functional
+        - label: Qualitative feedback (“easy to use”)
+        - label: Documentation updated in user guide + API docs
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚙️ Implementation (How?)
+        Capture constraints and guides for developers.
+
+  - type: textarea
+    id: implementation-notes
+    attributes:
+      label: Implementation Notes
+      description: Add technical context, dependencies, and non-functional considerations.
+      placeholder: "To be refined by dev team. Consider ..."
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 📋 Implementation Plan (subtasks)
+        Break the work into actionable steps that may become sub-issues.
+
+  - type: textarea
+    id: subtasks
+    attributes:
+      label: Sub-tasks
+      description: List sub-tasks with GitHub markdown checkboxes.
+      placeholder: "- [ ] Update API endpoints\n- [ ] Implement UI form"
+
+  - type: markdown
+    attributes:
+      value: |
+        ## ❔ Any Open Questions (Hopefully none remaining)
+        Document uncertainties or topics for discussion.
+
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: Open Questions
+      description: Note unresolved topics that need follow-up.
+      placeholder: "Do we need to ...?"
