@@ -452,6 +452,7 @@ We follow **Semantic Versioning (SemVer)** with a phased approach:
 Our versioning strategy distinguishes between internal/non-public releases and public-facing releases:
 
 1. **Internal/Non-Public Releases** (`v0.x.x`):
+
    - Tagged versions released at the end of each sprint (sprints 1-9)
    - Format: `v0.MINOR.PATCH` (e.g., `v0.1.2`)
    - Intended for internal testing and validation only
@@ -489,6 +490,7 @@ For breaking changes, document in `MIGRATION.md`:
 Our release process distinguishes between internal/non-public releases and public-facing releases:
 
 1. **Pre-Production Environment** (Internal/Non-Public Releases):
+
    - Used during active development cycles (sprints 1-9)
    - Includes `dev` and `stage` environments
    - Runs `v0.x.x` tagged versions released at the end of each sprint
