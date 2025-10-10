@@ -38,6 +38,8 @@ lint:
 
 format:
 	@echo "Running formatter..."
+	@echo "Formatting Markdown files..."
+	npx prettier --write . --ignore-unknown --ignore-path .prettierignore
 	@echo "Formatting JavaScript/TypeScript files..."
 	if [ -d "frontend" ]; then \
 		npx prettier --write frontend --ignore-unknown --ignore-path .prettierignore && npx eslint frontend --ext .js,.ts,.jsx,.tsx --fix; \

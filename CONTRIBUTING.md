@@ -22,6 +22,7 @@ This guide ensures quality, security, maintainability, and longevity of our code
 - [Security](#security)
 - [Performance](#performance)
 - [Testing](#testing)
+- [CI/CD](#cicd-pipeline)
 - [Commit Messages](#commit-messages)
 - [Dependencies Management](#dependencies-management)
 
@@ -235,7 +236,36 @@ make clean install  # Clean and reinstall all dependencies
 make test  # Run full test suite
 ```
 
-## **CI/CD**: Tests run automatically on PR. All must pass before merge.
+---
+
+## CI/CD Pipeline
+
+### DevSecOps Approach
+
+We follow automated CI/CD with security scanning and testing.
+
+### Automated Checks
+
+All pull requests trigger GitHub Actions workflows that run:
+
+- **Linting**: ESLint (JS/TS), Stylelint (CSS), Ruff/Black (Python)
+- **Testing**: Full test suite must pass with 60% coverage minimum
+- **Security**: Dependency vulnerability scans via Dependabot and `uv pip audit` (Python), `npm audit` (Node.js)
+- **Build**: Docker image build validation
+
+### Merge Requirements
+
+- All status checks must pass (green) before merge is allowed
+- Dependabot security alerts must be resolved or explicitly acknowledged
+- Code review approval required (see [PR Review Criteria](#pr-review-criteria))
+
+### Deployment Pipeline
+
+- **dev branch**: Auto-deploys to development environment on merge
+- **stage branch**: Auto-deploys to staging environment on merge
+- **main branch**: Auto-deploys to pre-production environment on git tag/ github release
+
+See [Development Workflow](#development-workflow) for the complete promotion process.
 
 ## Commit Messages
 
