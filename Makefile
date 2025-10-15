@@ -1,42 +1,49 @@
 .PHONY: install clean uninstall help
 
 # Default target
-help:
-	@echo "Available commands:"
-	@echo "  install    - Install dependencies and set up git hooks"
-	@echo "  clean      - Clean node_modules and package-lock.json"
-	@echo "  uninstall  - Remove git hooks and clean dependencies"
-	@echo "  help       - Show this help message"
+.PHONY: help
+help: ## Show this help message
+	@echo "Available targets:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 
-# Install dependencies and set up git hooks
-install:
+
+install: ## Install npm dependencies and set up git hooks
 	@echo "Installing npm dependencies..."
 	npm install
+	@echo "Syncing uv environment..."
+	uv sync
 	@echo "Installing git hooks with lefthook..."
 	npx lefthook install
 	@echo "Setup complete!"
 
-# Clean dependencies
-clean:
+pdf: ## Build documentation with PDF export enabled
+	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
+build-docs: pdf ## Build documentation
+
+
+serve: ## Serve documentation with live reload
+	UV_NO_ISOLATION=1 WATCHDOG_OBSERVER=polling mkdocs serve --dirtyreload --watch docs --watch mkdocs.yml
+
+clean: ## Remove node_modules and package-lock.json
 	@echo "Cleaning dependencies..."
 	rm -rf node_modules
 	rm -f package-lock.json
 
 # Uninstall hooks and clean
-uninstall:
+uninstall: ## Uninstall git hooks and clean dependencies
 	@echo "Uninstalling git hooks..."
 	npx lefthook uninstall || true
 	$(MAKE) clean
 	@echo "Uninstall complete!"
 
 
-lint:
+lint: ## Run linters on the codebase
 	@echo "Running linter..."
 	LEFTHOOK=0 npx lefthook run pre-commit
 	@echo "Linting complete!"
 
-format:
+format: ## Format codebase
 	@echo "Running formatter..."
 	@echo "Formatting Markdown files..."
 	npx prettier --write . --ignore-unknown --ignore-path .prettierignore
