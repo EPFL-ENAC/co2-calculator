@@ -19,7 +19,8 @@ install: ## Install npm dependencies and set up git hooks
 
 pdf: ## Build documentation with PDF export enabled
 	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
-build-docs: pdf ## Build documentation
+build-docs: ## Build documentation
+	UV_NO_ISOLATION=1 uv run mkdocs build
 
 
 serve: ## Serve documentation with live reload
