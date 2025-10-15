@@ -1,6 +1,6 @@
 # CI/CD Pipeline Overview
 
-![TO COMPLETE TAG: Include pipeline architecture diagram]
+![TO COMPLETE TAG: Include pipeline architecture diagram] ??? maybe
 
 The continuous integration and deployment pipeline automates the build, test, and deployment processes across all environments.
 
@@ -8,9 +8,9 @@ The continuous integration and deployment pipeline automates the build, test, an
 
 Each subsystem has its own build process:
 
-- Frontend: Node.js build with webpack
+- Frontend: Node.js build with vite
 - Backend: Python package with dependencies
-- Infrastructure: Terraform plans and Kubernetes manifests
+- Infrastructure: Kubernetes manifests
 
 ## Deployment Automation Flow
 
@@ -18,10 +18,15 @@ Deployments are fully automated through GitHub Actions:
 
 1. Code changes trigger CI pipeline
 2. Tests are run in isolated environments
-3. Artifacts are built and stored in registry
-4. ArgoCD handles deployment to Kubernetes clusters
+3. Artifacts are built and stored in github public registry (ghcr.io)
+4. Our action modify our infra code (EPFL-ENAC/epfl-enac-build-push-deploy-action)
+5. ArgoCD handles deployment to Kubernetes clusters
 
-## Testing Integration Points
+## Performance + EcoConception
+
+- LighthouseCI + greenIT
+
+## DevSecOps + Testing Integration Points
 
 Automated testing includes:
 
@@ -34,6 +39,5 @@ Automated testing includes:
 
 Rollbacks are supported through:
 
-- Blue-green deployment strategy
-- Kubernetes deployment history
+- Kubernetes deployment history (git-ops)
 - Database migration versioning

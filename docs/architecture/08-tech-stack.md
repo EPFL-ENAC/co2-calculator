@@ -2,6 +2,14 @@
 
 The technology stack was chosen based on team expertise, project requirements, and long-term maintainability considerations.
 
+## Why mkdocs for the documentation
+
+Selected for:
+
+- Possible to use with CMS
+- Markdown compatible with github
+- Easy to add i18n + mermaid
+
 ## Why Vue.js for Frontend?
 
 Selected for:

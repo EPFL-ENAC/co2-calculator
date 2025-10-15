@@ -26,6 +26,7 @@ Currently not using a service mesh, but may adopt Istio in the future for:
 
 ### Ingress and Networking Patterns
 
+- EPFL LOAD BALANCER
 - NGINX ingress controller for HTTP routing
 - TLS termination at ingress level
 - Network policies for service isolation

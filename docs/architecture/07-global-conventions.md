@@ -24,7 +24,7 @@ Secrets are managed through:
 
 - Environment variables for runtime configuration
 - Kubernetes secrets for containerized deployments
-- Azure Key Vault for production secrets
+- Infisical + CRD for Kubernetes secrets
 - Never committed to source control
 
 ## Error Handling Patterns
@@ -36,6 +36,4 @@ Error handling follows consistent patterns:
 - Detailed error messages in development
 - Generic messages in production
 
-![TO COMPLETE TAG: Link to style guide/convention docs if any]
-
-For detailed conventions, see the individual component documentation.
+For detailed conventions, see the individual component documentation and our CONTRIBUTING.md

@@ -19,8 +19,9 @@ RESTful HTTP APIs with JSON payloads, following OpenAPI specification
 
 ### How It Connects to Backend
 
-- HTTP GET/POST/PUT/DELETE requests
+- HTTP GET/POST/PUT/DELETE requests (no PATCH)
 - Authentication headers with JWT tokens
+- NO CORS
 - Error handling with standardized responses
 
 ### Behavior as Subsystem
@@ -47,7 +48,7 @@ RESTful API microservice architecture
 ### API Interface
 
 - RESTful endpoints with JSON request/response formats
-- Automatic OpenAPI documentation at `/docs`
+- Automatic OpenAPI documentation at `/docs` ( which means /api/docs)
 - Standardized error responses
 
 ### How It Connects to Other Layers
@@ -96,6 +97,7 @@ For detailed worker information, see [Backend Plugins Documentation](../backend/
 ### Type and Purpose
 
 PostgreSQL relational database for structured data persistence
+PGBouncer if needed
 
 ### Connection Method
 
@@ -113,16 +115,16 @@ For detailed database information, see [Database Documentation](../database/inde
 
 ### Type and Purpose
 
-S3-compatible object storage for unstructured file uploads
+S3-compatible object storage for unstructured file uploads (using EPFL s3 layer)
 
 ### Integration Method
 
-Presigned URLs for secure direct uploads
+- TBD ? Maybe Presigned URLs for secure direct uploads ?
 
 ### Behavior as Subsystem
 
-- File lifecycle management
-- Access control through signed URLs
+- File lifecycle management to be clearly defined during implementation
+- Access control through signed URLs TBD ? not sure, or proxy via API (slow)
 - Metadata storage in database
 
 For detailed storage information, see [Storage Documentation](../backend/architecture.md).

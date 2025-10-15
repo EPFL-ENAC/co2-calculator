@@ -23,8 +23,8 @@ build-docs: ## Build documentation
 	UV_NO_ISOLATION=1 uv run mkdocs build
 
 
-serve: ## Serve documentation with live reload
-	UV_NO_ISOLATION=1 WATCHDOG_OBSERVER=polling mkdocs serve --dirtyreload --watch docs --watch mkdocs.yml
+serve-docs: ## Serve documentation with live reload
+	mkdocs serve --dirtyreload --watch docs --watch mkdocs.yml
 
 clean: ## Remove node_modules and package-lock.json
 	@echo "Cleaning dependencies..."
