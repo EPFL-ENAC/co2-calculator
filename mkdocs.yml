@@ -1,5 +1,6 @@
 site_name: EPFL Project Technical Docs
-site_url: https://calculator-co2.epfl.ch
+# site_url: https://calculator-co2.epfl.ch
+site_url: ""
 repo_url: https://github.com/epfl-enac/epfl-calculator-co2
 theme:
   name: material
@@ -20,7 +21,8 @@ theme:
       scheme: slate
       primary: teal
       accent: cyan
-use_directory_urls: true
+# use_directory_urls: true
+use_directory_urls: false
 watch:
   - docs
   - mkdocs.yml
@@ -96,19 +98,19 @@ extra:
 extra_css:
   - stylesheets/extra.css
 plugins:
-  - search
-  - with-pdf:
-      author: "EPFL Dev Team"
-      cover_subtitle: "Technical Documentation"
-      output_path: pdf/EPFL-Project-Docs.pdf
-      toc_title: "Table of Contents"
-      cover: true
-      ordered_chapter_level: 2
-      exclude_pages:
-        - index.md
-      enabled_if_env: ENABLE_PDF_EXPORT
-      # custom_styles: styles/pdf-custom.css
-      verbose: false
+  # - search
+  # - with-pdf:
+  #     author: "EPFL Dev Team"
+  #     cover_subtitle: "Technical Documentation"
+  #     output_path: pdf/EPFL-Project-Docs.pdf
+  #     toc_title: "Table of Contents"
+  #     cover: true
+  #     ordered_chapter_level: 2
+  #     exclude_pages:
+  #       - index.md
+  #     enabled_if_env: ENABLE_PDF_EXPORT
+  #     # custom_styles: styles/pdf-custom.css
+  #     verbose: false
   - git-authors
   - git-revision-date-localized:
       fallback_to_build_date: true
