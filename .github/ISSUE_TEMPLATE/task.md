@@ -1,6 +1,6 @@
 ---
-name: "✨ Task"
-description: "Suggest a new feature or improvement"
+name: "Task"
+about: "Suggest a new feature or improvement"
 title: "[Task]: "
 labels:
   - enhancement
