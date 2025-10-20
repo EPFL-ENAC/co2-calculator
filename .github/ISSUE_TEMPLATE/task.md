@@ -1,5 +1,5 @@
 ---
-name: "Task"
+name: "✅ Task"
 about: "Suggest a new feature or improvement"
 title: "[Task]: "
 labels:
