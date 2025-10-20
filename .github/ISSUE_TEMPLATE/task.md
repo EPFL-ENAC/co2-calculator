@@ -1,9 +1,13 @@
 ---
-name: ✨ Task
-description: Suggest a new feature or improvement
+name: "✨ Task"
+description: "Suggest a new feature or improvement"
 title: "[Task]: "
-labels: ["enhancement", "triage", "needs-triage"]
-assignees: githubusernameassignee
+labels:
+  - enhancement
+  - triage
+  - needs-triage
+assignees:
+  - guilbep
 ---
 
 ## 🎯 Feature Overview (Why?)
