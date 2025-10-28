@@ -50,7 +50,7 @@ format: ## Format codebase
 	npx prettier --write . --ignore-unknown --ignore-path .prettierignore
 	@echo "Formatting JavaScript/TypeScript files..."
 	if [ -d "frontend" ]; then \
-		npx prettier --write frontend --ignore-unknown --ignore-path .prettierignore && npx eslint frontend --ext .js,.ts,.jsx,.tsx --fix; \
+		npx prettier --write frontend --ignore-unknown --ignore-path .prettierignore && npx eslint frontend  --fix; \
 	else \
 		echo "No frontend directory found, skipping JavaScript/TypeScript formatting"; \
 	fi
