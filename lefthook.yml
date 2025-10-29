@@ -71,6 +71,7 @@ pre-commit:
         fi
         
     # JSON/YAML/Markdown formatting (all files for lint command)
+    # TODO: Split into separate commands if performance becomes an issue Make frontend and backend checks conditional
     format-config-files:
       glob: "*.{json,yml,yaml,md}"
       run: |
