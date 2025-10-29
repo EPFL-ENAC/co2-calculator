@@ -1,0 +1,58 @@
+[project]
+name = "co2-calculator-backend"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.120.2",
+    "uvicorn[standard]==0.38.0",
+    "python-multipart==0.0.20",
+    "sqlalchemy==2.0.44",
+    "psycopg[binary,pool]==3.2.12",
+    "alembic==1.17.1",
+    "authlib==1.6.5",
+    # to remove once, we use entra or keycloak
+    "passlib[bcrypt]==1.7.4",
+    # "python-dotenv==1.0.0",
+    "pydantic==2.12.3",
+    "pydantic-settings==2.11.0",
+    "email-validator==2.1.0",
+    # "httpx==0.25.1",
+    # "python-dateutil==2.8.2",
+    "joserfc>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+testpaths = ["tests/"]
+asyncio_mode = "auto"
+
+env = [
+    "DATABASE_URL=postgresql+asyncpg://auth_user:auth_password@localhost:5432/test_auth_db",
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py312"
+fix = true
+lint.select = ["E", "F", "I"]  # errors, flake8, imports
+exclude = ["migrations"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4",
+  "pytest-asyncio>=1.2.0",
+  "pytest-cov>=7.0",
+  "pytest-benchmark>=5.1",
+  "pytest-mock>=3.15",
+  "mypy>=1.18",
+  "ruff>=0.14",
+  "httpx>=0.28",
+]

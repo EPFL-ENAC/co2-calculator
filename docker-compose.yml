@@ -1,0 +1,98 @@
+services:
+  # PostgreSQL for Auth module
+  postgres:
+    image: postgres:15-alpine
+    container_name: co2-calculator-postgres
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgresuser -d co2_calculator -h localhost -p 5432",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - co2-calculator-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: co2-calculator-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - co2-calculator-network
+
+  # # Open Policy Agent
+  # opa:
+  #   image: openpolicyagent/opa:latest
+  #   container_name: co2-opa
+  #   command:
+  #     - "run"
+  #     - "--server"
+  #     - "--addr=0.0.0.0:8181"
+  #     - "--log-level=debug"
+  #     - "/policies"
+  #   ports:
+  #     - "8181:8181"
+  #   volumes:
+  #     - ./app/policies:/policies:ro
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-q", "--spider", "http://localhost:8181/health"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: co2-backend
+    environment:
+      DATABASE_URL: postgresql://co2user:co2password@postgres:5432/co2_calculator
+      OPA_URL: http://opa:8181
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # opa:
+      #   condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: co2-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/app:ro
+    depends_on:
+      - backend
+    command: npm start
+
+networks:
+  co2-calculator-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

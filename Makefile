@@ -40,42 +40,50 @@ help: ## Show this help message
 # Docker & Services
 # =============================================================================
 
-up: ## Start all services (docker-compose up)
+up: ## Start all services (docker compose up)
 	@echo "Starting all services..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Services started!"
 
-down: ## Stop all services (docker-compose down)
+down: ## Stop all services (docker compose down)
 	@echo "Stopping all services..."
-	docker-compose down
+	docker compose down
 	@echo "Services stopped!"
 
 restart: ## Restart all services
 	@echo "Restarting all services..."
-	docker-compose restart
+	docker compose restart
 	@echo "Services restarted!"
 
 logs: ## View logs from all services
-	docker-compose logs -f
+	docker compose logs -f
 
 ps: ## Show running containers status
-	docker-compose ps
+	docker compose ps
 
 # =============================================================================
 # Development
 # =============================================================================
 
 dev: ## Start development environment (up + watch mode)
-	@echo "Starting development environment..."
-	docker-compose up
+	@echo "Starting backend and frontend in development mode..."
+	@trap 'kill 0' SIGINT; \
+	cd backend && $(MAKE) run & \
+	cd frontend && $(MAKE) run dev & \
+	wait
+run: dev ## Alias for dev
 
 dev-backend: ## Run only backend in dev mode
 	@echo "Starting backend in development mode..."
-	cd backend && $(MAKE) dev
+	@trap 'kill 0' SIGINT; \
+	cd backend && $(MAKE) run & \
+	wait
 
 dev-frontend: ## Run only frontend in dev mode
 	@echo "Starting frontend in development mode..."
-	cd frontend && $(MAKE) dev
+	@trap 'kill 0' SIGINT; \
+	cd frontend && $(MAKE) run dev & \
+	wait
 
 # =============================================================================
 # Building
@@ -118,6 +126,19 @@ test-watch: ## Run tests in watch mode
 # Database
 # =============================================================================
 
+db-up: ## Start database service
+	@echo "Starting database service..."
+	docker compose up -d postgres
+	@echo "Database service started!"
+db-down: ## Stop database service
+	@echo "Stopping database service..."
+	docker compose down postgres
+	@echo "Database service stopped!"
+db-restart: ## Restart database service
+	@echo "Restarting database service..."
+	docker compose restart postgres
+	@echo "Database service restarted!"
+
 db-migrate: ## Run database migrations
 	@echo "Running database migrations..."
 	cd backend && $(MAKE) db-migrate
@@ -139,14 +160,14 @@ db-shell: ## Open database shell
 # =============================================================================
 
 shell-backend: ## Open shell in backend container
-	docker-compose exec backend /bin/bash
+	docker compose exec backend /bin/bash
 
 shell-frontend: ## Open shell in frontend container
-	docker-compose exec frontend /bin/sh
+	docker compose exec frontend /bin/sh
 
 prune: ## Clean docker volumes/images
 	@echo "Cleaning docker volumes and images..."
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 	@echo "Docker cleanup complete!"
 
