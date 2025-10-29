@@ -27,7 +27,7 @@
 - **FastAPI**: excellent async performance, automatic OpenAPI generation (required), good typing and developer speed, plays well with Uvicorn + asyncpg. It also produces clear, machine-readable API docs (Swagger) the cahier requires.
 - **Uvicorn** (ASGI server): lightweight, async; production run either with Gunicorn + Uvicorn workers or using Uvicorn and process manager. The list included `uvicorn`.
 - **asyncpg**: async Postgres driver with great performance for coroutine-based stack. Use with SQLAlchemy (1.4+ async ORM) or with a lean SQL layer like `databases` if preferred. You included `enacit4r-sql` so integrate with that.
-- **psycopg2**: kept for CLI / tooling that prefer sync driver.
+- **psycopg3**: kept for CLI / tooling that prefer sync driver.
 - **Alembic**: migrations management standard for SQLAlchemy.
 - **Dynaconf + python-dotenv**: structured config that supports env vars, multiple environments; Dynaconf integrates well with Docker/K8s patterns.
 - **EPFL enacit4r-\* packages**: reuse EPFL-specific helpers (files, auth, sql). Pin exact git revisions for reproducibility.
@@ -191,7 +191,7 @@ _(I can produce concrete example `docker-compose.yml` and k8s manifests or Helm 
   - vue-i18n: ^11.1.7
   - vue-router: ^4.3.2
 
-- **Backend deps**: pin the listed ones and exact git rev references you provided for enacit4r-\* packages, alembic ^1.14.0, asyncpg ^0.30.0, psycopg2 ^2.9.10, dynaconf ^3.2.6, python-dotenv ^1.0.1. Use UV lock for reproducible builds.
+- **Backend deps**: pin the listed ones and exact git rev references you provided for enacit4r-\* packages, alembic ^1.14.0, asyncpg ^0.30.0, psycopg3 ^2.9.10, dynaconf ^3.2.6, python-dotenv ^1.0.1. Use UV lock for reproducible builds.
 
 ---
 
