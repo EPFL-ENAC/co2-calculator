@@ -1,0 +1,53 @@
+// ----------------------------------------------------------------------------
+// Decisions Layer
+// ----------------------------------------------------------------------------
+// Semantic tokens referencing primitives from _options.scss. These values are
+// exposed to the rest of the codebase.
+
+@use 'options' as opt;
+
+// Brand palette
+$color-primary: opt.$color-brand-red-100 !default;
+$color-primary-hover: opt.$color-brand-red-200 !default;
+$color-secondary: opt.$color-grey-200 !default;
+$color-surface: opt.$color-white !default;
+$color-surface-muted: opt.$color-grey-100 !default;
+$color-border: opt.$color-grey-300 !default;
+$color-text: opt.$color-black !default;
+$color-text-muted: opt.$color-grey-500 !default;
+$color-text-on-primary: opt.$color-white !default;
+
+// Status colors
+$color-status-success: opt.$color-status-green !default;
+$color-status-warning: opt.$color-status-yellow !default;
+$color-status-error: opt.$color-status-red !default;
+
+// Spacing scale (semantic naming)
+$spacing-xxs: opt.$spacing-1 !default;
+$spacing-xs: opt.$spacing-4 !default;
+$spacing-sm: opt.$spacing-8 !default;
+$spacing-md: opt.$spacing-12 !default;
+$spacing-lg: opt.$spacing-16 !default;
+$spacing-xl: opt.$spacing-24 !default;
+$spacing-xxl: opt.$spacing-32 !default;
+$spacing-page: opt.$spacing-48 !default;
+
+// Radii
+$radius-default: opt.$radius-generic !default;
+$radius-pill: opt.$radius-full !default;
+
+// Typography
+$text-size-xs: opt.$font-size-12 !default;
+$text-size-sm: opt.$font-size-14 !default;
+$text-size-base: opt.$font-size-16 !default;
+$text-size-lg: opt.$font-size-18 !default;
+$text-line-height-tight: opt.$line-height-16 !default;
+$text-line-height-base: opt.$line-height-20 !default;
+$text-line-height-loose: opt.$line-height-24 !default;
+$text-weight-regular: opt.$font-weight-regular !default;
+$text-weight-medium: opt.$font-weight-medium !default;
+$text-weight-bold: opt.$font-weight-bold !default;
+
+// Layout
+$layout-page-width: opt.$layout-page-width !default;
+$layout-pop-up-min-width: opt.$layout-pop-up-min-width !default;

@@ -1,0 +1,13 @@
+@use '../02-tokens' as tokens;
+
+.u-mb-none {
+  margin-bottom: 0;
+}
+
+.u-mb-sm {
+  margin-bottom: tokens.$spacing-sm;
+}
+
+.u-mb-md {
+  margin-bottom: tokens.$spacing-md;
+}

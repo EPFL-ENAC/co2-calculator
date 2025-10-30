@@ -20,6 +20,8 @@ dependencies = [
     # "httpx==0.25.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.4.0",
+    "types-passlib>=1.7.7.20250602",
+    "mypy>=1.18.2",
 ]
 
 [tool.pytest.ini_options]

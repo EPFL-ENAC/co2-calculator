@@ -39,7 +39,7 @@ cp .env.example .env
 
 # Start PostgreSQL (if not using Docker)
 # Start OPA (if not using Docker)
-opa run --server --addr :8181 app/policies/
+# opa run --server --addr :8181 app/policies/
 
 # Run migrations
 make db-migrate

@@ -1,8 +1,8 @@
-export interface Todo {
+export interface todo {
   id: number;
   content: string;
 }
 
-export interface Meta {
+export interface meta {
   totalCount: number;
 }

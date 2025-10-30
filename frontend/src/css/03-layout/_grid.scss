@@ -1,0 +1,7 @@
+@use '../02-tokens' as tokens;
+
+// Placeholder grid system using semantic spacing tokens.
+.layout-grid {
+  display: grid;
+  gap: tokens.$spacing-lg;
+}

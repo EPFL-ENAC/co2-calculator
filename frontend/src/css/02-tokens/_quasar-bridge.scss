@@ -1,0 +1,61 @@
+// ----------------------------------------------------------------------------
+// Quasar Bridge
+// ----------------------------------------------------------------------------
+// Maps the token system onto Quasar's variable names. Import this file before
+// loading Quasar's source styles.
+
+@use 'components' as comp;
+@use 'decisions' as dec;
+
+$primary: dec.$color-primary !default;
+$secondary: dec.$color-secondary !default;
+$accent: dec.$color-primary-hover !default;
+$dark: #1d1d1d !default;
+$dark-page: #121212 !default;
+$positive: dec.$color-status-success !default;
+$negative: dec.$color-status-error !default;
+$info: dec.$color-status-warning !default;
+$warning: dec.$color-status-warning !default;
+
+// button
+$button-border-radius: comp.$button-radius !default;
+$button-rounded-border-radius: comp.$button-radius-rounded !default;
+$button-push-border-radius: comp.$button-radius !default;
+$button-padding: comp.$button-padding-y comp.$button-padding-x !default;
+$button-dense-padding: comp.$button-padding-dense !default;
+$button-font-size: comp.$button-font-size !default;
+$button-line-height: comp.$button-line-height !default;
+$button-font-weight: comp.$button-font-weight !default;
+$button-shadow: comp.$button-shadow !default;
+$button-shadow-active: comp.$button-shadow-active !default;
+$button-transition: 0.3s ease !default;
+$button-outline-border: comp.$button-outline-border !default;
+
+// space
+$space-base: dec.$spacing-md !default;
+$space-x-base: $space-base !default;
+$space-y-base: $space-base !default;
+$space-none: (
+  x: 0,
+  y: 0,
+) !default;
+$space-xs: (
+  x: dec.$spacing-xs,
+  y: dec.$spacing-xs,
+) !default;
+$space-sm: (
+  x: dec.$spacing-sm,
+  y: dec.$spacing-sm,
+) !default;
+$space-md: (
+  x: dec.$spacing-md,
+  y: dec.$spacing-md,
+) !default;
+$space-lg: (
+  x: dec.$spacing-lg,
+  y: dec.$spacing-lg,
+) !default;
+$space-xl: (
+  x: dec.$spacing-xl,
+  y: dec.$spacing-xl,
+) !default;

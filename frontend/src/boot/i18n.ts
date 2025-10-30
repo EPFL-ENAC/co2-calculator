@@ -8,18 +8,24 @@ export type MessageLanguages = keyof typeof messages;
 export type MessageSchema = (typeof messages)['en-US'];
 
 // See https://vue-i18n.intlify.dev/guide/advanced/typescript.html#global-resource-schema-type-definition
-/* eslint-disable @typescript-eslint/no-empty-interface */
+
 declare module 'vue-i18n' {
   // define the locale messages schema
-  export interface DefineLocaleMessage extends MessageSchema {}
+  export interface DefineLocaleMessage extends MessageSchema {
+    title: string;
+  }
 
   // define the datetime format schema
-  export interface DefineDateTimeFormat {}
+  export interface DefineDateTimeFormat {
+    short: Intl.DateTimeFormatOptions;
+    long: Intl.DateTimeFormatOptions;
+  }
 
   // define the number format schema
-  export interface DefineNumberFormat {}
+  export interface DefineNumberFormat {
+    currency: Intl.NumberFormatOptions;
+  }
 }
-/* eslint-enable @typescript-eslint/no-empty-interface */
 
 export default boot(({ app }) => {
   const i18n = createI18n({

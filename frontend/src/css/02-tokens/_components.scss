@@ -1,0 +1,80 @@
+// ----------------------------------------------------------------------------
+// Component Layer Tokens
+// ----------------------------------------------------------------------------
+// Component-scoped tokens derived from decisions layer.
+
+@use 'decisions' as dec;
+
+// Buttons
+$button-padding-y: dec.$spacing-md !default;
+$button-padding-x: dec.$spacing-lg !default;
+$button-padding-dense: dec.$spacing-sm !default;
+$button-gap: dec.$spacing-xs !default;
+$button-radius: dec.$radius-default !default;
+$button-radius-rounded: dec.$radius-pill !default;
+$button-font-size: dec.$text-size-base !default;
+$button-font-size-sm: dec.$text-size-sm !default;
+$button-font-size-xs: dec.$text-size-xs !default;
+$button-line-height: dec.$text-line-height-base !default;
+$button-font-weight: dec.$text-weight-medium !default;
+$button-shadow: none !default;
+$button-shadow-active: none !default;
+$button-primary-bg: dec.$color-primary !default;
+$button-primary-bg-hover: dec.$color-primary-hover !default;
+$button-primary-text: dec.$color-text-on-primary !default;
+$button-secondary-bg: dec.$color-surface !default;
+$button-secondary-bg-hover: dec.$color-surface-muted !default;
+$button-secondary-text: dec.$color-text !default;
+$button-outline-border: dec.$color-border !default;
+$button-outline-text: dec.$color-text !default;
+$button-outline-bg-hover: dec.$color-surface-muted !default;
+$button-disabled-bg: dec.$color-surface-muted !default;
+$button-disabled-text: dec.$color-text-muted !default;
+$button-disabled-border: dec.$color-border !default;
+
+// Forms
+$form-field-padding-y: dec.$spacing-sm !default;
+$form-field-padding-x: dec.$spacing-md !default;
+$form-field-gap: dec.$spacing-xs !default;
+$form-field-bg: dec.$color-surface !default;
+$form-field-bg-disabled: dec.$color-surface-muted !default;
+$form-field-border: dec.$color-border !default;
+$form-field-border-disabled: dec.$color-text-muted !default;
+$form-field-text: dec.$color-text !default;
+$form-field-placeholder: dec.$color-text-muted !default;
+$form-field-radius: dec.$radius-default !default;
+$form-field-font-size: dec.$text-size-sm !default;
+$form-field-line-height: dec.$text-line-height-tight !default;
+$form-field-font-weight: dec.$text-weight-medium !default;
+
+// Cards
+$card-padding-x: dec.$spacing-xl !default;
+$card-padding-y: dec.$spacing-xl !default;
+$card-gap: dec.$spacing-md !default;
+$card-bg: dec.$color-surface !default;
+$card-border-color: dec.$color-border !default;
+$card-radius: dec.$radius-default !default;
+
+// Timeline
+$timeline-font-size: dec.$text-size-xs !default;
+$timeline-line-height: dec.$text-line-height-tight !default;
+$timeline-font-weight: dec.$text-weight-medium !default;
+$timeline-point-size: dec.$spacing-lg !default;
+$timeline-inner-point-size: dec.$spacing-sm !default;
+$timeline-gap: dec.$spacing-xs !default;
+$timeline-selected-color: dec.$color-primary !default;
+$timeline-default-color: dec.$color-text-muted !default;
+
+// Layout helpers
+$template-width: dec.$layout-page-width !default;
+$template-gap: dec.$spacing-xxl !default;
+$template-padding-y: dec.$spacing-page !default;
+$module-card-padding-x: dec.$spacing-xl !default;
+$module-card-padding-y: dec.$spacing-xl !default;
+$module-card-gap: dec.$spacing-md !default;
+
+// Icon sizes
+$icon-size-xl: dec.$spacing-xxl !default;
+$icon-size-lg: dec.$spacing-xl !default;
+$icon-size-md: dec.$spacing-lg !default;
+$icon-size-sm: dec.$spacing-lg !default;

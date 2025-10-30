@@ -1,0 +1,11 @@
+@use '../../02-tokens' as tokens;
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(tokens.$module-card-padding-x * 4, 1fr)
+  );
+  gap: tokens.$template-gap;
+  padding-block: tokens.$template-padding-y;
+}

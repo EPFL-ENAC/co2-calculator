@@ -1,0 +1,76 @@
+@use '../../02-tokens' as tokens;
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: tokens.$button-gap;
+  padding: tokens.$button-padding-y tokens.$button-padding-x;
+  border-radius: tokens.$button-radius;
+  border: 1px solid transparent;
+  font-size: tokens.$button-font-size;
+  font-weight: tokens.$button-font-weight;
+  line-height: tokens.$button-line-height;
+  text-decoration: none;
+  cursor: pointer;
+  transition: 0.3s ease;
+
+  &--primary {
+    background-color: tokens.$button-primary-bg;
+    color: tokens.$button-primary-text;
+
+    &:hover {
+      background-color: tokens.$button-primary-bg-hover;
+    }
+  }
+
+  &--secondary {
+    background-color: tokens.$button-secondary-bg;
+    color: tokens.$button-secondary-text;
+    border-color: tokens.$button-outline-border;
+
+    &:hover {
+      background-color: tokens.$button-secondary-bg-hover;
+    }
+  }
+
+  &--outline {
+    background-color: transparent;
+    color: tokens.$button-outline-text;
+    border-color: tokens.$button-outline-border;
+
+    &:hover {
+      background-color: tokens.$button-outline-bg-hover;
+    }
+  }
+
+  &--dense {
+    padding: tokens.$button-padding-dense;
+  }
+
+  &--rounded {
+    border-radius: tokens.$button-radius-rounded;
+  }
+
+  &--disabled,
+  &:disabled {
+    background-color: tokens.$button-disabled-bg;
+    color: tokens.$button-disabled-text;
+    border-color: tokens.$button-disabled-border;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  &__icon--left {
+    margin-right: tokens.$spacing-xs;
+  }
+
+  &__icon--right {
+    margin-left: tokens.$spacing-xs;
+  }
+}

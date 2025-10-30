@@ -60,3 +60,11 @@ app.kubernetes.io/component: {{ .component }}
 {{ include "co2-calculator.fullname" . }}-backend
 {{- end -}}
 {{- end -}}
+
+{{- define "co2-calculator.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "co2-calculator.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}

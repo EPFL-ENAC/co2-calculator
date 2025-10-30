@@ -35,20 +35,77 @@ clean: ## Clean up generated files
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-.PHONY: lint
-lint: ## Run linting with Ruff
-	$(UV) run $(RUFF) check .
+# .PHONY: lint
+# lint: ## Run linting with Ruff
+# 	$(UV) run $(RUFF) check .
 
-.PHONY: lint-fix
-lint-fix: ## Run linting with Ruff and fix issues
-	$(UV) run $(RUFF) check . --fix
+# .PHONY: lint-fix
+# lint-fix: ## Run linting with Ruff and fix issues
+# 	$(UV) run $(RUFF) check . --fix
 
+# .PHONY: format
+# format: ## Format code with Ruff
+# 	$(UV) run $(RUFF) format .
+
+# .PHONY: check
+# check: lint ## Run all checks (linting, etc.)
+
+
+
+# FILES can be overridden to target specific files (for git hooks)
+FILES ?= .
+
+# File filters
+PY_FILES   := $(filter %.py,$(FILES))
+YAML_FILES := $(filter %.yml %.yaml,$(FILES))
+MD_FILES   := $(filter %.md,$(FILES))
+
+# Tool commands (configurable)
+RUFF ?= ruff
+PRETTIER ?= npx prettier
+# =============================================================================
+# Development Tasks
+# =============================================================================
 .PHONY: format
-format: ## Format code with Ruff
-	$(UV) run $(RUFF) format .
 
-.PHONY: check
-check: lint ## Run all checks (linting, etc.)
+format: ## Format Python code with ruff
+	@echo "Formatting files..."
+	@if [ -n "$(PY_FILES)" ]; then \
+		echo "→ Formatting Python files with ruff: $(PY_FILES)"; \
+		$(RUFF) format $(PY_FILES); \
+		$(RUFF) check --fix $(PY_FILES); \
+	fi
+	@if [ -n "$(YAML_FILES)" ]; then \
+		echo "→ Formatting YAML files with prettier: $(YAML_FILES)"; \
+		$(PRETTIER) --write $(YAML_FILES) --ignore-unknown; \
+	fi
+	@if [ -n "$(MD_FILES)" ]; then \
+		echo "→ Formatting Markdown files with prettier: $(MD_FILES)"; \
+		$(PRETTIER) --write $(MD_FILES) --ignore-unknown; \
+	fi
+	@if [ -z "$(PY_FILES)$(YAML_FILES)$(MD_FILES)" ]; then \
+		echo "No relevant files to format."; \
+	fi
+
+.PHONY: format-check
+format-check: ## Check Python formatting without fixing
+	@echo "Checking formatting..."
+	@if [ -n "$(PY_FILES)" ]; then \
+		$(RUFF) format --check $(PY_FILES); \
+		$(RUFF) check $(PY_FILES); \
+	fi
+	@if [ -n "$(YAML_FILES)$(MD_FILES)" ]; then \
+		$(PRETTIER) --check $(YAML_FILES) $(MD_FILES) --ignore-unknown; \
+	fi
+
+.PHONY: type-check
+type-check: ## Run type checking with mypy
+	@echo "Running type checks with mypy..."
+	$(UV) run mypy app/
+
+
+.PHONY: lint
+lint: format-check ## Lint Python code (alias for format-check)
 
 .PHONY: test
 test: ## Run tests
@@ -152,13 +209,13 @@ docker-shell: ## Open shell in backend container
 # OPA
 # =============================================================================
 
-.PHONY: opa-test
-opa-test: ## Test OPA policies
-	@echo "Testing OPA policies..."
-	opa test app/policies/
-	@echo "OPA policy tests complete!"
+# .PHONY: opa-test
+# opa-test: ## Test OPA policies
+# 	@echo "Testing OPA policies..."
+# 	opa test app/policies/
+# 	@echo "OPA policy tests complete!"
 
-.PHONY: opa-run
-opa-run: ## Run OPA server locally
-	@echo "Starting OPA server..."
-	opa run --server --addr :8181 app/policies/
+# .PHONY: opa-run
+# opa-run: ## Run OPA server locally
+# 	@echo "Starting OPA server..."
+# 	opa run --server --addr :8181 app/policies/

@@ -1,1 +1,38 @@
-// app global css in SCSS form
+// Load design tokens (CSS custom properties) before any component styles.
+@import './tokens.css';
+
+// Map SCSS tokens to Quasar variables ahead of pulling in the framework CSS.
+@import './02-tokens/quasar-bridge';
+@import 'quasar/src/css/index.sass';
+
+// Establish the cascade order for the ITCSS-inspired architecture.
+@layer reset, tokens, layout, quasar-overrides, components, utilities;
+
+@layer reset {
+  @import './01-reset/normalize';
+}
+
+@layer tokens {
+  @import './02-tokens/css-properties';
+}
+
+@layer layout {
+  @import './03-layout/grid';
+  @import './03-layout/container';
+}
+
+@layer quasar-overrides {
+  @import './05-components/quasar-overrides/q-btn-custom';
+}
+
+@layer components {
+  @import './05-components/_atoms/button';
+  @import './05-components/_molecules/card';
+  @import './05-components/_organisms/navigation';
+  @import './05-components/_templates/dashboard';
+}
+
+@layer utilities {
+  @import './04-utils/spacing';
+  @import './04-utils/text';
+}

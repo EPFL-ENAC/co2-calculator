@@ -2,6 +2,7 @@ apiVersion: v2
 name: co2-calculator
 description: Helm chart for the CO2 Calculator frontend and backend
 kubeVersion: ">=1.24.0-0"
+icon: https://www.epfl.ch/wp-content/themes/wp-theme-2018/assets/svg/epfl-logo.svg
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
