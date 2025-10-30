@@ -31,7 +31,7 @@ help: ## Show this help message
 	@grep -E '^(shell-backend|shell-frontend|prune|reset|clean|install|uninstall):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "CI/CD:"
-	@grep -E '^(ci|format|format-check|lint):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^(ci|format|format-root|format-backend|format-frontend|format-docs|format-helm|format-check|format-check-root|format-check-backend|format-check-frontend|format-check-docs|format-check-helm|lint|lint-backend|lint-frontend|lint-docs|lint-helm|type-check|frontend-type-check|backend-type-check):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Documentation:"
 	@grep -E '^(pdf|build-docs|serve-docs):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -207,27 +207,148 @@ uninstall: ## Uninstall git hooks and clean dependencies
 ci: lint format-check test build ## Run CI checks (lint + format-check + test + build)
 	@echo "CI checks complete!"
 
-lint: ## Run linters on the codebase
-	@echo "Running linter..."
-	LEFTHOOK=0 npx lefthook run pre-commit
-	@echo "Linting complete!"
+# lint: ## Run linters on the codebase
+# 	@echo "Running linter..."
+# 	LEFTHOOK=0 npx lefthook run pre-commit
+# 	@echo "Linting complete!"
 
-format: ## Format codebase (delegates to frontend and backend)
-	@echo "Formatting codebase..."
-	@echo "Formatting root Markdown files..."
-	npx prettier --write "*.md" --ignore-unknown --ignore-path .prettierignore
-	@echo "Formatting backend..."
-	cd backend && $(MAKE) format
-	@echo "Formatting frontend..."
-	cd frontend && $(MAKE) format
-	@echo "Formatting complete!"
+# format: ## Format codebase (delegates to frontend and backend and docs)
+# 	@echo "Formatting codebase..."
+# 	@echo "Formatting root Markdown files..."
+# 	npx prettier --write "*.md" --ignore-unknown --ignore-path .prettierignore
+# 	@echo "Formatting backend..."
+# 	cd backend && $(MAKE) format
+# 	@echo "Formatting frontend..."
+# 	cd frontend && $(MAKE) format
+# 	@echo "Formatting complete!"
 
-format-check: ## Check formatting without fixing
-	@echo "Checking formatting..."
-	npx prettier --check . --ignore-unknown --ignore-path .prettierignore
-	cd backend && $(MAKE) format-check
-	cd frontend && $(MAKE) format-check
-	@echo "Format check complete!"
+# format-check: ## Check formatting without fixing
+# 	@echo "Checking formatting..."
+# 	npx prettier --check . --ignore-unknown --ignore-path .prettierignore
+# 	cd backend && $(MAKE) format-check
+# 	cd frontend && $(MAKE) format-check
+# 	@echo "Format check complete!"
+
+
+
+# Format targets
+format: format-root format-backend format-frontend format-docs format-helm ## Format entire codebase
+
+format-root: ## Format root-level files
+	@echo "Formatting root-level files..."
+	@npx prettier --write "*.md" "*.json" "*.yml" --ignore-unknown --ignore-path .prettierignore
+
+format-backend: ## Format backend code
+	@if [ -d "backend" ]; then \
+		cd backend && $(MAKE) format FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No backend directory found, skipping..."; \
+	fi
+
+format-frontend: ## Format frontend code
+	@if [ -d "frontend" ]; then \
+		cd frontend && $(MAKE) format FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No frontend directory found, skipping..."; \
+	fi
+
+format-docs: ## Format documentation
+	@if [ -d "docs" ]; then \
+		cd docs && $(MAKE) format FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No docs directory found, skipping..."; \
+	fi
+
+format-helm: ## Format Helm files
+	@if [ -d "helm" ]; then \
+		cd helm && $(MAKE) format FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No helm directory found, skipping..."; \
+	fi
+
+# Format check targets
+format-check: format-check-root format-check-backend format-check-frontend format-check-docs format-check-helm ## Check formatting
+
+format-check-root: ## Check root-level file formatting
+	@echo "Checking root-level file formatting..."
+	@npx prettier --check "*.md" "*.json" "*.yml" --ignore-unknown --ignore-path .prettierignore
+
+format-check-backend: ## Check backend formatting
+	@if [ -d "backend" ]; then \
+		cd backend && $(MAKE) format-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No backend directory found, skipping..."; \
+	fi
+
+format-check-frontend: ## Check frontend formatting
+	@if [ -d "frontend" ]; then \
+		cd frontend && $(MAKE) format-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No frontend directory found, skipping..."; \
+	fi
+
+format-check-docs: ## Check documentation formatting
+	@if [ -d "docs" ]; then \
+		cd docs && $(MAKE) format-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No docs directory found, skipping..."; \
+	fi
+
+format-check-helm: ## Check Helm formatting
+	@if [ -d "helm" ]; then \
+		cd helm && $(MAKE) format-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No helm directory found, skipping..."; \
+	fi
+
+# Lint targets
+lint: lint-backend lint-frontend lint-docs lint-helm ## Lint entire codebase
+
+lint-backend: ## Lint backend code
+	@if [ -d "backend" ]; then \
+		cd backend && $(MAKE) lint FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No backend directory found, skipping..."; \
+	fi
+
+lint-frontend: ## Lint frontend code
+	@if [ -d "frontend" ]; then \
+		cd frontend && $(MAKE) lint FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No frontend directory found, skipping..."; \
+	fi
+
+lint-docs: ## Lint documentation
+	@if [ -d "docs" ]; then \
+		cd docs && $(MAKE) lint FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No docs directory found, skipping..."; \
+	fi
+
+lint-helm: ## Lint Helm files
+	@if [ -d "helm" ]; then \
+		cd helm && $(MAKE) lint FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No helm directory found, skipping..."; \
+	fi
+
+
+type-check: frontend-type-check backend-type-check ## Run type checking for frontend and backend
+frontend-type-check: ## Run type checking for frontend code
+	@echo "Running type checking for frontend..."
+	@if [ -d "frontend" ]; then \
+		cd frontend && $(MAKE) type-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No frontend directory found, skipping..."; \
+	fi
+
+backend-type-check: ## Run type checking for backend code
+	@echo "Running type checking for backend..."
+	@if [ -d "backend" ]; then \
+		cd backend && $(MAKE) type-check FILES="$(if $(FILES),$(FILES),.)"; \
+	else \
+		echo "No backend directory found, skipping..."; \
+	fi
 
 # =============================================================================
 # Documentation

@@ -31,7 +31,7 @@ backend:
     LOG_LEVEL: "INFO"
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "30"
-    OPA_URL: "http://localhost:8181"
+
     OPA_ENABLED: "true"
     OPA_TIMEOUT: "1.0"
 
@@ -152,7 +152,6 @@ frontend:
   nodeSelector: {}
   tolerations: []
   affinity: {}
-
 
 database:
   external:

@@ -1,0 +1,9 @@
+@use '../02-tokens' as tokens;
+
+.u-text-muted {
+  color: tokens.$color-text-muted;
+}
+
+.u-text-bold {
+  font-weight: tokens.$text-weight-bold;
+}

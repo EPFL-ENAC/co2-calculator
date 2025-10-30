@@ -1,0 +1,15 @@
+@use '../../02-tokens' as tokens;
+
+.q-btn.q-btn--gradient-primary {
+  background-image: linear-gradient(
+    135deg,
+    tokens.$button-primary-bg 0%,
+    tokens.$button-primary-bg-hover 100%
+  );
+  color: tokens.$button-primary-text;
+}
+
+.q-btn.q-btn--dense {
+  padding: tokens.$button-padding-dense;
+  border-radius: tokens.$button-radius;
+}

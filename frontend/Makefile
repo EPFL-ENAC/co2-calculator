@@ -1,5 +1,5 @@
-.PHONY: help install clean run
-.PHONY: dev build test test-watch format format-check lint
+.PHONY: help install clean run dev build test test-watch
+.PHONY: format format-check lint lint-js lint-css
 
 help: ## Show this help message
 	@echo "Frontend Makefile targets:"
@@ -27,6 +27,95 @@ run: ## Run npm script or list available scripts (usage: make run <script> [args
 		npm run; \
 	fi
 
-# Allow passing arguments to make targets
+# ---------------------------------------------------------
+# 🧹 FORMATTING / LINTING LOGIC
+# ---------------------------------------------------------
+
+FILES ?= .
+
+# Filters (only used when FILES != .)
+JS_FILES       := $(filter %.js %.ts %.jsx %.tsx %.vue,$(FILES))
+CSS_FILES      := $(filter %.css %.scss,$(FILES))
+PRETTIER_FILES := $(filter-out %.js %.ts %.jsx %.tsx %.vue %.css %.scss,$(FILES))
+
+format: ## Format frontend code (JS/TS/Vue + CSS/SCSS + others)
+	@echo "Formatting frontend files..."
+	@if [ "$(FILES)" = "." ]; then \
+		echo "→ Running Prettier, ESLint, and Stylelint on entire project..."; \
+		npx prettier --write . --ignore-unknown; \
+		npx eslint --fix . --ext .js,.ts,.jsx,.tsx,.vue; \
+		npx stylelint "**/*.{css,scss}"; \
+	else \
+		if [ -n "$(PRETTIER_FILES)" ]; then \
+			echo "→ Prettier formatting: $(PRETTIER_FILES)"; \
+			npx prettier --write $(PRETTIER_FILES) --ignore-unknown; \
+		fi; \
+		if [ -n "$(JS_FILES)" ]; then \
+			echo "→ ESLint fixing: $(JS_FILES)"; \
+			npx eslint --fix $(JS_FILES); \
+		fi; \
+		if [ -n "$(CSS_FILES)" ]; then \
+			echo "→ Stylelint fixing: $(CSS_FILES)"; \
+			npx stylelint --fix $(CSS_FILES); \
+		fi; \
+		if [ -z "$(JS_FILES)$(CSS_FILES)$(PRETTIER_FILES)" ]; then \
+			echo "No relevant files to format."; \
+		fi; \
+	fi
+
+format-check: ## Check frontend formatting without fixing
+	@echo "Checking frontend formatting..."
+	@if [ "$(FILES)" = "." ]; then \
+		echo "→ Checking all files with Prettier, ESLint, and Stylelint..."; \
+		npx prettier --check . --ignore-unknown; \
+		npx eslint . --ext .js,.ts,.jsx,.tsx,.vue; \
+		npx stylelint "**/*.{css,scss}"; \
+	else \
+		if [ -n "$(PRETTIER_FILES)" ]; then \
+			echo "→ Prettier check: $(PRETTIER_FILES)"; \
+			npx prettier --check $(PRETTIER_FILES) --ignore-unknown; \
+		fi; \
+		if [ -n "$(JS_FILES)" ]; then \
+			echo "→ ESLint check: $(JS_FILES)"; \
+			npx eslint $(JS_FILES); \
+		fi; \
+		if [ -n "$(CSS_FILES)" ]; then \
+			echo "→ Stylelint check: $(CSS_FILES)"; \
+			npx stylelint $(CSS_FILES); \
+		fi; \
+		if [ -z "$(JS_FILES)$(CSS_FILES)$(PRETTIER_FILES)" ]; then \
+			echo "No relevant files to check."; \
+		fi; \
+	fi
+
+lint-js: ## Lint JavaScript/TypeScript/Vue files
+	@echo "Linting JS/TS/Vue files..."
+	@if [ "$(FILES)" = "." ]; then \
+		npx eslint . --ext .js,.ts,.jsx,.tsx,.vue; \
+	else \
+		npx eslint $(FILES); \
+	fi
+
+lint-css: ## Lint CSS/SCSS files
+	@echo "Linting CSS/SCSS files..."
+	@if [ "$(FILES)" = "." ]; then \
+		npx stylelint "**/*.{css,scss}"; \
+	else \
+		npx stylelint $(FILES); \
+	fi
+
+lint: format-check lint-css lint-js ## Lint all frontend code
+
+
+.PHONY: type-check
+type-check:
+	@echo "Running TypeScript type checks..."
+	@if [ "$(FILES)" = "." ]; then \
+		echo "→ Type-checking entire project..."; \
+		npx tsc --noEmit ; \
+	else \
+		npx tsc --noEmit --project tsconfig.json --files $(FILES); \
+	fi
+# Allow passing arbitrary args (e.g. `make run dev`)
 %:
 	@:

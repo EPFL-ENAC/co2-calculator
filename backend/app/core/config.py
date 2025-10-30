@@ -21,13 +21,16 @@ class Settings(BaseSettings):
 
     # Database - REQUIRED
     DATABASE_URL: str = Field(
-        description="PostgreSQL database URL (REQUIRED). Example: postgresql+psycopg://user:pass@host:5432/dbname"
+        default="CHANGE_ME_TO_A_VALID_DATABASE_URL",
+        description="PostgreSQL database URL (REQUIRED). Example: postgresql+psycopg://user:pass@host:5432/dbname",
     )
 
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(
-        description="Secret key for JWT encoding/decoding (REQUIRED)"
+        default="CHANGE_ME_TO_A_SECURE_RANDOM_VALUE",
+        description="Secret key for JWT encoding/decoding (REQUIRED)",
     )
+
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 

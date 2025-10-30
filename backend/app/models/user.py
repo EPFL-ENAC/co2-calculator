@@ -31,7 +31,7 @@ class User(Base):
     # Role-based access control
     roles = Column(ARRAY(String), default=list, comment="User roles for RBAC")
 
-    # Status
+    # Statusc
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
 

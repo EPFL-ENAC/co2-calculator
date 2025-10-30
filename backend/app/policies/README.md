@@ -40,7 +40,7 @@ brew install opa
 opa test app/policies/
 
 # Run OPA server
-opa run --server --addr :8181 app/policies/
+# opa run --server --addr :8181 app/policies/
 ```
 
 ## Example OPA Queries

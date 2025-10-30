@@ -1,0 +1,24 @@
+// Optional CSS custom properties generated from the SCSS token layers.
+// Use alongside tokens.css to expose semantic variables in the cascade.
+
+@use 'decisions' as dec;
+@use 'components' as comp;
+
+:root {
+  --semantic-color-primary: #{dec.$color-primary};
+  --semantic-color-on-primary: #{dec.$color-text-on-primary};
+  --semantic-color-surface: #{dec.$color-surface};
+  --semantic-color-surface-muted: #{dec.$color-surface-muted};
+  --semantic-color-text: #{dec.$color-text};
+  --semantic-color-text-muted: #{dec.$color-text-muted};
+  --semantic-spacing-xs: #{dec.$spacing-xs};
+  --semantic-spacing-sm: #{dec.$spacing-sm};
+  --semantic-spacing-md: #{dec.$spacing-md};
+  --semantic-spacing-lg: #{dec.$spacing-lg};
+  --semantic-spacing-xl: #{dec.$spacing-xl};
+  --semantic-button-padding-y: #{comp.$button-padding-y};
+  --semantic-button-padding-x: #{comp.$button-padding-x};
+  --semantic-button-border-radius: #{comp.$button-radius};
+  --semantic-font-size-base: #{dec.$text-size-base};
+  --semantic-font-weight-medium: #{dec.$text-weight-medium};
+}
