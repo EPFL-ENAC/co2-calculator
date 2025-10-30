@@ -1,0 +1,247 @@
+# Default values for the CO2 Calculator chart.
+# Override these values using a custom values file or --set flags during helm install/upgrade.
+
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullSecrets: []
+  # - name: ghcr-creds
+
+backend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/epfl-enac/co2-calculator-backend
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    annotations: {}
+
+  env:
+    APP_NAME: "CO2 Calculator API"
+    APP_VERSION: "0.1.0"
+    DEBUG: "false"
+    API_V1_PREFIX: "/api/v1"
+    LOG_LEVEL: "INFO"
+    ALGORITHM: "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+    OPA_URL: "http://localhost:8181"
+    OPA_ENABLED: "true"
+    OPA_TIMEOUT: "1.0"
+
+  secrets:
+    SECRET_KEY: "change-me-in-production-use-openssl-rand-hex-32"
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  externalSecret:
+    enabled: false
+    name: ""
+
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/epfl-enac/co2-calculator-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+    annotations: {}
+
+  env:
+    API_BASE_URL: "/api"
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    fsGroup: 101
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+
+database:
+  external:
+    enabled: true
+    url: "postgresql+psycopg://co2user:co2password@postgres.example.com:5432/co2_calculator"
+    host: "postgres.example.com"
+    port: 5432
+    database: "co2_calculator"
+    username: "co2user"
+    password: "co2password"
+  externalSecret:
+    enabled: false
+    name: ""
+    urlKey: DATABASE_URL
+    usernameKey: POSTGRES_USER
+    passwordKey: POSTGRES_PASSWORD
+
+pgbouncer:
+  enabled: false
+  replicaCount: 2
+  image:
+    repository: bitnami/pgbouncer
+    tag: "1.23.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6432
+    annotations: {}
+  config:
+    poolMode: transaction
+    maxClientConn: 1000
+    defaultPoolSize: 25
+    minPoolSize: 5
+    reservePoolSize: 5
+    serverLifetime: 3600
+    serverIdleTimeout: 600
+    queryTimeout: 0
+    logConnections: 1
+    logDisconnections: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: co2-calculator.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []

@@ -1,0 +1,82 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-pgbouncer
+  labels:
+    {{- include "co2-calculator.componentLabels" (dict "ctx" . "component" "pgbouncer") | nindent 4 }}
+spec:
+  replicas: {{ .Values.pgbouncer.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "pgbouncer") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "pgbouncer") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.pgbouncer.podSecurityContext | nindent 8 }}
+      containers:
+        - name: pgbouncer
+          image: {{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}
+          imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.pgbouncer.securityContext | nindent 12 }}
+          env:
+            - name: PGBOUNCER_POOL_MODE
+              value: {{ .Values.pgbouncer.config.poolMode | quote }}
+            - name: PGBOUNCER_MAX_CLIENT_CONN
+              value: {{ .Values.pgbouncer.config.maxClientConn | quote }}
+            - name: PGBOUNCER_DEFAULT_POOL_SIZE
+              value: {{ .Values.pgbouncer.config.defaultPoolSize | quote }}
+            - name: PGBOUNCER_MIN_POOL_SIZE
+              value: {{ .Values.pgbouncer.config.minPoolSize | quote }}
+            - name: PGBOUNCER_RESERVE_POOL_SIZE
+              value: {{ .Values.pgbouncer.config.reservePoolSize | quote }}
+            - name: PGBOUNCER_SERVER_LIFETIME
+              value: {{ .Values.pgbouncer.config.serverLifetime | quote }}
+            - name: PGBOUNCER_SERVER_IDLE_TIMEOUT
+              value: {{ .Values.pgbouncer.config.serverIdleTimeout | quote }}
+            - name: PGBOUNCER_QUERY_TIMEOUT
+              value: {{ .Values.pgbouncer.config.queryTimeout | quote }}
+            - name: PGBOUNCER_LOG_CONNECTIONS
+              value: {{ .Values.pgbouncer.config.logConnections | quote }}
+            - name: PGBOUNCER_LOG_DISCONNECTIONS
+              value: {{ .Values.pgbouncer.config.logDisconnections | quote }}
+            - name: POSTGRESQL_HOST
+              value: {{ .Values.database.external.host | quote }}
+            - name: POSTGRESQL_PORT
+              value: {{ .Values.database.external.port | quote }}
+            - name: POSTGRESQL_DATABASE
+              value: {{ .Values.database.external.database | quote }}
+            - name: POSTGRESQL_USERNAME
+              {{- if .Values.database.externalSecret.enabled }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.externalSecret.name }}
+                  key: {{ .Values.database.externalSecret.usernameKey }}
+              {{- else }}
+              value: {{ .Values.database.external.username | quote }}
+              {{- end }}
+            - name: POSTGRESQL_PASSWORD
+              {{- if .Values.database.externalSecret.enabled }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.externalSecret.name }}
+                  key: {{ .Values.database.externalSecret.passwordKey }}
+              {{- else }}
+              value: {{ .Values.database.external.password | quote }}
+              {{- end }}
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.pgbouncer.resources | nindent 12 }}
+{{- end }}
