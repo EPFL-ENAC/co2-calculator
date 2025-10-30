@@ -86,7 +86,7 @@ def update_current_user(
 ):
     """Update current user information."""
     updated_user = user_service.update_user(
-        db, current_user.id, user_update, current_user
+        db, str(current_user.id), user_update, current_user
     )
     return updated_user
 
