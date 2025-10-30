@@ -5,7 +5,7 @@ from typing import List
 
 from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -29,11 +29,13 @@ class User(Base):
     )
 
     # Role-based access control
-    roles = Column(ARRAY(String), default=list, comment="User roles for RBAC")
+    roles: Mapped[List[str]] = mapped_column(
+        ARRAY(String), default=list, comment="User roles for the user"
+    )
 
-    # Statusc
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

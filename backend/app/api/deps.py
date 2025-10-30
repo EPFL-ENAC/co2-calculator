@@ -1,6 +1,5 @@
 """API dependencies for dependency injection."""
 
-from typing import Generator
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -13,12 +12,12 @@ from app.models.user import User
 __all__ = ["get_db", "get_current_user", "get_current_active_user"]
 
 
-def get_current_user(
+async def get_current_user(
     db: Session = Depends(get_db),
-) -> Generator[User, None, None]:
+) -> User:
     """
     Get current authenticated user.
 
     This is a convenience re-export of the security dependency.
     """
-    return get_current_active_user(db)
+    return await get_current_active_user(db)

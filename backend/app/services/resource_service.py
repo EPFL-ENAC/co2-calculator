@@ -191,7 +191,7 @@ def create_resource(
         )
 
     # Create resource
-    resource = resource_repo.create_resource(db, resource_create, user.id)
+    resource = resource_repo.create_resource(db, resource_create, str(user.id))
     logger.info(f"Created resource {resource.id} for user {user.id}")
 
     return resource
