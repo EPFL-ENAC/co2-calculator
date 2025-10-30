@@ -1,0 +1,9 @@
+CO2 Calculator has been deployed.
+
+To inspect pods:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Ingress hostname(s):
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
