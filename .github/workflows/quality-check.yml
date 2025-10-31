@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, dev]
   push:
-    branches: [main, dev]
+    branches: [main, dev, 'ci-test/**']
 
 jobs:
   quality:
@@ -31,3 +31,7 @@ jobs:
 
       - name: Check code formatting
         run: make format-check
+      
+      - name: Type Check
+        run: make type-check
+

@@ -2,7 +2,7 @@ name: Accessibility
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, 'ci-test/**']
     paths:
       - "frontend/**"
       - ".github/workflows/accessibility.yml"
