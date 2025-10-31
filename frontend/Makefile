@@ -68,8 +68,11 @@ format-check: ## Check frontend formatting without fixing
 	@if [ "$(FILES)" = "." ]; then \
 		echo "→ Checking all files with Prettier, ESLint, and Stylelint..."; \
 		npx prettier --check . --ignore-unknown; \
-		npx eslint . --ext .js,.ts,.jsx,.tsx,.vue; \
+		echo "→ ESLint check:"; \
+		npx eslint . ; \
+		echo "→ Stylelint check:"; \
 		npx stylelint "**/*.{css,scss}"; \
+		echo "Formatting check completed."; \
 	else \
 		if [ -n "$(PRETTIER_FILES)" ]; then \
 			echo "→ Prettier check: $(PRETTIER_FILES)"; \
@@ -91,7 +94,7 @@ format-check: ## Check frontend formatting without fixing
 lint-js: ## Lint JavaScript/TypeScript/Vue files
 	@echo "Linting JS/TS/Vue files..."
 	@if [ "$(FILES)" = "." ]; then \
-		npx eslint . --ext .js,.ts,.jsx,.tsx,.vue; \
+		npx eslint . ; \
 	else \
 		npx eslint $(FILES); \
 	fi
@@ -104,7 +107,7 @@ lint-css: ## Lint CSS/SCSS files
 		npx stylelint $(FILES); \
 	fi
 
-lint: format-check lint-css lint-js ## Lint all frontend code
+lint: format-check  ## Lint all frontend code
 
 
 .PHONY: type-check
@@ -116,6 +119,14 @@ type-check:
 	else \
 		npx tsc --noEmit --project tsconfig.json --files $(FILES); \
 	fi
+
+
+
+.PHONY: test
+
+test: ## Run frontend tests once
+	@echo "Running frontend tests..."
+	npm test
 # Allow passing arbitrary args (e.g. `make run dev`)
 %:
 	@:

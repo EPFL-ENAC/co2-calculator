@@ -9,12 +9,15 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,css,html,md,json}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{js,ts,vue,scss,css,html,md,json}\" --ignore-path .gitignore",
-    "test": "echo \"No test specified\" && exit 0",
-    "test:watch": "echo \"No test specified\" && exit 0",
+    "test": "npm run test-ct && npm run test:e2e",
+    "test:e2e": "playwright test tests/integration",
+    "test:e2e:headed": "playwright test tests/integration --headed",
+    "test:e2e:report": "playwright show-report",
     "tokens:generate": "node scripts/generate-scss-tokens.mjs",
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
-    "build": "quasar build"
+    "build": "quasar build",
+    "test-ct": "playwright test -c playwright-ct.config.ts"
   },
   "dependencies": {
     "@quasar/extras": "=1.17.0",
@@ -29,6 +32,8 @@
   "devDependencies": {
     "@eslint/js": "^9.38.0",
     "@intlify/unplugin-vue-i18n": "=11.0.1",
+    "@playwright/experimental-ct-vue": "^1.56.1",
+    "@playwright/test": "^1.56.1",
     "@quasar/app-vite": "=2.4.0",
     "@types/node": "=24.9.1",
     "@typescript-eslint/eslint-plugin": "=8.46.2",
