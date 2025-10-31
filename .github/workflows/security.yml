@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, dev]
   push:
-    branches: [main, dev]
+    branches: [main, dev, 'ci-test/**']
   schedule:
     # Run weekly on Mondays at 00:00 UTC
     - cron: "0 0 * * 1"
