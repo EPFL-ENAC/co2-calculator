@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # Database - REQUIRED
-    DB_USER: str = Field(..., description="Database user (REQUIRED)")
-    DB_PASSWORD: str = Field(..., description="Database password (REQUIRED)")
-    DB_HOST: str = Field(..., description="Database host (REQUIRED)")
-    DB_PORT: int = Field(..., description="Database port (REQUIRED)")
-    DB_NAME: str = Field(..., description="Database name (REQUIRED)")
+    DB_USER: str = Field(default="", description="Database user (REQUIRED)")
+    DB_PASSWORD: str = Field(default="", description="Database password (REQUIRED)")
+    DB_HOST: str = Field(default="", description="Database host (REQUIRED)")
+    DB_PORT: int = Field(default=5432, description="Database port (REQUIRED)")
+    DB_NAME: str = Field(default="", description="Database name (REQUIRED)")
 
     @property
     def DATABASE_URL(self) -> str:
