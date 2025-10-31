@@ -13,7 +13,7 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@echo ""
 	@echo "Docker & Services:"
-	@grep -E '^(up|down|restart|logs|ps):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^(up|force-up|down|restart|logs|ps):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Development:"
 	@grep -E '^(dev|dev-backend|dev-frontend):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -25,7 +25,7 @@ help: ## Show this help message
 	@grep -E '^(test|test-backend|test-frontend|test-watch):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Database:"
-	@grep -E '^(db-migrate|db-seed|db-reset|db-shell):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^(db-up|db-down|db-restart|db-migrate|db-seed|db-reset|db-shell):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Utilities:"
 	@grep -E '^(shell-backend|shell-frontend|prune|reset|clean|install|uninstall):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -41,9 +41,15 @@ help: ## Show this help message
 # =============================================================================
 
 up: ## Start all services (docker compose up)
+	@echo "Create docker network if not exists..."
+	@docker network create co2-calculator-network || true
 	@echo "Starting all services..."
 	docker compose up -d
 	@echo "Services started!"
+
+force-up: down up ## Force restart/rebuild all services
+	@echo "Services force restarted!"
+	docker compose up -d --build --force-recreate
 
 down: ## Stop all services (docker compose down)
 	@echo "Stopping all services..."
