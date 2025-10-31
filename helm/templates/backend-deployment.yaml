@@ -28,6 +28,13 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: migration
+          image: {{ include "co2-calculator.backend.image" . }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DB_HOST
+              value: postgres
       containers:
         - name: backend
           image: {{ include "co2-calculator.backend.image" . }}
@@ -64,18 +71,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: SECRET_KEY
-            - name: DATABASE_URL
-              {{- if .Values.database.externalSecret.enabled }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.database.externalSecret.name }}
-                  key: {{ .Values.database.externalSecret.urlKey }}
-              {{- else }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.fullname" . }}-backend
-                  key: DATABASE_URL
-              {{- end }}
             - name: POSTGRES_USER
               {{- if .Values.database.externalSecret.enabled }}
               valueFrom:

@@ -100,8 +100,8 @@ Projects such as Zalando Postgres Operator or Crunchy Data PGO provide managed c
 Regardless of the chosen deployment method, expose connection details with one of the chart mechanisms:
 
 - **Direct values** in `database.external` and `backend.secrets.SECRET_KEY`.
-- **Kubernetes secret** containing `DATABASE_URL`, `POSTGRES_USER`, and `POSTGRES_PASSWORD`, referenced by `database.externalSecret` and `backend.externalSecret`.
-- When PgBouncer is enabled, the chart rewrites `DATABASE_URL` automatically to point to the PgBouncer service name (`<release>-pgbouncer`).
+- **Kubernetes secret** containing `DB_USER`, and `DB_PASSWORD`, referenced by `database.externalSecret` and `backend.externalSecret`.
+- When PgBouncer is enabled, the chart rewrites `DB_HOST` automatically to point to the PgBouncer service name (`<release>-pgbouncer`).
 
 ## Clean-up
 

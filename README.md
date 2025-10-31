@@ -1,5 +1,7 @@
 # epfl-calculator-co2
 
+[![Security Checks](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=security%20checks&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+
 200 - Calculator Co2 (enacit4r-project-200-st, enacit4r-project-200-dev)
 
 **Project Status:** Under active development (v0.x.x internal/non-public releases)
