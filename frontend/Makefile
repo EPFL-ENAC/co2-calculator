@@ -116,8 +116,10 @@ type-check:
 	@if [ "$(FILES)" = "." ]; then \
 		echo "→ Type-checking entire project..."; \
 		npx tsc --noEmit ; \
+		npx vue-tsc --noEmit ; \
 	else \
 		npx tsc --noEmit --project tsconfig.json --files $(FILES); \
+		npx vue-tsc --noEmit --project tsconfig.json --files $(FILES); \
 	fi
 
 

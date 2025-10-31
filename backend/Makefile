@@ -206,6 +206,18 @@ docker-shell: ## Open shell in backend container
 	docker-compose exec backend bash
 
 # =============================================================================
+# Security check
+# =============================================================================
+
+.PHONY: security-check
+security-check: ## Run security checks with Safety and Bandit
+
+	@echo "Running security checks..."
+	uvx uv-audit --verbose
+	uvx bandit -r ./app/ -x tests,.venv   
+	@echo "Security checks complete!"
+
+# =============================================================================
 # OPA
 # =============================================================================
 
