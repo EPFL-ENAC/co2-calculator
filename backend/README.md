@@ -161,16 +161,8 @@ make opa-run
 
 Configuration is managed through environment variables. Copy `.env.example` to `.env` and update:
 
-```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/co2_calculator
-
-# Security
-SECRET_KEY=your-secret-key-here
-
-# OPA
-OPA_URL=http://localhost:8181
-OPA_ENABLED=true
+```
+make install
 ```
 
 ## Troubleshooting

@@ -88,7 +88,7 @@ async def startup_event():
         logger.warning("Debug mode: Database tables will be auto-created")
         from app.db import init_db
 
-        init_db()
+        await init_db()
 
 
 @app.on_event("shutdown")

@@ -20,10 +20,16 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # Database - REQUIRED
-    DATABASE_URL: str = Field(
-        default="CHANGE_ME_TO_A_VALID_DATABASE_URL",
-        description="PostgreSQL database URL (REQUIRED). Example: postgresql+psycopg://user:pass@host:5432/dbname",
-    )
+    DB_USER: str = Field(..., description="Database user (REQUIRED)")
+    DB_PASSWORD: str = Field(..., description="Database password (REQUIRED)")
+    DB_HOST: str = Field(..., description="Database host (REQUIRED)")
+    DB_PORT: int = Field(..., description="Database port (REQUIRED)")
+    DB_NAME: str = Field(..., description="Database name (REQUIRED)")
+
+    @property
+    def DATABASE_URL(self) -> str:
+        # return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?async_fallback=True"
 
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(
