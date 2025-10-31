@@ -77,7 +77,8 @@ dev: ## Start development environment (up + watch mode)
 	cd backend && $(MAKE) run & \
 	cd frontend && $(MAKE) run dev & \
 	wait
-run: dev ## Alias for dev
+
+run: db-up dev ## Alias for dev
 
 dev-backend: ## Run only backend in dev mode
 	@echo "Starting backend in development mode..."
