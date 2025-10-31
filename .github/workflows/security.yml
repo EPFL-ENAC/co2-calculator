@@ -63,11 +63,11 @@ jobs:
         run: uv sync
 
       - name: Run Safety check
-        run: uv run safety check --json
+        run: uvx uv-audit --verbose
         continue-on-error: true
 
       - name: Run Bandit security linter
-        run: uv run bandit -r . -f json
+        run: uvx bandit -r .
         continue-on-error: true
 
   codeql:
