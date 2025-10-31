@@ -57,7 +57,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync
@@ -67,7 +67,7 @@ jobs:
         continue-on-error: true
 
       - name: Run Bandit security linter
-        run: uvx bandit -r .
+        run: uvx bandit -r ./app/ -x tests,.venv   
         continue-on-error: true
 
   codeql:

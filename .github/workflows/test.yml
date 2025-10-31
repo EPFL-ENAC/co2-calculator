@@ -23,7 +23,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync
@@ -58,6 +58,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build frontend
+        run: npm run build
 
       - name: Run frontend tests
         run: make test
