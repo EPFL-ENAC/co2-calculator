@@ -1,4 +1,37 @@
 services:
+  reverse-proxy:
+    image: traefik:v3.5.4
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=true"
+      - "--providers.docker.network=co2-calculator-network"
+      - "--entryPoints.web.address=:80"
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--providers.docker"
+      - "--log.level=DEBUG"
+      - "--ping=true"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+    container_name: co2-calculator-traefik
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "80:80"
+      - "8080:8080"
+    expose:
+      - "80"
+      - "8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - co2-calculator-network
   # PostgreSQL for Auth module
   postgres:
     image: postgres:15-alpine
@@ -13,7 +46,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U postgresuser -d co2_calculator -h localhost -p 5432",
+          "pg_isready -U $$DB_USER -d $$DB_NAME -h $$DB_HOST -p $$DB_PORT",
         ]
       interval: 10s
       timeout: 5s
@@ -61,34 +94,60 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: co2-backend
+    networks:
+      - co2-calculator-network
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+    env_file:
+      - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://co2user:co2password@postgres:5432/co2_calculator
-      OPA_URL: http://opa:8181
-      DEBUG: "true"
-      LOG_LEVEL: INFO
+      # OVERRIDE to use service name 'postgres' as host in Docker Compose
+      DB_HOST: postgres
+      DEBUG: "False"
     ports:
       - "8000:8000"
-    volumes:
-      - ./app:/app/app:ro
+    # volumes:
+    #   - ./app:/app/app:ro
+    labels:
+      # match localhost/api/*
+      - "traefik.http.routers.backend.priority=200"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      # remove /api before sending to backend
+      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.backend.middlewares=backend-stripprefix,compress"
+      - "traefik.http.middlewares.compress.compress=true"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
     depends_on:
       postgres:
         condition: service_healthy
       # opa:
       #   condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: co2-frontend
+    networks:
+      - co2-calculator-network
     ports:
       - "3000:80"
     volumes:
       - ./frontend:/app:ro
+    labels:
+      # match everything else
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=100"
+      - "traefik.http.routers.frontend.middlewares=compress"
+      - "traefik.http.middlewares.compress.compress=true"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
     depends_on:
       - backend
-    command: npm start
 
 networks:
   co2-calculator-network:
