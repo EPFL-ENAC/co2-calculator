@@ -5,35 +5,36 @@ FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests first (for better Docker cache)
+# Copy dependency manifests first
 COPY pyproject.toml uv.lock ./
 
-# Sync deps into a local venv (no dev deps, no cache)
+# Install dependencies into a Linux-native venv
 RUN uv sync --frozen --no-dev --no-cache --compile-bytecode
 
-# Copy source code
-COPY . .
+# Copy application source and config only
+COPY app/ app/
+COPY alembic/ alembic/
+COPY alembic.ini ./
 
 # =========================
 # 2️⃣ Runtime Stage
 # =========================
-FROM alpine:3.20 AS runtime
-
-# Add system deps required to run Python (no compilers)
-RUN apk add --no-cache python3 libstdc++ && \
-    adduser -D appuser
+FROM ghcr.io/astral-sh/uv:python3.12-alpine AS runtime
 
 WORKDIR /app
+RUN addgroup -g 1001 appgroup && \
+    adduser -D -H -u 1001 -G appgroup appuser && \
+    chown -R appuser:appgroup /app
 USER appuser
 
-# Copy Python venv from builder
 COPY --from=builder /app/.venv /app/.venv
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Copy only app code (keep it lean)
 COPY --from=builder /app/app /app/app
+COPY --from=builder /app/alembic /app/alembic
+COPY --from=builder /app/alembic.ini /app/alembic.ini
+
+
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
-# Entrypoint: run app with uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

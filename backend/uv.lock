@@ -151,6 +151,7 @@ dependencies = [
     { name = "authlib" },
     { name = "email-validator" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "joserfc" },
     { name = "mypy" },
     { name = "passlib", extra = ["bcrypt"] },
@@ -158,7 +159,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
-    { name = "sqlalchemy" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "types-passlib" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -181,6 +182,7 @@ requires-dist = [
     { name = "authlib", specifier = "==1.6.5" },
     { name = "email-validator", specifier = "==2.1.0" },
     { name = "fastapi", specifier = "==0.120.2" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "joserfc", specifier = ">=1.4.0" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "passlib", extras = ["bcrypt"], specifier = "==1.7.4" },
@@ -188,7 +190,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.12.3" },
     { name = "pydantic-settings", specifier = "==2.11.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
-    { name = "sqlalchemy", specifier = "==2.0.44" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.44" },
     { name = "types-passlib", specifier = ">=1.7.7.20250602" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.38.0" },
 ]
@@ -806,6 +808,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/3d/3116a9a7b63e780fb402799b6da227435be878b6846b192f076d2f838654/sqlalchemy-2.0.44-cp312-cp312-win32.whl", hash = "sha256:846541e58b9a81cce7dee8329f352c318de25aa2f2bbe1e31587eb1f057448b4", size = 2103447, upload-time = "2025-10-10T15:03:21.678Z" },
     { url = "https://files.pythonhosted.org/packages/25/83/24690e9dfc241e6ab062df82cc0df7f4231c79ba98b273fa496fb3dd78ed/sqlalchemy-2.0.44-cp312-cp312-win_amd64.whl", hash = "sha256:7cbcb47fd66ab294703e1644f78971f6f2f1126424d2b300678f419aa73c7b6e", size = 2130912, upload-time = "2025-10-10T15:03:24.656Z" },
     { url = "https://files.pythonhosted.org/packages/9c/5e/6a29fa884d9fb7ddadf6b69490a9d45fded3b38541713010dad16b77d015/sqlalchemy-2.0.44-py3-none-any.whl", hash = "sha256:19de7ca1246fbef9f9d1bff8f1ab25641569df226364a0e40457dc5457c54b05", size = 1928718, upload-time = "2025-10-10T15:29:45.32Z" },
+]
+
+[package.optional-dependencies]
+asyncio = [
+    { name = "greenlet" },
 ]
 
 [[package]]
