@@ -3,8 +3,7 @@
 from datetime import datetime
 from typing import List
 
-from sqlalchemy import Boolean, Column, DateTime, String
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import JSON, Boolean, Column, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -30,7 +29,7 @@ class User(Base):
 
     # Role-based access control
     roles: Mapped[List[str]] = mapped_column(
-        ARRAY(String), default=list, comment="User roles for the user"
+        JSON, default=list, comment="User roles for the user"
     )
 
     # Status

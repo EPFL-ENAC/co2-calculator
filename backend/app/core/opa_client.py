@@ -146,7 +146,7 @@ def get_opa_client() -> OPAClient:
     return _opa_client
 
 
-def query_opa(policy_path: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
+async def query_opa(policy_path: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Convenience function to query OPA.
 

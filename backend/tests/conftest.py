@@ -1,66 +1,134 @@
 """Test configuration for pytest."""
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db import Base, get_db
 from app.main import app
 
 # Test database URL (use in-memory SQLite for tests)
-TEST_DATABASE_URL = "sqlite:///./test.db"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 
-# Create test engine
-engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Create async test engine
+engine = create_async_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    echo=True,  # Optional: see SQL queries
+)
+TestingSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
-@pytest.fixture
-def db_session():
-    """Create a new database session for each test."""
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    try:
+@pytest_asyncio.fixture(scope="function")
+async def db_session():
+    """Create a fresh database for each test."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestingSessionLocal() as session:
         yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
-@pytest.fixture
-def client(db_session):
-    """Create a test client with database override."""
+@pytest_asyncio.fixture(scope="function")
+async def client(db_session):
+    """Create a test client with overridden database dependency."""
 
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+    async def override_get_db():
+        yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        yield ac
+
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def cleanup():
+    """Cleanup after each test."""
+    yield
+    # Cleanup code if needed
+
+
+# @pytest.fixture
+# def mock_opa_allow(monkeypatch):
+#     """Mock OPA to always allow with no filters."""
+#     import app.core.opa_client as opa_client
+
+#     async def mock_query_opa(*args, **kwargs):
+#         """Async mock for OPA query."""
+#         return {"allow": True, "filters": {}}
+
+#     monkeypatch.setattr(opa_client, "query_opa", mock_query_opa)
+#     return mock_query_opa
 
 
 @pytest.fixture
 def mock_opa_allow(monkeypatch):
     """Mock OPA to always allow with no filters."""
-    from app.core import opa_client
 
-    def mock_query(*args, **kwargs):
+    async def mock_query_opa(*args, **kwargs):
+        """Async mock for OPA query."""
         return {"allow": True, "filters": {}}
 
-    monkeypatch.setattr(opa_client, "query_opa", mock_query)
+    # Patch it in the resource_service module where it's being called
+    monkeypatch.setattr("app.services.resource_service.query_opa", mock_query_opa)
+    return mock_query_opa
 
 
 @pytest.fixture
 def mock_opa_deny(monkeypatch):
     """Mock OPA to always deny."""
-    from app.core import opa_client
+    # import app.core.opa_client as opa_client
 
-    def mock_query(*args, **kwargs):
+    async def mock_query_opa(*args, **kwargs):
+        """Async mock for OPA query."""
         return {"allow": False, "reason": "Access denied"}
 
-    monkeypatch.setattr(opa_client, "query_opa", mock_query)
+    # monkeypatch.setattr(opa_client, "query_opa", mock_query_opa)
+    monkeypatch.setattr("app.services.resource_service.query_opa", mock_query_opa)
+
+    return mock_query_opa
+
+
+# @pytest.fixture
+# def mock_opa_allow(monkeypatch):
+#     """Mock OPA HTTP to always allow with no filters."""
+
+#     async def mock_post(*args, **kwargs):
+#         """Mock httpx post for OPA - ALLOW."""
+#         class MockResponse:
+#             status_code = 200
+#             def json(self):
+#                 return {"result": {"allow": True, "filters": {}}}
+
+#         return MockResponse()
+
+#     import httpx
+#     monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+
+# @pytest.fixture
+# def mock_opa_deny(monkeypatch):
+#     """Mock OPA HTTP to always deny."""
+
+#     async def mock_post(*args, **kwargs):
+#         """Mock httpx post for OPA - DENY."""
+#         class MockResponse:
+#             status_code = 200
+#             def json(self):
+#                 return {"result": {"allow": False, "reason": "Access denied"}}
+
+#         return MockResponse()
+
+#     import httpx
+#     monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)

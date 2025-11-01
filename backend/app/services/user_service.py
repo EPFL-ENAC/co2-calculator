@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import verify_password
 from app.models.user import User
@@ -14,17 +14,19 @@ from app.schemas.user import UserCreate, UserUpdate
 logger = logging.getLogger(__name__)
 
 
-def get_user(db: Session, user_id: str) -> Optional[User]:
+async def get_user(db: AsyncSession, user_id: str) -> Optional[User]:
     """Get user by ID."""
-    return user_repo.get_user_by_id(db, user_id)
+    return await user_repo.get_user_by_id(db, user_id)
 
 
-def get_user_by_email(db: Session, email: str) -> Optional[User]:
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     """Get user by email."""
-    return user_repo.get_user_by_email(db, email)
+    return await user_repo.get_user_by_email(db, email)
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+async def authenticate_user(
+    db: AsyncSession, email: str, password: str
+) -> Optional[User]:
     """
     Authenticate user with email and password.
 
@@ -36,7 +38,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     Returns:
         User if authentication successful, None otherwise
     """
-    user = user_repo.get_user_by_email(db, email)
+    user = await user_repo.get_user_by_email(db, email)
     if not user:
         return None
 
@@ -46,7 +48,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     return user
 
 
-def create_user(db: Session, user_create: UserCreate) -> User:
+async def create_user(db: AsyncSession, user_create: UserCreate) -> User:
     """
     Create a new user.
 
@@ -61,7 +63,7 @@ def create_user(db: Session, user_create: UserCreate) -> User:
         HTTPException: If email or SCIPER already exists
     """
     # Check if email exists
-    existing_user = user_repo.get_user_by_email(db, user_create.email)
+    existing_user = await user_repo.get_user_by_email(db, user_create.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
@@ -69,18 +71,18 @@ def create_user(db: Session, user_create: UserCreate) -> User:
 
     # Check if SCIPER exists (if provided)
     if user_create.sciper:
-        existing_user = user_repo.get_user_by_sciper(db, user_create.sciper)
+        existing_user = await user_repo.get_user_by_sciper(db, user_create.sciper)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="SCIPER already registered",
             )
 
-    return user_repo.create_user(db, user_create)
+    return await user_repo.create_user(db, user_create)
 
 
-def update_user(
-    db: Session, user_id: str, user_update: UserUpdate, current_user: User
+async def update_user(
+    db: AsyncSession, user_id: str, user_update: UserUpdate, current_user: User
 ) -> User:
     """
     Update user information.
@@ -118,7 +120,7 @@ def update_user(
     if "roles" in updates and not current_user.is_superuser:
         del updates["roles"]
 
-    updated_user = user_repo.update_user(db, user_id, updates)
+    updated_user = await user_repo.update_user(db, user_id, updates)
     if not updated_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -127,8 +129,8 @@ def update_user(
     return updated_user
 
 
-def list_users(
-    db: Session, current_user: User, skip: int = 0, limit: int = 100
+async def list_users(
+    db: AsyncSession, current_user: User, skip: int = 0, limit: int = 100
 ) -> List[User]:
     """
     List users with authorization.
@@ -152,10 +154,10 @@ def list_users(
     if not current_user.is_superuser and current_user.unit_id:
         filters["unit_id"] = current_user.unit_id
 
-    return user_repo.get_users(db, skip=skip, limit=limit, filters=filters)
+    return await user_repo.get_users(db, skip=skip, limit=limit, filters=filters)
 
 
-def delete_user(db: Session, user_id: str, current_user: User) -> bool:
+async def delete_user(db: AsyncSession, user_id: str, current_user: User) -> bool:
     """
     Delete a user.
 
@@ -177,7 +179,7 @@ def delete_user(db: Session, user_id: str, current_user: User) -> bool:
             detail="Not authorized to delete users",
         )
 
-    success = user_repo.delete_user(db, user_id)
+    success = await user_repo.delete_user(db, user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"

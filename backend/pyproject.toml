@@ -57,6 +57,7 @@ dev = [
   "mypy>=1.18",
   "ruff>=0.14",
   "httpx>=0.28",
+  "aiosqlite>=0.20.0",
 ]
 
 

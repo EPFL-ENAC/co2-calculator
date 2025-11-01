@@ -6,7 +6,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.config import get_settings
@@ -21,16 +21,18 @@ settings = get_settings()
 
 
 @router.post("/token", response_model=Token)
-def login(
+async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     OAuth2 compatible token login endpoint.
 
     Use email as username and password to get a JWT token.
     """
-    user = user_service.authenticate_user(db, form_data.username, form_data.password)
+    user = await user_service.authenticate_user(
+        db, form_data.username, form_data.password
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,9 +57,9 @@ def login(
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register(
+async def register(
     user_create: UserCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Register a new user.
@@ -65,13 +67,13 @@ def register(
     This is a public endpoint (no authentication required).
     """
     logger.info(f"New user registration: {user_create.email}")
-    user = user_service.create_user(db, user_create)
+    user = await user_service.create_user(db, user_create)
     logger.info(f"User {user.id} registered successfully")
     return user
 
 
 @router.get("/me", response_model=UserRead)
-def get_current_user_info(
+async def get_current_user_info(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get current user information."""
@@ -79,23 +81,23 @@ def get_current_user_info(
 
 
 @router.patch("/me", response_model=UserRead)
-def update_current_user(
+async def update_current_user(
     user_update: UserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Update current user information."""
-    updated_user = user_service.update_user(
+    updated_user = await user_service.update_user(
         db, str(current_user.id), user_update, current_user
     )
     return updated_user
 
 
 @router.get("/", response_model=List[UserRead])
-def list_users(
+async def list_users(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
@@ -104,18 +106,18 @@ def list_users(
     Regular users can only see users in their unit.
     Superusers can see all users.
     """
-    users = user_service.list_users(db, current_user, skip=skip, limit=limit)
+    users = await user_service.list_users(db, current_user, skip=skip, limit=limit)
     return users
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user(
+async def get_user(
     user_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Get user by ID."""
-    user = user_service.get_user(db, user_id)
+    user = await user_service.get_user(db, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -136,23 +138,23 @@ def get_user(
 
 
 @router.patch("/{user_id}", response_model=UserRead)
-def update_user(
+async def update_user(
     user_id: str,
     user_update: UserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Update user by ID."""
-    updated_user = user_service.update_user(db, user_id, user_update, current_user)
+    updated_user = await user_service.update_user(db, user_id, user_update, current_user)
     return updated_user
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
+async def delete_user(
     user_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Delete user (superuser only)."""
-    user_service.delete_user(db, user_id, current_user)
+    await user_service.delete_user(db, user_id, current_user)
     return None

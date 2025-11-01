@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.opa_client import query_opa
 from app.models.resource import Resource
@@ -52,8 +52,8 @@ def _build_opa_input(
     return input_data
 
 
-def list_resources(
-    db: Session, user: User, skip: int = 0, limit: int = 100
+async def list_resources(
+    db: AsyncSession, user: User, skip: int = 0, limit: int = 100
 ) -> List[Resource]:
     """
     List resources with OPA authorization.
@@ -87,25 +87,31 @@ def list_resources(
 
     # Query OPA for authorization decision
     logger.info(f"Querying OPA for resource list authorization: {input_data}")
-    decision = query_opa("authz/resource/list", input_data)
+    decision = await query_opa("authz/resource/list", input_data)
 
-    # Check if action is allowed
+    # Check if action is allowed: Fail silently
+    # if not decision.get("allow", False):
+    #     reason = decision.get("reason", "Access denied")
+    #     logger.warning(f"OPA denied resource list for user {user.id}: {reason}")
+    #     return []
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
         logger.warning(f"OPA denied resource list for user {user.id}: {reason}")
-        return []
+        raise HTTPException(status_code=403, detail=f"Access denied: {reason}")
 
     # Extract filters from OPA decision
     filters = decision.get("filters", {})
     logger.info(f"OPA filters for user {user.id}: {filters}")
 
     # Query database with filters
-    resources = resource_repo.get_resources(db, skip=skip, limit=limit, filters=filters)
+    resources = await resource_repo.get_resources(
+        db, skip=skip, limit=limit, filters=filters
+    )
 
     return resources
 
 
-def get_resource(db: Session, resource_id: int, user: User) -> Resource:
+async def get_resource(db: AsyncSession, resource_id: int, user: User) -> Resource:
     """
     Get a resource by ID with authorization.
 
@@ -121,7 +127,7 @@ def get_resource(db: Session, resource_id: int, user: User) -> Resource:
         HTTPException: If resource not found or access denied
     """
     # Get resource
-    resource = resource_repo.get_resource_by_id(db, resource_id)
+    resource = await resource_repo.get_resource_by_id(db, resource_id)
     if not resource:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
@@ -132,7 +138,7 @@ def get_resource(db: Session, resource_id: int, user: User) -> Resource:
 
     # Query OPA for authorization
     logger.info(f"Querying OPA for resource {resource_id} read authorization")
-    decision = query_opa("authz/resource/read", input_data)
+    decision = await query_opa("authz/resource/read", input_data)
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -147,15 +153,15 @@ def get_resource(db: Session, resource_id: int, user: User) -> Resource:
     return resource
 
 
-def create_resource(
-    db: Session, resource_create: ResourceCreate, user: User
+async def create_resource(
+    db: AsyncSession, resource_in: ResourceCreate, user: User
 ) -> Resource:
     """
     Create a new resource with authorization.
 
     Args:
         db: Database session
-        resource_create: Resource creation data
+        resource_in: Resource creation data
         user: Current user
 
     Returns:
@@ -167,13 +173,13 @@ def create_resource(
     # Build OPA input
     input_data = _build_opa_input(user, "create")
     input_data["resource_data"] = {
-        "unit_id": resource_create.unit_id,
-        "visibility": resource_create.visibility,
+        "unit_id": resource_in.unit_id,
+        "visibility": resource_in.visibility,
     }
 
     # Query OPA for authorization
     logger.info("Querying OPA for resource creation authorization")
-    decision = query_opa("authz/resource/create", input_data)
+    decision = await query_opa("authz/resource/create", input_data)
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -184,21 +190,21 @@ def create_resource(
         )
 
     # Validate unit_id matches user's unit (unless superuser)
-    if not user.is_superuser and resource_create.unit_id != user.unit_id:
+    if not user.is_superuser and resource_in.unit_id != user.unit_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot create resources for other units",
         )
 
     # Create resource
-    resource = resource_repo.create_resource(db, resource_create, str(user.id))
+    resource = await resource_repo.create_resource(db, resource_in, str(user.id))
     logger.info(f"Created resource {resource.id} for user {user.id}")
 
     return resource
 
 
-def update_resource(
-    db: Session, resource_id: int, resource_update: ResourceUpdate, user: User
+async def update_resource(
+    db: AsyncSession, resource_id: int, resource_update: ResourceUpdate, user: User
 ) -> Resource:
     """
     Update a resource with authorization.
@@ -216,7 +222,7 @@ def update_resource(
         HTTPException: If resource not found or not authorized
     """
     # Get existing resource
-    resource = resource_repo.get_resource_by_id(db, resource_id)
+    resource = await resource_repo.get_resource_by_id(db, resource_id)
     if not resource:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
@@ -227,7 +233,7 @@ def update_resource(
 
     # Query OPA for authorization
     logger.info(f"Querying OPA for resource {resource_id} update authorization")
-    decision = query_opa("authz/resource/update", input_data)
+    decision = await query_opa("authz/resource/update", input_data)
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -241,7 +247,7 @@ def update_resource(
 
     # Update resource
     updates = resource_update.model_dump(exclude_unset=True)
-    updated_resource = resource_repo.update_resource(db, resource_id, updates)
+    updated_resource = await resource_repo.update_resource(db, resource_id, updates)
 
     if not updated_resource:
         raise HTTPException(
@@ -252,7 +258,7 @@ def update_resource(
     return updated_resource
 
 
-def delete_resource(db: Session, resource_id: int, user: User) -> bool:
+async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> bool:
     """
     Delete a resource with authorization.
 
@@ -268,7 +274,7 @@ def delete_resource(db: Session, resource_id: int, user: User) -> bool:
         HTTPException: If resource not found or not authorized
     """
     # Get existing resource
-    resource = resource_repo.get_resource_by_id(db, resource_id)
+    resource = await resource_repo.get_resource_by_id(db, resource_id)
     if not resource:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
@@ -279,7 +285,7 @@ def delete_resource(db: Session, resource_id: int, user: User) -> bool:
 
     # Query OPA for authorization
     logger.info(f"Querying OPA for resource {resource_id} delete authorization")
-    decision = query_opa("authz/resource/delete", input_data)
+    decision = await query_opa("authz/resource/delete", input_data)
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -292,7 +298,7 @@ def delete_resource(db: Session, resource_id: int, user: User) -> bool:
         )
 
     # Delete resource
-    success = resource_repo.delete_resource(db, resource_id)
+    success = await resource_repo.delete_resource(db, resource_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
@@ -302,7 +308,7 @@ def delete_resource(db: Session, resource_id: int, user: User) -> bool:
     return success
 
 
-def count_resources(db: Session, user: User) -> int:
+async def count_resources(db: AsyncSession, user: User) -> int:
     """
     Count resources accessible to user.
 
@@ -317,7 +323,7 @@ def count_resources(db: Session, user: User) -> int:
     input_data = _build_opa_input(user, "read")
 
     # Query OPA for authorization
-    decision = query_opa("authz/resource/list", input_data)
+    decision = await query_opa("authz/resource/list", input_data)
 
     if not decision.get("allow", False):
         return 0
@@ -326,4 +332,4 @@ def count_resources(db: Session, user: User) -> int:
     filters = decision.get("filters", {})
 
     # Count resources with filters
-    return resource_repo.count_resources(db, filters)
+    return await resource_repo.count_resources(db, filters)

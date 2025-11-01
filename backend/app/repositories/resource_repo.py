@@ -2,19 +2,21 @@
 
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.resource import Resource
 from app.schemas.resource import ResourceCreate
 
 
-def get_resource_by_id(db: Session, resource_id: int) -> Optional[Resource]:
+async def get_resource_by_id(db: AsyncSession, resource_id: int) -> Optional[Resource]:
     """Get resource by ID."""
-    return db.query(Resource).filter(Resource.id == resource_id).first()
+    result = await db.execute(select(Resource).filter(Resource.id == resource_id))
+    return result.scalars().first()
 
 
-def get_resources(
-    db: Session, skip: int = 0, limit: int = 100, filters: Optional[dict] = None
+async def get_resources(
+    db: AsyncSession, skip: int = 0, limit: int = 100, filters: Optional[dict] = None
 ) -> List[Resource]:
     """
     Get list of resources with optional filters.
@@ -38,36 +40,42 @@ def get_resources(
         # Get resources in specific unit
         resources = get_resources(db, filters={"unit_id": "ENAC"})
     """
-    query = db.query(Resource)
+    query = select(Resource)
 
     if filters:
         for key, value in filters.items():
             if hasattr(Resource, key):
                 if isinstance(value, list):
                     # Handle list filters (e.g., visibility in ['public', 'unit'])
-                    query = query.filter(getattr(Resource, key).in_(value))
+                    query = query.where(getattr(Resource, key).in_(value))
                 else:
-                    query = query.filter(getattr(Resource, key) == value)
+                    query = query.where(getattr(Resource, key) == value)
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    return list(result.scalars().all())
 
-    return query.offset(skip).limit(limit).all()
 
-
-def get_resources_by_owner(db: Session, owner_id: str) -> List[Resource]:
+async def get_resources_by_owner(db: AsyncSession, owner_id: str) -> List[Resource]:
     """Get all resources owned by a specific user."""
-    return db.query(Resource).filter(Resource.owner_id == owner_id).all()
+    result = await db.execute(select(Resource).where(Resource.owner_id == owner_id))
+    return list(result.scalars().all())
 
 
-def get_resources_by_unit(db: Session, unit_id: str) -> List[Resource]:
+async def get_resources_by_unit(db: AsyncSession, unit_id: str) -> List[Resource]:
     """Get all resources in a specific unit."""
-    return db.query(Resource).filter(Resource.unit_id == unit_id).all()
+    result = await db.execute(select(Resource).where(Resource.unit_id == unit_id))
+    return list(result.scalars().all())
 
 
-def get_public_resources(db: Session) -> List[Resource]:
+async def get_public_resources(db: AsyncSession) -> List[Resource]:
     """Get all public resources."""
-    return db.query(Resource).filter(Resource.visibility == "public").all()
+    result = await db.execute(select(Resource).where(Resource.visibility == "public"))
+    return list(result.scalars().all())
 
 
-def create_resource(db: Session, resource: ResourceCreate, owner_id: str) -> Resource:
+async def create_resource(
+    db: AsyncSession, resource: ResourceCreate, owner_id: str
+) -> Resource:
     """
     Create a new resource.
 
@@ -90,13 +98,15 @@ def create_resource(db: Session, resource: ResourceCreate, owner_id: str) -> Res
     )
 
     db.add(db_resource)
-    db.commit()
-    db.refresh(db_resource)
+    await db.commit()
+    await db.refresh(db_resource)
 
     return db_resource
 
 
-def update_resource(db: Session, resource_id: int, updates: dict) -> Optional[Resource]:
+async def update_resource(
+    db: AsyncSession, resource_id: int, updates: dict
+) -> Optional[Resource]:
     """
     Update resource fields.
 
@@ -108,7 +118,7 @@ def update_resource(db: Session, resource_id: int, updates: dict) -> Optional[Re
     Returns:
         Updated resource or None if not found
     """
-    resource = get_resource_by_id(db, resource_id)
+    resource = await get_resource_by_id(db, resource_id)
     if not resource:
         return None
 
@@ -116,13 +126,13 @@ def update_resource(db: Session, resource_id: int, updates: dict) -> Optional[Re
         if value is not None and hasattr(resource, key):
             setattr(resource, key, value)
 
-    db.commit()
-    db.refresh(resource)
+    await db.commit()
+    await db.refresh(resource)
 
     return resource
 
 
-def delete_resource(db: Session, resource_id: int) -> bool:
+async def delete_resource(db: AsyncSession, resource_id: int) -> bool:
     """
     Delete a resource.
 
@@ -137,13 +147,13 @@ def delete_resource(db: Session, resource_id: int) -> bool:
     if not resource:
         return False
 
-    db.delete(resource)
-    db.commit()
+    await db.delete(resource)
+    await db.commit()
 
     return True
 
 
-def count_resources(db: Session, filters: Optional[dict] = None) -> int:
+async def count_resources(db: AsyncSession, filters: Optional[dict] = None) -> int:
     """
     Count resources with optional filters.
 
@@ -154,14 +164,15 @@ def count_resources(db: Session, filters: Optional[dict] = None) -> int:
     Returns:
         Number of resources matching filters
     """
-    query = db.query(Resource)
+    query = select(func.count()).select_from(Resource)
 
     if filters:
         for key, value in filters.items():
             if hasattr(Resource, key):
                 if isinstance(value, list):
-                    query = query.filter(getattr(Resource, key).in_(value))
+                    query = query.where(getattr(Resource, key).in_(value))
                 else:
-                    query = query.filter(getattr(Resource, key) == value)
+                    query = query.where(getattr(Resource, key) == value)
 
-    return query.count()
+    result = await db.execute(query)
+    return result.scalar_one()
