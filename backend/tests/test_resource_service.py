@@ -1,6 +1,7 @@
 """Test resource service."""
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
 
 from app.models.resource import Resource
@@ -9,9 +10,9 @@ from app.schemas.resource import ResourceCreate
 from app.services import resource_service
 
 
-@pytest.fixture
-def sample_user(db_session):
-    """Create a sample user for testing."""
+@pytest_asyncio.fixture
+async def test_user(db_session):
+    """Create a test user for testing."""
     user = User(
         id="test@example.com",
         email="test@example.com",
@@ -22,82 +23,121 @@ def sample_user(db_session):
         is_superuser=False,
     )
     db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    await db_session.commit()
+    await db_session.refresh(user)
     return user
 
 
-@pytest.fixture
-def sample_resource(db_session, sample_user):
-    """Create a sample resource for testing."""
+@pytest_asyncio.fixture
+async def test_resource(db_session, test_user):
+    """Create a test resource for testing."""
     resource = Resource(
         name="Test Resource",
         description="Test Description",
         unit_id="ENAC",
-        owner_id=sample_user.id,
+        owner_id=test_user.id,
         visibility="private",
         data={"key": "value"},
     )
     db_session.add(resource)
-    db_session.commit()
-    db_session.refresh(resource)
+    await db_session.commit()
+    await db_session.refresh(resource)
     return resource
 
 
-def test_list_resources_with_opa_allow(
-    db_session, sample_user, sample_resource, mock_opa_allow
+@pytest.mark.asyncio
+async def test_list_resources_with_opa_allow(
+    db_session, test_user, test_resource, mock_opa_allow
 ):
     """Test listing resources when OPA allows."""
-    resources = resource_service.list_resources(db_session, sample_user)
+    resources = await resource_service.list_resources(db=db_session, user=test_user)
     assert len(resources) > 0
+    assert resources[0].id == test_resource.id
 
 
-def test_list_resources_with_opa_deny(
-    db_session, sample_user, sample_resource, mock_opa_deny
+@pytest.mark.asyncio
+async def test_list_resources_with_opa_deny(
+    db_session, test_user, test_resource, mock_opa_deny
 ):
     """Test listing resources when OPA denies."""
-    resources = resource_service.list_resources(db_session, sample_user)
-    assert len(resources) == 0
+    with pytest.raises(HTTPException) as exc_info:
+        await resource_service.list_resources(db=db_session, user=test_user)
+    assert exc_info.value.status_code == 403
 
 
-def test_get_resource_success(db_session, sample_user, sample_resource, mock_opa_allow):
-    """Test getting a specific resource."""
-    resource = resource_service.get_resource(
-        db_session, sample_resource.id, sample_user
+@pytest.mark.asyncio
+async def test_get_resource_success(
+    db_session, test_user, test_resource, mock_opa_allow
+):
+    """Test getting a resource successfully."""
+    resource = await resource_service.get_resource(
+        db=db_session, resource_id=test_resource.id, user=test_user
     )
-    assert resource.id == sample_resource.id
+    assert resource is not None
+    assert resource.id == test_resource.id
 
 
-def test_get_resource_not_found(db_session, sample_user, mock_opa_allow):
+@pytest.mark.asyncio
+async def test_get_resource_not_found(db_session, test_user, mock_opa_allow):
     """Test getting a non-existent resource."""
-    with pytest.raises(HTTPException) as exc:
-        resource_service.get_resource(db_session, 99999, sample_user)
-    assert exc.value.status_code == 404
+    with pytest.raises(HTTPException) as exc_info:
+        await resource_service.get_resource(
+            db=db_session, resource_id=99999, user=test_user
+        )
+    assert exc_info.value.status_code == 404
 
 
-def test_create_resource(db_session, sample_user, mock_opa_allow):
-    """Test creating a new resource."""
-    resource_data = ResourceCreate(
-        name="New Resource",
-        description="New Description",
-        unit_id="ENAC",
-        visibility="private",
-        data={"key": "value"},
+@pytest.fixture
+def sample_resource_data(test_user):
+    """Sample resource data for testing."""
+    return {
+        "name": "Test Resource",
+        "description": "Test Description",
+        "unit_id": test_user.unit_id,
+        "visibility": "private",
+        "data": {"key": "value"},
+        "metadata": {"test": True},
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_resource(
+    db_session, test_user, mock_opa_allow, sample_resource_data
+):
+    """Test creating a resource."""
+    resource_data = ResourceCreate(**sample_resource_data)
+
+    resource = await resource_service.create_resource(
+        db=db_session, resource_in=resource_data, user=test_user
     )
 
-    resource = resource_service.create_resource(db_session, resource_data, sample_user)
-    assert resource.name == "New Resource"
-    assert resource.owner_id == sample_user.id
+    assert resource is not None
+    assert resource.name == sample_resource_data["name"]
+    assert resource.owner_id == test_user.id
 
 
-def test_create_resource_denied(db_session, sample_user, mock_opa_deny):
-    """Test creating a resource when OPA denies."""
-    resource_data = ResourceCreate(
-        name="New Resource",
-        unit_id="ENAC",
-        visibility="private",
-    )
+@pytest.fixture
+def sample_resource_denied_data():
+    """Sample resource data for testing."""
+    return {
+        "name": "Test Resource",
+        "description": "Test Description",
+        "unit_id": "Other unit",
+        "visibility": "private",
+        "data": {"key": "value"},
+        "metadata": {"test": True},
+    }
 
-    with pytest.raises(HTTPException) as exc:
-        resource_service.create_resource(db_session, resource_data, sample_user)
-    assert exc.value.status_code == 403
+
+@pytest.mark.asyncio
+async def test_create_resource_denied(
+    db_session, test_user, mock_opa_deny, sample_resource_denied_data
+):
+    """Test creating a resource when denied."""
+    resource_data = ResourceCreate(**sample_resource_denied_data)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await resource_service.create_resource(
+            db=db_session, resource_in=resource_data, user=test_user
+        )
+    assert exc_info.value.status_code == 403

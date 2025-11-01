@@ -9,7 +9,7 @@ from joserfc import jwt
 from joserfc.errors import BadSignatureError
 from joserfc.jwk import OctKey
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db import get_db
@@ -47,7 +47,7 @@ def decode_jwt(token: str) -> dict:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Dependency to get current authenticated user.
@@ -65,7 +65,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = get_user_by_id(db, user_id)
+    user = await get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,7 +76,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(db: Session = Depends(get_db)) -> User:
+async def get_current_active_user(db: AsyncSession = Depends(get_db)) -> User:
     """Dependency to ensure user is active."""
     user = await get_current_user(db=db)
     if not user.is_active:

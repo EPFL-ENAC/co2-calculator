@@ -1,8 +1,7 @@
 """API dependencies for dependency injection."""
 
-
 from fastapi import Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_current_active_user
 from app.db import get_db
@@ -13,7 +12,7 @@ __all__ = ["get_db", "get_current_user", "get_current_active_user"]
 
 
 async def get_current_user(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Get current authenticated user.

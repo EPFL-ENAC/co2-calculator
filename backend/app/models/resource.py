@@ -2,8 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -40,8 +39,8 @@ class Resource(Base):
     )
 
     # Resource data (flexible JSON structure)
-    data = Column(JSONB, default=dict, comment="Resource-specific data")
-    resource_metadata = Column(JSONB, default=dict, comment="Additional metadata")
+    data = Column(JSON, default=dict, comment="Resource-specific data")
+    resource_metadata = Column(JSON, default=dict, comment="Additional metadata")
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

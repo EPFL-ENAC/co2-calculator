@@ -2,30 +2,37 @@
 
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select, func
 from app.core.crypto import get_password_hash  # Import from crypto module instead
 from app.models.user import User
 from app.schemas.user import UserCreate
 
 
-def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
+async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
     """Get user by ID."""
-    return db.query(User).filter(User.id == user_id).first()
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 
-def get_user_by_email(db: Session, email: str) -> Optional[User]:
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     """Get user by email."""
-    return db.query(User).filter(User.email == email).first()
+    query = select(User).where(User.email == email)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 
-def get_user_by_sciper(db: Session, sciper: str) -> Optional[User]:
+async def get_user_by_sciper(db: AsyncSession, sciper: str) -> Optional[User]:
     """Get user by SCIPER number."""
-    return db.query(User).filter(User.sciper == sciper).first()
+    query = select(User).where(User.sciper == sciper)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 
-def get_users(
-    db: Session, skip: int = 0, limit: int = 100, filters: Optional[dict] = None
+async def get_users(
+    db: AsyncSession, skip: int = 0, limit: int = 100, filters: Optional[dict] = None
 ) -> List[User]:
     """
     Get list of users with optional filters.
@@ -39,22 +46,24 @@ def get_users(
     Returns:
         List of users
     """
-    query = db.query(User)
+    query = select(User)
 
     if filters:
         for key, value in filters.items():
             if hasattr(User, key):
-                query = query.filter(getattr(User, key) == value)
+                query = query.where(getattr(User, key) == value)
 
-    return query.offset(skip).limit(limit).all()
+    result = await db.execute(query.offset(skip).limit(limit))
+    return list(result.scalars().all())
 
 
-def get_users_by_unit(db: Session, unit_id: str) -> List[User]:
+async def get_users_by_unit(db: AsyncSession, unit_id: str) -> List[User]:
     """Get all users in a specific unit."""
-    return db.query(User).filter(User.unit_id == unit_id).all()
+    result = await db.execute(select(User).where(User.unit_id == unit_id))
+    return list(result.scalars().all())
 
 
-def create_user(db: Session, user: UserCreate) -> User:
+async def create_user(db: AsyncSession, user: UserCreate) -> User:
     """
     Create a new user.
 
@@ -78,13 +87,13 @@ def create_user(db: Session, user: UserCreate) -> User:
     )
 
     db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    await db.commit()
+    await db.refresh(db_user)
 
     return db_user
 
 
-def update_user(db: Session, user_id: str, updates: dict) -> Optional[User]:
+async def update_user(db: AsyncSession, user_id: str, updates: dict) -> Optional[User]:
     """
     Update user fields.
 
@@ -96,7 +105,7 @@ def update_user(db: Session, user_id: str, updates: dict) -> Optional[User]:
     Returns:
         Updated user or None if not found
     """
-    user = get_user_by_id(db, user_id)
+    user = await get_user_by_id(db, user_id)
     if not user:
         return None
 
@@ -107,13 +116,13 @@ def update_user(db: Session, user_id: str, updates: dict) -> Optional[User]:
             else:
                 setattr(user, key, value)
 
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
 
     return user
 
 
-def delete_user(db: Session, user_id: str) -> bool:
+async def delete_user(db: AsyncSession, user_id: str) -> bool:
     """
     Delete a user.
 
@@ -128,19 +137,20 @@ def delete_user(db: Session, user_id: str) -> bool:
     if not user:
         return False
 
-    db.delete(user)
-    db.commit()
+    await db.delete(user)
+    await db.commit()
 
     return True
 
 
-def count_users(db: Session, filters: Optional[dict] = None) -> int:
+async def count_users(db: AsyncSession, filters: Optional[dict] = None) -> int:
     """Count users with optional filters."""
-    query = db.query(User)
+    query = select(func.count()).select_from(User)
 
     if filters:
         for key, value in filters.items():
             if hasattr(User, key):
-                query = query.filter(getattr(User, key) == value)
+                query = query.where(getattr(User, key) == value)
 
-    return query.count()
+    result = await db.execute(query)
+    return result.scalar_one()
