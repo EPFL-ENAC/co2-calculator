@@ -59,6 +59,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Quasar prepare
+        run: npx quasar prepare
+
+      - name: install playwright browsers
+        run: npx playwright install --with-deps
+
       - name: Build frontend
         run: npm run build
 
