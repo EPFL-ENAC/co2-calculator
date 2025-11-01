@@ -62,8 +62,11 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Run frontend tests
-        run: make test
+      - name: Run frontend tests components
+        run: npm run test-ct
+
+      - name: Run frontend tests e2e
+        run: npm run test:e2e
 
       - name: Upload coverage reports
         if: always()
