@@ -31,9 +31,10 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built static files from build stage
 COPY --from=builder /app/dist/spa /usr/share/nginx/html
 
-EXPOSE 80
+# Expose port 8080 for security reasons (non-privileged)
+EXPOSE 8080
 
 # Start nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]
 
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:80/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8080/health || exit 1
