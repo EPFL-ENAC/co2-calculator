@@ -135,7 +135,7 @@ services:
     networks:
       - co2-calculator-network
     ports:
-      - "3000:80"
+      - "3000:8080"
     volumes:
       - ./frontend:/app:ro
     labels:
@@ -145,7 +145,7 @@ services:
       - "traefik.http.routers.frontend.priority=100"
       - "traefik.http.routers.frontend.middlewares=compress"
       - "traefik.http.middlewares.compress.compress=true"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
     depends_on:
       - backend
 
