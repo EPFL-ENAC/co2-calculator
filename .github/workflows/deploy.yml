@@ -21,3 +21,10 @@ jobs:
       ORG: epfl #.e.g epfl-cryos
       REPO: epfl-calculator-co2 # ex. lgb-trsc
       build_context: '[ "./frontend", "./backend" ]' # context paths to build
+  publish-chart:
+      uses: ./.github/workflows/publish_chart.yaml
+      needs:
+        - deploy
+      with:
+        registry: "epfl-enac/co2-calculator"
+        name: 'co2-calculator'
