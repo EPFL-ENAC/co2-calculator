@@ -4,7 +4,7 @@ This document tracks Quasar variables from the official Quasar variable list tha
 
 Reference: https://quasar.dev/style/sass-scss-variables#variables-list
 
-**Last Updated**: After fixing font-weight values and regenerating token files
+**Last Updated**: November 3, 2025 - Based on official Quasar v2 variables
 
 ---
 
@@ -12,13 +12,13 @@ Reference: https://quasar.dev/style/sass-scss-variables#variables-list
 
 Your bridge file successfully maps these Quasar variables to our token system:
 
-### Brand Colors
+### Brand Colors (9/9 = 100%)
 
 - ✅ `$primary`, `$secondary`, `$accent` → `dec.$color-primary`, `dec.$color-secondary`, `dec.$color-primary-hover`
 - ✅ `$dark`, `$dark-page` → hardcoded `#1d1d1d`, `#121212`
-- ✅ `$positive`, `$negative`, `$info`, `$warning` → `dec.$color-status-success/error/warning`
+- ✅ `$positive`, `$negative`, `$info`, `$warning` → `dec.$color-status-*`
 
-### Spacing System
+### Spacing System (13/16 = 81%)
 
 - ✅ `$space-base`, `$space-x-base`, `$space-y-base` → `dec.$spacing-md` (0.75rem / 12px)
 - ✅ `$space-none`, `$space-xs`, `$space-sm`, `$space-md`, `$space-lg`, `$space-xl` → Complete spacing map
@@ -27,61 +27,74 @@ Your bridge file successfully maps these Quasar variables to our token system:
   - md: 0.75rem (12px)
   - lg: 1rem (16px)
   - xl: 1.5rem (24px)
+- ✅ `$flex-cols` → 12
+- ✅ `$flex-gutter-xs/sm/md/lg/xl` → mapped to `dec.$spacing-*`
+- ❌ **Missing**: `$spaces` (map), `$flex-gutter` (map), `$sizes` (map)
 
-### Typography
+### Breakpoints (4/11 = 36%)
+
+- ✅ `$breakpoint-xs` → 599px
+- ✅ `$breakpoint-sm` → 1023px
+- ✅ `$breakpoint-md` → 1439px
+- ✅ `$breakpoint-lg` → 1919px
+- ❌ **Missing**: `$breakpoint-xs-max`, `$breakpoint-sm-min`, `$breakpoint-sm-max`, `$breakpoint-md-min`, `$breakpoint-md-max`, `$breakpoint-lg-min`, `$breakpoint-lg-max`, `$breakpoint-xl-min`
+
+### Z-index Layers (10/10 = 100%)
+
+- ✅ All z-index variables: `$z-fab`, `$z-side`, `$z-marginals`, `$z-fixed-drawer`, `$z-fullscreen`, `$z-menu`, `$z-top`, `$z-tooltip`, `$z-notify`, `$z-max`
+
+### Typography (4/20 = 20%)
 
 - ✅ `$body-font-size` → `dec.$text-size-sm` (0.875rem / 14px)
 - ✅ `$body-line-height` → `dec.$text-line-height-base` (1.25rem)
 - ✅ `$typography-font-family` → 'Roboto', '-apple-system', sans-serif
-- ✅ Font weights now correctly set: 400 (regular), 500 (medium), 700 (bold)
+- ✅ `$min-line-height` → NOT MAPPED (but exists in official variables at 1.12)
+- ❌ **Missing**: `$h1` through `$h6` (6 heading maps)
+- ❌ **Missing**: `$subtitle1`, `$subtitle2`, `$body1`, `$body2`, `$overline`, `$caption` (6 text style maps)
+- ❌ **Missing**: `$headings` (map), `$h-tags` (map), `$text-weights` (map)
 
-### Buttons
+### Buttons (11/11 = 100%)
 
-- ✅ `$button-border-radius` → `comp.$button-radius` (0.1875rem / 3px)
-- ✅ `$button-rounded-border-radius` → `comp.$button-radius-rounded` (62.4375rem)
-- ✅ `$button-push-border-radius` → `comp.$button-radius`
-- ✅ `$button-padding` → `comp.$button-padding-y` `comp.$button-padding-x`
-- ✅ `$button-dense-padding` → `comp.$button-padding-dense`
-- ✅ `$button-font-size`, `$button-line-height`, `$button-font-weight` → mapped to components
-- ✅ `$button-shadow`, `$button-shadow-active` → `none` (flat design)
-- ✅ `$button-transition` → `0.3s ease`
+- ✅ All button variables mapped to components layer
 
-### UI Elements
+### UI Core (10/10 = 100%)
 
-- ✅ `$separator-color` → `dec.$color-border` (#d5d5d5)
-- ✅ `$separator-dark-color` → `rgba(255 255 255 / 28%)`
-- ✅ `$generic-border-radius` → `dec.$radius-default-px` (3px)
-- ✅ `$generic-hover-transition` → `0.3s cubic-bezier(0.25, 0.8, 0.5, 1)`
-- ✅ `$dimmed-background`, `$light-dimmed-background` → rgba values
-
-### Form Components
-
-- ✅ **Input/Form fields**:
-  - `$input-font-size` → `comp.$form-field-font-size` (0.875rem)
-  - `$input-text-color` → `dec.$color-text` (#212121)
-  - `$input-label-color` → `dec.$color-text-muted` (#8e8e8e)
+- ✅ `$separator-color`, `$separator-dark-color`
+- ✅ `$generic-border-radius`, `$generic-hover-transition`
+- ✅ `$dimmed-background`, `$light-dimmed-background`
+- ✅ `$input-font-size`, `$input-text-color`, `$input-label-color`
+- ❌ **Missing**: `$input-autofill-color` (default: inherit)
 
 ### Layout Components
 
-- ✅ **Menu**: `$menu-background`, `$menu-max-width` (95vw), `$menu-max-height` (65vh)
-- ✅ **Tooltip**: Complete set (color, background, padding, border-radius, font sizes for desktop & mobile)
-- ✅ **Table**: Border colors, hover/selected backgrounds (light & dark), border-radius, transition
-- ✅ **Layout**: `$layout-border` → `1px solid $separator-color`
-- ✅ **Badge**: `$badge-font-size` (0.75rem), `$badge-line-height` (1)
-- ✅ **Item (lists)**: `$item-base-color` (#8e8e8e)
-- ✅ **Editor**: All variables (borders, padding, hr colors, button gutter)
-- ✅ **Chat**: All message variables (colors, backgrounds, border-radius, distances, padding)
-- ✅ **Dialog**: `$dialog-title-font-size` (1.125rem), `$dialog-title-line-height` (1.6)
-- ✅ **Toolbar**: Min height (50px), padding, title font size/weight
-- ✅ **Rating**: `$rating-grade-color` (#ffc107)
+- ✅ **Menu** (3/5): background, max-width, max-height
+  - ❌ Missing: `$menu-box-shadow`, `$menu-box-shadow-dark`
+- ✅ **Tooltip** (9/9): Complete set
+- ✅ **Table** (8/17): Basic colors and interactions
+  - ❌ Missing: `$table-box-shadow`, `$table-box-shadow-dark`, `$table-th-font-size`, `$table-tbody-td-font-size`, `$table-title-font-size`, `$table-bottom-font-size`, `$table-nodata-icon-font-size`, `$table-sort-icon-font-size`, `$table-grid-item-*`, `$table-dense-sort-icon-font-size`
+- ✅ **Layout** (1/3): border only
+  - ❌ Missing: `$layout-shadow`, `$layout-shadow-dark`
+- ✅ **Badge** (2/3): font-size, line-height
+  - ❌ Missing: `$badge-min-height`
+- ✅ **Item** (1/2): base-color
+  - ❌ Missing: `$item-section-side-icon-font-size`, `$item-section-side-avatar-font-size`, `$item-label-header-*`
+- ✅ **Editor** (8/8): Complete set
+- ✅ **Chat** (5/9): Core colors and spacing
+  - ❌ Missing: `$chat-message-name-font-size`, `$chat-message-stamp-font-size`, `$chat-message-label-font-size`, `$chat-message-avatar-size`
+- ✅ **Dialog** (2/3): title font-size and line-height
+  - ❌ Missing: `$dialog-title-letter-spacing`, `$dialog-progress-font-size`
+- ✅ **Toolbar** (5/7): Most variables
+  - ❌ Missing: `$toolbar-inset-size`, `$toolbar-title-letter-spacing`
+- ✅ **Rating** (1/2): grade-color
+  - ❌ Missing: `$rating-shadow`
 
 ---
 
-## ⚠️ Missing Variables
+## ⚠️ Missing Variables by Category
 
-### Core System Variables
+### 🔴 HIGH PRIORITY - Add These
 
-#### Animation (3 variables)
+#### 1. Animation Variables (3 variables) - **CRITICAL for transitions**
 
 ```scss
 $animate-duration: 0.3s !default;
@@ -89,366 +102,541 @@ $animate-delay: 0.3s !default;
 $animate-repeat: 1 !default;
 ```
 
-**Impact**: Low - Only affects Quasar's built-in animation utilities
-**Recommendation**: Add if using `q-transition` or Quasar animations
+**Impact**: Required for Quasar's `q-transition-*` components
+**Recommendation**: **Add immediately** if using Quasar transitions
 
-#### Breakpoints (12+ variables)
-
-```scss
-$breakpoint-xs: 599px !default;
-$breakpoint-sm: 1023px !default;
-$breakpoint-md: 1439px !default;
-$breakpoint-lg: 1919px !default;
-// Plus: $breakpoint-xs-max, $breakpoint-sm-min/max, etc.
-```
-
-**Impact**: **HIGH** - Required for responsive utilities and Quasar grid system
-**Recommendation**: **Add these ASAP** if using Quasar's responsive classes
-
-#### Flex Grid System (6 variables)
+#### 2. Breakpoint Derivatives (7 variables) - **IMPORTANT for responsive utilities**
 
 ```scss
-$flex-cols: 12 !default;
-$flex-gutter-xs: 4px !default;
-$flex-gutter-sm: 8px !default;
-$flex-gutter-md: 12px !default;
-$flex-gutter-lg: 24px !default;
-$flex-gutter-xl: 48px !default;
+$breakpoint-xs-max: 599.98px !default;
+$breakpoint-sm-min: 600px !default;
+$breakpoint-sm-max: 1023.98px !default;
+$breakpoint-md-min: 1024px !default;
+$breakpoint-md-max: 1439.98px !default;
+$breakpoint-lg-min: 1440px !default;
+$breakpoint-lg-max: 1919.98px !default;
+$breakpoint-xl-min: 1920px !default;
 ```
 
-**Impact**: **HIGH** - Required for `q-gutter-*` classes
-**Recommendation**: **Add if using Quasar grid/gutter utilities**
+**Impact**: Used by Quasar's responsive classes and mixins
+**Recommendation**: **Add if using advanced responsive utilities**
 
-#### Map Variables (6 maps)
+#### 3. Map Variables (3 critical maps)
 
 ```scss
-$spaces: (map of spacing values);
-$flex-gutter: (map of gutter values);
-$sizes: (map of breakpoint sizes);
-$headings: (map of heading styles);
-$h-tags: (map of h1-h6);
-$text-weights: (map of font weights);
+$spaces: (
+  'none': $space-none,
+  'xs': $space-xs,
+  'sm': $space-sm,
+  'md': $space-md,
+  'lg': $space-lg,
+  'xl': $space-xl,
+) !default;
+$flex-gutter: (
+  'none': 0,
+  'xs': $flex-gutter-xs,
+  'sm': $flex-gutter-sm,
+  'md': $flex-gutter-md,
+  'lg': $flex-gutter-lg,
+  'xl': $flex-gutter-xl,
+) !default;
+$sizes: (
+  'xs': 0,
+  'sm': 600px,
+  'md': 1024px,
+  'lg': 1440px,
+  'xl': 1920px,
+) !default;
 ```
 
-**Impact**: Medium - Used by Quasar's utility class generators
-**Recommendation**: Add if using dynamic spacing/typography classes
+**Impact**: Required by Quasar's utility class generators
+**Recommendation**: **Add if you see errors about missing maps**
 
 ---
 
-### Typography System
+### 🟡 MEDIUM PRIORITY - Add When Needed
 
-#### Heading Variables (6 heading styles)
+#### 4. Typography System (16 variables)
 
 ```scss
+// Heading maps
 $h1: (
   size: 6rem,
   line-height: 6rem,
   letter-spacing: -0.01562em,
   weight: 300,
-);
+) !default;
 $h2: (
   size: 3.75rem,
   line-height: 3.75rem,
   letter-spacing: -0.00833em,
   weight: 300,
-);
+) !default;
 $h3: (
   size: 3rem,
   line-height: 3.125rem,
   letter-spacing: normal,
   weight: 400,
-);
+) !default;
 $h4: (
   size: 2.125rem,
   line-height: 2.5rem,
   letter-spacing: 0.00735em,
   weight: 400,
-);
+) !default;
 $h5: (
   size: 1.5rem,
   line-height: 2rem,
   letter-spacing: normal,
   weight: 400,
-);
+) !default;
 $h6: (
   size: 1.25rem,
   line-height: 2rem,
   letter-spacing: 0.0125em,
   weight: 500,
-);
-```
+) !default;
 
-**Impact**: Medium - Only if using Quasar's `.text-h1` through `.text-h6` classes
-**Recommendation**: Define your own heading system in components layer if needed
-
-#### Text Styles (6 styles + 1 variable)
-
-```scss
+// Text style maps
 $subtitle1: (
   size: 1rem,
   line-height: 1.75rem,
   letter-spacing: 0.00937em,
   weight: 400,
-);
+) !default;
 $subtitle2: (
   size: 0.875rem,
   line-height: 1.375rem,
   letter-spacing: 0.00714em,
   weight: 500,
-);
+) !default;
 $body1: (
   size: 1rem,
   line-height: 1.5rem,
   letter-spacing: 0.03125em,
   weight: 400,
-);
+) !default;
 $body2: (
   size: 0.875rem,
   line-height: 1.25rem,
   letter-spacing: 0.01786em,
   weight: 400,
-);
+) !default;
 $overline: (
   size: 0.75rem,
   line-height: 2rem,
   letter-spacing: 0.16667em,
   weight: 500,
-);
+) !default;
 $caption: (
   size: 0.75rem,
   line-height: 1.25rem,
   letter-spacing: 0.03333em,
   weight: 400,
-);
-$min-line-height: 1.12;
+) !default;
+
+// Typography maps
+$headings: (map of all headings and text styles) !default;
+$h-tags: (h1-h6 only) !default;
+$text-weights: (
+  thin: 100,
+  light: 300,
+  regular: 400,
+  medium: 500,
+  bold: 700,
+  bolder: 900,
+) !default;
+
+// Additional
+$min-line-height: 1.12 !default;
 ```
 
-**Impact**: Low - Only for Material Design typography classes
-**Recommendation**: Skip unless using full Material typography system
+**Impact**: Only if using `.text-h1`, `.text-subtitle1`, etc. classes
+**Recommendation**: Add if you adopt Material Design typography
 
----
-
-### Material Design Color Palette
-
-**280+ color variables** including:
-
-- Base colors: `$red`, `$pink`, `$purple`, `$blue`, `$green`, `$yellow`, `$orange`, `$grey`, etc.
-- Each with 14 variants: `$red-1` through `$red-14` (light to dark)
-- Special variants: `$deep-purple`, `$light-blue`, `$blue-grey`, etc.
-
-**Impact**: Low - Your custom color system is cleaner
-**Recommendation**: **Skip entirely** - use your token-based colors instead
-
----
-
-### Z-index Layers (10 variables)
+#### 5. Shadow System (113 variables total)
 
 ```scss
-$z-fab: 990 !default;
-$z-side: 1000 !default;
-$z-marginals: 2000 !default;
-$z-fixed-drawer: 3000 !default;
-$z-fullscreen: 6000 !default;
-$z-menu: 6000 !default;
-$z-top: 7000 !default;
-$z-tooltip: 9000 !default;
-$z-notify: 9500 !default;
-$z-max: 9998 !default;
-```
-
-**Impact**: **HIGH** - Critical for proper layering of dialogs, drawers, tooltips, notifications
-**Recommendation**: **Add these** - essential for proper component stacking
-
----
-
-### Shadow System
-
-#### Shadow Configuration (5 core variables)
-
-```scss
+// Core shadow config (5 variables)
 $shadow-color: #000 !default;
 $shadow-transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1) !default;
 $inset-shadow: 0 7px 9px -7px rgba($shadow-color, 0.7) inset !default;
 $inset-shadow-down: 0 -7px 9px -7px rgba($shadow-color, 0.7) inset !default;
+
+// Elevation levels (3 variables)
 $elevation-umbra: rgba($shadow-color, 0.2) !default;
 $elevation-penumbra: rgba($shadow-color, 0.14) !default;
 $elevation-ambient: rgba($shadow-color, 0.12) !default;
+
+// 25 shadow levels: $shadow-0 through $shadow-24
+// 25 upward shadows: $shadow-up-0 through $shadow-up-24
+// 1 shadow array: $shadows
+// 1 shadow-up array: $shadows-up
+
+// Dark mode: Same structure (54 variables)
+// $dark-shadow-color, $inset-dark-shadow, $inset-dark-shadow-down
+// $elevation-dark-*, $dark-shadow-0 through $dark-shadow-24
+// $dark-shadow-up-0 through $dark-shadow-up-24
+// $dark-shadows, $dark-shadows-up
 ```
 
-#### Elevation Levels (50 shadow variables)
+**Impact**: Used for elevation effects on cards, dialogs, menus, etc.
+**Recommendation**: Add basic levels (1, 2, 4, 8) if you want Material elevation
 
-- `$shadow-0` through `$shadow-24` (25 levels)
-- `$shadow-up-0` through `$shadow-up-24` (25 upward shadows)
-
-#### Dark Mode Shadows (54 additional variables)
-
-- `$dark-shadow-color`, `$inset-dark-shadow`, elevation variants
-- `$dark-shadow-0` through `$dark-shadow-24`
-- `$dark-shadow-up-0` through `$dark-shadow-up-24`
-
-#### Shadow Arrays (4 arrays)
+#### 6. Component Shadows (3 variables)
 
 ```scss
-$shadows: (array of 24 shadow levels);
-$shadows-up: (array of 24 upward shadows);
-$dark-shadows: (array of 24 dark shadows);
-$dark-shadows-up: (array of 24 dark upward shadows);
+$menu-box-shadow: $shadow-2 !default;
+$menu-box-shadow-dark: $dark-shadow-2 !default;
+$table-box-shadow: $shadow-2 !default;
+$table-box-shadow-dark: $dark-shadow-2 !default;
+$layout-shadow:
+  0 0 10px 2px rgba($shadow-color, 0.2),
+  0 0px 10px rgba($shadow-color, 0.24) !default;
+$layout-shadow-dark:
+  0 0 10px 2px rgba($dark-shadow-color, 0.2),
+  0 0px 10px rgba($dark-shadow-color, 0.24) !default;
+$rating-shadow:
+  0 1px 3px rgba(0, 0, 0, 0.12),
+  0 1px 2px rgba(0, 0, 0, 0.24) !default;
 ```
 
-**Impact**: Medium - Used by Quasar components for elevation (cards, dialogs, menus)
-**Recommendation**: Add basic levels (0, 1, 2, 4, 8) if you want Material-style elevation
+**Impact**: Adds depth to specific components
+**Recommendation**: Add when components need elevation
 
 ---
 
-### Component-Specific Typography & Sizing
+### 🟢 LOW PRIORITY - Add Only If Specific Components Need Them
 
-**100+ component-specific variables** for precise sizing control. Most have low impact unless you're heavily customizing specific components.
+#### 7. Component-Specific Typography & Sizing (60+ variables)
 
-#### High Priority (add if using these components):
-
-- `$field-*` variables (if using QField extensively)
-- `$table-th-font-size`, `$table-tbody-td-font-size` (for custom table typography)
-- `$tabs-icon-font-size` (if using icon tabs)
-
-#### Medium Priority:
-
-- `$avatar-font-size`, `$chip-font-size`, `$badge-min-height`
-- `$stepper-*`, `$timeline-*` (if using these components)
-
-#### Low Priority (add as needed):
-
-- `$bar-*`, `$banner-*`, `$breadcrumbs-*`, `$carousel-*`
-- `$checkbox-inner-font-size`, `$radio-inner-font-size`
-- `$color-picker-*`, `$date-*`, `$time-*`
-- `$knob-*`, `$slider-*`, `$uploader-*`, `$tree-*`
-- `$img-*`, `$option-focus-transition`
-
-#### Additional Component Variables:
-
-- `$ios-statusbar-height: 20px` (for iOS mobile apps)
-- `$layout-shadow`, `$layout-shadow-dark` (for layout elevation)
-- `$menu-box-shadow`, `$menu-box-shadow-dark`
-- `$table-box-shadow`, `$table-box-shadow-dark`
-- `$rating-shadow`
-
----
-
-## 📊 Coverage Summary
-
-| Category                | Coverage | Variables Mapped | Priority   |
-| ----------------------- | -------- | ---------------- | ---------- |
-| ✅ Brand Colors         | 100%     | 9/9              | Critical   |
-| ✅ Spacing System       | 100%     | 7/7              | Critical   |
-| ✅ Basic Typography     | 100%     | 3/3              | Critical   |
-| ✅ Buttons              | 100%     | 11/11            | High       |
-| ✅ Core UI Elements     | 100%     | 7/7              | High       |
-| ✅ Form Fields (basic)  | 100%     | 3/3              | High       |
-| ✅ Common Components    | 100%     | 40+              | High       |
-| ⚠️ Breakpoints          | 0%       | 0/12+            | **HIGH**   |
-| ⚠️ Flex Grid System     | 0%       | 0/6              | **HIGH**   |
-| ⚠️ Z-index Layers       | 0%       | 0/10             | **HIGH**   |
-| ❌ Heading Styles       | 0%       | 0/6              | Medium     |
-| ❌ Text Styles          | 0%       | 0/7              | Low        |
-| ❌ Shadow System        | 0%       | 0/100+           | Medium     |
-| ❌ Material Colors      | 0%       | 0/280+           | Low        |
-| ❌ Component Typography | ~10%     | ~10/100+         | Low-Medium |
-| ❌ Maps                 | 0%       | 0/6              | Medium     |
-
-**Overall Coverage**: ~65% of commonly-used variables ✅
-
----
-
-## 💡 Priority Recommendations
-
-### 🔴 Critical - Add Immediately
-
-1. **Breakpoints** - Required for responsive design
-2. **Z-index layers** - Essential for proper component stacking
-3. **Flex gutter variables** - Needed for grid utilities
-
-### 🟡 Medium Priority - Add When Needed
-
-1. **Basic shadow definitions** (levels 1, 2, 4, 8) - For elevation effects
-2. **Map variables** - If using Quasar's utility class generators
-3. **Heading typography** - Only if using `.text-h1`...`.text-h6` classes
-
-### 🟢 Low Priority - Skip or Add Later
-
-1. **Material Design color palette** - Your token system is cleaner
-2. **All 24 shadow levels** - Excessive granularity
-3. **Component-specific sizing** - Add only when specific components look wrong
-4. **Text style maps** - Material Design specific
-
----
-
-## ✅ System Health Check
-
-### Font Weights
-
-✅ **FIXED** - Now using correct numeric values:
+**Avatar** (3 variables):
 
 ```scss
-$tokens-typography-font-weight-regular: 400 !default; // ✅ (was 25rem)
-$tokens-typography-font-weight-medium: 500 !default; // ✅ (was 31.25rem)
-$tokens-typography-font-weight-bold: 700 !default; // ✅ (was 43.75rem)
+$avatar-font-size: 48px !default;
+$avatar-content-font-size: 0.5em !default;
+$avatar-content-line-height: 0.5em !default;
 ```
 
-### Token System Architecture
-
-✅ **Healthy** - Three-layer system working correctly:
-
-- **Options** (62 primitives) → Raw design tokens
-- **Decisions** (47 semantic tokens) → Meaningful names
-- **Components** (80+ tokens) → Component-specific values
-- **Quasar Bridge** (60+ mappings) → Framework integration
-
-### Missing Critical Variables
-
-⚠️ **Action Required**:
+**Banner** (3 variables):
 
 ```scss
-// Add to _quasar-bridge.scss:
-$breakpoint-xs: 599px !default;
-$breakpoint-sm: 1023px !default;
-$breakpoint-md: 1439px !default;
-$breakpoint-lg: 1919px !default;
+$banner-avatar-font-size: 46px !default;
+$banner-avatar-icon-font-size: 40px !default;
+$banner-avatar-dense-font-size: 28px !default;
+```
 
-$z-fab: 990 !default;
-$z-side: 1000 !default;
-$z-marginals: 2000 !default;
-$z-fixed-drawer: 3000 !default;
-$z-fullscreen: 6000 !default;
-$z-menu: 6000 !default;
-$z-top: 7000 !default;
-$z-tooltip: 9000 !default;
-$z-notify: 9500 !default;
-$z-max: 9998 !default;
+**Bar/AppBar** (6 variables):
 
-$flex-cols: 12 !default;
-$flex-gutter-xs: dec.$spacing-xs !default;
-$flex-gutter-sm: dec.$spacing-sm !default;
-$flex-gutter-md: dec.$spacing-md !default;
-$flex-gutter-lg: dec.$spacing-lg !default;
-$flex-gutter-xl: dec.$spacing-xl !default;
+```scss
+$bar-inner-font-size: 16px !default;
+$bar-button-font-size: 11px !default;
+$bar-dense-font-size: 14px !default;
+$bar-dense-button-font-size: 8px !default;
+$bar-height: 32px !default;
+$bar-dense-height: 24px !default;
+```
+
+**Breadcrumbs** (1 variable):
+
+```scss
+$breadcrumbs-icon-font-size: 125% !default;
+```
+
+**Carousel** (1 variable):
+
+```scss
+$carousel-arrow-icon-font-size: 28px !default;
+```
+
+**Checkbox** (1 variable):
+
+```scss
+$checkbox-inner-font-size: 40px !default;
+```
+
+**Chip** (6 variables):
+
+```scss
+$chip-height: 2em !default;
+$chip-font-size: 14px !default;
+$chip-avatar-font-size: 2em !default;
+$chip-dense-height: 1.5em !default;
+$chip-dense-avatar-font-size: 1.5em !default;
+```
+
+**Color Picker** (1 variable):
+
+```scss
+$color-picker-tune-tab-input-font-size: 11px !default;
+```
+
+**Date Picker** (7 variables):
+
+```scss
+$date-header-subtitle-font-size: 14px !default;
+$date-header-subtitle-line-height: 1.75 !default;
+$date-header-subtitle-letter-spacing: 0.00938em !default;
+$date-header-title-label-font-size: 24px !default;
+$date-header-title-label-line-height: 1.2 !default;
+$date-header-title-label-letter-spacing: 0.00735em !default;
+$date-calendar-weekdays-inner-font-size: 12px !default;
+```
+
+**Field/Form** (13 variables):
+
+```scss
+$field-marginal-font-size: 24px !default;
+$field-marginal-avatar-font-size: 32px !default;
+$field-bottom-font-size: 12px !default;
+$field-bottom-line-height: 1 !default;
+$field-with-bottom-padding-bottom: 20px !default;
+$field-label-font-size: 16px !default;
+$field-label-line-height: 1.25 !default;
+$field-label-top: 18px !default;
+$field-label-letter-spacing: 0.00937em !default;
+$field-dense-bottom-font-size: 11px !default;
+$field-dense-with-bottom-padding-bottom: 19px !default;
+$field-dense-label-font-size: 14px !default;
+$field-dense-label-top: 10px !default;
+$field-dense-marginal-avatar-font-size: 24px !default;
+```
+
+**Image** (6 variables):
+
+```scss
+$img-loading-font-size: 50px !default;
+$img-content-position: absolute !default;
+$img-content-padding: 16px !default;
+$img-content-color: #fff !default;
+$img-content-background: rgba(0, 0, 0, 0.47) !default;
+```
+
+**Knob** (1 variable):
+
+```scss
+$knob-font-size: 48px !default;
+```
+
+**Radio** (1 variable):
+
+```scss
+$radio-inner-font-size: 40px !default;
+```
+
+**Slider** (1 variable):
+
+```scss
+$slider-text-font-size: 12px !default;
+```
+
+**Slide Item** (2 variables):
+
+```scss
+$slide-item-active-text-font-size: 14px !default;
+$slide-item-active-icon-font-size: 1.714em !default;
+```
+
+**Stepper** (7 variables):
+
+```scss
+$stepper-title-font-size: 14px !default;
+$stepper-title-line-height: 1.285714 !default;
+$stepper-title-letter-spacing: 0.1px !default;
+$stepper-caption-font-size: 12px !default;
+$stepper-caption-line-height: 1.16667 !default;
+$stepper-dot-font-size: 14px !default;
+$stepper-tab-font-size: 14px !default;
+$stepper-dot-error-with-icon-font-size: 24px !default;
+```
+
+**Tabs** (5 variables):
+
+```scss
+$tabs-icon-font-size: 24px !default;
+$tabs-icon-font-width: 24px !default;
+$tabs-icon-font-height: 24px !default;
+$tabs-alert-icon-font-size: 18px !default;
+$tabs-arrow-font-size: 32px !default;
+```
+
+**Time Picker** (2 variables):
+
+```scss
+$time-header-label-font-size: 28px !default;
+$time-clock-position-font-size: 12px !default;
+```
+
+**Timeline** (4 variables):
+
+```scss
+$timeline-subtitle-font-size: 12px !default;
+$timeline-subtitle-letter-spacing: 1px !default;
+$timeline-dot-icon-font-size: 16px !default;
+$timeline-comfortable-heading-font-size: 200% !default;
+```
+
+**Tree** (1 variable):
+
+```scss
+$tree-icon-font-size: 21px !default;
+```
+
+**Uploader** (4 variables):
+
+```scss
+$uploader-title-font-size: 14px !default;
+$uploader-title-line-height: 1.285714 !default;
+$uploader-subtitle-font-size: 12px !default;
+$uploader-subtitle-line-height: 1.5 !default;
+```
+
+**Other** (2 variables):
+
+```scss
+$option-focus-transition: 0.22s cubic-bezier(0, 0, 0.2, 1) !default;
+$ios-statusbar-height: 20px !default;
 ```
 
 ---
 
-## 🎯 Bottom Line
+### ⛔ SKIP ENTIRELY
 
-Your token system successfully provides 65% of Quasar's commonly-used variables. The missing critical variables (breakpoints, z-indexes, flex gutters) should be added to avoid runtime issues with responsive utilities and component layering. Everything else can be added incrementally as needed.
+#### Material Design Color Palette (280+ variables)
 
-**Next Steps**:
+- `$red`, `$red-1` through `$red-14`
+- `$pink`, `$pink-1` through `$pink-14`
+- `$purple`, `$deep-purple`, `$indigo`, `$blue`, `$light-blue`
+- `$cyan`, `$teal`, `$green`, `$light-green`, `$lime`
+- `$yellow`, `$amber`, `$orange`, `$deep-orange`
+- `$brown`, `$grey`, `$blue-grey`
+- Each with 14 variants (1-14)
 
-1. ✅ Font weights fixed - No action needed
-2. 🔴 Add breakpoints, z-indexes, and flex gutters to \_quasar-bridge.scss
-3. 🟢 Monitor for component rendering issues
-4. 🟢 Add additional variables only when specific problems arise
+**Impact**: None - Your token system is cleaner and more maintainable
+**Recommendation**: **Never add these** - use your custom color tokens instead
 
+---
+
+## 📊 Updated Coverage Summary
+
+| Category                | Coverage | Variables Mapped | Priority   | Status |
+| ----------------------- | -------- | ---------------- | ---------- | ------ |
+| ✅ Brand Colors         | 100%     | 9/9              | Critical   | ✅     |
+| ✅ Z-index Layers       | 100%     | 10/10            | Critical   | ✅     |
+| ✅ Buttons              | 100%     | 11/11            | High       | ✅     |
+| ✅ Editor               | 100%     | 8/8              | High       | ✅     |
+| ✅ Tooltip              | 100%     | 9/9              | High       | ✅     |
+| 🟡 Spacing System       | 81%      | 13/16            | Critical   | ⚠️     |
+| 🟡 Breakpoints          | 36%      | 4/11             | High       | ⚠️     |
+| 🟡 Table                | 47%      | 8/17             | High       | ⚠️     |
+| 🟡 Typography (Basic)   | 20%      | 4/20             | Medium     | ⚠️     |
+| 🟡 Menu                 | 60%      | 3/5              | Medium     | ⚠️     |
+| 🟡 Layout               | 33%      | 1/3              | Medium     | ⚠️     |
+| 🟡 Badge                | 67%      | 2/3              | Medium     | ⚠️     |
+| 🟡 Chat                 | 56%      | 5/9              | Low-Medium | ⚠️     |
+| 🟡 Dialog               | 67%      | 2/3              | Low-Medium | ⚠️     |
+| 🟡 Toolbar              | 71%      | 5/7              | Low-Medium | ⚠️     |
+| 🟡 Rating               | 50%      | 1/2              | Low        | ⚠️     |
+| 🟡 Item                 | 25%      | 1/4              | Low        | ⚠️     |
+| 🟡 Input                | 75%      | 3/4              | High       | ⚠️     |
+| ❌ Animation            | 0%       | 0/3              | **HIGH**   | ⚠️     |
+| ❌ Shadow System        | 0%       | 0/113            | Medium     | ❌     |
+| ❌ Heading Styles       | 0%       | 0/6              | Medium     | ❌     |
+| ❌ Text Styles          | 0%       | 0/7              | Low        | ❌     |
+| ❌ Map Variables        | 0%       | 0/6              | High       | ⚠️     |
+| ❌ Material Colors      | 0%       | 0/280+           | N/A (Skip) | ✅     |
+| ❌ Component Typography | ~10%     | ~10/100+         | Low        | ❌     |
+| ❌ Component Sizing     | ~5%      | ~5/60+           | Low        | ❌     |
+
+**Overall Coverage**: ~70% of commonly-used variables ✅
+
+---
+
+## 💡 Action Items
+
+### 🔴 IMMEDIATE - Add These Now
+
+1. **Animation variables** (3 lines):
+
+```scss
+$animate-duration: 0.3s !default;
+$animate-delay: 0.3s !default;
+$animate-repeat: 1 !default;
 ```
 
+2. **Required maps** (3 maps):
+
+```scss
+$spaces: (
+  'none': $space-none,
+  'xs': $space-xs,
+  'sm': $space-sm,
+  'md': $space-md,
+  'lg': $space-lg,
+  'xl': $space-xl,
+) !default;
+$flex-gutter: (
+  'none': 0,
+  'xs': $flex-gutter-xs,
+  'sm': $flex-gutter-sm,
+  'md': $flex-gutter-md,
+  'lg': $flex-gutter-lg,
+  'xl': $flex-gutter-xl,
+) !default;
+$sizes: (
+  'xs': 0,
+  'sm': 600px,
+  'md': 1024px,
+  'lg': 1440px,
+  'xl': 1920px,
+) !default;
 ```
 
-```
+### 🟡 WHEN NEEDED - Add If You See Errors
 
-```
+1. **Breakpoint derivatives** (if using responsive mixins)
+2. **Basic shadow levels** (if components need elevation)
+3. **Typography maps** (if using `.text-h*` classes)
+4. **Component-specific variables** (only when that component looks wrong)
+
+### 🟢 OPTIONAL - Add Later
+
+1. Full shadow system (all 24 levels)
+2. Component sizing variables
+3. Advanced typography system
+
+### ⛔ NEVER ADD
+
+1. Material Design color palette (280+ variables)
+
+---
+
+## ✅ System Health
+
+**Token Architecture**: ✅ Healthy
+
+- Options (62 primitives)
+- Decisions (47 semantic tokens)
+- Components (80+ component tokens)
+- Quasar Bridge (70+ mappings)
+
+**Critical Systems**: ✅ All Essential Systems Working
+
+- ✅ Colors & Branding
+- ✅ Spacing & Layout
+- ✅ Z-index Stacking
+- ✅ Core Components (buttons, forms, tables)
+- ⚠️ Missing animation config (add immediately)
+- ⚠️ Missing map variables (add if errors occur)
+
+**Risk Level**: 🟡 **LOW-MEDIUM**
+
+- Most critical variables are covered
+- Missing variables unlikely to cause issues unless specific features are used
+- Add additional variables incrementally as needed
+
+---
+
+**Last Verification**: November 3, 2025
+**Quasar Version**: v2.x
+**Token System Version**: 1.0.0
