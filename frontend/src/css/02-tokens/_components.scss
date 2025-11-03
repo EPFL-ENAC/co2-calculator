@@ -8,75 +8,181 @@
 @use 'options' as opt;
 
 // Buttons
-$button-padding-y: dec.$spacing-md !default;
-$button-padding-x: dec.$spacing-lg !default;
-$button-padding-dense: dec.$spacing-sm !default;
-$button-gap: dec.$spacing-xs !default;
-$button-radius: dec.$radius-default !default;
-$button-radius-rounded: dec.$radius-pill !default;
-$button-font-size: dec.$text-size-base !default;
-$button-font-size-sm: dec.$text-size-sm !default;
-$button-font-size-xs: dec.$text-size-xs !default;
-$button-line-height: dec.$text-line-height-base !default;
-$button-font-weight: dec.$text-weight-medium !default;
-$button-shadow: none !default;
-$button-shadow-active: none !default;
-$button-primary-bg: dec.$color-primary !default;
-$button-primary-bg-hover: dec.$color-primary-hover !default;
-$button-primary-text: dec.$color-text-on-primary !default;
-$button-secondary-bg: dec.$color-surface !default;
-$button-secondary-bg-hover: dec.$color-surface-muted !default;
-$button-secondary-text: dec.$color-text !default;
-$button-outline-border: dec.$color-border !default;
-$button-outline-text: dec.$color-text !default;
-$button-outline-bg-hover: dec.$color-surface-muted !default;
-$button-disabled-bg: dec.$color-surface-muted !default;
-$button-disabled-text: dec.$color-text-muted !default;
-$button-disabled-border: dec.$color-border !default;
+$button-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$button-radius-rounded: opt.$tokens-border-radius-full-border-radius !default;
+$button-primary-bg-default: opt.$tokens-colors-red-red-100 !default;
+$button-primary-bg-hover: opt.$tokens-colors-red-red-200 !default;
+$button-primary-color: opt.$tokens-colors-base-white !default;
+$button-secondary-bg-default: opt.$tokens-colors-base-white !default;
+$button-secondary-bg-hover: opt.$tokens-colors-grey-scale-grey-100 !default;
+$button-secondary-color: opt.$tokens-colors-base-black !default;
+$button-disabled-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$button-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$button-disabled-stroke-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$button-width: opt.$tokens-spacing-1 !default;
+$button-size-md-padding-x: opt.$tokens-spacing-16 !default;
+$button-size-md-padding-y: opt.$tokens-spacing-12 !default;
+$button-size-sm-padding-x: opt.$tokens-spacing-12 !default;
+$button-size-sm-padding-y: opt.$tokens-spacing-8 !default;
+$button-size-xs-padding-x: opt.$tokens-spacing-8 !default;
+$button-size-xs-padding-y: opt.$tokens-spacing-8 !default;
+$button-gap: opt.$tokens-spacing-4 !default;
+$button-size-md-font-size: opt.$tokens-typography-font-size-md !default;
+$button-size-md-line-height: opt.$tokens-typography-font-size-2xl !default;
+$button-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$button-size-sm-font-size: opt.$tokens-typography-font-size-sm !default;
+$button-size-sm-line-height: opt.$tokens-typography-font-size-xl !default;
+$button-size-xs-font-size: opt.$tokens-typography-font-size-xs !default;
+$button-size-xs-line-height: opt.$tokens-typography-line-height-xs !default;
+$button-secondary-stroke-color: opt.$tokens-colors-grey-scale-grey-300 !default;
 
-// Forms
-$form-field-padding-y: dec.$spacing-sm !default;
-$form-field-padding-x: dec.$spacing-md !default;
-$form-field-gap: dec.$spacing-xs !default;
-$form-field-bg: dec.$color-surface !default;
-$form-field-bg-disabled: dec.$color-surface-muted !default;
-$form-field-border: dec.$color-border !default;
-$form-field-border-disabled: dec.$color-text-muted !default;
-$form-field-text: dec.$color-text !default;
-$form-field-placeholder: dec.$color-text-muted !default;
-$form-field-radius: dec.$radius-default !default;
-$form-field-font-size: dec.$text-size-sm !default;
-$form-field-line-height: dec.$text-line-height-tight !default;
-$form-field-font-weight: dec.$text-weight-medium !default;
-
-// Cards
-$card-padding-x: dec.$spacing-xl !default;
-$card-padding-y: dec.$spacing-xl !default;
-$card-gap: dec.$spacing-md !default;
-$card-bg: dec.$color-surface !default;
-$card-border-color: dec.$color-border !default;
-$card-radius: dec.$radius-default !default;
+// Form Fields
+$field-sm-padding-x: opt.$tokens-spacing-12 !default;
+$field-sm-padding-y: opt.$tokens-spacing-8 !default;
+$field-sm-action-icon-size: opt.$tokens-spacing-12 !default;
+$field-sm-font-size: opt.$tokens-typography-font-size-sm !default;
+$field-sm-line-height: opt.$tokens-typography-line-height-sm !default;
+$field-sm-gap: opt.$tokens-spacing-4 !default;
+$field-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$field-sm-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$field-bg-default: opt.$tokens-colors-base-white !default;
+$field-bg-disabled: opt.$tokens-colors-grey-scale-grey-200 !default;
+$field-color-default: opt.$tokens-colors-base-black !default;
+$field-color-disabled: opt.$tokens-colors-grey-scale-grey-400 !default;
+$field-border-disabled: opt.$tokens-colors-grey-scale-grey-400 !default;
+$field-color-placeholder: opt.$tokens-colors-grey-scale-grey-600 !default;
+$field-border-default: opt.$tokens-colors-grey-scale-grey-400 !default;
+$field-md-font-size: opt.$tokens-typography-font-size-md !default;
+$field-md-line-height: opt.$tokens-typography-line-height-md !default;
+$field-md-font-weight: opt.$tokens-typography-font-weight-bold !default;
+$field-md-gap: opt.$tokens-spacing-8 !default;
 
 // Timeline
-$timeline-font-size: dec.$text-size-xs !default;
-$timeline-line-height: dec.$text-line-height-tight !default;
-$timeline-font-weight: dec.$text-weight-medium !default;
-$timeline-point-size: dec.$spacing-lg !default;
-$timeline-inner-point-size: dec.$spacing-sm !default;
-$timeline-gap: dec.$spacing-xs !default;
-$timeline-selected-color: dec.$color-primary !default;
-$timeline-default-color: dec.$color-text-muted !default;
+$timeline-item-validated-fill: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-icon: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-text: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-default-fill: opt.$tokens-colors-grey-scale-grey-500 !default;
+$timeline-item-default-icon: opt.$tokens-colors-grey-scale-grey-500 !default;
+$timeline-item-default-text: opt.$tokens-colors-grey-scale-grey-500 !default;
+$timeline-font-size: opt.$tokens-typography-font-size-2xs !default;
+$timeline-item-default-font-weight: opt.$tokens-typography-font-weight-regular !default;
+$timeline-line-height: opt.$tokens-typography-line-height-2xs !default;
+$timeline-point-size: opt.$tokens-spacing-16 !default;
+$timeline-inner-point-size: opt.$tokens-spacing-8 !default;
+$timeline-line-stroke: opt.$tokens-colors-grey-scale-grey-400 !default;
+$timeline-line-number: opt.$tokens-spacing-1 !default;
+$timeline-item-selected-text: opt.$tokens-colors-base-black !default;
+$timeline-item-selected-icon: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-selected-fill: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-selected-font-weight: opt.$tokens-typography-font-weight-medium !default;
 
-// Layout helpers
-$template-width: dec.$layout-page-width !default;
-$template-gap: dec.$spacing-xxl !default;
-$template-padding-y: dec.$spacing-page !default;
-$module-card-padding-x: dec.$spacing-xl !default;
-$module-card-padding-y: dec.$spacing-xl !default;
-$module-card-gap: dec.$spacing-md !default;
+// Icons
+$icon-icon-size-xl: opt.$tokens-spacing-32 !default;
+$icon-icon-size-lg: opt.$tokens-spacing-24 !default;
+$icon-icon-size-md: opt.$tokens-spacing-16 !default;
+$icon-icon-size-sm: opt.$tokens-spacing-16 !default;
+$icon-color-grey: opt.$tokens-colors-grey-scale-grey-600 !default;
+$icon-color-red: opt.$tokens-colors-red-red-100 !default;
+$icon-color-black: opt.$tokens-colors-base-black !default;
+$icon-color-white: opt.$tokens-colors-base-white !default;
 
-// Icon sizes
-$icon-size-xl: dec.$spacing-xxl !default;
-$icon-size-lg: dec.$spacing-xl !default;
-$icon-size-md: dec.$spacing-lg !default;
-$icon-size-sm: dec.$spacing-lg !default;
+// Radio Buttons
+$radio-selected-radio-color: opt.$tokens-colors-red-red-100 !default;
+$radio-selected-text-color: opt.$tokens-colors-base-black !default;
+$radio-button-size: opt.$tokens-spacing-16 !default;
+$radio-unselected-radio-color: opt.$tokens-colors-grey-scale-grey-600 !default;
+$radio-unselected-text-color: opt.$tokens-colors-base-black !default;
+$radio-disabled-radio-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$radio-disabled-text-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$radio-gap: opt.$tokens-spacing-4 !default;
+
+// Checkboxes
+$checkbox-selected-radio-color: opt.$tokens-colors-red-red-100 !default;
+$checkbox-button-size: opt.$tokens-spacing-16 !default;
+$checkbox-selected-text-color: opt.$tokens-colors-base-black !default;
+$checkbox-unselected-radio-color: opt.$tokens-colors-grey-scale-grey-600 !default;
+$checkbox-unselected-text-color: opt.$tokens-colors-base-black !default;
+$checkbox-gap: opt.$tokens-spacing-4 !default;
+$checkbox-disabled-radio-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$checkbox-disabled-text-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$checkbox-checkmark: opt.$tokens-colors-base-white !default;
+
+// Status Indicators
+$status-indicator-high-bg: opt.$tokens-colors-red-red-100 !default;
+$status-indicator-high-color: opt.$tokens-colors-base-white !default;
+$status-indicator-low-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$status-indicator-low-color: opt.$tokens-colors-grey-scale-grey-600 !default;
+$status-indicator-border-radius: opt.$tokens-border-radius-full-border-radius !default;
+$status-indicator-font-size: opt.$tokens-typography-font-size-2xs !default;
+$status-indicator-line-height: opt.$tokens-typography-line-height-2xs !default;
+$status-indicator-complete-bg: opt.$tokens-colors-status-green !default;
+$status-indicator-complete-color: opt.$tokens-colors-base-white !default;
+$status-indicator-disabled-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$status-indicator-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$status-indicator-disabled-border: opt.$tokens-colors-grey-scale-grey-400 !default;
+
+// Pop-ups
+$pop-up-min-width: dec.$layout-pop-up-min-width !default;
+$pop-up-padding-y: opt.$tokens-spacing-16 !default;
+$pop-up-gap: opt.$tokens-spacing-12 !default;
+$pop-up-bg: opt.$tokens-colors-base-white !default;
+$pop-up-divider-color: opt.$tokens-colors-grey-scale-grey-200 !default;
+$pop-up-divider-weight: opt.$tokens-spacing-1 !default;
+$pop-up-color: opt.$tokens-colors-base-black !default;
+
+// Tables
+$table-padding-x: opt.$tokens-spacing-12 !default;
+$table-padding-y: opt.$tokens-spacing-8 !default;
+$table-gap: opt.$tokens-spacing-32 !default;
+$table-bg-even: opt.$tokens-colors-base-white !default;
+$table-bg-odd: opt.$tokens-colors-grey-scale-grey-100 !default;
+$table-color-primary: opt.$tokens-colors-base-black !default;
+$table-color-disabled: opt.$tokens-colors-grey-scale-grey-400 !default;
+$table-border-weight: opt.$tokens-spacing-1 !default;
+$table-border-color: opt.$tokens-colors-grey-scale-grey-200 !default;
+$table-color-secondary: opt.$tokens-colors-grey-scale-grey-600 !default;
+$table-color-warning: opt.$tokens-colors-status-red !default;
+$table-color-success: opt.$tokens-colors-status-green !default;
+
+// Templates
+$template-width: opt.$tokens-layout-page-width !default;
+$template-padding-y: opt.$tokens-spacing-48 !default;
+$template-gap: opt.$tokens-spacing-32 !default;
+$template-bg: opt.$tokens-colors-base-white !default;
+
+// Containers
+$container-padding-x: opt.$tokens-spacing-24 !default;
+$container-padding-y: opt.$tokens-spacing-24 !default;
+$container-gap-y: opt.$tokens-spacing-12 !default;
+$container-default-bg: opt.$tokens-colors-base-white !default;
+$container-divider-weight: opt.$tokens-spacing-1 !default;
+$container-divider-default: opt.$tokens-colors-grey-scale-grey-200 !default;
+$container-disabled-bg: opt.$tokens-colors-grey-scale-grey-400 !default;
+$container-default-border: opt.$tokens-colors-grey-scale-grey-200 !default;
+$container-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$container-primary: opt.$tokens-colors-base-black !default;
+$container-secondary: opt.$tokens-colors-grey-scale-grey-600 !default;
+$container-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$container-divider-disabled: opt.$tokens-colors-grey-scale-grey-200 !default;
+$container-border-weight: opt.$tokens-spacing-1 !default;
+$container-selected-hover-bg: opt.$tokens-colors-red-red-highlight !default;
+$container-selected-hover-border: opt.$tokens-colors-red-red-100 !default;
+$container-gap-x: opt.$tokens-spacing-4 !default;
+$container-hover-bg: opt.$tokens-colors-base-white !default;
+$container-hover-border: opt.$tokens-colors-red-red-100 !default;
+$container-disabled-bg-fill: opt.$tokens-colors-grey-scale-grey-100 !default;
+
+// Tabs
+$tabs-selected-bg: opt.$tokens-colors-red-red-100 !default;
+$tabs-selected-border: opt.$tokens-colors-red-red-100 !default;
+$tabs-default-bg: opt.$tokens-colors-base-white !default;
+$tabs-default-border: opt.$tokens-colors-grey-scale-grey-200 !default;
+$tabs-selected-color: opt.$tokens-colors-base-white !default;
+$tabs-default-color: opt.$tokens-colors-base-black !default;
+$tabs-gap: opt.$tokens-spacing-8 !default;
+$tabs-padding-y: opt.$tokens-spacing-12 !default;
+$tabs-corner-border-radius: opt.$tokens-border-radius-lg-border-radius !default;
+$tabs-padding-x: opt.$tokens-spacing-24 !default;
+
+// Miscellaneous
+$lab-selected: nanrem !default;

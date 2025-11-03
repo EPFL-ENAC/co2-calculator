@@ -284,86 +284,6 @@ $layout-pop-up-min-width: 21.875rem !default;
 `;
 }
 
-function generateComponentsManualContent() {
-  return `@use 'decisions' as dec;
-@use 'options' as opt;
-
-// Buttons
-$button-padding-y: dec.$spacing-md !default;
-$button-padding-x: dec.$spacing-lg !default;
-$button-padding-dense: dec.$spacing-sm !default;
-$button-gap: dec.$spacing-xs !default;
-$button-radius: dec.$radius-default !default;
-$button-radius-rounded: dec.$radius-pill !default;
-$button-font-size: dec.$text-size-base !default;
-$button-font-size-sm: dec.$text-size-sm !default;
-$button-font-size-xs: dec.$text-size-xs !default;
-$button-line-height: dec.$text-line-height-base !default;
-$button-font-weight: dec.$text-weight-medium !default;
-$button-shadow: none !default;
-$button-shadow-active: none !default;
-$button-primary-bg: dec.$color-primary !default;
-$button-primary-bg-hover: dec.$color-primary-hover !default;
-$button-primary-text: dec.$color-text-on-primary !default;
-$button-secondary-bg: dec.$color-surface !default;
-$button-secondary-bg-hover: dec.$color-surface-muted !default;
-$button-secondary-text: dec.$color-text !default;
-$button-outline-border: dec.$color-border !default;
-$button-outline-text: dec.$color-text !default;
-$button-outline-bg-hover: dec.$color-surface-muted !default;
-$button-disabled-bg: dec.$color-surface-muted !default;
-$button-disabled-text: dec.$color-text-muted !default;
-$button-disabled-border: dec.$color-border !default;
-
-// Forms
-$form-field-padding-y: dec.$spacing-sm !default;
-$form-field-padding-x: dec.$spacing-md !default;
-$form-field-gap: dec.$spacing-xs !default;
-$form-field-bg: dec.$color-surface !default;
-$form-field-bg-disabled: dec.$color-surface-muted !default;
-$form-field-border: dec.$color-border !default;
-$form-field-border-disabled: dec.$color-text-muted !default;
-$form-field-text: dec.$color-text !default;
-$form-field-placeholder: dec.$color-text-muted !default;
-$form-field-radius: dec.$radius-default !default;
-$form-field-font-size: dec.$text-size-sm !default;
-$form-field-line-height: dec.$text-line-height-tight !default;
-$form-field-font-weight: dec.$text-weight-medium !default;
-
-// Cards
-$card-padding-x: dec.$spacing-xl !default;
-$card-padding-y: dec.$spacing-xl !default;
-$card-gap: dec.$spacing-md !default;
-$card-bg: dec.$color-surface !default;
-$card-border-color: dec.$color-border !default;
-$card-radius: dec.$radius-default !default;
-
-// Timeline
-$timeline-font-size: dec.$text-size-xs !default;
-$timeline-line-height: dec.$text-line-height-tight !default;
-$timeline-font-weight: dec.$text-weight-medium !default;
-$timeline-point-size: dec.$spacing-lg !default;
-$timeline-inner-point-size: dec.$spacing-sm !default;
-$timeline-gap: dec.$spacing-xs !default;
-$timeline-selected-color: dec.$color-primary !default;
-$timeline-default-color: dec.$color-text-muted !default;
-
-// Layout helpers
-$template-width: dec.$layout-page-width !default;
-$template-gap: dec.$spacing-xxl !default;
-$template-padding-y: dec.$spacing-page !default;
-$module-card-padding-x: dec.$spacing-xl !default;
-$module-card-padding-y: dec.$spacing-xl !default;
-$module-card-gap: dec.$spacing-md !default;
-
-// Icon sizes
-$icon-size-xl: dec.$spacing-xxl !default;
-$icon-size-lg: dec.$spacing-xl !default;
-$icon-size-md: dec.$spacing-lg !default;
-$icon-size-sm: dec.$spacing-lg !default;
-`;
-}
-
 // /* Quasar bridge generation
 // ** CF: https://quasar.dev/style/variables-and-styling#introduction-to-quasar-sass-variables
 // ** https://quasar.dev/style/sass-scss-variables#variables-list
@@ -433,13 +353,13 @@ $typography-font-family: dec.$text-font-family !default;
 $button-border-radius: comp.$button-radius !default;
 $button-rounded-border-radius: comp.$button-radius-rounded !default;
 $button-push-border-radius: comp.$button-radius !default;
-$button-padding: comp.$button-padding-y comp.$button-padding-x !default;
-$button-dense-padding: comp.$button-padding-dense !default;
-$button-font-size: comp.$button-font-size !default;
-$button-line-height: comp.$button-line-height !default;
-$button-font-weight: comp.$button-font-weight !default;
-$button-shadow: comp.$button-shadow !default;
-$button-shadow-active: comp.$button-shadow-active !default;
+$button-padding: comp.$button-size-md-padding-y comp.$button-size-md-padding-x !default;
+$button-dense-padding: comp.$button-size-sm-padding-y comp.$button-size-sm-padding-x !default;
+$button-font-size: comp.$button-size-md-font-size !default;
+$button-line-height: comp.$button-size-md-line-height !default;
+$button-font-weight: dec.$text-weight-medium !default;
+$button-shadow: none !default;
+$button-shadow-active: none !default;
 $button-transition: 0.3s ease !default;
 
 // Separators & borders
@@ -448,7 +368,7 @@ $separator-dark-color: rgb(255 255 255 / 28%) !default;
 $generic-border-radius: dec.$radius-default-px !default;
 
 // Input/Form fields
-$input-font-size: comp.$form-field-font-size !default;
+$input-font-size: comp.$field-sm-font-size !default;
 $input-text-color: dec.$color-text !default;
 $input-label-color: dec.$color-text-muted !default;
 
@@ -584,6 +504,8 @@ async function run() {
 
   // Separate records by layer
   const optionsRecords = allRecords.filter((r) => r.layer === 'options');
+  const decisionsRecords = allRecords.filter((r) => r.layer === 'decisions');
+  const componentsRecords = allRecords.filter((r) => r.layer === 'components');
 
   // Generate options file
   const optionsContent = generateScssContent(
@@ -594,7 +516,7 @@ async function run() {
   await fs.writeFile(OPTIONS_FILE, optionsContent);
   globalThis.console.log(`✓ Generated ${OPTIONS_FILE}`);
 
-  // Generate decisions file with manual semantic mappings
+  // Generate decisions file - keep manual for now
   const decisionsHeader = `// -----------------------------------------------------------------------------
 // ⚠️  Auto-generated file
 // -----------------------------------------------------------------------------
@@ -606,16 +528,13 @@ async function run() {
   await fs.writeFile(DECISIONS_FILE, decisionsContent);
   globalThis.console.log(`✓ Generated ${DECISIONS_FILE}`);
 
-  // Generate components file with manual semantic mappings
-  const componentsHeader = `// -----------------------------------------------------------------------------
-// ⚠️  Auto-generated file
-// -----------------------------------------------------------------------------
-// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
-// Do not edit manually.
-
-`;
-  const componentsContent =
-    componentsHeader + generateComponentsManualContent();
+  // Generate components file - FULLY AUTO-GENERATED
+  const componentsContent = generateScssContent(
+    componentsRecords,
+    recordMap,
+    'components',
+    "@use 'decisions' as dec;\n@use 'options' as opt;",
+  );
   await fs.writeFile(COMPONENTS_FILE, componentsContent);
   globalThis.console.log(`✓ Generated ${COMPONENTS_FILE}`);
 
@@ -628,8 +547,12 @@ async function run() {
   globalThis.console.log('');
   globalThis.console.log('Summary:');
   globalThis.console.log(`  Options:    ${optionsRecords.length} primitives`);
-  globalThis.console.log(`  Decisions:  Manual semantic mappings`);
-  globalThis.console.log(`  Components: Manual component tokens`);
+  globalThis.console.log(
+    `  Decisions:  ${decisionsRecords.length} tokens found (using manual template)`,
+  );
+  globalThis.console.log(
+    `  Components: ${componentsRecords.length} component tokens`,
+  );
   globalThis.console.log(`  Total CSS:  ${allRecords.length} tokens parsed`);
 }
 

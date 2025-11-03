@@ -16,8 +16,8 @@
   --semantic-spacing-md: #{dec.$spacing-md};
   --semantic-spacing-lg: #{dec.$spacing-lg};
   --semantic-spacing-xl: #{dec.$spacing-xl};
-  --semantic-button-padding-y: #{comp.$button-padding-y};
-  --semantic-button-padding-x: #{comp.$button-padding-x};
+  --semantic-button-padding-y: #{comp.$button-size-md-padding-y};
+  --semantic-button-padding-x: #{comp.$button-size-md-padding-x};
   --semantic-button-border-radius: #{comp.$button-radius};
   --semantic-font-size-base: #{dec.$text-size-base};
   --semantic-font-weight-medium: #{dec.$text-weight-medium};

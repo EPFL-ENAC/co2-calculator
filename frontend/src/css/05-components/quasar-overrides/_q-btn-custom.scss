@@ -3,13 +3,13 @@
 .q-btn.q-btn--gradient-primary {
   background-image: linear-gradient(
     135deg,
-    tokens.$button-primary-bg 0%,
-    tokens.$button-primary-bg-hover 100%
+    tokens.$button-primary-color 0%,
+    tokens.$button-primary-color 100%
   );
-  color: tokens.$button-primary-text;
+  color: tokens.$button-primary-color;
 }
 
 .q-btn.q-btn--dense {
-  padding: tokens.$button-padding-dense;
+  padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   border-radius: tokens.$button-radius;
 }
