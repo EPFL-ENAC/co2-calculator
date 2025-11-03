@@ -1,8 +1,9 @@
 """Application configuration using Pydantic settings."""
 
 from functools import lru_cache
+from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,17 +20,53 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
-    # Database - REQUIRED
-    DB_USER: str = Field(default="", description="Database user (REQUIRED)")
-    DB_PASSWORD: str = Field(default="", description="Database password (REQUIRED)")
-    DB_HOST: str = Field(default="", description="Database host (REQUIRED)")
-    DB_PORT: int = Field(default=5432, description="Database port (REQUIRED)")
-    DB_NAME: str = Field(default="", description="Database name (REQUIRED)")
+    # Database Configuration
+    # Option 1: Provide full DATABASE_URL directly (takes precedence)
+    DATABASE_URL: Optional[str] = Field(
+        default=None,
+        description="""
+            Full database URL. If not set, defaults to SQLite
+            or constructed PostgreSQL URL based on other settings: DB_*
+            """,
+    )
 
-    @property
-    def DATABASE_URL(self) -> str:
-        # return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?async_fallback=True"
+    # Option 2: Provide PostgreSQL connection details (optional, for PostgreSQL)
+    DB_USER: Optional[str] = Field(
+        default=None, description="Database user (optional, for PostgreSQL)"
+    )
+    DB_PASSWORD: Optional[str] = Field(
+        default=None, description="Database password (optional, for PostgreSQL)"
+    )
+    DB_HOST: Optional[str] = Field(
+        default=None, description="Database host (optional, for PostgreSQL)"
+    )
+    DB_PORT: int = Field(
+        default=5432, description="Database port (optional, for PostgreSQL)"
+    )
+    DB_NAME: Optional[str] = Field(
+        default=None, description="Database name (optional, for PostgreSQL)"
+    )
+
+    @computed_field
+    def database_url(self) -> str:
+        """
+        Get the database URL.
+
+        Priority:
+        1. If DATABASE_URL is explicitly set, use it
+        2. If DB_USER, DB_PASSWORD, DB_HOST, DB_NAME are all set, build PostgreSQL URL
+        3. Otherwise, default to SQLite
+        """
+        # If DATABASE_URL is explicitly provided, use it
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+
+        # If PostgreSQL credentials are provided, build the URL
+        if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_NAME]):
+            return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?async_fallback=True"
+
+        # Default to SQLite for local development
+        return "sqlite+aiosqlite:///./co2_calculator.db"
 
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(

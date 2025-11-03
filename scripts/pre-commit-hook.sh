@@ -21,6 +21,7 @@ for dir in $staged_dirs; do
       echo "Processing backend..."
       backend_files=$(echo "$staged_files" | grep "^backend/" | sed 's|^backend/||' | xargs)
       if [ -n "$backend_files" ]; then
+        echo "Formatting backend files: $backend_files"
         cd backend && make format FILES="$backend_files"
         cd ..
         git add $(echo "$staged_files" | grep "^backend/")

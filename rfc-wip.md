@@ -1,11 +1,3 @@
-# Local Development - No info on:
-
-How to run the project locally -> should run via docker-compose + Makefile
--> uv for python / npm for frontend
-Database setup/migrations --> use alembic for python
-Environment variables (.env setup) -> .env.example should be present and documented
-How to access dev environment locally -> the dev environment should run diurectgly via make run
-
 ## Part I: The RFC-First Process
 
 ### When Ideas Need Community Input
