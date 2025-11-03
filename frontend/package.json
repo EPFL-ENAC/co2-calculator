@@ -13,11 +13,11 @@
     "test:e2e": "playwright test tests/integration",
     "test:e2e:headed": "playwright test tests/integration --headed",
     "test:e2e:report": "playwright show-report",
+    "test-ct": "playwright test -c playwright-ct.config.ts",
     "tokens:generate": "node scripts/generate-scss-tokens.mjs",
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
-    "build": "quasar build",
-    "test-ct": "playwright test -c playwright-ct.config.ts"
+    "build": "quasar build"
   },
   "dependencies": {
     "@quasar/extras": "=1.17.0",

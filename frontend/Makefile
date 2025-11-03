@@ -1,6 +1,25 @@
 .PHONY: help install clean run dev build test test-watch
 .PHONY: format format-check lint lint-js lint-css
 
+
+# Quick prerequisite check utility
+define check_tools
+	@missing=0; \
+	for tool in $(1); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			echo "❌ Missing tool: $$tool"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ $$missing -eq 1 ]; then \
+		echo "⚠️  Missing tools detected. Please install them before continuing."; \
+		exit 1; \
+	fi
+	@echo "✅ All required tools are installed: $(1)"
+endef
+
+
+
 help: ## Show this help message
 	@echo "Frontend Makefile targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -26,6 +45,18 @@ run: ## Run npm script or list available scripts (usage: make run <script> [args
 		echo "No script specified — listing npm scripts:"; \
 		npm run; \
 	fi
+
+
+# ---------------------------------------------------------
+# Docker build
+#---------------------------------------------------------
+.PHONY: build
+build: ## Build Docker image
+	$(call check_tools,docker);
+	@echo "Building Docker image..."
+	docker build -t co2-calculator-frontend .
+	@echo "Docker image built!"
+
 
 # ---------------------------------------------------------
 # 🧹 FORMATTING / LINTING LOGIC
@@ -128,7 +159,19 @@ type-check:
 
 test: ## Run frontend tests once
 	@echo "Running frontend tests..."
-	npm test
+	if [ ! -d "dist" ]; then \
+		echo "⚠️  'dist' directory not found. Please build the frontend first using 'make build'."; \
+		echo "NEEDED FOR e2e tests."; \
+		exit 1; \
+	fi
+	@echo "Running component tests..."
+	npm run test-ct
+	@echo "Running end-to-end tests..."
+
+	npm run test:e2e
+	@echo "Frontend tests completed."
+
+
 # Allow passing arbitrary args (e.g. `make run dev`)
 %:
 	@:

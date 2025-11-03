@@ -1,8 +1,25 @@
 # Variables
 PYTHON := python3
 UV := uv
-PYTEST := pytest
-RUFF := ruff
+RUFF ?= $(UV) run ruff
+PYTEST ?= $(UV) run pytest
+
+# Quick prerequisite check utility
+define check_tools
+	@missing=0; \
+	for tool in $(1); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			echo "❌ Missing tool: $$tool"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ $$missing -eq 1 ]; then \
+		echo "⚠️  Missing tools detected. Please install them before continuing."; \
+		exit 1; \
+	fi
+	@echo "✅ All required tools are installed: $(1)"
+endef
+
 
 # Default target
 .PHONY: help
@@ -12,6 +29,7 @@ help: ## Show this help message
 
 .PHONY: install
 install: ## Install dependencies
+	$(call check_tools,uv)
 	@if [ ! -f .env ]; then \
 		echo "Creating .env file from .env.example..."; \
 		cp .env.example .env; \
@@ -21,6 +39,7 @@ install: ## Install dependencies
 
 .PHONY: install-prod
 install-prod: ## Install production dependencies only
+	$(call check_tools,uv)
 	$(UV) sync
 
 .PHONY: clean
@@ -34,23 +53,6 @@ clean: ## Clean up generated files
 	find . -type d -name '.mypy_cache' -exec rm -rf {} +
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-
-# .PHONY: lint
-# lint: ## Run linting with Ruff
-# 	$(UV) run $(RUFF) check .
-
-# .PHONY: lint-fix
-# lint-fix: ## Run linting with Ruff and fix issues
-# 	$(UV) run $(RUFF) check . --fix
-
-# .PHONY: format
-# format: ## Format code with Ruff
-# 	$(UV) run $(RUFF) format .
-
-# .PHONY: check
-# check: lint ## Run all checks (linting, etc.)
-
-
 
 # FILES can be overridden to target specific files (for git hooks)
 FILES ?= .
@@ -134,6 +136,7 @@ run-prod: ## Run production server
 
 .PHONY: build
 build: ## Build Docker image
+	$(call check_tools,docker);
 	@echo "Building Docker image..."
 	docker build -t co2-calculator-backend .
 	@echo "Docker image built!"

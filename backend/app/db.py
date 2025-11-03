@@ -11,9 +11,12 @@ settings = get_settings()
 
 # Create SQLAlchemy engine
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.database_url,
     pool_pre_ping=True,  # Verify connections before using them
     echo=settings.DEBUG,  # Log SQL queries in debug mode
+    connect_args={"check_same_thread": False}
+    if settings.database_url.startswith("sqlite")
+    else {},
 )
 
 # Create SessionLocal class
