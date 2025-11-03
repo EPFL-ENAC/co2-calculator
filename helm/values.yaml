@@ -165,9 +165,9 @@ database:
   externalSecret:
     enabled: false
     name: ""
-    urlKey: DATABASE_URL
-    usernameKey: POSTGRES_USER
-    passwordKey: POSTGRES_PASSWORD
+    urlKey: DB_URL
+    usernameKey: DB_USER
+    passwordKey: DB_PASSWORD
 
 pgbouncer:
   enabled: false

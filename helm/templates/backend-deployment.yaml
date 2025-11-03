@@ -71,7 +71,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: SECRET_KEY
-            - name: POSTGRES_USER
+            - name: DB_USER
               {{- if .Values.database.externalSecret.enabled }}
               valueFrom:
                 secretKeyRef:
@@ -80,7 +80,7 @@ spec:
               {{- else }}
               value: {{ .Values.database.external.username | quote }}
               {{- end }}
-            - name: POSTGRES_PASSWORD
+            - name: DB_PASSWORD
               {{- if .Values.database.externalSecret.enabled }}
               valueFrom:
                 secretKeyRef:
@@ -90,9 +90,9 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "co2-calculator.fullname" . }}-backend
-                  key: POSTGRES_PASSWORD
+                  key: DB_PASSWORD
               {{- end }}
-            - name: POSTGRES_DB
+            - name: DB_NAME
               value: {{ .Values.database.external.database | quote }}
           {{- with .Values.backend.livenessProbe }}
           livenessProbe:
