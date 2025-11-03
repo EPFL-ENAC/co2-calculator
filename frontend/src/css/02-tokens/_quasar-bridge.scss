@@ -51,7 +51,7 @@ $space-xl: (
 // Typography
 $body-font-size: dec.$text-size-sm !default;
 $body-line-height: dec.$text-line-height-base !default;
-$typography-font-family: 'Roboto', '-apple-system', 'Helvetica Neue', helvetica, arial, sans-serif !default;
+$typography-font-family: 'Roboto', '-apple-system', sans-serif !default;
 
 // Button
 $button-border-radius: comp.$button-radius !default;
