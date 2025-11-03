@@ -9,6 +9,9 @@
 // Brand palette
 $color-primary: opt.$color-brand-red-100 !default;
 $color-primary-hover: opt.$color-brand-red-200 !default;
+
+// $color-primary: opt.$color-brand-blue-100 !default;
+// $color-primary-hover: opt.$color-brand-blue-200 !default;
 $color-secondary: opt.$color-grey-200 !default;
 $color-surface: opt.$color-white !default;
 $color-surface-muted: opt.$color-grey-100 !default;
@@ -34,6 +37,7 @@ $spacing-page: opt.$spacing-48 !default;
 
 // Radii
 $radius-default: opt.$radius-generic !default;
+$radius-default-px: opt.$radius-generic-px !default;
 $radius-pill: opt.$radius-full !default;
 
 // Typography
