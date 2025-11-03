@@ -8,6 +8,53 @@
 .PHONY: ci format format-check lint
 .PHONY: pdf build-docs serve-docs
 
+# =============================================================================
+# TOOL REQUIREMENTS
+# =============================================================================
+# Core (always required):
+#   make
+#
+# Backend + Docs:
+#   uv  (Python project management)
+#
+# Frontend + Root:
+#   npm (package manager)
+#   npx (CLI executor)
+#
+# Helm (for helm/Makefile only)
+#   helm
+#
+# Docker-related tasks only:
+#   docker, docker-compose OR docker compose
+#
+# Docs (serve/watch only):
+#   mkdocs (via uv)
+# =============================================================================
+
+HELM_TOOLS := helm
+
+# Detect docker compose command (supports both modern and legacy)
+DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
+
+# Quick prerequisite check utility
+define check_tools
+	@missing=0; \
+	for tool in $(1); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			echo "❌ Missing tool: $$tool"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ $$missing -eq 1 ]; then \
+		echo "⚠️  Missing tools detected. Please install them before continuing."; \
+		exit 1; \
+	fi
+	@echo "✅ All required tools are installed: $(1)"
+endef
+
+
+# example in Makefile:	$(call check_tools,uv npm)
+
 # Default target
 help: ## Show this help message
 	@echo "Available targets:"
@@ -39,10 +86,19 @@ help: ## Show this help message
 # =============================================================================
 # Docker & Services
 # =============================================================================
+.PHONY: docker-network
 
-up: ## Start all services (docker compose up)
-	@echo "Create docker network if not exists..."
-	@docker network create co2-calculator-network || true
+docker-network: ## Ensure Docker network exists
+	$(call check_tools,docker $(DOCKER_COMPOSE))
+	@echo "🔧 Checking Docker network 'co2-calculator-network'..."
+	@if ! docker network ls --format '{{.Name}}' | grep -q '^co2-calculator-network$$'; then \
+		docker network create co2-calculator-network; \
+		echo "✅ Docker network created"; \
+	else \
+		echo "✅ Docker network already exists"; \
+	fi
+
+up: docker-network ## Start all services (docker compose up)
 	@echo "Starting all services..."
 	docker compose up -d
 	@echo "Services started!"
@@ -52,19 +108,23 @@ force-up: down up ## Force restart/rebuild all services
 	docker compose up -d --build --force-recreate
 
 down: ## Stop all services (docker compose down)
+	$(call check_tools,docker $(DOCKER_COMPOSE))
 	@echo "Stopping all services..."
 	docker compose down
 	@echo "Services stopped!"
 
 restart: ## Restart all services
+	$(call check_tools,docker $(DOCKER_COMPOSE))
 	@echo "Restarting all services..."
 	docker compose restart
 	@echo "Services restarted!"
 
 logs: ## View logs from all services
+	$(call check_tools,docker $(DOCKER_COMPOSE))
 	docker compose logs -f
 
 ps: ## Show running containers status
+	$(call check_tools,docker $(DOCKER_COMPOSE))
 	docker compose ps
 
 # =============================================================================
@@ -78,7 +138,7 @@ dev: ## Start development environment (up + watch mode)
 	cd frontend && $(MAKE) run dev & \
 	wait
 
-run: db-up dev ## Alias for dev
+run: db-up dev ## Alias for dev + db up
 
 dev-backend: ## Run only backend in dev mode
 	@echo "Starting backend in development mode..."
