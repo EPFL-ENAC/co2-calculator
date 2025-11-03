@@ -1,8 +1,11 @@
-// ----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// ⚠️  Auto-generated file
+// -----------------------------------------------------------------------------
 // Quasar Bridge
-// ----------------------------------------------------------------------------
 // Maps the token system onto Quasar's variable names. Import this file before
 // loading Quasar's source styles.
+// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
+// Do not edit manually.
 
 @use 'components' as comp;
 @use 'decisions' as dec;
@@ -90,7 +93,7 @@ $menu-max-height: 65vh !default;
 
 // Tooltip
 $tooltip-color: #fafafa !default;
-$tooltip-background: opt.$color-grey-600 !default; // or $color-black for higher contrast
+$tooltip-background: opt.$tokens-colors-grey-scale-grey-600 !default;
 $tooltip-padding: dec.$spacing-xs dec.$spacing-sm !default;
 $tooltip-border-radius: dec.$radius-default !default;
 $tooltip-fontsize: dec.$text-size-xs !default;
@@ -117,7 +120,7 @@ $badge-font-size: dec.$text-size-xs !default;
 $badge-line-height: 1 !default;
 
 // Item (lists)
-$item-base-color: opt.$color-grey-500 !default;
+$item-base-color: opt.$tokens-colors-grey-scale-grey-500 !default;
 
 // Editor
 $editor-border-color: $separator-color !default;
@@ -131,9 +134,9 @@ $editor-button-gutter: dec.$spacing-xs !default;
 
 // Chat
 $chat-message-received-color: #000 !default;
-$chat-message-received-bg: opt.$color-status-green !default;
+$chat-message-received-bg: opt.$tokens-colors-status-green !default;
 $chat-message-sent-color: #000 !default;
-$chat-message-sent-bg: opt.$color-grey-400 !default;
+$chat-message-sent-bg: opt.$tokens-colors-grey-scale-grey-400 !default;
 $chat-message-border-radius: dec.$radius-default !default;
 $chat-message-distance: dec.$spacing-sm !default;
 $chat-message-text-padding: dec.$spacing-sm !default;
@@ -150,4 +153,4 @@ $toolbar-title-font-weight: dec.$text-weight-regular !default;
 $toolbar-title-padding: 0 dec.$spacing-md !default;
 
 // Rating
-$rating-grade-color: opt.$color-status-yellow !default;
+$rating-grade-color: opt.$tokens-colors-status-yellow !default;

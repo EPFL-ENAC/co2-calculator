@@ -1,9 +1,11 @@
-// ----------------------------------------------------------------------------
-// Component Layer Tokens
-// ----------------------------------------------------------------------------
-// Component-scoped tokens derived from decisions layer.
+// -----------------------------------------------------------------------------
+// ⚠️  Auto-generated file
+// -----------------------------------------------------------------------------
+// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
+// Do not edit manually.
 
 @use 'decisions' as dec;
+@use 'options' as opt;
 
 // Buttons
 $button-padding-y: dec.$spacing-md !default;
