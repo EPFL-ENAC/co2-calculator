@@ -1,68 +1,69 @@
-// ----------------------------------------------------------------------------
-// Options Layer
-// ----------------------------------------------------------------------------
-// Raw design primitives derived from tokens.css. All values stay private.
-// Keep these in sync with the published design tokens.
+// -----------------------------------------------------------------------------
+// ⚠️  Auto-generated file
+// -----------------------------------------------------------------------------
+// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
+// Do not edit manually.
 
-$spacing-1: 0.0625rem !default;
-$spacing-2: 0.125rem !default;
-$spacing-4: 0.25rem !default;
-$spacing-8: 0.5rem !default;
-$spacing-12: 0.75rem !default;
-$spacing-16: 1rem !default;
-$spacing-24: 1.5rem !default;
-$spacing-32: 2rem !default;
-$spacing-48: 3rem !default;
-$spacing-64: 4rem !default;
 
-// radius
-$radius-generic: 0.1875rem !default;
-$radius-generic-px: 3px !default; // derived from rem value for easier use in borders if 1rem=16px
-$radius-full: 62.4375rem !default;
+// Spacing
+$tokens-spacing-4: 0.25rem !default;
+$tokens-spacing-8: 0.5rem !default;
+$tokens-spacing-12: 0.75rem !default;
+$tokens-spacing-16: 1rem !default;
+$tokens-spacing-24: 1.5rem !default;
+$tokens-spacing-32: 2rem !default;
+$tokens-spacing-64: 4rem !default;
+$tokens-spacing-48: 3rem !default;
+$tokens-spacing-2: 0.125rem !default;
+$tokens-spacing-1: 0.0625rem !default;
 
-// font-size
-$font-size-10: 0.625rem !default;
-$font-size-12: 0.75rem !default;
-$font-size-14: 0.875rem !default;
-$font-size-16: 1rem !default;
-$font-size-18: 1.125rem !default;
-$font-size-20: 1.25rem !default;
-$font-size-24: 1.5rem !default;
-$font-size-28: 1.75rem !default;
+// Border Radius
+$tokens-border-radius-generic-border-radius: 0.1875rem !default;
+$tokens-border-radius-generic-border-radius-px: 3px !default;
+$tokens-border-radius-full-border-radius: 62.4375rem !default;
+$tokens-border-radius-lg-border-radius: 0.75rem !default;
 
-// line-height
-$line-height-14: 0.875rem !default;
-$line-height-16: 1rem !default;
-$line-height-18: 1.125rem !default;
-$line-height-20: 1.25rem !default;
-$line-height-24: 1.5rem !default;
-$line-height-26: 1.625rem !default;
-$line-height-28: 1.75rem !default;
-$line-height-32: 2rem !default;
-$line-height-36: 2.25rem !default;
+// Font Size
+$tokens-typography-font-size-3xl: 1.75rem !default;
+$tokens-typography-font-size-2xl: 1.5rem !default;
+$tokens-typography-font-size-xl: 1.25rem !default;
+$tokens-typography-font-size-lg: 1.125rem !default;
+$tokens-typography-font-size-md: 1rem !default;
+$tokens-typography-font-size-sm: 0.875rem !default;
+$tokens-typography-font-size-xs: 0.75rem !default;
+$tokens-typography-font-size-2xs: 0.625rem !default;
 
-// font-weight
-$font-weight-regular: 400 !default;
-$font-weight-medium: 500 !default;
-$font-weight-bold: 700 !default;
+// Line Height
+$tokens-typography-line-height-4xl: 2.25rem !default;
+$tokens-typography-line-height-3xl: 2rem !default;
+$tokens-typography-line-height-2xl: 1.75rem !default;
+$tokens-typography-line-height-xl: 1.625rem !default;
+$tokens-typography-line-height-lg: 1.5rem !default;
+$tokens-typography-line-height-md: 1.25rem !default;
+$tokens-typography-line-height-sm: 1.125rem !default;
+$tokens-typography-line-height-xs: 1rem !default;
+$tokens-typography-line-height-2xs: 0.875rem !default;
 
-// color-brand
-$color-brand-red-100: #ff0000 !default;
-$color-brand-blue-100: #0000ff !default;
-$color-brand-red-200: #b51f1f !default;
-$color-brand-blue-200: #1f1fb5 !default;
-$color-status-green: #28a745 !default;
-$color-status-yellow: #ffc107 !default;
-$color-status-red: #dc3545 !default;
-$color-grey-100: #f5f5f5 !default;
-$color-grey-200: #e6e6e6 !default;
-$color-grey-300: #d5d5d5 !default;
-$color-grey-400: #c1c1c1 !default;
-$color-grey-500: #8e8e8e !default;
-$color-grey-600: #707070 !default;
-$color-black: #212121 !default;
-$color-white: #ffffff !default;
+// Font Weight
+$tokens-typography-font-weight-regular: 400 !default;
+$tokens-typography-font-weight-medium: 500 !default;
+$tokens-typography-font-weight-bold: 700 !default;
 
-// layout-page
-$layout-page-width: 75rem !default;
-$layout-pop-up-min-width: 21.875rem !default;
+// Colors
+$tokens-colors-status-green: #28a745 !default;
+$tokens-colors-status-red: #dc3545 !default;
+$tokens-colors-status-yellow: #ffc107 !default;
+$tokens-colors-grey-scale-grey-100: #f5f5f5 !default;
+$tokens-colors-grey-scale-grey-200: #e6e6e6 !default;
+$tokens-colors-grey-scale-grey-300: #d5d5d5 !default;
+$tokens-colors-grey-scale-grey-400: #c1c1c1 !default;
+$tokens-colors-grey-scale-grey-500: #8e8e8e !default;
+$tokens-colors-grey-scale-grey-600: #707070 !default;
+$tokens-colors-red-red-100: #ff0000 !default;
+$tokens-colors-red-red-200: #b51f1f !default;
+$tokens-colors-base-black: #212121 !default;
+$tokens-colors-base-white: #ffffff !default;
+$tokens-colors-red-red-highlight: #ff0000 !default;
+
+// Layout
+$tokens-layout-page-width: 75rem !default;
