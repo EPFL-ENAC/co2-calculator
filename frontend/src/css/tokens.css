@@ -4,7 +4,6 @@
   */
   --tokens-typography-font-family-base: 'Helvetica Neue', '-apple-system', sans-serif;
 
-
   /* FIGMA variables export */
   --tokens-colors-status-green: #28a745;
   --tokens-colors-status-red: #dc3545;
@@ -30,6 +29,8 @@
   --icon-color-black: var(--tokens-colors-base-black);
   --tokens-colors-base-black: #212121;
   --tokens-colors-base-white: #ffffff;
+  --button-radius: var(--tokens-border-radius-generic-border-radius);
+  --button-radius-rounded: var(--tokens-border-radius-full-border-radius);
   --button-primary-bg-default: var(--tokens-colors-red-red-100);
   --button-primary-bg-hover: var(--tokens-colors-red-red-200);
   --button-primary-color: var(--tokens-colors-base-white);

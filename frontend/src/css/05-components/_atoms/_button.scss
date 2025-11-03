@@ -5,19 +5,20 @@
   align-items: center;
   justify-content: center;
   gap: tokens.$button-gap;
-  padding: tokens.$button-padding-y tokens.$button-padding-x;
+  padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   border-radius: tokens.$button-radius;
   border: 1px solid transparent;
-  font-size: tokens.$button-font-size;
-  font-weight: tokens.$button-font-weight;
-  line-height: tokens.$button-line-height;
+  font-size: tokens.$button-size-md-font-size;
+
+  // font-weight: tokens.$button-font-weight;
+  line-height: tokens.$button-size-md-line-height;
   text-decoration: none;
   cursor: pointer;
   transition: 0.3s ease;
 
   &--primary {
-    background-color: tokens.$button-primary-bg;
-    color: tokens.$button-primary-text;
+    background-color: tokens.$button-primary-color;
+    color: tokens.$button-primary-color;
 
     &:hover {
       background-color: tokens.$button-primary-bg-hover;
@@ -25,28 +26,29 @@
   }
 
   &--secondary {
-    background-color: tokens.$button-secondary-bg;
-    color: tokens.$button-secondary-text;
-    border-color: tokens.$button-outline-border;
+    background-color: tokens.$button-secondary-color;
+    color: tokens.$button-secondary-color;
+
+    // border-color: tokens.$button-;
 
     &:hover {
       background-color: tokens.$button-secondary-bg-hover;
     }
   }
 
-  &--outline {
-    background-color: transparent;
-    color: tokens.$button-outline-text;
-    border-color: tokens.$button-outline-border;
+  // &--outline {
+  //   background-color: transparent;
+  //   // color: tokens.$button-outline-text;
+  //   // border-color: tokens.$button-outline-border;
 
-    &:hover {
-      background-color: tokens.$button-outline-bg-hover;
-    }
-  }
+  //   &:hover {
+  //     background-color: tokens.$button-outline-bg-hover;
+  //   }
+  // }
 
-  &--dense {
-    padding: tokens.$button-padding-dense;
-  }
+  // &--dense {
+  //   padding: tokens.$button-padding-dense;
+  // }
 
   &--rounded {
     border-radius: tokens.$button-radius-rounded;
@@ -55,8 +57,9 @@
   &--disabled,
   &:disabled {
     background-color: tokens.$button-disabled-bg;
-    color: tokens.$button-disabled-text;
-    border-color: tokens.$button-disabled-border;
+    color: tokens.$button-disabled-color;
+
+    // border-color: tokens.$button-disabled-border;
     cursor: not-allowed;
     opacity: 0.7;
   }
