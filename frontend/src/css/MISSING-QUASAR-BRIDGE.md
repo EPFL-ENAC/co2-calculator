@@ -89,8 +89,6 @@ $animate-delay: 0.3s !default;
 $animate-repeat: 1 !default;
 ```
 
-````
-
 **Impact**: Low - Only affects Quasar's built-in animation utilities
 **Recommendation**: Add if using `q-transition` or Quasar animations
 
@@ -450,4 +448,7 @@ Your token system successfully provides 65% of Quasar's commonly-used variables.
 ```
 
 ```
-````
+
+```
+
+```

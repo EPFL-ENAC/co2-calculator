@@ -6,6 +6,8 @@
 // loading Quasar's source styles.
 // Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
 // Do not edit manually.
+// Reference: https://quasar.dev/style/sass-scss-variables#variables-list
+// -----------------------------------------------------------------------------
 
 @use 'components' as comp;
 @use 'decisions' as dec;
@@ -54,7 +56,7 @@ $space-xl: (
 // Typography
 $body-font-size: dec.$text-size-sm !default;
 $body-line-height: dec.$text-line-height-base !default;
-$typography-font-family: 'Roboto', '-apple-system', sans-serif !default;
+$typography-font-family: dec.$text-font-family !default;
 
 // Button
 $button-border-radius: comp.$button-radius !default;
@@ -154,3 +156,27 @@ $toolbar-title-padding: 0 dec.$spacing-md !default;
 
 // Rating
 $rating-grade-color: opt.$tokens-colors-status-yellow !default;
+
+
+// CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
+// Quasar does not provide default values for these, so we need to set them here.
+$breakpoint-xs: 599px !default;
+$breakpoint-sm: 1023px !default;
+$breakpoint-md: 1439px !default;
+$breakpoint-lg: 1919px !default;
+$z-fab: 990 !default;
+$z-side: 1000 !default;
+$z-marginals: 2000 !default;
+$z-fixed-drawer: 3000 !default;
+$z-fullscreen: 6000 !default;
+$z-menu: 6000 !default;
+$z-top: 7000 !default;
+$z-tooltip: 9000 !default;
+$z-notify: 9500 !default;
+$z-max: 9998 !default;
+$flex-cols: 12 !default;
+$flex-gutter-xs: dec.$spacing-xs !default;
+$flex-gutter-sm: dec.$spacing-sm !default;
+$flex-gutter-md: dec.$spacing-md !default;
+$flex-gutter-lg: dec.$spacing-lg !default;
+$flex-gutter-xl: dec.$spacing-xl !default;

@@ -1,4 +1,11 @@
 :root {
+  /* 
+  ** Base tokens
+  */
+  --tokens-typography-font-family-base: 'Helvetica Neue', '-apple-system', sans-serif;
+
+
+  /* FIGMA variables export */
   --tokens-colors-status-green: #28a745;
   --tokens-colors-status-red: #dc3545;
   --tokens-colors-status-yellow: #ffc107;
