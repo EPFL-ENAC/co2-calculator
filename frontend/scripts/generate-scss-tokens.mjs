@@ -31,6 +31,7 @@ const OPTIONS_PATTERNS = {
   fontSize: /^--tokens-typography-font-size-/,
   lineHeight: /^--tokens-typography-line-height-/,
   fontWeight: /^--tokens-typography-font-weight-/,
+  fontFamily: /^--tokens-typography-font-family-/,
   colorBrand: /^--tokens-colors-(red|blue|grey-scale|base|status)-/,
   layout: /^--tokens-layout-/,
 };
@@ -138,6 +139,7 @@ function getCategoryComment(category) {
     // Options
     spacing: 'Spacing',
     radius: 'Border Radius',
+    fontFamily: 'Font Family',
     fontSize: 'Font Size',
     lineHeight: 'Line Height',
     fontWeight: 'Font Weight',
@@ -177,6 +179,7 @@ function generateScssContent(records, recordMap, layer, useStatements = '') {
     options: [
       'spacing',
       'radius',
+      'fontFamily',
       'fontSize',
       'lineHeight',
       'fontWeight',
@@ -263,6 +266,7 @@ $radius-default-px: opt.$tokens-border-radius-generic-border-radius-px !default;
 $radius-pill: opt.$tokens-border-radius-full-border-radius !default;
 
 // Typography
+$text-font-family: opt.$tokens-typography-font-family-base !default;
 $text-size-xs: opt.$tokens-typography-font-size-xs !default;
 $text-size-sm: opt.$tokens-typography-font-size-sm !default;
 $text-size-base: opt.$tokens-typography-font-size-md !default;
@@ -373,6 +377,8 @@ function generateQuasarBridge() {
 // loading Quasar's source styles.
 // Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
 // Do not edit manually.
+// Reference: https://quasar.dev/style/sass-scss-variables#variables-list
+// -----------------------------------------------------------------------------
 
 @use 'components' as comp;
 @use 'decisions' as dec;
@@ -421,7 +427,7 @@ $space-xl: (
 // Typography
 $body-font-size: dec.$text-size-sm !default;
 $body-line-height: dec.$text-line-height-base !default;
-$typography-font-family: 'Roboto', '-apple-system', sans-serif !default;
+$typography-font-family: dec.$text-font-family !default;
 
 // Button
 $button-border-radius: comp.$button-radius !default;
@@ -521,6 +527,32 @@ $toolbar-title-padding: 0 dec.$spacing-md !default;
 
 // Rating
 $rating-grade-color: opt.$tokens-colors-status-yellow !default;
+
+
+// CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
+// Quasar does not provide default values for these, so we need to set them here.
+$breakpoint-xs: 599px !default;
+$breakpoint-sm: 1023px !default;
+$breakpoint-md: 1439px !default;
+$breakpoint-lg: 1919px !default;
+
+$z-fab: 990 !default;
+$z-side: 1000 !default;
+$z-marginals: 2000 !default;
+$z-fixed-drawer: 3000 !default;
+$z-fullscreen: 6000 !default;
+$z-menu: 6000 !default;
+$z-top: 7000 !default;
+$z-tooltip: 9000 !default;
+$z-notify: 9500 !default;
+$z-max: 9998 !default;
+
+$flex-cols: 12 !default;
+$flex-gutter-xs: dec.$spacing-xs !default;
+$flex-gutter-sm: dec.$spacing-sm !default;
+$flex-gutter-md: dec.$spacing-md !default;
+$flex-gutter-lg: dec.$spacing-lg !default;
+$flex-gutter-xl: dec.$spacing-xl !default;
 `;
 }
 
