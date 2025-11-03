@@ -74,6 +74,7 @@ export default defineConfig(function (/* ctx */) {
       minify: true,
       // polyfillModulePreload: true,
       // distDir
+      sassVariables: 'src/css/quasar.variables.scss',
 
       // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},
@@ -123,12 +124,13 @@ export default defineConfig(function (/* ctx */) {
         'SessionStorage',
         'Meta',
       ],
-      config: {
-        brand: {
-          primary: 'rgb(244, 67, 54)',
-          // ... other colors
-        },
-      },
+      // override css!
+      // config: {
+      //   brand: {
+      //     primary: 'rgb(244, 67, 54)',
+      //     // ... other colors
+      //   },
+      // },
     },
 
     // animations: 'all', // --- includes all animations

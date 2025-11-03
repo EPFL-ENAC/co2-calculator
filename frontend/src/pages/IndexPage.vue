@@ -1,5 +1,6 @@
 <template>
   <q-page class="row items-center justify-evenly">
+    <q-input v-model="title" label="Standard" />
     <example-component
       title="Example component"
       active
@@ -13,6 +14,8 @@
 import { Todo, Meta } from 'components/models';
 import ExampleComponent from 'components/ExampleComponent.vue';
 import { ref } from 'vue';
+
+const title = ref<string>('Index Page');
 
 const todos = ref<Todo[]>([
   {

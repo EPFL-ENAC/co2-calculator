@@ -6,9 +6,11 @@
 
 @use 'components' as comp;
 @use 'decisions' as dec;
+@use 'options' as opt;
 
-$primary: dec.$color-primary !default;
-$secondary: dec.$color-secondary !default;
+// Brand colors
+$primary: dec.$color-primary;
+$secondary: dec.$color-secondary;
 $accent: dec.$color-primary-hover !default;
 $dark: #1d1d1d !default;
 $dark-page: #121212 !default;
@@ -17,21 +19,7 @@ $negative: dec.$color-status-error !default;
 $info: dec.$color-status-warning !default;
 $warning: dec.$color-status-warning !default;
 
-// button
-$button-border-radius: comp.$button-radius !default;
-$button-rounded-border-radius: comp.$button-radius-rounded !default;
-$button-push-border-radius: comp.$button-radius !default;
-$button-padding: comp.$button-padding-y comp.$button-padding-x !default;
-$button-dense-padding: comp.$button-padding-dense !default;
-$button-font-size: comp.$button-font-size !default;
-$button-line-height: comp.$button-line-height !default;
-$button-font-weight: comp.$button-font-weight !default;
-$button-shadow: comp.$button-shadow !default;
-$button-shadow-active: comp.$button-shadow-active !default;
-$button-transition: 0.3s ease !default;
-$button-outline-border: comp.$button-outline-border !default;
-
-// space
+// Spacing
 $space-base: dec.$spacing-md !default;
 $space-x-base: $space-base !default;
 $space-y-base: $space-base !default;
@@ -59,3 +47,107 @@ $space-xl: (
   x: dec.$spacing-xl,
   y: dec.$spacing-xl,
 ) !default;
+
+// Typography
+$body-font-size: dec.$text-size-sm !default;
+$body-line-height: dec.$text-line-height-base !default;
+$typography-font-family: 'Roboto', '-apple-system', 'Helvetica Neue', helvetica, arial, sans-serif !default;
+
+// Button
+$button-border-radius: comp.$button-radius !default;
+$button-rounded-border-radius: comp.$button-radius-rounded !default;
+$button-push-border-radius: comp.$button-radius !default;
+$button-padding: comp.$button-padding-y comp.$button-padding-x !default;
+$button-dense-padding: comp.$button-padding-dense !default;
+$button-font-size: comp.$button-font-size !default;
+$button-line-height: comp.$button-line-height !default;
+$button-font-weight: comp.$button-font-weight !default;
+$button-shadow: comp.$button-shadow !default;
+$button-shadow-active: comp.$button-shadow-active !default;
+$button-transition: 0.3s ease !default;
+
+// Separators & borders
+$separator-color: dec.$color-border !default;
+$separator-dark-color: rgb(255 255 255 / 28%) !default;
+$generic-border-radius: dec.$radius-default-px !default;
+
+// Input/Form fields
+$input-font-size: comp.$form-field-font-size !default;
+$input-text-color: dec.$color-text !default;
+$input-label-color: dec.$color-text-muted !default;
+
+// Cards
+$generic-hover-transition: 0.3s cubic-bezier(0.25, 0.8, 0.5, 1) !default;
+
+// Dimmed backgrounds
+$dimmed-background: rgb(0 0 0 / 40%) !default;
+$light-dimmed-background: rgb(255 255 255 / 60%) !default;
+
+// Menu
+$menu-background: dec.$color-surface !default;
+$menu-max-width: 95vw !default;
+$menu-max-height: 65vh !default;
+
+// Tooltip
+$tooltip-color: #fafafa !default;
+$tooltip-background: opt.$color-grey-600 !default; // or $color-black for higher contrast
+$tooltip-padding: dec.$spacing-xs dec.$spacing-sm !default;
+$tooltip-border-radius: dec.$radius-default !default;
+$tooltip-fontsize: dec.$text-size-xs !default;
+$tooltip-mobile-padding: dec.$spacing-sm dec.$spacing-md !default;
+$tooltip-mobile-fontsize: dec.$text-size-sm !default;
+$tooltip-max-width: 95vw !default;
+$tooltip-max-height: 65vh !default;
+
+// Table
+$table-border-color: dec.$color-border !default;
+$table-hover-background: rgb(0 0 0 / 3%) !default;
+$table-selected-background: rgb(0 0 0 / 6%) !default;
+$table-dark-border-color: $separator-dark-color !default;
+$table-dark-hover-background: rgb(255 255 255 / 7%) !default;
+$table-dark-selected-background: rgb(255 255 255 / 10%) !default;
+$table-border-radius: dec.$radius-default !default;
+$table-transition: $generic-hover-transition !default;
+
+// Layout
+$layout-border: 1px solid $separator-color !default;
+
+// Badge
+$badge-font-size: dec.$text-size-xs !default;
+$badge-line-height: 1 !default;
+
+// Item (lists)
+$item-base-color: opt.$color-grey-500 !default;
+
+// Editor
+$editor-border-color: $separator-color !default;
+$editor-border-dark-color: $separator-dark-color !default;
+$editor-content-padding: dec.$spacing-sm !default;
+$editor-content-min-height: 10em !default;
+$editor-toolbar-padding: dec.$spacing-xs !default;
+$editor-hr-color: $editor-border-color !default;
+$editor-hr-dark-color: $editor-border-dark-color !default;
+$editor-button-gutter: dec.$spacing-xs !default;
+
+// Chat
+$chat-message-received-color: #000 !default;
+$chat-message-received-bg: opt.$color-status-green !default;
+$chat-message-sent-color: #000 !default;
+$chat-message-sent-bg: opt.$color-grey-400 !default;
+$chat-message-border-radius: dec.$radius-default !default;
+$chat-message-distance: dec.$spacing-sm !default;
+$chat-message-text-padding: dec.$spacing-sm !default;
+
+// Dialog
+$dialog-title-font-size: dec.$text-size-lg !default;
+$dialog-title-line-height: 1.6 !default;
+
+// Toolbar
+$toolbar-min-height: 50px !default;
+$toolbar-padding: 0 dec.$spacing-md !default;
+$toolbar-title-font-size: dec.$text-size-lg !default;
+$toolbar-title-font-weight: dec.$text-weight-regular !default;
+$toolbar-title-padding: 0 dec.$spacing-md !default;
+
+// Rating
+$rating-grade-color: opt.$color-status-yellow !default;

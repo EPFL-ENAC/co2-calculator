@@ -17,6 +17,7 @@ $spacing-64: 4rem !default;
 
 // radius
 $radius-generic: 0.1875rem !default;
+$radius-generic-px: 3px !default; // derived from rem value for easier use in borders if 1rem=16px
 $radius-full: 62.4375rem !default;
 
 // font-size
@@ -47,7 +48,9 @@ $font-weight-bold: 700 !default;
 
 // color-brand
 $color-brand-red-100: #ff0000 !default;
+$color-brand-blue-100: #0000ff !default;
 $color-brand-red-200: #b51f1f !default;
+$color-brand-blue-200: #1f1fb5 !default;
 $color-status-green: #28a745 !default;
 $color-status-yellow: #ffc107 !default;
 $color-status-red: #dc3545 !default;
