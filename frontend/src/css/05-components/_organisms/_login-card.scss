@@ -1,0 +1,47 @@
+@use '../../02-tokens' as tokens;
+
+.login__wrap {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  place-items: center stretch;
+  min-width: tokens.$layout-pop-up-min-width;
+  margin: 0 auto;
+  gap: tokens.$spacing-lg;
+  padding: tokens.$spacing-page;
+  font-weight: tokens.$text-weight-medium;
+}
+
+.login__brand {
+  display: grid;
+  gap: tokens.$spacing-sm;
+  justify-items: center;
+}
+
+.login__form {
+  display: grid;
+  gap: tokens.$spacing-md;
+  width: 100%;
+}
+
+.login__button {
+  display: block;
+  width: 100%;
+}
+
+.login__field {
+  display: grid;
+  gap: tokens.$spacing-xs;
+}
+
+.login__error {
+  color: tokens.$color-status-error;
+  font-size: tokens.$text-size-sm;
+  line-height: tokens.$text-line-height-sm;
+  margin: 0;
+  padding: 0;
+
+  &--general {
+    text-align: center;
+    margin-top: tokens.$spacing-sm;
+  }
+}

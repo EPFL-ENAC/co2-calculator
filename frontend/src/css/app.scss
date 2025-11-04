@@ -6,10 +6,14 @@
 @import 'quasar/src/css/index.sass';
 
 // Establish the cascade order for the ITCSS-inspired architecture.
-@layer reset, tokens, layout, quasar-overrides, components, utilities;
+@layer reset, fonts, tokens, layout, quasar-overrides, components, utilities;
 
 @layer reset {
   @import './01-reset/normalize';
+}
+
+@layer fonts {
+  @import './00-fonts/fonts';
 }
 
 @layer tokens {
@@ -17,6 +21,7 @@
 }
 
 @layer layout {
+  @import './03-layout/body';
   @import './03-layout/grid';
   @import './03-layout/container';
 }
@@ -27,9 +32,12 @@
 
 @layer components {
   @import './05-components/_atoms/button';
+  @import './05-components/_atoms/input-field';
   @import './05-components/_molecules/card';
   @import './05-components/_organisms/navigation';
+  @import './05-components/_organisms/login-card';
   @import './05-components/_templates/dashboard';
+  @import './05-components/_templates/login-page';
 }
 
 @layer utilities {

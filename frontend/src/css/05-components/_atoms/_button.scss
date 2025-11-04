@@ -7,17 +7,14 @@
   gap: tokens.$button-gap;
   padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   border-radius: tokens.$button-radius;
-  border: 1px solid transparent;
+  border: tokens.$field-border-weight solid transparent;
   font-size: tokens.$button-size-md-font-size;
-
-  // font-weight: tokens.$button-font-weight;
   line-height: tokens.$button-size-md-line-height;
-  text-decoration: none;
   cursor: pointer;
   transition: 0.3s ease;
 
   &--primary {
-    background-color: tokens.$button-primary-color;
+    background-color: tokens.$button-primary-bg-default;
     color: tokens.$button-primary-color;
 
     &:hover {
@@ -26,42 +23,39 @@
   }
 
   &--secondary {
-    background-color: tokens.$button-secondary-color;
+    background-color: tokens.$button-secondary-bg-default;
     color: tokens.$button-secondary-color;
-
-    // border-color: tokens.$button-;
+    border-color: tokens.$button-secondary-stroke-color;
 
     &:hover {
       background-color: tokens.$button-secondary-bg-hover;
     }
   }
 
-  // &--outline {
-  //   background-color: transparent;
-  //   // color: tokens.$button-outline-text;
-  //   // border-color: tokens.$button-outline-border;
-
-  //   &:hover {
-  //     background-color: tokens.$button-outline-bg-hover;
-  //   }
-  // }
-
-  // &--dense {
-  //   padding: tokens.$button-padding-dense;
-  // }
-
-  &--rounded {
-    border-radius: tokens.$button-radius-rounded;
-  }
-
   &--disabled,
   &:disabled {
     background-color: tokens.$button-disabled-bg;
     color: tokens.$button-disabled-color;
-
-    // border-color: tokens.$button-disabled-border;
+    border-color: tokens.$button-disabled-stroke-color;
     cursor: not-allowed;
-    opacity: 0.7;
+  }
+
+  &--md {
+    font-size: tokens.$button-size-md-font-size;
+    line-height: tokens.$button-size-md-line-height;
+    padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
+  }
+
+  &--sm {
+    font-size: tokens.$button-size-sm-font-size;
+    line-height: tokens.$button-size-sm-line-height;
+    padding: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
+  }
+
+  &--xs {
+    font-size: tokens.$button-size-xs-font-size;
+    line-height: tokens.$button-size-xs-line-height;
+    padding: tokens.$button-size-xs-padding-y tokens.$button-size-xs-padding-x;
   }
 
   &__icon {
@@ -75,5 +69,9 @@
 
   &__icon--right {
     margin-left: tokens.$spacing-xs;
+  }
+
+  &--fullwidth {
+    width: tokens.$button-full-width;
   }
 }

@@ -1,3 +1,5 @@
+
+
 :root {
   /* 
   ** Base tokens
@@ -140,8 +142,7 @@
   --timeline-line-number: var(--tokens-spacing-1);
   --tokens-layout-page-width: 75rem;
   --pop-up-min-width: var(--layout-pop-up-min-width);
-  --layout-page-min-width: 75rem;
-  --layout-pop-up-min-width: 21.875rem;
+  --layout-page-min-width: 1200px;
   --pop-up-padding-y: var(--tokens-spacing-16);
   --pop-up-gap: var(--tokens-spacing-12);
   --pop-up-bg: var(--tokens-colors-base-white);
@@ -155,7 +156,7 @@
   --table-bg-odd: var(--tokens-colors-grey-scale-grey-100);
   --table-color-primary: var(--tokens-colors-base-black);
   --table-color-disabled: var(--tokens-colors-grey-scale-grey-400);
-  --layout-number: 0rem;
+  --layout-number: 0px;
   --template-width: var(--tokens-layout-page-width);
   --template-padding-y: var(--tokens-spacing-48);
   --template-gap: var(--tokens-spacing-32);

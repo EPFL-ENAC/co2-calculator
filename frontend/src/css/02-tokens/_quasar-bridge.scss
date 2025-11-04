@@ -57,14 +57,40 @@ $space-xl: (
 $body-font-size: dec.$text-size-sm !default;
 $body-line-height: dec.$text-line-height-base !default;
 $typography-font-family: dec.$text-font-family !default;
+$h1: (
+  size: dec.$text-size-3xl,
+  line-height: dec.$text-line-height-4xl,
+) !default;
+$h2: (
+  size: dec.$text-size-2xl,
+  line-height: dec.$text-line-height-3xl,
+) !default;
+$h3: (
+  size: dec.$text-size-xl,
+  line-height: dec.$text-line-height-2xl,
+) !default;
+$h4: (
+  size: dec.$text-size-lg,
+  line-height: dec.$text-line-height-xl,
+) !default;
+$h5: (
+  size: dec.$text-size-base,
+  line-height: dec.$text-line-height-lg,
+) !default;
+$h6: (
+  size: dec.$text-size-sm,
+  line-height: dec.$text-line-height-base,
+) !default;
 
 // Button
 $button-border-radius: comp.$button-radius !default;
 $button-rounded-border-radius: comp.$button-radius-rounded !default;
 $button-push-border-radius: comp.$button-radius !default;
 $button-padding: comp.$button-size-md-padding-y comp.$button-size-md-padding-x !default;
-$button-dense-padding: comp.$button-size-sm-padding-y comp.$button-size-sm-padding-x !default;
+$button-dense-padding: comp.$button-size-sm-padding-y
+  comp.$button-size-sm-padding-x !default;
 $button-font-size: comp.$button-size-md-font-size !default;
+$button-primary-background: comp.$button-primary-bg-default !default;
 $button-line-height: comp.$button-size-md-line-height !default;
 $button-font-weight: dec.$text-weight-medium !default;
 $button-shadow: none !default;
@@ -77,7 +103,7 @@ $separator-dark-color: rgb(255 255 255 / 28%) !default;
 $generic-border-radius: dec.$radius-default-px !default;
 
 // Input/Form fields
-$input-font-size: comp.$field-sm-font-size !default;
+$input-font-size: comp.$field-md-font-size !default;
 $input-text-color: dec.$color-text !default;
 $input-label-color: dec.$color-text-muted !default;
 
@@ -156,7 +182,6 @@ $toolbar-title-padding: 0 dec.$spacing-md !default;
 
 // Rating
 $rating-grade-color: opt.$tokens-colors-status-yellow !default;
-
 
 // CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
 // Quasar does not provide default values for these, so we need to set them here.

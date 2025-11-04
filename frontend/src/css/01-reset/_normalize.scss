@@ -1,2 +1,20 @@
 // Placeholder for reset styles.
 // Replace with project-specific normalize/modern-css reset when available.
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+p {
+  margin: 0;
+  padding: 0;
+}

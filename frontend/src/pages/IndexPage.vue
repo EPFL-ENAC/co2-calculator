@@ -1,12 +1,6 @@
 <template>
   <q-page class="row items-center justify-evenly">
     <q-input v-model="title" label="Standard" />
-    <example-component
-      title="Example component"
-      active
-      :todos="todos"
-      :meta="meta"
-    ></example-component>
   </q-page>
 </template>
 
