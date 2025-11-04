@@ -21,6 +21,7 @@
 }
 
 @layer layout {
+  @import './03-layout/header';
   @import './03-layout/body';
   @import './03-layout/grid';
   @import './03-layout/container';
@@ -31,7 +32,9 @@
 }
 
 @layer components {
+  @import './05-components/_atoms/language-selector';
   @import './05-components/_atoms/button';
+  @import './05-components/_atoms/icon';
   @import './05-components/_atoms/input-field';
   @import './05-components/_molecules/card';
   @import './05-components/_organisms/navigation';

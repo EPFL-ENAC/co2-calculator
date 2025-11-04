@@ -1,9 +1,6 @@
-// This is just an example,
-// so you can safely delete all default props below
-
 export default {
+  title: 'Calculateur CO₂',
   login_logo_alt: 'Logo EPFL',
-  login_title: 'Calculateur CO₂',
   login_input_username_placeholder: 'Email',
   login_input_password_placeholder: 'Mot de passe',
   login_button_submit: 'Se connecter',

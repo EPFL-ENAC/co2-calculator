@@ -1,0 +1,39 @@
+@use '../../02-tokens' as tokens;
+
+.icon {
+  &--grey {
+    color: tokens.$icon-color-grey;
+  }
+
+  &--red {
+    color: tokens.$icon-color-red;
+  }
+
+  &--black {
+    color: tokens.$icon-color-black;
+  }
+
+  &--white {
+    color: tokens.$icon-color-white;
+  }
+
+  &--sm {
+    width: tokens.$icon-size-sm;
+    height: tokens.$icon-size-sm;
+  }
+
+  &--md {
+    width: tokens.$icon-size-md;
+    height: tokens.$icon-size-md;
+  }
+
+  &--lg {
+    width: tokens.$icon-size-lg;
+    height: tokens.$icon-size-lg;
+  }
+
+  &--xl {
+    width: tokens.$icon-size-xl;
+    height: tokens.$icon-size-xl;
+  }
+}

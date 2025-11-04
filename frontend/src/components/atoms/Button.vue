@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import Icon from 'src/components/atoms/Icon.vue';
 
 type ButtonType = 'primary' | 'secondary' | 'disabled';
 type ButtonSize = 'xs' | 'sm' | 'md';
 
 const props = withDefaults(
   defineProps<{
+    icon?: string;
     type?: ButtonType;
     size?: ButtonSize;
     disabled?: boolean;
@@ -35,6 +37,18 @@ const isDisabled = computed(() => {
   return props.disabled || props.type === 'disabled';
 });
 
+const iconSize = computed(() => {
+  // Map ButtonSize to IconSize
+  // ButtonSize: 'xs' | 'sm' | 'md'
+  // IconSize: 'sm' | 'md' | 'lg' | 'xl'
+  const sizeMap: Record<ButtonSize, 'sm' | 'md'> = {
+    xs: 'sm',
+    sm: 'sm',
+    md: 'md',
+  };
+  return sizeMap[props.size];
+});
+
 const handleClick = (event: MouseEvent) => {
   if (!isDisabled.value && props.onClick) {
     props.onClick(event);
@@ -49,6 +63,7 @@ const handleClick = (event: MouseEvent) => {
     :disabled="isDisabled"
     @click="handleClick"
   >
+    <Icon v-if="icon" :name="icon" :size="iconSize" color="grey" />
     <slot />
   </button>
 </template>

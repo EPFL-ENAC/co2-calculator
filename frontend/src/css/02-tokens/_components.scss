@@ -7,6 +7,38 @@
 @use 'decisions' as dec;
 @use 'options' as opt;
 
+// Header
+$header-bg: opt.$tokens-colors-base-white !default;
+$header-border-bottom: opt.$tokens-colors-grey-scale-grey-400 !default;
+$header-border-bottom-weight: opt.$tokens-spacing-1 !default;
+$header-z-index: opt.$tokens-z-index-top !default;
+$header-padding-x: opt.$tokens-spacing-24 !default;
+$header-padding-y: opt.$tokens-spacing-12 !default;
+$header-min-height: opt.$tokens-spacing-32 !default;
+$header-gap-sm-x: opt.$tokens-spacing-16 !default;
+$header-gap-lg-x: opt.$tokens-spacing-48 !default;
+$header-gap-y: opt.$tokens-spacing-16 !default;
+$header-logo-height: opt.$tokens-spacing-24 !default;
+$header-title-font-size: opt.$tokens-typography-font-size-md !default;
+$header-title-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$header-title-color: opt.$tokens-colors-base-black !default;
+
+// Language Selector
+$language-selector-font-size: opt.$tokens-typography-font-size-md !default;
+$language-selector-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$language-selector-color: opt.$tokens-colors-base-black !default;
+$language-selector-gap: opt.$tokens-spacing-4 !default;
+
+// Icons
+$icon-size-xl: opt.$tokens-spacing-32 !default;
+$icon-size-lg: opt.$tokens-spacing-24 !default;
+$icon-size-md: opt.$tokens-spacing-16 !default;
+$icon-size-sm: opt.$tokens-spacing-12 !default;
+$icon-color-grey: opt.$tokens-colors-grey-scale-grey-600 !default;
+$icon-color-red: opt.$tokens-colors-red-red-100 !default;
+$icon-color-black: opt.$tokens-colors-base-black !default;
+$icon-color-white: opt.$tokens-colors-base-white !default;
+
 // Buttons
 $button-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $button-radius-rounded: opt.$tokens-border-radius-full-border-radius !default;

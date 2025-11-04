@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import Input from 'src/components/atoms/Input.vue';
 import Button from 'src/components/atoms/Button.vue';
+
+const router = useRouter();
 
 const username = ref('');
 const password = ref('');
@@ -62,6 +65,8 @@ const handleSubmit = async (event: SubmitEvent) => {
     errors.value.password = 'login_error_password_incorrect';
     username.value = '';
     password.value = '';
+  } else {
+    router.push({ name: 'workspace-setup' });
   }
 };
 </script>
@@ -76,11 +81,11 @@ const handleSubmit = async (event: SubmitEvent) => {
       <!-- Logo + Title -->
       <div class="login__brand col-12">
         <img
-          src="epfl-logo.svg"
+          src="/epfl-logo.svg"
           :alt="$t('login_logo_alt')"
           class="login__logo"
         />
-        <h2 class="login__title text-weight-medium">{{ $t('login_title') }}</h2>
+        <h2 class="login__title text-weight-medium">{{ $t('title') }}</h2>
       </div>
 
       <!-- form fields -->

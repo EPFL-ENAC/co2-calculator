@@ -2,11 +2,19 @@ import { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/login',
+    component: () => import('pages/LoginPage.vue'),
+  },
+  {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
-      { path: 'login', component: () => import('pages/LoginPage.vue') }
+      {
+        path: 'workspace-setup',
+        name: 'workspace-setup',
+        component: () => import('pages/WorkspaceSetupPage.vue'),
+      },
     ],
   },
 

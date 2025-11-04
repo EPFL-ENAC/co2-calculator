@@ -1,0 +1,61 @@
+@use '../02-tokens' as tokens;
+
+.header {
+  display: grid;
+  grid-auto-rows: auto;
+  row-gap: 0;
+  background-color: tokens.$header-bg;
+  border-bottom: tokens.$header-border-bottom-weight solid
+    tokens.$header-border-bottom;
+  position: sticky;
+  top: 0;
+  z-index: tokens.$header-z-index;
+}
+
+.header__level {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: tokens.$header-gap-y tokens.$header-gap-sm-x;
+  padding: tokens.$header-padding-y tokens.$header-padding-x;
+  border-bottom: tokens.$header-border-bottom-weight solid
+    tokens.$header-border-bottom;
+}
+
+.header__level:last-child {
+  border-bottom: none;
+}
+
+.header__level--bottom {
+  padding-top: tokens.$header-padding-y;
+  padding-bottom: tokens.$header-padding-y;
+}
+
+.header__branding {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  align-items: center;
+  gap: tokens.$header-gap-sm-x;
+  justify-content: start;
+}
+
+.header__logo {
+  height: tokens.$header-logo-height;
+}
+
+.header__title {
+  margin: 0;
+  font-size: tokens.$header-title-font-size;
+  font-weight: tokens.$header-title-font-weight;
+  color: tokens.$header-title-color;
+}
+
+.header__actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  align-items: center;
+  gap: tokens.$header-gap-lg-x;
+  justify-content: flex-end;
+}
