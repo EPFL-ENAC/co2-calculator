@@ -10,7 +10,20 @@
   background: tokens.$field-bg-default;
   min-height: 2.5rem;
   box-sizing: border-box;
-  transition: border-color tokens.$field-transition-duration ease;
+  transition: border-color tokens.$field-transition-duration;
+
+  // TODO: Investigate why overriding font size, line height and font weight
+  &--md {
+    padding: tokens.$field-md-padding-y tokens.$field-md-padding-x;
+    gap: tokens.$field-md-gap;
+
+    input.input-field,
+    .input-field {
+      font-size: tokens.$field-md-font-size !important;
+      line-height: tokens.$field-md-line-height !important;
+      font-weight: tokens.$field-md-font-weight !important;
+    }
+  }
 
   &--lg {
     padding: tokens.$field-lg-padding-y tokens.$field-lg-padding-x;
@@ -48,7 +61,8 @@
     border: none;
     outline: none;
     background: transparent;
-    font-family: inherit;
+
+    // font-family: inherit;
     font-size: tokens.$text-size-base !important;
     line-height: tokens.$text-line-height-base !important;
     font-weight: tokens.$field-md-font-weight !important;

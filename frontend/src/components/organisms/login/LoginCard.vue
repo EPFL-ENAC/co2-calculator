@@ -67,20 +67,24 @@ const handleSubmit = async (event: SubmitEvent) => {
 </script>
 
 <template>
-  <div class="login-card q-pa-lg">
-    <div class="q-gutter-md login__wrap">
+  <div class="login-card">
+    <!-- login form (stacked inputs) -->
+    <form
+      class="login__form q-gutter-y-md col-12"
+      @submit.prevent="handleSubmit"
+    >
       <!-- Logo + Title -->
-      <div class="login__brand text-center">
+      <div class="login__brand col-12">
         <img
           src="epfl-logo.svg"
           :alt="$t('login_logo_alt')"
           class="login__logo"
         />
-        <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
+        <h2 class="login__title text-weight-medium">{{ $t('login_title') }}</h2>
       </div>
 
-      <!-- login form (stacked inputs) -->
-      <form class="login__form" @submit.prevent="handleSubmit">
+      <!-- form fields -->
+      <div class="q-gutter-y-sm">
         <div class="login__field">
           <Input
             v-model="username"
@@ -102,19 +106,19 @@ const handleSubmit = async (event: SubmitEvent) => {
             {{ $t(errors.password) }}
           </p>
         </div>
+      </div>
 
-        <!-- General error message -->
-        <p v-if="errors.general" class="login__error login__error--general">
-          {{ $t(errors.general) }}
-        </p>
+      <!-- General error message -->
+      <p v-if="errors.general" class="login__error login__error--general">
+        {{ $t(errors.general) }}
+      </p>
 
-        <!-- submit button -->
-        <div class="login__button">
-          <Button html-type="submit" :fullwidth="true">{{
-            $t('login_button_submit')
-          }}</Button>
-        </div>
-      </form>
-    </div>
+      <!-- submit button -->
+      <div class="login__button">
+        <Button html-type="submit" :fullwidth="true">{{
+          $t('login_button_submit')
+        }}</Button>
+      </div>
+    </form>
   </div>
 </template>

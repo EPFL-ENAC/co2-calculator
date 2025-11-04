@@ -1,15 +1,13 @@
 @use '../../02-tokens' as tokens;
 
-.btn {
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: tokens.$button-gap;
   padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   border-radius: tokens.$button-radius;
-  border: tokens.$field-border-weight solid transparent;
-  font-size: tokens.$button-size-md-font-size;
-  line-height: tokens.$button-size-md-line-height;
+  border: tokens.$button-border-weight solid transparent;
   cursor: pointer;
   transition: 0.3s ease;
 
@@ -40,21 +38,24 @@
     cursor: not-allowed;
   }
 
+  // TODO: Investigate why overriding font size, line height and font weight
+  font-weight: tokens.$button-font-weight !important;
+
   &--md {
-    font-size: tokens.$button-size-md-font-size;
-    line-height: tokens.$button-size-md-line-height;
+    font-size: tokens.$button-size-md-font-size !important;
+    line-height: tokens.$button-size-md-line-height !important;
     padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   }
 
   &--sm {
-    font-size: tokens.$button-size-sm-font-size;
-    line-height: tokens.$button-size-sm-line-height;
+    font-size: tokens.$button-size-sm-font-size !important;
+    line-height: tokens.$button-size-sm-line-height !important;
     padding: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
   }
 
   &--xs {
-    font-size: tokens.$button-size-xs-font-size;
-    line-height: tokens.$button-size-xs-line-height;
+    font-size: tokens.$button-size-xs-font-size !important;
+    line-height: tokens.$button-size-xs-line-height !important;
     padding: tokens.$button-size-xs-padding-y tokens.$button-size-xs-padding-x;
   }
 

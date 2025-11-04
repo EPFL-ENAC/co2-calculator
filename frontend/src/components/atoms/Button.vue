@@ -2,10 +2,12 @@
 import { computed } from 'vue';
 
 type ButtonType = 'primary' | 'secondary' | 'disabled';
+type ButtonSize = 'xs' | 'sm' | 'md';
 
 const props = withDefaults(
   defineProps<{
     type?: ButtonType;
+    size?: ButtonSize;
     disabled?: boolean;
     fullwidth?: boolean;
     onClick?: (event: MouseEvent) => void;
@@ -13,6 +15,7 @@ const props = withDefaults(
   }>(),
   {
     type: 'primary',
+    size: 'md',
     disabled: false,
     fullwidth: false,
     onClick: undefined,
@@ -21,9 +24,9 @@ const props = withDefaults(
 );
 
 const buttonClasses = computed(() => {
-  const classes = ['btn', `btn--${props.type}`];
+  const classes = ['button', `button--${props.type}`, `button--${props.size}`];
   if (props.fullwidth) {
-    classes.push('btn--fullwidth');
+    classes.push('button--fullwidth');
   }
   return classes;
 });

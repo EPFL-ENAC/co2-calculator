@@ -33,15 +33,3 @@
     z-index: tokens.$login-page-bg-blur-z-index;
   }
 }
-
-.login-card {
-  border-radius: tokens.$login-card-border-radius;
-  box-shadow: tokens.$login-card-box-shadow;
-  padding: tokens.$login-card-padding;
-  gap: tokens.$login-card-gap;
-  background-color: tokens.$login-card-bg;
-  color: tokens.$login-card-color;
-  font-size: tokens.$login-card-font-size;
-  font-weight: tokens.$login-card-font-weight;
-  line-height: tokens.$login-card-line-height;
-}

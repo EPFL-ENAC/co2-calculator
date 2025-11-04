@@ -1,5 +1,6 @@
 @use '../../02-tokens' as tokens;
 
+/*
 .q-btn.q-btn--gradient-primary {
   background-image: linear-gradient(
     135deg,
@@ -13,3 +14,9 @@
   padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
   border-radius: tokens.$button-radius;
 }
+
+.q-btn.bg-primary {
+  background-color: orange;
+}
+
+*/
