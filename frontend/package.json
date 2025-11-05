@@ -17,11 +17,13 @@
     "tokens:generate": "node scripts/generate-scss-tokens.mjs",
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
-    "build": "quasar build"
+    "build": "quasar build",
+    "mock:auth": "node src/mock/mockauth.js"
   },
   "dependencies": {
     "@quasar/extras": "=1.17.0",
     "@quasar/quasar-app-extension-qmarkdown": "^2.0.5",
+    "ky": "=1.14.0",
     "pinia": "=3.0.3",
     "quasar": "=2.18.5",
     "vue": "=3.5.22",

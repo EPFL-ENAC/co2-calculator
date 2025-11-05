@@ -11,7 +11,7 @@ const props = withDefaults(
     size?: ButtonSize;
     disabled?: boolean;
     fullwidth?: boolean;
-    onClick?: (event: MouseEvent) => void;
+    handleClick?: (event: MouseEvent) => void;
     htmlType?: 'button' | 'submit' | 'reset';
   }>(),
   {
@@ -19,7 +19,6 @@ const props = withDefaults(
     size: 'md',
     disabled: false,
     fullwidth: false,
-    onClick: undefined,
     htmlType: 'button',
   },
 );
@@ -43,12 +42,6 @@ const buttonClasses = computed(() => {
   }
   return classes;
 });
-
-const handleClick = (event: MouseEvent) => {
-  if (props.onClick) {
-    props.onClick(event);
-  }
-};
 </script>
 
 <template>
@@ -59,6 +52,6 @@ const handleClick = (event: MouseEvent) => {
     :disable="disabled"
     :label="label"
     :class="buttonClasses"
-    @click="handleClick"
+    @click="handleClick || undefined"
   />
 </template>
