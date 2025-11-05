@@ -1,7 +1,10 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import Input from 'src/components/atoms/Input.vue';
 import Button from 'src/components/atoms/Button.vue';
+
+const router = useRouter();
 
 const username = ref('');
 const password = ref('');
@@ -69,10 +72,7 @@ const handleSubmit = async (event: SubmitEvent) => {
 <template>
   <div class="login-card">
     <!-- login form (stacked inputs) -->
-    <form
-      class="login__form q-gutter-y-md col-12"
-      @submit.prevent="handleSubmit"
-    >
+    <q-form class="q-gutter-y-xl" @submit.prevent="handleSubmit">
       <!-- Logo + Title -->
       <div class="login__brand col-12">
         <img
@@ -80,7 +80,7 @@ const handleSubmit = async (event: SubmitEvent) => {
           :alt="$t('login_logo_alt')"
           class="login__logo"
         />
-        <h2 class="login__title text-weight-medium">{{ $t('login_title') }}</h2>
+        <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
       </div>
 
       <!-- form fields -->
@@ -115,10 +115,13 @@ const handleSubmit = async (event: SubmitEvent) => {
 
       <!-- submit button -->
       <div class="login__button">
-        <Button html-type="submit" :fullwidth="true">{{
-          $t('login_button_submit')
-        }}</Button>
+        <Button
+          html-type="submit"
+          :fullwidth="true"
+          :label="$t('login_button_submit')"
+          size="md"
+        />
       </div>
-    </form>
+    </q-form>
   </div>
 </template>

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-type ButtonType = 'primary' | 'secondary' | 'disabled';
+type ButtonColor = 'primary' | 'secondary';
 type ButtonSize = 'xs' | 'sm' | 'md';
 
 const props = withDefaults(
   defineProps<{
-    type?: ButtonType;
+    label: string;
+    color?: ButtonColor;
     size?: ButtonSize;
     disabled?: boolean;
     fullwidth?: boolean;
@@ -14,7 +15,7 @@ const props = withDefaults(
     htmlType?: 'button' | 'submit' | 'reset';
   }>(),
   {
-    type: 'primary',
+    color: 'primary',
     size: 'md',
     disabled: false,
     fullwidth: false,
@@ -24,31 +25,40 @@ const props = withDefaults(
 );
 
 const buttonClasses = computed(() => {
-  const classes = ['button', `button--${props.type}`, `button--${props.size}`];
+  const classes = ['text-weight-medium'];
+  if (props.color) {
+    classes.push(`button-${props.color}`);
+  }
+
+  if (props.disabled) {
+    classes.push('button-disabled');
+  }
+
+  if (props.size) {
+    classes.push(`button-${props.size}`);
+  }
+
   if (props.fullwidth) {
-    classes.push('button--fullwidth');
+    classes.push('full-width');
   }
   return classes;
 });
 
-const isDisabled = computed(() => {
-  return props.disabled || props.type === 'disabled';
-});
-
 const handleClick = (event: MouseEvent) => {
-  if (!isDisabled.value && props.onClick) {
+  if (props.onClick) {
     props.onClick(event);
   }
 };
 </script>
 
 <template>
-  <button
+  <q-btn
     :type="htmlType"
+    no-caps
+    full-width
+    :disable="disabled"
+    :label="label"
     :class="buttonClasses"
-    :disabled="isDisabled"
     @click="handleClick"
-  >
-    <slot />
-  </button>
+  />
 </template>

@@ -11,28 +11,10 @@
   font-weight: tokens.$text-weight-medium;
 }
 
-.login__title {
-  color: tokens.$login-card-color;
-  font-size: tokens.$login-card-font-size;
-  font-weight: tokens.$login-card-font-weight;
-  line-height: tokens.$login-card-line-height;
-}
-
 .login__brand {
   display: grid;
   gap: tokens.$spacing-sm;
   justify-items: center;
-}
-
-.login__form {
-  display: grid;
-  gap: tokens.$spacing-md;
-  width: 100%;
-}
-
-.login__button {
-  display: block;
-  width: 100%;
 }
 
 .login__field {

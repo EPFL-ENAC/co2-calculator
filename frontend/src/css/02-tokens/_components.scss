@@ -9,36 +9,29 @@
 
 // Buttons
 $button-radius: opt.$tokens-border-radius-generic-border-radius !default;
-$button-radius-rounded: opt.$tokens-border-radius-full-border-radius !default;
 $button-primary-bg-default: opt.$tokens-colors-red-red-100 !default;
 $button-primary-bg-hover: opt.$tokens-colors-red-red-200 !default;
 $button-primary-color: opt.$tokens-colors-base-white !default;
 $button-secondary-bg-default: opt.$tokens-colors-base-white !default;
 $button-secondary-bg-hover: opt.$tokens-colors-grey-scale-grey-100 !default;
 $button-secondary-color: opt.$tokens-colors-base-black !default;
+$button-secondary-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $button-disabled-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $button-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
-$button-disabled-stroke-color: opt.$tokens-colors-grey-scale-grey-400 !default;
-$button-width: opt.$tokens-spacing-1 !default;
+$button-disabled-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $button-size-md-padding-x: opt.$tokens-spacing-16 !default;
 $button-size-md-padding-y: opt.$tokens-spacing-12 !default;
 $button-size-sm-padding-x: opt.$tokens-spacing-12 !default;
 $button-size-sm-padding-y: opt.$tokens-spacing-8 !default;
 $button-size-xs-padding-x: opt.$tokens-spacing-8 !default;
 $button-size-xs-padding-y: opt.$tokens-spacing-8 !default;
-$button-font-weight: opt.$tokens-typography-font-weight-medium !default;
-$button-gap: opt.$tokens-spacing-4 !default;
-$button-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
-$button-border-weight: opt.$tokens-spacing-1 !default;
 $button-size-md-font-size: opt.$tokens-typography-font-size-md !default;
 $button-size-md-line-height: opt.$tokens-typography-line-height-md !default;
 $button-size-sm-font-size: opt.$tokens-typography-font-size-sm !default;
 $button-size-sm-line-height: opt.$tokens-typography-line-height-sm !default;
 $button-size-xs-font-size: opt.$tokens-typography-font-size-xs !default;
 $button-size-xs-line-height: opt.$tokens-typography-line-height-xs !default;
-$button-secondary-stroke-color: opt.$tokens-colors-grey-scale-grey-300 !default;
 $button-transition-duration: opt.$tokens-transitions-default !default;
-$button-full-width: opt.$tokens-layout-full-width !default;
 
 // Form Fields
 $field-min-width: opt.$tokens-spacing-64 !default;

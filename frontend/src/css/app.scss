@@ -3,10 +3,10 @@
 
 // Map SCSS tokens to Quasar variables ahead of pulling in the framework CSS.
 @import './02-tokens/quasar-bridge';
-@import 'quasar/src/css/index.sass';
 
 // Establish the cascade order for the ITCSS-inspired architecture.
-@layer reset, fonts, tokens, layout, quasar-overrides, components, utilities;
+// Quasar styles are imported into the 'quasar' layer so they can be properly overridden
+@layer reset, fonts, tokens, layout, quasar, quasar-overrides, components, utilities;
 
 @layer reset {
   @import './01-reset/normalize';
@@ -26,12 +26,15 @@
   @import './03-layout/container';
 }
 
+@layer quasar {
+  @import 'quasar/src/css/index.sass';
+}
+
 @layer quasar-overrides {
   @import './05-components/quasar-overrides/q-btn-custom';
 }
 
 @layer components {
-  @import './05-components/_atoms/button';
   @import './05-components/_atoms/input-field';
   @import './05-components/_molecules/card';
   @import './05-components/_organisms/navigation';

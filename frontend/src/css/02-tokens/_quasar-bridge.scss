@@ -14,7 +14,7 @@
 @use 'options' as opt;
 
 // Brand colors
-$primary: dec.$color-primary;
+$primary: dec.$color-text;
 $secondary: dec.$color-secondary;
 $accent: dec.$color-primary-hover !default;
 $dark: #1d1d1d !default;
@@ -83,10 +83,9 @@ $h6: (
 ) !default;
 
 // Button
+$button-font-size: 16px !default;
 $button-border-radius: comp.$button-radius !default;
-$button-rounded-border-radius: comp.$button-radius-rounded !default;
 $button-push-border-radius: comp.$button-radius !default;
-$button-padding: comp.$button-size-md-padding-y comp.$button-size-md-padding-x !default;
 $button-dense-padding: comp.$button-size-sm-padding-y
   comp.$button-size-sm-padding-x !default;
 $button-font-size: comp.$button-size-md-font-size !default;
@@ -95,7 +94,13 @@ $button-line-height: comp.$button-size-md-line-height !default;
 $button-font-weight: dec.$text-weight-bold !default;
 $button-shadow: none !default;
 $button-shadow-active: none !default;
-$button-transition: 0.3s ease !default;
+$button-transition: comp.$button-transition-duration !default;
+$button-padding-xs: comp.$button-size-xs-padding-y
+  comp.$button-size-xs-padding-x !default;
+$button-padding-sm: comp.$button-size-sm-padding-y
+  comp.$button-size-sm-padding-x !default;
+$button-padding-md: comp.$button-size-md-padding-y
+  comp.$button-size-md-padding-x !default;
 
 // Separators & borders
 $separator-color: dec.$color-border !default;

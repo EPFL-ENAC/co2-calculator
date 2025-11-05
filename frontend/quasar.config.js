@@ -99,6 +99,28 @@ export default defineConfig(function (/* ctx */) {
           },
         ],
       ],
+      extendViteConf(viteConf) {
+        // Remove Quasar's auto-injected CSS
+        if (!viteConf.css) viteConf.css = {};
+        if (!viteConf.css.preprocessorOptions)
+          viteConf.css.preprocessorOptions = {};
+        if (!viteConf.css.preprocessorOptions.scss)
+          viteConf.css.preprocessorOptions.scss = {};
+
+        // Prevent Quasar from auto-injecting
+        viteConf.resolve = viteConf.resolve || {};
+        viteConf.resolve.alias = viteConf.resolve.alias || {};
+
+        // Create an empty alias to block the auto-injection
+        viteConf.resolve.alias['quasar/dist/quasar.sass'] = path.resolve(
+          __dirname,
+          './src/css/empty.scss',
+        );
+        viteConf.resolve.alias['quasar/dist/quasar.css'] = path.resolve(
+          __dirname,
+          './src/css/empty.scss',
+        );
+      },
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
