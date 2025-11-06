@@ -8,6 +8,9 @@ import {
 
 import routes from './routes';
 import { useAuthStore } from 'src/stores/auth';
+import { getCurrentLanguage, routeLanguageToLocale } from 'src/utils/language';
+import { i18n } from 'src/boot/i18n';
+import { Language } from 'src/types';
 
 /*
  * If not building with SSR mode, you can
@@ -44,6 +47,18 @@ export default route(function (/* { store, ssrContext } */) {
       return next();
     }
 
+    // Sync language parameter with i18n locale
+    if (to.params.language) {
+      const routeLang = getCurrentLanguage({
+        language: to.params.language as Language,
+      });
+      const i18nLocale = routeLanguageToLocale(routeLang);
+      if (i18n.global.locale.value !== i18nLocale) {
+        i18n.global.locale.value =
+          i18nLocale as typeof i18n.global.locale.value;
+      }
+    }
+
     // Wait for auth to finish loading
     if (authStore.loading) {
       return next();
@@ -51,16 +66,22 @@ export default route(function (/* { store, ssrContext } */) {
 
     // Protected route without authentication
     if (to.meta.requiresAuth && !authStore.user) {
-      if (to.path !== '/login') {
-        return next('/login');
+      const loginPath = to.params.language
+        ? `/${to.params.language}/login`
+        : '/en/login';
+      if (!to.path.includes('/login')) {
+        return next(loginPath);
       }
       return next();
     }
 
     // Already logged in, redirect from login page
-    if (to.path === '/login' && authStore.user) {
-      if (from.path !== '/workspace-setup') {
-        return next('/workspace-setup');
+    if (to.path.includes('/login') && authStore.user) {
+      const setupPath = to.params.language
+        ? `/${to.params.language}/workspace-setup`
+        : '/en/workspace-setup';
+      if (!from.path.includes('/workspace-setup')) {
+        return next(setupPath);
       }
       return next();
     }
