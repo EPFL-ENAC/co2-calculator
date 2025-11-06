@@ -20,6 +20,7 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
+          comment-summary-in-pr: never
 
   npm-audit:
     name: NPM Security Audit
