@@ -81,6 +81,21 @@ $h6: (
   size: dec.$text-size-sm,
   line-height: dec.$text-line-height-base,
 ) !default;
+$body1: (
+  size: dec.$text-size-base,
+  line-height: dec.$text-line-height-lg,
+  weight: dec.$text-weight-regular,
+) !default;
+$body2: (
+  size: dec.$text-size-sm,
+  line-height: dec.$text-size-base,
+  weight: dec.$text-weight-regular,
+) !default;
+$caption: (
+  size: dec.$text-size-xs,
+  line-height: dec.$text-line-height-sm,
+  weight: dec.$text-weight-regular,
+) !default;
 
 // Button
 $button-border-radius: comp.$button-radius !default;

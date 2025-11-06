@@ -1,0 +1,34 @@
+{
+  "labs": [
+    {
+      "name": "ENAC-IT",
+      "role": "principal user",
+      "lead": "John Doe",
+      "affiliation": "ENAC",
+      "building": "CM",
+      "description": "Laboratory 1 description"
+    },
+    {
+      "name": "ALICE",
+      "role": "principal user",
+      "lead": "John Doe",
+      "affiliation": "ENAC",
+      "building": "CM",
+      "description": "Laboratory 1 description"
+    }
+  ],
+  "recordedYears": [
+    {
+      "year": 2025,
+      "completedModules": 4,
+      "lastYearComparison(calculated)": "-13.5",
+      "kgco2-eq": 202556
+    },
+    {
+      "year": 2024,
+      "completedModules": 4,
+      "lastYearComparison(calculated)": null,
+      "kgco2-eq": 202456
+    }
+  ]
+}

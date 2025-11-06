@@ -80,11 +80,7 @@ const handleSubmit = async (event: SubmitEvent) => {
     >
       <!-- Logo + Title -->
       <div class="login__brand col-12">
-        <img
-          src="/epfl-logo.svg"
-          :alt="$t('login_logo_alt')"
-          class="login__logo"
-        />
+        <img src="/epfl-logo.svg" :alt="$t('logo_alt')" class="login__logo" />
         <h2 class="login__title text-weight-medium">{{ $t('title') }}</h2>
       </div>
 

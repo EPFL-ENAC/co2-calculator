@@ -6,4 +6,5 @@
   background-color: tokens.$container-default-bg;
   border: tokens.$container-border-weight solid tokens.$container-default-border;
   border-radius: tokens.$container-border-radius;
+  padding: tokens.$container-padding-x tokens.$container-padding-y;
 }

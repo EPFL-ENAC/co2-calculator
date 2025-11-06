@@ -9,7 +9,7 @@ import LanguageSelector from 'src/components/atoms/LanguageSelector.vue';
     <div class="header__level header__level--top">
       <!-- Left: Logo and branding -->
       <div class="header__branding">
-        <img src="/epfl-logo.svg" alt="EPFL Logo" class="header__logo" />
+        <img src="/epfl-logo.svg" :alt="$t('logo_alt')" class="header__logo" />
         <h3 class="header__title">{{ $t('title') }}</h3>
       </div>
       <!-- Right: Language, info, and action buttons -->
