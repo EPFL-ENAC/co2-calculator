@@ -3,10 +3,11 @@
 
 // Map SCSS tokens to Quasar variables ahead of pulling in the framework CSS.
 @import './02-tokens/quasar-bridge';
-@import 'quasar/src/css/index.sass';
+
+// @import 'quasar/src/css/index.sass';
 
 // Establish the cascade order for the ITCSS-inspired architecture.
-@layer reset, tokens, layout, quasar-overrides, components, utilities;
+@layer reset, fonts, tokens, quasar-base, layout, quasar-overrides, components, utilities;
 
 @layer reset {
   @import './01-reset/normalize';
@@ -14,6 +15,11 @@
 
 @layer tokens {
   @import './02-tokens/css-properties';
+}
+
+// Wrap Quasar in a layer
+@layer quasar-base {
+  @import 'quasar/src/css/index.sass';
 }
 
 @layer layout {

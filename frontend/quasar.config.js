@@ -39,13 +39,13 @@ export default defineConfig(function (/* ctx */) {
     extras: [
       // 'ionicons-v4',
       // 'mdi-v5',
-      'fontawesome-v6',
+      // 'fontawesome-v6',
       // 'eva-icons',
       // 'themify',
       // 'line-awesome',
       // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
 
-      'roboto-font', // optional, you are not bound to it
+      // 'roboto-font', // optional, you are not bound to it
       'material-icons', // optional, you are not bound to it
     ],
 
@@ -75,8 +75,6 @@ export default defineConfig(function (/* ctx */) {
       // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',
-
-      // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},
 
       vitePlugins: [
@@ -99,6 +97,29 @@ export default defineConfig(function (/* ctx */) {
           },
         ],
       ],
+
+      extendViteConf(viteConf) {
+        // Remove Quasar's auto-injected CSS
+        if (!viteConf.css) viteConf.css = {};
+        if (!viteConf.css.preprocessorOptions)
+          viteConf.css.preprocessorOptions = {};
+        if (!viteConf.css.preprocessorOptions.scss)
+          viteConf.css.preprocessorOptions.scss = {};
+
+        // Prevent Quasar from auto-injecting
+        viteConf.resolve = viteConf.resolve || {};
+        viteConf.resolve.alias = viteConf.resolve.alias || {};
+
+        // Create an empty alias to block the auto-injection
+        viteConf.resolve.alias['quasar/dist/quasar.sass'] = path.resolve(
+          __dirname,
+          './src/css/empty.scss',
+        );
+        viteConf.resolve.alias['quasar/dist/quasar.css'] = path.resolve(
+          __dirname,
+          './src/css/empty.scss',
+        );
+      },
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
@@ -124,6 +145,7 @@ export default defineConfig(function (/* ctx */) {
         'SessionStorage',
         'Meta',
       ],
+      cssAddon: false,
       // override css!
       // config: {
       //   brand: {
