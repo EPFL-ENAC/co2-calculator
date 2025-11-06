@@ -146,9 +146,11 @@ type-check:
 	@echo "Running TypeScript type checks..."
 	@if [ "$(FILES)" = "." ]; then \
 		echo "→ Type-checking entire project..."; \
+		npx quasar prepare ; \
 		npx tsc --noEmit ; \
 		npx vue-tsc --noEmit ; \
 	else \
+		npx quasar prepare ; \
 		npx tsc --noEmit --project tsconfig.json --files $(FILES); \
 		npx vue-tsc --noEmit --project tsconfig.json --files $(FILES); \
 	fi

@@ -37,14 +37,16 @@ class Settings(BaseSettings):
     DB_PASSWORD: Optional[str] = Field(
         default=None, description="Database password (optional, for PostgreSQL)"
     )
+    DB_NAME: Optional[str] = Field(
+        default=None, description="Database name (optional, for PostgreSQL)"
+    )
+
+    # necessary to build the DB URL if DATABASE_URL is not provided
     DB_HOST: Optional[str] = Field(
         default=None, description="Database host (optional, for PostgreSQL)"
     )
     DB_PORT: int = Field(
         default=5432, description="Database port (optional, for PostgreSQL)"
-    )
-    DB_NAME: Optional[str] = Field(
-        default=None, description="Database name (optional, for PostgreSQL)"
     )
 
     @computed_field
