@@ -244,8 +244,6 @@ reset: down clean install up ## Nuclear option (down + clean + install + up)
 install: ## Install npm dependencies and set up git hooks
 	@echo "Installing npm dependencies..."
 	npm install
-	@echo "Syncing uv environment..."
-	uv sync
 	@echo "Installing git hooks with lefthook..."
 	npx lefthook install
 	@echo "Installing backend dependencies..."
