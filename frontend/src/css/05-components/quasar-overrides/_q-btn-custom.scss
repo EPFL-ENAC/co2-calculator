@@ -1,15 +1,7 @@
 @use '../../02-tokens' as tokens;
 
-.q-btn.q-btn--gradient-primary {
-  background-image: linear-gradient(
-    135deg,
-    tokens.$button-primary-color 0%,
-    tokens.$button-primary-color 100%
-  );
-  color: tokens.$button-primary-color;
-}
-
-.q-btn.q-btn--dense {
-  padding: tokens.$button-size-md-padding-y tokens.$button-size-md-padding-x;
-  border-radius: tokens.$button-radius;
-}
+// .q-btn {
+//   // example file
+//   // define your custom button styles if really needed
+//   // following quasar design system is preferred with BEM overrides
+// }

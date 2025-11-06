@@ -1,11 +1,5 @@
 @use '../../02-tokens' as tokens;
 
-.card {
-  // background-color: tokens.$card-bg;
-  // border: 1px solid tokens.$card-border-color;
-  // border-radius: tokens.$card-radius;
-  // display: flex;
-  // flex-direction: column;
-  // gap: tokens.$card-gap;
-  // padding: tokens.$card-padding-y tokens.$card-padding-x;
-}
+// example file
+// define your molecules like custom card if really needed
+// following quasar design system is preferred with BEM overrides
