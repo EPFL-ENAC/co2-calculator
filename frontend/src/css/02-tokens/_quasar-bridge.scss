@@ -63,7 +63,8 @@ $button-border-radius: comp.$button-radius !default;
 $button-rounded-border-radius: comp.$button-radius-rounded !default;
 $button-push-border-radius: comp.$button-radius !default;
 $button-padding: comp.$button-size-md-padding-y comp.$button-size-md-padding-x !default;
-$button-dense-padding: comp.$button-size-sm-padding-y comp.$button-size-sm-padding-x !default;
+$button-dense-padding: comp.$button-size-sm-padding-y
+  comp.$button-size-sm-padding-x !default;
 $button-font-size: comp.$button-size-md-font-size !default;
 $button-line-height: comp.$button-size-md-line-height !default;
 $button-font-weight: dec.$text-weight-medium !default;
@@ -156,7 +157,6 @@ $toolbar-title-padding: 0 dec.$spacing-md !default;
 
 // Rating
 $rating-grade-color: opt.$tokens-colors-status-yellow !default;
-
 
 // CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
 // Quasar does not provide default values for these, so we need to set them here.

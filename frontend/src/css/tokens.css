@@ -2,7 +2,8 @@
   /* 
   ** Base tokens
   */
-  --tokens-typography-font-family-base: 'Helvetica Neue', '-apple-system', sans-serif;
+  --tokens-typography-font-family-base:
+    'Helvetica Neue', '-apple-system', sans-serif;
 
   /* FIGMA variables export */
   --tokens-colors-status-green: #28a745;
@@ -90,7 +91,9 @@
   --status-indicator-high-color: var(--tokens-colors-base-white);
   --status-indicator-low-bg: var(--tokens-colors-grey-scale-grey-200);
   --status-indicator-low-color: var(--tokens-colors-grey-scale-grey-600);
-  --status-indicator-border-radius: var(--tokens-border-radius-full-border-radius);
+  --status-indicator-border-radius: var(
+    --tokens-border-radius-full-border-radius
+  );
   --status-indicator-font-size: var(--tokens-typography-font-size-2xs);
   --status-indicator-line-height: var(--tokens-typography-line-height-2xs);
   --radio-selected-radio-color: var(--tokens-colors-red-red-100);
@@ -132,7 +135,9 @@
   --timeline-item-default-icon: var(--tokens-colors-grey-scale-grey-500);
   --timeline-item-default-text: var(--tokens-colors-grey-scale-grey-500);
   --timeline-font-size: var(--tokens-typography-font-size-2xs);
-  --timeline-item-default-font-weight: var(--tokens-typography-font-weight-regular);
+  --timeline-item-default-font-weight: var(
+    --tokens-typography-font-weight-regular
+  );
   --timeline-line-height: var(--tokens-typography-line-height-2xs);
   --timeline-point-size: var(--tokens-spacing-16);
   --timeline-inner-point-size: var(--tokens-spacing-8);
@@ -207,7 +212,9 @@
   --timeline-item-selected-text: var(--tokens-colors-base-black);
   --timeline-item-selected-icon: var(--tokens-colors-grey-scale-grey-600);
   --timeline-item-selected-fill: var(--tokens-colors-grey-scale-grey-600);
-  --timeline-item-selected-font-weight: var(--tokens-typography-font-weight-medium);
+  --timeline-item-selected-font-weight: var(
+    --tokens-typography-font-weight-medium
+  );
   --status-indicator-disabled-bg: var(--tokens-colors-grey-scale-grey-200);
   --status-indicator-disabled-color: var(--tokens-colors-grey-scale-grey-400);
   --status-indicator-disabled-border: var(--tokens-colors-grey-scale-grey-400);
