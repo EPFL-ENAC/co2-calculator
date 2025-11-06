@@ -20,11 +20,11 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
-          comment-summary-in-pr: never
+          comment-summary-in-pr: always
 
-      - name: Clear large summary to avoid upload error
-        if: always()
-        run: truncate -s 1000K "$GITHUB_STEP_SUMMARY"
+      # - name: Clear large summary to avoid upload error
+      #   if: always()
+      #   run: truncate -s 1000K "$GITHUB_STEP_SUMMARY"
 
   npm-audit:
     name: NPM Security Audit
