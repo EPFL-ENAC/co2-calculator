@@ -194,8 +194,8 @@ database:
     port: 5432
     database: ""  # REQUIRED: Database name (e.g., "co2_calculator")
     username: ""  # REQUIRED: Database user
-    password: ""  # REQUIRED: Database password
-    
+    # WARNING: Must be overridden for production! Never commit real passwords to version control.    
+    password: "REPLACE_WITH_SECURE_PASSWORD"  # REQUIRED: Database password.
   externalSecret:
     enabled: false  # Set to true to use existing Kubernetes secret
     name: ""  # Name of the external secret containing DB credentials
