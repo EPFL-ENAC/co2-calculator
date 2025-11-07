@@ -22,36 +22,32 @@ for dir in $staged_dirs; do
       backend_files=$(echo "$staged_files" | grep "^backend/" | sed 's|^backend/||' | xargs)
       if [ -n "$backend_files" ]; then
         echo "Formatting backend files: $backend_files"
-        cd backend && make format FILES="$backend_files"
-        cd ..
-        git add $(echo "$staged_files" | grep "^backend/")
+        (cd backend && make format FILES="$backend_files")
+        echo "$staged_files" | grep "^backend/" | xargs git add
       fi
       ;;
     frontend)
       echo "Processing frontend..."
       frontend_files=$(echo "$staged_files" | grep "^frontend/" | sed 's|^frontend/||' | xargs)
       if [ -n "$frontend_files" ]; then
-        cd frontend && make format FILES="$frontend_files"
-        cd ..
-        git add $(echo "$staged_files" | grep "^frontend/")
+        (cd frontend && make format FILES="$frontend_files")
+        echo "$staged_files" | grep "^frontend/" | xargs git add
       fi
       ;;
     docs)
       echo "Processing docs..."
       docs_files=$(echo "$staged_files" | grep "^docs/" | sed 's|^docs/||' | xargs)
       if [ -n "$docs_files" ]; then
-        cd docs && make format FILES="$docs_files"
-        cd ..
-        git add $(echo "$staged_files" | grep "^docs/")
+        (cd docs && make format FILES="$docs_files")
+        echo "$staged_files" | grep "^docs/" | xargs git add
       fi
       ;;
     helm)
       echo "Processing helm..."
       helm_files=$(echo "$staged_files" | grep "^helm/" | sed 's|^helm/||' | xargs)
       if [ -n "$helm_files" ]; then
-        cd helm && make format FILES="$helm_files"
-        cd ..
-        git add $(echo "$staged_files" | grep "^helm/")
+        (cd helm && make format FILES="$helm_files")
+        echo "$staged_files" | grep "^helm/" | xargs git add
       fi
       ;;
     root)
