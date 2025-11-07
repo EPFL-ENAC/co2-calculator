@@ -105,7 +105,9 @@ async def list_resources(
     #     return []
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
-        logger.warning(f"OPA denied resource list for user {user.id}: {reason}")
+        logger.warning(
+            "OPA denied resource list", extra={"user_id": user.id, "reason": reason}
+        )
         raise HTTPException(status_code=403, detail=f"Access denied: {reason}")
 
     # Extract filters from OPA decision
@@ -158,7 +160,12 @@ async def get_resource(db: AsyncSession, resource_id: int, user: User) -> Resour
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
         logger.warning(
-            f"OPA denied resource {resource_id} read for user {user.id}: {reason}"
+            "OPA denied resource read",
+            extra={
+                "user_id": user.id,
+                "resource_id": sanitize(resource_id),
+                "reason": reason,
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -201,7 +208,9 @@ async def create_resource(
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
-        logger.warning(f"OPA denied resource creation for user {user.id}: {reason}")
+        logger.warning(
+            "OPA denied resource creation", extra={"user_id": user.id, "reason": reason}
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Not authorized to create resource: {reason}",
@@ -264,7 +273,12 @@ async def update_resource(
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
         logger.warning(
-            f"OPA denied resource {resource_id} update for user {user.id}: {reason}"
+            "OPA denied resource update",
+            extra={
+                "user_id": user.id,
+                "resource_id": sanitize(resource_id),
+                "reason": reason,
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -319,14 +333,19 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
         extra={
             "user_id": user.id,
             "action": "delete_resource",
-            "resource_id": resource_id,
+            "resource_id": sanitize(resource_id),
         },
     )
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
         logger.warning(
-            f"OPA denied resource {resource_id} delete for user {user.id}: {reason}"
+            "OPA denied resource delete",
+            extra={
+                "user_id": user.id,
+                "resource_id": sanitize(resource_id),
+                "reason": reason,
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
