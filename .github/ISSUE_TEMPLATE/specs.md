@@ -28,7 +28,7 @@ List all relevant stories.
 List what is required to move forward (texts, rules, formats, validations, decisions, etc.).  
 - [ ] Example
 
-# 💾 Sample Data (if applicable)  
+## 💾 Sample Data (if applicable)  
 - APIs or endpoints involved  
 - Example payloads or schemas  
 - Links to sample datasets  
