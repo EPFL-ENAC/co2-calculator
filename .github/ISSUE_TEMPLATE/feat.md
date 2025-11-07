@@ -1,6 +1,6 @@
 ---
 name: "✨ Feature"
-about: "Develop anuser-facing or functional slice ready for review."
+about: "Develop an user-facing or functional slice ready for review."
 title: "[FEAT]: "
 labels:
   - enhancement
@@ -33,3 +33,4 @@ How will we measure if this [TASK] achieves its goals?
 - [ ] Key features are functional
 - [ ] qualitative feedback (“easy to use”)
 - [ ] Documentation updated in user guide + API docs 
+
