@@ -1,45 +1,37 @@
 ---
-name: "✅ Task"
-about: "Suggest a new feature or improvement"
+name: "🔧 Task"
+about: "Technical or structural work that may group multiple features or enable future work"
 title: "[Task]: "
 labels:
   - enhancement
   - triage
   - needs-triage
-assignees:
-  - guilbep
 ---
 
-## 🎯 Feature Overview (Why?)
+## 🎯 Task Overview (Why?)
 
 - Problem Statement, User story
 
-## 🧩 Solution (What?)
-
+## 🧩 Solution
+Describe the intended approach, architecture, or technical strategy.  
 - Proposed solution
 - High-level approach & key functionalities
-- 🎨 For front-end : Screenshot and/or Figma export.
+### 🎨 For front-end : Screenshot and/or Figma export.
+
+## 📋 Implementation Plan  
+- [ ] Initialize repository or structure  
+- [ ] Write tests and documentation  
 
 ## 💾 Sample data
 
+## ⚙️ Clarifications Needed  
+List open questions   
+- [ ] Example
+
 ## ✅ Success Criteria
-
-How will we measure if this RFC achieves its goals?
-
+How will we measure if this [TASK] achieves its goals?
+- [ ] All sub-features or subtasks completed  
 - [ ] Key features are functional
-- [ ] qualitative feedback (“easy to use”)
 - [ ] Documentation updated in user guide + API docs
 
-## ⚙️ Implementation (How?)
 
-- to be filled by the dev.
-- 🔗 Consider Dependencies to manage
-- 🔒 Consider Non-functional aspects – Performance, security, accessibility.
-
-## 📋 Implementation Plan (subtasks)
-
-- [ ] Sub-tasks (may be converted to sub-issues).
-
-## ❔ Any Open Questions (Hopefully none remaining)
-
-Specific questions, Unresolved issues for discussion.
