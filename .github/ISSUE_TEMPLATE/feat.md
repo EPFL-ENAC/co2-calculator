@@ -27,7 +27,7 @@ Add relevant Figma links or screenshots.
 
 ## ⚙️ Clarifications Needed  
 
-# ✅ Success Criteria 
+## ✅ Success Criteria 
 How will we measure if this [TASK] achieves its goals?
  
 - [ ] Key features are functional
