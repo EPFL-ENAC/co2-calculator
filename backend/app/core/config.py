@@ -103,6 +103,41 @@ class Settings(BaseSettings):
     LOKI_LABEL_JOB: Optional[str] = None  # default job label; falls back to APP_NAME
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
+    # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
+    OAUTH_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="OAuth2/OIDC Client ID",
+    )
+    OAUTH_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="OAuth2/OIDC Client Secret",
+    )
+    OAUTH_ISSUER_URL: Optional[str] = Field(
+        default=None,
+        description=(
+            "OAuth2/OIDC Issuer URL (base URL). "
+            "Examples: "
+            "- Keycloak: https://keycloak.example.com/realms/your-realm "
+            "- Entra ID: https://login.microsoftonline.com/{tenant-id}/v2.0 "
+            "The well-known configuration endpoint will be automatically appended."
+        ),
+    )
+
+    @computed_field
+    def oauth_metadata_url(self) -> str:
+        """Build OIDC discovery URL from issuer URL."""
+        if self.OAUTH_ISSUER_URL:
+            # Ensure no trailing slash
+            issuer = self.OAUTH_ISSUER_URL.rstrip("/")
+            return f"{issuer}/.well-known/openid-configuration"
+        return ""
+
+    # Frontend URL for redirects
+    FRONTEND_URL: str = Field(
+        default="http://localhost:9000",
+        description="Frontend application URL for OAuth redirects",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
