@@ -28,7 +28,7 @@ Add relevant Figma links or screenshots.
 ## ⚙️ Clarifications Needed  
 
 ## ✅ Success Criteria 
-How will we measure if this [TASK] achieves its goals?
+How will we measure if this [FEAT] achieves its goals?
  
 - [ ] Key features are functional
 - [ ] qualitative feedback (“easy to use”)
