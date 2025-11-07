@@ -39,7 +39,7 @@
 ### Prerequisites
 
 - Make
-- Node.js (v22+)
+- Node.js LTS (v24+)
   - npm
 - Python 3.13
   - uv
