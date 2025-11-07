@@ -24,7 +24,7 @@ Add Figma link, screenshots, or design notes.
 As a [role], I want to [action] so that [benefit].  
 List all relevant stories.
 
-# 💬 What We Need  
+## 💬 What We Need  
 List what is required to move forward (texts, rules, formats, validations, decisions, etc.).  
 - [ ] Example
 
