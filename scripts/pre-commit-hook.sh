@@ -23,7 +23,7 @@ for dir in $staged_dirs; do
       if [ -n "$backend_files" ]; then
         echo "Formatting backend files: $backend_files"
         (cd backend && make format FILES="$backend_files")
-        echo "$staged_files" | grep "^backend/" | xargs git add
+        echo "$staged_files" | grep "^backend/" | xargs -I {} git add {}
       fi
       ;;
     frontend)
@@ -31,7 +31,7 @@ for dir in $staged_dirs; do
       frontend_files=$(echo "$staged_files" | grep "^frontend/" | sed 's|^frontend/||' | xargs)
       if [ -n "$frontend_files" ]; then
         (cd frontend && make format FILES="$frontend_files")
-        echo "$staged_files" | grep "^frontend/" | xargs git add
+        echo "$staged_files" | grep "^frontend/" | xargs -I {} git add {}
       fi
       ;;
     docs)
@@ -39,7 +39,7 @@ for dir in $staged_dirs; do
       docs_files=$(echo "$staged_files" | grep "^docs/" | sed 's|^docs/||' | xargs)
       if [ -n "$docs_files" ]; then
         (cd docs && make format FILES="$docs_files")
-        echo "$staged_files" | grep "^docs/" | xargs git add
+        echo "$staged_files" | grep "^docs/" | xargs -I {} git add {}
       fi
       ;;
     helm)
@@ -47,15 +47,15 @@ for dir in $staged_dirs; do
       helm_files=$(echo "$staged_files" | grep "^helm/" | sed 's|^helm/||' | xargs)
       if [ -n "$helm_files" ]; then
         (cd helm && make format FILES="$helm_files")
-        echo "$staged_files" | grep "^helm/" | xargs git add
+        echo "$staged_files" | grep "^helm/" | xargs -I {} git add {}
       fi
       ;;
     root)
       echo "Processing root files..."
       root_files=$(echo "$staged_files" | grep -v "/" | xargs)
       if [ -n "$root_files" ]; then
-        npx prettier --write $root_files --ignore-unknown
-        git add $root_files
+        echo "$root_files" | xargs npx prettier --write --ignore-unknown
+        echo "$root_files" | xargs git add
       fi
       ;;
   esac
