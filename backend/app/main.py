@@ -42,11 +42,14 @@ app = FastAPI(
     7. Only authorized data is returned
     
     ## Roles
-    
-    * **admin** - Full access to resources in their unit
-    * **unit_admin** - Manage unit resources
-    * **user** - Basic user access
-    * **resource.create** - Permission to create resources
+
+    * **co2.user.std**: basic user
+    * **co2.user.principal**: unit-level manager
+    * **co2.user.secondary**: delegated unit manager (same permissions as principal)
+    * **co2.backoffice.std**: back office restricted (treat as admin but unit-scoped)
+    * **co2.backoffice.admin**: back office full (treat as cross-unit admin)
+    * **co2.service.mgr**: system IT administrator (treat as unconditional allow)
+
     """,
 )
 # NO CORS origins configured allowed on this instance

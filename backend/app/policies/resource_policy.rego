@@ -2,7 +2,7 @@
 #
 # This policy defines authorization rules for CO2 calculator resources.
 # It implements a hierarchical permission model based on:
-# - User roles (admin, unit_admin, user)
+# - User roles (co2.user.*, co2.backoffice.*, co2.service.mgr)
 # - Unit membership
 # - Resource visibility (public, private, unit)
 # - Resource ownership
@@ -19,25 +19,29 @@ default allow = false
 # LIST Resources - Determine which resources a user can see
 # ============================================================================
 
-# Superusers can see all resources
+# System IT administrators (service managers) can do anything
+allow if {
+    "co2.service.mgr" in input.user.roles
+}
+
+# Superusers can see all resources (legacy flag)
 allow if {
     input.action == "read"
     input.user.is_superuser == true
 }
 
-# Admin role can see all resources in their unit
+# Back office full admins can see all resources (no filters)
 allow if {
     input.action == "read"
-    "admin" in input.user.roles
-    filters := {
-        "unit_id": input.user.unit_id
-    }
+    "co2.backoffice.admin" in input.user.roles
+    filters := {}
 }
 
-# Unit admins can see all resources in their unit
+# Unit-scoped admins/managers (principal, secondary, backoffice.std, legacy admin/unit_admin)
 allow if {
     input.action == "read"
-    "unit_admin" in input.user.roles
+    has_admin_role
+    not ("co2.backoffice.admin" in input.user.roles)
 }
 
 # Regular users can see:
@@ -56,6 +60,8 @@ filters := {
     input.action == "read"
     not input.user.is_superuser
     not has_admin_role
+    not ("co2.backoffice.admin" in input.user.roles)
+    not ("co2.service.mgr" in input.user.roles)
 }
 
 # Filters for superusers (no filters = see all)
@@ -64,23 +70,28 @@ filters := {} if {
     input.user.is_superuser
 }
 
-# Filters for admins in their unit
+filters := {} if {
+    input.action == "read"
+    "co2.service.mgr" in input.user.roles
+}
+
+# Filters for unit-scoped admins
 filters := {
     "unit_id": input.user.unit_id
 } if {
     input.action == "read"
     has_admin_role
     not input.user.is_superuser
+    not ("co2.backoffice.admin" in input.user.roles)
+    not ("co2.service.mgr" in input.user.roles)
 }
 
 # Helper: Check if user has admin role
-has_admin_role if {
-    "admin" in input.user.roles
-}
-
-has_admin_role if {
-    "unit_admin" in input.user.roles
-}
+has_admin_role if { "admin" in input.user.roles }                # legacy
+has_admin_role if { "unit_admin" in input.user.roles }           # legacy
+has_admin_role if { "co2.user.principal" in input.user.roles }
+has_admin_role if { "co2.user.secondary" in input.user.roles }
+has_admin_role if { "co2.backoffice.std" in input.user.roles }
 
 # ============================================================================
 # READ Single Resource
@@ -151,6 +162,22 @@ allow if {
 allow if {
     input.action == "create"
     input.user.is_superuser == true
+}
+
+
+allow if {
+    "co2.service.mgr" in input.user.roles
+    input.action == "create"
+}
+
+allow if {
+    "co2.service.mgr" in input.user.roles
+    input.action == "update"
+}
+
+allow if {
+    "co2.service.mgr" in input.user.roles
+    input.action == "delete"
 }
 
 # ============================================================================

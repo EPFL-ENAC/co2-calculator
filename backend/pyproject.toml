@@ -5,7 +5,7 @@ description = ""
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "aiosqlite>=0.21.0", # fall back for when no external db is provided
-    "fastapi==0.121.0",
+    "fastapi[standard]==0.121.0",
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.20",
     "sqlalchemy[asyncio]==2.0.44",
@@ -17,7 +17,7 @@ dependencies = [
     # "python-dotenv==1.0.0",
     "pydantic==2.12.3",
     "pydantic-settings==2.11.0",
-    "email-validator==2.1.0",
+    "email-validator==2.3.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.4.0",
@@ -58,6 +58,7 @@ dev = [
   "ruff>=0.14",
   "httpx>=0.28",
   "mypy>=1.18.2",
+  "locust>=2.42.2",
 ]
 
 

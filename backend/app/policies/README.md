@@ -11,10 +11,15 @@ Defines authorization rules for CO2 calculator resources.
 **Key Concepts:**
 
 1. **Actions**: `read`, `create`, `update`, `delete`
-2. **Roles**:
-   - `admin` - Full access to resources in their unit
-   - `unit_admin` - Manage unit resources
-   - `resource.create` - Permission to create resources
+2. **Roles** (accredited IDs):
+   - `co2.user.std` – Standard unit member
+   - `co2.user.principal` – Unit manager (responsable d'unité)
+   - `co2.user.secondary` – Delegate / administrative manager (responsable administratif)
+   - `co2.backoffice.std` – Back office restricted (unit-scoped operations)
+   - `co2.backoffice.admin` – Back office full (cross-unit operations)
+   - `co2.service.mgr` – System IT administrator (full system access)
+   - `resource.create` – Granular permission to create resources (keep until replaced)
+   - Legacy (to be deprecated): `admin`, `unit_admin`, `user`
 3. **Visibility Levels**:
    - `public` - Accessible to all authenticated users
    - `unit` - Accessible to users in the same unit

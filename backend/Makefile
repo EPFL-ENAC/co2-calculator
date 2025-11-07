@@ -113,6 +113,12 @@ lint: format-check ## Lint Python code (alias for format-check)
 test: ## Run tests
 	$(UV) run $(PYTEST) tests/ -v
 
+.PHONY: test-perf
+test-perf: ## Run performance tests with Locust
+	@echo "Running performance tests with Locust...: open http://localhost:8089/ in your browser"
+	@echo "Make sure the backend server is running at http://localhost:8000 first"
+	$(UV) run locust -f tests/performance/locustfile.py --host http://localhost:8000
+
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
 	$(UV) run $(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing
