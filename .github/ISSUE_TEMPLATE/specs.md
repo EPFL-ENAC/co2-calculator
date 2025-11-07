@@ -33,7 +33,7 @@ List what is required to move forward (texts, rules, formats, validations, decis
 - Example payloads or schemas  
 - Links to sample datasets  
 
-# ⚙️ Clarifications Needed  
+## ⚙️ Clarifications Needed  
 List open questions or dependencies to resolve before FEAT/TASK creation.  
 
 # ✅ Success Criteria  
