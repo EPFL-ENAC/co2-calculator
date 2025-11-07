@@ -8,18 +8,36 @@ const mockUser = {
   roles: ['user'],
 };
 
+// safer: no inherited prototype
+function parseCookies(header) {
+  const cookies = Object.create(null);
+  if (!header) return cookies;
+
+  header.split(';').forEach((c) => {
+    const [rawK, rawV] = c.trim().split('=');
+    const k = String(rawK || '');
+    const v = String(rawV || '');
+
+    // prevent prototype pollution
+    if (
+      k === '__proto__' ||
+      k === 'constructor' ||
+      k === 'prototype'
+    ) {
+      return;
+    }
+    cookies[k] = v;
+  });
+
+  return cookies;
+}
+
 http
   .createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:9000');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-    const cookies = {};
-    if (req.headers.cookie) {
-      req.headers.cookie.split(';').forEach((c) => {
-        const [k, v] = c.trim().split('=');
-        cookies[k] = v;
-      });
-    }
+    const cookies = parseCookies(req.headers.cookie);
 
     if (req.url === '/api/v1/auth/login' && req.method === 'GET') {
       res.writeHead(302, {
@@ -28,10 +46,12 @@ http
       });
       res.end();
     } else if (req.url === '/api/v1/auth/me' && req.method === 'GET') {
-      if (!cookies.auth_token)
-        return res
-          .writeHead(401)
-          .end(JSON.stringify({ error: 'Not authenticated' }));
+      if (!cookies.auth_token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not authenticated' }));
+        return;
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(mockUser));
     } else if (req.url === '/api/v1/auth/logout' && req.method === 'POST') {
@@ -41,7 +61,8 @@ http
       });
       res.end(JSON.stringify({ message: 'Logged out' }));
     } else {
-      res.writeHead(404).end(JSON.stringify({ error: 'Not found' }));
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
     }
   })
   .listen(PORT, () => console.log(`Mock server: http://localhost:${PORT}`));
