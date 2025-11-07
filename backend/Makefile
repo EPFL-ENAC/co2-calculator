@@ -123,11 +123,14 @@ test-watch: ## Run tests in watch mode
 
 .PHONY: dev
 dev: install ## Start backend in development mode
+	@if [ ! -f .env ]; then \
+		echo "❌ .env file not found!"; \
+		echo "Creating .env from .env.example..."; \
+		cp .env.example .env; \
+		echo "⚠️  Please review and update .env with your configuration"; \
+		exit 1; \
+	fi
 	@echo "Starting backend development server..."
-	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-.PHONY: run
-run: ## Run development server
 	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: run-prod
