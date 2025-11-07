@@ -77,8 +77,8 @@ spec:
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "co2-calculator.fullname" . }}-backend
-                  key: SECRET_KEY
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.externalSecret.secretKeyKey | default "SECRET_KEY" }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:

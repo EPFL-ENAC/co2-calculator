@@ -32,12 +32,19 @@ backend:
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "30"
 
+    # Open Policy Agent (OPA) - External authorization service
+    # Must be deployed separately and accessible from the backend pods
+    # Example: "http://opa.opa-system.svc.cluster.local:8181" for in-cluster OPA
+    # Set OPA_ENABLED to "false" to disable authorization checks (NOT recommended for production)
     OPA_ENABLED: "true"
     OPA_TIMEOUT: "1.0"
-    OPA_URL: "http://localhost:8181"  # MISSING - add this!
+    OPA_URL: "http://localhost:8181"  # OVERRIDE: Set to your OPA service URL
 
   secrets:
-    SECRET_KEY: "change-me-in-production-use-openssl-rand-hex-32"
+    # WARNING: This default value is INSECURE and MUST be overridden before production deployment!
+    # Generate a secure key using: openssl rand -hex 32
+    # Use backend.externalSecret.enabled=true for production environments
+    SECRET_KEY: ""  # REQUIRED: Must be set via --set flag or external secret
 
   podAnnotations: {}
 
@@ -176,17 +183,21 @@ database:
   # External database (PostgreSQL for production)
   external:
     enabled: false  # Set to true for production with PostgreSQL
-    # Option 1: Direct DATABASE_URL (takes precedence)
-    url: ""  # If set, this overrides individual fields
+    
+    # Option 1: Direct DATABASE_URL (recommended - takes precedence)
+    # Example: "postgresql://user:pass@postgres.example.com:5432/co2_calculator"
+    url: ""  # REQUIRED when external.enabled=true (unless using externalSecret)
 
-    # Option 2: Individual fields (used if url is empty)
-    host: "postgres.example.com"
+    # Option 2: Individual connection fields (used only if url is empty)
+    # These will be composed into a DATABASE_URL automatically
+    host: ""      # REQUIRED: PostgreSQL host (e.g., "postgres.example.com")
     port: 5432
-    database: "co2_calculator"
-    username: "co2user"
-    password: "co2password"
+    database: ""  # REQUIRED: Database name (e.g., "co2_calculator")
+    username: ""  # REQUIRED: Database user
+    password: ""  # REQUIRED: Database password
+    
   externalSecret:
-    enabled: false
+    enabled: false  # Set to true to use existing Kubernetes secret
     name: ""  # Name of the external secret containing DB credentials
     # Keys to use from the external secret:
     databaseUrlKey: DATABASE_URL  # Key for full DATABASE_URL
