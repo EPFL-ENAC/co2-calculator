@@ -20,7 +20,7 @@ Describe expected behaviors, views, or calculations.
 ## 🎨 Design  
 Add Figma link, screenshots, or design notes.
 
-# 📖 User Stories  
+## 📖 User Stories  
 As a [role], I want to [action] so that [benefit].  
 List all relevant stories.
 
