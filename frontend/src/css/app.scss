@@ -30,10 +30,6 @@
   @import './03-layout/container';
 }
 
-@layer quasar {
-  @import 'quasar/src/css/index.sass';
-}
-
 @layer quasar-overrides {
   @import './05-components/quasar-overrides/q-btn-custom';
 }
