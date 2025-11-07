@@ -36,6 +36,6 @@ List what is required to move forward (texts, rules, formats, validations, decis
 ## ⚙️ Clarifications Needed  
 List open questions or dependencies to resolve before FEAT/TASK creation.  
 
-# ✅ Success Criteria  
+## ✅ Success Criteria  
 Expected functional outcomes to later become [FEAT] or [TASK] items.  
 - [ ] Example
