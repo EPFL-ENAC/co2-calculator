@@ -1,5 +1,6 @@
 import { RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
+import { defaultLanguageGuard } from 'src/router/guards/defaultLanguageGuard';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
@@ -7,24 +8,6 @@ const LANGUAGE_PATTERN = 'en|fr';
 const YEAR_PATTERN = '\\d{4}'; // Exactly 4 digits
 const UNIT_PATTERN = '[^/]+'; // Any non-slash characters (unit ID)
 const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation ID)
-
-// Helper function to redirect paths without language prefix to /en/ version
-const redirectToDefaultLanguage = (to: { path: string }) => {
-  // Don't redirect API routes
-  if (to.path.startsWith('/api/')) {
-    return false;
-  }
-  // Don't redirect if already has language prefix
-  if (to.path.startsWith('/en/') || to.path.startsWith('/fr/')) {
-    return false;
-  }
-  // Special case: root path redirects to login
-  if (to.path === '/') {
-    return '/en/login';
-  }
-  // Redirect to /en/ + path
-  return `/en${to.path}`;
-};
 
 const routes: RouteRecordRaw[] = [
   {
@@ -250,15 +233,7 @@ const routes: RouteRecordRaw[] = [
   // Catch-all: redirect routes without language parameter, otherwise show 404
   {
     path: '/:catchAll(.*)*',
-    beforeEnter: (to, _from, next) => {
-      const redirect = redirectToDefaultLanguage(to);
-      if (redirect) {
-        next(redirect);
-      } else {
-        // Path already has language prefix but doesn't match any route - show 404
-        next();
-      }
-    },
+    beforeEnter: defaultLanguageGuard,
     component: () => import('pages/ErrorNotFound.vue'),
   },
 ];

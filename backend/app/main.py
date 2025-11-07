@@ -56,6 +56,17 @@ app = FastAPI(
 )
 # NO CORS origins configured allowed on this instance
 
+from starlette.middleware.sessions import SessionMiddleware
+
+# Add this after creating the FastAPI app
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    session_cookie="session",
+    max_age=600,  # 10 minutes - only needed during OAuth flow
+    same_site="lax",
+    https_only=not settings.DEBUG,
+)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
@@ -86,8 +97,6 @@ async def startup_event():
         extra={"app_name": settings.APP_NAME, "app_version": settings.APP_VERSION},
     )
     logger.info("Debug mode", extra={"debug": settings.DEBUG})
-    logger.info("OPA enabled", extra={"opa_enabled": settings.OPA_ENABLED})
-    logger.info("OPA URL", extra={"opa_url": settings.OPA_URL})
     logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)

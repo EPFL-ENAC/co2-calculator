@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
-    API_VERSION: str = "/v1"
     API_DOCS_PREFIX: str = "/api"
+    API_VERSION: str = "/v1"
 
     # Database Configuration
     # Option 1: Provide full DB_URL directly (takes precedence)
@@ -80,17 +80,11 @@ class Settings(BaseSettings):
     )
 
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # OPA Configuration
     OPA_URL: str = "http://localhost:8181"
     OPA_TIMEOUT: float = 1.0
     OPA_ENABLED: bool = False
-
-    # OAuth/OIDC Configuration (optional, for future OAuth implementation)
-    OAUTH_CLIENT_ID: Optional[str] = None
-    OAUTH_CLIENT_SECRET: Optional[str] = None
-    OAUTH_ISSUER_URL: Optional[str] = None
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -102,6 +96,69 @@ class Settings(BaseSettings):
     LOKI_TIMEOUT: float = 2.0  # seconds
     LOKI_LABEL_JOB: Optional[str] = None  # default job label; falls back to APP_NAME
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
+
+    # Role Provider Plugin Configuration
+    ROLE_PROVIDER_PLUGIN: str = Field(
+        default="default",
+        description=(
+            "Role provider plugin to use for fetching user roles. "
+            "Options: 'default' (parse from JWT claims) or 'accred' (EPFL Accred API). "
+            "The 'default' provider expects roles in JWT claims as flat strings like "
+            "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API "
+            "to fetch authorizations and maps them to roles based on accredunitid."
+        ),
+    )
+
+    # EPFL Accred API Configuration (for 'accred' role provider)
+    ACCRED_API_URL: Optional[str] = Field(
+        default=None,
+        description="EPFL Accred API base URL (e.g., https://api.epfl.ch/v1/accreds)",
+    )
+    ACCRED_API_USERNAME: Optional[str] = Field(
+        default=None,
+        description="EPFL Accred API username for Basic Auth",
+    )
+    ACCRED_API_KEY: Optional[str] = Field(
+        default=None,
+        description="EPFL Accred API key/password for Basic Auth",
+    )
+
+    # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
+    OAUTH_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="OAuth2/OIDC Client ID",
+    )
+    OAUTH_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="OAuth2/OIDC Client Secret",
+    )
+    OAUTH_ISSUER_URL: Optional[str] = Field(
+        default=None,
+        description=(
+            "OAuth2/OIDC Issuer URL (base URL). "
+            "Examples: "
+            "- Keycloak: https://keycloak.example.com/realms/your-realm "
+            "- Entra ID: https://login.microsoftonline.com/{tenant-id}/v2.0 "
+            "The well-known configuration endpoint will be automatically appended."
+        ),
+    )
+
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Add this
+    # Frontend URL for redirects
+    FRONTEND_URL: str = Field(
+        default="http://localhost:9000",
+        description="Frontend application URL for OAuth redirects",
+    )
+    @computed_field
+    def oauth_metadata_url(self) -> str:
+        """Build OIDC discovery URL from issuer URL."""
+        if self.OAUTH_ISSUER_URL:
+            # Ensure no trailing slash
+            issuer = self.OAUTH_ISSUER_URL.rstrip("/")
+            return f"{issuer}/.well-known/openid-configuration"
+        return ""
+
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"

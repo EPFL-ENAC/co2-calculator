@@ -8,7 +8,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from joserfc import jwt
 from joserfc.errors import BadSignatureError
 from joserfc.jwk import OctKey
-from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -20,10 +19,23 @@ settings = get_settings()
 security = HTTPBearer()
 
 
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token."""
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+
+    key = OctKey.import_key(settings.SECRET_KEY.encode())
+    encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
+    return encoded_jwt
+
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create JWT refresh token."""
+    to_encode = data.copy()
+    to_encode["type"] = "refresh"  # Mark as refresh token
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=7))
     to_encode.update({"exp": expire})
 
     key = OctKey.import_key(settings.SECRET_KEY.encode())
@@ -85,9 +97,3 @@ async def get_current_active_user(db: AsyncSession = Depends(get_db)) -> User:
         )
     return user
 
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)

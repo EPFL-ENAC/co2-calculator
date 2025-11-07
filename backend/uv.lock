@@ -232,7 +232,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "sqlalchemy", extra = ["asyncio", "mypy"] },
     { name = "types-passlib" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -264,7 +264,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.12.3" },
     { name = "pydantic-settings", specifier = "==2.11.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.44" },
+    { name = "sqlalchemy", extras = ["asyncio", "mypy"], specifier = "==2.0.44" },
     { name = "types-passlib", specifier = ">=1.7.7.20250602" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.38.0" },
 ]
@@ -1329,6 +1329,9 @@ wheels = [
 [package.optional-dependencies]
 asyncio = [
     { name = "greenlet" },
+]
+mypy = [
+    { name = "mypy" },
 ]
 
 [[package]]

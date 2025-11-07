@@ -8,7 +8,7 @@ dependencies = [
     "fastapi[standard]==0.121.0",
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.20",
-    "sqlalchemy[asyncio]==2.0.44",
+    "sqlalchemy[asyncio,mypy]==2.0.44",
     "psycopg[binary,pool]==3.2.12",
     "alembic==1.17.1",
     "authlib==1.6.5",

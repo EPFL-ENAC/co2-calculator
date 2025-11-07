@@ -86,7 +86,15 @@ dev: install ## Start backend development server
 		echo "⚠️  Update .env with your configuration"; \
 		exit 1; \
 	fi
-	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	@echo "Starting backend development server..."
+	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+.PHONY: dev
+run: dev ## Alias for dev
+
+.PHONY: run-prod
+run-prod: ## Run production server
+	$(UV) run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 .PHONY: build
 build: ## Build Docker image

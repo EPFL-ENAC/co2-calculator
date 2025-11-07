@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchUser() {
     try {
       loading.value = true;
-      const fetchedUser = await api.get('auth/me').json<User>();
+      const fetchedUser = await api.get(`auth/me`).json<User>();
       user.value = fetchedUser;
     } catch (error) {
       user.value = null;
@@ -27,11 +27,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // WHAT THE ACTUAL FUCK ?
   function login(router?: Router) {
     if (router) {
-      router.push('/api/v1/auth/login');
+      router.push('/auth/login');
     } else {
-      window.location.href = '/api/v1/auth/login';
+      window.location.href = '/auth/login';
     }
   }
 

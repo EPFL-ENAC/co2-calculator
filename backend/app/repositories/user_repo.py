@@ -1,13 +1,16 @@
-"""User repository for database operations."""
+"""User repository for database operations.
 
+This repository handles internal user database operations.
+Users are managed through OAuth authentication only.
+"""
+
+from datetime import datetime
 from typing import List, Optional
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select, func
-from app.core.crypto import get_password_hash  # Import from crypto module instead
 from app.models.user import User
-from app.schemas.user import UserCreate
 
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
@@ -31,76 +34,60 @@ async def get_user_by_sciper(db: AsyncSession, sciper: str) -> Optional[User]:
     return result.scalars().first()
 
 
-async def get_users(
-    db: AsyncSession, skip: int = 0, limit: int = 100, filters: Optional[dict] = None
-) -> List[User]:
+async def upsert_user(
+    db: AsyncSession,
+    email: str,
+    sciper: Optional[str] = None,
+    roles: Optional[List[dict]] = None,
+) -> User:
     """
-    Get list of users with optional filters.
+    Create or update a user (internal operation for OAuth flow).
 
     Args:
         db: Database session
-        skip: Number of records to skip
-        limit: Maximum number of records to return
-        filters: Dictionary of filters to apply
+        email: User email (used as ID)
+        sciper: SCIPER number
+        roles: Hierarchical roles list
 
     Returns:
-        List of users
+        Created or updated user
     """
-    query = select(User)
+    user = await get_user_by_email(db, email)
 
-    if filters:
-        for key, value in filters.items():
-            if hasattr(User, key):
-                query = query.where(getattr(User, key) == value)
+    if user:
+        # Update existing user
+        user.sciper = sciper
+        user.roles = roles or []
+        user.last_login = datetime.utcnow()
+        user.updated_at = datetime.utcnow()
+    else:
+        # Create new user
+        user = User(
+            id=email,
+            email=email,
+            sciper=sciper,
+            roles=roles or [],
+            is_active=True,
+            last_login=datetime.utcnow(),
+        )
+        db.add(user)
 
-    result = await db.execute(query.offset(skip).limit(limit))
-    return list(result.scalars().all())
-
-
-async def get_users_by_unit(db: AsyncSession, unit_id: str) -> List[User]:
-    """Get all users in a specific unit."""
-    result = await db.execute(select(User).where(User.unit_id == unit_id))
-    return list(result.scalars().all())
-
-
-async def create_user(db: AsyncSession, user: UserCreate) -> User:
-    """
-    Create a new user.
-
-    Args:
-        db: Database session
-        user: User creation schema
-
-    Returns:
-        Created user
-    """
-    hashed_password = get_password_hash(user.password)
-
-    db_user = User(
-        id=user.email,  # Using email as ID for simplicity
-        email=user.email,
-        hashed_password=hashed_password,
-        full_name=user.full_name,
-        unit_id=user.unit_id,
-        sciper=user.sciper,
-        roles=user.roles or [],
-    )
-
-    db.add(db_user)
     await db.commit()
-    await db.refresh(db_user)
+    await db.refresh(user)
 
-    return db_user
+    return user
 
 
-async def update_user(db: AsyncSession, user_id: str, updates: dict) -> Optional[User]:
+async def update_user_roles(
+    db: AsyncSession, user_id: str, roles: List[dict]
+) -> Optional[User]:
     """
-    Update user fields.
+    Update user roles (internal operation).
 
     Args:
         db: Database session
         user_id: User ID
-        updates: Dictionary of fields to update
+        roles: New hierarchical roles list
 
     Returns:
         Updated user or None if not found
@@ -109,12 +96,8 @@ async def update_user(db: AsyncSession, user_id: str, updates: dict) -> Optional
     if not user:
         return None
 
-    for key, value in updates.items():
-        if value is not None and hasattr(user, key):
-            if key == "password":
-                setattr(user, "hashed_password", get_password_hash(value))
-            else:
-                setattr(user, key, value)
+    user.roles = roles
+    user.updated_at = datetime.utcnow()
 
     await db.commit()
     await db.refresh(user)
@@ -122,29 +105,8 @@ async def update_user(db: AsyncSession, user_id: str, updates: dict) -> Optional
     return user
 
 
-async def delete_user(db: AsyncSession, user_id: str) -> bool:
-    """
-    Delete a user.
-
-    Args:
-        db: Database session
-        user_id: User ID
-
-    Returns:
-        True if deleted, False if not found
-    """
-    user = get_user_by_id(db, user_id)
-    if not user:
-        return False
-
-    await db.delete(user)
-    await db.commit()
-
-    return True
-
-
 async def count_users(db: AsyncSession, filters: Optional[dict] = None) -> int:
-    """Count users with optional filters."""
+    """Count users with optional filters (internal operation)."""
     query = select(func.count()).select_from(User)
 
     if filters:
