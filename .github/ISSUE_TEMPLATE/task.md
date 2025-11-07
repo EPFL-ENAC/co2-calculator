@@ -12,7 +12,7 @@ labels:
 
 - Problem Statement, User story
 
-## 🧩 Solution 
+## 🧩 Solution
 Describe the intended approach, architecture, or technical strategy.  
 - Proposed solution
 - High-level approach & key functionalities
