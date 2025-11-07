@@ -4,7 +4,6 @@ services:
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=true"
-      - "--providers.docker.network=co2-calculator-network"
       - "--entryPoints.web.address=:80"
       - "--api.insecure=true"
       - "--api.dashboard=true"
@@ -30,8 +29,7 @@ services:
       - "8080"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    networks:
-      - co2-calculator-network
+
   # PostgreSQL for Auth module
   postgres:
     image: postgres:15-alpine
@@ -51,8 +49,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - co2-calculator-network
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -65,8 +61,6 @@ services:
       - "5050:80"
     depends_on:
       - postgres
-    networks:
-      - co2-calculator-network
 
   # # Open Policy Agent
   # opa:
@@ -94,8 +88,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: co2-backend
-    networks:
-      - co2-calculator-network
     command: >
       sh -c "
         alembic upgrade head &&
@@ -132,8 +124,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: co2-frontend
-    networks:
-      - co2-calculator-network
     ports:
       - "3000:8080"
     volumes:
@@ -148,10 +138,6 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=8080"
     depends_on:
       - backend
-
-networks:
-  co2-calculator-network:
-    driver: bridge
 
 volumes:
   postgres-data:

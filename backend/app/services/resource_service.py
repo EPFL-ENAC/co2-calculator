@@ -216,7 +216,7 @@ async def create_resource(
     # Create resource
     resource = await resource_repo.create_resource(db, resource_in, str(user.id))
     logger.info(
-        "Resource created", extra={"user_id": user.id, "resource_id": resource.id}
+        "Resource created", extra={"user_id": user.id, "resource_id": str(resource.id)}
     )
     return resource
 
@@ -280,7 +280,7 @@ async def update_resource(
         )
 
     logger.info(
-        "Resource updated", extra={"user_id": user.id, "resource_id": resource_id}
+        "Resource updated", extra={"user_id": user.id, "resource_id": str(resource_id)}
     )
     return updated_resource
 
@@ -339,7 +339,7 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
         )
 
     logger.info(
-        "Resource deleted", extra={"user_id": user.id, "resource_id": resource_id}
+        "Resource deleted", extra={"user_id": user.id, "resource_id": str(resource_id)}
     )
     return success
 

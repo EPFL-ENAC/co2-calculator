@@ -49,4 +49,4 @@ dirs=""
 [ $has_helm -eq 1 ] && dirs="$dirs helm"
 [ $has_root -eq 1 ] && dirs="$dirs root"
 
-echo "$dirs" | xargs
+echo $dirs

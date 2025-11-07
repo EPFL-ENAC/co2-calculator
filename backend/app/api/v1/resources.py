@@ -63,7 +63,7 @@ async def get_resource(
     resource = await resource_service.get_resource(db, resource_id, current_user)
     logger.info(
         "User requested resource",
-        extra={"user_id": current_user.id, "resource_id": resource_id},
+        extra={"user_id": current_user.id, "resource_id": str(resource_id)},
     )
     return resource
 
@@ -84,7 +84,7 @@ async def create_resource(
     )
     logger.info(
         "Resource created",
-        extra={"user_id": current_user.id, "resource_id": created_resource.id},
+        extra={"user_id": current_user.id, "resource_id": str(created_resource.id)},
     )
     return created_resource
 
@@ -106,7 +106,7 @@ async def update_resource(
     )
     logger.info(
         "Resource updated",
-        extra={"user_id": current_user.id, "resource_id": updated_resource.id},
+        extra={"user_id": current_user.id, "resource_id": str(updated_resource.id)},
     )
     return updated_resource
 
@@ -125,7 +125,7 @@ async def delete_resource(
     await resource_service.delete_resource(db, resource_id, current_user)
     logger.info(
         "Resource deleted",
-        extra={"user_id": current_user.id, "resource_id": resource_id},
+        extra={"user_id": current_user.id, "resource_id": str(resource_id)},
     )
     return None
 

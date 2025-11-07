@@ -226,23 +226,8 @@ db-shell: ## Open database shell
 # Utilities
 # =============================================================================
 
-shell-backend: ## Open shell in backend container
-	docker compose exec backend /bin/bash
-
-shell-frontend: ## Open shell in frontend container
-	docker compose exec frontend /bin/sh
-
-prune: ## Clean docker volumes/images
-	@echo "Cleaning docker volumes and images..."
-	docker compose down -v
-	docker system prune -f
-	@echo "Docker cleanup complete!"
-
-reset: down clean install up ## Nuclear option (down + clean + install + up)
-	@echo "Reset complete!"
-
 install: ## Install npm dependencies and set up git hooks
-	@echo "Installing npm dependencies..."
+	@echo "Installing root npm dependencies... (lefthook will be installed + prettier)"
 	npm install
 	@echo "Installing git hooks with lefthook..."
 	npx lefthook install
@@ -250,6 +235,8 @@ install: ## Install npm dependencies and set up git hooks
 	cd backend && $(MAKE) install
 	@echo "Installing frontend dependencies..."
 	cd frontend && $(MAKE) install
+	@echo "Installing docs dependencies..."
+	cd docs && $(MAKE) install
 	@echo "Setup complete!"
 
 clean: ## Remove node_modules and package-lock.json
