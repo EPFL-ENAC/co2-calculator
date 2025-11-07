@@ -1,0 +1,35 @@
+---
+name: "✨ Feature"
+about: "Develop anuser-facing or functional slice ready for review."
+title: "[FEAT]: "
+labels:
+  - enhancement
+  - triage
+  - needs-triage
+---
+
+## 🎯 Feature Overview (Why?)  
+Describe what this feature does 
+
+## 🧩 Solution
+- Core logic or workflow  
+- Components or modules involved  
+- Constraints or expected behaviors  
+
+## 🎨 Design
+Add relevant Figma links or screenshots.
+
+## 💾 Sample Data (if applicable)  
+
+
+## 📋 Implementation Plan  
+- [ ] Example
+
+## ⚙️ Clarifications Needed  
+
+# ✅ Success Criteria 
+How will we measure if this [TASK] achieves its goals?
+ 
+- [ ] Key features are functional
+- [ ] qualitative feedback (“easy to use”)
+- [ ] Documentation updated in user guide + API docs 
