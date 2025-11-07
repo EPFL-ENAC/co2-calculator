@@ -153,7 +153,7 @@ async def get_resource(db: AsyncSession, resource_id: int, user: User) -> Resour
         extra={
             "user_id": user.id,
             "action": "get_resource",
-            "resource_id": resource_id,
+            "resource_id": sanitize(resource_id),
         },
     )
 
@@ -226,7 +226,8 @@ async def create_resource(
     # Create resource
     resource = await resource_repo.create_resource(db, resource_in, str(user.id))
     logger.info(
-        "Resource created", extra={"user_id": user.id, "resource_id": str(resource.id)}
+        "Resource created",
+        extra={"user_id": user.id, "resource_id": sanitize(resource.id)},
     )
     return resource
 
