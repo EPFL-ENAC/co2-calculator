@@ -4,7 +4,8 @@ version = "0.1.0"
 description = ""
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi==0.120.2",
+    "aiosqlite>=0.21.0", # fall back for when no external db is provided
+    "fastapi==0.121.0",
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.20",
     "sqlalchemy[asyncio]==2.0.44",
@@ -56,7 +57,6 @@ dev = [
   "mypy>=1.18",
   "ruff>=0.14",
   "httpx>=0.28",
-  "aiosqlite>=0.20.0",    # todo move to dev dependencies
   "mypy>=1.18.2",
 ]
 

@@ -1,6 +1,5 @@
 """User API endpoints."""
 
-import logging
 from datetime import timedelta
 from typing import List
 
@@ -10,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.core.security import create_access_token
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserRead, UserUpdate
 from app.services import user_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 settings = get_settings()
 
@@ -52,7 +52,7 @@ async def login(
         expires_delta=access_token_expires,
     )
 
-    logger.info(f"User {user.id} logged in successfully")
+    logger.info("User logged in successfully", extra={"user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -66,9 +66,8 @@ async def register(
 
     This is a public endpoint (no authentication required).
     """
-    logger.info(f"New user registration: {user_create.email}")
     user = await user_service.create_user(db, user_create)
-    logger.info(f"User {user.id} registered successfully")
+    logger.info("User created", extra={"user_id": user.id, "email": user.email})
     return user
 
 
@@ -145,7 +144,9 @@ async def update_user(
     current_user: User = Depends(get_current_active_user),
 ):
     """Update user by ID."""
-    updated_user = await user_service.update_user(db, user_id, user_update, current_user)
+    updated_user = await user_service.update_user(
+        db, user_id, user_update, current_user
+    )
     return updated_user
 
 

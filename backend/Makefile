@@ -145,10 +145,10 @@ build: ## Build Docker image
 # Database
 # =============================================================================
 
-.PHONY: init-db
-init-db: ## Initialize database (development only)
+.PHONY: db-init
+db-init: ## Initialize database (development only)
 	@echo "Initializing database..."
-	$(UV) run python -c "from app.db import init_db; init_db()"
+	$(UV) run python -c "import asyncio; from app.db import init_db; asyncio.run(init_db())"
 	@echo "Database initialized!"
 
 .PHONY: db-migrate

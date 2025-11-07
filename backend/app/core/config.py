@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     DB_HOST: Optional[str] = Field(
         default=None, description="Database host (optional, for PostgreSQL)"
     )
-    DB_PORT: int = Field(
-        default=5432, description="Database port (optional, for PostgreSQL)"
+    DB_PORT: Optional[int] = Field(
+        default=None, description="Database port (optional, for PostgreSQL)"
     )
 
     @computed_field
@@ -64,7 +64,9 @@ class Settings(BaseSettings):
             return self.DATABASE_URL
 
         # If PostgreSQL credentials are provided, build the URL
-        if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_NAME]):
+        if all(
+            [self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME]
+        ):
             return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?async_fallback=True"
 
         # Default to SQLite for local development
@@ -86,6 +88,14 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
+    # Loki (optional)
+    LOKI_ENABLED: bool = False
+    LOKI_URL: Optional[str] = None  # e.g. http://loki:3100
+    LOKI_TENANT_ID: Optional[str] = None  # X-Scope-OrgID if multi-tenant
+    LOKI_TIMEOUT: float = 2.0  # seconds
+    LOKI_LABEL_JOB: Optional[str] = None  # default job label; falls back to APP_NAME
+    LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -19,12 +20,15 @@ settings = get_settings()
 config = context.config
 
 # Set the database URL from settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Create logger AFTER configuring logging
+logger = logging.getLogger("alembic.env")
+logger.info(f"Using database URL: {settings.database_url}")
 # Set target metadata for autogenerate support
 target_metadata = Base.metadata
 

@@ -1,13 +1,13 @@
 """Open Policy Agent (OPA) client for authorization decisions."""
 
-import logging
 from typing import Any, Dict, Optional
 
 import httpx
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 settings = get_settings()
 
 

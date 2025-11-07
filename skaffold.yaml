@@ -21,6 +21,9 @@ manifests:
           - ./helm/values.yaml
         setValues:
           backend.image.repository: co2-calculator-backend
+          frontend.image.repository: co2-calculator-frontend
           backend.env.DEBUG: "true"
+      
+              
 deploy:
   kubeContext: minikube

@@ -14,10 +14,10 @@ FILES ?= .
 ## -------------------------------
 
 format: ## Format YAML and Markdown files (Helm, docs, etc.)
-	@echo "do nothing..."
+	@echo "format in helm charts not implemented"
 
 format-check: ## Check formatting without changing files
-	@echo "do nothing..."
+	@echo "format-check in helm charts not implemented"
 
 
 
@@ -43,4 +43,4 @@ lint-helm: ## Run helm lint on all Helm charts
 ## -------------------------------
 
 lint: format-check lint-helm ## Run all lint checks (format + helm)
-	@echo "✅ All lint checks passed."
+	@echo "🧭 All lint checks passed!"

@@ -1,17 +1,17 @@
 """Resource API endpoints."""
 
-import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.resource import ResourceCreate, ResourceRead, ResourceUpdate
 from app.services import resource_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -38,11 +38,13 @@ async def list_resources(
     - Unit membership
     - Resource visibility
     """
-    logger.info(f"User {current_user.id} requesting resource list")
     resources = await resource_service.list_resources(
         db, current_user, skip=skip, limit=limit
     )
-    logger.info(f"Returning {len(resources)} resources to user {current_user.id}")
+    logger.info(
+        "User requested resource list",
+        extra={"user_id": current_user.id, "count": len(resources)},
+    )
     return resources
 
 
@@ -58,8 +60,11 @@ async def get_resource(
     Returns 403 if user is not authorized to access this resource.
     Returns 404 if resource does not exist.
     """
-    logger.info(f"User {current_user.id} requesting resource {resource_id}")
     resource = await resource_service.get_resource(db, resource_id, current_user)
+    logger.info(
+        "User requested resource",
+        extra={"user_id": current_user.id, "resource_id": resource_id},
+    )
     return resource
 
 
@@ -74,11 +79,13 @@ async def create_resource(
 
     The user must have permission to create resources in the specified unit.
     """
-    logger.info(f"User {current_user.id} creating resource")
     created_resource = await resource_service.create_resource(
         db, resource, current_user
     )
-    logger.info(f"Created resource {created_resource.id}")
+    logger.info(
+        "Resource created",
+        extra={"user_id": current_user.id, "resource_id": created_resource.id},
+    )
     return created_resource
 
 
@@ -94,9 +101,12 @@ async def update_resource(
 
     Only the resource owner or users with appropriate roles can update.
     """
-    logger.info(f"User {current_user.id} updating resource {resource_id}")
     updated_resource = await resource_service.update_resource(
         db, resource_id, resource_update, current_user
+    )
+    logger.info(
+        "Resource updated",
+        extra={"user_id": current_user.id, "resource_id": updated_resource.id},
     )
     return updated_resource
 
@@ -112,8 +122,11 @@ async def delete_resource(
 
     Only the resource owner or users with appropriate roles can delete.
     """
-    logger.info(f"User {current_user.id} deleting resource {resource_id}")
     await resource_service.delete_resource(db, resource_id, current_user)
+    logger.info(
+        "Resource deleted",
+        extra={"user_id": current_user.id, "resource_id": resource_id},
+    )
     return None
 
 
@@ -124,4 +137,8 @@ async def count_resources(
 ):
     """Get count of accessible resources."""
     count = await resource_service.count_resources(db, current_user)
+    logger.info(
+        "User requested resource count",
+        extra={"user_id": current_user.id, "count": count},
+    )
     return {"count": count}

@@ -1,16 +1,14 @@
 """FastAPI application entry point."""
 
-import logging
-
 from fastapi import FastAPI
 
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.core.logging import setup_logging
+from app.core.logging import get_logger, setup_logging
 
 # Setup logging
 setup_logging()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Get settings
 settings = get_settings()
@@ -78,10 +76,14 @@ def health():
 @app.on_event("startup")
 async def startup_event():
     """Run on application startup."""
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
-    logger.info(f"OPA enabled: {settings.OPA_ENABLED}")
-    logger.info(f"OPA URL: {settings.OPA_URL}")
+    logger.info(
+        "Starting application",
+        extra={"app_name": settings.APP_NAME, "app_version": settings.APP_VERSION},
+    )
+    logger.info("Debug mode", extra={"debug": settings.DEBUG})
+    logger.info("OPA enabled", extra={"opa_enabled": settings.OPA_ENABLED})
+    logger.info("OPA URL", extra={"opa_url": settings.OPA_URL})
+    logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)
     if settings.DEBUG:
@@ -94,7 +96,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run on application shutdown."""
-    logger.info(f"Shutting down {settings.APP_NAME}")
+    logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
 
 if __name__ == "__main__":

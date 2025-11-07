@@ -34,6 +34,7 @@ backend:
 
     OPA_ENABLED: "true"
     OPA_TIMEOUT: "1.0"
+    OPA_URL: "http://localhost:8181"  # MISSING - add this!
 
   secrets:
     SECRET_KEY: "change-me-in-production-use-openssl-rand-hex-32"
@@ -86,7 +87,8 @@ backend:
   affinity: {}
   externalSecret:
     enabled: false
-    name: ""
+    name: ""  # Name of the external secret containing SECRET_KEY
+    secretKeyKey: SECRET_KEY  # Key in the external secret for SECRET_KEY
 
 frontend:
   enabled: true
@@ -154,9 +156,30 @@ frontend:
   affinity: {}
 
 database:
+  # Local SQLite database (for development)
+  local:
+    enabled: true  # Set to true for local development with SQLite
+    path: "/data/co2_calculator.db"  # Path inside container
+    storage:
+      type: "emptyDir"  # Options: emptyDir, persistentVolumeClaim
+      # For emptyDir (ephemeral storage - data lost on pod restart)
+      emptyDir:
+        sizeLimit: "1Gi"
+      # For persistentVolumeClaim (persistent storage)
+      persistentVolumeClaim:
+        enabled: false
+        storageClassName: ""  # Leave empty for default storage class
+        accessModes:
+          - ReadWriteOnce
+        size: "5Gi"
+
+  # External database (PostgreSQL for production)
   external:
-    enabled: true
-    url: "postgresql+psycopg://co2user:co2password@postgres.example.com:5432/co2_calculator"
+    enabled: false  # Set to true for production with PostgreSQL
+    # Option 1: Direct DATABASE_URL (takes precedence)
+    url: ""  # If set, this overrides individual fields
+
+    # Option 2: Individual fields (used if url is empty)
     host: "postgres.example.com"
     port: 5432
     database: "co2_calculator"
@@ -164,10 +187,14 @@ database:
     password: "co2password"
   externalSecret:
     enabled: false
-    name: ""
-    urlKey: DB_URL
+    name: ""  # Name of the external secret containing DB credentials
+    # Keys to use from the external secret:
+    databaseUrlKey: DATABASE_URL  # Key for full DATABASE_URL
     usernameKey: DB_USER
     passwordKey: DB_PASSWORD
+    hostKey: DB_HOST  # Optional: if you want to source individual fields
+    portKey: DB_PORT
+    databaseKey: DB_NAME
 
 pgbouncer:
   enabled: false

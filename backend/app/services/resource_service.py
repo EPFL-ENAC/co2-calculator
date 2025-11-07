@@ -1,18 +1,18 @@
 """Resource service for business logic with OPA integration."""
 
-import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.core.opa_client import query_opa
 from app.models.resource import Resource
 from app.models.user import User
 from app.repositories import resource_repo
 from app.schemas.resource import ResourceCreate, ResourceUpdate
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _build_opa_input(
@@ -86,8 +86,16 @@ async def list_resources(
     input_data = _build_opa_input(user, "read")
 
     # Query OPA for authorization decision
-    logger.info(f"Querying OPA for resource list authorization: {input_data}")
     decision = await query_opa("authz/resource/list", input_data)
+    logger.info(
+        "OPA decision requested",
+        extra={
+            "user_id": user.id,
+            "action": "list_resources",
+            "decision": decision,
+            "input_data": input_data,
+        },
+    )
 
     # Check if action is allowed: Fail silently
     # if not decision.get("allow", False):
@@ -101,7 +109,6 @@ async def list_resources(
 
     # Extract filters from OPA decision
     filters = decision.get("filters", {})
-    logger.info(f"OPA filters for user {user.id}: {filters}")
 
     # Query database with filters
     resources = await resource_repo.get_resources(
@@ -137,8 +144,15 @@ async def get_resource(db: AsyncSession, resource_id: int, user: User) -> Resour
     input_data = _build_opa_input(user, "read", resource)
 
     # Query OPA for authorization
-    logger.info(f"Querying OPA for resource {resource_id} read authorization")
     decision = await query_opa("authz/resource/read", input_data)
+    logger.info(
+        "OPA read decision requested",
+        extra={
+            "user_id": user.id,
+            "action": "get_resource",
+            "resource_id": resource_id,
+        },
+    )
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -178,8 +192,11 @@ async def create_resource(
     }
 
     # Query OPA for authorization
-    logger.info("Querying OPA for resource creation authorization")
     decision = await query_opa("authz/resource/create", input_data)
+    logger.info(
+        "OPA create decision requested",
+        extra={"user_id": user.id, "action": "create_resource"},
+    )
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -198,8 +215,9 @@ async def create_resource(
 
     # Create resource
     resource = await resource_repo.create_resource(db, resource_in, str(user.id))
-    logger.info(f"Created resource {resource.id} for user {user.id}")
-
+    logger.info(
+        "Resource created", extra={"user_id": user.id, "resource_id": resource.id}
+    )
     return resource
 
 
@@ -232,8 +250,15 @@ async def update_resource(
     input_data = _build_opa_input(user, "update", resource)
 
     # Query OPA for authorization
-    logger.info(f"Querying OPA for resource {resource_id} update authorization")
     decision = await query_opa("authz/resource/update", input_data)
+    logger.info(
+        "OPA update decision requested",
+        extra={
+            "user_id": user.id,
+            "action": "update_resource",
+            "resource_id": resource_id,
+        },
+    )
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -254,7 +279,9 @@ async def update_resource(
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
         )
 
-    logger.info(f"Updated resource {resource_id} by user {user.id}")
+    logger.info(
+        "Resource updated", extra={"user_id": user.id, "resource_id": resource_id}
+    )
     return updated_resource
 
 
@@ -284,8 +311,15 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
     input_data = _build_opa_input(user, "delete", resource)
 
     # Query OPA for authorization
-    logger.info(f"Querying OPA for resource {resource_id} delete authorization")
     decision = await query_opa("authz/resource/delete", input_data)
+    logger.info(
+        "OPA delete decision requested",
+        extra={
+            "user_id": user.id,
+            "action": "delete_resource",
+            "resource_id": resource_id,
+        },
+    )
 
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
@@ -304,7 +338,9 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
             status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found"
         )
 
-    logger.info(f"Deleted resource {resource_id} by user {user.id}")
+    logger.info(
+        "Resource deleted", extra={"user_id": user.id, "resource_id": resource_id}
+    )
     return success
 
 

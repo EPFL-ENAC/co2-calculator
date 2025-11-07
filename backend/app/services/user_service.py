@@ -1,17 +1,17 @@
 """User service for business logic related to users."""
 
-import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.core.security import verify_password
 from app.models.user import User
 from app.repositories import user_repo
 from app.schemas.user import UserCreate, UserUpdate
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_user(db: AsyncSession, user_id: str) -> Optional[User]:

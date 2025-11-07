@@ -670,8 +670,7 @@ DEBUG=true
 All OPA queries are logged in the service layer:
 
 ```python
-logger.info(f"Querying OPA: {input_data}")
-logger.info(f"OPA decision: {decision}")
+    logger.info("OPA ...", extra={"user_id": user.id, "action": "list_resources", "decision": decision, "input_data": input_data})
 ```
 
 ### Disable OPA for Testing

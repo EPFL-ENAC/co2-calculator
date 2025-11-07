@@ -68,3 +68,47 @@ app.kubernetes.io/component: {{ .component }}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+
+
+{{/*
+Database URL construction
+*/}}
+{{- define "co2-calculator.databaseUrl" -}}
+{{- if .Values.database.external.enabled -}}
+  {{- if .Values.database.external.url -}}
+    {{- .Values.database.external.url -}}
+  {{- else -}}
+    {{- printf "postgresql://%s:%s@%s:%d/%s" .Values.database.external.username .Values.database.external.password .Values.database.external.host (.Values.database.external.port | int) .Values.database.external.database -}}
+  {{- end -}}
+{{- else if .Values.database.local.enabled -}}
+  {{- printf "sqlite+aiosqlite:///%s" .Values.database.local.path -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Database volume definition
+*/}}
+{{- define "co2-calculator.databaseVolume" -}}
+{{- if .Values.database.local.enabled -}}
+- name: sqlite-data
+  {{- if and .Values.database.local.storage.persistentVolumeClaim.enabled (eq .Values.database.local.storage.type "persistentVolumeClaim") }}
+  persistentVolumeClaim:
+    claimName: {{ include "co2-calculator.fullname" . }}-sqlite
+  {{- else }}
+  emptyDir:
+    {{- with .Values.database.local.storage.emptyDir.sizeLimit }}
+    sizeLimit: {{ . }}
+    {{- end }}
+  {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Database volume mount
+*/}}
+{{- define "co2-calculator.databaseVolumeMount" -}}
+{{- if .Values.database.local.enabled -}}
+- name: sqlite-data
+  mountPath: /data
+{{- end -}}
+{{- end -}}
