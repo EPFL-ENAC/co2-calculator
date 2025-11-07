@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.opa_client import query_opa
 from app.models.resource import Resource
@@ -280,7 +281,8 @@ async def update_resource(
         )
 
     logger.info(
-        "Resource updated", extra={"user_id": user.id, "resource_id": str(resource_id)}
+        "Resource updated",
+        extra={"user_id": user.id, "resource_id": sanitize(resource_id)},
     )
     return updated_resource
 
@@ -339,7 +341,8 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
         )
 
     logger.info(
-        "Resource deleted", extra={"user_id": user.id, "resource_id": str(resource_id)}
+        "Resource deleted",
+        extra={"user_id": user.id, "resource_id": sanitize(resource_id)},
     )
     return success
 

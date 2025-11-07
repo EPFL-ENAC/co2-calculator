@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.resource import ResourceCreate, ResourceRead, ResourceUpdate
@@ -63,7 +64,7 @@ async def get_resource(
     resource = await resource_service.get_resource(db, resource_id, current_user)
     logger.info(
         "User requested resource",
-        extra={"user_id": current_user.id, "resource_id": str(resource_id)},
+        extra={"user_id": current_user.id, "resource_id": sanitize(resource_id)},
     )
     return resource
 
@@ -84,7 +85,10 @@ async def create_resource(
     )
     logger.info(
         "Resource created",
-        extra={"user_id": current_user.id, "resource_id": str(created_resource.id)},
+        extra={
+            "user_id": current_user.id,
+            "resource_id": sanitize(created_resource.id),
+        },
     )
     return created_resource
 
@@ -106,7 +110,10 @@ async def update_resource(
     )
     logger.info(
         "Resource updated",
-        extra={"user_id": current_user.id, "resource_id": str(updated_resource.id)},
+        extra={
+            "user_id": current_user.id,
+            "resource_id": sanitize(updated_resource.id),
+        },
     )
     return updated_resource
 
@@ -125,7 +132,7 @@ async def delete_resource(
     await resource_service.delete_resource(db, resource_id, current_user)
     logger.info(
         "Resource deleted",
-        extra={"user_id": current_user.id, "resource_id": str(resource_id)},
+        extra={"user_id": current_user.id, "resource_id": sanitize(resource_id)},
     )
     return None
 

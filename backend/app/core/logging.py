@@ -174,6 +174,12 @@ def setup_logging() -> None:
     )
 
 
+def _sanitize_for_log(value):
+    """Sanitize user-controlled values for logging to prevent log injection."""
+    # Convert to string and remove problematic newline/carriage return characters
+    return str(value).replace("\n", "").replace("\r", "")
+
+
 def get_logger(name: str) -> logging.Logger:
     """Get a logger instance with the given name."""
     return logging.getLogger(name)
