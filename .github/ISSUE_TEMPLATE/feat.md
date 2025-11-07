@@ -1,6 +1,6 @@
 ---
 name: "✨ Feature"
-about: "Develop an user-facing or functional slice ready for review."
+about: "Develop a user-facing or functional slice ready for review."
 title: "[FEAT]: "
 labels:
   - enhancement
