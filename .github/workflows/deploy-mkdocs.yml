@@ -5,11 +5,15 @@ on:
     branches:
       - master 
       - main
+      - 'ci-test/**'
 permissions:
   contents: write
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./docs
     steps:
       - uses: actions/checkout@v5
         with:

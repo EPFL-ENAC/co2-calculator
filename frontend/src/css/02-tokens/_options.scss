@@ -1,0 +1,73 @@
+// -----------------------------------------------------------------------------
+// ⚠️  Auto-generated file
+// -----------------------------------------------------------------------------
+// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
+// Do not edit manually.
+
+// Spacing
+$tokens-spacing-4: 0.25rem !default;
+$tokens-spacing-8: 0.5rem !default;
+$tokens-spacing-12: 0.75rem !default;
+$tokens-spacing-16: 1rem !default;
+$tokens-spacing-24: 1.5rem !default;
+$tokens-spacing-32: 2rem !default;
+$tokens-spacing-64: 4rem !default;
+$tokens-spacing-48: 3rem !default;
+$tokens-spacing-2: 0.125rem !default;
+$tokens-spacing-1: 0.0625rem !default;
+
+// Border Radius
+$tokens-border-radius-generic-border-radius: 0.1875rem !default;
+$tokens-border-radius-generic-border-radius-px: 3px !default;
+$tokens-border-radius-full-border-radius: 62.4375rem !default;
+$tokens-border-radius-lg-border-radius: 0.75rem !default;
+
+// Font Family
+// deactivate prettier for the next line to avoid formatting issues
+// prettier-ignore
+$tokens-typography-font-family-base: 'Helvetica Neue', '-apple-system', sans-serif !default;
+
+// Font Size
+$tokens-typography-font-size-3xl: 1.75rem !default;
+$tokens-typography-font-size-2xl: 1.5rem !default;
+$tokens-typography-font-size-xl: 1.25rem !default;
+$tokens-typography-font-size-lg: 1.125rem !default;
+$tokens-typography-font-size-md: 1rem !default;
+$tokens-typography-font-size-sm: 0.875rem !default;
+$tokens-typography-font-size-xs: 0.75rem !default;
+$tokens-typography-font-size-2xs: 0.625rem !default;
+
+// Line Height
+$tokens-typography-line-height-4xl: 2.25rem !default;
+$tokens-typography-line-height-3xl: 2rem !default;
+$tokens-typography-line-height-2xl: 1.75rem !default;
+$tokens-typography-line-height-xl: 1.625rem !default;
+$tokens-typography-line-height-lg: 1.5rem !default;
+$tokens-typography-line-height-md: 1.25rem !default;
+$tokens-typography-line-height-sm: 1.125rem !default;
+$tokens-typography-line-height-xs: 1rem !default;
+$tokens-typography-line-height-2xs: 0.875rem !default;
+
+// Font Weight
+$tokens-typography-font-weight-regular: 400 !default;
+$tokens-typography-font-weight-medium: 500 !default;
+$tokens-typography-font-weight-bold: 700 !default;
+
+// Colors
+$tokens-colors-status-green: #28a745 !default;
+$tokens-colors-status-red: #dc3545 !default;
+$tokens-colors-status-yellow: #ffc107 !default;
+$tokens-colors-grey-scale-grey-100: #f5f5f5 !default;
+$tokens-colors-grey-scale-grey-200: #e6e6e6 !default;
+$tokens-colors-grey-scale-grey-300: #d5d5d5 !default;
+$tokens-colors-grey-scale-grey-400: #c1c1c1 !default;
+$tokens-colors-grey-scale-grey-500: #8e8e8e !default;
+$tokens-colors-grey-scale-grey-600: #707070 !default;
+$tokens-colors-red-red-100: #ff0000 !default;
+$tokens-colors-red-red-200: #b51f1f !default;
+$tokens-colors-base-black: #212121 !default;
+$tokens-colors-base-white: #ffffff !default;
+$tokens-colors-red-red-highlight: #ff0000 !default;
+
+// Layout
+$tokens-layout-page-width: 75rem !default;

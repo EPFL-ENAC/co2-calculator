@@ -1,0 +1,125 @@
+site_name: EPFL Project Technical Docs
+# site_url: https://calculator-co2.epfl.ch
+site_url: ""
+repo_url: https://github.com/epfl-enac/epfl-calculator-co2
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.annotate
+    - navigation.instant
+    - navigation.instant.prefetch
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+# use_directory_urls: true
+use_directory_urls: false
+watch:
+  - src
+  - mkdocs.yml
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+  - def_list
+  - md_in_html
+  - footnotes
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed
+
+docs_dir: src
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - Purpose & Scope: architecture/01-purpose-scope.md
+      - System Overview: architecture/02-system-overview.md
+      - Subsystem Map: architecture/03-subsystem-map.md
+      - Auth Flow: architecture/04-auth-flow.md
+      - Environments: architecture/05-environments.md
+      - CI/CD Pipeline: architecture/06-cicd-pipeline.md
+      - Global Conventions: architecture/07-global-conventions.md
+      - Tech Stack: architecture/08-tech-stack.md
+      - Component Breakdown: architecture/09-component-breakdown.md
+      - Data Flow: architecture/10-data-flow.md
+      - Deployment Topology: architecture/11-deployment-topology.md
+      - Scalability: architecture/12-scalability.md
+      - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
+      - Architectural Decisions: architecture/14-architectural-decisions.md
+      - Appendices: architecture/15-appendices.md
+
+  - Frontend:
+      - Overview: frontend/index.md
+      - Architecture: frontend/architecture.md
+      - UI System: frontend/ui-system.md
+      - Data & API Integration: frontend/api.md
+      - Dev Guide: frontend/dev-guide.md
+      - Testing & QA: frontend/testing.md
+      - Build & Deploy: frontend/deploy.md
+
+  - Backend:
+      - Overview: backend/index.md
+      - Architecture: backend/architecture.md
+      - API Design: backend/api.md
+      - Plugins / Extensions: backend/plugins.md
+      - Testing: backend/testing.md
+      - Deployment: backend/deploy.md
+
+  - Database:
+      - Overview: database/index.md
+      - Schema: database/schema.md
+      - Data Flows: database/data-flows.md
+      - Migrations: database/migrations.md
+      - Backups & Maintenance: database/maintenance.md
+
+  - Infrastructure:
+      - Overview: infra/index.md
+      - Hosting & Network: infra/hosting.md
+      - Monitoring & Logging: infra/monitoring.md
+extra:
+  version: "1.0.0"
+extra_css:
+  - stylesheets/extra.css
+plugins:
+  # - search
+  # - with-pdf:
+  #     author: "EPFL Dev Team"
+  #     cover_subtitle: "Technical Documentation"
+  #     output_path: pdf/EPFL-Project-Docs.pdf
+  #     toc_title: "Table of Contents"
+  #     cover: true
+  #     ordered_chapter_level: 2
+  #     exclude_pages:
+  #       - index.md
+  #     enabled_if_env: ENABLE_PDF_EXPORT
+  #     # custom_styles: styles/pdf-custom.css
+  #     verbose: false
+  - git-authors
+  - git-revision-date-localized:
+      fallback_to_build_date: true
+      locale: en
+      timezone: Europe/Zurich
+  - minify:
+      minify_html: true
+      minify_css: true
+      minify_js: true
+
+copyright: >
+  2025 EPFL — GPL-3.0 License. Built with MkDocs

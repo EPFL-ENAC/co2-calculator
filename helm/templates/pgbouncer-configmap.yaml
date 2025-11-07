@@ -1,0 +1,24 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-pgbouncer
+  labels:
+    {{- include "co2-calculator.componentLabels" (dict "ctx" . "component" "pgbouncer") | nindent 4 }}
+data:
+  pgbouncer.ini: |
+    [databases]
+    * = host={{ .Values.database.external.host }} port={{ .Values.database.external.port }}
+
+    [pgbouncer]
+    pool_mode = {{ .Values.pgbouncer.config.poolMode }}
+    max_client_conn = {{ .Values.pgbouncer.config.maxClientConn }}
+    default_pool_size = {{ .Values.pgbouncer.config.defaultPoolSize }}
+    min_pool_size = {{ .Values.pgbouncer.config.minPoolSize }}
+    reserve_pool_size = {{ .Values.pgbouncer.config.reservePoolSize }}
+    server_lifetime = {{ .Values.pgbouncer.config.serverLifetime }}
+    server_idle_timeout = {{ .Values.pgbouncer.config.serverIdleTimeout }}
+    query_timeout = {{ .Values.pgbouncer.config.queryTimeout }}
+    log_connections = {{ .Values.pgbouncer.config.logConnections }}
+    log_disconnections = {{ .Values.pgbouncer.config.logDisconnections }}
+{{- end }}

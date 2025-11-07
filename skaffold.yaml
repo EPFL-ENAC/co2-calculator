@@ -1,0 +1,28 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: co2-calculator
+build:
+  artifacts:
+    - image: co2-calculator-backend
+      context: backend
+      docker:
+        dockerfile: Dockerfile
+    - image: co2-calculator-frontend
+      context: frontend
+      docker:
+        dockerfile: Dockerfile
+manifests:
+  helm:
+    releases:
+      - name: co2-calculator
+        chartPath: ./helm
+        valuesFiles:
+          - ./helm/values.yaml
+        setValues:
+          backend.image.repository: co2-calculator-backend
+          frontend.image.repository: co2-calculator-frontend
+          backend.env.DEBUG: "true"
+
+deploy:
+  kubeContext: minikube

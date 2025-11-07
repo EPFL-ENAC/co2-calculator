@@ -1,0 +1,83 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev, 'ci-test/**']
+
+jobs:
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run backend tests
+        run: make test
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          flags: backend
+          directory: ./backend
+          fail_ci_if_error: false
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ">=24.0.0"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Quasar prepare
+        run: npx quasar prepare
+
+      - name: install playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests components
+        run: npm run test-ct
+
+      - name: Run frontend tests e2e
+        run: npm run test:e2e
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          flags: frontend
+          directory: ./frontend
+          fail_ci_if_error: false

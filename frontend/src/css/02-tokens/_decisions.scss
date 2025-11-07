@@ -1,0 +1,55 @@
+// -----------------------------------------------------------------------------
+// ⚠️  Auto-generated file
+// -----------------------------------------------------------------------------
+// Generated from src/css/tokens.css via scripts/generate-scss-tokens.mjs
+// Do not edit manually.
+
+@use 'options' as opt;
+
+// Brand Palette
+$color-primary: opt.$tokens-colors-red-red-100 !default;
+$color-primary-hover: opt.$tokens-colors-red-red-200 !default;
+$color-secondary: opt.$tokens-colors-grey-scale-grey-200 !default;
+$color-surface: opt.$tokens-colors-base-white !default;
+$color-surface-muted: opt.$tokens-colors-grey-scale-grey-100 !default;
+$color-border: opt.$tokens-colors-grey-scale-grey-300 !default;
+$color-text: opt.$tokens-colors-base-black !default;
+$color-text-muted: opt.$tokens-colors-grey-scale-grey-500 !default;
+$color-text-on-primary: opt.$tokens-colors-base-white !default;
+
+// Status Colors
+$color-status-success: opt.$tokens-colors-status-green !default;
+$color-status-warning: opt.$tokens-colors-status-yellow !default;
+$color-status-error: opt.$tokens-colors-status-red !default;
+
+// Spacing scale (semantic naming)
+$spacing-xxs: opt.$tokens-spacing-1 !default;
+$spacing-xs: opt.$tokens-spacing-4 !default;
+$spacing-sm: opt.$tokens-spacing-8 !default;
+$spacing-md: opt.$tokens-spacing-12 !default;
+$spacing-lg: opt.$tokens-spacing-16 !default;
+$spacing-xl: opt.$tokens-spacing-24 !default;
+$spacing-xxl: opt.$tokens-spacing-32 !default;
+$spacing-page: opt.$tokens-spacing-48 !default;
+
+// Radii
+$radius-default: opt.$tokens-border-radius-generic-border-radius !default;
+$radius-default-px: opt.$tokens-border-radius-generic-border-radius-px !default;
+$radius-pill: opt.$tokens-border-radius-full-border-radius !default;
+
+// Typography
+$text-font-family: opt.$tokens-typography-font-family-base !default;
+$text-size-xs: opt.$tokens-typography-font-size-xs !default;
+$text-size-sm: opt.$tokens-typography-font-size-sm !default;
+$text-size-base: opt.$tokens-typography-font-size-md !default;
+$text-size-lg: opt.$tokens-typography-font-size-lg !default;
+$text-line-height-tight: opt.$tokens-typography-line-height-xs !default;
+$text-line-height-base: opt.$tokens-typography-line-height-md !default;
+$text-line-height-loose: opt.$tokens-typography-line-height-lg !default;
+$text-weight-regular: opt.$tokens-typography-font-weight-regular !default;
+$text-weight-medium: opt.$tokens-typography-font-weight-medium !default;
+$text-weight-bold: opt.$tokens-typography-font-weight-bold !default;
+
+// Layout
+$layout-page-width: opt.$tokens-layout-page-width !default;
+$layout-pop-up-min-width: 21.875rem !default;

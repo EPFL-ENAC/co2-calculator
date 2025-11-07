@@ -1,0 +1,22 @@
+"""API dependencies for dependency injection."""
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import get_current_active_user
+from app.db import get_db
+from app.models.user import User
+
+# Re-export commonly used dependencies
+__all__ = ["get_db", "get_current_user", "get_current_active_user"]
+
+
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Get current authenticated user.
+
+    This is a convenience re-export of the security dependency.
+    """
+    return await get_current_active_user(db)

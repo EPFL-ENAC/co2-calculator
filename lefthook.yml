@@ -2,90 +2,18 @@
 ---
 commit-msg:
   commands:
-    # Validate commit message format (super fast)
     commitlint:
       run: npx --no -- commitlint --edit {1}
-# Pre-commit hooks - run on every commit
-# Goal: Fast feedback, minimal disruption
-pre-commit:
-  parallel: true
-  commands:
-    # JavaScript/TypeScript formatting and linting (all files for lint command)
-    js-ts-format-lint:
-      glob: "*.{js,ts,jsx,tsx}"
-      run: |
-        if [ -z "$LEFTHOOK" ] || [ "$LEFTHOOK" = "0" ]; then
-          # When run manually (e.g., via make lint), process all files
-          if [ -d "frontend" ]; then
-            npx prettier --check frontend --ignore-unknown
-            npx eslint frontend --ext .js,.ts,.jsx,.tsx
-          else
-            echo "No frontend directory found, skipping JavaScript/TypeScript formatting"
-          fi
-        else
-          # When run as git hook, process only staged files
-          npx prettier --write {staged_files}
-          npx eslint {staged_files}
-        fi
-        
-    # CSS/SCSS formatting and linting (all files for lint command)
-    css-scss-format-lint:
-      glob: "*.{css,scss}"
-      run: |
-        if [ -z "$LEFTHOOK" ] || [ "$LEFTHOOK" = "0" ]; then
-          # When run manually (e.g., via make lint), process all files
-          if [ -d "frontend" ]; then
-            npx prettier --check frontend --ignore-unknown
-            npx stylelint "frontend/**/*.{css,scss}"
-          else
-            echo "No frontend directory found, skipping CSS/SCSS formatting"
-          fi
-        else
-          # When run as git hook, process only staged files
-          npx prettier --write {staged_files}
-          npx stylelint {staged_files}
-        fi
-        
-    # Python formatting (all files for lint command)
-    python-format:
-      glob: "*.py"
-      run: |
-        if [ -z "$LEFTHOOK" ] || [ "$LEFTHOOK" = "0" ]; then
-          # When run manually (e.g., via make lint), process all files
-          if [ -d "backend" ]; then
-            if command -v uv >/dev/null 2>&1; then
-              uv run ruff check backend 2>/dev/null && uv run ruff format backend 2>/dev/null || echo "No Python files found or ruff error"
-            else
-              echo "uv not found, skipping Python formatting"
-            fi
-          else
-            echo "No backend directory found, skipping Python formatting"
-          fi
-        else
-          # When run as git hook, process only staged files
-          if command -v uv >/dev/null 2>&1; then
-            uv run ruff check {staged_files} 2>/dev/null && uv run ruff format {staged_files} 2>/dev/null || echo "No Python files found or ruff error"
-          else
-            echo "uv not found, skipping Python formatting"
-          fi
-        fi
-        
-    # JSON/YAML/Markdown formatting (all files for lint command)
-    format-config-files:
-      glob: "*.{json,yml,yaml,md}"
-      run: |
-        if [ -z "$LEFTHOOK" ] || [ "$LEFTHOOK" = "0" ]; then
-          # When run manually (e.g., via make lint), process all files
-          npx prettier --check . --ignore-unknown
-        else
-          # When run as git hook, process only staged files
-          npx prettier --write {staged_files}
-        fi
 
-# Pre-push hooks - run before pushing to remote
-# Goal: Reasonable quality gate without being too slow
+# Pre-commit hooks - delegates to Makefiles for single source of truth
+pre-commit:
+  commands:
+    # Format and lint staged files only
+    format-lint-staged:
+      run: bash scripts/pre-commit-hook.sh
+# Pre-push hooks - run comprehensive checks
 pre-push:
-  parallel: false  # Run sequentially to avoid resource contention
+  parallel: false
   commands:
     # Run full test suite only when pushing to dev branch
     test-suite-dev-only:
@@ -96,18 +24,18 @@ pre-push:
         else
           echo "Skipping full test suite for non-dev branch"
         fi
-        
+    
     # Run linting on all files
     lint-all:
       run: |
-        echo "Running linters..."
-        npm run lint 2>/dev/null || echo "JavaScript linting skipped"
-        
+        echo "Running linters on entire codebase..."
+        make lint
+    
     # Type checking
     type-check:
       run: |
         echo "Running type checking..."
-        npm run type-check 2>/dev/null || echo "Type checking skipped"
+        make type-check
 
 # Colors in output
 colors: true

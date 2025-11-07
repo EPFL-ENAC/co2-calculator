@@ -1,0 +1,7 @@
+@use '../02-tokens' as tokens;
+
+.container {
+  margin: 0 auto;
+  padding-inline: tokens.$spacing-lg;
+  max-width: tokens.$layout-page-width;
+}

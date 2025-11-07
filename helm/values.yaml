@@ -1,0 +1,284 @@
+# Default values for the CO2 Calculator chart.
+# Override these values using a custom values file or --set flags during helm install/upgrade.
+
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullSecrets: []
+  # - name: ghcr-creds
+
+backend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/epfl-enac/co2-calculator-backend
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    annotations: {}
+
+  env:
+    APP_NAME: "CO2 Calculator API"
+    APP_VERSION: "0.1.0"
+    DEBUG: "false"
+    API_V1_PREFIX: "/api/v1"
+    LOG_LEVEL: "INFO"
+    ALGORITHM: "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+
+    # Open Policy Agent (OPA) - External authorization service
+    # Must be deployed separately and accessible from the backend pods
+    # Example: "http://opa.opa-system.svc.cluster.local:8181" for in-cluster OPA
+    # Set OPA_ENABLED to "false" to disable authorization checks (NOT recommended for production)
+    OPA_ENABLED: "true"
+    OPA_TIMEOUT: "1.0"
+    OPA_URL: "http://localhost:8181"  # OVERRIDE: Set to your OPA service URL
+
+  secrets:
+    # WARNING: This default value is INSECURE and MUST be overridden before production deployment!
+    # Generate a secure key using: openssl rand -hex 32
+    # Use backend.externalSecret.enabled=true for production environments
+    SECRET_KEY: ""  # REQUIRED: Must be set via --set flag or external secret
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  externalSecret:
+    enabled: false
+    name: ""  # Name of the external secret containing SECRET_KEY
+    secretKeyKey: SECRET_KEY  # Key in the external secret for SECRET_KEY
+
+frontend:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: ghcr.io/epfl-enac/co2-calculator-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+    annotations: {}
+
+  env:
+    API_BASE_URL: "/api"
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    fsGroup: 101
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+database:
+  # Local SQLite database (for development)
+  local:
+    enabled: true  # Set to true for local development with SQLite
+    path: "/data/co2_calculator.db"  # Path inside container
+    storage:
+      type: "emptyDir"  # Options: emptyDir, persistentVolumeClaim
+      # For emptyDir (ephemeral storage - data lost on pod restart)
+      emptyDir:
+        sizeLimit: "1Gi"
+      # For persistentVolumeClaim (persistent storage)
+      persistentVolumeClaim:
+        enabled: false
+        storageClassName: ""  # Leave empty for default storage class
+        accessModes:
+          - ReadWriteOnce
+        size: "5Gi"
+
+  # External database (PostgreSQL for production)
+  external:
+    enabled: false  # Set to true for production with PostgreSQL
+    
+    # Option 1: Direct DATABASE_URL (recommended - takes precedence)
+    # Example: "postgresql://user:pass@postgres.example.com:5432/co2_calculator"
+    url: ""  # REQUIRED when external.enabled=true (unless using externalSecret)
+
+    # Option 2: Individual connection fields (used only if url is empty)
+    # These will be composed into a DATABASE_URL automatically
+    host: ""      # REQUIRED: PostgreSQL host (e.g., "postgres.example.com")
+    port: 5432
+    database: ""  # REQUIRED: Database name (e.g., "co2_calculator")
+    username: ""  # REQUIRED: Database user
+    # WARNING: Must be overridden for production! Never commit real passwords to version control.    
+    password: "REPLACE_WITH_SECURE_PASSWORD"  # REQUIRED: Database password.
+  externalSecret:
+    enabled: false  # Set to true to use existing Kubernetes secret
+    name: ""  # Name of the external secret containing DB credentials
+    # Keys to use from the external secret:
+    databaseUrlKey: DATABASE_URL  # Key for full DATABASE_URL
+    usernameKey: DB_USER
+    passwordKey: DB_PASSWORD
+    hostKey: DB_HOST  # Optional: if you want to source individual fields
+    portKey: DB_PORT
+    databaseKey: DB_NAME
+
+pgbouncer:
+  enabled: false
+  replicaCount: 2
+  image:
+    repository: bitnami/pgbouncer
+    tag: "1.23.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6432
+    annotations: {}
+  config:
+    poolMode: transaction
+    maxClientConn: 1000
+    defaultPoolSize: 25
+    minPoolSize: 5
+    reservePoolSize: 5
+    serverLifetime: 3600
+    serverIdleTimeout: 600
+    queryTimeout: 0
+    logConnections: 1
+    logDisconnections: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: co2-calculator.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
