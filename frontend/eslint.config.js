@@ -32,8 +32,7 @@ export default defineConfigWithVueTs([
       'tests/',
       'playwright/',
       'tests-results/',
-      'playwright-report/',
-      'src/mock/',
+      'playwright-report/'
     ],
   },
 ]);

@@ -1,5 +1,7 @@
 import http from 'http';
 
+import console from 'console';
+
 const PORT = 8000;
 const mockUser = {
   sciper: '123456',
@@ -19,11 +21,7 @@ function parseCookies(header) {
     const v = String(rawV || '');
 
     // prevent prototype pollution
-    if (
-      k === '__proto__' ||
-      k === 'constructor' ||
-      k === 'prototype'
-    ) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') {
       return;
     }
     cookies[k] = v;
