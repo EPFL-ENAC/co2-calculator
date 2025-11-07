@@ -114,11 +114,15 @@ class LokiHandler(logging.Handler):
 
             # Fire-and-forget; swallow errors to avoid breaking app logging
             self._client.post(self.endpoint, json=payload, headers=headers)
-        except Exception:
-            # Never raise from logging; write a single line to stderr if needed
+        except Exception as e:
+            # Never raise from logging; attempt to write diagnostic info to stderr
             try:
-                sys.stderr.write("LokiHandler: failed to push log\n")
+                sys.stderr.write(
+                    f"LokiHandler: failed to push log: {type(e).__name__}: {str(e)}\n"
+                )
             except Exception:
+                # If stderr itself fails, there's nothing more we can do
+                # This is the one acceptable case for bare pass in logging handlers
                 pass
 
     def close(self) -> None:

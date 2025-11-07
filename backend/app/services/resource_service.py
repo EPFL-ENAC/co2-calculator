@@ -98,11 +98,6 @@ async def list_resources(
         },
     )
 
-    # Check if action is allowed: Fail silently
-    # if not decision.get("allow", False):
-    #     reason = decision.get("reason", "Access denied")
-    #     logger.warning(f"OPA denied resource list for user {user.id}: {reason}")
-    #     return []
     if not decision.get("allow", False):
         reason = decision.get("reason", "Access denied")
         logger.warning(
@@ -267,7 +262,7 @@ async def update_resource(
         extra={
             "user_id": user.id,
             "action": "update_resource",
-            "resource_id": resource_id,
+            "resource_id": sanitize(resource_id),
         },
     )
 

@@ -59,19 +59,6 @@ async def cleanup():
     # Cleanup code if needed
 
 
-# @pytest.fixture
-# def mock_opa_allow(monkeypatch):
-#     """Mock OPA to always allow with no filters."""
-#     import app.core.opa_client as opa_client
-
-#     async def mock_query_opa(*args, **kwargs):
-#         """Async mock for OPA query."""
-#         return {"allow": True, "filters": {}}
-
-#     monkeypatch.setattr(opa_client, "query_opa", mock_query_opa)
-#     return mock_query_opa
-
-
 @pytest.fixture
 def mock_opa_allow(monkeypatch):
     """Mock OPA to always allow with no filters."""
@@ -98,37 +85,3 @@ def mock_opa_deny(monkeypatch):
     monkeypatch.setattr("app.services.resource_service.query_opa", mock_query_opa)
 
     return mock_query_opa
-
-
-# @pytest.fixture
-# def mock_opa_allow(monkeypatch):
-#     """Mock OPA HTTP to always allow with no filters."""
-
-#     async def mock_post(*args, **kwargs):
-#         """Mock httpx post for OPA - ALLOW."""
-#         class MockResponse:
-#             status_code = 200
-#             def json(self):
-#                 return {"result": {"allow": True, "filters": {}}}
-
-#         return MockResponse()
-
-#     import httpx
-#     monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
-
-
-# @pytest.fixture
-# def mock_opa_deny(monkeypatch):
-#     """Mock OPA HTTP to always deny."""
-
-#     async def mock_post(*args, **kwargs):
-#         """Mock httpx post for OPA - DENY."""
-#         class MockResponse:
-#             status_code = 200
-#             def json(self):
-#                 return {"result": {"allow": False, "reason": "Access denied"}}
-
-#         return MockResponse()
-
-#     import httpx
-#     monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
