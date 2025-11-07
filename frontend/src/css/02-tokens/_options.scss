@@ -5,16 +5,16 @@
 // Do not edit manually.
 
 // Spacing
+$tokens-spacing-1: 0.0625rem !default;
+$tokens-spacing-2: 0.125rem !default;
 $tokens-spacing-4: 0.25rem !default;
 $tokens-spacing-8: 0.5rem !default;
 $tokens-spacing-12: 0.75rem !default;
 $tokens-spacing-16: 1rem !default;
 $tokens-spacing-24: 1.5rem !default;
 $tokens-spacing-32: 2rem !default;
-$tokens-spacing-64: 4rem !default;
 $tokens-spacing-48: 3rem !default;
-$tokens-spacing-2: 0.125rem !default;
-$tokens-spacing-1: 0.0625rem !default;
+$tokens-spacing-64: 4rem !default;
 
 // Border Radius
 $tokens-border-radius-generic-border-radius: 0.1875rem !default;
@@ -25,7 +25,7 @@ $tokens-border-radius-lg-border-radius: 0.75rem !default;
 // Font Family
 // deactivate prettier for the next line to avoid formatting issues
 // prettier-ignore
-$tokens-typography-font-family-base: 'Helvetica Neue', '-apple-system', sans-serif !default;
+$tokens-typography-font-family-base: 'SuisseIntl', '-apple-system', sans-serif !default;
 
 // Font Size
 $tokens-typography-font-size-3xl: 1.75rem !default;
@@ -71,3 +71,17 @@ $tokens-colors-red-red-highlight: #ff0000 !default;
 
 // Layout
 $tokens-layout-page-width: 75rem !default;
+$tokens-layout-md-modal-width: 30rem !default;
+$tokens-layout-sm-modal-width: 30rem !default;
+$tokens-layout-full-width: 100% !default;
+$tokens-layout-full-height: 100% !default;
+
+// Transitions
+$tokens-transitions-default: 0.2s ease !default;
+
+// Box Shadow
+$tokens-box-shadow: rgb(99 99 99 / 40%) 0px 2px 8px 0px !default;
+
+// Z-Index
+$tokens-z-index-background-base: -2 !default;
+$tokens-z-index-background-overlay: -1 !default;

@@ -1,0 +1,53 @@
+<script lang="ts" setup>
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useAuthStore } from 'src/stores/auth';
+
+const authStore = useAuthStore();
+const { loading } = storeToRefs(authStore);
+
+const handleSubmit = async (event: SubmitEvent) => {
+  event.preventDefault();
+
+  console.log('handleSubmit');
+
+  authStore.login();
+};
+
+const buttonLabel = computed(() => {
+  return loading.value ? 'Connecting...' : 'Login';
+});
+</script>
+
+<template>
+  <div class="login-card">
+    <!-- login form (stacked inputs) -->
+    <q-form class="q-gutter-y-xl" @submit.prevent="handleSubmit">
+      <!-- Logo + Title -->
+      <div class="login__brand col-12">
+        <img
+          src="epfl-logo.svg"
+          :alt="$t('login_logo_alt')"
+          class="login__logo"
+        />
+        <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
+      </div>
+
+      <!-- submit button -->
+      <div class="login__button">
+        <q-btn
+          html-type="submit"
+          :fullwidth="true"
+          :label="buttonLabel"
+          :disabled="loading"
+          size="md"
+          class="co2-button full-width text-weight-medium"
+          color="accent"
+          text-color="white"
+          @click="handleSubmit"
+          no-caps
+        />
+      </div>
+    </q-form>
+  </div>
+</template>

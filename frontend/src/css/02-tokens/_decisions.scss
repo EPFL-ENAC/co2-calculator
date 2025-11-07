@@ -39,17 +39,28 @@ $radius-pill: opt.$tokens-border-radius-full-border-radius !default;
 
 // Typography
 $text-font-family: opt.$tokens-typography-font-family-base !default;
+$text-size-2xs: opt.$tokens-typography-font-size-2xs !default;
 $text-size-xs: opt.$tokens-typography-font-size-xs !default;
 $text-size-sm: opt.$tokens-typography-font-size-sm !default;
 $text-size-base: opt.$tokens-typography-font-size-md !default;
 $text-size-lg: opt.$tokens-typography-font-size-lg !default;
-$text-line-height-tight: opt.$tokens-typography-line-height-xs !default;
+$text-size-xl: opt.$tokens-typography-font-size-xl !default;
+$text-size-2xl: opt.$tokens-typography-font-size-2xl !default;
+$text-size-3xl: opt.$tokens-typography-font-size-3xl !default;
+$text-line-height-2xs: opt.$tokens-typography-line-height-2xs !default;
+$text-line-height-xs: opt.$tokens-typography-line-height-xs !default;
+$text-line-height-sm: opt.$tokens-typography-line-height-sm !default;
 $text-line-height-base: opt.$tokens-typography-line-height-md !default;
-$text-line-height-loose: opt.$tokens-typography-line-height-lg !default;
+$text-line-height-lg: opt.$tokens-typography-line-height-lg !default;
+$text-line-height-xl: opt.$tokens-typography-line-height-xl !default;
+$text-line-height-2xl: opt.$tokens-typography-line-height-2xl !default;
+$text-line-height-3xl: opt.$tokens-typography-line-height-3xl !default;
+$text-line-height-4xl: opt.$tokens-typography-line-height-4xl !default;
 $text-weight-regular: opt.$tokens-typography-font-weight-regular !default;
 $text-weight-medium: opt.$tokens-typography-font-weight-medium !default;
 $text-weight-bold: opt.$tokens-typography-font-weight-bold !default;
 
 // Layout
 $layout-page-width: opt.$tokens-layout-page-width !default;
-$layout-pop-up-min-width: 21.875rem !default;
+$layout-pop-up-lg-min-width: opt.$tokens-layout-md-modal-width !default;
+$layout-pop-up-min-width: opt.$tokens-layout-sm-modal-width !default;

@@ -1,0 +1,36 @@
+@use '../../02-tokens' as tokens;
+
+.login-card {
+  border-radius: tokens.$login-card-border-radius;
+  box-shadow: tokens.$login-card-box-shadow;
+  background-color: tokens.$login-card-bg;
+  min-width: tokens.$layout-pop-up-min-width;
+  margin: 0 auto;
+  gap: tokens.$spacing-lg;
+  padding: tokens.$spacing-page;
+  font-weight: tokens.$text-weight-medium;
+}
+
+.login__brand {
+  display: grid;
+  gap: tokens.$spacing-sm;
+  justify-items: center;
+}
+
+.login__field {
+  display: grid;
+  gap: tokens.$spacing-xs;
+}
+
+.login__error {
+  color: tokens.$color-status-error;
+  font-size: tokens.$text-size-sm;
+  line-height: tokens.$text-line-height-sm;
+  margin: 0;
+  padding: 0;
+
+  &--general {
+    text-align: center;
+    margin-top: tokens.$spacing-sm;
+  }
+}

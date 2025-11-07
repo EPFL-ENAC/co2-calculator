@@ -30,7 +30,7 @@ export default defineConfig(function (/* ctx */) {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n'],
+    boot: ['i18n', 'auth', 'router'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -97,7 +97,6 @@ export default defineConfig(function (/* ctx */) {
           },
         ],
       ],
-
       extendViteConf(viteConf) {
         // Remove Quasar's auto-injected CSS
         if (!viteConf.css) viteConf.css = {};
@@ -124,9 +123,14 @@ export default defineConfig(function (/* ctx */) {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
     devServer: {
-      // https: true
-      open: false, // opens browser window automatically
+      open: false,
       proxy: {
+        // Proxy for auth routes - keep full path
+        '/api/v1/auth': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        // Proxy for other API routes - remove /api prefix
         '/api': {
           target: 'http://localhost:8000',
           changeOrigin: true,
