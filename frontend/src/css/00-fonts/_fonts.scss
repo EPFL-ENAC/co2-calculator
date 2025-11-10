@@ -1,0 +1,29 @@
+@font-face {
+  font-family: SuisseIntl;
+  src:
+    url('/fonts/SuisseIntlIEPFL-Regular-WebS.woff2') format('woff2'),
+    url('/fonts/SuisseIntlIEPFL-Regular-WebS.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: SuisseIntl;
+  src:
+    url('/fonts/SuisseIntlIEPFL-Medium-WebS.woff2') format('woff2'),
+    url('/fonts/SuisseIntlIEPFL-Medium-WebS.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: SuisseIntl;
+  src:
+    url('/fonts/SuisseIntlIEPFL-Bold-WebS.woff2') format('woff2'),
+    url('/fonts/SuisseIntlIEPFL-Bold-WebS.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

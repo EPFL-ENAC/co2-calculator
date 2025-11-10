@@ -3,7 +3,7 @@
 
 export default {
   login_logo_alt: 'Logo EPFL',
-  login_title: 'CO₂ Calculator',
-  login_button_submit: 'Login',
-  login_button_loading: 'Connecting...',
+  login_title: 'Calculateur CO₂',
+  login_button_submit: 'Se connecter',
+  login_button_loading: 'Connexion en cours...',
 };

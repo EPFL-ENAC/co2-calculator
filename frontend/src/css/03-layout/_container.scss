@@ -2,6 +2,8 @@
 
 .container {
   margin: 0 auto;
-  padding-inline: tokens.$spacing-lg;
   max-width: tokens.$layout-page-width;
+  background-color: tokens.$container-default-bg;
+  border: tokens.$container-border-weight solid tokens.$container-default-border;
+  border-radius: tokens.$container-border-radius;
 }
