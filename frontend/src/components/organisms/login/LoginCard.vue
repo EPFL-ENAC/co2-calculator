@@ -20,15 +20,16 @@ const buttonLabel = computed(() => {
 </script>
 
 <template>
-  <div class="login-card">
+  <q-card class="q-pa-xl login-card">
     <!-- login form (stacked inputs) -->
     <q-form class="q-gutter-y-xl" @submit.prevent="handleSubmit">
       <!-- Logo + Title -->
-      <div class="login__brand col-12">
-        <img
+      <div class="q-gutter-sm flex flex-center column">
+        <q-img
           src="epfl-logo.svg"
           :alt="$t('login_logo_alt')"
           class="login__logo"
+          width="100px"
         />
         <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
       </div>
@@ -44,10 +45,11 @@ const buttonLabel = computed(() => {
           class="co2-button full-width text-weight-medium"
           color="accent"
           text-color="white"
+          width="100px"
           @click="handleSubmit"
           no-caps
         />
       </div>
     </q-form>
-  </div>
+  </q-card>
 </template>

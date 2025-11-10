@@ -7,8 +7,6 @@ export default boot(({ router }) => {
 
   if (pinia) {
     // Inject router into all stores
-    pinia.use(({ store }) => {
-      store.$router = router;
-    });
+    pinia.use(() => ({ router }));
   }
 });

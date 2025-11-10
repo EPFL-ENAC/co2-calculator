@@ -123,14 +123,9 @@ export default defineConfig(function (/* ctx */) {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
     devServer: {
-      open: false,
+      // https: true
+      open: false, // opens browser window automatically
       proxy: {
-        // Proxy for auth routes - keep full path
-        '/api/v1/auth': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        // Proxy for other API routes - remove /api prefix
         '/api': {
           target: 'http://localhost:8000',
           changeOrigin: true,

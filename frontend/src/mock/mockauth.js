@@ -37,13 +37,13 @@ http
 
     const cookies = parseCookies(req.headers.cookie);
 
-    if (req.url === '/api/v1/auth/login' && req.method === 'GET') {
+    if (req.url === '/v1/auth/login' && req.method === 'GET') {
       res.writeHead(302, {
         Location: 'http://localhost:9000/workspace-setup',
         'Set-Cookie': `auth_token=mock-${Date.now()}; HttpOnly; SameSite=Lax; Max-Age=86400; Path=/`,
       });
       res.end();
-    } else if (req.url === '/api/v1/auth/me' && req.method === 'GET') {
+    } else if (req.url === '/v1/auth/me' && req.method === 'GET') {
       if (!cookies.auth_token) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not authenticated' }));
@@ -52,7 +52,7 @@ http
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(mockUser));
-    } else if (req.url === '/api/v1/auth/logout' && req.method === 'POST') {
+    } else if (req.url === '/v1/auth/logout' && req.method === 'POST') {
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'Set-Cookie': 'auth_token=; HttpOnly; Max-Age=0; Path=/',

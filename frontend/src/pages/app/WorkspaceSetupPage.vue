@@ -13,6 +13,6 @@ const handleLogout = async () => {
 <template>
   <q-page>
     <h1 class="text-h1">Workspace Setup</h1>
-    <Button :label="'logout'" @click="handleLogout" />
+    <q-btn :label="'logout'" @click="handleLogout" />
   </q-page>
 </template>
