@@ -48,7 +48,6 @@ graph TD
 
 ```bash
 make lint
-make format-check
 ```
 
 ### 2. Tests (`test.yml`)
@@ -185,10 +184,10 @@ Builds and deploys documentation to GitHub Pages.
 Add these to your README.md:
 
 ```markdown
-[![Quality Checks](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/quality-check.yml/badge.svg)](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/quality-check.yml)
-[![Tests](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/test.yml/badge.svg)](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/test.yml)
-[![Security](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/security.yml/badge.svg)](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/security.yml)
-[![Build](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/build.yml/badge.svg)](https://github.com/EPFL-ENAC/epfl-calculator-co2/actions/workflows/build.yml)
+[![Quality Checks](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml)
+[![Tests](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml)
+[![Security](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+[![Build](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/build.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/build.yml)
 ```
 
 ## Required Secrets
@@ -207,12 +206,10 @@ Add these to your README.md:
 ## Manual Setup Tasks
 
 1. **Enable CodeQL**
-
    - Go to Settings → Code security and analysis
    - Enable "CodeQL analysis"
 
 2. **Configure Branch Protection**
-
    - Require status checks to pass
    - Require review before merging
    - Include:
@@ -229,7 +226,6 @@ Add these to your README.md:
    ```
 
 4. **Configure Codecov** (optional)
-
    - Sign up at codecov.io
    - Add repository
    - Copy token to GitHub secrets
@@ -267,7 +263,6 @@ Before pushing, run the same checks locally:
 ```bash
 # Quality checks
 make lint
-make format-check
 
 # Tests
 make test

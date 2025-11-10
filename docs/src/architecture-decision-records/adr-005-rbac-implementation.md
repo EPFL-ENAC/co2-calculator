@@ -58,25 +58,21 @@ Compared to alternatives:
 Our RBAC implementation will include:
 
 1. **Role Definitions**:
-
    - Predefined roles (Admin, Editor, Viewer, etc.)
    - Role hierarchy where appropriate
    - Clear documentation of role responsibilities
 
 2. **Permission Model**:
-
    - Resource-based permissions (read, write, delete)
    - Action-based permissions (approve, reject, publish)
    - Context-aware permissions where needed
 
 3. **Integration Points**:
-
    - Microsoft Entra ID groups mapped to application roles
    - JWT claims containing role information
    - Middleware for role-based access control in APIs
 
 4. **Authorization Checks**:
-
    - Decorators/functions for protecting views and endpoints
    - Centralized policy evaluation
    - Audit logging for access attempts
