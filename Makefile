@@ -1,4 +1,4 @@
-.PHONY: help install clean uninstall
+.PHONY: help help-requirements install clean uninstall
 .PHONY: up down restart logs ps
 .PHONY: dev dev-backend dev-frontend
 .PHONY: build build-backend build-frontend
@@ -8,28 +8,29 @@
 .PHONY: ci format format-check lint
 .PHONY: pdf build-docs serve-docs
 
-# =============================================================================
-# TOOL REQUIREMENTS
-# =============================================================================
-# Core (always required):
-#   make
-#
-# Backend + Docs:
-#   uv  (Python project management)
-#
-# Frontend + Root:
-#   npm (package manager)
-#   npx (CLI executor)
-#
-# Helm (for helm/Makefile only)
-#   helm
-#
-# Docker-related tasks only:
-#   docker, docker-compose OR docker compose
-#
-# Docs (serve/watch only):
-#   mkdocs (via uv)
-# =============================================================================
+help-requirements:
+	@echo >&2 "============================================================================="
+	@echo >&2 "TOOL REQUIREMENTS"
+	@echo >&2 "============================================================================="
+	@echo >&2 "Core (always required):"
+	@echo >&2 "  make"
+	@echo >&2 ""
+	@echo >&2 "Backend + Docs:"
+	@echo >&2 "  uv  (Python project management)"
+	@echo >&2 ""
+	@echo >&2 "Frontend + Root:"
+	@echo >&2 "  npm (package manager)"
+	@echo >&2 "  npx (CLI executor)"
+	@echo >&2 ""
+	@echo >&2 "Helm (for helm/Makefile only)"
+	@echo >&2 "  helm"
+	@echo >&2 ""
+	@echo >&2 "Docker-related tasks only:"
+	@echo >&2 "  docker, docker-compose OR docker compose"
+	@echo >&2 ""
+	@echo >&2 "Docs (serve/watch only):"
+	@echo >&2 "  mkdocs (via uv)"
+	@echo >&2 "============================================================================="
 
 HELM_TOOLS := helm
 
@@ -57,6 +58,7 @@ endef
 
 # Default target
 help: ## Show this help message
+	$(MAKE) help-requirements
 	@echo "Available targets:"
 	@echo ""
 	@echo "Docker & Services:"
