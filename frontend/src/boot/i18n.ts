@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers';
 import { createI18n } from 'vue-i18n';
+import { Cookies, Quasar } from 'quasar';
 
 import messages from 'src/i18n';
 
@@ -27,9 +28,25 @@ declare module 'vue-i18n' {
   }
 }
 
-// Export i18n instance for use in router guards
+const locales = Object.keys(messages);
+
+function getCurrentLocale() {
+  let detectedLocale = Cookies.get('locale')
+    ? Cookies.get('locale')
+    : Quasar.lang.getLocale();
+  if (!detectedLocale) {
+    detectedLocale = locales[0];
+  } else if (!locales.includes(detectedLocale)) {
+    detectedLocale = detectedLocale.split('-')[0];
+    if (!detectedLocale || !locales.includes(detectedLocale)) {
+      detectedLocale = locales[0];
+    }
+  }
+  return detectedLocale || locales[0] || 'en';
+}
+
 export const i18n = createI18n({
-  locale: 'en-US',
+  locale: getCurrentLocale(),
   legacy: false,
   messages,
 });
