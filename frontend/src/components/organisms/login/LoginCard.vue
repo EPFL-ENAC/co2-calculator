@@ -1,28 +1,39 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from 'src/stores/auth';
+import { useI18n } from 'vue-i18n';
 
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
+const { t } = useI18n();
+
+const form = ref(null);
+
+function validate() {
+  form.value.validate().then((success) => {
+    if (success) {
+      authStore.login();
+    } else {
+      console.log('Form is invalid');
+    }
+  });
+}
 
 const handleSubmit = async (event: SubmitEvent) => {
   event.preventDefault();
-
-  console.log('handleSubmit');
-
-  authStore.login();
+  validate();
 };
 
 const buttonLabel = computed(() => {
-  return loading.value ? 'Connecting...' : 'Login';
+  return loading.value ? t('login_button_loading') : t('login_button_submit');
 });
 </script>
 
 <template>
   <q-card class="q-pa-xl login-card">
     <!-- login form (stacked inputs) -->
-    <q-form class="q-gutter-y-xl" @submit.prevent="handleSubmit">
+    <q-form ref="form" class="q-gutter-y-xl" @submit.prevent="handleSubmit">
       <!-- Logo + Title -->
       <div class="q-gutter-sm flex flex-center column">
         <q-img
@@ -46,7 +57,7 @@ const buttonLabel = computed(() => {
           color="accent"
           text-color="white"
           width="100px"
-          @click="handleSubmit"
+          @click="validate"
           no-caps
         />
       </div>

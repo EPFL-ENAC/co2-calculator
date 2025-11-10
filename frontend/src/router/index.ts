@@ -7,7 +7,7 @@ import {
 } from 'vue-router';
 
 import routes from './routes';
-import { useAuthStore } from 'src/stores/auth';
+import { authGuard } from './guards/authGuard';
 
 /*
  * If not building with SSR mode, you can
@@ -36,38 +36,7 @@ export default route(function (/* { store, ssrContext } */) {
   });
 
   // Navigation guards
-  Router.beforeEach((to, from, next) => {
-    const authStore = useAuthStore();
-
-    // Don't intercept API routes
-    if (to.path.startsWith('/api/')) {
-      return next();
-    }
-
-    // Wait for auth to finish loading
-    if (authStore.loading) {
-      return next();
-    }
-
-    // Protected route without authentication
-    if (to.meta.requiresAuth && !authStore.user) {
-      if (to.path !== '/login') {
-        return next('/login');
-      }
-      return next();
-    }
-
-    // Already logged in, redirect from login page
-    if (to.path === '/login' && authStore.user) {
-      if (from.path !== '/workspace-setup') {
-        return next('/workspace-setup');
-      }
-      return next();
-    }
-
-    // All other case
-    next();
-  });
+  Router.beforeEach(authGuard);
 
   return Router;
 });
