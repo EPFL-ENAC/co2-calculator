@@ -10,7 +10,7 @@ export const routeLanguageToLocale = (language: Language): Locale => {
     en: 'en-US',
     fr: 'fr-CH',
   };
-  return languageMap[language] || 'en-US';
+  return languageMap[language];
 };
 
 /**
@@ -19,5 +19,5 @@ export const routeLanguageToLocale = (language: Language): Locale => {
 export const getCurrentLanguage = (routeParams: {
   language: Language;
 }): Language => {
-  return routeParams.language || 'en';
+  return routeParams.language;
 };

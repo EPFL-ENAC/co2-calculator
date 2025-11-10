@@ -14,20 +14,23 @@ export function authGuard(to, from, next) {
     return next();
   }
 
+  // Get language param (default to 'en')
+  const language = to.params.language || 'en';
+
   // Protected route without authentication
   if (to.meta.requiresAuth && !authStore.user) {
-    if (to.path !== '/login') {
-      return next('/login');
+    if (to.name !== 'login') {
+      return next({ name: 'login', params: { language } });
     }
     return next();
   }
 
   // Already logged in, redirect from login page
-  if (to.path === '/login' && authStore.user) {
-    if (from.path !== '/workspace-setup') {
-      return next('/workspace-setup');
-    }
-    return next();
+  if (to.name === 'login' && authStore.user) {
+    return next({
+      name: 'home',
+      params: { language, unit: 'defaultUnit', year: '2025' },
+    });
   }
 
   // All other case
