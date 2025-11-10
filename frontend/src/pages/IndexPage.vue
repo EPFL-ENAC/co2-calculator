@@ -1,11 +1,7 @@
 <template>
   <q-page class="row items-center justify-evenly">
-    <q-input v-model="title" label="Standard" />
+    <h1 class="text-h1">Index Page</h1>
   </q-page>
 </template>
 
-<script setup lang="ts">
-import { ref } from 'vue';
-
-const title = ref<string>('Index Page');
-</script>
+<script setup lang="ts"></script>

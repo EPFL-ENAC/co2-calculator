@@ -8,7 +8,6 @@ import {
 
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
-
 /*
  * If not building with SSR mode, you can
  * directly export the Router instantiation;

@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers';
 import { createI18n } from 'vue-i18n';
+import { Cookies, Quasar } from 'quasar';
 
 import messages from 'src/i18n';
 
@@ -27,13 +28,30 @@ declare module 'vue-i18n' {
   }
 }
 
-export default boot(({ app }) => {
-  const i18n = createI18n({
-    locale: 'en-US',
-    legacy: false,
-    messages,
-  });
+const locales = Object.keys(messages);
 
+function getCurrentLocale() {
+  let detectedLocale = Cookies.get('locale')
+    ? Cookies.get('locale')
+    : Quasar.lang.getLocale();
+  if (!detectedLocale) {
+    detectedLocale = locales[0];
+  } else if (!locales.includes(detectedLocale)) {
+    detectedLocale = detectedLocale.split('-')[0];
+    if (!detectedLocale || !locales.includes(detectedLocale)) {
+      detectedLocale = locales[0];
+    }
+  }
+  return detectedLocale || locales[0] || 'en';
+}
+
+export const i18n = createI18n({
+  locale: getCurrentLocale(),
+  legacy: false,
+  messages,
+});
+
+export default boot(({ app }) => {
   // Set i18n instance on app
   app.use(i18n);
 });
