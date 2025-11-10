@@ -1,6 +1,6 @@
 - accessibility workflow
 
   - based on https://www.npmjs.com/package/@axe-core/playwright
-  - build on existiing test.yml
+  - build on existing test.yml
 
-- Test le makefile correctement dans le workflow
+- Tester le Makefile correctement dans le workflow
