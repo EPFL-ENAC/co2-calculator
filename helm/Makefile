@@ -1,6 +1,4 @@
-.PHONY: format format-check lint lint-helm
-
-
+.PHONY: help
 help: ## Show this help message
 	@echo "Helm Makefile targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -13,18 +11,14 @@ FILES ?= .
 ## 🧹 Formatting
 ## -------------------------------
 
+.PHONY: format
 format: ## Format YAML and Markdown files (Helm, docs, etc.)
 	@echo "format in helm charts not implemented"
-
-format-check: ## Check formatting without changing files
-	@echo "format-check in helm charts not implemented"
-
-
 
 ## -------------------------------
 ## 🧩 Helm linting
 ## -------------------------------
-
+.PHONY: lint-helm
 lint-helm: ## Run helm lint on all Helm charts
 	@echo "🧭 Running helm lint..."
 	@if command -v helm >/dev/null 2>&1; then \
@@ -41,6 +35,6 @@ lint-helm: ## Run helm lint on all Helm charts
 ## -------------------------------
 ## 🧪 Combined linting
 ## -------------------------------
-
-lint: format-check lint-helm ## Run all lint checks (format + helm)
+.PHONY: lint
+lint: lint-helm ## Run all lint checks (format + helm)
 	@echo "🧭 All lint checks passed!"

@@ -1,81 +1,90 @@
-# epfl-calculator-co2
-
-- Security
-  [![Security](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=security&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-  [![Dependency Review](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=dependency%20review&logo=dependabot&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-  [![NPM Audit](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=npm%20audit&logo=npm&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-  [![Python Security](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=python%20security&logo=python&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-  [![CodeQL](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=CodeQL&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning)
-  [![Secrets Scan](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=secrets%20scan&logo=keycdn&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-
--
-
-200 - Calculator Co2 (enacit4r-project-200-st, enacit4r-project-200-dev)
+# CO₂ Calculator
 
 **Project Status:** Under active development (v0.x.x internal/non-public releases)
 
-**Access the platform here:**
+**Access the platform:**
 
-**dev url: [https://epfl-calculator-co2-dev.epfl.ch/](https://epfl-calculator-co2-dev.epfl.ch/)**
-**pre-production url: [https://epfl-calculator-co2.epfl.ch/](https://epfl-calculator-co2.epfl.ch/)**
+- **dev:** [https://co2-calculator-dev.epfl.ch/](https://co2-calculator-dev.epfl.ch/)
+- **pre-production:** [https://co2-calculator.epfl.ch/](https://co2-calculator.epfl.ch/)
 
-**Note:** The pre-production url currently serves internal/non-public releases (v0.x.x) until the final v1.0.0 public release at the end of the 10-sprint development process.
+> **Note:** Pre-production serves internal releases (v0.x.x) until final v1.0.0 public release. Production environment will activate with v1.0.0.
 
-**Note:** The production environment will be activated with the v1.0.0 public-facing release at the end of the 10-sprint development process. Current releases are internal/non-public versions (v0.x.x) released at the end of each sprint for internal testing.
-
-## Contributors
-
-- EPFL - (Research & Data): guilbep
-- EPFL - ENAC-IT4R (Implementation):
-- EPFL - ENAC-IT4R (Project Management):
-- EPFL - ENAC-IT4R (Contributors):
-
-## Tech Stack
-
-- cf [TECH STACK](./TECH_SPEC.md)
-
-## Development
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Make
-- Node.js LTS (v24+)
-  - npm
-- Python 3.13
-  - uv
-- Docker
+- **Make** (build automation)
+- **Node.js** v24+ with npm
+- **Python** 3.13+ with **uv** (install: `brew install uv`)
+- **Docker** (for database)
 
-### Setup & Usage
-
-You can use Make with the following commands:
+### Installation
 
 ```bash
+# Install all dependencies and set up git hooks
 make install
-make clean
-make uninstall
-make lint
-make format
+# List helpful targets
+make help
 ```
 
-_Note: Update these commands based on your project's actual build system_
+### Development Workflow
 
-### Development Environment
+**Option 1: Run services separately (recommended)**
 
-The development environment includes:
+```bash
+# Terminal 1 - Start backend (http://localhost:8000)
+cd backend && make dev
 
-- Frontend at http://localhost:9000
-- Backend API at https://localhost:8060
-- Traefik Dashboard at http://localhost:8080
+# Terminal 2 - Start frontend (http://localhost:9000)
+cd frontend && make dev
+```
 
-## Data Management
+**Option 2: Database management (if needed)**
 
-Data for the platform is organized the following way:
+```bash
+# Start PostgreSQL
+docker compose up -d postgres
 
-- TBD
+# Run migrations
+cd backend && make db-migrate
+```
 
-## Internationalization
+### CI Validation (before pushing to dev/stage/main)
 
-The platform supports multiple languages including English, French. Translations are managed through i18n files located in `frontend/src/i18n/`. based on `frontend/src/assets/i18n`
+```bash
+# Run all CI checks locally
+make ci
+
+# Or run individual checks
+make lint          # Run linters
+make type-check    # Type checking
+make test          # Run tests
+make build         # Build projects
+```
+
+> **Note:** Root Makefile provides CI validation commands. For development, use subfolder Makefiles directly (`cd backend && make dev`, `cd frontend && make dev`).
+
+## 📊 Project Information
+
+### Security & Status
+
+[![Security](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=security&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+[![Dependency Review](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=dependency%20review&logo=dependabot&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+[![NPM Audit](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=npm%20audit&logo=npm&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+[![Python Security](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=python%20security&logo=python&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=CodeQL&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning)
+[![Secrets Scan](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=secrets%20scan&logo=keycdn&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+
+### Contributors
+
+- EPFL - (Research & Data): guilbep
+- EPFL - ENAC-IT4R (Implementation): guilbep, BenBotros
+- EPFL - ENAC-IT4R (Project Management): charlottegiseleweil, ambroise-dly
+- EPFL - ENAC-IT4R (Contributors): ambroise-dly, domq, ymarcon, charlottegiseleweil
+
+### Tech Stack
+
+See [TECH STACK](./TECH_SPEC.md) for detailed technical specifications.
 
 ## Contributing
 
@@ -83,25 +92,10 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 ## Status
 
-Under active development. [Report bugs here](https://github.com/EPFL-ENAC/epfl-calculator-co2/issues).
+Under active development. [Report bugs here](https://github.com/EPFL-ENAC/co2-calculator/issues).
 
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE) - see the LICENSE file for details.
 
 This is free software: you can redistribute it and/or modify it under the terms of the GPL-3.0 as published by the Free Software Foundation.
-
-## Remaining Manual Tasks
-
-Please complete these tasks manually:
-
-- [ ] Add token for the github action secrets called: MY_RELEASE_PLEASE_TOKEN (since you kept the release-please workflow)
-- [ ] Check if you need all the labels: https://github.com/EPFL-ENAC/epfl-calculator-co2/labels
-- [ ] Create your first milestone: https://github.com/EPFL-ENAC/epfl-calculator-co2/milestones
-- [ ] Protect your branch if you're a pro user: https://github.com/EPFL-ENAC/epfl-calculator-co2/settings/branches
-- [ ] [Activate discussion](https://github.com/EPFL-ENAC/epfl-calculator-co2/settings)
-
-## Helpful links
-
-- [How to format citations ?](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files)
-- [Learn how to use github template repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)

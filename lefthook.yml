@@ -11,31 +11,20 @@ pre-commit:
     # Format and lint staged files only
     format-lint-staged:
       run: bash scripts/pre-commit-hook.sh
-# Pre-push hooks - run comprehensive checks
+# Pre-push hooks - run comprehensive checks on protected branches only
 pre-push:
   parallel: false
   commands:
-    # Run full test suite only when pushing to dev branch
-    test-suite-dev-only:
+    # Run CI validation only when pushing to protected branches
+    ci-validation-protected-branches:
       run: |
-        if [ "$(git branch --show-current)" = "dev" ]; then
-          echo "Running full test suite for dev branch push..."
-          make test
+        BRANCH=$(git branch --show-current)
+        if [[ "$BRANCH" == "dev" || "$BRANCH" == "stage" || "$BRANCH" == "main" ]]; then
+          echo "🔒 Pushing to protected branch '$BRANCH' - running CI validation..."
+          make ci
         else
-          echo "Skipping full test suite for non-dev branch"
+          echo "✅ Pushing to feature branch '$BRANCH' - skipping CI validation (will run in GitHub Actions)"
         fi
-    
-    # Run linting on all files
-    lint-all:
-      run: |
-        echo "Running linters on entire codebase..."
-        make lint
-    
-    # Type checking
-    type-check:
-      run: |
-        echo "Running type checking..."
-        make type-check
 
 # Colors in output
 colors: true
