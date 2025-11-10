@@ -10,22 +10,6 @@ on:
     - cron: "0 0 * * 1"
 
 jobs:
-  # dependency-review:
-  #   name: Dependency Review
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'pull_request'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Dependency Review
-  #       uses: actions/dependency-review-action@v4
-  #       with:
-  #         fail-on-severity: moderate
-  #         comment-summary-in-pr: always
-
-  #     # - name: Clear large summary to avoid upload error
-  #     #   if: always()
-  #     #   run: truncate -s 1000K "$GITHUB_STEP_SUMMARY"
-
   npm-audit:
     name: NPM Security Audit
     runs-on: ubuntu-latest
