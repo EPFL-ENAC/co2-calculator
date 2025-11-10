@@ -1,13 +1,4 @@
-.PHONY: help help-requirements install clean uninstall
-.PHONY: up down restart logs ps
-.PHONY: dev dev-backend dev-frontend
-.PHONY: build build-backend build-frontend
-.PHONY: test test-backend test-frontend test-watch
-.PHONY: db-migrate db-seed db-reset db-shell
-.PHONY: shell-backend shell-frontend prune reset
-.PHONY: ci format format-check lint
-.PHONY: pdf build-docs serve-docs
-
+.PHONY: help-requirements
 help-requirements:
 	@echo >&2 "============================================================================="
 	@echo >&2 "TOOL REQUIREMENTS"
@@ -56,6 +47,7 @@ endef
 
 # example in Makefile:	$(call check_tools,uv npm)
 
+.PHONY: help
 # Default target
 help: ## Show this help message
 	$(MAKE) help-requirements
@@ -88,43 +80,38 @@ help: ## Show this help message
 # =============================================================================
 # Docker & Services
 # =============================================================================
-.PHONY: docker-network
 
-docker-network: ## Ensure Docker network exists
-	$(call check_tools,docker $(DOCKER_COMPOSE))
-	@echo "🔧 Checking Docker network 'co2-calculator-network'..."
-	@if ! docker network ls --format '{{.Name}}' | grep -q '^co2-calculator-network$$'; then \
-		docker network create co2-calculator-network; \
-		echo "✅ Docker network created"; \
-	else \
-		echo "✅ Docker network already exists"; \
-	fi
-
-up: docker-network ## Start all services (docker compose up)
+.PHONY: up
+up: ## Start all services (docker compose up)
 	@echo "Starting all services..."
 	docker compose up -d
 	@echo "Services started!"
 
+.PHONY: force-up
 force-up: down up ## Force restart/rebuild all services
 	@echo "Services force restarted!"
 	docker compose up -d --build --force-recreate
 
+.PHONY: down
 down: ## Stop all services (docker compose down)
 	$(call check_tools,docker $(DOCKER_COMPOSE))
 	@echo "Stopping all services..."
 	docker compose down
 	@echo "Services stopped!"
 
+.PHONY: restart
 restart: ## Restart all services
 	$(call check_tools,docker $(DOCKER_COMPOSE))
 	@echo "Restarting all services..."
 	docker compose restart
 	@echo "Services restarted!"
 
+.PHONY: logs
 logs: ## View logs from all services
 	$(call check_tools,docker $(DOCKER_COMPOSE))
 	docker compose logs -f
 
+.PHONY: ps
 ps: ## Show running containers status
 	$(call check_tools,docker $(DOCKER_COMPOSE))
 	docker compose ps
@@ -133,6 +120,7 @@ ps: ## Show running containers status
 # Development
 # =============================================================================
 
+.PHONY: dev
 dev: ## Start development environment (up + watch mode)
 	@echo "Starting backend and frontend in development mode..."
 	@trap 'kill 0' SIGINT; \
@@ -140,14 +128,17 @@ dev: ## Start development environment (up + watch mode)
 	cd frontend && $(MAKE) run dev & \
 	wait
 
+.PHONY: run
 run: db-up dev ## Alias for dev + db up
 
+.PHONY: dev-backend
 dev-backend: ## Run only backend in dev mode
 	@echo "Starting backend in development mode..."
 	@trap 'kill 0' SIGINT; \
 	cd backend && $(MAKE) run & \
 	wait
 
+.PHONY: dev-frontend
 dev-frontend: ## Run only frontend in dev mode
 	@echo "Starting frontend in development mode..."
 	@trap 'kill 0' SIGINT; \
@@ -158,13 +149,16 @@ dev-frontend: ## Run only frontend in dev mode
 # Building
 # =============================================================================
 
+.PHONY: build
 build: build-backend build-frontend ## Build all projects (frontend + backend)
 	@echo "All builds complete!"
 
+.PHONY: build-backend
 build-backend: ## Build backend only
 	@echo "Building backend..."
 	cd backend && $(MAKE) build
 
+.PHONY: build-frontend
 build-frontend: ## Build frontend only
 	@echo "Building frontend..."
 	cd frontend && $(MAKE) build
@@ -173,17 +167,21 @@ build-frontend: ## Build frontend only
 # Testing
 # =============================================================================
 
+.PHONY: test
 test: test-backend test-frontend ## Run all tests (frontend + backend)
 	@echo "All tests complete!"
 
+.PHONY: test-backend
 test-backend: ## Run backend tests
 	@echo "Running backend tests..."
 	cd backend && $(MAKE) test
 
+.PHONY: test-frontend
 test-frontend: ## Run frontend tests
 	@echo "Running frontend tests..."
 	cd frontend && $(MAKE) test
 
+.PHONY: test-watch
 test-watch: ## Run tests in watch mode
 	@echo "Running tests in watch mode..."
 	@echo "Backend tests in watch mode:"
@@ -195,31 +193,40 @@ test-watch: ## Run tests in watch mode
 # Database
 # =============================================================================
 
+.PHONY: db-up
 db-up: ## Start database service
 	@echo "Starting database service..."
 	docker compose up -d postgres
 	@echo "Database service started!"
+
+.PHONY: db-down
 db-down: ## Stop database service
 	@echo "Stopping database service..."
 	docker compose down postgres
 	@echo "Database service stopped!"
+
+.PHONY: db-restart
 db-restart: ## Restart database service
 	@echo "Restarting database service..."
 	docker compose restart postgres
 	@echo "Database service restarted!"
 
+.PHONY: db-migrate
 db-migrate: ## Run database migrations
 	@echo "Running database migrations..."
 	cd backend && $(MAKE) db-migrate
 
+.PHONY: db-seed
 db-seed: ## Seed database with sample data
 	@echo "Seeding database..."
 	cd backend && $(MAKE) db-seed
 
+.PHONY: db-reset
 db-reset: ## Reset database (drop + migrate + seed)
 	@echo "Resetting database..."
 	cd backend && $(MAKE) db-reset
 
+.PHONY: db-shell
 db-shell: ## Open database shell
 	@echo "Opening database shell..."
 	cd backend && $(MAKE) db-shell
@@ -228,6 +235,7 @@ db-shell: ## Open database shell
 # Utilities
 # =============================================================================
 
+.PHONY: install
 install: ## Install npm dependencies and set up git hooks
 	@echo "Installing root npm dependencies... (lefthook will be installed + prettier)"
 	npm install
@@ -241,6 +249,7 @@ install: ## Install npm dependencies and set up git hooks
 	cd docs && $(MAKE) install
 	@echo "Setup complete!"
 
+.PHONY: clean
 clean: ## Remove node_modules and package-lock.json
 	@echo "Cleaning dependencies..."
 	rm -rf node_modules
@@ -248,6 +257,7 @@ clean: ## Remove node_modules and package-lock.json
 	cd backend && $(MAKE) clean
 	cd frontend && $(MAKE) clean
 
+.PHONY: uninstall
 uninstall: ## Uninstall git hooks and clean dependencies
 	@echo "Uninstalling git hooks..."
 	npx lefthook uninstall || true
@@ -258,34 +268,12 @@ uninstall: ## Uninstall git hooks and clean dependencies
 # CI/CD
 # =============================================================================
 
+.PHONY: ci
 ci: lint format-check test build ## Run CI checks (lint + format-check + test + build)
 	@echo "CI checks complete!"
 
-# lint: ## Run linters on the codebase
-# 	@echo "Running linter..."
-# 	LEFTHOOK=0 npx lefthook run pre-commit
-# 	@echo "Linting complete!"
-
-# format: ## Format codebase (delegates to frontend and backend and docs)
-# 	@echo "Formatting codebase..."
-# 	@echo "Formatting root Markdown files..."
-# 	npx prettier --write "*.md" --ignore-unknown --ignore-path .prettierignore
-# 	@echo "Formatting backend..."
-# 	cd backend && $(MAKE) format
-# 	@echo "Formatting frontend..."
-# 	cd frontend && $(MAKE) format
-# 	@echo "Formatting complete!"
-
-# format-check: ## Check formatting without fixing
-# 	@echo "Checking formatting..."
-# 	npx prettier --check . --ignore-unknown --ignore-path .prettierignore
-# 	cd backend && $(MAKE) format-check
-# 	cd frontend && $(MAKE) format-check
-# 	@echo "Format check complete!"
-
-
-
 # Format targets
+.PHONY: format format-root format-backend format-frontend format-docs format-helm
 format: format-root format-backend format-frontend format-docs format-helm ## Format entire codebase
 
 format-root: ## Format root-level files
@@ -321,6 +309,7 @@ format-helm: ## Format Helm files
 	fi
 
 # Format check targets
+.PHONY: format-check format-check-root format-check-backend format-check-frontend format-check-docs format-check-helm
 format-check: format-check-root format-check-backend format-check-frontend format-check-docs format-check-helm ## Check formatting
 
 format-check-root: ## Check root-level file formatting
@@ -356,6 +345,7 @@ format-check-helm: ## Check Helm formatting
 	fi
 
 # Lint targets
+.PHONY: lint lint-backend lint-frontend lint-docs lint-helm
 lint: lint-backend lint-frontend lint-docs lint-helm ## Lint entire codebase
 
 lint-backend: ## Lint backend code
@@ -386,8 +376,9 @@ lint-helm: ## Lint Helm files
 		echo "No helm directory found, skipping..."; \
 	fi
 
-
+.PHONY: type-check frontend-type-check backend-type-check
 type-check: frontend-type-check backend-type-check ## Run type checking for frontend and backend
+
 frontend-type-check: ## Run type checking for frontend code
 	@echo "Running type checking for frontend..."
 	@if [ -d "frontend" ]; then \
@@ -408,6 +399,7 @@ backend-type-check: ## Run type checking for backend code
 # Documentation
 # =============================================================================
 
+.PHONY: pdf build-docs serve-docs
 pdf: ## Build documentation with PDF export enabled
 	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
 
