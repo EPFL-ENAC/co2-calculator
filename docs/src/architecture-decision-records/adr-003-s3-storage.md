@@ -59,19 +59,16 @@ Compared to alternatives:
 Our S3 implementation will include:
 
 1. **Storage Structure**:
-
    - Bucket organization by environment (dev, staging, prod)
    - Path-based organization for different file types
    - Consistent naming conventions for objects
 
 2. **Upload Process**:
-
    - Backend generates presigned URLs for secure uploads
    - Frontend uploads directly to storage using presigned URLs
    - Metadata stored in database with object keys
 
 3. **Security Measures**:
-
    - IAM roles with least privilege principle
    - Presigned URLs with limited validity period
    - Server-side encryption for all objects

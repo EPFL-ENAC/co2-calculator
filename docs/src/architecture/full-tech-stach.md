@@ -32,7 +32,6 @@
 - **Dynaconf + python-dotenv**: structured config that supports env vars, multiple environments; Dynaconf integrates well with Docker/K8s patterns.
 - **EPFL enacit4r-\* packages**: reuse EPFL-specific helpers (files, auth, sql). Pin exact git revisions for reproducibility.
 - **Uv (recommended)** as package manager
-
   - _Why not pip alone?_ Pip doesn't produce a lockfile by default; Uv gives locked, reproducible builds. This is important in production.
 
 **Security & standards**
@@ -96,12 +95,10 @@
 
 - **Images:** OCI-compliant, small base images (python:3.13-slim or distroless) with multi-stage builds. EPFL requirement: support OS patching and updates.
 - **docker-compose (dev / Ansible flows):**
-
   - Use Traefik as reverse proxy in compose for routing, TLS (Let’s Encrypt or cert manager for local certs), and for ease of Ansible-driven deployments.
   - Example services: web (backend), frontend (vite build served by CDN or static nginx), postgres, redis, minio (if object storage required), traefik, pgadmin (optional).
 
 - **Kubernetes (prod):**
-
   - Use k8s manifests or Helm charts.
   - Use **nginx-ingress** controller (as requested) for production ingress. TLS managed with cert-manager.
   - Use Horizontal Pod Autoscaler (HPA) and resource requests/limits for autoscaling.
@@ -160,7 +157,6 @@ Monorepo
 
 - **Docker Compose:** `docker-compose.yml` with services: backend, frontend(for dev), postgres, redis, traefik, minio (if needed). Traefik configured to route `api.local` -> backend, `app.local` -> frontend.
 - **K8s:**
-
   - Deployment + Service for backend + HPA + ConfigMap for envs + Secret for keys.
   - Deployment for celery workers.
   - StatefulSet/Managed for Postgres (or external managed service).
@@ -183,7 +179,6 @@ _(I can produce concrete example `docker-compose.yml` and k8s manifests or Helm 
 ## 8 — Versioning & dependency pinning
 
 - **Frontend deps**: use the versions you provided:
-
   - marked: ^9.0.3
   - pinia: ^3.0.1
   - quasar: ^2.18.1

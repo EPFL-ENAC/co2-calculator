@@ -214,7 +214,6 @@ Artifacts: versioned docker images tagged `vX.Y.Z` + `latest` `dev`.
 - **2 reviewers** minimum for backend critical code (auth, DB, security).
 - CI must pass before merge.
 - Each PR includes:
-
   - Description + screenshots (if UI)
   - Linked issue #
   - Test evidence (`pytest –k <feature>` output OK)

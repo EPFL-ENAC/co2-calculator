@@ -52,9 +52,9 @@ This guide ensures quality, security, maintainability, and longevity of our code
 
 ## Need Help?
 
-- 💬 [Start a discussion](https://github.com/EPFL-ENAC/epfl-calculator-co2/discussions) for questions
-- 📋 [Create an issue](https://github.com/EPFL-ENAC/epfl-calculator-co2/issues/new/choose) to report bugs or request features
-- 📖 Read our [Code of Conduct](https://github.com/EPFL-ENAC/epfl-calculator-co2/blob/main/CODE_OF_CONDUCT.md)
+- 💬 [Start a discussion](https://github.com/EPFL-ENAC/co2-calculator/discussions) for questions
+- 📋 [Create an issue](https://github.com/EPFL-ENAC/co2-calculator/issues/new/choose) to report bugs or request features
+- 📖 Read our [Code of Conduct](https://github.com/EPFL-ENAC/co2-calculator/blob/main/CODE_OF_CONDUCT.md)
 - 📧 Email **enacit4research@epfl.ch** for technical support
 
 ---
@@ -475,7 +475,7 @@ TBD with code reviewer (should be in pull_REQUEST_TEMPLATE.md)
 
 ### Issue Templates
 
-Use our [issue templates](https://github.com/EPFL-ENAC/epfl-calculator-co2/issues/new/choose):
+Use our [issue templates](https://github.com/EPFL-ENAC/co2-calculator/issues/new/choose):
 
 - Bug Report
 - Feature
@@ -500,7 +500,6 @@ We follow **Semantic Versioning (SemVer)** with a phased approach:
 Our versioning strategy distinguishes between internal/non-public releases and public-facing releases:
 
 1. **Internal/Non-Public Releases** (`v0.x.x`):
-
    - Tagged versions released at the end of each sprint (sprints 1-9)
    - Format: `v0.MINOR.PATCH` (e.g., `v0.1.2`)
    - Intended for internal testing and validation only
@@ -538,7 +537,6 @@ For breaking changes, document in `MIGRATION.md`:
 Our release process distinguishes between internal/non-public releases and public-facing releases:
 
 1. **Pre-Production Environment** (Internal/Non-Public Releases):
-
    - Used during active development cycles (sprints 1-9)
    - Runs `v0.x.x` tagged versions released at the end of each sprint
    - Intended for internal testing and validation only

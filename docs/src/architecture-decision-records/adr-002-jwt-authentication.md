@@ -57,13 +57,11 @@ Compared to session-based authentication:
 Our JWT implementation will include:
 
 1. **Token Types**:
-
    - ID Tokens: For user identification
    - Access Tokens: For API authorization
    - Refresh Tokens: For session continuity (optional)
 
 2. **Token Validation**:
-
    - Signature verification using public keys from Microsoft Entra ID
    - Expiration checking
    - Audience validation
