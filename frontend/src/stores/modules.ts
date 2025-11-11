@@ -7,7 +7,7 @@ export const modulesList: Modules[] = [
   'professional-travel',
   'infrastructure',
   'equipment-electric-consumption',
-  'purchased',
+  'purchase',
   'internal-services',
   'external-cloud',
 ];
@@ -22,7 +22,7 @@ export const useTimelineStore = defineStore('timeline', {
       'professional-travel': 'in-progress',
       infrastructure: 'default',
       'equipment-electric-consumption': 'default',
-      purchased: 'default',
+      purchase: 'default',
       'internal-services': 'default',
       'external-cloud': 'default',
     } as ModuleStates,

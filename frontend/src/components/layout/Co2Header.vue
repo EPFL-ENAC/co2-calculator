@@ -50,7 +50,7 @@ const handleLogout = async () => {
     <q-separator />
     <!-- Bottom toolbar: Breadcrumbs and Action Button -->
     <template v-if="route.name === 'module' && route.matched.length > 2">
-      <q-toolbar class="q-px-xl q-py-md">
+      <q-toolbar class="q-px-xl q-py-md items-center">
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             label="Home"
@@ -63,7 +63,7 @@ const handleLogout = async () => {
               },
             }"
           />
-          <q-breadcrumbs-el :label="getModuleLabel(route.params.module)" />
+          <q-breadcrumbs-el :label="$t(getModuleLabel(route.params.module))" />
         </q-breadcrumbs>
 
         <q-space />
@@ -80,7 +80,7 @@ const handleLogout = async () => {
       <q-separator />
     </template>
     <template v-if="route.name === 'module'">
-      <div class="flex justify-center q-py-xl align-items-center">
+      <div class="flex justify-center q-py-xl items-center">
         <Co2Timeline />
       </div>
       <q-separator />

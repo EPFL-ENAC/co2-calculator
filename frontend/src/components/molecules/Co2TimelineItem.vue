@@ -15,6 +15,11 @@ const props = withDefaults(
   },
 );
 
+// Computed class for the dot
+const textClass = (color: string) =>
+  `absolute text-weight-medium text-no-wrap text-${color}`;
+
+// Computed property for state color
 const stateColor = computed(() => {
   switch (props.currentState) {
     case 'in-progress':
@@ -26,10 +31,6 @@ const stateColor = computed(() => {
   }
 });
 
-// Computed class for the dot
-const textClass = (color: string) =>
-  `absolute text-weight-medium text-no-wrap text-${color}`;
-
 // Button class logic moved to computed property
 const btnClass = computed(() => {
   let base = textClass(stateColor.value) + '  q-mt-sm q-py-none';
@@ -39,7 +40,7 @@ const btnClass = computed(() => {
         base += ' bg-accent text-white';
         break;
       case 'in-progress':
-        base += ' bg-grey-2 text-white';
+        base += ' bg-grey-3 text-white';
         break;
       default:
         base += ' bg-grey-2 text-white';
@@ -77,9 +78,8 @@ const btnClass = computed(() => {
       :class="btnClass"
       style="left: 50%; transform: translateX(-50%)"
       @click="() => props.handleClick && props.handleClick(props.item)"
-      :label="item.label"
+      :label="$t(item.label)"
       :to="item.link ? { name: item.link } : undefined"
-      role="link"
     />
   </div>
 </template>

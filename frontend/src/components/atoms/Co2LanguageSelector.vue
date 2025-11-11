@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
@@ -35,28 +35,37 @@ const frenchRoute = computed(() => getRouteWithLanguage('fr'));
 const switchLanguage = (lang: 'en' | 'fr') => {
   locale.value = lang === 'en' ? 'en-US' : 'fr-CH';
 };
+
+// Watch for route language changes and update i18n locale
+watch(
+  () => route.params.language,
+  (newLang) => {
+    if (newLang === 'en') {
+      locale.value = 'en-US';
+    } else if (newLang === 'fr') {
+      locale.value = 'fr-CH';
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <div class="language-selector">
+  <div class="language-selector q-gutter-x-xs">
     <router-link
       :to="englishRoute"
-      class="text-primary text-weight-medium text-body1 no-underline"
-      :class="{ 'text-decoration-underline': isEnglish }"
+      class="q-link--no-underline text-primary text-weight-medium text-body2"
+      :style="{ textDecoration: !isEnglish ? 'none' : 'underline' }"
       @click="switchLanguage('en')"
-      aria-label="Switch to English"
+      >EN</router-link
     >
-      EN
-    </router-link>
-    <span class="text-primary text-weight-medium text-body1">/</span>
+    <span class="text-primary text-weight-medium text-body2">/</span>
     <router-link
       :to="frenchRoute"
-      class="text-primary text-weight-medium text-body1 no-underline"
-      :class="{ 'text-decoration-underline': isFrench }"
+      class="q-link--no-underline text-primary text-weight-medium text-body2"
+      :style="{ textDecoration: !isFrench ? 'none' : 'underline' }"
       @click="switchLanguage('fr')"
-      aria-label="Switch to French"
+      >FR</router-link
     >
-      FR
-    </router-link>
   </div>
 </template>

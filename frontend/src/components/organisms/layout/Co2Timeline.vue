@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useTimelineStore } from 'src/stores/modules';
 import Co2TimelineItem from 'src/components/molecules/Co2TimelineItem.vue';
 import { TimelineItem } from 'src/types';
@@ -8,9 +8,20 @@ import { timelineItems } from 'app/constant/timelineItems';
 
 const timelineStore = useTimelineStore();
 
-const selectedId = ref<number | null>(1);
+const selectedId = ref<number | null>(null);
 const router = useRouter();
 const route = useRoute();
+
+// Set selectedId from route on mount
+onMounted(() => {
+  const moduleParam = route.params.module;
+  if (moduleParam) {
+    const found = timelineItems.find((item) => item.link === moduleParam);
+    selectedId.value = found ? found.id : null;
+  } else {
+    selectedId.value = timelineItems[0].id;
+  }
+});
 
 const handleTimelineClick = (item: TimelineItem) => {
   selectedId.value = item.id;

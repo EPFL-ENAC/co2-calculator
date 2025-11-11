@@ -5,13 +5,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 21px;
-  height: 21px;
+  width: tokens.$timeline-item-size;
+  height: tokens.$timeline-item-size;
 
   border-radius: tokens.$radius-pill;
   background-color: white;
   border: tokens.$timeline-item-border-weight solid
     tokens.$timeline-item-default-border-color;
+  min-height: auto;
   cursor: pointer;
 
   &.q-btn-timeline-item--in-progress {
