@@ -3,7 +3,7 @@
 **Status**: Planned  
 **Date**: 2025-11-10  
 **Deciders**: Development Team  
-**Related**: [Tech Stack](../architecture/08-tech-stack.md#backend-stack), [ADR-009: Caching Strategy](./009-caching-strategy.md)
+**Related**: [Tech Stack](../architecture/08-tech-stack.md#backend-stack), [ADR-004: Database Selection](./004-database-selection.md)
 
 ## Context
 

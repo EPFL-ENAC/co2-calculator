@@ -1,33 +1,43 @@
 # Development Workflow Guide
 
-This guide covers the complete development workflow from issue creation
-through production deployment. Follow these processes to ensure smooth
-collaboration and code quality.
+Complete development workflow from issue creation through production
+deployment. Follow these processes to ensure smooth collaboration and
+code quality.
+
+**Related documentation:**
+
+- [CI/CD Pipeline](06-cicd-pipeline.md) - Pipeline architecture
+- [CI/CD Workflows](cicd-workflows.md) - GitHub Actions details
+- [Release Management](release-management.md) - Release process
+- [Code Standards](code-standards.md) - Coding guidelines
 
 ## Branch Strategy
 
 We use a three-tier promotion model with automatic deployments:
 
 ```
-main (pre-prod) ← stage (staging) ← dev (development) ← feature branches
+main (pre-prod) ← stage (staging) ← dev (development) ← feature/*
 ```
 
 Each branch maps to an environment:
 
-| Branch  | Environment    | URL                                  | Deploy Trigger    |
-| ------- | -------------- | ------------------------------------ | ----------------- |
-| `dev`   | Development    | https://co2-calculator-dev.epfl.ch   | Auto on merge     |
-| `stage` | Staging        | https://co2-calculator-stage.epfl.ch | Manual sprint end |
-| `main`  | Pre-Production | https://co2-calculator.epfl.ch       | Manual with tag   |
+| Branch  | Environment    | URL                                  |
+| ------- | -------------- | ------------------------------------ |
+| `dev`   | Development    | https://co2-calculator-dev.epfl.ch   |
+| `stage` | Staging        | https://co2-calculator-stage.epfl.ch |
+| `main`  | Pre-Production | https://co2-calculator.epfl.ch       |
 
 Feature branches are created from `dev` and merged back to `dev`.
+
+For deployment triggers and validation requirements, see
+[CI/CD Pipeline](06-cicd-pipeline.md#deployment-flow).
 
 ## Development Process
 
 Follow this step-by-step workflow for all changes:
 
 1. **Create issue** - Describe feature or bug with acceptance criteria
-2. **Branch from dev** - `git checkout dev && git checkout -b issue-123-feature-name`
+2. **Branch from dev** - `git checkout dev && git checkout -b issue-123-feature`
 3. **Develop locally** - Code, test, document
 4. **Run CI checks** - `make ci` must pass before pushing
 5. **Push and PR** - Create pull request targeting `dev`
@@ -36,6 +46,9 @@ Follow this step-by-step workflow for all changes:
 8. **Validate** - Test in dev environment
 9. **Promote to stage** - Manual PR at sprint end
 10. **Production release** - Tag and deploy to pre-prod
+
+For CI/CD pipeline details, see
+[CI/CD Pipeline](06-cicd-pipeline.md).
 
 ## Pull Request Lifecycle
 
@@ -68,13 +81,16 @@ Reviewers verify these aspects before approval:
 
 - **Code Quality** - Follows standards, linter passes
 - **Documentation** - Clear comments and updated docs
-- **Testing** - 60% coverage, tests pass
+- **Testing** - 60% coverage minimum, tests pass
 - **Security** - No secrets, follows security policy
 - **Performance** - No obvious bottlenecks
 - **Accessibility** - WCAG AA for UI changes
 - **Responsiveness** - Works on mobile/tablet/desktop
 
 For UI changes, include screenshots and test on multiple devices.
+
+For detailed CI/CD checks, see
+[CI/CD Pipeline](06-cicd-pipeline.md#automated-checks).
 
 ## Definition of Done
 
