@@ -78,6 +78,17 @@ nav:
       - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
       - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
 
+  - Architecture Decision Records:
+      - Overview: architecture-decision-records/index.md
+      - ADR-001 Python Package Manager: architecture-decision-records/001-python-package-manager.md
+      - ADR-002 Frontend Framework: architecture-decision-records/002-frontend-framework.md
+      - ADR-003 Backend Framework: architecture-decision-records/003-backend-framework.md
+      - ADR-004 Database Selection: architecture-decision-records/004-database-selection.md
+      - ADR-005 Authorization Strategy: architecture-decision-records/005-authorization-strategy.md
+      - ADR-010 Background Job Processing: architecture-decision-records/010-background-job-processing.md
+      - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
+      - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
+
   - Frontend:
       - Overview: frontend/01-overview.md
 

@@ -295,24 +295,26 @@ src/i18n/
 ├── fr.json
 └── de.json
 ```
+
 ### Contributing translation
+
 1. Create a feature branch from `main`
-![Screenshot](img/branch.png)
-![Screenshot](img/new_branch.png)
-![Screenshot](img/translation_branch_name.png)
+   ![Screenshot](img/branch.png)
+   ![Screenshot](img/new_branch.png)
+   ![Screenshot](img/translation_branch_name.png)
 
 2. Make your changes to the translation files
-![Screenshot](img/translation_modify.png)
+   ![Screenshot](img/translation_modify.png)
 
 3. Commit with a conventional commit message (e.g., `feat(i18n): add dashboard translations`)
-![Screenshot](img/translation_commit.png)
-![Screenshot](img/translation_commit_message.png)
+   ![Screenshot](img/translation_commit.png)
+   ![Screenshot](img/translation_commit_message.png)
 
 4. Push your branch and open a pull request
-![Screenshot](img/translation_pull_request.png)
+   ![Screenshot](img/translation_pull_request.png)
 
-5. Ensure CI checks pass 
-![Screenshot](img/translation_checks.png)
+5. Ensure CI checks pass
+   ![Screenshot](img/translation_checks.png)
 
 ### Usage in Components
 
