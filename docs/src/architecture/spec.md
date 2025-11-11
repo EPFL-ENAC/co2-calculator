@@ -1,7 +1,3 @@
-Here’s a **concise summary for the lead developer** of what needs to be built and delivered according to the _“Cahier des Charges – Calculateur CO2@EPFL”_:
-
----
-
 ### 🎯 **Project Goal**
 
 Develop an **open-source CO2 calculator** for EPFL research activities — allowing each lab to measure, visualize, and simulate its CO2 emissions. The tool must be **scalable, secure, and reusable by other academic institutions**.

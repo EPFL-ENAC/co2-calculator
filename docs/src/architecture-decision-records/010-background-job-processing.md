@@ -1,8 +1,9 @@
-# ADR-004: Use Celery for Background Job Processing
+# ADR-010: Background Job Processing
 
-## Status
-
-Accepted
+**Status**: Planned  
+**Date**: 2025-11-10  
+**Deciders**: Development Team  
+**Related**: [Tech Stack](../architecture/08-tech-stack.md#backend-stack), [ADR-004: Database Selection](./004-database-selection.md)
 
 ## Context
 
@@ -17,7 +18,9 @@ We needed a solution for handling background tasks and asynchronous processing i
 
 ## Decision
 
-We will use Celery with Redis as our distributed task queue system for background job processing.
+We will use **Celery with Redis** as our distributed task queue system for background job processing (preferred approach, pending final evaluation).
+
+**Note**: This decision is planned but not yet implemented. Alternatives like Dramatiq, Huey, and FastAPI BackgroundTasks will be evaluated during implementation.
 
 ## Rationale
 
@@ -40,7 +43,10 @@ Redis was chosen as the message broker because:
 
 Compared to alternatives:
 
-- RQ is simpler but less feature-rich
+- **RQ**: Simpler but less feature-rich, sufficient for basic needs
+- **Dramatiq**: Modern alternative with better API, good performance
+- **Huey**: Lightweight Redis-based queue, simpler than Celery
+- **FastAPI BackgroundTasks**: Built-in but limited to single-process, no persistence
 - Custom solutions would require significant development effort
 - Other queue systems (like RabbitMQ) are more complex to operate
 
@@ -50,16 +56,24 @@ Compared to alternatives:
 
 - Reliable distributed task processing
 - Horizontal scalability for background jobs
-- Built-in monitoring and management
+- Built-in monitoring and management (Flower)
 - Flexible task scheduling options
 - Graceful handling of failures and retries
+- Large community and ecosystem
 
 ### Negative
 
-- Additional infrastructure component (Redis)
-- Learning curve for team members
-- Potential for increased complexity in debugging
-- Need for proper monitoring and alerting
+- Additional infrastructure component (Redis) required
+- Learning curve for team members unfamiliar with Celery
+- Potential for increased complexity in debugging distributed tasks
+- Need for proper monitoring and alerting setup
+- Operational overhead compared to simpler solutions
+
+### Neutral
+
+- Decision deferred until implementation phase
+- Will evaluate simpler alternatives (Dramatiq, Huey) based on actual requirements
+- FastAPI BackgroundTasks may be sufficient for MVP phase
 
 ## Implementation Details
 

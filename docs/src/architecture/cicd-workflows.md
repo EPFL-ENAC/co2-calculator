@@ -1,6 +1,14 @@
 # CI/CD Workflows
 
-This document describes the comprehensive CI/CD pipeline for the CO2 Calculator project.
+GitHub Actions workflows for automated quality checks, testing,
+security scanning, and deployment. This document provides detailed
+configuration reference for each workflow.
+
+**Related documentation:**
+
+- [CI/CD Pipeline](06-cicd-pipeline.md) - Architecture overview
+- [Workflow Guide](workflow-guide.md) - Developer daily workflow
+- [Release Management](release-management.md) - Release process
 
 ## Workflow Overview
 
@@ -163,6 +171,9 @@ Uses EPFL-ENAC deployment action for:
 - Dev environment (push to dev)
 - Production (tags v*.*.\*)
 
+For deployment flow details, see
+[CI/CD Pipeline](06-cicd-pipeline.md#deployment-flow).
+
 ### 9. Deploy MkDocs (`deploy-mkdocs.yml`)
 
 **Trigger:** Push to main  
@@ -238,7 +249,7 @@ Add these to your README.md:
 
 ### Parallel Execution
 
-Most workflows run in parallel to minimize CI time:
+Workflows run in parallel to minimize CI time:
 
 - Quality checks and tests run simultaneously
 - Backend and frontend builds are independent
@@ -253,7 +264,7 @@ Most workflows run in parallel to minimize CI time:
 ### Cost Optimization
 
 - Use `paths` filters to avoid unnecessary runs
-- Schedule security scans weekly instead of on every push
+- Schedule security scans weekly instead of every push
 - Use `continue-on-error` for non-blocking checks
 
 ## Local Testing

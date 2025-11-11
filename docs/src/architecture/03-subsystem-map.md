@@ -149,7 +149,7 @@ Each layer communicates with adjacent layers through well-defined interfaces:
 
 For implementation details, see:
 
-- [Frontend Documentation](../frontend/index.md)
-- [Backend Documentation](../backend/index.md)
-- [Database Documentation](../database/index.md)
-- [Storage Documentation](../backend/architecture.md)
+- [Frontend Documentation](../frontend/01-overview.md)
+- [Backend Documentation](../backend/01-overview.md)
+- [Database Documentation](../database/01-overview.md)
+- [Storage Documentation](../backend/01-overview.md)

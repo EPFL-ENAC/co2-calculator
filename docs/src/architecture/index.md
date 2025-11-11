@@ -17,11 +17,15 @@ This documentation has been restructured into smaller, more manageable files. Pl
 11. [Deployment Topology](./11-deployment-topology.md)
 12. [Scalability & Statelessness Strategy](./12-scalability.md)
 13. [Cross-Cutting Concerns](./13-cross-cutting-concerns.md)
-14. [Architectural Decisions](./14-architectural-decisions.md)
+14. [Architectural Decisions](./14-architectural-decisions.md) - Why we use ADRs
 15. [Appendices](./15-appendices.md)
+
+For the complete index of all Architecture Decision Records (ADRs), see:
+
+- **[Architecture Decision Records](../architecture-decision-records/index.md)** - Complete ADR index with status and rationale
 
 For implementation details of specific components, see:
 
-- [Frontend Documentation](../frontend/index.md)
-- [Backend Documentation](../backend/index.md)
-- [Database Documentation](../database/index.md)
+- [Frontend Documentation](../frontend/01-overview.md)
+- [Backend Documentation](../backend/01-overview.md)
+- [Database Documentation](../database/01-overview.md)

@@ -64,35 +64,31 @@ nav:
       - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
+      - EPFL Compliance: architecture/epfl-compliance-mapping.md
+      - Code Standards: architecture/code-standards.md
+
+  - Architecture Decision Records:
+      - Overview: architecture-decision-records/index.md
+      - ADR-001 Python Package Manager: architecture-decision-records/001-python-package-manager.md
+      - ADR-002 Frontend Framework: architecture-decision-records/002-frontend-framework.md
+      - ADR-003 Backend Framework: architecture-decision-records/003-backend-framework.md
+      - ADR-004 Database Selection: architecture-decision-records/004-database-selection.md
+      - ADR-005 Authorization Strategy: architecture-decision-records/005-authorization-strategy.md
+      - ADR-010 Background Job Processing: architecture-decision-records/010-background-job-processing.md
+      - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
+      - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
 
   - Frontend:
-      - Overview: frontend/index.md
-      - Architecture: frontend/architecture.md
-      - UI System: frontend/ui-system.md
-      - Data & API Integration: frontend/api.md
-      - Dev Guide: frontend/dev-guide.md
-      - Testing & QA: frontend/testing.md
-      - Build & Deploy: frontend/deploy.md
+      - Overview: frontend/01-overview.md
 
   - Backend:
-      - Overview: backend/index.md
-      - Architecture: backend/architecture.md
-      - API Design: backend/api.md
-      - Plugins / Extensions: backend/plugins.md
-      - Testing: backend/testing.md
-      - Deployment: backend/deploy.md
+      - Overview: backend/01-overview.md
 
   - Database:
-      - Overview: database/index.md
-      - Schema: database/schema.md
-      - Data Flows: database/data-flows.md
-      - Migrations: database/migrations.md
-      - Backups & Maintenance: database/maintenance.md
+      - Overview: database/01-overview.md
 
   - Infrastructure:
-      - Overview: infra/index.md
-      - Hosting & Network: infra/hosting.md
-      - Monitoring & Logging: infra/monitoring.md
+      - Overview: infra/01-overview.md
 extra:
   version: "1.0.0"
 extra_css:

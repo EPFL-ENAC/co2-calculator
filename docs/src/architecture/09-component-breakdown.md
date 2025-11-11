@@ -30,7 +30,7 @@ RESTful HTTP APIs with JSON payloads, following OpenAPI specification
 - Centralized state management with Pinia
 - Responsive UI with Quasar components
 
-For detailed frontend information, see [Frontend Documentation](../frontend/index.md).
+For detailed frontend information, see [Frontend Documentation](../frontend/01-overview.md).
 
 ## Backend Layer
 
@@ -64,7 +64,7 @@ RESTful API microservice architecture
 - Business logic orchestration
 - Data transformation and aggregation
 
-For detailed backend information, see [Backend Documentation](../backend/index.md).
+For detailed backend information, see [Backend Documentation](../backend/01-overview.md).
 
 ## Workers / Async Processing Layer
 
@@ -90,7 +90,7 @@ Task queue with event-driven processing
 - Retry logic with exponential backoff
 - Task monitoring and management
 
-For detailed worker information, see [Backend Plugins Documentation](../backend/plugins.md).
+For detailed worker information, see [Backend Overview](../backend/01-overview.md#background-processing).
 
 ## Database Layer
 
@@ -109,7 +109,7 @@ SQLAlchemy ORM with connection pooling
 - Transaction handling with rollback support
 - Schema migrations with Alembic
 
-For detailed database information, see [Database Documentation](../database/index.md).
+For detailed database information, see [Database Documentation](../database/01-overview.md).
 
 ## Storage Layer
 
@@ -127,4 +127,4 @@ S3-compatible object storage for unstructured file uploads (using EPFL s3 layer)
 - Access control through signed URLs TBD ? not sure, or proxy via API (slow)
 - Metadata storage in database
 
-For detailed storage information, see [Storage Documentation](../backend/architecture.md).
+For detailed storage information, see [Storage Documentation](../backend/01-overview.md).
