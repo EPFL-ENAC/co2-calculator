@@ -65,6 +65,14 @@ nav:
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
 
+  - Architecture Decision Records:
+      - Overview: architecture-decision-records/README.md
+      - ADR-001 Python Package Manager: architecture-decision-records/001-python-package-manager.md
+      - ADR-002 Frontend Framework: architecture-decision-records/002-frontend-framework.md
+      - ADR-003 Backend Framework: architecture-decision-records/003-backend-framework.md
+      - ADR-004 Database Selection: architecture-decision-records/004-database-selection.md
+      - ADR-005 Authorization Strategy: architecture-decision-records/005-authorization-strategy.md
+
   - Frontend:
       - Overview: frontend/index.md
       - Architecture: frontend/architecture.md
