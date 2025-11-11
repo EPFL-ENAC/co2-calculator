@@ -28,7 +28,7 @@ const handleTimelineClick = (item: TimelineItem) => {
 </script>
 <template>
   <div
-    class="timeline flex flex-row items-center relative q-pa-lg"
+    class="timeline flex flex-row items-center relative q-py-lg"
     style="min-width: 1200px"
   >
     <template v-for="item in timelineItems" :key="item.id">
@@ -41,7 +41,7 @@ const handleTimelineClick = (item: TimelineItem) => {
       <q-separator
         v-if="item.id !== timelineItems[timelineItems.length - 1].id"
         width="150px"
-        class="q-mt-none"
+        class="q-mt-none bg-grey-5"
       />
     </template>
   </div>

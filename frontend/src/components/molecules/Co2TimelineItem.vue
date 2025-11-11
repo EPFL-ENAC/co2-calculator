@@ -22,17 +22,35 @@ const stateColor = computed(() => {
     case 'validated':
       return 'accent';
     default:
-      return 'grey-4';
+      return 'grey-5';
   }
 });
 
 // Computed class for the dot
 const textClass = (color: string) =>
   `absolute text-weight-medium text-no-wrap text-${color}`;
+
+// Button class logic moved to computed property
+const btnClass = computed(() => {
+  let base = textClass(stateColor.value) + '  q-mt-sm q-py-none';
+  if (props.selected) {
+    switch (props.currentState) {
+      case 'validated':
+        base += ' bg-accent text-white';
+        break;
+      case 'in-progress':
+        base += ' bg-grey-2 text-white';
+        break;
+      default:
+        base += ' bg-grey-2 text-white';
+    }
+  }
+  return base;
+});
 </script>
 
 <template>
-  <div class="timeline-item-wrapper relative-position" style="width: 24px">
+  <div class="timeline-item-wrapper relative-position">
     <q-icon
       :color="stateColor"
       size="xs"
@@ -53,15 +71,10 @@ const textClass = (color: string) =>
     <q-btn
       flat
       dense
+      rounded
       no-caps
       size="sm"
-      :class="
-        textClass(stateColor) +
-        (props.selected
-          ? ' q-btn-timeline-item__selected  bg-accent  text-white q-mt-xs'
-          : '  q-mt-xs') +
-        ' q-py-xs'
-      "
+      :class="btnClass"
       style="left: 50%; transform: translateX(-50%)"
       @click="() => props.handleClick && props.handleClick(props.item)"
       :label="item.label"

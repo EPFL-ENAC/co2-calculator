@@ -14,58 +14,13 @@
     tokens.$timeline-item-default-border-color;
   cursor: pointer;
 
-  /*
-  &.q-btn-timeline-item__selected {
-    background-color: white;
-    border-color: tokens.$timeline-item-default-border-color;
-    
-    &::after {
-      content: '';
-      width: 15px;
-      height: 15px;
-      background-color: tokens.$timeline-item-default-bg;
-      border-radius: tokens.$radius-pill;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-     
-  }
-     */
-
   &.q-btn-timeline-item--in-progress {
     background-color: tokens.$timeline-item-in-progress-bg;
     border-color: tokens.$timeline-item-in-progress-border-color;
-
-    /*
-    &.q-btn-timeline-item__selected {
-      background-color: white;
-      border-color: tokens.$timeline-item-in-progress-border-color;
-
-    
-      &::after {
-        background-color: tokens.$timeline-item-in-progress-border-color;
-      }
-        
-    }
-      */
   }
 
   &.q-btn-timeline-item--validated {
     background-color: tokens.$timeline-item-validated-bg;
     border-color: tokens.$timeline-item-validated-border-color;
-    /*
-    &.q-btn-timeline-item__selected {
-      background-color: white;
-      border-color: tokens.$timeline-item-validated-border-color;
-
-      
-      &::after {
-        background-color: tokens.$timeline-item-validated-bg;
-      }
-        
-    }
-      */
   }
 }
