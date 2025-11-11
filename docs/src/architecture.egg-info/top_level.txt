@@ -1,0 +1,7 @@
+architecture
+architecture-decision-records
+backend
+database
+frontend
+infra
+stylesheets
