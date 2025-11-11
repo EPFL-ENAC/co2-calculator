@@ -1,0 +1,44 @@
+@use '../../02-tokens' as tokens;
+
+.timeline {
+  .timeline-item-wrapper {
+    .timeline-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: tokens.$timeline-item-size;
+      height: tokens.$timeline-item-size;
+      border: tokens.$timeline-item-border-weight solid
+        tokens.$timeline-item-default-border-color;
+      border-radius: tokens.$radius-pill;
+      background-color: tokens.$timeline-item-default-bg;
+      cursor: pointer;
+
+      &.in-progress {
+        border-color: tokens.$timeline-item-in-progress-border-color;
+        background-color: tokens.$timeline-item-in-progress-bg;
+      }
+
+      &.validated {
+        border-color: tokens.$timeline-item-validated-border-color;
+        background-color: tokens.$timeline-item-validated-bg;
+      }
+
+      &__icon {
+        position: absolute;
+
+        &.default {
+          color: tokens.$timeline-item-default-text;
+        }
+
+        &.in-progress {
+          color: tokens.$timeline-item-in-progress-icon;
+        }
+
+        &.validated {
+          color: tokens.$timeline-item-validated-icon;
+        }
+      }
+    }
+  }
+}
