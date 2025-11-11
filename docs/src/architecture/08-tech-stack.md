@@ -151,7 +151,7 @@ Helm chart in `helm/` with:
 ### Active Workflows (`.github/workflows`)
 
 - **test.yml**: pytest (backend), Playwright (frontend)
-- **security.yml**: npm audit, uv audit, Bandit, TruffleHog, CodeQL (weekly + PRs)
+- **security.yml**: npm audit, uv audit, Bandit, TruffleHog, CodeQL
 - **quality-check.yml**: ruff, mypy, ESLint, Prettier (PRs)
 - **deploy.yml**: Multi-arch container builds → ghcr.io (on main)
 - **publish_chart.yaml**: Helm chart publishing (on version change)
@@ -159,11 +159,17 @@ Helm chart in `helm/` with:
 - **lighthouse.yml**: Frontend performance audits (PRs)
 - **release-please.yml**: Automated semantic versioning
 
+For complete workflow details, see
+[CI/CD Workflows](cicd-workflows.md).
+
 ### Security Tools
 
 - **SAST**: Bandit (Python), CodeQL, ESLint security rules
 - **Dependency Scanning**: npm audit, uv audit
 - **Secrets Detection**: TruffleHog (git history scan)
+
+For security scanning details, see
+[CI/CD Pipeline](06-cicd-pipeline.md#security-scanning).
 
 ---
 

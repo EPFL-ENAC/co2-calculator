@@ -1,15 +1,37 @@
-# CI/CD Pipeline
+# CI/CD Pipeline Architecture
 
-The continuous integration and deployment pipeline automates build,
-test, security scanning, and deployment across all environments.
+Automated pipeline for build, test, security, and deployment across
+all environments. This document provides architectural overview and
+integration patterns.
+
+**Related documentation:**
+
+- [CI/CD Workflows](cicd-workflows.md) - GitHub Actions details
+- [Workflow Guide](workflow-guide.md) - Developer daily workflow
+- [Release Management](release-management.md) - Versioning and releases
+- [Tech Stack](08-tech-stack.md) - Technologies and tools
 
 ## Pipeline Overview
 
-All pull requests and merges trigger GitHub Actions workflows that
-validate code quality before deployment.
+Pull requests trigger validation workflows. Merges deploy to target
+environments automatically.
 
-```
-PR Created → CI Checks → Review → Merge → Build → Deploy → Monitor
+```mermaid
+graph LR
+    PR[PR Created] --> CI[CI Checks]
+    CI --> Review[Code Review]
+    Review --> Merge[Merge to Branch]
+    Merge --> Build[Build Images]
+    Build --> Deploy[Deploy to K8s]
+    Deploy --> Monitor[Health Checks]
+
+    style PR fill:#e1f5ff
+    style CI fill:#fff4e1
+    style Review fill:#ffe1f5
+    style Merge fill:#e1ffe1
+    style Build fill:#f5e1ff
+    style Deploy fill:#ffe1e1
+    style Monitor fill:#e1fff4
 ```
 
 ## Automated Checks
@@ -136,10 +158,35 @@ Each component builds independently:
 
 Automated deployment follows this sequence:
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev as Developer
+    participant GH as GitHub
+    participant GHA as GitHub Actions
+    participant Reg as Container Registry
+    participant Infra as Infra Repo
+    participant Argo as ArgoCD
+    participant K8s as Kubernetes
+
+    Dev->>GH: Push to dev/stage/main
+    GH->>GHA: Trigger workflow
+    GHA->>GHA: Run tests & build
+    GHA->>Reg: Push Docker images
+    GHA->>Infra: Update image tags
+    Infra->>Argo: Detect changes
+    Argo->>K8s: Deploy resources
+    K8s->>K8s: Run health checks
+    K8s-->>Argo: Deployment status
+    Argo-->>Dev: Notify completion
+```
+
+**Deployment steps:**
+
 1. **Trigger** - Merge to `dev`, `stage`, or `main` branch
 2. **Build** - GitHub Actions builds Docker images
 3. **Push** - Images pushed to ghcr.io registry
-4. **Update** - EPFL-ENAC/epfl-enac-build-push-deploy-action updates infra repo
+4. **Update** - Infrastructure repo receives new image tags
 5. **Sync** - ArgoCD detects changes and deploys to Kubernetes
 6. **Verify** - Health checks confirm successful deployment
 
@@ -151,6 +198,9 @@ Automated deployment follows this sequence:
 | `stage` | Staging       | Manual PR approval | Full regression     |
 | `main`  | Pre-prod/Prod | Manual with tag    | Complete validation |
 
+For detailed environment promotion workflow, see
+[Release Management](release-management.md).
+
 ### Deployment Artifacts
 
 Artifacts are versioned and stored:
@@ -160,7 +210,8 @@ Artifacts are versioned and stored:
 - Helm charts: Tagged in git with version
 - Database migrations: Included in backend image
 
-Artifacts are immutable and tagged with version.
+Artifacts are immutable and tagged with version. For versioning
+strategy, see [Release Management](release-management.md).
 
 ## Performance Monitoring
 
@@ -230,12 +281,17 @@ Always test rollback procedures in staging first.
 
 GitHub Actions workflows in `.github/workflows/`:
 
-- `ci.yml` - Runs on all PRs (lint, test, build)
-- `security.yml` - Security scans (daily + on PR)
-- `deploy-dev.yml` - Auto-deploy to dev
-- `deploy-stage.yml` - Manual deploy to staging
-- `deploy-prod.yml` - Tagged release to production
-- `release-please.yml` - Automated changelog
+- `quality-check.yml` - Code quality enforcement
+- `test.yml` - Unit and integration testing
+- `build.yml` - Build verification
+- `security.yml` - Security vulnerability scanning
+- `lighthouse.yml` - Performance and accessibility audits
+- `deploy.yml` - Automated deployment
+- `deploy-mkdocs.yml` - Documentation deployment
+- `release-please.yml` - Automated release management
+
+For complete workflow details, triggers, and configuration, see
+[CI/CD Workflows](cicd-workflows.md).
 
 ### Local CI Validation
 
@@ -245,7 +301,8 @@ Run full CI suite locally before pushing:
 make ci  # Runs lint, type-check, test, build
 ```
 
-This matches GitHub Actions checks exactly.
+This matches GitHub Actions checks exactly. For troubleshooting, see
+[CI/CD Workflows](cicd-workflows.md#troubleshooting).
 
 ## Monitoring and Alerts
 

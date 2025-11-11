@@ -1,7 +1,14 @@
 # Release Management Guide
 
-This guide covers versioning strategy, environment promotion, and
-deployment processes for the CO₂ Calculator project.
+Versioning strategy, environment promotion, and deployment processes
+for the CO₂ Calculator project. This guide covers operational
+procedures for releases, hotfixes, and rollbacks.
+
+**Related documentation:**
+
+- [CI/CD Pipeline](06-cicd-pipeline.md) - Pipeline architecture
+- [CI/CD Workflows](cicd-workflows.md) - GitHub Actions details
+- [Workflow Guide](workflow-guide.md) - Developer daily workflow
 
 ## Versioning Strategy
 
@@ -42,8 +49,19 @@ Version increments:
 Code flows through environments with validation at each stage:
 
 ```
-feature branch → dev → stage → main (pre-prod/prod)
+feature/* → dev → stage → main (pre-prod/prod)
 ```
+
+### Environment Overview
+
+| Branch  | Environment   | Purpose                       |
+| ------- | ------------- | ----------------------------- |
+| `dev`   | Development   | Daily development and testing |
+| `stage` | Staging       | Pre-production validation     |
+| `main`  | Pre-prod/Prod | Internal/public releases      |
+
+For deployment triggers and technical flow, see
+[CI/CD Pipeline](06-cicd-pipeline.md#deployment-flow).
 
 ### Development Environment
 
@@ -51,13 +69,9 @@ feature branch → dev → stage → main (pre-prod/prod)
 **URL:** https://co2-calculator-dev.epfl.ch  
 **Purpose:** Daily development and testing
 
-Deployment:
+**Deployment:** Automatic on merge to `dev`
 
-- Automatic on merge to `dev`
-- Deployed via GitHub Actions
-- ArgoCD syncs to Kubernetes cluster
-
-Validation:
+**Validation:**
 
 - Automated tests must pass
 - Developer smoke testing
@@ -69,14 +83,9 @@ Validation:
 **URL:** https://co2-calculator-stage.epfl.ch  
 **Purpose:** Pre-production validation
 
-Deployment:
+**Deployment:** Manual PR from `dev` to `stage` at sprint end
 
-- Manual PR from `dev` to `stage`
-- Triggered at sprint end
-- Lead developer creates PR
-- Product owner approves and merges
-
-Validation:
+**Validation:**
 
 - Full regression testing
 - PM final validation
@@ -87,16 +96,11 @@ Validation:
 
 **Branch:** `main`  
 **URL:** https://co2-calculator.epfl.ch  
-**Purpose:** Internal releases (v0.x.x), then public releases (v1.0.0+)
+**Purpose:** Internal releases (v0.x.x), then public (v1.0.0+)
 
-Deployment:
+**Deployment:** Manual PR from `stage` to `main` with version tag
 
-- Manual PR from `stage` to `main`
-- Requires git tag with version
-- Lead developer + PM approval
-- Automated deployment via ArgoCD
-
-Validation:
+**Validation:**
 
 - All staging tests passed
 - Migration scripts tested
@@ -168,9 +172,7 @@ First public release after sprint 10:
    - Notify stakeholders
    - Marketing announcement
 
-## Automated Release Tools
-
-### Changelog Generation
+### Automated Release Tools
 
 We use `release-please` GitHub Action for automation:
 
@@ -179,7 +181,8 @@ We use `release-please` GitHub Action for automation:
 - Creates release PR
 - Publishes GitHub release
 
-Configuration in `.github/workflows/release-please.yml`
+Configuration in `.github/workflows/release-please.yml`. For workflow
+details, see [CI/CD Workflows](cicd-workflows.md#10-release-please).
 
 ### Release Notes
 
@@ -322,7 +325,9 @@ cd backend
 make migration-down  # Rollback one migration
 ```
 
-Always test rollback procedures in staging first.
+Always test rollback procedures in staging first. For detailed
+rollback mechanisms, see
+[CI/CD Pipeline](06-cicd-pipeline.md#rollback-mechanisms).
 
 ## Monitoring Post-Deployment
 
