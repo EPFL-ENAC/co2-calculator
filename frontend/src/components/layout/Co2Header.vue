@@ -77,9 +77,7 @@ const handleLogout = async () => {
       <q-separator />
     </template>
     <template v-if="route.name === 'module'">
-      <div class="flex justify-center q-py-xl items-center">
-        <Co2Timeline />
-      </div>
+      <Co2Timeline />
       <q-separator />
     </template>
   </q-header>

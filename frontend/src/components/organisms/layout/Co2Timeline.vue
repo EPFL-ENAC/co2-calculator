@@ -30,11 +30,8 @@ const handleTimelineClick = (item: TimelineItem) => {
 };
 </script>
 <template>
-  <div
-    class="timeline flex flex-row items-center relative q-py-lg"
-    style="min-width: 1200px"
-  >
-    <template v-for="item in timelineItems" :key="item.id">
+  <div class="timeline-grid q-py-xl">
+    <template v-for="(item, index) in timelineItems" :key="item.id">
       <Co2TimelineItem
         :item="item"
         :currentState="timelineStore.itemStates[item.link]"
@@ -42,12 +39,12 @@ const handleTimelineClick = (item: TimelineItem) => {
         :handleClick="handleTimelineClick"
       />
       <q-separator
-        v-if="item.id !== timelineItems[timelineItems.length - 1].id"
-        class="timeline-separator q-mt-none bg-grey-5"
+        v-if="index !== timelineItems.length - 1"
+        class="timeline-separator self-center bg-grey-5"
       />
     </template>
-    <q-separator class="timeline-separator q-mt-none bg-grey-5" />
-    <q-icon name="arrow_forward" color="grey-6" />
+    <q-separator class="timeline-separator self-center bg-grey-5" />
+    <q-icon name="arrow_forward" color="grey-6" class="self-center" />
     <q-btn
       icon="o_bar_chart"
       color="red"
@@ -55,7 +52,7 @@ const handleTimelineClick = (item: TimelineItem) => {
       unelevated
       no-caps
       size="md"
-      class="text-weight-medium q-ml-xl"
+      class="text-weight-medium self-center q-ml-lg"
       @click="
         router.push({
           name: 'results',

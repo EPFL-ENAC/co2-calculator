@@ -15,10 +15,6 @@ const props = withDefaults(
   },
 );
 
-// Computed class for the dot
-const textClass = (color: string) =>
-  `absolute text-weight-medium text-no-wrap text-${color}`;
-
 // Computed property for state color
 const stateColor = computed(() => {
   switch (props.currentState) {
@@ -33,7 +29,7 @@ const stateColor = computed(() => {
 
 // Button class logic moved to computed property
 const btnClass = computed(() => {
-  let base = textClass(stateColor.value) + '  q-mt-sm q-py-none';
+  let base = `text-weight-medium text-no-wrap text-${stateColor.value} q-py-none`;
   if (props.selected) {
     switch (props.currentState) {
       case 'validated':
@@ -51,14 +47,8 @@ const btnClass = computed(() => {
 </script>
 
 <template>
-  <div class="timeline-item-wrapper relative-position">
-    <q-icon
-      :color="stateColor"
-      size="xs"
-      :name="item.icon"
-      class="absolute q-bottom-md"
-      style="bottom: 30px; left: 50%; transform: translateX(-50%)"
-    />
+  <div class="timeline-item-wrapper column items-center justify-between">
+    <q-icon :color="stateColor" size="xs" :name="item.icon" />
     <q-btn
       @click="() => props.handleClick && props.handleClick(props.item)"
       size="xs"
@@ -76,7 +66,6 @@ const btnClass = computed(() => {
       no-caps
       size="sm"
       :class="btnClass"
-      style="left: 50%; transform: translateX(-50%)"
       @click="() => props.handleClick && props.handleClick(props.item)"
       :label="$t(item.link)"
     />

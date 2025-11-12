@@ -1,5 +1,21 @@
 @use '../../02-tokens' as tokens;
 
+.timeline-grid {
+  display: grid;
+  grid-auto-flow: column;
+  justify-self: center;
+}
+
 .timeline-separator {
   width: 150px;
+  height: 1px;
+}
+
+.timeline-item-wrapper {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  justify-items: center;
+  justify-content: center;
+  gap: tokens.$spacing-sm;
+  width: tokens.$tokens-icon-size-md;
 }
