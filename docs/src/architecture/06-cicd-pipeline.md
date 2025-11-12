@@ -67,7 +67,7 @@ Full test suite runs on every PR:
 
 - Component tests with Vitest
 - E2E tests with Playwright (critical flows)
-- Test coverage minimum: 60%
+- Test coverage if possible: optional
 
 Run locally before pushing: `make test`
 
@@ -85,7 +85,7 @@ Multiple security checks protect the codebase:
 
 - CodeQL analysis for security vulnerabilities
 - Secret scanning to prevent credential leaks
-- SAST (Static Application Security Testing)
+- SAST (Static Application Security Testing for backend only)
 
 **Container scanning:**
 
@@ -144,14 +144,15 @@ Each component builds independently:
 
 - Python package with uv dependencies
 - Docker image with multi-stage build
-- Health check endpoint verified
-- Database migrations included
+- Health check endpoint verified in helm chart
+- Database migrations included in helm chart
 
 **Infrastructure:**
 
 - Kubernetes manifests generated
 - Helm charts validated
-- Config maps and secrets prepared
+- Deploy helm to ghcr.io
+- Update gitops/argocd
 
 ### Deployment Flow
 
