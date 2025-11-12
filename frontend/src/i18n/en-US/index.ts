@@ -14,5 +14,6 @@ export default {
   [`purchase`]: 'Purchases',
   [`internal-services`]: 'Internal Services',
   [`external-cloud`]: 'External Cloud',
+  [`results-btn`]: 'View Results',
   logout: 'Logout',
 };

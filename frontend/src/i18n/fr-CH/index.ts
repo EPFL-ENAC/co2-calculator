@@ -14,5 +14,6 @@ export default {
   [`purchase`]: 'Achats',
   [`internal-services`]: 'Services internes',
   [`external-cloud`]: 'Cloud externe',
+  [`results-btn`]: 'Voir les résultats',
   logout: 'Se déconnecter',
 };

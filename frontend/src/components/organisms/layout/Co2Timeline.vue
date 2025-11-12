@@ -46,5 +46,26 @@ const handleTimelineClick = (item: TimelineItem) => {
         class="timeline-separator q-mt-none bg-grey-5"
       />
     </template>
+    <q-separator class="timeline-separator q-mt-none bg-grey-5" />
+    <q-icon name="arrow_forward" color="grey-6" />
+    <q-btn
+      icon="o_bar_chart"
+      color="red"
+      :label="$t('results-btn')"
+      unelevated
+      no-caps
+      size="md"
+      class="text-weight-medium q-ml-xl"
+      @click="
+        router.push({
+          name: 'results',
+          params: {
+            language: route.params.language || 'en',
+            unit: route.params.unit,
+            year: route.params.year,
+          },
+        })
+      "
+    />
   </div>
 </template>
