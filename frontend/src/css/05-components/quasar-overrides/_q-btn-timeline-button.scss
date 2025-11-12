@@ -3,16 +3,12 @@
 .q-btn-timeline-item {
   padding: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
   width: tokens.$timeline-item-size;
   height: tokens.$timeline-item-size;
-
   border-radius: tokens.$radius-pill;
-  background-color: white;
+
   border: tokens.$timeline-item-border-weight solid
     tokens.$timeline-item-default-border-color;
-  min-height: auto;
   cursor: pointer;
 
   &.q-btn-timeline-item--in-progress {

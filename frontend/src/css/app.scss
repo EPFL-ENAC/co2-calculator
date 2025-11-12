@@ -31,13 +31,11 @@
 }
 
 @layer quasar-overrides {
-  @import './05-components/quasar-overrides/q-btn-custom';
-  @import './05-components/quasar-overrides/_q-btn-timeline-button';
+  @import './05-components/quasar-overrides/q-btn-timeline-button';
 }
 
 @layer components {
   // example component imports
-  @import './05-components/_atoms/header';
   @import './05-components/_organisms/navigation';
   @import './05-components/_organisms/login-card';
   @import './05-components/_organisms/timeline';

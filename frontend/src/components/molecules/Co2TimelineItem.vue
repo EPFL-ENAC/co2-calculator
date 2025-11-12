@@ -78,8 +78,7 @@ const btnClass = computed(() => {
       :class="btnClass"
       style="left: 50%; transform: translateX(-50%)"
       @click="() => props.handleClick && props.handleClick(props.item)"
-      :label="$t(item.label)"
-      :to="item.link ? { name: item.link } : undefined"
+      :label="$t(item.link)"
     />
   </div>
 </template>

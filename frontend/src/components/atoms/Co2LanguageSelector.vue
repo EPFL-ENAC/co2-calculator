@@ -1,50 +1,29 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { LOCALE_MAP, LANGUAGES } from 'src/constant/languages';
 
 const route = useRoute();
+const router = useRouter();
 const { locale } = useI18n();
 
-const isEnglish = computed(() => locale.value === 'en-US');
-const isFrench = computed(() => locale.value === 'fr-CH');
+const currentLanguage = computed(
+  () => (route.params.language as string) || 'en',
+);
 
-// Generate route with switched language
-const getRouteWithLanguage = (newLanguage: 'en' | 'fr') => {
-  const currentPath = route.path;
-  const pathParts = currentPath.split('/').filter(Boolean);
-
-  // Check if first part is a language code
-  if (
-    pathParts.length > 0 &&
-    (pathParts[0] === 'en' || pathParts[0] === 'fr')
-  ) {
-    // Replace the language code
-    pathParts[0] = newLanguage;
-    return '/' + pathParts.join('/');
-  }
-
-  // No language in path, add it
-  return `/${newLanguage}${currentPath}`;
+const getRouteWithLanguage = (lang: string) => {
+  return router.resolve({
+    name: route.name,
+    params: { ...route.params, language: lang },
+    query: route.query,
+  }).href;
 };
 
-const englishRoute = computed(() => getRouteWithLanguage('en'));
-const frenchRoute = computed(() => getRouteWithLanguage('fr'));
-
-// Update locale when language changes
-const switchLanguage = (lang: 'en' | 'fr') => {
-  locale.value = lang === 'en' ? 'en-US' : 'fr-CH';
-};
-
-// Watch for route language changes and update i18n locale
 watch(
   () => route.params.language,
-  (newLang) => {
-    if (newLang === 'en') {
-      locale.value = 'en-US';
-    } else if (newLang === 'fr') {
-      locale.value = 'fr-CH';
-    }
+  (lang) => {
+    locale.value = LOCALE_MAP[lang as keyof typeof LOCALE_MAP] || LOCALE_MAP.en;
   },
   { immediate: true },
 );
@@ -52,20 +31,18 @@ watch(
 
 <template>
   <div class="language-selector q-gutter-x-xs">
-    <router-link
-      :to="englishRoute"
-      class="q-link--no-underline text-primary text-weight-medium text-body2"
-      :style="{ textDecoration: !isEnglish ? 'none' : 'underline' }"
-      @click="switchLanguage('en')"
-      >EN</router-link
-    >
-    <span class="text-primary text-weight-medium text-body2">/</span>
-    <router-link
-      :to="frenchRoute"
-      class="q-link--no-underline text-primary text-weight-medium text-body2"
-      :style="{ textDecoration: !isFrench ? 'none' : 'underline' }"
-      @click="switchLanguage('fr')"
-      >FR</router-link
-    >
+    <template v-for="(lang, idx) in LANGUAGES" :key="lang">
+      <router-link
+        :to="getRouteWithLanguage(lang)"
+        class="q-link--no-underline text-primary text-weight-medium text-body2"
+        :class="{ 'text-decoration-underline': currentLanguage === lang }"
+        >{{ lang.toUpperCase() }}</router-link
+      >
+      <span
+        v-if="idx < LANGUAGES.length - 1"
+        class="text-primary text-weight-medium text-body2"
+        >/</span
+      >
+    </template>
   </div>
 </template>

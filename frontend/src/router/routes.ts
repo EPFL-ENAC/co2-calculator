@@ -1,11 +1,10 @@
 import { RouteRecordRaw } from 'vue-router';
+import { MODULE_PATTERN } from 'src/constant/modules';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
 const LANGUAGE_PATTERN = 'en|fr';
 const YEAR_PATTERN = '\\d{4}'; // Exactly 4 digits
-const MODULE_PATTERN =
-  'my-lab|professional-travel|infrastructure|equipment-electric-consumption|purchases|internal-services|external-cloud';
 const UNIT_PATTERN = '[^/]+'; // Any non-slash characters (unit ID)
 const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation ID)
 

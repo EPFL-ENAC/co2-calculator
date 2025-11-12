@@ -1,31 +1,23 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useTimelineStore } from 'src/stores/modules';
 import Co2TimelineItem from 'src/components/molecules/Co2TimelineItem.vue';
 import { TimelineItem } from 'src/types';
 import { useRouter, useRoute } from 'vue-router';
-import { timelineItems } from 'app/constant/timelineItems';
+import { timelineItems } from 'src/constant/timelineItems';
 
 const timelineStore = useTimelineStore();
 
-const selectedId = ref<number | null>(null);
 const router = useRouter();
 const route = useRoute();
 
-// Set selectedId from route on mount
-onMounted(() => {
-  const moduleParam = route.params.module;
-  if (moduleParam) {
-    const found = timelineItems.find((item) => item.link === moduleParam);
-    selectedId.value = found ? found.id : null;
-  } else {
-    selectedId.value = timelineItems[0].id;
-  }
-});
+const selectedId = computed(
+  () =>
+    timelineItems.find((item) => item.link === route.params.module)?.id ??
+    timelineItems[0]?.id,
+);
 
 const handleTimelineClick = (item: TimelineItem) => {
-  selectedId.value = item.id;
-  // Navigate to the correct module route
   router.push({
     name: 'module',
     params: {
@@ -51,8 +43,7 @@ const handleTimelineClick = (item: TimelineItem) => {
       />
       <q-separator
         v-if="item.id !== timelineItems[timelineItems.length - 1].id"
-        width="150px"
-        class="q-mt-none bg-grey-5"
+        class="timeline-separator q-mt-none bg-grey-5"
       />
     </template>
   </div>

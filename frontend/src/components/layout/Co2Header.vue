@@ -4,18 +4,15 @@ import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import Co2Timeline from '../organisms/layout/Co2Timeline.vue';
 import { useRoute } from 'vue-router';
-import { timelineItems } from 'app/constant/timelineItems';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const getModuleLabel = (module: string | string[] | undefined) => {
-  const key = Array.isArray(module) ? module[0] : module;
-  if (!key) return '';
-  const item = timelineItems.find((item) => item.link === key);
-  return item ? item.label : key;
-};
+const getModuleLabel = () =>
+  Array.isArray(route.params.module)
+    ? (route.params.module[0] ?? '')
+    : (route.params.module ?? '');
 
 const handleLogout = async () => {
   await authStore.logout(router);
@@ -40,7 +37,7 @@ const handleLogout = async () => {
         flat
         dense
         size="md"
-        label="logout"
+        :label="$t('logout')"
         color="accent"
         class="q-ml-xl text-weight-medium"
         @click="handleLogout"
@@ -53,7 +50,7 @@ const handleLogout = async () => {
       <q-toolbar class="q-px-xl q-py-md items-center">
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
-            label="Home"
+            :label="$t('home')"
             :to="{
               name: 'home',
               params: {
@@ -63,7 +60,7 @@ const handleLogout = async () => {
               },
             }"
           />
-          <q-breadcrumbs-el :label="$t(getModuleLabel(route.params.module))" />
+          <q-breadcrumbs-el :label="$t(getModuleLabel())" />
         </q-breadcrumbs>
 
         <q-space />

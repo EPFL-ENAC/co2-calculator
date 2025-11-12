@@ -15,5 +15,4 @@ export type TimelineItem = {
   id: number;
   icon: string;
   link: Modules;
-  label: string;
 };

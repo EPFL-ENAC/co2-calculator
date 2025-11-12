@@ -1,16 +1,6 @@
 import { defineStore } from 'pinia';
 import { ModuleState, Modules } from '../types';
-
-// List of all modules as a value array
-export const modulesList: Modules[] = [
-  'my-lab',
-  'professional-travel',
-  'infrastructure',
-  'equipment-electric-consumption',
-  'purchase',
-  'internal-services',
-  'external-cloud',
-];
+import { MODULES } from 'src/constant/modules';
 
 // This ensures every module key has a ModuleState value
 type ModuleStates = { [K in Modules]: ModuleState };
@@ -18,13 +8,13 @@ type ModuleStates = { [K in Modules]: ModuleState };
 export const useTimelineStore = defineStore('timeline', {
   state: () => ({
     itemStates: {
-      'my-lab': 'validated',
-      'professional-travel': 'in-progress',
-      infrastructure: 'default',
-      'equipment-electric-consumption': 'default',
-      purchase: 'default',
-      'internal-services': 'default',
-      'external-cloud': 'default',
+      [MODULES.MyLab]: 'validated',
+      [MODULES.ProfessionalTravel]: 'in-progress',
+      [MODULES.Infrastructure]: 'default',
+      [MODULES.EquipmentElectricConsumption]: 'default',
+      [MODULES.Purchase]: 'default',
+      [MODULES.InternalServices]: 'default',
+      [MODULES.ExternalCloud]: 'default',
     } as ModuleStates,
   }),
   actions: {
