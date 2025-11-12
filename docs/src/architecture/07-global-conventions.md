@@ -207,7 +207,7 @@ All code must meet minimum quality gates before merge:
 
 - Follow PEP 8, PEP 484 typing standards
 - Type hints required for all public functions
-- Black formatter and Ruff linter must pass
+- Ruff formatter and Ruff linter must pass
 - Async/await preferred for I/O operations
 - 60% minimum test coverage with pytest
 - FastAPI generates valid OpenAPI documentation
