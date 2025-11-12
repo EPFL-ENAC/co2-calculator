@@ -114,7 +114,7 @@ Coverage reports appear in `htmlcov/index.html`.
 Format and lint your code:
 
 ```bash
-make format     # Format with black + isort
+make format     # Format with Ruff
 make lint       # Check with ruff + mypy
 ```
 

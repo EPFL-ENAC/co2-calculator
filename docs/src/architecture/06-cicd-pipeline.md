@@ -42,8 +42,7 @@ Code style is enforced automatically:
 
 **Python:**
 
-- `ruff` - Fast linting for style violations
-- `black` - Code formatting verification
+- `ruff` - Fast linting for style violations + Formatting
 - `mypy` - Static type checking
 
 **JavaScript/TypeScript:**

@@ -79,7 +79,7 @@ def calculate_emissions(distance: float, mode: str) -> float:
 - Type hints for function signatures
 - Docstrings for all public functions/classes
 - Use `ruff` for linting
-- Format with `black`
+- Format with `ruff`
 - Unit tests with `pytest`
 
 **Testing:**
@@ -526,8 +526,7 @@ Before approving PR, verify:
 
 **Python:**
 
-- `ruff` - Fast linting
-- `black` - Code formatting
+- `ruff` - Fast linting + Code formatting
 - `mypy` - Type checking
 - `pytest` - Testing
 - `coverage` - Test coverage
