@@ -1,6 +1,9 @@
 export type Language = 'en' | 'fr';
 
+// ModuleStates type
 export type ModuleState = 'default' | 'in-progress' | 'validated';
+type ModuleStates = { [K in Modules]: ModuleState };
+export type { ModuleStates };
 
 export type Modules =
   | 'my-lab'
@@ -12,7 +15,6 @@ export type Modules =
   | 'external-cloud';
 
 export type TimelineItem = {
-  id: number;
   icon: string;
   link: Modules;
 };

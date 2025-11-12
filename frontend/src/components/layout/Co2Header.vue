@@ -24,7 +24,7 @@ const handleLogout = async () => {
     <!-- Top toolbar: Logo, Title, Language Selector -->
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
-        <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
+        <q-img src="/epfl-logo.svg" :alt="$t('logo-alt')" width="100px" />
         <span class="q-ml-md text-h3 text-weight-medium">
           Calculator CO<sub>2</sub>
         </span>

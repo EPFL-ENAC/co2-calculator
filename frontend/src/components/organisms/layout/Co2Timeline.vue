@@ -13,8 +13,8 @@ const route = useRoute();
 
 const selectedId = computed(
   () =>
-    timelineItems.find((item) => item.link === route.params.module)?.id ??
-    timelineItems[0]?.id,
+    timelineItems.find((item) => item.link === route.params.module)?.link ??
+    timelineItems[0]?.link,
 );
 
 const handleTimelineClick = (item: TimelineItem) => {
@@ -31,11 +31,11 @@ const handleTimelineClick = (item: TimelineItem) => {
 </script>
 <template>
   <div class="timeline-grid q-py-xl">
-    <template v-for="(item, index) in timelineItems" :key="item.id">
+    <template v-for="(item, index) in timelineItems" :key="item.link">
       <Co2TimelineItem
         :item="item"
         :currentState="timelineStore.itemStates[item.link]"
-        :selected="selectedId === item.id"
+        :selected="selectedId === item.link"
         :handleClick="handleTimelineClick"
       />
       <q-separator

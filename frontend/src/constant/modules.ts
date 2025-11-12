@@ -17,8 +17,3 @@ export const modulesList: Modules[] = Object.values(MODULES);
 
 // Regex pattern
 export const MODULE_PATTERN = modulesList.join('|');
-
-// ModuleStates type
-type ModuleState = 'default' | 'in-progress' | 'validated';
-type ModuleStates = { [K in Modules]: ModuleState };
-export type { ModuleStates };

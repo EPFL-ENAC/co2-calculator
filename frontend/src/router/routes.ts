@@ -61,6 +61,7 @@ const routes: RouteRecordRaw[] = [
             name: 'workspace',
             children: [
               {
+                name: 'home-redirect',
                 path: '',
                 redirect: 'home',
               },
