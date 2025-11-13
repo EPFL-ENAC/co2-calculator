@@ -1,7 +1,4 @@
-import { LOCALE_MAP } from 'src/constant/languages';
-import type { Language } from 'src/types';
-
-export type Locale = (typeof LOCALE_MAP)[Language];
+import { LOCALE_MAP, Language, Locale } from 'src/constant/languages';
 
 // Maps route language codes (en, fr) to i18n locale codes (en-US, fr-CH)
 export const routeLanguageToLocale = (language: Language): Locale => {
