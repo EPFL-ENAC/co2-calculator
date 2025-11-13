@@ -1,5 +1,5 @@
 import { RouteRecordRaw } from 'vue-router';
-import { MODULE_PATTERN } from 'src/constant/modules';
+import { MODULES_PATTERN } from 'src/constant/modules';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
@@ -75,7 +75,7 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: `:module(${MODULE_PATTERN})`,
+                path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
                 meta: {
@@ -84,7 +84,7 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: `:module(${MODULE_PATTERN})-results`,
+                path: `:module(${MODULES_PATTERN})-results`,
                 name: 'module-results',
                 component: () => import('pages/app/ModuleResultsPage.vue'),
                 meta: {

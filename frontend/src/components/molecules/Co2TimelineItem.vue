@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { withDefaults, defineProps, computed } from 'vue';
-import { ModuleState, TimelineItem } from 'src/types';
+import { TimelineItem } from 'src/constant/timelineItems';
+import { ModuleState } from 'src/constant/moduleStates';
 import { RouteLocationRaw } from 'vue-router';
 
 const props = withDefaults(

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
-import { ModuleState, Modules, ModuleStates } from '../types';
-import { MODULES } from 'src/constant/modules';
+import { MODULES, Module } from 'src/constant/modules';
+import { ModuleState, ModuleStates } from 'src/constant/moduleStates';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
@@ -14,7 +14,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.ExternalCloud]: 'default',
   });
 
-  function setState(id: Modules, state: ModuleState) {
+  function setState(id: Module, state: ModuleState) {
     itemStates[id] = state;
   }
 

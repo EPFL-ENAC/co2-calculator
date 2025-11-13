@@ -1,7 +1,6 @@
-import { TimelineItem } from 'src/types';
 import { MODULES } from 'src/constant/modules';
 
-export const timelineItems: TimelineItem[] = [
+export const timelineItems = [
   {
     icon: 'o_diversity_2',
     link: MODULES.MyLab,
@@ -31,3 +30,5 @@ export const timelineItems: TimelineItem[] = [
     link: MODULES.ExternalCloud,
   },
 ];
+
+export type TimelineItem = (typeof timelineItems)[number];
