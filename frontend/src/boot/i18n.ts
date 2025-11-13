@@ -1,8 +1,10 @@
 import { boot } from 'quasar/wrappers';
 import { createI18n } from 'vue-i18n';
-import { Cookies, Quasar } from 'quasar';
-
+import { Cookies } from 'quasar';
+import { LOCALE_MAP, LocaleMapKey } from 'src/constant/languages';
 import messages from 'src/i18n';
+
+const LOCALE_COOKIE_KEY = 'locale';
 
 export type MessageLanguages = keyof typeof messages;
 // Type-define 'en-US' as the master schema for the resource
@@ -28,30 +30,46 @@ declare module 'vue-i18n' {
   }
 }
 
-const locales = Object.keys(messages);
+// Detect browser language and find matching locale
+const getBrowserLocale = (): MessageLanguages => {
+  const browserLang = navigator.language.split('-')[0]; // 'en-US' → 'en'
+  return (
+    browserLang in LOCALE_MAP
+      ? LOCALE_MAP[browserLang as LocaleMapKey]
+      : LOCALE_MAP.en
+  ) as MessageLanguages;
+};
 
-function getCurrentLocale() {
-  let detectedLocale = Cookies.get('locale')
-    ? Cookies.get('locale')
-    : Quasar.lang.getLocale();
-  if (!detectedLocale) {
-    detectedLocale = locales[0];
-  } else if (!locales.includes(detectedLocale)) {
-    detectedLocale = detectedLocale.split('-')[0];
-    if (!detectedLocale || !locales.includes(detectedLocale)) {
-      detectedLocale = locales[0];
-    }
-  }
-  return detectedLocale || locales[0] || 'en';
-}
+const DEFAULT_LOCALE = getBrowserLocale();
 
+// Create i18n instance
 export const i18n = createI18n({
-  locale: getCurrentLocale(),
+  locale:
+    (Cookies.get(LOCALE_COOKIE_KEY) as MessageLanguages) || DEFAULT_LOCALE,
   legacy: false,
   messages,
 });
 
-export default boot(({ app }) => {
-  // Set i18n instance on app
+export default boot(({ app, router }) => {
   app.use(i18n);
+
+  // Router hook to change locale based on route param or cookie
+  router.beforeEach((to) => {
+    // Get language from route param or cookie
+    const routeLang = to.params.language as string;
+    const cookieLocale = Cookies.get(LOCALE_COOKIE_KEY) as MessageLanguages;
+
+    // Determine new locale
+    const newLocale = (
+      routeLang in LOCALE_MAP
+        ? LOCALE_MAP[routeLang as LocaleMapKey]
+        : cookieLocale || DEFAULT_LOCALE
+    ) as MessageLanguages;
+
+    // Update i18n locale and cookie if changed
+    if (i18n.global.locale.value !== newLocale) {
+      i18n.global.locale.value = newLocale;
+      Cookies.set(LOCALE_COOKIE_KEY, newLocale, { expires: 30, path: '/' });
+    }
+  });
 });

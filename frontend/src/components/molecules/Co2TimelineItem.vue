@@ -49,11 +49,9 @@ const stateColor = computed(() => {
       no-caps
       size="sm"
       :to="to"
+      class="text-weight-medium text-no-wrap q-py-none"
       :class="[
-        'text-weight-medium',
-        'text-no-wrap',
         `text-${stateColor}`,
-        'q-py-none',
         {
           'bg-accent text-white': selected && currentState === 'validated',
           'bg-grey-3 text-white': selected && currentState === 'in-progress',
