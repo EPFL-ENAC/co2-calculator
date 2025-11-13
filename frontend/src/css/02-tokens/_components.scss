@@ -7,6 +7,22 @@
 @use 'decisions' as dec;
 @use 'options' as opt;
 
+// Header
+$header-bg: opt.$tokens-colors-base-white !default;
+$header-border-bottom: opt.$tokens-colors-grey-scale-grey-400 !default;
+$header-border-bottom-weight: opt.$tokens-spacing-1 !default;
+$header-z-index: opt.$tokens-z-index-top !default;
+$header-padding-x: opt.$tokens-spacing-32 !default;
+$header-padding-y: opt.$tokens-spacing-8 !default;
+$header-min-height: opt.$tokens-spacing-32 !default;
+$header-gap-sm-x: opt.$tokens-spacing-16 !default;
+$header-gap-lg-x: opt.$tokens-spacing-48 !default;
+$header-gap-y: opt.$tokens-spacing-16 !default;
+$header-logo-height: opt.$tokens-spacing-24 !default;
+$header-title-font-size: opt.$tokens-typography-font-size-md !default;
+$header-title-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$header-title-color: opt.$tokens-colors-base-black !default;
+
 // Buttons
 $button-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $button-primary-bg-default: opt.$tokens-colors-red-red-100 !default;
@@ -60,23 +76,25 @@ $field-border-focus: opt.$tokens-colors-grey-scale-grey-500 !default;
 $field-transition-duration: opt.$tokens-transitions-default !default;
 
 // Timeline
-$timeline-item-validated-fill: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-size: opt.$tokens-icon-size-md !default;
+$timeline-item-selected-size: opt.$tokens-spacing-16 !default;
+$timeline-item-selected-bg: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-border-weight: opt.$tokens-spacing-1 !default;
+$timeline-item-default-icon: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-default-bg: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-default-border-color: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-default-text: opt.$tokens-colors-grey-scale-grey-600 !default;
+$timeline-item-default-selected-bg: opt.$tokens-colors-grey-scale-grey-500 !default;
+$timeline-item-in-progress-icon: opt.$tokens-colors-grey-scale-grey-400 !default;
+$timeline-item-in-progress-bg: opt.$tokens-colors-grey-scale-grey-500 !default;
+$timeline-item-in-progress-border-color: opt.$tokens-colors-base-white !default;
+$timeline-item-in-progress-text: opt.$tokens-colors-grey-scale-grey-400 !default;
+$timeline-item-in-progress-selected-bg: opt.$tokens-colors-grey-scale-grey-500 !default;
 $timeline-item-validated-icon: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-bg: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-border-color: opt.$tokens-colors-base-white !default;
 $timeline-item-validated-text: opt.$tokens-colors-red-red-100 !default;
-$timeline-item-default-fill: opt.$tokens-colors-grey-scale-grey-500 !default;
-$timeline-item-default-icon: opt.$tokens-colors-grey-scale-grey-500 !default;
-$timeline-item-default-text: opt.$tokens-colors-grey-scale-grey-500 !default;
-$timeline-font-size: opt.$tokens-typography-font-size-2xs !default;
-$timeline-item-default-font-weight: opt.$tokens-typography-font-weight-regular !default;
-$timeline-line-height: opt.$tokens-typography-line-height-2xs !default;
-$timeline-point-size: opt.$tokens-spacing-16 !default;
-$timeline-inner-point-size: opt.$tokens-spacing-8 !default;
-$timeline-line-stroke: opt.$tokens-colors-grey-scale-grey-400 !default;
-$timeline-line-number: opt.$tokens-spacing-1 !default;
-$timeline-item-selected-text: opt.$tokens-colors-base-black !default;
-$timeline-item-selected-icon: opt.$tokens-colors-grey-scale-grey-600 !default;
-$timeline-item-selected-fill: opt.$tokens-colors-grey-scale-grey-600 !default;
-$timeline-item-selected-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$timeline-item-validated-selected-bg: opt.$tokens-colors-red-red-100 !default;
 
 // Icons
 $icon-icon-size-xl: opt.$tokens-spacing-32 !default;

@@ -1,11 +1,10 @@
 import { RouteRecordRaw } from 'vue-router';
+import { MODULES_PATTERN } from 'src/constant/modules';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
 const LANGUAGE_PATTERN = 'en|fr';
 const YEAR_PATTERN = '\\d{4}'; // Exactly 4 digits
-const MODULE_PATTERN =
-  'my-lab|professional-travel|infrastructure|equipement-electric-consumption|purchases|internal-services|external-cloud';
 const UNIT_PATTERN = '[^/]+'; // Any non-slash characters (unit ID)
 const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation ID)
 
@@ -46,6 +45,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('pages/app/LoginPage.vue'),
             meta: {
               note: 'User authentication - Login page',
+              breadcrumb: false,
             },
           },
           {
@@ -55,6 +55,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Workspace configuration - Year and lab selection',
+              breadcrumb: false,
             },
           },
           {
@@ -62,6 +63,7 @@ const routes: RouteRecordRaw[] = [
             name: 'workspace',
             children: [
               {
+                name: 'home-redirect',
                 path: '',
                 redirect: 'home',
               },
@@ -72,24 +74,27 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Home - Main overview and navigation',
+                  breadcrumb: false,
                 },
               },
               {
-                path: `:module(${MODULE_PATTERN})`,
+                path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry',
+                  breadcrumb: true,
                 },
               },
               {
-                path: `:module(${MODULE_PATTERN})-results`,
+                path: `:module(${MODULES_PATTERN})-results`,
                 name: 'module-results',
                 component: () => import('pages/app/ModuleResultsPage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Module-specific results and analysis',
+                  breadcrumb: true,
                 },
               },
               {
@@ -99,6 +104,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Consolidated overview across all modules',
+                  breadcrumb: true,
                 },
               },
               {
@@ -108,6 +114,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
+                  breadcrumb: true,
                 },
               },
               {
@@ -117,6 +124,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Create new simulation',
+                  breadcrumb: true,
                 },
               },
               {
@@ -126,6 +134,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Edit existing simulation',
+                  breadcrumb: true,
                 },
               },
               {
@@ -135,6 +144,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Documentation - Main application guide',
+                  breadcrumb: true,
                 },
               },
             ],
@@ -147,6 +157,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (view only)',
+              breadcrumb: false,
             },
           },
           {
@@ -157,6 +168,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Module completion tracking across labs',
+              breadcrumb: false,
             },
           },
           {
@@ -167,6 +179,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
+              breadcrumb: true,
             },
           },
           {
@@ -176,6 +189,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Report generation workflow',
+              breadcrumb: false,
             },
           },
           {
@@ -195,6 +209,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - User and role administration',
+              breadcrumb: false,
             },
           },
           {
@@ -204,6 +219,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - Global module enable/disable',
+              breadcrumb: false,
             },
           },
           {
@@ -213,6 +229,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - System logs viewer',
+              breadcrumb: false,
             },
           },
           {
@@ -222,6 +239,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
+              breadcrumb: true,
             },
           },
         ],
