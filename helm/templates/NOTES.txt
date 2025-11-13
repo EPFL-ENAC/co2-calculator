@@ -5,5 +5,9 @@ To inspect pods:
 
 Ingress hostname(s):
 {{- range .Values.ingress.hosts }}
+  {{- if kindIs "string" . }}
+  - {{ . }}
+  {{- else }}
   - {{ .host }}
+  {{- end }}
 {{- end }}

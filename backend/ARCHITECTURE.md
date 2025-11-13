@@ -352,13 +352,11 @@ Here's how a typical request flows through the system:
 ### Three Types of Authorization
 
 1. **Authentication** (Who are you?)
-
    - JWT token validation
    - Handled in `core/security.py`
    - Dependency: `get_current_active_user`
 
 2. **Role-Based Access Control** (What can your role do?)
-
    - Defined in OPA policies
    - Roles stored in User model
    - Examples: `admin`, `unit_admin`, `resource.create`
@@ -578,7 +576,7 @@ Create a `.env` file in the backend directory:
 # Application
 APP_NAME=CO2 Calculator API
 DEBUG=true
-API_V1_PREFIX=/api/v1
+API_VERSION=/api/v1
 
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/co2_calculator

@@ -54,8 +54,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{- define "co2-calculator.backendSecretName" -}}
-{{- if and .Values.backend.externalSecret.enabled .Values.backend.externalSecret.name -}}
-{{- .Values.backend.externalSecret.name -}}
+{{- if and .Values.backend.existingSecret.enabled .Values.backend.existingSecret.name -}}
+{{- .Values.backend.existingSecret.name -}}
 {{- else -}}
 {{ include "co2-calculator.fullname" . }}-backend
 {{- end -}}
@@ -69,46 +69,10 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end -}}
 
-
 {{/*
-Database URL construction
+Database secret name
+Returns the name of the secret containing database credentials
 */}}
-{{- define "co2-calculator.databaseUrl" -}}
-{{- if .Values.database.external.enabled -}}
-  {{- if .Values.database.external.url -}}
-    {{- .Values.database.external.url -}}
-  {{- else -}}
-    {{- printf "postgresql://%s:%s@%s:%d/%s" .Values.database.external.username .Values.database.external.password .Values.database.external.host (.Values.database.external.port | int) .Values.database.external.database -}}
-  {{- end -}}
-{{- else if .Values.database.local.enabled -}}
-  {{- printf "sqlite+aiosqlite:///%s" .Values.database.local.path -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Database volume definition
-*/}}
-{{- define "co2-calculator.databaseVolume" -}}
-{{- if .Values.database.local.enabled -}}
-- name: sqlite-data
-  {{- if and .Values.database.local.storage.persistentVolumeClaim.enabled (eq .Values.database.local.storage.type "persistentVolumeClaim") }}
-  persistentVolumeClaim:
-    claimName: {{ include "co2-calculator.fullname" . }}-sqlite
-  {{- else }}
-  emptyDir:
-    {{- with .Values.database.local.storage.emptyDir.sizeLimit }}
-    sizeLimit: {{ . }}
-    {{- end }}
-  {{- end }}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Database volume mount
-*/}}
-{{- define "co2-calculator.databaseVolumeMount" -}}
-{{- if .Values.database.local.enabled -}}
-- name: sqlite-data
-  mountPath: /data
-{{- end -}}
+{{- define "co2-calculator.databaseSecretName" -}}
+{{- .Values.database.existingSecret.name -}}
 {{- end -}}

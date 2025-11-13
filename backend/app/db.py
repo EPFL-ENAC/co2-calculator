@@ -11,11 +11,11 @@ settings = get_settings()
 
 # Create SQLAlchemy engine
 engine = create_async_engine(
-    settings.database_url,
+    settings.db_url,
     pool_pre_ping=True,  # Verify connections before using them
     echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False}
-    if settings.database_url.startswith("sqlite")
+    if settings.db_url.startswith("sqlite")
     else {},
 )
 
