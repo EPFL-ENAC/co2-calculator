@@ -9,11 +9,11 @@ from app.db import Base, get_db
 from app.main import app
 
 # Test database URL (use in-memory SQLite for tests)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+TEST_DB_URL = "sqlite+aiosqlite:///./test.db"
 
 # Create async test engine
 engine = create_async_engine(
-    TEST_DATABASE_URL,
+    TEST_DB_URL,
     connect_args={"check_same_thread": False},
     echo=True,  # Optional: see SQL queries
 )

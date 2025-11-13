@@ -51,12 +51,14 @@ app = FastAPI(
     * **co2.service.mgr**: system IT administrator (treat as unconditional allow)
 
     """,
+    # Swagger UI lives at /api/docs externally, but /docs internally works too
+    root_path=settings.API_DOCS_PREFIX,
 )
 # NO CORS origins configured allowed on this instance
 
 
 # Include API router
-app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+app.include_router(api_router, prefix=settings.API_VERSION)
 
 
 @app.get("/")
