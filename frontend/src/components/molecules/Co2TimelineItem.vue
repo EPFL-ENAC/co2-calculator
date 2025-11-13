@@ -37,8 +37,10 @@ const stateColor = computed(() => {
       size="xs"
       :class="[
         'q-btn-timeline-item',
-        `q-btn-timeline-item--${currentState}` +
-          (selected ? ' q-btn-timeline-item__selected' : ''),
+        `q-btn-timeline-item--${currentState}`,
+        {
+          'q-btn-timeline-item__selected': selected,
+        },
       ]"
     >
     </q-btn>

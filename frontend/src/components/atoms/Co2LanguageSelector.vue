@@ -17,7 +17,7 @@ const route = useRoute();
       }"
       class="language-link text-primary text-weight-medium text-body2"
     >
-      <span class="language-text">{{ lang.toUpperCase() }}</span>
+      <span class="language-text text-uppercase">{{ lang }}</span>
     </router-link>
   </div>
 </template>

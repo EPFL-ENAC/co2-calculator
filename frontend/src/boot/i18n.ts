@@ -5,6 +5,8 @@ import { LOCALE_MAP, LocaleMapKey } from 'src/constant/languages';
 import messages from 'src/i18n';
 
 const LOCALE_COOKIE_KEY = 'locale';
+const LOCALE_COOKIE_EXPIRE_DAYS = 30;
+const LOCALE_COOKIE_PATH = '/';
 
 export type MessageLanguages = keyof typeof messages;
 // Type-define 'en-US' as the master schema for the resource
@@ -53,23 +55,29 @@ export const i18n = createI18n({
 export default boot(({ app, router }) => {
   app.use(i18n);
 
-  // Router hook to change locale based on route param or cookie
-  router.beforeEach((to) => {
-    // Get language from route param or cookie
-    const routeLang = to.params.language as string;
-    const cookieLocale = Cookies.get(LOCALE_COOKIE_KEY) as MessageLanguages;
+  router.beforeEach((to, from, next) => {
+    const toLang = to.params.language as string;
+    const fromLang = from.params.language as string;
 
-    // Determine new locale
-    const newLocale = (
-      routeLang in LOCALE_MAP
-        ? LOCALE_MAP[routeLang as LocaleMapKey]
-        : cookieLocale || DEFAULT_LOCALE
-    ) as MessageLanguages;
-
-    // Update i18n locale and cookie if changed
-    if (i18n.global.locale.value !== newLocale) {
-      i18n.global.locale.value = newLocale;
-      Cookies.set(LOCALE_COOKIE_KEY, newLocale, { expires: 30, path: '/' });
+    // If no language in URL, redirect with current locale
+    if (!toLang) {
+      const currentLang = Object.keys(LOCALE_MAP).find(
+        (key) => LOCALE_MAP[key as LocaleMapKey] === i18n.global.locale.value,
+      );
+      const newPath = `/${currentLang}${to.path}`;
+      return next({ path: newPath, query: to.query });
     }
+
+    // If language changed, update locale and cookie
+    if (toLang !== fromLang && toLang in LOCALE_MAP) {
+      const newLocale = LOCALE_MAP[toLang as LocaleMapKey] as MessageLanguages;
+      i18n.global.locale.value = newLocale;
+      Cookies.set(LOCALE_COOKIE_KEY, newLocale, {
+        expires: LOCALE_COOKIE_EXPIRE_DAYS,
+        path: LOCALE_COOKIE_PATH,
+      });
+    }
+
+    next();
   });
 });

@@ -15,6 +15,13 @@ export default {
   [`purchase`]: 'Achats',
   [`internal-services`]: 'Services internes',
   [`external-cloud`]: 'Cloud externe',
+  [`results`]: 'Résultats',
+  [`simulations`]: 'Simulations',
+  [`simulations-add`]: 'Ajouter une simulation',
+  [`simulations-edit`]: 'Modifier une simulation',
+  [`documentation`]: 'Documentation',
+  [`backoffice-documentation`]: 'Documentation backoffice',
+  [`system-documentation`]: 'Documentation système',
   [`results-btn`]: 'Voir les résultats',
   logout: 'Se déconnecter',
 };

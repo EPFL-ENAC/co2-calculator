@@ -2,8 +2,7 @@ export type Language = 'en' | 'fr';
 
 // ModuleStates type
 export type ModuleState = 'default' | 'in-progress' | 'validated';
-type ModuleStates = { [K in Modules]: ModuleState };
-export type { ModuleStates };
+export type ModuleStates = { [K in Modules]: ModuleState };
 
 export type Modules =
   | 'my-lab'

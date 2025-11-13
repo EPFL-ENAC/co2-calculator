@@ -9,16 +9,15 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const bottomToolbarVisible: Record<string, string> = {
-  module: 'Module',
-  results: 'Results',
-  simulations: 'Simulations',
-  'simulation-add': 'Simulation Add',
-  'simulation-edit': 'Simulation Edit',
-  documentation: 'Documentation',
-  'backoffice-documentation': 'Backoffice Documentation',
-  'system-documentation': 'System Documentation',
-};
+const breadcrumbRoutes: string[] = [
+  'results',
+  'simulations',
+  'simulations-add',
+  'simulations-edit',
+  'documentation',
+  'backoffice-documentation',
+  'system-documentation',
+];
 
 const handleLogout = async () => {
   await authStore.logout(router);
@@ -54,7 +53,9 @@ const handleLogout = async () => {
     </q-toolbar>
     <q-separator />
     <!-- Bottom toolbar: Breadcrumbs and Action Button -->
-    <template v-if="route.name && route.name in bottomToolbarVisible">
+    <template
+      v-if="route.name && breadcrumbRoutes.includes(route.name as string)"
+    >
       <q-toolbar class="q-px-xl q-py-md items-center">
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
@@ -65,7 +66,7 @@ const handleLogout = async () => {
             :label="
               route.params.module
                 ? $t(route.params.module as string)
-                : bottomToolbarVisible[route.name as string]
+                : $t(route.name as string)
             "
           />
         </q-breadcrumbs>
