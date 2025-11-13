@@ -6,6 +6,7 @@ export default {
   login_title: 'Calculateur CO₂',
   login_button_submit: 'Se connecter',
   login_button_loading: 'Connexion en cours...',
+  [`calculator-title`]: 'Calculateur CO₂',
   home: 'Accueil',
   [`my-lab`]: 'Mon laboratoire',
   [`professional-travel`]: 'Voyages professionnels',

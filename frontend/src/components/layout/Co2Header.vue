@@ -9,10 +9,16 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const getModuleLabel = () =>
-  Array.isArray(route.params.module)
-    ? (route.params.module[0] ?? '')
-    : (route.params.module ?? '');
+const bottomToolbarVisible: Record<string, string> = {
+  module: 'Module',
+  results: 'Results',
+  simulations: 'Simulations',
+  'simulation-add': 'Simulation Add',
+  'simulation-edit': 'Simulation Edit',
+  documentation: 'Documentation',
+  'backoffice-documentation': 'Backoffice Documentation',
+  'system-documentation': 'System Documentation',
+};
 
 const handleLogout = async () => {
   await authStore.logout(router);
@@ -25,8 +31,10 @@ const handleLogout = async () => {
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <q-img src="/epfl-logo.svg" :alt="$t('logo-alt')" width="100px" />
-        <span class="q-ml-md text-h3 text-weight-medium">
-          Calculator CO<sub>2</sub>
+        <span
+          v-html="$t('calculator-title')"
+          class="q-ml-md text-h3 text-weight-medium"
+        >
         </span>
       </q-toolbar-title>
 
@@ -36,31 +44,30 @@ const handleLogout = async () => {
       <q-btn
         flat
         dense
+        no-caps
         size="md"
-        :label="$t('logout')"
         color="accent"
+        :label="$t('logout')"
         class="q-ml-xl text-weight-medium"
         @click="handleLogout"
-        no-caps
       />
     </q-toolbar>
     <q-separator />
     <!-- Bottom toolbar: Breadcrumbs and Action Button -->
-    <template v-if="route.name === 'module' && route.matched.length > 2">
+    <template v-if="route.name && route.name in bottomToolbarVisible">
       <q-toolbar class="q-px-xl q-py-md items-center">
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             :label="$t('home')"
-            :to="{
-              name: 'home',
-              params: {
-                language: route.params.language || 'en',
-                unit: route.params.unit,
-                year: route.params.year,
-              },
-            }"
+            :to="{ name: 'home', params: route.params }"
           />
-          <q-breadcrumbs-el :label="$t(getModuleLabel())" />
+          <q-breadcrumbs-el
+            :label="
+              route.params.module
+                ? $t(route.params.module as string)
+                : bottomToolbarVisible[route.name as string]
+            "
+          />
         </q-breadcrumbs>
 
         <q-space />
