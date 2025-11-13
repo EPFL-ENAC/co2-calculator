@@ -1,8 +1,12 @@
 import { boot } from 'quasar/wrappers';
 import { createI18n } from 'vue-i18n';
-import { Cookies, Quasar } from 'quasar';
-
+import { Cookies } from 'quasar';
+import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
+
+const LOCALE_COOKIE_KEY = 'locale';
+const LOCALE_COOKIE_EXPIRE_DAYS = 30;
+const LOCALE_COOKIE_PATH = '/';
 
 export type MessageLanguages = keyof typeof messages;
 // Type-define 'en-US' as the master schema for the resource
@@ -28,30 +32,58 @@ declare module 'vue-i18n' {
   }
 }
 
-const locales = Object.keys(messages);
+// Detect browser language and find matching locale
+const getBrowserLocale = (): MessageLanguages => {
+  const browserLang = navigator.language.split('-')[0]; // 'en-US' → 'en'
+  return LOCALE_MAP[browserLang as Language] ?? LOCALE_MAP.en;
+};
 
-function getCurrentLocale() {
-  let detectedLocale = Cookies.get('locale')
-    ? Cookies.get('locale')
-    : Quasar.lang.getLocale();
-  if (!detectedLocale) {
-    detectedLocale = locales[0];
-  } else if (!locales.includes(detectedLocale)) {
-    detectedLocale = detectedLocale.split('-')[0];
-    if (!detectedLocale || !locales.includes(detectedLocale)) {
-      detectedLocale = locales[0];
-    }
-  }
-  return detectedLocale || locales[0] || 'en';
-}
+const DEFAULT_LOCALE = getBrowserLocale();
 
+// Create i18n instance
 export const i18n = createI18n({
-  locale: getCurrentLocale(),
+  locale:
+    (Cookies.get(LOCALE_COOKIE_KEY) as MessageLanguages) || DEFAULT_LOCALE,
   legacy: false,
   messages,
 });
 
-export default boot(({ app }) => {
-  // Set i18n instance on app
+export default boot(({ app, router }) => {
   app.use(i18n);
+
+  router.beforeEach((to, from, next) => {
+    const toLang = to.params.language as string;
+    const fromLang = from.params.language as string;
+
+    // If no language in URL, redirect with current locale
+    if (!toLang) {
+      // Guard against missing route name
+      if (!to.name) {
+        return next();
+      }
+
+      let currentLang = i18n.global.locale.value.split('-')[0] as Language;
+      if (!(currentLang in LOCALE_MAP)) {
+        currentLang = 'en';
+      }
+
+      return next({
+        name: to.name,
+        params: { ...to.params, language: currentLang },
+        query: to.query,
+      });
+    }
+
+    // If language changed, update locale and cookie
+    if (toLang !== fromLang && toLang in LOCALE_MAP) {
+      const newLocale = LOCALE_MAP[toLang as Language] as MessageLanguages;
+      i18n.global.locale.value = newLocale;
+      Cookies.set(LOCALE_COOKIE_KEY, newLocale, {
+        expires: LOCALE_COOKIE_EXPIRE_DAYS,
+        path: LOCALE_COOKIE_PATH,
+      });
+    }
+
+    next();
+  });
 });

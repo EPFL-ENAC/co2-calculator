@@ -23,6 +23,14 @@ $negative: dec.$color-status-error !default;
 $info: dec.$color-status-success !default;
 $warning: dec.$color-status-warning !default;
 
+// Grey scale
+$grey-1: opt.$tokens-colors-grey-scale-grey-100 !default;
+$grey-2: opt.$tokens-colors-grey-scale-grey-200 !default;
+$grey-3: opt.$tokens-colors-grey-scale-grey-300 !default;
+$grey-4: opt.$tokens-colors-grey-scale-grey-400 !default;
+$grey-5: opt.$tokens-colors-grey-scale-grey-500 !default;
+$grey-6: opt.$tokens-colors-grey-scale-grey-600 !default;
+
 // Spacing
 $space-base: dec.$spacing-md !default;
 $space-x-base: $space-base !default;

@@ -76,6 +76,9 @@ $tokens-layout-sm-modal-width: 30rem !default;
 $tokens-layout-full-width: 100% !default;
 $tokens-layout-full-height: 100% !default;
 
+// Icon Sizes
+$tokens-icon-size-md: 20px !default;
+
 // Transitions
 $tokens-transitions-default: 0.2s ease !default;
 
@@ -85,3 +88,4 @@ $tokens-box-shadow: rgb(99 99 99 / 40%) 0px 2px 8px 0px !default;
 // Z-Index
 $tokens-z-index-background-base: -2 !default;
 $tokens-z-index-background-overlay: -1 !default;
+$tokens-z-index-top: 99 !default;

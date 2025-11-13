@@ -1,0 +1,22 @@
+@use '../../02-tokens' as tokens;
+
+.q-btn-timeline-item {
+  padding: 0;
+  display: flex;
+  width: tokens.$timeline-item-size;
+  height: tokens.$timeline-item-size;
+  border-radius: tokens.$radius-pill;
+  border: tokens.$timeline-item-border-weight solid
+    tokens.$timeline-item-default-border-color;
+  cursor: pointer;
+
+  &.q-btn-timeline-item--in-progress {
+    background-color: tokens.$timeline-item-in-progress-bg;
+    border-color: tokens.$timeline-item-in-progress-border-color;
+  }
+
+  &.q-btn-timeline-item--validated {
+    background-color: tokens.$timeline-item-validated-bg;
+    border-color: tokens.$timeline-item-validated-border-color;
+  }
+}
