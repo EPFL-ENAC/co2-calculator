@@ -1,17 +1,21 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
-import { ModuleState, ModuleStates } from 'src/constant/moduleStates';
+import {
+  MODULE_STATES,
+  ModuleState,
+  ModuleStates,
+} from 'src/constant/moduleStates';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
-    [MODULES.MyLab]: 'validated',
-    [MODULES.ProfessionalTravel]: 'in-progress',
-    [MODULES.Infrastructure]: 'default',
-    [MODULES.EquipmentElectricConsumption]: 'default',
-    [MODULES.Purchase]: 'default',
-    [MODULES.InternalServices]: 'default',
-    [MODULES.ExternalCloud]: 'default',
+    [MODULES.MyLab]: MODULE_STATES.Validated,
+    [MODULES.ProfessionalTravel]: MODULE_STATES.InProgress,
+    [MODULES.Infrastructure]: MODULE_STATES.Default,
+    [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
+    [MODULES.Purchase]: MODULE_STATES.Default,
+    [MODULES.InternalServices]: MODULE_STATES.Default,
+    [MODULES.ExternalCloud]: MODULE_STATES.Default,
   });
 
   function setState(id: Module, state: ModuleState) {
