@@ -45,6 +45,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('pages/app/LoginPage.vue'),
             meta: {
               note: 'User authentication - Login page',
+              breadcrumb: false,
             },
           },
           {
@@ -54,6 +55,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Workspace configuration - Year and lab selection',
+              breadcrumb: false,
             },
           },
           {
@@ -72,6 +74,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Home - Main overview and navigation',
+                  breadcrumb: false,
                 },
               },
               {
@@ -81,6 +84,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry',
+                  breadcrumb: true,
                 },
               },
               {
@@ -90,6 +94,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Module-specific results and analysis',
+                  breadcrumb: true,
                 },
               },
               {
@@ -99,6 +104,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Consolidated overview across all modules',
+                  breadcrumb: true,
                 },
               },
               {
@@ -108,6 +114,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
+                  breadcrumb: true,
                 },
               },
               {
@@ -117,6 +124,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Create new simulation',
+                  breadcrumb: true,
                 },
               },
               {
@@ -126,6 +134,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Edit existing simulation',
+                  breadcrumb: true,
                 },
               },
               {
@@ -135,6 +144,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Documentation - Main application guide',
+                  breadcrumb: true,
                 },
               },
             ],
@@ -147,6 +157,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (view only)',
+              breadcrumb: false,
             },
           },
           {
@@ -157,6 +168,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Module completion tracking across labs',
+              breadcrumb: false,
             },
           },
           {
@@ -167,6 +179,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
+              breadcrumb: true,
             },
           },
           {
@@ -176,6 +189,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Report generation workflow',
+              breadcrumb: false,
             },
           },
           {
@@ -195,6 +209,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - User and role administration',
+              breadcrumb: false,
             },
           },
           {
@@ -204,6 +219,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - Global module enable/disable',
+              breadcrumb: false,
             },
           },
           {
@@ -213,6 +229,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'System Admin - System logs viewer',
+              breadcrumb: false,
             },
           },
           {
@@ -222,6 +239,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
+              breadcrumb: true,
             },
           },
         ],

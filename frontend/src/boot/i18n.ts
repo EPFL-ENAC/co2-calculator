@@ -35,7 +35,7 @@ declare module 'vue-i18n' {
 // Detect browser language and find matching locale
 const getBrowserLocale = (): MessageLanguages => {
   const browserLang = navigator.language.split('-')[0]; // 'en-US' → 'en'
-  return LOCALE_MAP?.[browserLang as Language] ?? LOCALE_MAP.en;
+  return LOCALE_MAP[browserLang as Language] ?? LOCALE_MAP.en;
 };
 
 const DEFAULT_LOCALE = getBrowserLocale();
@@ -57,11 +57,21 @@ export default boot(({ app, router }) => {
 
     // If no language in URL, redirect with current locale
     if (!toLang) {
+      // Guard against missing route name
+      if (!to.name) {
+        return next();
+      }
+
       let currentLang = i18n.global.locale.value.split('-')[0] as Language;
       if (!(currentLang in LOCALE_MAP)) {
         currentLang = 'en';
       }
-      return next({ name: to.name, params: { ...to.params, language: currentLang }, query: to.query });
+
+      return next({
+        name: to.name,
+        params: { ...to.params, language: currentLang },
+        query: to.query,
+      });
     }
 
     // If language changed, update locale and cookie

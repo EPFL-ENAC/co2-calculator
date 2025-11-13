@@ -9,16 +9,6 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const breadcrumbRoutes: string[] = [
-  'results',
-  'simulations',
-  'simulations-add',
-  'simulations-edit',
-  'documentation',
-  'backoffice-documentation',
-  'system-documentation',
-];
-
 const handleLogout = async () => {
   await authStore.logout(router);
 };
@@ -29,9 +19,9 @@ const handleLogout = async () => {
     <!-- Top toolbar: Logo, Title, Language Selector -->
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
-        <q-img src="/epfl-logo.svg" :alt="$t('logo-alt')" width="100px" />
+        <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
         <span
-          v-html="$t('calculator-title')"
+          v-html="$t('calculator_title')"
           class="q-ml-md text-h3 text-weight-medium"
         >
         </span>
@@ -53,9 +43,7 @@ const handleLogout = async () => {
     </q-toolbar>
     <q-separator />
     <!-- Bottom toolbar: Breadcrumbs and Action Button -->
-    <template
-      v-if="route.name && breadcrumbRoutes.includes(route.name as string)"
-    >
+    <template v-if="route.meta.breadcrumb">
       <q-toolbar class="q-px-xl q-py-md items-center">
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
@@ -63,6 +51,7 @@ const handleLogout = async () => {
             :to="{ name: 'home', params: route.params }"
           />
           <q-breadcrumbs-el
+            class="text-capitalize"
             :label="
               route.params.module
                 ? $t(route.params.module as string)
