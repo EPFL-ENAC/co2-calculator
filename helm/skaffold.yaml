@@ -1,0 +1,57 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: co2-calculator
+build:
+  artifacts:
+    - image: co2-calculator-backend
+      context: ../backend
+      docker:
+        dockerfile: Dockerfile
+    - image: co2-calculator-frontend
+      context: ../frontend
+      docker:
+        dockerfile: Dockerfile
+manifests:
+  helm:
+    releases:
+      - name: postgresql
+        namespace: co2-calculator
+        chartPath: bitnami/postgresql
+        version: "13.2.23"
+        repo: https://charts.bitnami.com/bitnami
+        setValues:
+          image.repository: bitnamilegacy/postgresql
+          nameOverride: co2-calculator
+          global.storageClass: standard
+          global.postgresql.auth.username: co2_user
+          global.postgresql.auth.database: co2_calculator
+          global.postgresql.auth.existingSecret: db-secret
+          global.postgresql.auth.secretKeys.adminPasswordKey: DB_PASSWORD
+          global.postgresql.auth.secretKeys.userPasswordKey: DB_PASSWORD
+      - name: co2-calculator
+        namespace: co2-calculator
+        chartPath: ./
+        valuesFiles:
+          - ./values.yaml
+        setValues:
+          backend.image.repository: co2-calculator-backend
+          backend.image.pullPolicy: Never
+          frontend.image.repository: co2-calculator-frontend
+          frontend.image.pullPolicy: Never
+          backend.env.DEBUG: "false"
+
+deploy:
+  kubeContext: minikube
+
+
+portForward:
+  - resourceType: service
+    resourceName: co2-calculator-backend
+    namespace: co2-calculator
+    port: 8000
+
+  - resourceType: service
+    resourceName: co2-calculator-frontend
+    namespace: co2-calculator
+    port: 8080

@@ -38,3 +38,13 @@ lint-helm: ## Run helm lint on all Helm charts
 .PHONY: lint
 lint: lint-helm ## Run all lint checks (format + helm)
 	@echo "🧭 All lint checks passed!"
+
+
+## -------------------------------
+## Skaffold
+## -------------------------------
+.PHONY: skaffold-dev
+skaffold-dev: ## Run skaffold in dev mode
+	@echo "🚀 Starting skaffold in dev mode..."
+	@skaffold dev --port-forward
+

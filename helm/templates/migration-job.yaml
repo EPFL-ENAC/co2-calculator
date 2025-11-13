@@ -1,34 +1,26 @@
-apiVersion: apps/v1
-kind: Deployment
+{{- if .Values.backend.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: {{ include "co2-calculator.fullname" . }}-backend
+  name: {{ include "co2-calculator.fullname" . }}-migration-{{ .Release.Revision | default "1" }}
   labels:
     {{- include "co2-calculator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: backend
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": post-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
-  replicas: {{ .Values.backend.replicaCount }}
-  selector:
-    matchLabels:
-      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: backend
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 1200
   template:
     metadata:
-      annotations:
-        {{- with .Values.backend.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
       labels:
         {{- include "co2-calculator.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: backend
+        app.kubernetes.io/component: migration
     spec:
-      {{- with .Values.global.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      restartPolicy: Never
       serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
-      securityContext:
-        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
-      
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
         - name: wait-for-postgres
@@ -60,15 +52,15 @@ spec:
                   key: {{ .Values.database.existingSecret.keys.user }}
         {{- end }}
       containers:
-        - name: backend
-          securityContext:
-            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+        - name: migration
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.backend.service.targetPort }}
-              protocol: TCP
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running database migrations..."
+              alembic upgrade head
           env:
             - name: DB_URL
               valueFrom:
@@ -99,29 +91,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.oauthIssuerUrlKey | default "OAUTH_ISSUER_URL" }}
-          livenessProbe:
-            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
-          readinessProbe:
-            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
-          resources:
-            {{- toYaml .Values.backend.resources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-      
       volumes:
         - name: tmp
           emptyDir: {}
-      
-      {{- with .Values.backend.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.backend.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.backend.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+{{- end }}
