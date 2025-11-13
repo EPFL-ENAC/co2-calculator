@@ -61,8 +61,7 @@ export default boot(({ app, router }) => {
       if (!(currentLang in LOCALE_MAP)) {
         currentLang = 'en';
       }
-      to.params.language = currentLang;
-      return next({ name: to.name, params: to.params, query: to.query });
+      return next({ name: to.name, params: { ...to.params, language: currentLang }, query: to.query });
     }
 
     // If language changed, update locale and cookie
