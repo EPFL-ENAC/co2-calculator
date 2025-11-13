@@ -86,8 +86,6 @@ async def startup_event():
         extra={"app_name": settings.APP_NAME, "app_version": settings.APP_VERSION},
     )
     logger.info("Debug mode", extra={"debug": settings.DEBUG})
-    logger.info("OPA enabled", extra={"opa_enabled": settings.OPA_ENABLED})
-    logger.info("OPA URL", extra={"opa_url": settings.OPA_URL})
     logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)

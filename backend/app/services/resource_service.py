@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.opa_client import query_opa
+from app.core.policy import query_policy
 from app.models.resource import Resource
 from app.models.user import User
 from app.repositories import resource_repo
@@ -87,7 +87,7 @@ async def list_resources(
     input_data = _build_opa_input(user, "read")
 
     # Query OPA for authorization decision
-    decision = await query_opa("authz/resource/list", input_data)
+    decision = await query_policy("authz/resource/list", input_data)
     logger.info(
         "OPA decision requested",
         extra={
@@ -142,7 +142,7 @@ async def get_resource(db: AsyncSession, resource_id: int, user: User) -> Resour
     input_data = _build_opa_input(user, "read", resource)
 
     # Query OPA for authorization
-    decision = await query_opa("authz/resource/read", input_data)
+    decision = await query_policy("authz/resource/read", input_data)
     logger.info(
         "OPA read decision requested",
         extra={
@@ -195,7 +195,7 @@ async def create_resource(
     }
 
     # Query OPA for authorization
-    decision = await query_opa("authz/resource/create", input_data)
+    decision = await query_policy("authz/resource/create", input_data)
     logger.info(
         "OPA create decision requested",
         extra={"user_id": user.id, "action": "create_resource"},
@@ -256,7 +256,7 @@ async def update_resource(
     input_data = _build_opa_input(user, "update", resource)
 
     # Query OPA for authorization
-    decision = await query_opa("authz/resource/update", input_data)
+    decision = await query_policy("authz/resource/update", input_data)
     logger.info(
         "OPA update decision requested",
         extra={
@@ -323,7 +323,7 @@ async def delete_resource(db: AsyncSession, resource_id: int, user: User) -> boo
     input_data = _build_opa_input(user, "delete", resource)
 
     # Query OPA for authorization
-    decision = await query_opa("authz/resource/delete", input_data)
+    decision = await query_policy("authz/resource/delete", input_data)
     logger.info(
         "OPA delete decision requested",
         extra={
@@ -377,7 +377,7 @@ async def count_resources(db: AsyncSession, user: User) -> int:
     input_data = _build_opa_input(user, "read")
 
     # Query OPA for authorization
-    decision = await query_opa("authz/resource/list", input_data)
+    decision = await query_policy("authz/resource/list", input_data)
 
     if not decision.get("allow", False):
         return 0
