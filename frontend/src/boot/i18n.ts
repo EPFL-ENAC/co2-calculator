@@ -1,7 +1,7 @@
 import { boot } from 'quasar/wrappers';
 import { createI18n } from 'vue-i18n';
 import { Cookies } from 'quasar';
-import { LOCALE_MAP, LocaleMapKey } from 'src/constant/languages';
+import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
 
 const LOCALE_COOKIE_KEY = 'locale';
@@ -35,11 +35,7 @@ declare module 'vue-i18n' {
 // Detect browser language and find matching locale
 const getBrowserLocale = (): MessageLanguages => {
   const browserLang = navigator.language.split('-')[0]; // 'en-US' → 'en'
-  return (
-    browserLang in LOCALE_MAP
-      ? LOCALE_MAP[browserLang as LocaleMapKey]
-      : LOCALE_MAP.en
-  ) as MessageLanguages;
+  return LOCALE_MAP?.[browserLang as Language] ?? LOCALE_MAP.en;
 };
 
 const DEFAULT_LOCALE = getBrowserLocale();
@@ -61,16 +57,17 @@ export default boot(({ app, router }) => {
 
     // If no language in URL, redirect with current locale
     if (!toLang) {
-      const currentLang = Object.keys(LOCALE_MAP).find(
-        (key) => LOCALE_MAP[key as LocaleMapKey] === i18n.global.locale.value,
-      );
-      const newPath = `/${currentLang}${to.path}`;
-      return next({ path: newPath, query: to.query });
+      let currentLang = i18n.global.locale.value.split('-')[0] as Language;
+      if (!(currentLang in LOCALE_MAP)) {
+        currentLang = 'en';
+      }
+      to.params.language = currentLang;
+      return next({ name: to.name, params: to.params, query: to.query });
     }
 
     // If language changed, update locale and cookie
     if (toLang !== fromLang && toLang in LOCALE_MAP) {
-      const newLocale = LOCALE_MAP[toLang as LocaleMapKey] as MessageLanguages;
+      const newLocale = LOCALE_MAP[toLang as Language] as MessageLanguages;
       i18n.global.locale.value = newLocale;
       Cookies.set(LOCALE_COOKIE_KEY, newLocale, {
         expires: LOCALE_COOKIE_EXPIRE_DAYS,
