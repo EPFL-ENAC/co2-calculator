@@ -27,7 +27,7 @@ Authentication is enforced at multiple points:
 - Database access layer
 - Storage access controls
 
-This section provides detailed security information. For implementation details, see [Backend Security](../backend/architecture.md) and [Frontend Auth](../frontend/architecture.md).
+This section provides detailed security information. For implementation details, see [Backend Security](../backend/01-overview.md#security-considerations) and [Frontend Auth](../frontend/01-overview.md#authentication--authorization).
 
 ## Data Contracts
 
@@ -80,4 +80,4 @@ Tracing is implemented with:
 - Request span propagation
 - Service dependency mapping
 
-For detailed observability information, see [Infrastructure Monitoring](../infra/monitoring.md).
+For detailed observability information, see [Infrastructure Monitoring](../infra/01-overview.md#monitoring--observability).

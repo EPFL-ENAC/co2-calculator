@@ -62,5 +62,5 @@ Access control is implemented using role-based permissions:
 
 For detailed implementation information, see:
 
-- [Backend Security Documentation](../backend/architecture.md)
-- [Frontend Auth Documentation](../frontend/architecture.md)
+- [Backend Security Documentation](../backend/01-overview.md#authentication--authorization)
+- [Frontend Auth Documentation](../frontend/01-overview.md#authentication--authorization)

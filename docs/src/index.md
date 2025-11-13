@@ -13,7 +13,7 @@ High-level system design, technology choices, and cross-cutting concerns:
 - CI/CD pipeline and environment topology
 - Tech stack rationale
 
-### [Frontend](./frontend/index.md)
+### [Frontend](./frontend/01-overview.md)
 
 User interface layer implementation details.
 
@@ -22,7 +22,7 @@ User interface layer implementation details.
 - API integration and data management
 - Development workflows and testing
 
-### [Backend](./backend/index.md)
+### [Backend](./backend/01-overview.md)
 
 Business logic and API layer implementation details.
 
@@ -31,7 +31,7 @@ Business logic and API layer implementation details.
 - Plugin system and extension mechanisms
 - Testing strategies and deployment
 
-### [Database](./database/index.md)
+### [Database](./database/01-overview.md)
 
 Data persistence layer implementation details.
 
@@ -40,7 +40,7 @@ Data persistence layer implementation details.
 - Migration processes and versioning
 - Backup and maintenance procedures
 
-### [Infrastructure](./infra/index.md)
+### [Infrastructure](./infra/01-overview.md)
 
 Hosting and operational infrastructure.
 
