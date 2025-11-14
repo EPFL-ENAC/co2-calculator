@@ -1,4 +1,11 @@
 import { useAuthStore } from 'src/stores/auth';
+import { Cookies } from 'quasar';
+
+function hasWorkspaceCookies() {
+  const unitName = Cookies.get('workspace_unit_name');
+  const year = Cookies.get('workspace_year');
+  return Boolean(unitName && year);
+}
 
 export function authGuard(to, from, next) {
   const authStore = useAuthStore();
@@ -25,12 +32,30 @@ export function authGuard(to, from, next) {
     return next();
   }
 
-  // Already logged in, redirect from login page
-  if (to.name === 'login' && authStore.user) {
-    return next({
-      name: 'home',
-      params: { language, unit: 'defaultUnit', year: '2025' },
-    });
+  // If logged in, enforce workspace selection via cookies
+  if (authStore.user) {
+    const hasWs = hasWorkspaceCookies();
+    const unit = Cookies.get('workspace_unit_name') || 'unit';
+    const year = Cookies.get('workspace_year') || '';
+
+    // If on login and already logged in, redirect
+    if (to.name === 'login') {
+      return next(
+        hasWs
+          ? { name: 'home', params: { language, unit, year } }
+          : { name: 'workspace-setup', params: { language } },
+      );
+    }
+
+    // If trying to access anything other than workspace setup and no workspace chosen, redirect to setup
+    if (to.name !== 'workspace-setup' && !hasWs) {
+      return next({ name: 'workspace-setup', params: { language } });
+    }
+
+    // If already have workspace and trying to go to setup, redirect to home
+    if (to.name === 'workspace-setup' && hasWs) {
+      return next({ name: 'home', params: { language, unit, year } });
+    }
   }
 
   // All other case

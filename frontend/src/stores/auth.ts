@@ -37,16 +37,27 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = fetchedUser;
 
       const workspaceStore = useWorkspaceStore();
+      const language = router
+        ? (router.currentRoute.value.params.language as string) || 'en'
+        : 'en';
 
-      const destination =
-        workspaceStore.selectedUnit && workspaceStore.selectedYear
-          ? `/${workspaceStore.selectedUnit.id}/${workspaceStore.selectedYear}/home`
-          : '/workspace-setup';
-
-      if (router) {
-        router.push(destination);
+      if (workspaceStore.selectedUnit && workspaceStore.selectedYear) {
+        const unitName = encodeURIComponent(workspaceStore.selectedUnit.name);
+        const year = workspaceStore.selectedYear;
+        if (router) {
+          router.push({
+            name: 'home',
+            params: { language, unit: unitName, year },
+          });
+        } else {
+          window.location.href = `/${language}/${unitName}/${year}/home`;
+        }
       } else {
-        window.location.href = destination;
+        if (router) {
+          router.push({ name: 'workspace-setup', params: { language } });
+        } else {
+          window.location.href = `/${language}/workspace-setup`;
+        }
       }
     } catch (error) {
       console.error('Error logging in:', error);
@@ -61,10 +72,13 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       user.value = null;
       loading.value = false;
+      const language = router
+        ? (router.currentRoute.value.params.language as string) || 'en'
+        : 'en';
       if (router) {
-        router.push('/login');
+        router.push({ name: 'login', params: { language } });
       } else {
-        window.location.href = '/login';
+        window.location.href = `/${language}/login`;
       }
     }
   }
