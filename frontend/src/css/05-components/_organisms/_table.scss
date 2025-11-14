@@ -1,0 +1,19 @@
+@use '../../02-tokens' as tokens;
+
+.co2-table {
+  border: 1px solid tokens.$table-border-color;
+  border-radius: tokens.$table-border-radius;
+
+  tbody tr.bg-grey-1:hover > td {
+    background-color: tokens.$table-border-color !important;
+  }
+
+  .q-table td {
+    border: none;
+  }
+
+  th {
+    font-size: tokens.$text-size-sm;
+    font-weight: 700;
+  }
+}
