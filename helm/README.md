@@ -30,6 +30,11 @@ helm install co2-calc ./helm -f values.local.yaml
 
 Start a live-reload development loop:
 
+- `backend.env`: Maps to `APP_NAME`, `API_VERSION`, `LOG_LEVEL` and security values such as `ALGORITHM`.
+- `backend.secrets.SECRET_KEY`: Mirrors the required `SECRET_KEY` in the backend `.env`. Override with a secure value.
+- `database.external`: Provides the duplicate `DATABASE_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` entries expected by the backend.
+- `frontend.env.API_BASE_URL`: Allows the UI to target the API path exposed through the ingress.
+
 ```bash
 cd helm
 make skaffold-dev
