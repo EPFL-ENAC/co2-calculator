@@ -1,7 +1,9 @@
 import ky from 'ky';
 
+export const API_BASE_URL = '/api/v1/';
+
 export const api = ky.create({
-  prefixUrl: '/api/v1/',
+  prefixUrl: API_BASE_URL,
   credentials: 'include',
   hooks: {
     afterResponse: [

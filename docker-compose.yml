@@ -65,26 +65,6 @@ services:
     depends_on:
       - postgres
 
-  # # Open Policy Agent
-  # opa:
-  #   image: openpolicyagent/opa:latest
-  #   container_name: co2-opa
-  #   command:
-  #     - "run"
-  #     - "--server"
-  #     - "--addr=0.0.0.0:8181"
-  #     - "--log-level=debug"
-  #     - "/policies"
-  #   ports:
-  #     - "8181:8181"
-  #   volumes:
-  #     - ./app/policies:/policies:ro
-  #   healthcheck:
-  #     test: ["CMD", "wget", "-q", "--spider", "http://localhost:8181/health"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-
   # FastAPI Backend
   backend:
     build:
@@ -119,8 +99,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # opa:
-      #   condition: service_healthy
 
   frontend:
     build:
