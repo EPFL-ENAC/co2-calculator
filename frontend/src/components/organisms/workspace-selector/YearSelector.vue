@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-
 const ROWS_PER_PAGE = 20;
 
 interface YearData {
@@ -17,15 +15,20 @@ interface Props {
   selectedYear?: number | null;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
+
 const emit = defineEmits<{
   (e: 'select', year: number): void;
 }>();
+
+function selectYear(year: number) {
+  emit('select', year);
+}
 </script>
 
 <template>
   <q-table
-    class="co2-table"
+    class="co2-table co2-table--selectable"
     header-class="text-weight-bold"
     :rows="years"
     :columns="[
@@ -62,7 +65,15 @@ const emit = defineEmits<{
     :rows-per-page-options="[ROWS_PER_PAGE]"
   >
     <template #body="props">
-      <q-tr :props="props" :class="{ 'bg-grey-1': props.rowIndex % 2 === 1 }">
+      <q-tr
+        :props="props"
+        :class="{
+          selected: props.row.year === selectedYear,
+          'bg-grey-1':
+            props.row.year !== selectedYear && props.rowIndex % 2 === 1,
+        }"
+        @click="selectYear(props.row.year)"
+      >
         <!-- Year -->
         <q-td key="year" :props="props">
           <span class="text-h6 text-weight-medium">{{ props.row.year }}</span>

@@ -1,4 +1,5 @@
 import { MODULES } from 'src/constant/modules';
+import { ROLES } from 'src/constant/roles';
 
 // This is just an example,
 // so you can safely delete all default props below
@@ -38,6 +39,12 @@ export default {
     'Vous avez accès à plusieurs laboratoires. Veuillez sélectionner celui sur lequel vous souhaitez travailler :',
   workspace_setup_unit_counter: 'Vos laboratoires ({count})',
   workspace_setup_unit_role: 'Votre rôle :',
+  [ROLES.StandardUser]: 'Utilisateur standard',
+  [ROLES.PrincipalUser]: 'Utilisateur principal',
+  [ROLES.SecondaryUser]: 'Utilisateur secondaire',
+  [ROLES.BackOfficeAdmin]: 'Administrateur Backoffice',
+  [ROLES.BackOfficeStandard]: 'Utilisateur standard Backoffice',
+  [ROLES.System]: 'Gestionnaire système',
   workspace_setup_year_title: "Sélectionnez l'année de calcul",
   workspace_setup_year_description:
     "Veuillez sélectionner l'année pour laquelle vous souhaitez effectuer les calculs de CO₂ :",
