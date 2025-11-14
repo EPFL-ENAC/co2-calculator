@@ -3,5 +3,11 @@
 // Placeholder grid system using semantic spacing tokens.
 .layout-grid {
   display: grid;
-  gap: tokens.$spacing-lg;
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: start;
+  padding: tokens.$layout-page-padding-y tokens.$layout-page-padding-x;
+  gap: tokens.$layout-gap-y;
+  width: tokens.$layout-page-width;
+  margin: auto;
 }

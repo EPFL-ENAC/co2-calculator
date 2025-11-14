@@ -27,7 +27,26 @@ export default {
   'backoffice-documentation-editing': 'Documentation Editing',
   'backoffice-documentation': 'Backoffice Documentation',
   'system-documentation': 'System Documentation',
-
   results_btn: 'View Results',
   logout: 'Logout',
+  workspace_setup_title: 'Workspace Setup',
+  workspace_setup_description:
+    'Please configure your workspace before using the CO₂ calculator.',
+  workspace_setup_unit_title: 'Select your lab',
+  workspace_setup_unit_description:
+    'You have access to multiple laboratories. Please select which one you want to work on:',
+  workspace_setup_unit_counter: 'Your Labs ({count})',
+  workspace_setup_unit_role: 'Your role:',
+  workspace_setup_year_title: 'Select the calculation year',
+  workspace_setup_year_description:
+    'Please select the year for which you want to perform CO₂ calculations:',
+  workspace_setup_year_counter: 'Recorded Years ({count})',
+  workspace_setup_confirm_lab: 'Selected Lab',
+  workspace_setup_confirm_year: 'Selected Year',
+  workspace_setup_confirm_selection: 'Continue to calculator',
+  workspace_setup_restart: 'Start Over',
+
+  workspace_setup_unit_manager: 'Unit Manager',
+  workspace_setup_unit_affiliation: 'Affiliation',
+  workspace_setup_unit_progress: 'Progress from last year',
 };

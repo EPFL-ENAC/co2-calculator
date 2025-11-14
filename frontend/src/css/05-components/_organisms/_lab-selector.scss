@@ -1,0 +1,38 @@
+@use '../../02-tokens' as tokens;
+
+.lab-selector-item {
+  cursor: pointer;
+
+  &:hover {
+    border-color: tokens.$container-selected-hover-border;
+  }
+
+  &--selected {
+    border-color: tokens.$container-selected-hover-border;
+    background-color: tokens.$container-selected-hover-bg;
+  }
+}
+
+.progress-segments {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+
+  .segment {
+    flex: 1;
+    background-color: black;
+    transition: background-color 0.3s ease;
+
+    &:first-child {
+      border-radius: 3px 0 0 3px;
+    }
+
+    &:last-child {
+      border-radius: 0 3px 3px 0;
+    }
+
+    &.filled {
+      background-color: var(--q-accent);
+    }
+  }
+}
