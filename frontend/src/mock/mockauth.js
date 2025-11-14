@@ -4,10 +4,13 @@ import console from 'console';
 
 const PORT = 8000;
 const mockUser = {
-  sciper: '123456',
-  name: 'John Doe',
-  email: 'john.doe@epfl.ch',
-  roles: ['user'],
+  id: 'aea',
+  sciper: 414,
+  email: 'email@epfl.ch',
+  roles: [
+    { role: 'co2.user.std', on: { unit: '12345' } },
+    { role: 'co2.user.principal', on: { unit: '67890' } },
+  ],
 };
 
 // safer: no inherited prototype
