@@ -30,6 +30,7 @@ export default {
   'backoffice-documentation': 'Documentation Backoffice',
   'system-documentation': 'Documentation système',
   results_btn: 'Voir les résultats',
+  workspace_change_btn: 'Changer',
   logout: 'Se déconnecter',
   workspace_setup_title: "Configuration de l'espace de travail",
   workspace_setup_description:

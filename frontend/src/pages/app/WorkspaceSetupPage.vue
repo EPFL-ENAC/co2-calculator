@@ -129,8 +129,12 @@ onMounted(async () => {
 
 <template>
   <q-page class="layout-grid">
-    <!-- Welcome -->
-    <q-card flat class="container">
+    <!-- Welcome (only if workspace not fully selected) -->
+    <q-card
+      v-if="!workspaceStore.selectedUnit || !workspaceStore.selectedYear"
+      flat
+      class="container"
+    >
       <h1 class="text-h2 q-mb-xs">{{ $t('workspace_setup_title') }}</h1>
       <p class="text-body1 q-mb-none">
         {{ $t('workspace_setup_description') }}
