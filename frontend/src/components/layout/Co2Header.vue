@@ -30,6 +30,31 @@ const handleLogout = async () => {
       <q-space />
 
       <Co2LanguageSelector />
+
+      <template v-if="route.name !== 'workspace-setup'">
+        <span
+          v-if="route.params.unit && route.params.year"
+          class="text-body2 q-ml-xl q-mr-sm"
+        >
+          {{ decodeURIComponent(route.params.unit as string) }} |
+          {{ route.params.year }}
+        </span>
+        <q-btn
+          color="grey-4"
+          text-color="primary"
+          :label="$t('workspace_change_btn')"
+          unelevated
+          no-caps
+          outline
+          size="sm"
+          class="text-weight-medium"
+          :to="{
+            name: 'workspace-setup',
+            params: { language: route.params.language || 'en' },
+          }"
+        />
+      </template>
+
       <q-btn
         flat
         dense

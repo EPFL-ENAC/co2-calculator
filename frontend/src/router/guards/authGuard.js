@@ -47,14 +47,9 @@ export function authGuard(to, from, next) {
       );
     }
 
-    // If trying to access anything other than workspace setup and no workspace chosen, redirect to setup
-    if (to.name !== 'workspace-setup' && !hasWs) {
+    // If workspace not selected yet, only allow workspace-setup (and login handled above)
+    if (!hasWs && to.name !== 'workspace-setup') {
       return next({ name: 'workspace-setup', params: { language } });
-    }
-
-    // If already have workspace and trying to go to setup, redirect to home
-    if (to.name === 'workspace-setup' && hasWs) {
-      return next({ name: 'home', params: { language, unit, year } });
     }
   }
 

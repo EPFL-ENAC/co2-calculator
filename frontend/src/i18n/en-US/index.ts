@@ -29,6 +29,7 @@ export default {
   'backoffice-documentation': 'Backoffice Documentation',
   'system-documentation': 'System Documentation',
   results_btn: 'View Results',
+  workspace_change_btn: 'Change',
   logout: 'Logout',
   workspace_setup_title: 'Workspace Setup',
   workspace_setup_description:
