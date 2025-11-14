@@ -5,10 +5,13 @@ import { Router } from 'vue-router';
 import { computed } from 'vue';
 
 interface User {
-  sciper: string;
-  name: string;
+  id: string;
+  sciper: number;
   email: string;
-  roles: string[];
+  roles: Array<{
+    role: string;
+    on: { unit?: string; affiliation?: string } | 'global';
+  }>;
 }
 
 export const useAuthStore = defineStore('auth', () => {
