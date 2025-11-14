@@ -9,6 +9,7 @@ const mockUser = {
   email: 'email@epfl.ch',
   roles: [
     { role: 'co2.user.std', on: { unit: '12345' } },
+    { role: 'co2.user.secondary', on: { unit: '12344' } },
     { role: 'co2.user.principal', on: { unit: '67890' } },
   ],
 };
@@ -41,11 +42,11 @@ http
     const cookies = parseCookies(req.headers.cookie);
 
     if (req.url === '/v1/auth/login' && req.method === 'GET') {
-      res.writeHead(302, {
-        Location: 'http://localhost:9000/workspace-setup',
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
         'Set-Cookie': `auth_token=mock-${Date.now()}; HttpOnly; SameSite=Lax; Max-Age=86400; Path=/`,
       });
-      res.end();
+      res.end(JSON.stringify(mockUser));
     } else if (req.url === '/v1/auth/me' && req.method === 'GET') {
       if (!cookies.auth_token) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
