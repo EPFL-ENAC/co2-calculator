@@ -1,39 +1,128 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
+import { useAuthStore } from 'src/stores/auth';
+import { ROLES } from 'src/constant/roles';
+import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
 
-interface Role {
-  role: string;
-  on: {
-    unit: string;
-  };
-}
+const ALLOWED_ROLES = [
+  ROLES.PrincipalUser,
+  ROLES.SecondaryUser,
+  ROLES.StandardUser,
+];
 
-interface UserData {
-  id: string;
-  sciper: number;
-  email: string;
-  roles: Role[];
-}
+const selectedLab = ref<number | null>(null);
+const selectedYear = ref<number | null>(null);
+const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
+const router = useRouter();
+const route = useRoute();
 
-const userData = ref<UserData | null>(null);
-const selectedLab = ref<string | null>(null);
+const roleOrder = {
+  [ROLES.PrincipalUser]: 1,
+  [ROLES.SecondaryUser]: 2,
+  [ROLES.StandardUser]: 3,
+};
 
-onMounted(async () => {
-  try {
-    const response = await fetch('http://localhost:8000/v1/auth/me', {
-      credentials: 'include',
-    });
-    console.log('Response status:', response.status);
-    if (response.ok) {
-      const data = await response.json();
-      userData.value = data;
-    } else {
-      console.log('Response not OK');
+// Compute units with roles, filter by allowed roles, and sort by role hierarchy
+const unitsWithRoles = computed(() =>
+  workspaceStore.units
+    .map((unit) => ({
+      ...unit,
+      role:
+        authStore.user?.roles.find(
+          (r) =>
+            typeof r.on === 'object' &&
+            r.on.unit &&
+            String(r.on.unit) === String(unit.id),
+        )?.role || '',
+    }))
+    .filter((unit) =>
+      ALLOWED_ROLES.includes(unit.role as (typeof ALLOWED_ROLES)[number]),
+    )
+    .sort((a, b) => (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99)),
+);
+
+// Only show year selection if there are multiple years for the current unit
+const showYearSelection = computed(() => {
+  const yearsCount = workspaceStore.unitResults?.years.length ?? 0;
+  return (
+    (unitsWithRoles.value.length === 1 || selectedLab.value !== null) &&
+    yearsCount > 1
+  );
+});
+
+// Show confirmation if unit and year are selected
+const showConfirmation = computed(() => {
+  return (
+    (selectedLab.value !== null || unitsWithRoles.value.length === 1) &&
+    (selectedYear.value !== null ||
+      workspaceStore.unitResults?.years.length === 1)
+  );
+});
+
+// Confirm selection and navigate to home
+const confirmSelection = () => {
+  const language = route.params.language || 'en';
+  workspaceStore.setUnit(currentUnit.value!);
+  workspaceStore.setYear(selectedYear.value!);
+
+  router.push({
+    name: 'home',
+    params: {
+      language,
+      unit: encodeURIComponent(currentUnit.value.name),
+      year: selectedYear.value,
+    },
+  });
+};
+
+// Reset selections
+const reset = () => {
+  selectedLab.value = null;
+  selectedYear.value = null;
+};
+
+// If only one lab, auto-select it
+watch(
+  unitsWithRoles,
+  (units) => {
+    if (units.length === 1 && !selectedLab.value) {
+      selectedLab.value = units[0].id;
     }
-  } catch (error) {
-    console.error('Failed to fetch user data:', error);
+  },
+  { immediate: true },
+);
+
+const currentUnit = computed(() => {
+  if (unitsWithRoles.value.length === 1) {
+    return unitsWithRoles.value[0];
+  }
+  return selectedLab.value
+    ? unitsWithRoles.value.find((u) => u.id === selectedLab.value)
+    : null;
+});
+
+// If unit has only one year, auto-select it
+watch(currentUnit, async (unit) => {
+  if (unit) {
+    await workspaceStore.fetchUnitResults(currentUnit.value.id);
+
+    if (workspaceStore.unitResults?.years.length === 1) {
+      selectedYear.value = workspaceStore.unitResults.years[0].year;
+    }
+  }
+});
+
+// Initial unit data fetch
+onMounted(async () => {
+  await workspaceStore.fetchUnits();
+
+  if (unitsWithRoles.value.length === 1) {
+    selectedLab.value = unitsWithRoles.value[0].id;
+    await workspaceStore.fetchUnitResults(currentUnit.value.id);
   }
 });
 </script>
@@ -49,94 +138,97 @@ onMounted(async () => {
     </q-card>
 
     <!-- Lab Selection -->
-    <q-card flat class="container">
+    <q-card v-if="unitsWithRoles.length > 1" flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_unit_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_unit_description') }}
       </p>
       <span class="text-h5 text-weight-medium">{{
         $t('workspace_setup_unit_counter', {
-          count: userData?.roles?.length ?? 0,
+          count: unitsWithRoles.length,
         })
       }}</span>
       <div class="two-column-grid q-mt-sm">
         <LabSelectorItem
-          v-for="(roleItem, index) in userData?.roles"
-          :key="roleItem.on.unit"
-          :selected="selectedLab === roleItem.on.unit"
-          :data="{
-            id: roleItem.on.unit,
-            name: roleItem.on.unit,
-            role: roleItem.role,
-            years: {},
-          }"
-          @click="selectedLab = roleItem.on.unit"
+          v-for="unit in unitsWithRoles"
+          :key="unit.id"
+          :selected="selectedLab === unit.id"
+          :unit="unit"
+          @click="selectedLab = unit.id"
         />
       </div>
     </q-card>
 
     <!-- Year Selection -->
-    <q-card flat class="container">
+    <q-card v-if="showYearSelection" flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_year_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_year_description') }}
       </p>
       <span class="text-h5 text-weight-medium">{{
         $t('workspace_setup_year_counter', {
-          count: userData?.roles?.length ?? 0,
+          count: workspaceStore.unitResults?.years.length ?? 0,
         })
       }}</span>
       <YearSelector
+        v-if="workspaceStore.unitResults"
         class="q-mt-md"
-        :years="[
-          {
-            year: 2025,
+        :selected-year="selectedYear"
+        :years="
+          workspaceStore.unitResults.years.map((y) => ({
+            year: y.year,
             progress: 100,
-            completed_modules: 7,
-            comparison: 11.3,
-            kgco2: 38450,
-            status: 'future',
-          },
-          {
-            year: 2024,
-            progress: 43,
-            completed_modules: 3,
-            comparison: -11.3,
-            kgco2: 38450,
-            status: 'current',
-          },
-          {
-            year: 2023,
-            progress: 100,
-            completed_modules: 7,
-            comparison: null,
-            kgco2: 38450,
+            completed_modules: y.completed_modules,
+            comparison: y.last_year_comparison ?? null,
+            kgco2: y.kgco2,
             status: 'complete',
-          },
-        ]"
+          }))
+        "
+        @select="selectedYear = $event"
       />
     </q-card>
 
     <!-- Confirmation -->
-    <q-card flat class="container">
+    <q-card v-if="showConfirmation" flat class="container">
       <h2 class="text-h3">{{ $t('workspace_setup_confirm_selection') }}</h2>
-      <div class="two-column-grid q-mt-md">
-        <div class="container">
+      <div
+        class="flex row q-mt-md"
+        :style="{
+          gridTemplateColumns:
+            (unitsWithRoles.length > 1 ? 1 : 0) +
+              ((workspaceStore.unitResults?.years.length ?? 0) > 1 ||
+              selectedYear !== null
+                ? 1
+                : 0) ===
+            1
+              ? '1fr'
+              : 'repeat(2, 1fr)',
+        }"
+      >
+        <q-card flat v-if="unitsWithRoles.length > 1" class="container">
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_lab') }}
           </h6>
-          <h3 class="text-h3 text-weight-medium q-pt-sm">ENAC-IT4R</h3>
+          <h3 class="text-h3 text-weight-medium q-pt-sm">
+            {{ currentUnit?.name }}
+          </h3>
           <p class="text-caption">
-            Unit Manager: Charlie Weil | ENAC / ENAC-IT
+            {{ currentUnit?.affiliations.join(' / ') }}
           </p>
-        </div>
-        <div class="container">
+        </q-card>
+        <q-card
+          flat
+          v-if="(workspaceStore.unitResults?.years.length ?? 0) > 1"
+          class="container"
+        >
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_year') }}
           </h6>
-          <h3 class="text-h3 text-weight-medium q-pt-sm">2024</h3>
-          <p class="text-caption">3/7 | 38,450kg CO2-eq</p>
-        </div>
+          <h3 class="text-h3 text-weight-medium q-pt-sm">
+            {{ selectedYear }}
+          </h3>
+          <p class="text-caption"></p>
+        </q-card>
       </div>
       <div class="row q-gutter-sm q-mt-lg justify-end">
         <q-btn
@@ -148,6 +240,7 @@ onMounted(async () => {
           outline
           size="md"
           class="text-weight-medium"
+          @click="reset"
         />
         <q-btn
           color="accent"
@@ -156,6 +249,7 @@ onMounted(async () => {
           no-caps
           size="md"
           class="text-weight-medium"
+          @click="confirmSelection"
         />
       </div>
     </q-card>

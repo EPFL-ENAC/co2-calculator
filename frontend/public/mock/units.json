@@ -1,0 +1,26 @@
+[
+  {
+    "id": 12345,
+    "name": "ENAC-IT4R",
+    "principal_user_id": 67890,
+    "affiliations": ["ENAC", "ENAC-IT"]
+  },
+  {
+    "id": 67890,
+    "name": "ALICE",
+    "principal_user_id": 67890,
+    "affiliations": ["ENAC", "SV"]
+  },
+  {
+    "id": 11111,
+    "name": "LaSUR",
+    "principal_user_id": 12345,
+    "affiliations": ["ENAC"]
+  },
+  {
+    "id": 22222,
+    "name": "LCH",
+    "principal_user_id": 67890,
+    "affiliations": ["ENAC"]
+  }
+]

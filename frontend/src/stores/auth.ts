@@ -2,12 +2,16 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from 'src/api/http';
 import { Router } from 'vue-router';
+import { useWorkspaceStore } from './workspace';
 
 interface User {
-  sciper: string;
-  name: string;
+  id: string;
+  sciper: number;
   email: string;
-  roles: string[];
+  roles: Array<{
+    role: string;
+    on: { unit?: string; affiliation?: string } | 'global';
+  }>;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -27,11 +31,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function login(router?: Router) {
-    if (router) {
-      router.push('/api/v1/auth/login');
-    } else {
-      window.location.href = '/api/v1/auth/login';
+  async function login(router?: Router) {
+    try {
+      const fetchedUser = await api.get('auth/login').json<User>();
+      user.value = fetchedUser;
+
+      const workspaceStore = useWorkspaceStore();
+
+      const destination =
+        workspaceStore.selectedUnit && workspaceStore.selectedYear
+          ? `/${workspaceStore.selectedUnit.id}/${workspaceStore.selectedYear}/home`
+          : '/workspace-setup';
+
+      if (router) {
+        router.push(destination);
+      } else {
+        window.location.href = destination;
+      }
+    } catch (error) {
+      console.error('Error logging in:', error);
     }
   }
 

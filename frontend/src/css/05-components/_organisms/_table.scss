@@ -16,4 +16,21 @@
     font-size: tokens.$text-size-sm;
     font-weight: 700;
   }
+
+  &--selectable {
+    tbody tr {
+      cursor: pointer;
+      &:hover:not(.selected) > td {
+        background-color: white;
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected > td {
+        background-color: tokens.$table-color-selected !important;
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+    }
+  }
 }
