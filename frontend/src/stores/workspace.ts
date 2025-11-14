@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { Cookies } from 'quasar';
 
 interface Unit {
   id: number;
@@ -29,6 +30,31 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const selectedYear = ref<number | null>(null);
   const unitResults = ref<UnitResults | null>(null);
   const loading = ref(false);
+
+  // Cookie helpers using Quasar
+  function setCookie(name: string, value: string, days = 30) {
+    Cookies.set(name, value, { expires: days });
+  }
+
+  function getCookie(name: string): string | null {
+    return Cookies.get(name) || null;
+  }
+
+  function deleteCookie(name: string) {
+    Cookies.remove(name);
+  }
+
+  function setUnit(unit: Unit) {
+    selectedUnit.value = unit;
+    // Persist only unit name in cookies
+    setCookie('workspace_unit_name', unit.name);
+  }
+
+  function setYear(year: number) {
+    selectedYear.value = year;
+    // Persist year in cookies
+    setCookie('workspace_year', String(year));
+  }
 
   const availableYears = computed(() => {
     return unitResults.value?.years.map((y) => y.year) || [];
@@ -103,18 +129,47 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  function setUnit(unit: Unit) {
-    selectedUnit.value = unit;
-  }
-
-  function setYear(year: number) {
-    selectedYear.value = year;
-  }
-
   function reset() {
     selectedUnit.value = null;
     selectedYear.value = null;
     unitResults.value = null;
+    // Clear cookies
+    deleteCookie('workspace_unit_name');
+    deleteCookie('workspace_year');
+  }
+
+  async function initFromCookies() {
+    try {
+      const unitName = getCookie('workspace_unit_name');
+      const yearStr = getCookie('workspace_year');
+
+      if (unitName) {
+        // Ensure units are loaded
+        if (units.value.length === 0) {
+          await fetchUnits();
+        }
+        const unit = units.value.find((u) => u.name === unitName) || null;
+        if (unit) {
+          selectedUnit.value = unit;
+          // Preload results for this unit
+          try {
+            await fetchUnitResults(unit.id);
+          } catch {
+            // no-op
+          }
+        }
+      }
+      if (yearStr) {
+        const y = Number(yearStr);
+        if (!Number.isNaN(y)) {
+          selectedYear.value = y;
+        }
+      }
+    } catch {
+      // If cookies are malformed, clear them
+      deleteCookie('workspace_unit_name');
+      deleteCookie('workspace_year');
+    }
   }
 
   return {
@@ -131,5 +186,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setUnit,
     setYear,
     reset,
+    initFromCookies,
   };
 });
