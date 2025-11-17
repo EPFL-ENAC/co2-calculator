@@ -201,6 +201,11 @@ class AccredRoleProvider(RoleProvider):
 
             # Map authorizations to roles
             roles = []
+            # "co2.user.std", --> applied to unit
+            # "co2.user.principal", --> applied to unit
+            # "co2.user.secondary", --> applied to unit
+            # "co2.backoffice.admin", --> applied globally
+            # "co2.backoffice.std" --> applied to affiliation
 
             for auth in authorizations:
                 auth_name = auth.get("name", "")
@@ -221,9 +226,20 @@ class AccredRoleProvider(RoleProvider):
                         extra={"auth_name": auth_name, "sciper": sciper},
                     )
                     continue
-
-                # Map authorization to role with unit scope
-                roles.append({"role": auth_name, "on": {"unit": accred_unit_id}})
+                if auth_name == "co2.backoffice.admin":
+                    # Global admin role
+                    roles.append({"role": auth_name, "on": "global"})
+                elif auth_name == "co2.backoffice.std":
+                    affiliations_names = (
+                        auth.get("reason").get("resource").get("sortpath")
+                    )
+                    # Map to affiliation scope (placeholder logic)
+                    roles.append(
+                        {"role": auth_name, "on": {"affiliation": affiliations_names}}
+                    )
+                else:
+                    # Map authorization to role with unit scope
+                    roles.append({"role": auth_name, "on": {"unit": accred_unit_id}})
 
             logger.info(
                 "Fetched roles from Accred API",
