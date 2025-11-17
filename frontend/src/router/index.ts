@@ -8,6 +8,10 @@ import {
 
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
+import {
+  defaultLanguageGuard,
+  setLanguageCookieGuard,
+} from './guards/defaultLanguageGuard';
 /*
  * If not building with SSR mode, you can
  * directly export the Router instantiation;
@@ -34,7 +38,26 @@ export default route(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
+  /*
+ EXPECTED BEHAVIOR workspace-setup IS THE DEFAULT ROUTE
+  ** LOGGED IN USERS **
+  / -> redirect to /:language(workspace-setup) with current locale
+  /en -> redirect to /en/workspace-setup
+  /en/login -> redirect to /en/workspace-setup
+  /en/403 -> show 404\
+  /404 -> show 404
+  /unauthorized -> show 403
+
+  // not logged in
+  /en/workspace-setup when not authenticated -> redirect to /en/login
+  /en/login -> show login page
+  / -> redirect to /:language/login with current locale
+  /en -> redirect to /en/login
+*/
+
   // Navigation guards
+  Router.beforeEach(defaultLanguageGuard);
+  Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
 
   return Router;

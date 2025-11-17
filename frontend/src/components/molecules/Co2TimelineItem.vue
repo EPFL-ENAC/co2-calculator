@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { withDefaults, defineProps, computed } from 'vue';
+import { computed } from 'vue';
 import { TimelineItem } from 'src/constant/timelineItems';
 import { ModuleState } from 'src/constant/moduleStates';
 import { RouteLocationRaw } from 'vue-router';

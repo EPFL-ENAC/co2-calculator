@@ -1,52 +1,49 @@
 import { useAuthStore } from 'src/stores/auth';
-import { RouteLocationNormalized, NavigationGuardNext } from 'vue-router';
+import { RouteLocationNormalized } from 'vue-router';
+import {
+  ROUTES_WITHOUT_LANGUAGE,
+  DEFAULT_ROUTE_NAME,
+  LOGIN_ROUTE_NAME,
+  UNAUTHORIZED_ROUTE_NAME,
+} from 'src/router/routes';
 
-export async function authGuard(
-  to: RouteLocationNormalized,
-  from: RouteLocationNormalized,
-  next: NavigationGuardNext,
-) {
-  // TODO: REWRITE COMPLETELY
-  const authStore = useAuthStore();
+// Authentication guard for protected routes
 
-  // Block navigation until loading is false
-  if (authStore.loading) {
-    return next(false);
+export async function authGuard(to: RouteLocationNormalized) {
+  const auth = useAuthStore();
+
+  if (ROUTES_WITHOUT_LANGUAGE.includes(to.name as string)) {
+    // Initial load, no need to redirect
+    return true;
+  }
+  // Load user if needed
+  if (auth.loading) {
+    try {
+      await auth.getUser();
+    } catch {
+      /* ignore */
+    }
+  }
+  const redirectTo = { params: to.params };
+
+  // Requires auth?
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { name: LOGIN_ROUTE_NAME, ...redirectTo };
   }
 
-  // Centralize login paths
-  const LOGIN_ROUTE_NAME = 'login';
-
-  // Implement user sync on refresh only if not authenticated
-  if (!authStore.isAuthenticated) {
-    await authStore.fetchUser().catch(() => {
-      // Handle fetch error (e.g., redirect to login or show error)
-      return next({ name: LOGIN_ROUTE_NAME });
-    });
+  // Role-based authorization
+  if (to.meta.roles && auth.isAuthenticated) {
+    const roles = Array.from(to.meta.roles as string[]);
+    const allowed = roles.some((r) => auth.user.roles.includes(r));
+    if (!allowed) {
+      return { name: UNAUTHORIZED_ROUTE_NAME, ...redirectTo };
+    }
   }
 
-  // Get language param (consider deriving from user preference)
-  const language = to.params.language || 'en';
-
-  // Protected route without authentication
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return next({ name: LOGIN_ROUTE_NAME });
+  // Redirect authenticated users away from login
+  if (to.name === LOGIN_ROUTE_NAME && auth.isAuthenticated) {
+    return { name: DEFAULT_ROUTE_NAME, ...redirectTo };
   }
 
-  // Add role-based checks only if authenticated
-  if (
-    authStore.isAuthenticated &&
-    to.meta.roles &&
-    !to.meta.roles.includes(authStore.user.role)
-  ) {
-    return next({ name: 'unauthorized' });
-  }
-
-  // Already logged in, redirect from login page
-  if (to.name === 'login' && authStore.user) {
-    return next({ name: 'home', params: { language } }); // Consider dynamic params
-  }
-
-  // Proceed to the next route
-  next();
+  return true;
 }

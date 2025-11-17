@@ -5,8 +5,6 @@ import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
 
 const LOCALE_COOKIE_KEY = 'locale';
-const LOCALE_COOKIE_EXPIRE_DAYS = 30;
-const LOCALE_COOKIE_PATH = '/';
 
 export type MessageLanguages = keyof typeof messages;
 // Type-define 'en-US' as the master schema for the resource
@@ -48,42 +46,6 @@ export const i18n = createI18n({
   messages,
 });
 
-export default boot(({ app, router }) => {
+export default boot(({ app }) => {
   app.use(i18n);
-
-  router.beforeEach((to, from, next) => {
-    const toLang = to.params.language as string;
-    const fromLang = from.params.language as string;
-
-    // If no language in URL, redirect with current locale
-    if (!toLang) {
-      // Guard against missing route name
-      if (!to.name) {
-        return next();
-      }
-
-      let currentLang = i18n.global.locale.value.split('-')[0] as Language;
-      if (!(currentLang in LOCALE_MAP)) {
-        currentLang = 'en';
-      }
-
-      return next({
-        name: to.name,
-        params: { ...to.params, language: currentLang },
-        query: to.query,
-      });
-    }
-
-    // If language changed, update locale and cookie
-    if (toLang !== fromLang && toLang in LOCALE_MAP) {
-      const newLocale = LOCALE_MAP[toLang as Language] as MessageLanguages;
-      i18n.global.locale.value = newLocale;
-      Cookies.set(LOCALE_COOKIE_KEY, newLocale, {
-        expires: LOCALE_COOKIE_EXPIRE_DAYS,
-        path: LOCALE_COOKIE_PATH,
-      });
-    }
-
-    next();
-  });
 });

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { api } from 'src/api/http';
+import { api, API_LOGIN_URL, API_LOGOUT_URL } from 'src/api/http';
 import { Router } from 'vue-router';
+import { computed } from 'vue';
 
 interface User {
   sciper: string;
@@ -14,49 +15,44 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(true);
 
-  async function fetchUser() {
+  async function getUser() {
     try {
       loading.value = true;
-      const fetchedUser = await api.get(`auth/me`).json<User>();
-      user.value = fetchedUser;
-    } catch (error) {
+      user.value = await api.get(`auth/me`).json<User>();
+    } catch {
       user.value = null;
-      console.error('Error fetching user:', error);
     } finally {
       loading.value = false;
     }
   }
 
-  // WHAT THE ACTUAL FUCK ?
-  function login(router?: Router) {
-    if (router) {
-      router.push('/auth/login');
-    } else {
-      window.location.href = '/auth/login';
-    }
+  function login() {
+    window.location.replace(API_LOGIN_URL);
   }
 
-  async function logout(router?: Router) {
+  async function logout(router: Router) {
     try {
-      await api.post('auth/logout');
+      loading.value = true;
+      await api.post(API_LOGOUT_URL);
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
       user.value = null;
       loading.value = false;
-      if (router) {
-        router.push('/login');
-      } else {
-        window.location.href = '/login';
-      }
+      router.replace({ name: 'login' });
     }
   }
+
+  const isAuthenticated = computed(() => {
+    return user.value !== null;
+  });
 
   return {
     user,
     loading,
-    fetchUser,
+    getUser,
     login,
     logout,
+    isAuthenticated,
   };
 });
