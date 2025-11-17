@@ -142,6 +142,19 @@ class Settings(BaseSettings):
             "The well-known configuration endpoint will be automatically appended."
         ),
     )
+    # not used directly, but can be useful for some providers
+    OAUTH_TENANT_ID: Optional[str] = Field(
+        default=None,
+        description="OAuth2/OIDC Tenant ID or Realm (if applicable)",
+    )
+    OAUTH_SCOPE: Optional[str] = Field(
+        default="openid profile email",
+        description="OAuth2/OIDC scopes to request (space-separated)",
+    )
+    OAUTH_COOKIE_PATH: Optional[str] = Field(
+        default="/",
+        description="OAuth2/OIDC cookie path",
+    )
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_HOURS: int = 12

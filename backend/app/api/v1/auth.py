@@ -23,12 +23,12 @@ settings = get_settings()
 # Configure OAuth with Authlib
 oauth = OAuth()
 oauth.register(
-    name="entra",
+    name="co2_oauth_provider",
     server_metadata_url=settings.oauth_metadata_url,
     client_id=settings.OAUTH_CLIENT_ID,
     client_secret=settings.OAUTH_CLIENT_SECRET,
     client_kwargs={
-        "scope": "openid email profile",
+        "scope": settings.OAUTH_SCOPE,
     },
 )
 
@@ -70,7 +70,7 @@ def _set_auth_cookies(
         httponly=True,
         samesite="lax",
         max_age=int(access_token_expires.total_seconds()),
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH,
         secure=not settings.DEBUG,
     )
 
@@ -81,7 +81,7 @@ def _set_auth_cookies(
         httponly=True,
         samesite="lax",
         max_age=int(refresh_token_expires.total_seconds()),
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH,
         secure=not settings.DEBUG,
     )
 
@@ -95,7 +95,7 @@ async def login(request: Request):
     """
     redirect_uri = request.url_for("auth_callback")
     logger.info("Initiating OAuth2 login", extra={"redirect_uri": str(redirect_uri)})
-    return await oauth.entra.authorize_redirect(request, redirect_uri)
+    return await oauth.co2_oauth_provider.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/callback")
@@ -111,7 +111,7 @@ async def auth_callback(
     """
     try:
         # Exchange authorization code for tokens
-        token = await oauth.entra.authorize_access_token(request)
+        token = await oauth.co2_oauth_provider.authorize_access_token(request)
         logger.info("OAuth2 token received", extra={"token_keys": list(token.keys())})
         user_info = token.get("userinfo")
 
