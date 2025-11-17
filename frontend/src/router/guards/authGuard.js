@@ -1,11 +1,5 @@
 import { useAuthStore } from 'src/stores/auth';
-import { Cookies } from 'quasar';
-
-function hasWorkspaceCookies() {
-  const unitName = Cookies.get('workspace_unit_name');
-  const year = Cookies.get('workspace_year');
-  return Boolean(unitName && year);
-}
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 export function authGuard(to, from, next) {
   const authStore = useAuthStore();
@@ -34,9 +28,12 @@ export function authGuard(to, from, next) {
 
   // If logged in, enforce workspace selection via cookies
   if (authStore.user) {
-    const hasWs = hasWorkspaceCookies();
-    const unit = Cookies.get('workspace_unit_name') || 'unit';
-    const year = Cookies.get('workspace_year') || '';
+    const workspaceStore = useWorkspaceStore();
+    const hasWs = Boolean(
+      workspaceStore.selectedUnit && workspaceStore.selectedYear,
+    );
+    const unit = workspaceStore.selectedUnit?.name || 'unit';
+    const year = workspaceStore.selectedYear || '';
 
     // If on login and already logged in, redirect
     if (to.name === 'login') {
