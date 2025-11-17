@@ -9,6 +9,22 @@ from app.models.user import User
 from app.schemas.resource import ResourceCreate
 from app.services import resource_service
 
+standar_user_role = {
+    "role": "co2.user.std",
+    "on": {"unit": "12345"},
+}
+
+other_user_role = {
+    "role": "co2.user.std",
+    "on": {"unit": "67890"},
+}
+
+
+admin_user_role = {
+    "role": "co2.backoffice.admin",
+    "on": "global",
+}
+
 
 @pytest_asyncio.fixture
 async def test_user(db_session):
@@ -16,11 +32,8 @@ async def test_user(db_session):
     user = User(
         id="test@example.com",
         email="test@example.com",
-        hashed_password="hashed",
-        unit_id="ENAC",
-        roles=["user"],
+        roles=[standar_user_role],
         is_active=True,
-        is_superuser=False,
     )
     db_session.add(user)
     await db_session.commit()
@@ -34,7 +47,7 @@ async def test_resource(db_session, test_user):
     resource = Resource(
         name="Test Resource",
         description="Test Description",
-        unit_id="ENAC",
+        unit_id=test_user.roles[0]["on"]["unit"],
         owner_id=test_user.id,
         visibility="private",
         data={"key": "value"},
@@ -47,7 +60,7 @@ async def test_resource(db_session, test_user):
 
 @pytest.mark.asyncio
 async def test_list_resources_with_opa_allow(
-    db_session, test_user, test_resource, mock_opa_allow
+    db_session, test_user, test_resource, mock_policy_allow
 ):
     """Test listing resources when OPA allows."""
     resources = await resource_service.list_resources(db=db_session, user=test_user)
@@ -57,7 +70,7 @@ async def test_list_resources_with_opa_allow(
 
 @pytest.mark.asyncio
 async def test_list_resources_with_opa_deny(
-    db_session, test_user, test_resource, mock_opa_deny
+    db_session, test_user, test_resource, mock_policy_deny
 ):
     """Test listing resources when OPA denies."""
     with pytest.raises(HTTPException) as exc_info:
@@ -67,7 +80,7 @@ async def test_list_resources_with_opa_deny(
 
 @pytest.mark.asyncio
 async def test_get_resource_success(
-    db_session, test_user, test_resource, mock_opa_allow
+    db_session, test_user, test_resource, mock_policy_allow
 ):
     """Test getting a resource successfully."""
     resource = await resource_service.get_resource(
@@ -78,7 +91,7 @@ async def test_get_resource_success(
 
 
 @pytest.mark.asyncio
-async def test_get_resource_not_found(db_session, test_user, mock_opa_allow):
+async def test_get_resource_not_found(db_session, test_user, mock_policy_allow):
     """Test getting a non-existent resource."""
     with pytest.raises(HTTPException) as exc_info:
         await resource_service.get_resource(
@@ -93,7 +106,7 @@ def sample_resource_data(test_user):
     return {
         "name": "Test Resource",
         "description": "Test Description",
-        "unit_id": test_user.unit_id,
+        "unit_id": test_user.roles[0]["on"]["unit"],
         "visibility": "private",
         "data": {"key": "value"},
         "metadata": {"test": True},
@@ -102,7 +115,7 @@ def sample_resource_data(test_user):
 
 @pytest.mark.asyncio
 async def test_create_resource(
-    db_session, test_user, mock_opa_allow, sample_resource_data
+    db_session, test_user, mock_policy_allow, sample_resource_data
 ):
     """Test creating a resource."""
     resource_data = ResourceCreate(**sample_resource_data)
@@ -122,7 +135,7 @@ def sample_resource_denied_data():
     return {
         "name": "Test Resource",
         "description": "Test Description",
-        "unit_id": "Other unit",
+        "unit_id": other_user_role["on"]["unit"],
         "visibility": "private",
         "data": {"key": "value"},
         "metadata": {"test": True},
@@ -131,7 +144,7 @@ def sample_resource_denied_data():
 
 @pytest.mark.asyncio
 async def test_create_resource_denied(
-    db_session, test_user, mock_opa_deny, sample_resource_denied_data
+    db_session, test_user, mock_policy_deny, sample_resource_denied_data
 ):
     """Test creating a resource when denied."""
     resource_data = ResourceCreate(**sample_resource_denied_data)

@@ -14,8 +14,9 @@ TEST_DB_URL = "sqlite+aiosqlite:///./test.db"
 # Create async test engine
 engine = create_async_engine(
     TEST_DB_URL,
+    pool_pre_ping=True,
+    echo=True,
     connect_args={"check_same_thread": False},
-    echo=True,  # Optional: see SQL queries
 )
 TestingSessionLocal = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
@@ -60,28 +61,28 @@ async def cleanup():
 
 
 @pytest.fixture
-def mock_opa_allow(monkeypatch):
+def mock_policy_allow(monkeypatch):
     """Mock OPA to always allow with no filters."""
 
-    async def mock_query_opa(*args, **kwargs):
+    async def mock_query_policy(*args, **kwargs):
         """Async mock for OPA query."""
         return {"allow": True, "filters": {}}
 
     # Patch it in the resource_service module where it's being called
-    monkeypatch.setattr("app.services.resource_service.query_opa", mock_query_opa)
-    return mock_query_opa
+    monkeypatch.setattr("app.services.resource_service.query_policy", mock_query_policy)
+    return mock_query_policy
 
 
 @pytest.fixture
-def mock_opa_deny(monkeypatch):
+def mock_policy_deny(monkeypatch):
     """Mock OPA to always deny."""
     # import app.core.opa_client as opa_client
 
-    async def mock_query_opa(*args, **kwargs):
+    async def mock_query_policy(*args, **kwargs):
         """Async mock for OPA query."""
         return {"allow": False, "reason": "Access denied"}
 
     # monkeypatch.setattr(opa_client, "query_opa", mock_query_opa)
-    monkeypatch.setattr("app.services.resource_service.query_opa", mock_query_opa)
+    monkeypatch.setattr("app.services.resource_service.query_policy", mock_query_policy)
 
-    return mock_query_opa
+    return mock_query_policy

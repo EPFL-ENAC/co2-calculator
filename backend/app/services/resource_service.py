@@ -33,13 +33,7 @@ def _build_opa_input(
     input_data = {
         "action": action,
         "resource_type": "resource",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "roles": user.roles or [],
-            "unit_id": user.unit_id,
-            "is_superuser": user.is_superuser,
-        },
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
     }
 
     if resource:
@@ -212,7 +206,7 @@ async def create_resource(
         )
 
     # Validate unit_id matches user's unit (unless superuser)
-    if not user.is_superuser and resource_in.unit_id != user.unit_id:
+    if resource_in.unit_id != user.roles[0]["on"]["unit"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot create resources for other units",

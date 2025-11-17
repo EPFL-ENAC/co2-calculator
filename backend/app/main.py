@@ -1,6 +1,9 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -56,8 +59,6 @@ app = FastAPI(
 )
 # NO CORS origins configured allowed on this instance
 
-from starlette.middleware.sessions import SessionMiddleware
-
 # Add this after creating the FastAPI app
 app.add_middleware(
     SessionMiddleware,
@@ -89,8 +90,9 @@ def health():
     return {"status": "healthy"}
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Running lifespan")
     """Run on application startup."""
     logger.info(
         "Starting application",
@@ -105,10 +107,8 @@ async def startup_event():
         from app.db import init_db
 
         await init_db()
+    yield
 
-
-@app.on_event("shutdown")
-async def shutdown_event():
     """Run on application shutdown."""
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 

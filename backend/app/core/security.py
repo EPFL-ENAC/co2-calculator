@@ -19,11 +19,12 @@ settings = get_settings()
 security = HTTPBearer()
 
 
-
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token."""
+    if expires_delta is None:
+        raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
 
     key = OctKey.import_key(settings.SECRET_KEY.encode())
@@ -33,9 +34,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT refresh token."""
+    if expires_delta is None:
+        raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
     to_encode["type"] = "refresh"  # Mark as refresh token
-    expire = datetime.utcnow() + (expires_delta or timedelta(days=7))
+    expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
 
     key = OctKey.import_key(settings.SECRET_KEY.encode())
@@ -96,4 +99,3 @@ async def get_current_active_user(db: AsyncSession = Depends(get_db)) -> User:
             status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user"
         )
     return user
-

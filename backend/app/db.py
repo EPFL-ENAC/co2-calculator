@@ -9,14 +9,13 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+is_sqlite = settings.db_url.startswith("sqlite+aiosqlite")
 # Create SQLAlchemy engine
 engine = create_async_engine(
     settings.db_url,
     pool_pre_ping=True,  # Verify connections before using them
     echo=settings.DEBUG,  # Log SQL queries in debug mode
-    connect_args={"check_same_thread": False}
-    if settings.db_url.startswith("sqlite")
-    else {},
+    connect_args={"check_same_thread": False} if is_sqlite else {},
 )
 
 # Create SessionLocal class

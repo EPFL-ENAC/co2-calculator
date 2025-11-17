@@ -1,6 +1,6 @@
 """Authentication endpoints for OAuth2/OIDC with Entra ID."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from authlib.integrations.starlette_client import OAuth
@@ -12,8 +12,8 @@ from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.role_provider import get_role_provider
-from app.core.security import create_access_token, decode_jwt, create_refresh_token
-from app.repositories.user_repo import get_user_by_email, get_user_by_id, upsert_user
+from app.core.security import create_access_token, create_refresh_token, decode_jwt
+from app.repositories.user_repo import get_user_by_id, upsert_user
 from app.schemas.user import UserRead
 
 logger = get_logger(__name__)
@@ -41,11 +41,11 @@ def _set_auth_cookies(
 ) -> None:
     """
     Helper function to create and set authentication cookies.
-    
+
     Creates both access and refresh tokens and sets them as httpOnly cookies.
     """
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    refresh_token_expires = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
 
     token_data = {
         "sub": user_id,
@@ -73,7 +73,7 @@ def _set_auth_cookies(
         path="/",
         secure=not settings.DEBUG,
     )
-    
+
     # Set refresh token cookie (long-lived)
     response.set_cookie(
         key="refresh_token",
@@ -90,7 +90,7 @@ def _set_auth_cookies(
 async def login(request: Request):
     """
     Initiate OAuth2 login flow.
-    
+
     Redirects to Entra ID for authentication.
     """
     redirect_uri = request.url_for("auth_callback")
@@ -105,7 +105,7 @@ async def auth_callback(
 ):
     """
     OAuth2 callback endpoint.
-    
+
     Handles the callback from Entra ID, exchanges the code for tokens,
     creates or updates the user, sets an httpOnly cookie, and redirects to frontend.
     """
@@ -130,7 +130,7 @@ async def auth_callback(
             )
 
         sciper = user_info.get("uniqueid")  # return sciper as string
-        
+
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
         roles = await role_provider.get_roles(user_info, sciper or "")
@@ -157,7 +157,7 @@ async def auth_callback(
             url=settings.FRONTEND_URL + "/",
             status_code=status.HTTP_302_FOUND,
         )
-        
+
         _set_auth_cookies(
             response=response,
             user_id=user.id,
@@ -174,7 +174,9 @@ async def auth_callback(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("OAuth callback failed", extra={"error": str(e), "type": type(e).__name__})
+        logger.error(
+            "OAuth callback failed", extra={"error": str(e), "type": type(e).__name__}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed",
@@ -224,12 +226,12 @@ async def get_me(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
             )
-        
+
         # Refresh roles from provider
         role_provider = get_role_provider()
         userinfo = {"email": user.email}  # Minimal userinfo for role provider
         fresh_roles = await role_provider.get_roles(userinfo, user.sciper or "")
-        
+
         # Update user roles if changed
         if fresh_roles != user.roles:
             user.roles = fresh_roles
@@ -237,7 +239,7 @@ async def get_me(
             await db.refresh(user)
             logger.info(
                 "Refreshed user roles",
-                extra={"user_id": user.id, "roles_count": len(fresh_roles)}
+                extra={"user_id": user.id, "roles_count": len(fresh_roles)},
             )
 
         return user
@@ -260,7 +262,7 @@ async def refresh_token(
 ):
     """
     Refresh access token using refresh token.
-    
+
     Client should call this when access token expires.
     Returns new access token in cookie.
     """
@@ -269,17 +271,17 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No refresh token provided",
         )
-    
+
     try:
         payload = decode_jwt(refresh_token)
-        
+
         # Verify it's actually a refresh token
         if payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token type",
             )
-        
+
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(
@@ -294,7 +296,7 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive",
             )
-        
+
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -312,10 +314,10 @@ async def refresh_token(
             email=str(user.email),
             sciper=str(user.sciper),
         )
-        
+
         logger.info("Token refreshed successfully", extra={"user_id": user_id})
         return {"message": "Token refreshed successfully"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -330,7 +332,7 @@ async def refresh_token(
 async def logout(response: Response):
     """
     Logout the current user.
-    
+
     Clears both auth_token and refresh_token cookies.
     Note: This does not log out from Entra ID SSO session.
     """
@@ -342,7 +344,7 @@ async def logout(response: Response):
         max_age=0,
         path="/",
     )
-    
+
     # Clear refresh token
     response.set_cookie(
         key="refresh_token",

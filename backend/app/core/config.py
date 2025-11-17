@@ -102,9 +102,9 @@ class Settings(BaseSettings):
         default="default",
         description=(
             "Role provider plugin to use for fetching user roles. "
-            "Options: 'default' (parse from JWT claims) or 'accred' (EPFL Accred API). "
+            "Options: 'default' (parse from JWT claims) or 'accred' (EPFL Accred API)."
             "The 'default' provider expects roles in JWT claims as flat strings like "
-            "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API "
+            "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API"
             "to fetch authorizations and maps them to roles based on accredunitid."
         ),
     )
@@ -144,12 +144,13 @@ class Settings(BaseSettings):
     )
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Add this
+    REFRESH_TOKEN_EXPIRE_HOURS: int = 12
     # Frontend URL for redirects
     FRONTEND_URL: str = Field(
         default="http://localhost:9000",
         description="Frontend application URL for OAuth redirects",
     )
+
     @computed_field
     def oauth_metadata_url(self) -> str:
         """Build OIDC discovery URL from issuer URL."""
@@ -158,7 +159,6 @@ class Settings(BaseSettings):
             issuer = self.OAUTH_ISSUER_URL.rstrip("/")
             return f"{issuer}/.well-known/openid-configuration"
         return ""
-
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"

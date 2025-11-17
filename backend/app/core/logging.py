@@ -3,7 +3,7 @@
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, Optional
 
 import httpx
@@ -42,7 +42,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log: Dict[str, Any] = {
-            "timestamp": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+            "timestamp": datetime.now(UTC),
             "level": record.levelname,
             "logger": record.name,
             "module": record.module,
