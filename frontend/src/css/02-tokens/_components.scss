@@ -121,6 +121,11 @@ $checkbox-disabled-radio-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $checkbox-disabled-text-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $checkbox-checkmark: opt.$tokens-colors-base-white !default;
 
+// Progress Bars
+$progress-bar-height: opt.$tokens-spacing-4 !default;
+$progress-bar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$progress-bar-fill-bg: opt.$tokens-colors-red-red-100 !default;
+
 // Status Indicators
 $status-indicator-high-bg: opt.$tokens-colors-red-red-100 !default;
 $status-indicator-high-color: opt.$tokens-colors-base-white !default;

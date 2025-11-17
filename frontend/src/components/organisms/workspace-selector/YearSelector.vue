@@ -28,7 +28,7 @@ function selectYear(year: number) {
 
 <template>
   <q-table
-    class="co2-table co2-table--selectable"
+    table-class="co2-table co2-table--selectable"
     header-class="text-weight-bold"
     :rows="years"
     :columns="[
@@ -69,6 +69,7 @@ function selectYear(year: number) {
         :props="props"
         :class="{
           selected: props.row.year === selectedYear,
+          'bg-purple-4': props.row.year === selectedYear,
           'bg-grey-1':
             props.row.year !== selectedYear && props.rowIndex % 2 === 1,
         }"
