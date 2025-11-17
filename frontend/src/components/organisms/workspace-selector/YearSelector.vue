@@ -28,7 +28,8 @@ function selectYear(year: number) {
 
 <template>
   <q-table
-    table-class="co2-table co2-table--selectable"
+    class="co2-table"
+    table-class=" co2-table--selectable"
     header-class="text-weight-bold"
     :rows="years"
     :columns="[
@@ -63,6 +64,7 @@ function selectYear(year: number) {
     ]"
     row-key="year"
     :rows-per-page-options="[ROWS_PER_PAGE]"
+    no-hover
   >
     <template #body="props">
       <q-tr
