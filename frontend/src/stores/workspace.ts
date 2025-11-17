@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
+import { useAuthStore } from './auth';
 
 interface Unit {
   id: number;
   name: string;
   principal_user_id: number;
   affiliations: string[];
+  role?: string;
 }
 
 interface YearResult {
@@ -53,10 +55,26 @@ export const useWorkspaceStore = defineStore(
     async function fetchUnits() {
       try {
         loading.value = true;
-        // TODO: Replace with real API when available
-        // units.value = await api.get('units/all').json<Unit[]>();
-        const response = await fetch('/mock/units.json');
-        units.value = await response.json();
+        const user = useAuthStore().user;
+        if (!user) {
+          units.value = [];
+          return;
+        }
+
+        const allUnits = (await fetch('/mock/units.json').then((r) =>
+          r.json(),
+        )) as Unit[];
+
+        units.value = allUnits
+          .map((unit) => ({
+            ...unit,
+            role: user.roles.find(
+              (r) =>
+                typeof r.on === 'object' &&
+                String(r.on.unit) === String(unit.id),
+            )?.role,
+          }))
+          .filter((u) => u.role);
       } catch (error) {
         console.error('Error fetching units:', error);
         units.value = [];

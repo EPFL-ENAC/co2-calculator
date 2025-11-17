@@ -8,9 +8,9 @@ const mockUser = {
   sciper: 414,
   email: 'email@epfl.ch',
   roles: [
-    { role: 'co2.user.std', on: { unit: '12345' } },
-    { role: 'co2.user.secondary', on: { unit: '12344' } },
     { role: 'co2.user.principal', on: { unit: '67890' } },
+    { role: 'co2.user.secondary', on: { unit: '12344' } },
+    { role: 'co2.user.std', on: { unit: '12345' } },
   ],
 };
 
