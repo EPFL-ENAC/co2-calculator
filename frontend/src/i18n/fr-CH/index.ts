@@ -50,6 +50,10 @@ export default {
   workspace_setup_year_description:
     "Veuillez sélectionner l'année pour laquelle vous souhaitez effectuer les calculs de CO₂ :",
   workspace_setup_year_counter: 'Années enregistrées ({count})',
+  workspace_setup_year_table_header_year: 'Année',
+  workspace_setup_year_table_header_progress: 'Progression',
+  workspace_setup_year_table_header_comparison: 'Comparaison',
+  workspace_setup_year_table_header_kgco2: 'kg CO₂-éq',
   workspace_setup_confirm_lab: 'Laboratoire sélectionné',
   workspace_setup_confirm_year: 'Année sélectionnée',
   workspace_setup_confirm_selection: 'Continuer vers le calculateur',

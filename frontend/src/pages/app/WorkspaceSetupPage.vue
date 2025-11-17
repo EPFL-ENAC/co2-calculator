@@ -221,7 +221,6 @@ onMounted(async () => {
           <h3 class="text-h3 text-weight-medium q-pt-sm">
             {{ selectedYear }}
           </h3>
-          <p class="text-caption"></p>
         </q-card>
       </div>
       <div class="row q-gutter-sm q-mt-lg justify-end">
