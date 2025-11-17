@@ -1,49 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-import { ROLES } from 'src/constant/roles';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
 
-const ALLOWED_ROLES = [
-  ROLES.PrincipalUser,
-  ROLES.SecondaryUser,
-  ROLES.StandardUser,
-];
-
 const selectedLab = ref<number | null>(null);
 const selectedYear = ref<number | null>(null);
 const workspaceStore = useWorkspaceStore();
-const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const roleOrder = {
-  [ROLES.PrincipalUser]: 1,
-  [ROLES.SecondaryUser]: 2,
-  [ROLES.StandardUser]: 3,
-};
-
-// Compute units with roles, filter by allowed roles, and sort by role hierarchy
-const unitsWithRoles = computed(() =>
-  workspaceStore.units
-    .map((unit) => ({
-      ...unit,
-      role:
-        authStore.user?.roles.find(
-          (r) =>
-            typeof r.on === 'object' &&
-            r.on.unit &&
-            String(r.on.unit) === String(unit.id),
-        )?.role || '',
-    }))
-    .filter((unit) =>
-      ALLOWED_ROLES.includes(unit.role as (typeof ALLOWED_ROLES)[number]),
-    )
-    .sort((a, b) => (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99)),
-);
+// Units come from backend with roles already attached, filtered, and sorted
+const unitsWithRoles = computed(() => workspaceStore.units);
 
 // Only show year selection if there are multiple years for the current unit
 const showYearSelection = computed(() => {
