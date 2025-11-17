@@ -4,10 +4,6 @@
   border: 1px solid tokens.$table-border-color;
   border-radius: tokens.$table-border-radius;
 
-  tbody tr.bg-grey-1:hover > td {
-    background-color: tokens.$table-border-color !important;
-  }
-
   .q-table td {
     border: none;
   }
@@ -29,8 +25,19 @@
 
       &.selected > td {
         background-color: tokens.$table-color-selected !important;
+
         border-top: 1px solid tokens.$container-selected-hover-border !important;
         border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:first-child > td {
+        border-top: none !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:last-child > td {
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: none !important;
       }
     }
   }
