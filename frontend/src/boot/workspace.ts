@@ -3,6 +3,6 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 
 export default boot(async () => {
   const workspaceStore = useWorkspaceStore();
-  // Initialize workspace (unit/year) from cookies if available
-  await workspaceStore.initFromCookies();
+  // Initialize workspace (unit/year) from persisted state if available
+  await workspaceStore.initFromPersisted();
 });
