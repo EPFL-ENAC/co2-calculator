@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import type { QTableColumn } from 'quasar';
+import { useI18n } from 'vue-i18n';
+
 const ROWS_PER_PAGE = 20;
 
 interface YearData {
@@ -24,6 +28,39 @@ const emit = defineEmits<{
 function selectYear(year: number) {
   emit('select', year);
 }
+
+const { t } = useI18n();
+
+const columns = computed<QTableColumn[]>(() => [
+  {
+    name: 'year',
+    label: t('workspace_setup_year_table_header_year'),
+    field: 'year',
+    align: 'left',
+    sortable: true,
+  },
+  {
+    name: 'progress',
+    label: t('workspace_setup_year_table_header_progress'),
+    field: 'progress',
+    align: 'right',
+    sortable: true,
+  },
+  {
+    name: 'comparison',
+    label: t('workspace_setup_year_table_header_comparison'),
+    field: 'comparison',
+    align: 'right',
+    sortable: true,
+  },
+  {
+    name: 'kgco2',
+    label: t('workspace_setup_year_table_header_kgco2'),
+    field: 'kgco2',
+    align: 'right',
+    sortable: true,
+  },
+]);
 </script>
 
 <template>
@@ -32,36 +69,7 @@ function selectYear(year: number) {
     table-class=" co2-table--selectable"
     header-class="text-weight-bold"
     :rows="years"
-    :columns="[
-      {
-        name: 'year',
-        label: 'Year',
-        field: 'year',
-        align: 'left',
-        sortable: true,
-      },
-      {
-        name: 'progress',
-        label: 'Progress',
-        field: 'progress',
-        align: 'right',
-        sortable: true,
-      },
-      {
-        name: 'comparison',
-        label: 'Last Year Comparison',
-        field: 'comparison',
-        align: 'right',
-        sortable: true,
-      },
-      {
-        name: 'kgco2',
-        label: 'kg CO2-eq',
-        field: 'kgco2',
-        align: 'right',
-        sortable: true,
-      },
-    ]"
+    :columns="columns"
     row-key="year"
     :rows-per-page-options="[ROWS_PER_PAGE]"
     no-hover
