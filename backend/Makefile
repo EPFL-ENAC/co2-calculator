@@ -121,3 +121,7 @@ db-migrate: ## Run database migrations (upgrade to head)
 db-revision: ## Create new migration (usage: make db-revision message="description")
 	uv run alembic revision --autogenerate -m "$(message)"
 
+
+.PHONY: erd
+erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
+	uv run -m  app.generate_mermaid_erd > ../docs/src/database/erd.md ## Generate Mermaid ERD diagram from SQLAlchemy models
