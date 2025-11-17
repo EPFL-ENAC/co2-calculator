@@ -40,6 +40,7 @@ const handleLogout = async () => {
           {{ route.params.year }}
         </span>
         <q-btn
+          icon="o_cached"
           color="grey-4"
           text-color="primary"
           :label="$t('workspace_change_btn')"

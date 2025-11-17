@@ -16,11 +16,11 @@
 .progress-segments {
   display: flex;
   gap: 2px;
-  height: 6px;
+  height: tokens.$progress-bar-height;
 
   .segment {
     flex: 1;
-    background-color: tokens.$container-disabled-color;
+    background-color: tokens.$progress-bar-bg;
     transition: background-color 0.3s ease;
 
     &:first-child {
@@ -32,7 +32,7 @@
     }
 
     &.filled {
-      background-color: var(--q-accent);
+      background-color: tokens.$progress-bar-fill-bg;
     }
   }
 }

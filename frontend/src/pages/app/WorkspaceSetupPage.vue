@@ -152,7 +152,7 @@ onMounted(async () => {
           count: unitsWithRoles.length,
         })
       }}</span>
-      <div class="two-column-grid q-mt-sm">
+      <div class="q-mt-sm column-grid-2">
         <LabSelectorItem
           v-for="unit in unitsWithRoles"
           :key="unit.id"
@@ -195,20 +195,7 @@ onMounted(async () => {
     <!-- Confirmation -->
     <q-card v-if="showConfirmation" flat class="container">
       <h2 class="text-h3">{{ $t('workspace_setup_confirm_selection') }}</h2>
-      <div
-        class="flex row q-mt-md"
-        :style="{
-          gridTemplateColumns:
-            (unitsWithRoles.length > 1 ? 1 : 0) +
-              ((workspaceStore.unitResults?.years.length ?? 0) > 1 ||
-              selectedYear !== null
-                ? 1
-                : 0) ===
-            1
-              ? '1fr'
-              : 'repeat(2, 1fr)',
-        }"
-      >
+      <div class="confirmation-row q-mt-md">
         <q-card flat v-if="unitsWithRoles.length > 1" class="container">
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_lab') }}
@@ -259,11 +246,3 @@ onMounted(async () => {
     </q-card>
   </q-page>
 </template>
-
-<style lang="scss" scoped>
-.two-column-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-}
-</style>
