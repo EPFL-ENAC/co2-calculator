@@ -37,7 +37,7 @@ def _set_auth_cookies(
     response: Response,
     user_id: str,
     email: str,
-    sciper: Optional[str] = None,
+    sciper: Optional[int] = None,
 ) -> None:
     """
     Helper function to create and set authentication cookies.
@@ -129,11 +129,15 @@ async def auth_callback(
                 detail="No email found in OAuth2 response",
             )
 
-        sciper = user_info.get("uniqueid")  # return sciper as string
-
+        sciper = int(user_info.get("uniqueid"))  # return sciper as int
+        if not sciper:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No SCIPER found in OAuth2 response",
+            )
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        roles = await role_provider.get_roles(user_info, sciper or "")
+        roles = await role_provider.get_roles(user_info, sciper)
 
         logger.info(
             "User info retrieved from OAuth2",
@@ -226,11 +230,21 @@ async def get_me(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
             )
+        if not user.email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User email missing",
+            )
+        if not user.sciper:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User sciper missing",
+            )
 
         # Refresh roles from provider
         role_provider = get_role_provider()
         userinfo = {"email": user.email}  # Minimal userinfo for role provider
-        fresh_roles = await role_provider.get_roles(userinfo, user.sciper or "")
+        fresh_roles = await role_provider.get_roles(userinfo, user.sciper)
 
         # Update user roles if changed
         if fresh_roles != user.roles:
@@ -312,7 +326,7 @@ async def refresh_token(
             response=response,
             user_id=str(user.id),
             email=str(user.email),
-            sciper=str(user.sciper),
+            sciper=user.sciper,
         )
 
         logger.info("Token refreshed successfully", extra={"user_id": user_id})
