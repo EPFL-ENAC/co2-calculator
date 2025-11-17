@@ -37,10 +37,10 @@ const buttonLabel = computed(() => {
       <!-- Logo + Title -->
       <div class="q-gutter-sm flex flex-center column">
         <q-img
-          src="epfl-logo.svg"
+          src="/epfl-logo.svg"
           :alt="$t('login_logo_alt')"
           class="login__logo"
-          width="100px"
+          width="125px"
         />
         <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
       </div>
