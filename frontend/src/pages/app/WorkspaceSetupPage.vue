@@ -193,9 +193,11 @@ onMounted(async () => {
     </q-card>
 
     <!-- Confirmation -->
-    <q-card v-if="showConfirmation" flat class="container">
-      <h2 class="text-h3">{{ $t('workspace_setup_confirm_selection') }}</h2>
-      <div class="confirmation-row q-mt-md">
+    <q-card v-if="showConfirmation" flat class="container q-gutter-lg">
+      <h2 class="text-h3 q-ml-none q-mb-lg">
+        {{ $t('workspace_setup_confirm_selection') }}
+      </h2>
+      <div class="column-grid-2">
         <q-card flat v-if="unitsWithRoles.length > 1" class="container">
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_lab') }}
@@ -210,7 +212,8 @@ onMounted(async () => {
         <q-card
           flat
           v-if="(workspaceStore.unitResults?.years.length ?? 0) > 1"
-          class="container"
+          class="container q-mt-md"
+          style="flex: 2 1 0"
         >
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_year') }}
