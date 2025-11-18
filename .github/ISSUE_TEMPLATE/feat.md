@@ -33,4 +33,7 @@ How will we measure if this [FEAT] achieves its goals?
 - [ ] Key features are functional
 - [ ] qualitative feedback (“easy to use”)
 - [ ] Documentation updated in user guide + API docs
+- [ ] Test coverage acceptable ≥ 60% backend. (CI validated)
+- [ ] Responsiveness - according to definition in #21
+
 
