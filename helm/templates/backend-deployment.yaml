@@ -70,12 +70,6 @@ spec:
               containerPort: {{ .Values.backend.service.targetPort }}
               protocol: TCP
           env:
-            - name: APP_VERSION
-              value: "{{ .Values.backend.env.APP_VERSION }}"
-            - name: API_VERSION
-              value: "{{ .Values.backend.env.API_VERSION }}"
-            - name: APP_NAME
-              value: "{{ .Values.backend.env.APP_NAME }}"
             - name: DB_URL
               valueFrom:
                 secretKeyRef:
@@ -110,31 +104,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.oauthTenantIdKey | default "OAUTH_TENANT_ID" }}
-            - name: OAUTH_SCOPE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.oauthScopeKey | default "OAUTH_SCOPE" }}
-            - name: OAUTH_COOKIE_PATH
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.oauthCookiePathKey | default "OAUTH_COOKIE_PATH" }}
-            - name: ACCESS_TOKEN_EXPIRE_MINUTES
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.accessTokenExpireMinutesKey | default "ACCESS_TOKEN_EXPIRE_MINUTES" }}
-            - name: REFRESH_TOKEN_EXPIRE_HOURS
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.refreshTokenExpireHoursKey | default "REFRESH_TOKEN_EXPIRE_HOURS" }}
-            - name: ROLE_PROVIDER_PLUGIN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.roleProviderPluginKey | default "ROLE_PROVIDER_PLUGIN" }}
             - name: ACCRED_API_KEY
               valueFrom:
                 secretKeyRef:
