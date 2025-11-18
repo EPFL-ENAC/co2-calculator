@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: architecture
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12.7
+Description-Content-Type: text/markdown
+Requires-Dist: brotli>=1.2.0
+Requires-Dist: mkdocs>=1.6.1
+Requires-Dist: mkdocs-git-authors-plugin>=0.10.0
+Requires-Dist: mkdocs-git-revision-date-localized-plugin>=1.4.7
+Requires-Dist: mkdocs-material>=9.6.22
+Requires-Dist: mkdocs-material-extensions>=1.3.1
+Requires-Dist: mkdocs-minify-plugin>=0.8.0
+Requires-Dist: mkdocs-with-pdf>=0.9.3

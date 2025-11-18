@@ -16,7 +16,7 @@
 
 - **Make** (build automation)
 - **Node.js** v24+ with npm
-- **Python** 3.13+ with **uv** (install: `brew install uv`)
+- **Python** 3.12+ with **uv** (install: `brew install uv`)
 - **Docker** (for database)
 
 ### Installation
@@ -85,7 +85,7 @@ make build         # Build projects
 
 ### Tech Stack
 
-See [TECH STACK](./TECH_SPEC.md) for detailed technical specifications.
+See [TECH STACK](./docs/src/architecture/08-tech-stack.md) for detailed technical specifications.
 
 ## Localization (i18n)
 
