@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0", # fall back for when no external db is provided
     "fastapi[standard]==0.121.0",
     "uvicorn[standard]==0.38.0",
