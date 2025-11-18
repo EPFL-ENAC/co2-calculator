@@ -28,7 +28,9 @@
 }
 
 @layer quasar-overrides {
+  @import './05-components/quasar-overrides/q-badge';
   @import './05-components/quasar-overrides/q-btn-timeline-button';
+  @import './05-components/quasar-overrides/q-btn';
 }
 
 @layer components {
