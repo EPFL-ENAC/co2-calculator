@@ -1,5 +1,4 @@
 site_name: EPFL Project Technical Docs
-# site_url: https://calculator-co2.epfl.ch
 site_url: ""
 repo_url: https://github.com/epfl-enac/co2-calculator
 theme:
