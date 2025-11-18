@@ -30,7 +30,11 @@ Add relevant Figma links or screenshots.
 ## ✅ Success Criteria 
 How will we measure if this [FEAT] achieves its goals?
  
-- [ ] Key features are functional
+- [ ] Key features are functional (in dev deploiement)
 - [ ] qualitative feedback (“easy to use”)
 - [ ] Documentation updated in user guide + API docs
+- [ ] Test coverage acceptable ≥ 60% backend. (CI validated)
+- [ ] Responsiveness - according to definition in #21
+
+
 

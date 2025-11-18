@@ -33,5 +33,8 @@ How will we measure if this [TASK] achieves its goals?
 - [ ] All sub-features or subtasks completed  
 - [ ] Key features are functional
 - [ ] Documentation updated in user guide + API docs
+- [ ] Test coverage acceptable ≥ 60% backend. (CI validated)
+- [ ] Responsiveness - according to definition in #21
+
 
 
