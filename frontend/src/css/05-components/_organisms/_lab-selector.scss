@@ -2,10 +2,7 @@
 
 .lab-selector-item {
   cursor: pointer;
-
-  &:hover {
-    border-color: tokens.$container-selected-hover-border;
-  }
+  transition: none;
 
   &--selected {
     border-color: tokens.$container-selected-hover-border;
@@ -21,7 +18,10 @@
   .segment {
     flex: 1;
     background-color: tokens.$progress-bar-bg;
-    transition: background-color 0.3s ease;
+
+    &.selected {
+      background-color: tokens.$progress-bar-selected-bg;
+    }
 
     &:first-child {
       border-radius: 3px 0 0 3px;

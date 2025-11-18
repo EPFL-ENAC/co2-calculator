@@ -77,9 +77,9 @@ const columns = computed<QTableColumn[]>(() => [
     <template #body="props">
       <q-tr
         :props="props"
+        class="q-tr--no-hover"
         :class="{
           selected: props.row.year === selectedYear,
-          'bg-purple-4': props.row.year === selectedYear,
           'bg-grey-1':
             props.row.year !== selectedYear && props.rowIndex % 2 === 1,
         }"

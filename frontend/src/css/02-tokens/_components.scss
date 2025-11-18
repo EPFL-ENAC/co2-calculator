@@ -124,6 +124,7 @@ $checkbox-checkmark: opt.$tokens-colors-base-white !default;
 // Progress Bars
 $progress-bar-height: opt.$tokens-spacing-4 !default;
 $progress-bar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$progress-bar-selected-bg: opt.$tokens-colors-red-highlight-200 !default;
 $progress-bar-fill-bg: opt.$tokens-colors-red-red-100 !default;
 
 // Status Indicators
@@ -206,9 +207,6 @@ $tabs-gap: opt.$tokens-spacing-8 !default;
 $tabs-padding-y: opt.$tokens-spacing-12 !default;
 $tabs-corner-border-radius: opt.$tokens-border-radius-lg-border-radius !default;
 $tabs-padding-x: opt.$tokens-spacing-24 !default;
-
-// Miscellaneous
-$lab-selected: 0rem !default;
 
 // Login Card
 $login-card-border-radius: opt.$tokens-border-radius-generic-border-radius !default;

@@ -66,7 +66,7 @@ const completedModules = 0;
           v-for="i in MODULES_LIST.length"
           :key="i"
           class="segment"
-          :class="{ filled: i <= completedModules }"
+          :class="{ filled: i <= completedModules, selected: selected }"
         />
       </div>
     </div>
