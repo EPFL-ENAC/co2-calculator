@@ -26,7 +26,7 @@
       "python": "${workspaceFolder}/backend/.venv/bin/python"
     },
     {
-      "name": "Debug Current Auth Pytest File",
+      "name": "Debug Current Pytest File",
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",

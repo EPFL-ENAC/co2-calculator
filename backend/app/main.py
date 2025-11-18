@@ -1,6 +1,9 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -56,6 +59,15 @@ app = FastAPI(
 )
 # NO CORS origins configured allowed on this instance
 
+# Add this after creating the FastAPI app
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    session_cookie="session",
+    max_age=600,  # 10 minutes - only needed during OAuth flow
+    same_site="lax",
+    https_only=not settings.DEBUG,
+)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
@@ -78,16 +90,15 @@ def health():
     return {"status": "healthy"}
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Running lifespan")
     """Run on application startup."""
     logger.info(
         "Starting application",
         extra={"app_name": settings.APP_NAME, "app_version": settings.APP_VERSION},
     )
     logger.info("Debug mode", extra={"debug": settings.DEBUG})
-    logger.info("OPA enabled", extra={"opa_enabled": settings.OPA_ENABLED})
-    logger.info("OPA URL", extra={"opa_url": settings.OPA_URL})
     logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)
@@ -96,10 +107,8 @@ async def startup_event():
         from app.db import init_db
 
         await init_db()
+    yield
 
-
-@app.on_event("shutdown")
-async def shutdown_event():
     """Run on application shutdown."""
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 

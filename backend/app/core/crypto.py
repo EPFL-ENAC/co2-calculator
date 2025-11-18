@@ -1,15 +1,8 @@
-"""Cryptographic utilities for password hashing."""
+"""Cryptographic utilities.
 
-from passlib.context import CryptContext
+Note: Password hashing has been removed as the application uses OAuth/OIDC only.
+This file is kept for potential future cryptographic needs.
+"""
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing removed - application uses OAuth/OIDC authentication only
 
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    """Generate password hash."""
-    return pwd_context.hash(password)

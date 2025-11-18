@@ -1,5 +1,6 @@
 import { RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
+import { i18n } from 'src/boot/i18n';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
@@ -8,40 +9,41 @@ const YEAR_PATTERN = '\\d{4}'; // Exactly 4 digits
 const UNIT_PATTERN = '[^/]+'; // Any non-slash characters (unit ID)
 const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation ID)
 
-// Helper function to redirect paths without language prefix to /en/ version
-const redirectToDefaultLanguage = (to: { path: string }) => {
-  // Don't redirect API routes
-  if (to.path.startsWith('/api/')) {
-    return false;
-  }
-  // Don't redirect if already has language prefix
-  if (to.path.startsWith('/en/') || to.path.startsWith('/fr/')) {
-    return false;
-  }
-  // Special case: root path redirects to login
-  if (to.path === '/') {
-    return '/en/login';
-  }
-  // Redirect to /en/ + path
-  return `/en${to.path}`;
-};
+// Centralize login paths
+export const LOGIN_ROUTE_NAME = 'login';
+export const HOME_ROUTE_NAME = 'home';
+export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
+export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
+export const NOT_FOUND_ROUTE_NAME = 'not-found';
+export const DEFAULT_ROUTE_NAME = WORKSPACE_SETUP_ROUTE_NAME;
+
+export const ROUTES_WITHOUT_LANGUAGE = [
+  NOT_FOUND_ROUTE_NAME,
+  UNAUTHORIZED_ROUTE_NAME,
+];
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
+    name: 'root',
     children: [
       {
         path: '',
-        redirect: '/en/login',
+        name: 'root-redirect',
+        redirect: {
+          name: DEFAULT_ROUTE_NAME,
+          params: { language: i18n.global.locale.value.split('-')[0] },
+        },
       },
       {
         path: `:language(${LANGUAGE_PATTERN})`,
         name: 'language',
+        redirect: { name: DEFAULT_ROUTE_NAME },
         children: [
           {
             path: 'login',
-            name: 'login',
+            name: LOGIN_ROUTE_NAME,
             component: () => import('pages/app/LoginPage.vue'),
             meta: {
               note: 'User authentication - Login page',
@@ -50,7 +52,7 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'workspace-setup',
-            name: 'workspace-setup',
+            name: WORKSPACE_SETUP_ROUTE_NAME,
             component: () => import('pages/app/WorkspaceSetupPage.vue'),
             meta: {
               requiresAuth: true,
@@ -65,11 +67,11 @@ const routes: RouteRecordRaw[] = [
               {
                 name: 'home-redirect',
                 path: '',
-                redirect: 'home',
+                redirect: { name: HOME_ROUTE_NAME },
               },
               {
                 path: 'home',
-                name: 'home',
+                name: HOME_ROUTE_NAME,
                 component: () => import('pages/app/HomePage.vue'),
                 meta: {
                   requiresAuth: true,
@@ -246,19 +248,15 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-
-  // Catch-all: redirect routes without language parameter, otherwise show 404
+  {
+    path: '/unauthorized',
+    name: UNAUTHORIZED_ROUTE_NAME,
+    component: () => import('pages/ErrorUnauthorized.vue'),
+  },
+  // Catch-all: show 404
   {
     path: '/:catchAll(.*)*',
-    beforeEnter: (to, _from, next) => {
-      const redirect = redirectToDefaultLanguage(to);
-      if (redirect) {
-        next(redirect);
-      } else {
-        // Path already has language prefix but doesn't match any route - show 404
-        next();
-      }
-    },
+    name: NOT_FOUND_ROUTE_NAME,
     component: () => import('pages/ErrorNotFound.vue'),
   },
 ];
