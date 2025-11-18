@@ -45,6 +45,10 @@ backend:
     OAUTH_CLIENT_ID: ""
     OAUTH_CLIENT_SECRET: ""
     OAUTH_ISSUER_URL: ""
+    OAUTH_TENANT_ID: ""
+    OAUTH_SCOPE: "openid profile email"
+    OAUTH_COOKIE_PATH: "/"
+    REFRESH_TOKEN_EXPIRE_HOURS: "24"
 
   podAnnotations: {}
 
@@ -100,6 +104,15 @@ backend:
       oauthClientIdKey: OAUTH_CLIENT_ID  # Key in the existing secret for OAuth client ID
       oauthClientSecretKey: OAUTH_CLIENT_SECRET  # Key in the existing secret for OAuth client secret
       oauthIssuerUrlKey: OAUTH_ISSUER_URL  # Key in the existing secret for OAuth issuer URL
+      oauthTenantIdKey: OAUTH_TENANT_ID  # Key in the existing secret for OAuth tenant ID
+      oauthScopeKey: OAUTH_SCOPE  # Key in the existing secret for OAuth scope
+      oauthCookiePathKey: OAUTH_COOKIE_PATH  # Key in the existing secret for OAuth cookie path
+      accessTokenExpireMinutesKey: ACCESS_TOKEN_EXPIRE_MINUTES  # Key in the existing secret for access token expiry
+      refreshTokenExpireHoursKey: REFRESH_TOKEN_EXPIRE_HOURS  # Key in the existing secret for refresh token expiry
+      roleProviderPluginKey: ROLE_PROVIDER_PLUGIN  # Key in the existing secret for role provider plugin Could be 'default' or 'accred'
+      accredApiKeyKey: ACCRED_API_KEY  # Key in the existing secret for Accred API key
+      accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
+      accredApiUrlKey: ACCRED_API_URL  # Key in the existing secret for Accred API URL
 
   migrations:
     enabled: true  # Run database migrations via init container

@@ -105,6 +105,51 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.oauthIssuerUrlKey | default "OAUTH_ISSUER_URL" }}
+            - name: OAUTH_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthTenantIdKey | default "OAUTH_TENANT_ID" }}
+            - name: OAUTH_SCOPE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthScopeKey | default "OAUTH_SCOPE" }}
+            - name: OAUTH_COOKIE_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthCookiePathKey | default "OAUTH_COOKIE_PATH" }}
+            - name: ACCESS_TOKEN_EXPIRE_MINUTES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accessTokenExpireMinutesKey | default "ACCESS_TOKEN_EXPIRE_MINUTES" }}
+            - name: REFRESH_TOKEN_EXPIRE_HOURS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.refreshTokenExpireHoursKey | default "REFRESH_TOKEN_EXPIRE_HOURS" }}
+            - name: ROLE_PROVIDER_PLUGIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.roleProviderPluginKey | default "ROLE_PROVIDER_PLUGIN" }}
+            - name: ACCRED_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiKeyKey | default "ACCRED_API_KEY" }}
+            - name: ACCRED_API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiUsernameKey | default "ACCRED_API_USERNAME" }}
+            - name: ACCRED_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiUrlKey | default "ACCRED_API_URL" }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:
