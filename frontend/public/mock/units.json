@@ -23,7 +23,7 @@
   {
     "id": 11111,
     "name": "LaSUR",
-    "role": "co2.user.standard",
+    "role": "co2.user.std",
     "affiliations": ["ENAC"]
   }
 ]
