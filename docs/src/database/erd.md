@@ -1,15 +1,5 @@
 ```mermaid
 erDiagram
-  users {
-    VARCHAR id
-    VARCHAR email
-    INTEGER sciper
-    JSON roles
-    BOOLEAN is_active
-    DATETIME created_at
-    DATETIME updated_at
-    DATETIME last_login
-  }
   resources {
     INTEGER id
     VARCHAR name
@@ -22,6 +12,16 @@ erDiagram
     DATETIME created_at
     DATETIME updated_at
   }
-  resources ||--|| users : owner
+  users {
+    VARCHAR id
+    VARCHAR email
+    INTEGER sciper
+    JSON roles
+    BOOLEAN is_active
+    DATETIME created_at
+    DATETIME updated_at
+    DATETIME last_login
+  }
   users ||--}o resources : resources
+  resources ||--|| users : owner
 ```

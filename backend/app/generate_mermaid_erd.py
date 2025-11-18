@@ -3,6 +3,7 @@ from sqlalchemy.orm import DeclarativeMeta
 from app.db import Base
 
 # Import all model modules so tables are registered
+from app.models import resource, user  # noqa: F401
 
 
 def generate_mermaid(base: DeclarativeMeta) -> str:
@@ -19,8 +20,16 @@ def generate_mermaid(base: DeclarativeMeta) -> str:
     # Relationships
     for mapper in base.registry.mappers:
         for rel in mapper.relationships:
-            parent = mapper.local_table.name
-            child = rel.entity.local_table.name
+            parent = (
+                mapper.local_table.name
+                if hasattr(mapper.local_table, "name")
+                else str(mapper.local_table)
+            )
+            child = (
+                rel.entity.local_table.name
+                if hasattr(rel.entity.local_table, "name")
+                else str(rel.entity.local_table)
+            )
 
             # Pick cardinality
             if rel.uselist:
