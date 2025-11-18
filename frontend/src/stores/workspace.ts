@@ -10,7 +10,6 @@ interface Unit {
   affiliations: string[];
   role?: string;
 }
-
 interface YearResult {
   year: number;
   completed_modules: number;

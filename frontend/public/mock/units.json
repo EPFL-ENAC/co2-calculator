@@ -2,25 +2,28 @@
   {
     "id": 12345,
     "name": "ENAC-IT4R",
+    "role": "co2.user.principal",
     "principal_user_id": 67890,
     "affiliations": ["ENAC", "ENAC-IT"]
   },
   {
+    "id": 22222,
+    "name": "LCH",
+    "role": "co2.user.principal",
+    "principal_user_id": 67890,
+    "affiliations": ["ENAC"]
+  },
+  {
     "id": 67890,
     "name": "ALICE",
+    "role": "co2.user.secondary",
     "principal_user_id": 67890,
     "affiliations": ["ENAC", "SV"]
   },
   {
     "id": 11111,
     "name": "LaSUR",
-    "principal_user_id": 12345,
-    "affiliations": ["ENAC"]
-  },
-  {
-    "id": 22222,
-    "name": "LCH",
-    "principal_user_id": 67890,
+    "role": "co2.user.standard",
     "affiliations": ["ENAC"]
   }
 ]
