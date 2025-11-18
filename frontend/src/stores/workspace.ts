@@ -33,6 +33,8 @@ export const useWorkspaceStore = defineStore(
     const selectedYear = ref<number | null>(null);
     const unitResults = ref<UnitResults | null>(null);
     const loading = ref(false);
+    const unitsError = ref<Error | null>(null);
+    const unitResultsError = ref<Error | null>(null);
 
     function setUnit(unit: Unit) {
       selectedUnit.value = unit;
@@ -54,6 +56,7 @@ export const useWorkspaceStore = defineStore(
     async function fetchUnits() {
       try {
         loading.value = true;
+        unitsError.value = null;
         const user = useAuthStore().user;
         if (!user) {
           units.value = [];
@@ -67,6 +70,8 @@ export const useWorkspaceStore = defineStore(
         units.value = allUnits;
       } catch (error) {
         console.error('Error fetching units:', error);
+        unitsError.value =
+          error instanceof Error ? error : new Error('Failed  to fetch units');
         units.value = [];
       } finally {
         loading.value = false;
@@ -99,6 +104,7 @@ export const useWorkspaceStore = defineStore(
     ) {
       try {
         loading.value = true;
+        unitResultsError.value = null;
         console.log(
           'Fetching results for unit ID:',
           id,
@@ -116,6 +122,10 @@ export const useWorkspaceStore = defineStore(
         unitResults.value = await response.json();
       } catch (error) {
         console.error('Error fetching unit results:', error);
+        unitResultsError.value =
+          error instanceof Error
+            ? error
+            : new Error('Failed to fetch unit results');
         unitResults.value = null;
       } finally {
         loading.value = false;
@@ -146,6 +156,8 @@ export const useWorkspaceStore = defineStore(
       selectedYear,
       unitResults,
       loading,
+      unitsError,
+      unitResultsError,
       availableYears,
       currentYearData,
       fetchUnits,

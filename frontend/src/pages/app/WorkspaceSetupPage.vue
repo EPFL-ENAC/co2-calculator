@@ -14,12 +14,14 @@ const route = useRoute();
 // Units come from backend with roles already attached, filtered, and sorted
 const unitsWithRoles = computed(() => workspaceStore.units);
 
-// Only show year selection if there are multiple years for the current unit
+// Only show year selection if there are multiple years for the current unit or if there's an error
 const showYearSelection = computed(() => {
   const yearsCount = workspaceStore.unitResults?.years.length ?? 0;
+  const hasUnitSelected =
+    unitsWithRoles.value.length === 1 || selectedLab.value !== null;
   return (
-    (unitsWithRoles.value.length === 1 || selectedLab.value !== null) &&
-    yearsCount > 1
+    hasUnitSelected &&
+    (workspaceStore.unitResultsError !== null || yearsCount > 1)
   );
 });
 
@@ -111,7 +113,14 @@ onMounted(async () => {
     </q-card>
 
     <!-- Lab Selection -->
-    <q-card v-if="unitsWithRoles.length > 1" flat class="container">
+    <q-card
+      v-if="
+        !workspaceStore.loading &&
+        (workspaceStore.unitsError || unitsWithRoles.length > 1)
+      "
+      flat
+      class="container"
+    >
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_unit_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_unit_description') }}
@@ -121,7 +130,17 @@ onMounted(async () => {
           count: unitsWithRoles.length,
         })
       }}</span>
-      <div class="q-mt-sm column-grid-2">
+      <div v-if="workspaceStore.unitsError" class="q-mt-sm">
+        <q-banner class="container text-negative border-negative q-pa-lg">
+          <template v-slot:avatar>
+            <q-icon name="o_warning" color="grey-3" size="md" />
+          </template>
+          <p class="text-body2 text-weight-bold q-mt-sm">
+            {{ $t('workspace_setup_unit_error') }}
+          </p>
+        </q-banner>
+      </div>
+      <div v-else class="q-mt-sm column-grid-2">
         <LabSelectorItem
           v-for="unit in unitsWithRoles"
           :key="unit.id"
@@ -143,8 +162,18 @@ onMounted(async () => {
           count: workspaceStore.unitResults?.years.length ?? 0,
         })
       }}</span>
+      <div v-if="workspaceStore.unitResultsError" class="q-mt-sm">
+        <q-banner class="container text-negative border-negative q-pa-lg">
+          <template v-slot:avatar>
+            <q-icon name="o_warning" color="grey-3" size="md" />
+          </template>
+          <p class="text-body2 text-weight-bold q-mt-sm">
+            {{ $t('workspace_setup_year_error') }}
+          </p>
+        </q-banner>
+      </div>
       <YearSelector
-        v-if="workspaceStore.unitResults"
+        v-else-if="workspaceStore.unitResults"
         class="q-mt-md"
         :selected-year="selectedYear"
         :years="
