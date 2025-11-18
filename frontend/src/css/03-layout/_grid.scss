@@ -8,24 +8,24 @@
   align-content: start;
   padding: tokens.$layout-page-padding-y tokens.$layout-page-padding-x;
   gap: tokens.$layout-gap-y;
-  width: tokens.$layout-page-width;
+  max-width: tokens.$layout-page-width;
   margin: auto;
 }
 
 .column-grid-1 {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
-  gap: 24px;
+  gap: 16px;
 }
 
 .column-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 16px;
 }
 
 .column-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  gap: 16px;
 }
