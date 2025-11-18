@@ -1,9 +1,9 @@
 """User model for authentication and authorization."""
 
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, String
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -18,8 +18,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
 
     # EPFL-specific fields
-    sciper: Mapped[Optional[str]] = mapped_column(
-        String, unique=True, index=True, nullable=True, comment="EPFL SCIPER number"
+    sciper: Mapped[Optional[int]] = mapped_column(
+        Integer, unique=True, index=True, nullable=True, comment="EPFL SCIPER number"
     )
 
     # Role-based access control (hierarchical structure)
@@ -89,6 +89,5 @@ class User(Base):
         if not self.roles:
             return False
         return any(
-            r.get("role") == role and r.get("on") == "global"
-            for r in self.roles
+            r.get("role") == role and r.get("on") == "global" for r in self.roles
         )

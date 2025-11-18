@@ -37,7 +37,7 @@ async def get_user_by_sciper(db: AsyncSession, sciper: str) -> Optional[User]:
 async def upsert_user(
     db: AsyncSession,
     email: str,
-    sciper: Optional[str] = None,
+    sciper: Optional[int] = None,
     roles: Optional[List[dict]] = None,
 ) -> User:
     """
