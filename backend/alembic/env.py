@@ -28,7 +28,6 @@ if config.config_file_name is not None:
 
 # Create logger AFTER configuring logging
 logger = logging.getLogger("alembic.env")
-logger.info(f"Using database URL: {settings.db_url}")
 # Set target metadata for autogenerate support
 target_metadata = Base.metadata
 
