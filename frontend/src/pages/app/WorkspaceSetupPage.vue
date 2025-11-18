@@ -114,10 +114,7 @@ onMounted(async () => {
 
     <!-- Lab Selection -->
     <q-card
-      v-if="
-        !workspaceStore.loading &&
-        (workspaceStore.unitsError || unitsWithRoles.length > 1)
-      "
+      v-if="workspaceStore.unitsError || unitsWithRoles.length > 1"
       flat
       class="container"
     >
