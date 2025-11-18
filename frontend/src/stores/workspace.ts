@@ -65,16 +65,7 @@ export const useWorkspaceStore = defineStore(
           r.json(),
         )) as Unit[];
 
-        units.value = allUnits
-          .map((unit) => ({
-            ...unit,
-            role: user.roles.find(
-              (r) =>
-                typeof r.on === 'object' &&
-                String(r.on.unit) === String(unit.id),
-            )?.role,
-          }))
-          .filter((u) => u.role);
+        units.value = allUnits;
       } catch (error) {
         console.error('Error fetching units:', error);
         units.value = [];
