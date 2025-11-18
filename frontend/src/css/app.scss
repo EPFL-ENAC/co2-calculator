@@ -1,6 +1,3 @@
-// Load design tokens (CSS custom properties) before any component styles.
-@import './tokens.css';
-
 // Map SCSS tokens to Quasar variables ahead of pulling in the framework CSS.
 @import './02-tokens/quasar-bridge';
 
