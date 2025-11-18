@@ -1,0 +1,22 @@
+@use '../../02-tokens' as tokens;
+
+.btn-primary {
+  font-size: tokens.$button-size-sm-font-size !important;
+  font-weight: bold;
+  margin: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
+}
+
+.btn-secondary {
+  background-color: tokens.$button-secondary-bg-default;
+  color: tokens.$button-secondary-color;
+  border: 1px solid tokens.$button-secondary-border-color;
+  font-size: tokens.$button-size-sm-font-size !important;
+  font-weight: 600;
+  padding: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
+}
+
+.q-btn__content {
+  .q-icon {
+    margin-right: 4px;
+  }
+}

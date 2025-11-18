@@ -1,0 +1,10 @@
+@use '../../02-tokens' as tokens;
+
+.q-badge {
+  font-size: tokens.$status-indicator-font-size;
+  padding: tokens.$status-indicator-padding-y tokens.$status-indicator-padding-x;
+
+  &--rounded {
+    border-radius: 999px;
+  }
+}

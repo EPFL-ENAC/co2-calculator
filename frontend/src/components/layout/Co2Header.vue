@@ -53,16 +53,14 @@ const handleLogout = async () => {
         >
           {{ workspaceDisplay }}
         </span>
+
         <q-btn
-          icon="o_cached"
-          color="grey-4"
-          text-color="primary"
+          icon="o_autorenew"
           :label="$t('workspace_change_btn')"
           unelevated
           no-caps
-          outline
           size="sm"
-          class="text-weight-medium"
+          class="text-weight-medium btn-secondary"
           :to="{
             name: 'workspace-setup',
             params: { language: route.params.language || 'en' },
