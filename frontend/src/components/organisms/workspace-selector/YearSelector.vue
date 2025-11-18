@@ -72,7 +72,6 @@ const columns = computed<QTableColumn[]>(() => [
     :columns="columns"
     row-key="year"
     :rows-per-page-options="[ROWS_PER_PAGE]"
-    no-hover
   >
     <template #body="props">
       <q-tr

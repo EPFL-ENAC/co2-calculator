@@ -79,7 +79,7 @@ const currentUnit = computed(() => {
 // If unit has only one year, auto-select it
 watch(currentUnit, async (unit) => {
   if (unit) {
-    await workspaceStore.fetchUnitResults(currentUnit.value.id);
+    await workspaceStore.fetchUnitResults(unit.id);
 
     if (workspaceStore.unitResults?.years.length === 1) {
       selectedYear.value = workspaceStore.unitResults.years[0].year;
@@ -89,7 +89,9 @@ watch(currentUnit, async (unit) => {
 
 // Initial unit data fetch
 onMounted(async () => {
-  await workspaceStore.fetchUnits();
+  if (currentUnit.value) {
+    await workspaceStore.fetchUnitResults(currentUnit.value.id);
+  }
 
   if (unitsWithRoles.value.length === 1) {
     selectedLab.value = unitsWithRoles.value[0].id;
