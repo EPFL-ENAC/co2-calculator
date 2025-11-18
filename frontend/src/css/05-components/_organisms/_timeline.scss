@@ -2,8 +2,7 @@
 
 .timeline-container {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto hidden;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scroll-padding-left: 1rem;
