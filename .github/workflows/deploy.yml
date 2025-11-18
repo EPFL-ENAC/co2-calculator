@@ -5,6 +5,7 @@ name: deploy
   push:
     branches:
       - dev
+      - stage
       - 'ci-test/**'
     tags: ["v*.*.*"]
 

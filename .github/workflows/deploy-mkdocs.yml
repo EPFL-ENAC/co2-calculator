@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - stage
       - 'ci-test/**'
   pull_request:
     branches:

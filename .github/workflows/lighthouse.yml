@@ -2,7 +2,7 @@ name: Lighthouse CI
 
 on:
   pull_request:
-    branches: [main, dev, 'ci-test/**']
+    branches: [main, dev, stage, 'ci-test/**']
     paths:
       - "frontend/**"
       - ".github/workflows/lighthouse.yml"

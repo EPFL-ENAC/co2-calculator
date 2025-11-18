@@ -2,9 +2,9 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, stage]
   push:
-    branches: [main, dev, 'ci-test/**']
+    branches: [main, dev, stage, 'ci-test/**']
 
 jobs:
   test-backend:
