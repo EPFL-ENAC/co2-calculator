@@ -277,7 +277,7 @@ Use OpenTelemetry for request tracing:
 
 Include correlation IDs in all log entries for request tracing.
 
-For monitoring setup, see [Infrastructure Monitoring](../infra/monitoring.md).
+For monitoring setup, see [Infrastructure Monitoring](../infra/01-overview.md).
 
 ## Performance Targets
 

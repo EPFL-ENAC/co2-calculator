@@ -195,20 +195,18 @@ npm run type-check
 ### Testing
 
 ```bash
-# Run unit tests (Vitest)
+# Run unit tests (Vitest): NOT IMPLEMENTED
 npm run test:unit
 
 # Run component tests (Playwright)
-npm run test:component
+npm run test-ct
 
 # Run E2E tests (Playwright)
 npm run test:e2e
 
-# Generate coverage report
+# Generate coverage report: NOT IMPLEMENTED
 npm run test:coverage
 ```
-
-**Test Coverage Target**: 70% minimum (see [Architecture TODO](../architecture/TODO.md#testing-documentation))
 
 ---
 
@@ -221,11 +219,6 @@ Create `.env` file in `frontend/` directory:
 ```env
 # Backend API
 VITE_API_BASE_URL=http://localhost:8000/api/v1
-
-# OIDC Authentication
-VITE_OIDC_AUTHORITY=https://login.microsoftonline.com/{tenant}/v2.0
-VITE_OIDC_CLIENT_ID=your-client-id
-VITE_OIDC_REDIRECT_URI=http://localhost:5173/auth/callback
 
 # Feature Flags
 VITE_ENABLE_ANALYTICS=false
@@ -295,24 +288,26 @@ src/i18n/
 ├── fr.json
 └── de.json
 ```
+
 ### Contributing translation
+
 1. Create a feature branch from `main`
-![Screenshot](img/branch.png)
-![Screenshot](img/new_branch.png)
-![Screenshot](img/translation_branch_name.png)
+   ![Screenshot](img/branch.png)
+   ![Screenshot](img/new_branch.png)
+   ![Screenshot](img/translation_branch_name.png)
 
 2. Make your changes to the translation files
-![Screenshot](img/translation_modify.png)
+   ![Screenshot](img/translation_modify.png)
 
 3. Commit with a conventional commit message (e.g., `feat(i18n): add dashboard translations`)
-![Screenshot](img/translation_commit.png)
-![Screenshot](img/translation_commit_message.png)
+   ![Screenshot](img/translation_commit.png)
+   ![Screenshot](img/translation_commit_message.png)
 
 4. Push your branch and open a pull request
-![Screenshot](img/translation_pull_request.png)
+   ![Screenshot](img/translation_pull_request.png)
 
-5. Ensure CI checks pass 
-![Screenshot](img/translation_checks.png)
+5. Ensure CI checks pass
+   ![Screenshot](img/translation_checks.png)
 
 ### Contributing translation
 
