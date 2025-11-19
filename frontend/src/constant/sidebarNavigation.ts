@@ -20,10 +20,6 @@ export const BACKOFFICE_NAV: Record<string, SidebarNavItem> = {
     routeName: 'backoffice-reporting',
     icon: 'o_assessment',
   },
-  BACKOFFICE_DOCUMENTATION: {
-    routeName: 'backoffice-documentation',
-    icon: 'o_description',
-  },
 };
 
 export const SYSTEM_NAV: Record<string, SidebarNavItem> = {
@@ -38,9 +34,5 @@ export const SYSTEM_NAV: Record<string, SidebarNavItem> = {
   SYSTEM_LOGS: {
     routeName: 'system-logs',
     icon: 'o_list_alt',
-  },
-  SYSTEM_DOCUMENTATION: {
-    routeName: 'system-documentation',
-    icon: 'o_description',
   },
 };
