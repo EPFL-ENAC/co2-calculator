@@ -51,9 +51,14 @@ format: ## Format code with ruff and prettier
 	@if [ -n "$(PY_FILES)" ]; then \
 		ruff format $(PY_FILES); \
 		ruff check --fix $(PY_FILES); \
+	else \
+		ruff format .; \
+		ruff check --fix .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
 		npx prettier --write $(YAML_FILES) $(MD_FILES) --ignore-unknown; \
+	else \
+		npx prettier --write . --ignore-unknown; \
 	fi
 
 .PHONY: lint
@@ -61,9 +66,14 @@ lint: ## Check code formatting
 	@if [ -n "$(PY_FILES)" ]; then \
 		ruff format --check $(PY_FILES); \
 		ruff check $(PY_FILES); \
+	else \
+		ruff format --check .; \
+		ruff check .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
 		npx prettier --check $(YAML_FILES) $(MD_FILES) --ignore-unknown; \
+	else \
+		npx prettier --check . --ignore-unknown; \
 	fi
 
 .PHONY: type-check
