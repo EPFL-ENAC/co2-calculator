@@ -1,5 +1,6 @@
 """Authentication endpoints for OAuth2/OIDC with Entra ID."""
 
+import logging
 from datetime import timedelta
 from typing import Optional
 
@@ -93,6 +94,16 @@ async def login(request: Request):
 
     Redirects to Entra ID for authentication.
     """
+    if logger.isEnabledFor(logging.DEBUG):
+        x_forwarded_headers = {
+            k: v
+            for k, v in request.headers.items()
+            if k.lower().startswith("x-forwarded-")
+        }
+        logger.debug(
+            "Login requested x-forwarded headers",
+            extra={"headers": x_forwarded_headers},
+        )
     redirect_uri = request.url_for("auth_callback")
     logger.info("Initiating OAuth2 login", extra={"redirect_uri": str(redirect_uri)})
     return await oauth.co2_oauth_provider.authorize_redirect(request, redirect_uri)

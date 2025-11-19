@@ -104,7 +104,7 @@ app.add_middleware(
 # Add Forwarded Headers Middleware to handle X-Forwarded-* headers
 # because of load balancer / reverse proxy in front of the app that
 # handles TLS termination
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="h")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 
 # Include API router
