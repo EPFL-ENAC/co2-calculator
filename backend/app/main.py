@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -68,6 +69,12 @@ app.add_middleware(
     same_site="lax",
     https_only=not settings.DEBUG,
 )
+
+# Add Forwarded Headers Middleware to handle X-Forwarded-* headers
+# because of load balancer / reverse proxy in front of the app that
+# handles TLS termination
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="h")
+
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
