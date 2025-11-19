@@ -2,6 +2,7 @@ import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { FALSE } from 'sass';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -193,7 +194,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
-              breadcrumb: true,
+              breadcrumb: false,
               isBackOffice: true,
             },
           },
@@ -261,7 +262,6 @@ const routes: RouteRecordRaw[] = [
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
               breadcrumb: true,
-              isSystem: true,
             },
           },
         ],
