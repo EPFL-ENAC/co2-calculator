@@ -16,7 +16,7 @@
   }
 
   &.q-btn-timeline-item--validated {
-    background-color: tokens.$timeline-item-validated-bg;
+    background-color: tokens.$color-validated;
     border-color: tokens.$timeline-item-validated-border-color;
   }
 }
