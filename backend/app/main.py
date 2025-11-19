@@ -99,14 +99,20 @@ def health():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Running lifespan")
     """Run on application startup."""
     logger.info(
         "Starting application",
-        extra={"app_name": settings.APP_NAME, "app_version": settings.APP_VERSION},
+        extra={
+            "app_name": settings.APP_NAME,
+            "app_version": settings.APP_VERSION,
+            "api_version": settings.API_VERSION,
+            "frontend_url": settings.FRONTEND_URL,
+            "api_docs_prefix": settings.API_DOCS_PREFIX,
+            "debug": settings.DEBUG,
+        },
     )
-    logger.info("Debug mode", extra={"debug": settings.DEBUG})
-    logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
+    if settings.LOKI_ENABLED:
+        logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)
     if settings.DEBUG:
