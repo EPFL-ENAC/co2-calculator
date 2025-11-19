@@ -1,5 +1,4 @@
 # Variables
-PYTHON := python3
 UV := uv
 RUFF ?= $(UV) run ruff
 PYTEST ?= $(UV) run pytest
@@ -49,11 +48,11 @@ MD_FILES   := $(filter %.md,$(FILES))
 .PHONY: format
 format: ## Format code with ruff and prettier
 	@if [ -n "$(PY_FILES)" ]; then \
-		ruff format $(PY_FILES); \
-		ruff check --fix $(PY_FILES); \
+		$(RUFF) format $(PY_FILES); \
+		$(RUFF) check --fix $(PY_FILES); \
 	else \
-		ruff format .; \
-		ruff check --fix .; \
+		$(RUFF) format .; \
+		$(RUFF) check --fix .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
 		npx prettier --write $(YAML_FILES) $(MD_FILES) --ignore-unknown; \
@@ -64,11 +63,11 @@ format: ## Format code with ruff and prettier
 .PHONY: lint
 lint: ## Check code formatting
 	@if [ -n "$(PY_FILES)" ]; then \
-		ruff format --check $(PY_FILES); \
-		ruff check $(PY_FILES); \
+		$(RUFF) format --check $(PY_FILES); \
+		$(RUFF) check $(PY_FILES); \
 	else \
-		ruff format --check .; \
-		ruff check .; \
+		$(RUFF) format --check .; \
+		$(RUFF) check .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
 		npx prettier --check $(YAML_FILES) $(MD_FILES) --ignore-unknown; \
@@ -82,11 +81,11 @@ type-check: ## Run type checking with mypy
 
 .PHONY: test
 test: ## Run tests
-	uv run pytest tests/ -v
+	$(PYTEST) tests/ -v
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
-	uv run pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing
 
 .PHONY: dev
 dev: install ## Start backend development server
