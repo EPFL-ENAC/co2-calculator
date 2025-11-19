@@ -17,6 +17,36 @@ logger = get_logger(__name__)
 # Get settings
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run on application startup."""
+    logger.info(
+        "Starting application",
+        extra={
+            "app_name": settings.APP_NAME,
+            "app_version": settings.APP_VERSION,
+            "api_version": settings.API_VERSION,
+            "frontend_url": settings.FRONTEND_URL,
+            "api_docs_prefix": settings.API_DOCS_PREFIX,
+            "debug": settings.DEBUG,
+        },
+    )
+    if settings.LOKI_ENABLED:
+        logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
+
+    # Initialize database (in production, use Alembic migrations)
+    if settings.DEBUG:
+        logger.warning("Debug mode: Database tables will be auto-created")
+        from app.db import init_db
+
+        await init_db()
+    yield
+
+    """Run on application shutdown."""
+    logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
+
+
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
@@ -57,6 +87,7 @@ app = FastAPI(
     """,
     # Swagger UI lives at /api/docs externally, but /docs internally works too
     root_path=settings.API_DOCS_PREFIX,
+    lifespan=lifespan,
 )
 # NO CORS origins configured allowed on this instance
 
@@ -95,35 +126,6 @@ def root():
 def health():
     """Health check endpoint."""
     return {"status": "healthy"}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Run on application startup."""
-    logger.info(
-        "Starting application",
-        extra={
-            "app_name": settings.APP_NAME,
-            "app_version": settings.APP_VERSION,
-            "api_version": settings.API_VERSION,
-            "frontend_url": settings.FRONTEND_URL,
-            "api_docs_prefix": settings.API_DOCS_PREFIX,
-            "debug": settings.DEBUG,
-        },
-    )
-    if settings.LOKI_ENABLED:
-        logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
-
-    # Initialize database (in production, use Alembic migrations)
-    if settings.DEBUG:
-        logger.warning("Debug mode: Database tables will be auto-created")
-        from app.db import init_db
-
-        await init_db()
-    yield
-
-    """Run on application shutdown."""
-    logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
 
 if __name__ == "__main__":
