@@ -1,7 +1,5 @@
 import { MODULES } from 'src/constant/modules';
-
-// This is just an example,
-// so you can safely delete all default props below
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
 
 export default {
   logo_alt: 'Logo EPFL',
@@ -24,9 +22,17 @@ export default {
   'simulation-add': 'Add Simulation',
   'simulation-edit': 'Edit Simulation',
   documentation: 'Documentation',
-  'backoffice-documentation-editing': 'Documentation Editing',
-  'backoffice-documentation': 'Backoffice Documentation',
-  'system-documentation': 'System Documentation',
+  [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: 'User Management',
+  [BACKOFFICE_NAV.BACKOFFICE_MODULE_MANAGEMENT.routeName]: 'Module Management',
+  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
+    'Documentation Editing',
+  [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Reporting',
+  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION.routeName]:
+    'Backoffice Documentation',
+  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'User Management',
+  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Module Management',
+  [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
+  [SYSTEM_NAV.SYSTEM_DOCUMENTATION.routeName]: 'System Documentation',
 
   results_btn: 'View Results',
   logout: 'Logout',
