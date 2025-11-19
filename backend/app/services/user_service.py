@@ -23,4 +23,3 @@ async def get_user(db: AsyncSession, user_id: str) -> Optional[User]:
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     """Get user by email (internal use)."""
     return await user_repo.get_user_by_email(db, email)
-

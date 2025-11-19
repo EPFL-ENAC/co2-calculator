@@ -13,4 +13,3 @@ router = APIRouter()
 
 # All user management endpoints removed - users are read-only via /auth/me
 # Users are auto-created and updated during OAuth login flow
-
