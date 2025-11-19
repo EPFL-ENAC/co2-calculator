@@ -31,7 +31,7 @@ const route = useRoute();
       />
       <q-btn
         icon="o_bar_chart"
-        color="red"
+        color="info"
         :label="$t('results_btn')"
         unelevated
         no-caps

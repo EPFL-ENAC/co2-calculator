@@ -12,6 +12,7 @@ $color-text-muted: opt.$tokens-colors-grey-scale-grey-500 !default;
 $color-text-on-primary: opt.$tokens-colors-base-white !default;
 
 // Status Colors
+$color-validated: opt.$tokens-colors-canard !default;
 $color-status-success: opt.$tokens-colors-status-green !default;
 $color-status-warning: opt.$tokens-colors-status-yellow !default;
 $color-status-error: opt.$tokens-colors-status-red !default;

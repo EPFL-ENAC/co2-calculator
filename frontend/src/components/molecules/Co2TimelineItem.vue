@@ -23,7 +23,7 @@ const stateColor = computed(() => {
     case 'in-progress':
       return 'grey-6';
     case 'validated':
-      return 'accent';
+      return 'info';
     default:
       return 'grey-5';
   }
@@ -56,7 +56,7 @@ const stateColor = computed(() => {
       :class="[
         `text-${stateColor}`,
         {
-          'bg-accent text-white': selected && currentState === 'validated',
+          'bg-info text-white': selected && currentState === 'validated',
           'bg-grey-3 text-white': selected && currentState === 'in-progress',
           'bg-grey-2 text-white': selected && currentState === 'default',
         },
