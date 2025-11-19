@@ -1,21 +1,11 @@
 import { useAuthStore } from 'src/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
-import {
-  ROUTES_WITHOUT_LANGUAGE,
-  DEFAULT_ROUTE_NAME,
-  LOGIN_ROUTE_NAME,
-  UNAUTHORIZED_ROUTE_NAME,
-} from 'src/router/routes';
 
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
   const auth = useAuthStore();
 
-  if (ROUTES_WITHOUT_LANGUAGE.includes(to.name as string)) {
-    // Initial load, no need to redirect
-    return true;
-  }
   // Load user if needed
   if (!auth.user && !auth.loading) {
     try {
@@ -29,7 +19,7 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   // Requires auth?
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: LOGIN_ROUTE_NAME, ...redirectTo };
+    return { name: 'login', ...redirectTo };
   }
 
   // Role-based authorization
@@ -39,13 +29,13 @@ export async function authGuard(to: RouteLocationNormalized) {
       auth.user.roles.map((x) => x.role).includes(r),
     );
     if (!allowed) {
-      return { name: UNAUTHORIZED_ROUTE_NAME, ...redirectTo };
+      return { name: 'unauthorized', ...redirectTo };
     }
   }
 
   // Redirect authenticated users away from login
-  if (to.name === LOGIN_ROUTE_NAME && auth.isAuthenticated) {
-    return { name: DEFAULT_ROUTE_NAME, ...redirectTo };
+  if (to.name === 'login' && auth.isAuthenticated) {
+    return { name: 'workspace-setup', ...redirectTo };
   }
 
   return true;

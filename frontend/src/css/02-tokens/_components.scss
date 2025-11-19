@@ -228,3 +228,15 @@ $login-page-bg-opacity: 0.75 !default;
 $login-page-bg-color: opt.$tokens-colors-base-white !default;
 $login-page-bg-z-index: opt.$tokens-z-index-background-base !default;
 $login-page-bg-blur-z-index: opt.$tokens-z-index-background-overlay !default;
+
+// Sidebar
+$sidebar-width: opt.$tokens-spacing-64 !default;
+$sidebar-padding-left: opt.$tokens-spacing-32 !default;
+$sidebar-padding-right: opt.$tokens-spacing-48 !default;
+$sidebar-padding-y: opt.$tokens-spacing-8 !default;
+$sidebar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$sidebar-bg-selected: opt.$tokens-colors-grey-scale-grey-400 !default;
+$sidebar-border-width: opt.$tokens-spacing-1 !default;
+$sidebar-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$sidebar-color: opt.$tokens-colors-base-black !default;
+$sidebar-item-gap: opt.$tokens-spacing-8 !default;

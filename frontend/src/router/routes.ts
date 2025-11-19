@@ -1,16 +1,15 @@
-import { RouteRecordRaw } from 'vue-router';
+import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
-import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
 
 // Route parameter validation patterns
-// Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
 const LANGUAGE_PATTERN = 'en|fr';
-const YEAR_PATTERN = '\\d{4}'; // Exactly 4 digits
-const UNIT_PATTERN = '[^/]+'; // Any non-slash characters (unit ID)
-const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation ID)
+const YEAR_PATTERN = '\\d{4}';
+const UNIT_PATTERN = '[^/]+';
+const SIMULATION_ID_PATTERN = '[^/]+';
 
-// Centralize login paths
+// Route name constants
 export const LOGIN_ROUTE_NAME = 'login';
 export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
@@ -23,6 +22,14 @@ export const ROUTES_WITHOUT_LANGUAGE = [
   NOT_FOUND_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
 ];
+
+export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
+  return route.meta?.isBackOffice === true;
+}
+
+export function isSystemRoute(route: RouteLocationNormalized): boolean {
+  return route.meta?.isSystem === true;
+}
 
 const routes: RouteRecordRaw[] = [
   {
@@ -157,94 +164,104 @@ const routes: RouteRecordRaw[] = [
           // Back Office routes
           {
             path: 'back-office/user-management',
-            name: 'backoffice-user-management',
+            name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (view only)',
               breadcrumb: false,
+              isBackOffice: true,
             },
           },
           {
             path: 'back-office/module-management',
-            name: 'backoffice-module-management',
+            name: BACKOFFICE_NAV.BACKOFFICE_MODULE_MANAGEMENT.routeName,
             component: () =>
               import('pages/back-office/ModuleManagementPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Module completion tracking across labs',
               breadcrumb: false,
+              isBackOffice: true,
             },
           },
           {
             path: 'back-office/documentation-editing',
-            name: 'backoffice-documentation-editing',
+            name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
               breadcrumb: true,
+              isBackOffice: true,
             },
           },
           {
             path: 'back-office/reporting',
-            name: 'backoffice-reporting',
+            name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
             meta: {
               requiresAuth: true,
+
               note: 'Back Office - Report generation workflow',
               breadcrumb: false,
+              isBackOffice: true,
             },
           },
           {
             path: 'back-office/documentation',
-            name: 'backoffice-documentation',
+            name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION.routeName,
             component: () => import('pages/back-office/DocumentationPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',
+              isBackOffice: true,
             },
           },
           // System Admin routes
           {
             path: 'system/user-management',
-            name: 'system-user-management',
+            name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
             component: () => import('pages/system/UserManagementPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - User and role administration',
               breadcrumb: false,
+              isSystem: true,
             },
           },
           {
             path: 'system/module-management',
-            name: 'system-module-management',
+            name: SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName,
             component: () => import('pages/system/ModuleManagementPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - Global module enable/disable',
               breadcrumb: false,
+              isSystem: true,
             },
           },
           {
             path: 'system/logs',
-            name: 'system-logs',
+            name: SYSTEM_NAV.SYSTEM_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - System logs viewer',
               breadcrumb: false,
+              isSystem: true,
             },
           },
           {
             path: 'system/documentation',
-            name: 'system-documentation',
+            name: SYSTEM_NAV.SYSTEM_DOCUMENTATION.routeName,
             component: () => import('pages/system/DocumentationPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
               breadcrumb: true,
+              isSystem: true,
             },
           },
         ],
