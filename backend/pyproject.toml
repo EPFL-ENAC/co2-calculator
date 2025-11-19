@@ -33,6 +33,11 @@ asyncio_mode = "auto"
 
 env = [
     "DB_NAME=test_auth_db",
+    "OAUTH_ISSUER_URL=http://fake-issuer",
+    "OAUTH_CLIENT_ID=fake-client-id",
+    "OAUTH_CLIENT_SECRET=fake-secret",
+    "OAUTH_SCOPE=openid profile email",
+    "FRONTEND_URL=http://test-frontend"
 ]
 
 [tool.ruff]
@@ -61,6 +66,7 @@ dev = [
   "httpx>=0.28",
   "mypy>=1.18.2",
   "locust>=2.42.2",
+  "pytest-env>=1.2.0",
 ]
 
 
