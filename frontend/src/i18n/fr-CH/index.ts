@@ -25,14 +25,13 @@ export default {
   documentation: 'Documentation',
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]:
     'Gestion des utilisateurs',
-  [BACKOFFICE_NAV.BACKOFFICE_MODULE_MANAGEMENT.routeName]:
-    'Gestion des modules',
+  [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: 'Gestion des données',
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Édition de la documentation',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Rapports',
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'Gestion des utilisateurs',
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Gestion des modules',
-  [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Journaux',
+  [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
 
   results_btn: 'Voir les résultats',
   workspace_change_btn: 'Changer',

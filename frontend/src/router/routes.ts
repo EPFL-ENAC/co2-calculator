@@ -174,13 +174,12 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'back-office/module-management',
-            name: BACKOFFICE_NAV.BACKOFFICE_MODULE_MANAGEMENT.routeName,
-            component: () =>
-              import('pages/back-office/ModuleManagementPage.vue'),
+            path: 'back-office/data-management',
+            name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
+            component: () => import('pages/back-office/DataManagementPage.vue'),
             meta: {
               requiresAuth: true,
-              note: 'Back Office - Module completion tracking across labs',
+              note: 'Back Office - Data management',
               breadcrumb: false,
               isBackOffice: true,
             },
