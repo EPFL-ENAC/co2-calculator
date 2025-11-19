@@ -23,6 +23,5 @@ export default {
     '**/build/**',
     '**/node_modules/**',
     // Ignore auto-generated token files if needed
-    // "**/tokens.css",
   ],
 };
