@@ -27,12 +27,9 @@ export default {
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Documentation Editing',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Reporting',
-  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION.routeName]:
-    'Backoffice Documentation',
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'User Management',
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Module Management',
   [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
-  [SYSTEM_NAV.SYSTEM_DOCUMENTATION.routeName]: 'System Documentation',
 
   results_btn: 'View Results',
   workspace_change_btn: 'Change',

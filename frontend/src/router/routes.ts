@@ -2,7 +2,6 @@ import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
-import { FALSE } from 'sass';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -212,7 +211,7 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'back-office/documentation',
-            name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION.routeName,
+            name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
             meta: {
               requiresAuth: true,
@@ -256,12 +255,13 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'system/documentation',
-            name: SYSTEM_NAV.SYSTEM_DOCUMENTATION.routeName,
+            name: 'system-documentation',
             component: () => import('pages/system/DocumentationPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
               breadcrumb: true,
+              isSystem: true,
             },
           },
         ],
