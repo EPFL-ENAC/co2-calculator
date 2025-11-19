@@ -4,21 +4,21 @@ export interface SidebarNavItem {
 }
 
 export const BACKOFFICE_NAV: Record<string, SidebarNavItem> = {
+  BACKOFFICE_REPORTING: {
+    routeName: 'backoffice-reporting',
+    icon: 'o_assessment',
+  },
   BACKOFFICE_USER_MANAGEMENT: {
     routeName: 'backoffice-user-management',
     icon: 'o_people',
   },
-  BACKOFFICE_MODULE_MANAGEMENT: {
-    routeName: 'backoffice-module-management',
-    icon: 'o_dashboard',
+  BACKOFFICE_DATA_MANAGEMENT: {
+    routeName: 'backoffice-data-management',
+    icon: 'data_object',
   },
   BACKOFFICE_DOCUMENTATION_EDITING: {
     routeName: 'backoffice-documentation-editing',
     icon: 'o_edit_document',
-  },
-  BACKOFFICE_REPORTING: {
-    routeName: 'backoffice-reporting',
-    icon: 'o_assessment',
   },
 };
 
@@ -29,7 +29,7 @@ export const SYSTEM_NAV: Record<string, SidebarNavItem> = {
   },
   SYSTEM_MODULE_MANAGEMENT: {
     routeName: 'system-module-management',
-    icon: 'o_dashboard',
+    icon: 'o_view_module',
   },
   SYSTEM_LOGS: {
     routeName: 'system-logs',

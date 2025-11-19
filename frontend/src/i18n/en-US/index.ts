@@ -23,7 +23,7 @@ export default {
   'simulation-edit': 'Edit Simulation',
   documentation: 'Documentation',
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: 'User Management',
-  [BACKOFFICE_NAV.BACKOFFICE_MODULE_MANAGEMENT.routeName]: 'Module Management',
+  [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: 'Data Management',
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Documentation Editing',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Reporting',

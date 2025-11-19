@@ -1,6 +1,6 @@
 <template>
   <q-page>
-    <h1 class="text-h1">Module Management</h1>
+    <h1 class="text-h1">Data Management</h1>
   </q-page>
 </template>
 
