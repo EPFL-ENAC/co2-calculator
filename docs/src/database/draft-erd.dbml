@@ -1,0 +1,158 @@
+Table users {
+  id int [pk, increment]
+  email varchar
+  password varchar
+  role varchar
+}
+
+Table laboratories {
+  id int [pk, increment]
+  name varchar
+  referent varchar
+}
+
+Table lab_ghginventory {
+  id int [pk, increment]
+  laboratory int      // FK -> laboratories.id
+  year int
+  created timestamp
+  nb_researcher int
+  nb_teacher int
+  nb_postdoc int
+  nb_docasssitant int
+  nb_admin int
+  nb_apprenti int
+  nb_student int
+  submitted boolean
+}
+
+Table module_infrastructur {
+  id int [pk, increment]
+  name varchar
+  room varchar
+  floor_area float
+  heating float
+  cooling float
+  ventilation float
+  light float
+  ghgi int
+
+}
+
+Table sub_module_building_direct_emission {
+  id int [pk, increment]
+  building_id int
+  unit varchar
+  amount float
+  heating_type float
+}
+
+
+
+Table module_electric_consumption_equipment {
+  id int [pk, increment]
+  name varchar
+  category varchar
+  class varchar
+  subclass varchar
+  activ_use int
+  passiv_use int
+  activ_power int
+  passiv_power int
+  ghgi int                  // FK -> ghginventory.id
+}
+
+
+
+
+
+Table module_travel {
+  id int [pk, increment]
+  ghgi int                  // FK -> ghginventory.id
+  distance float
+  mode varchar
+  round_trip boolean
+  amount int
+  start_city varchar
+  traveler varchar
+
+}
+
+Table module_achat_article{
+  id int [pk, increment]
+  ghgi int                  // FK -> ghginventory.id
+  name varchar
+  price float
+  currency varchar
+  amount int
+  total_price float
+  UNSPSC int
+  NACRES varchar
+  libelle_FR varchar
+  code_centre_de_cout varchar
+  supplier varchar
+}
+
+Table submodule_achat_transport{
+  id int [pk, increment]
+  article_id int                  // FK -> ghginventory.id
+  transport_mode varchar
+  travel_distance int
+
+}
+
+Table submodule_achat_autres{
+  id int [pk, increment]
+  name varchar
+  ghgi int
+  unit varchar
+  amount int
+  transport_mode varchar
+  travel_distance int
+
+}
+
+Table module_intern_services{
+  id int [pk, increment]
+  ghgi int
+  centre_id varchar
+  service_name varchar
+}
+
+Table centre_intern_services{
+  id int [pk, increment]
+  category_id varchar
+  sub_category_id varchar
+  service_name varchar
+}
+
+Table module_impact_cloud{
+  id int [pk, increment]
+  ghgi int
+  category varchar
+  expense int
+  service_name varchar
+}
+
+
+//// Relationships (foreign keys)
+Ref: laboratories.referent > users.id
+Ref: lab_ghginventory.laboratory > laboratories.id
+
+Ref: module_achat_article.id > submodule_achat_transport.article_id
+Ref: module_electric_consumption_equipment.ghgi > lab_ghginventory.id
+
+Ref: module_infrastructur.ghgi > lab_ghginventory.id
+Ref: module_infrastructur.id > sub_module_building_direct_emission.building_id
+
+Ref: module_achat_article.ghgi > lab_ghginventory.id
+
+Ref: submodule_achat_autres.ghgi > lab_ghginventory.id
+
+Ref: module_travel.ghgi > lab_ghginventory.id
+
+Ref: module_intern_services.centre_id > centre_intern_services.id
+Ref: module_intern_services.ghgi > lab_ghginventory.id
+
+Ref: module_impact_cloud.ghgi > lab_ghginventory.id
+
