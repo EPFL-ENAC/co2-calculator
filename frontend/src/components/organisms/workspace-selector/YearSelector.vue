@@ -40,20 +40,6 @@ const columns = computed<QTableColumn[]>(() => [
     sortable: true,
   },
   {
-    name: 'progress',
-    label: t('workspace_setup_year_table_header_progress'),
-    field: 'progress',
-    align: 'right',
-    sortable: true,
-  },
-  {
-    name: 'comparison',
-    label: t('workspace_setup_year_table_header_comparison'),
-    field: 'comparison',
-    align: 'right',
-    sortable: true,
-  },
-  {
     name: 'kgco2',
     label: t('workspace_setup_year_table_header_kgco2'),
     field: 'kgco2',
@@ -87,31 +73,6 @@ const columns = computed<QTableColumn[]>(() => [
         <!-- Year -->
         <q-td key="year" :props="props">
           <span class="text-h6 text-weight-medium">{{ props.row.year }}</span>
-        </q-td>
-
-        <!-- Progress -->
-        <q-td key="progress" :props="props">
-          <span
-            :class="
-              props.row.completed_modules === 7
-                ? 'text-positive'
-                : 'text-grey-7'
-            "
-            >{{ props.row.completed_modules }}/7</span
-          >
-        </q-td>
-
-        <!-- Last Year Comparison -->
-        <q-td key="comparison" :props="props" class="text-center">
-          <span
-            v-if="props.row.comparison !== null"
-            :class="
-              props.row.comparison > 0 ? 'text-negative' : 'text-positive'
-            "
-          >
-            {{ props.row.comparison > 0 ? '+' : '' }}{{ props.row.comparison }}%
-          </span>
-          <span v-else class="text-grey-5">—</span>
         </q-td>
 
         <!-- kg CO2 -->

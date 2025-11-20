@@ -34,7 +34,7 @@ const handleLogout = async () => {
       <template v-if="route.name !== 'workspace-setup'">
         <span
           v-if="route.params.unit && route.params.year"
-          class="text-body2 q-ml-xl q-mr-sm"
+          class="text-body2 text-weight-medium q-ml-xl q-mr-sm"
         >
           {{ decodeURIComponent(route.params.unit as string) }} |
           {{ route.params.year }}
