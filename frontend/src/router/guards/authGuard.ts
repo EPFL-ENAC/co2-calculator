@@ -17,11 +17,12 @@ export async function authGuard(to: RouteLocationNormalized) {
     return true;
   }
   // Load user if needed
-  if (auth.loading) {
+  if (!auth.user && !auth.loading) {
     try {
       await auth.getUser();
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.error('Failed to load user:', e);
+      // No need to do anything else: the guard logic below will redirect if needed
     }
   }
   const redirectTo = { params: to.params };
@@ -34,7 +35,9 @@ export async function authGuard(to: RouteLocationNormalized) {
   // Role-based authorization
   if (to.meta.roles && auth.isAuthenticated) {
     const roles = Array.from(to.meta.roles as string[]);
-    const allowed = roles.some((r) => auth.user.roles.includes(r));
+    const allowed = roles.some((r) =>
+      auth.user.roles.map((x) => x.role).includes(r),
+    );
     if (!allowed) {
       return { name: UNAUTHORIZED_ROUTE_NAME, ...redirectTo };
     }
