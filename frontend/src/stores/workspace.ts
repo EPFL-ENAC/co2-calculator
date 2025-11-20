@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { useAuthStore } from './auth';
+import { api } from 'src/api/http';
 
 interface Unit {
   id: number;
@@ -53,6 +54,17 @@ export const useWorkspaceStore = defineStore(
       return unitResults.value.years.find((y) => y.year === selectedYear.value);
     });
 
+    function getLatestYear(unitId: number): number | null {
+      if (
+        !unitResults.value ||
+        unitResults.value.id !== unitId ||
+        !unitResults.value.years.length
+      ) {
+        return null;
+      }
+      return Math.max(...unitResults.value.years.map((y) => y.year));
+    }
+
     async function fetchUnits() {
       try {
         loading.value = true;
@@ -64,7 +76,7 @@ export const useWorkspaceStore = defineStore(
         }
 
         const allUnits = (await (
-          await fetch('/api/v1/units', {
+          await fetch('/api/v1/units?limit=1', {
             credentials: 'include',
           })
         ).json()) as Unit[];
@@ -83,7 +95,7 @@ export const useWorkspaceStore = defineStore(
     async function fetchUnit(id: number) {
       try {
         loading.value = true;
-        const response = await fetch('/api/v1/units', {
+        const response = await fetch('/api/v1/units?limit=1', {
           credentials: 'include',
         });
         const allUnits = await response.json();
@@ -113,15 +125,11 @@ export const useWorkspaceStore = defineStore(
           'with options:',
           options,
         );
-        // TODO: Replace with real API when available
-        // const params = new URLSearchParams();
-        // if (options?.offset) params.append('offset', String(options.offset));
-        // if (options?.limit) params.append('limit', String(options.limit));
-        // if (options?.sort) params.append('sort', options.sort);
-        // unitResults.value = await api.get(`units/${id}/results?${params}`).json<UnitResults>();
-
-        const response = await fetch('/mock/unit-results.json');
-        unitResults.value = await response.json();
+        unitResults.value = (await (
+          await fetch(`/api/v1/unit/${id}/results`, {
+            credentials: 'include',
+          })
+        ).json()) as UnitResults;
       } catch (error) {
         console.error('Error fetching unit results:', error);
         unitResultsError.value =
@@ -162,6 +170,7 @@ export const useWorkspaceStore = defineStore(
       unitResultsError,
       availableYears,
       currentYearData,
+      getLatestYear,
       fetchUnits,
       fetchUnit,
       fetchUnitResults,

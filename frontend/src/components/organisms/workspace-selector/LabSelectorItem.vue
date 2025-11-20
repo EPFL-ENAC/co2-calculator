@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
 import { ROLES } from 'src/constant/roles';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
-defineProps<{
+const props = defineProps<{
   selected?: boolean;
   unit: {
     id: number;
@@ -12,6 +14,10 @@ defineProps<{
     role?: string;
   };
 }>();
+
+const workspaceStore = useWorkspaceStore();
+
+const latestYear = computed(() => workspaceStore.getLatestYear(props.unit.id));
 
 // TODO: Get completed modules from unit results when available
 const completedModules = 0;
@@ -55,7 +61,9 @@ const completedModules = 0;
     <div class="q-mt-xl">
       <div class="row items-center justify-between q-mb-xs">
         <span class="text-body2 text-weight-medium">{{
-          $t('workspace_setup_unit_progress')
+          $t('workspace_setup_unit_progress', {
+            year: latestYear || new Date().getFullYear(),
+          })
         }}</span>
         <span class="text-body2 text-weight-medium"
           >{{ completedModules }}/{{ MODULES_LIST.length }}</span

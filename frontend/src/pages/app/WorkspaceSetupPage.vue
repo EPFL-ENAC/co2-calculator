@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
@@ -13,75 +13,11 @@ const route = useRoute();
 
 const unitsWithRoles = computed(() => workspaceStore.units);
 
-// Auto-select unit if there's only one
-watch(
-  unitsWithRoles,
-  (units) => {
-    if (units.length === 1 && !selectedLab.value) {
-      selectedLab.value = units[0].id;
-      workspaceStore.setUnit(units[0]);
-      workspaceStore.fetchUnitResults(units[0].id);
-    }
-  },
-  { immediate: true },
-);
-
-// Auto-select year if there's only one
-watch(
-  () => workspaceStore.unitResults?.years,
-  (years) => {
-    if (years?.length === 1 && selectedYear.value === null) {
-      selectedYear.value = years[0].year;
-    }
-  },
-  { immediate: true },
-);
-
-// Watch for lab selection to fetch unit results
-watch(selectedLab, async (labId) => {
-  if (labId) {
-    const unit = unitsWithRoles.value.find((u) => u.id === labId);
-    if (unit) {
-      workspaceStore.setUnit(unit);
-      await workspaceStore.fetchUnitResults(unit.id);
-      // Reset year selection when unit changes
-      selectedYear.value = null;
-    }
-  }
+// Expose refs for route guard
+defineExpose({
+  selectedLab,
+  selectedYear,
 });
-
-// Show year selection only if unit is selected and there are multiple years
-const showYearSelection = computed(() => {
-  return (
-    selectedLab.value !== null &&
-    workspaceStore.unitResults !== null &&
-    workspaceStore.unitResults.years.length > 1
-  );
-});
-
-// Show confirmation when both unit and year are selected
-const showConfirmation = computed(() => {
-  return (
-    selectedLab.value !== null &&
-    workspaceStore.selectedUnit !== null &&
-    selectedYear.value !== null
-  );
-});
-
-// Confirm selection and navigate to home
-const confirmSelection = () => {
-  const language = route.params.language || 'en';
-  workspaceStore.setYear(selectedYear.value!);
-
-  router.push({
-    name: 'home',
-    params: {
-      language,
-      unit: encodeURIComponent(workspaceStore.selectedUnit?.name ?? ''),
-      year: selectedYear.value,
-    },
-  });
-};
 
 // Reset selections
 const reset = () => {
@@ -102,7 +38,21 @@ export async function beforeRouteEnter(
 ) {
   const workspaceStore = useWorkspaceStoreInGuard();
   await workspaceStore.fetchUnits();
-  next();
+  next(async (vm) => {
+    if (workspaceStore.units.length === 1) {
+      const unit = workspaceStore.units[0];
+      (vm as any).selectedLab.value = unit.id;
+      workspaceStore.setUnit(unit);
+      await workspaceStore.fetchUnitResults(unit.id);
+      if (
+        workspaceStore.unitResults &&
+        workspaceStore.unitResults.years.length === 1
+      ) {
+        (vm as any).selectedYear.value =
+          workspaceStore.unitResults.years[0].year;
+      }
+    }
+  });
 }
 </script>
 
@@ -147,13 +97,35 @@ export async function beforeRouteEnter(
           :key="unit.id"
           :selected="selectedLab === unit.id"
           :unit="unit"
-          @click="selectedLab = unit.id"
+          @click="
+            async () => {
+              selectedLab = unit.id;
+              workspaceStore.setUnit(unit);
+              await workspaceStore.fetchUnitResults(unit.id);
+              if (
+                workspaceStore.unitResults &&
+                workspaceStore.unitResults.years.length === 1
+              ) {
+                selectedYear = workspaceStore.unitResults.years[0].year;
+              } else {
+                selectedYear = null;
+              }
+            }
+          "
         />
       </div>
     </q-card>
 
     <!-- Year Selection -->
-    <q-card v-if="showYearSelection" flat class="container">
+    <q-card
+      v-if="
+        selectedLab !== null &&
+        workspaceStore.unitResults !== null &&
+        workspaceStore.unitResults.years.length > 1
+      "
+      flat
+      class="container"
+    >
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_year_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_year_description') }}
@@ -192,7 +164,15 @@ export async function beforeRouteEnter(
     </q-card>
 
     <!-- Confirmation -->
-    <q-card v-if="showConfirmation" flat class="container q-gutter-lg">
+    <q-card
+      v-if="
+        selectedLab !== null &&
+        workspaceStore.selectedUnit !== null &&
+        selectedYear !== null
+      "
+      flat
+      class="container q-gutter-lg"
+    >
       <h2 class="text-h3 q-ml-none q-mb-lg">
         {{ $t('workspace_setup_confirm_selection') }}
       </h2>
@@ -241,7 +221,19 @@ export async function beforeRouteEnter(
           no-caps
           size="md"
           class="text-weight-medium"
-          @click="confirmSelection"
+          @click="
+            workspaceStore.setYear(selectedYear!);
+            router.push({
+              name: 'home',
+              params: {
+                language: route.params.language || 'en',
+                unit: encodeURIComponent(
+                  workspaceStore.selectedUnit?.name ?? '',
+                ),
+                year: selectedYear,
+              },
+            });
+          "
         />
       </div>
     </q-card>
