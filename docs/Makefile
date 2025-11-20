@@ -35,7 +35,7 @@ build-docs: ## Build documentation
 
 .PHONY: serve-docs
 serve-docs: ## Serve documentation with live reload
-	mkdocs serve --dirtyreload --watch src --watch mkdocs.yml
+	UV_NO_ISOLATION=1 uv run mkdocs serve --dirtyreload --watch src --watch mkdocs.yml
 
 .PHONY: clean-docs
 clean-docs: ## Clean built documentation
