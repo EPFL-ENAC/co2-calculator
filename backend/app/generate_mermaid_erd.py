@@ -43,5 +43,7 @@ def generate_mermaid(base: DeclarativeMeta) -> str:
 
 
 if __name__ == "__main__":
+    print("Generating Mermaid ERD...")
     print(generate_mermaid(Base))
+    print("Mermaid ERD generation complete.")
 """Generate Mermaid ERD from SQLAlchemy models."""

@@ -1,3 +1,4 @@
+Generating Mermaid ERD...
 ```mermaid
 erDiagram
   resources {
@@ -22,6 +23,7 @@ erDiagram
     DATETIME updated_at
     DATETIME last_login
   }
-  users ||--}o resources : resources
   resources ||--|| users : owner
+  users ||--}o resources : resources
 ```
+Mermaid ERD generation complete.

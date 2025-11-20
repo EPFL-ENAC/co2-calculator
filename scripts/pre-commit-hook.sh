@@ -25,6 +25,14 @@ for dir in $staged_dirs; do
         (cd backend && make format FILES="$backend_files")
         echo "$staged_files" | grep "^backend/" | xargs -I {} git add {}
       fi
+      # if backend/app/generate_mermaid_erd.py is modified, run the ERD generation
+      # if backend/app/models/*.py are modified, run the migrations generation
+      if echo "$staged_files" | grep -qE "^backend/app/generate_mermaid_erd.py$|^backend/app/models/.*\.py$"; then
+        echo "Regenerating ERD and migrations..."
+        (cd backend && make erd)
+        echo "Adding generated files to staging..."
+        git add docs/src/database/erd.md
+      fi
       ;;
     frontend)
       echo "Processing frontend..."
