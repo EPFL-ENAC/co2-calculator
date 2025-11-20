@@ -40,3 +40,7 @@ export const api = ky.create({
     ],
   },
 });
+
+if (process.env.NODE_ENV === 'development') {
+  window['api'] = api; // Expose for debugging
+}

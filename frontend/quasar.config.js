@@ -121,6 +121,8 @@ export default defineConfig(function (/* ctx */) {
         '/api': {
           target: 'http://localhost:8000',
           changeOrigin: true,
+          secure: false,
+          ws: false,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
