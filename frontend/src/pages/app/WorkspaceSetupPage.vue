@@ -29,27 +29,21 @@ const reset = () => {
 
 <script lang="ts">
 import { useWorkspaceStore as useWorkspaceStoreInGuard } from 'src/stores/workspace';
-import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router';
 
-export async function beforeRouteEnter(
-  to: RouteLocationNormalized,
-  from: RouteLocationNormalized,
-  next: NavigationGuardNext,
-) {
+export async function beforeRouteEnter(to, from, next) {
   const workspaceStore = useWorkspaceStoreInGuard();
   await workspaceStore.fetchUnits();
   next(async (vm) => {
     if (workspaceStore.units.length === 1) {
       const unit = workspaceStore.units[0];
-      (vm as any).selectedLab.value = unit.id;
+      vm.selectedLab.value = unit.id;
       workspaceStore.setUnit(unit);
       await workspaceStore.fetchUnitResults(unit.id);
       if (
         workspaceStore.unitResults &&
         workspaceStore.unitResults.years.length === 1
       ) {
-        (vm as any).selectedYear.value =
-          workspaceStore.unitResults.years[0].year;
+        vm.selectedYear.value = workspaceStore.unitResults.years[0].year;
       }
     }
   });
