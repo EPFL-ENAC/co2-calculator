@@ -1,14 +1,31 @@
 @use '../../02-tokens' as tokens;
 
+.timeline-container {
+  width: 100%;
+  overflow: auto hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-left: 1rem;
+  scroll-padding-right: 1rem;
+}
+
 .timeline-grid {
   display: grid;
   grid-auto-flow: column;
-  justify-self: center;
+  align-items: center;
+  justify-content: center;
+  min-width: min-content;
+  padding: 0 2rem;
+  margin: 0 auto;
 }
 
 .timeline-separator {
-  width: 150px;
+  width: 125px;
   height: 1px;
+}
+
+.timeline-results-btn {
+  margin-left: 0;
 }
 
 .timeline-item-wrapper {

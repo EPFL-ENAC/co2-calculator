@@ -9,30 +9,36 @@ const timelineStore = useTimelineStore();
 const route = useRoute();
 </script>
 <template>
-  <div class="timeline-grid q-py-xl">
-    <template v-for="item in timelineItems" :key="item.link">
-      <Co2TimelineItem
-        :item="item"
-        :currentState="timelineStore.itemStates[item.link]"
-        :selected="route.params.module === item.link"
-        :to="{
-          name: 'module',
-          params: { ...route.params, module: item.link },
-        }"
-      />
-      <q-separator class="timeline-separator self-center bg-grey-5" />
-    </template>
+  <div class="timeline-container q-py-xl">
+    <div class="timeline-grid">
+      <template v-for="item in timelineItems" :key="item.link">
+        <Co2TimelineItem
+          :item="item"
+          :currentState="timelineStore.itemStates[item.link]"
+          :selected="route.params.module === item.link"
+          :to="{
+            name: 'module',
+            params: { ...route.params, module: item.link },
+          }"
+        />
+        <q-separator class="timeline-separator self-center bg-grey-5" />
+      </template>
 
-    <q-icon name="arrow_forward" color="grey-6" class="self-center" />
-    <q-btn
-      icon="o_bar_chart"
-      color="red"
-      :label="$t('results_btn')"
-      unelevated
-      no-caps
-      size="md"
-      class="text-weight-medium self-center q-ml-lg"
-      :to="{ name: 'results', params: route.params }"
-    />
+      <q-icon
+        name="arrow_forward"
+        color="grey-6"
+        class="self-center timeline-arrow"
+      />
+      <q-btn
+        icon="o_bar_chart"
+        color="info"
+        :label="$t('results_btn')"
+        unelevated
+        no-caps
+        size="md"
+        class="text-weight-medium self-center timeline-results-btn"
+        :to="{ name: 'results', params: route.params }"
+      />
+    </div>
   </div>
 </template>
