@@ -61,7 +61,7 @@ Secrets are managed differently per environment to ensure security:
 
 | Variable                | Purpose               | Required |
 | ----------------------- | --------------------- | -------- |
-| `DATABASE_URL`          | PostgreSQL connection | Yes      |
+| `DB_URL`                | PostgreSQL connection | Yes      |
 | `REDIS_URL`             | Redis connection      | Yes      |
 | `AZURE_STORAGE_ACCOUNT` | Blob storage account  | Yes      |
 | `AZURE_CLIENT_ID`       | Entra ID client       | Yes      |

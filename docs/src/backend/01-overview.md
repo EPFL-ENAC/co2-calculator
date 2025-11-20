@@ -40,7 +40,7 @@ Install dependencies and configure your environment:
 ```bash
 make install
 cp .env.example .env
-# Edit .env: set DATABASE_URL, SECRET_KEY, OIDC_* variables
+# Edit .env: set DB_URL, SECRET_KEY, OIDC_* variables
 ```
 
 Run migrations and start the server:
@@ -134,7 +134,7 @@ Copy `.env.example` to `.env` and set these variables:
 
 ```env
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/co2calculator
+DB_URL=postgresql://user:pass@localhost:5432/co2calculator
 
 # Security (generate: openssl rand -hex 32)
 SECRET_KEY=your-secret-key-here
@@ -208,7 +208,7 @@ Check if PostgreSQL is running:
 ```bash
 docker-compose ps postgres
 docker-compose logs postgres
-psql $DATABASE_URL -c "SELECT 1;"
+psql $DB_URL -c "SELECT 1;"
 ```
 
 ### Background Task Failures

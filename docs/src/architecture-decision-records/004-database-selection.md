@@ -20,7 +20,7 @@ Use a dual-database strategy:
 - **Development**: SQLite with aiosqlite (zero-config local setup)
 
 The application auto-detects from environment variables. If
-`DATABASE_URL` or PostgreSQL credentials exist, use PostgreSQL.
+`DB_URL` or PostgreSQL credentials exist, use PostgreSQL.
 Otherwise, default to SQLite for instant local development.
 
 **Why PostgreSQL**: JSONB support for flexible user roles, advanced
@@ -60,6 +60,6 @@ identical application code.
 - Operational overhead managing PostgreSQL (mitigated by using
   EPFL-managed service or AWS RDS)
 
-**Configuration** uses Pydantic settings with `DATABASE_URL` or
+**Configuration** uses Pydantic settings with `DB_URL` or
 individual `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_NAME` fields.
 Falls back to `sqlite+aiosqlite:///./co2_calculator.db`.

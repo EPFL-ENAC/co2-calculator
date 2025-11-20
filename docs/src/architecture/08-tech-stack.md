@@ -106,7 +106,7 @@ Via `pydantic-settings` in `backend/app/core/config.py`:
 
 ```bash
 # Option 1: Full URL (takes precedence)
-DATABASE_URL="postgresql+psycopg://user:pass@host:5432/db?async_fallback=True"
+DB_URL="postgresql+psycopg://user:pass@host:5432/db?async_fallback=True"
 
 # Option 2: Individual fields (composed into URL)
 DB_USER=user
