@@ -11,6 +11,8 @@ pre-commit:
     # Format and lint staged files only
     format-lint-staged:
       run: bash scripts/pre-commit-hook.sh
+    type-check:
+      run: make type-check
 # Pre-push hooks - run comprehensive checks on protected branches only
 pre-push:
   parallel: false

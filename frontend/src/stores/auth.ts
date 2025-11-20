@@ -16,7 +16,7 @@ interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
-  const loading = ref(true);
+  const loading = ref(false);
 
   async function getUser() {
     try {
