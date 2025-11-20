@@ -3,8 +3,8 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Cookie, Depends, HTTPException, status
+from fastapi.security import HTTPBearer
 from joserfc import jwt
 from joserfc.errors import BadSignatureError
 from joserfc.jwk import OctKey
@@ -17,6 +17,15 @@ from app.repositories.user_repo import get_user_by_id
 
 settings = get_settings()
 security = HTTPBearer()
+
+
+async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return auth_token
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -61,23 +70,16 @@ def decode_jwt(token: str) -> dict:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
+    token: str = Depends(get_jwt_from_cookie),
 ) -> User:
-    """
-    Dependency to get current authenticated user.
-
-    Validates JWT token and returns the user object.
-    """
-    token = credentials.credentials
     payload = decode_jwt(token)
 
-    user_id: Optional[str] = payload.get("sub")
+    user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     user = await get_user_by_id(db, user_id)
@@ -85,17 +87,17 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     return user
 
 
-async def get_current_active_user(db: AsyncSession = Depends(get_db)) -> User:
-    """Dependency to ensure user is active."""
-    user = await get_current_user(db=db)
+async def get_current_active_user(
+    user: User = Depends(get_current_user),
+) -> User:
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user",
         )
     return user
