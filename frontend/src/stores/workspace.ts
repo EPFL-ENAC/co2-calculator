@@ -63,9 +63,11 @@ export const useWorkspaceStore = defineStore(
           return;
         }
 
-        const allUnits = (await fetch('/mock/units.json').then((r) =>
-          r.json(),
-        )) as Unit[];
+        const allUnits = (await (
+          await fetch('/api/v1/units', {
+            credentials: 'include',
+          })
+        ).json()) as Unit[];
 
         units.value = allUnits;
       } catch (error) {
@@ -81,9 +83,9 @@ export const useWorkspaceStore = defineStore(
     async function fetchUnit(id: number) {
       try {
         loading.value = true;
-        // TODO: Replace with real API when available
-        // const unit = await api.get(`units/${id}`).json<Unit>();
-        const response = await fetch('/mock/units.json');
+        const response = await fetch('/api/v1/units', {
+          credentials: 'include',
+        });
         const allUnits = await response.json();
         selectedUnit.value = allUnits.find((u: Unit) => u.id === id) || null;
       } catch (error) {

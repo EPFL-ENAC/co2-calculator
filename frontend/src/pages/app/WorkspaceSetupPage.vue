@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
@@ -11,40 +11,73 @@ const workspaceStore = useWorkspaceStore();
 const router = useRouter();
 const route = useRoute();
 
-// Units come from backend with roles already attached, filtered, and sorted
 const unitsWithRoles = computed(() => workspaceStore.units);
 
-// Only show year selection if there are multiple years for the current unit or if there's an error
+// Auto-select unit if there's only one
+watch(
+  unitsWithRoles,
+  (units) => {
+    if (units.length === 1 && !selectedLab.value) {
+      selectedLab.value = units[0].id;
+      workspaceStore.setUnit(units[0]);
+      workspaceStore.fetchUnitResults(units[0].id);
+    }
+  },
+  { immediate: true },
+);
+
+// Auto-select year if there's only one
+watch(
+  () => workspaceStore.unitResults?.years,
+  (years) => {
+    if (years?.length === 1 && selectedYear.value === null) {
+      selectedYear.value = years[0].year;
+    }
+  },
+  { immediate: true },
+);
+
+// Watch for lab selection to fetch unit results
+watch(selectedLab, async (labId) => {
+  if (labId) {
+    const unit = unitsWithRoles.value.find((u) => u.id === labId);
+    if (unit) {
+      workspaceStore.setUnit(unit);
+      await workspaceStore.fetchUnitResults(unit.id);
+      // Reset year selection when unit changes
+      selectedYear.value = null;
+    }
+  }
+});
+
+// Show year selection only if unit is selected and there are multiple years
 const showYearSelection = computed(() => {
-  const yearsCount = workspaceStore.unitResults?.years.length ?? 0;
-  const hasUnitSelected =
-    unitsWithRoles.value.length === 1 || selectedLab.value !== null;
   return (
-    hasUnitSelected &&
-    (workspaceStore.unitResultsError !== null || yearsCount > 1)
+    selectedLab.value !== null &&
+    workspaceStore.unitResults !== null &&
+    workspaceStore.unitResults.years.length > 1
   );
 });
 
-// Show confirmation if unit and year are selected
+// Show confirmation when both unit and year are selected
 const showConfirmation = computed(() => {
   return (
-    (selectedLab.value !== null || unitsWithRoles.value.length === 1) &&
-    (selectedYear.value !== null ||
-      workspaceStore.unitResults?.years.length === 1)
+    selectedLab.value !== null &&
+    workspaceStore.selectedUnit !== null &&
+    selectedYear.value !== null
   );
 });
 
 // Confirm selection and navigate to home
 const confirmSelection = () => {
   const language = route.params.language || 'en';
-  workspaceStore.setUnit(currentUnit.value!);
   workspaceStore.setYear(selectedYear.value!);
 
   router.push({
     name: 'home',
     params: {
       language,
-      unit: encodeURIComponent(currentUnit.value.name),
+      unit: encodeURIComponent(workspaceStore.selectedUnit?.name ?? ''),
       year: selectedYear.value,
     },
   });
@@ -54,50 +87,23 @@ const confirmSelection = () => {
 const reset = () => {
   selectedLab.value = null;
   selectedYear.value = null;
+  workspaceStore.reset();
 };
+</script>
 
-// If only one lab, auto-select it
-watch(
-  unitsWithRoles,
-  (units) => {
-    if (units.length === 1 && !selectedLab.value) {
-      selectedLab.value = units[0].id;
-    }
-  },
-  { immediate: true },
-);
+<script lang="ts">
+import { useWorkspaceStore as useWorkspaceStoreInGuard } from 'src/stores/workspace';
+import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router';
 
-const currentUnit = computed(() => {
-  if (unitsWithRoles.value.length === 1) {
-    return unitsWithRoles.value[0];
-  }
-  return selectedLab.value
-    ? unitsWithRoles.value.find((u) => u.id === selectedLab.value)
-    : null;
-});
-
-// If unit has only one year, auto-select it
-watch(currentUnit, async (unit) => {
-  if (unit) {
-    await workspaceStore.fetchUnitResults(unit.id);
-
-    if (workspaceStore.unitResults?.years.length === 1) {
-      selectedYear.value = workspaceStore.unitResults.years[0].year;
-    }
-  }
-});
-
-// Initial unit data fetch
-onMounted(async () => {
-  if (currentUnit.value) {
-    await workspaceStore.fetchUnitResults(currentUnit.value.id);
-  }
-
-  if (unitsWithRoles.value.length === 1) {
-    selectedLab.value = unitsWithRoles.value[0].id;
-    await workspaceStore.fetchUnitResults(currentUnit.value.id);
-  }
-});
+export async function beforeRouteEnter(
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) {
+  const workspaceStore = useWorkspaceStoreInGuard();
+  await workspaceStore.fetchUnits();
+  next();
+}
 </script>
 
 <template>
@@ -115,11 +121,7 @@ onMounted(async () => {
     </q-card>
 
     <!-- Lab Selection -->
-    <q-card
-      v-if="workspaceStore.unitsError || unitsWithRoles.length > 1"
-      flat
-      class="container"
-    >
+    <q-card flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_unit_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_unit_description') }}
@@ -200,10 +202,10 @@ onMounted(async () => {
             {{ $t('workspace_setup_confirm_lab') }}
           </h6>
           <h3 class="text-h3 text-weight-medium q-pt-sm">
-            {{ currentUnit?.name }}
+            {{ workspaceStore.selectedUnit?.name }}
           </h3>
           <p class="text-caption">
-            {{ currentUnit?.affiliations.join(' / ') }}
+            {{ workspaceStore.selectedUnit?.affiliations.join(' / ') }}
           </p>
         </q-card>
         <q-card
