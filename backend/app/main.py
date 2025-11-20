@@ -126,8 +126,6 @@ def root():
 @app.get("/health", response_class=JSONResponse)
 async def health():
     """Health check endpoint."""
-    db_status = "unknown"
-    accred_status = "unknown"
     details = {}
 
     # Database check
