@@ -14,7 +14,7 @@ router = APIRouter()
 unit_results = {
     "id": 12345,
     "name": "ENAC-IT4R",
-    "updated_at": 1700000000,
+    "updated_at": "2024-11-20T12:34:56Z",
     "years": [
         {
             "year": 2024,

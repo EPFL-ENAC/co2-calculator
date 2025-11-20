@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.unit import Unit
 
-datamock = [
+units_mock = [
     {
         "id": 12345,
         "name": "ENAC-IT4R",
@@ -48,7 +48,7 @@ datamock = [
 
 async def get_unit_by_id(db: AsyncSession, unit_id: int) -> Optional[Unit]:
     """Get unit by ID."""
-    for item in datamock:
+    for item in units_mock:
         if item["id"] == unit_id:
             return item  # type: ignore
     return None
@@ -66,7 +66,7 @@ async def get_units(
         "co2.user.secondary": 2,
         "co2.user.std": 3,
     }
-    datamock_sorted = sorted(
-        datamock, key=lambda x: role_priority.get(str(x["role"]), 99)
+    units_mock_sorted = sorted(
+        units_mock, key=lambda x: role_priority.get(str(x["role"]), 99)
     )
-    return datamock_sorted[skip : skip + limit]  # type: ignore
+    return units_mock_sorted[skip : skip + limit]  # type: ignore
