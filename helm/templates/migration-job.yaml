@@ -91,6 +91,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.oauthIssuerUrlKey | default "OAUTH_ISSUER_URL" }}
+          resources:
+            {{- toYaml .Values.backend.migrations.resources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
