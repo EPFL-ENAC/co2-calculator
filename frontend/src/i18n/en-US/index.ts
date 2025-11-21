@@ -100,6 +100,7 @@ export default {
   documentation_link: 'Documentation and Resources',
   contact: 'Contact',
   home_start_button: 'Start',
+  home_in_progress: 'In Progress',
   home_results_title: 'Results Visualization',
   home_results_subtitle: 'Annual CO2 Assessment 2024',
   home_results_btn: 'View Full Results',

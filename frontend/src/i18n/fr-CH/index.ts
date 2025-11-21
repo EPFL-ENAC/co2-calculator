@@ -101,6 +101,7 @@ export default {
   documentation_link: 'Documentation and Resources',
   contact: 'Contact',
   home_start_button: 'Start',
+  home_in_progress: 'En Cours',
   home_results_title: 'Visualisation Voire',
   home_results_subtitle: 'Bilan CO2 Annuel 2024',
   home_results_btn: 'Voir les Résultats Complets',
