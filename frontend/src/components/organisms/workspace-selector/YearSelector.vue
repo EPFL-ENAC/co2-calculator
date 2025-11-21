@@ -51,9 +51,8 @@ const columns = computed<QTableColumn[]>(() => [
 
 <template>
   <q-table
-    class="co2-table"
+    class="co2-table border"
     table-class=" co2-table--selectable"
-    header-class="text-weight-bold"
     :rows="years"
     :columns="columns"
     row-key="year"

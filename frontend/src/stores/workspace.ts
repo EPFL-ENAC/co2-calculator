@@ -33,9 +33,12 @@ export const useWorkspaceStore = defineStore(
     const selectedUnit = ref<Unit | null>(null);
     const selectedYear = ref<number | null>(null);
     const unitResults = ref<UnitResults | null>(null);
-    const loading = ref(false);
-    const unitsError = ref<Error | null>(null);
-    const unitResultsError = ref<Error | null>(null);
+    const unitsLoading = ref(false);
+    const unitLoading = ref(false);
+    const unitResultsLoading = ref(false);
+    const unitsErrors = ref<Error[]>([]);
+    const unitErrors = ref<Error[]>([]);
+    const unitResultsErrors = ref<Error[]>([]);
 
     function setUnit(unit: Unit) {
       selectedUnit.value = unit;
@@ -65,50 +68,49 @@ export const useWorkspaceStore = defineStore(
       return Math.max(...unitResults.value.years.map((y) => y.year));
     }
 
-    async function fetchUnits() {
+    async function getUnits() {
       try {
-        loading.value = true;
-        unitsError.value = null;
+        unitsLoading.value = true;
+        unitsErrors.value = [];
         const user = useAuthStore().user;
         if (!user) {
           units.value = [];
           return;
         }
 
-        const allUnits = (await (
-          await fetch('/api/v1/units?limit=1', {
-            credentials: 'include',
-          })
-        ).json()) as Unit[];
+        const allUnits = (await api
+          .get('units', { searchParams: { limit: 1 } })
+          .json()) as Unit[];
 
         units.value = allUnits;
       } catch (error) {
-        console.error('Error fetching units:', error);
-        unitsError.value =
-          error instanceof Error ? error : new Error('Failed  to fetch units');
+        console.error('Error getting units:', error);
+        const errorObj =
+          error instanceof Error ? error : new Error('Failed to get units');
+        unitsErrors.value = [errorObj];
         units.value = [];
       } finally {
-        loading.value = false;
+        unitsLoading.value = false;
       }
     }
 
-    async function fetchUnit(id: number) {
+    async function getUnit(id: number) {
       try {
-        loading.value = true;
-        const response = await fetch('/api/v1/units?limit=1', {
-          credentials: 'include',
-        });
-        const allUnits = await response.json();
-        selectedUnit.value = allUnits.find((u: Unit) => u.id === id) || null;
+        unitLoading.value = true;
+        unitErrors.value = [];
+        selectedUnit.value = (await api.get(`units/${id}`).json()) as Unit;
       } catch (error) {
-        console.error('Error fetching unit:', error);
+        console.error('Error getting unit:', error);
+        const errorObj =
+          error instanceof Error ? error : new Error('Failed to get unit');
+        unitErrors.value = [errorObj];
         selectedUnit.value = null;
       } finally {
-        loading.value = false;
+        unitLoading.value = false;
       }
     }
 
-    async function fetchUnitResults(
+    async function getUnitResults(
       id: number,
       options?: {
         offset?: number;
@@ -117,28 +119,22 @@ export const useWorkspaceStore = defineStore(
       },
     ) {
       try {
-        loading.value = true;
-        unitResultsError.value = null;
-        console.log(
-          'Fetching results for unit ID:',
-          id,
-          'with options:',
-          options,
-        );
-        unitResults.value = (await (
-          await fetch(`/api/v1/unit/${id}/results`, {
-            credentials: 'include',
-          })
-        ).json()) as UnitResults;
+        unitResultsLoading.value = true;
+        unitResultsErrors.value = [];
+
+        unitResults.value = (await api
+          .get(`unit/${id}/results`)
+          .json()) as UnitResults;
       } catch (error) {
-        console.error('Error fetching unit results:', error);
-        unitResultsError.value =
+        console.error('Error getting unit results:', error);
+        const errorObj =
           error instanceof Error
             ? error
-            : new Error('Failed to fetch unit results');
+            : new Error('Failed to get unit results');
+        unitResultsErrors.value = [errorObj];
         unitResults.value = null;
       } finally {
-        loading.value = false;
+        unitResultsLoading.value = false;
       }
     }
 
@@ -148,15 +144,9 @@ export const useWorkspaceStore = defineStore(
       unitResults.value = null;
     }
 
-    // Initialize from persisted state (Pinia plugin rehydrates state automatically).
-    // We still preload results for the selected unit if available.
     async function initFromPersisted() {
-      try {
-        if (selectedUnit.value) {
-          await fetchUnitResults(selectedUnit.value.id);
-        }
-      } catch {
-        // ignore
+      if (selectedUnit.value) {
+        await getUnitResults(selectedUnit.value.id);
       }
     }
 
@@ -165,15 +155,18 @@ export const useWorkspaceStore = defineStore(
       selectedUnit,
       selectedYear,
       unitResults,
-      loading,
-      unitsError,
-      unitResultsError,
+      unitsLoading,
+      unitLoading,
+      unitResultsLoading,
+      unitsErrors,
+      unitErrors,
+      unitResultsErrors,
       availableYears,
       currentYearData,
       getLatestYear,
-      fetchUnits,
-      fetchUnit,
-      fetchUnitResults,
+      getUnits,
+      getUnit,
+      getUnitResults,
       setUnit,
       setYear,
       reset,
