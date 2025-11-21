@@ -1,0 +1,41 @@
+@use '../../02-tokens' as tokens;
+
+.co2-table {
+  border: 1px solid tokens.$table-border-color;
+  border-radius: tokens.$table-border-radius;
+
+  .q-table td {
+    border: none;
+  }
+
+  th {
+    font-size: tokens.$text-size-sm;
+  }
+
+  tr {
+    &::before {
+      display: none !important;
+    }
+  }
+
+  &--selectable {
+    tbody tr {
+      cursor: pointer;
+
+      &.selected > td {
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:first-child > td {
+        border-top: none !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:last-child > td {
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: none !important;
+      }
+    }
+  }
+}
