@@ -9,4 +9,4 @@ export const ROLES = {
 
 export type Roles = (typeof ROLES)[keyof typeof ROLES];
 
-export const MODULES_LIST: Roles[] = Object.values(ROLES);
+export const ROLES_LIST: Roles[] = Object.values(ROLES);
