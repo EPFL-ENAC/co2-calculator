@@ -2,7 +2,6 @@
 
 .btn-primary {
   font-size: tokens.$button-size-sm-font-size !important;
-  font-weight: medium;
   margin: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
 }
 
@@ -11,7 +10,6 @@
   color: tokens.$button-secondary-color;
   border: 1px solid tokens.$button-secondary-border-color;
   font-size: tokens.$button-size-sm-font-size !important;
-  font-weight: medium;
   padding: tokens.$button-size-sm-padding-y tokens.$button-size-sm-padding-x;
 }
 
