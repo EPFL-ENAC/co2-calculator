@@ -67,6 +67,10 @@ make build         # Build projects
 
 ## 📊 Project Information
 
+### Code Quality
+
+[![Codecov](https://codecov.io/gh/EPFL-ENAC/epfl-calculator-co2/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/EPFL-ENAC/epfl-calculator-co2)
+
 ### Security & Status
 
 [![Security](https://img.shields.io/github/actions/workflow/status/EPFL-ENAC/co2-calculator/security.yml?branch=main&label=security&logo=github&style=flat-square)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)

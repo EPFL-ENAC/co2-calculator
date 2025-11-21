@@ -92,6 +92,10 @@ test-cov: ## Run tests with coverage
 	@set -e; \
 	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing
 
+.PHONY: test-cov-xml
+test-cov-xml: ## Run tests with coverage and output XML report
+	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \
