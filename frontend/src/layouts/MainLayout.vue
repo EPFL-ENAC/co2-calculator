@@ -20,8 +20,10 @@ const isSystem = computed(() => isSystemRoute(route));
     <Co2Header v-if="user" />
 
     <q-page-container class="co2-page-container">
-      <Co2Sidebar v-if="isBackOffice" :items="BACKOFFICE_NAV" />
-      <Co2Sidebar v-if="isSystem" :items="SYSTEM_NAV" />
+      <div>
+        <Co2Sidebar v-if="isBackOffice" :items="BACKOFFICE_NAV" />
+        <Co2Sidebar v-if="isSystem" :items="SYSTEM_NAV" />
+      </div>
       <router-view />
     </q-page-container>
   </q-layout>

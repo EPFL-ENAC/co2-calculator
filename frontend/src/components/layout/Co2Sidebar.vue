@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { SidebarNavItem } from 'src/constant/sidebarNavigation';
-import { useRouter, useRoute } from 'vue-router';
-import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 
 interface Props {
   items: Record<string, SidebarNavItem>;
@@ -9,8 +8,6 @@ interface Props {
 
 defineProps<Props>();
 const router = useRouter();
-const { t } = useI18n();
-const route = useRoute();
 function navigateToRoute(routeName: string) {
   router.push({ name: routeName });
 }
