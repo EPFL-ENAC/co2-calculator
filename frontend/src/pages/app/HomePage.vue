@@ -44,7 +44,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 
     <div class="column-grid-2">
       <q-card flat class="container">
-        <h3 class="text-h4 text-weight-bold">
+        <h3 class="text-h4 text-weight-medium">
           {{ $t('home_results_title') }}
         </h3>
         <h3 class="text-h5 text-weight-medium text-secondary">
@@ -60,7 +60,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
             class="text-weight-medium"
           />
           <div class="column items-end">
-            <p class="text-h1 text-weight-bold q-mb-none">42'000</p>
+            <p class="text-h1 text-weight-medium q-mb-none">42'000</p>
             <p class="text-secondary text-body2 q-mb-none">
               {{ $t('home_results_units') }}
             </p>
@@ -68,7 +68,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
         </div>
       </q-card>
       <q-card flat class="container">
-        <h3 class="text-h4 text-weight-bold">
+        <h3 class="text-h4 text-weight-medium">
           {{ $t('home_simulations_title') }}
         </h3>
         <h3 class="text-h5 text-weight-medium text-secondary">
@@ -84,7 +84,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
             class="text-weight-medium"
           />
           <div class="column items-end">
-            <p class="text-h1 text-weight-bold q-mb-none">3</p>
+            <p class="text-h1 text-weight-medium q-mb-none">3</p>
             <p class="text-secondary text-body2 q-mb-none">
               {{ $t('home_simulations_units') }}
             </p>
@@ -104,7 +104,9 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_diversity_2" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">{{ $t(MODULES.MyLab) }}</h3>
+              <h3 class="text-h5 text-weight-medium">
+                {{ $t(MODULES.MyLab) }}
+              </h3>
             </div>
             <q-badge rounded color="accent" class="q-pa-sm" label="Validated" />
           </div>
@@ -122,7 +124,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -133,7 +135,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_flight" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.ProfessionalTravel) }}
               </h3>
             </div>
@@ -158,7 +160,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -169,7 +171,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_domain" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.Infrastructure) }}
               </h3>
             </div>
@@ -188,7 +190,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -199,7 +201,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_bolt" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.EquipmentElectricConsumption) }}
               </h3>
             </div>
@@ -224,7 +226,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -235,7 +237,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_sell" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.Purchase) }}
               </h3>
             </div>
@@ -260,7 +262,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -271,7 +273,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_apps" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.InternalServices) }}
               </h3>
             </div>
@@ -296,7 +298,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
@@ -307,7 +309,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
               <q-icon name="o_filter_drama" color="accent" size="sm" />
-              <h3 class="text-h5 text-weight-bold">
+              <h3 class="text-h5 text-weight-medium">
                 {{ $t(MODULES.ExternalCloud) }}
               </h3>
             </div>
@@ -332,7 +334,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
               class="text-weight-medium btn-secondary"
             />
             <div class="row q-gutter-xs text-body1 items-baseline">
-              <p class="text-weight-bold q-mb-none">8'250</p>
+              <p class="text-weight-medium q-mb-none">8'250</p>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('home_results_units') }}
               </p>
