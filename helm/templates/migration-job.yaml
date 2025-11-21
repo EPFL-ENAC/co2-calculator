@@ -50,6 +50,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.databaseSecretName" . }}
                   key: {{ .Values.database.existingSecret.keys.user }}
+          resources:
+            {{- toYaml .Values.backend.migrations.waitForPostgres.resources | nindent 12 }}
         {{- end }}
       containers:
         - name: migration

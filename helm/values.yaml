@@ -122,6 +122,15 @@ backend:
       requests:
         cpu: 100m
         memory: 128Mi
+    
+    waitForPostgres:
+      resources: # Resources for the wait-for-postgres init container
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
 
 frontend:
   enabled: true
