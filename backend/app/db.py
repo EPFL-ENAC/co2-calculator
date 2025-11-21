@@ -25,6 +25,14 @@ SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 
 
+async def get_db_session() -> AsyncSession:
+    """
+    Utility to get a single AsyncSession (not as a dependency).
+    Use for internal checks like health endpoints.
+    """
+    return SessionLocal()
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency to get database session.

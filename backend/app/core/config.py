@@ -122,6 +122,10 @@ class Settings(BaseSettings):
         default=None,
         description="EPFL Accred API key/password for Basic Auth",
     )
+    ACCRED_API_HEALTH_URL: Optional[str] = Field(
+        default=None,
+        description="EPFL Accred API health check URL",
+    )
 
     # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
     OAUTH_CLIENT_ID: Optional[str] = Field(

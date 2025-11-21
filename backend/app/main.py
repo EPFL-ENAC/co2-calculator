@@ -2,7 +2,8 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -122,10 +123,54 @@ def root():
     }
 
 
-@app.get("/health")
-def health():
+@app.get("/health", response_class=JSONResponse)
+async def health():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    details = {}
+
+    # Database check
+    try:
+        from app.db import get_db_session  # Adjust import as needed
+
+        session = await get_db_session()
+        async with session:
+            from sqlalchemy import text
+
+            await session.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        db_status = "error"
+        details["db_error"] = str(e)
+
+    # Accred (role_provider) check
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=2) as client:
+            resp = await client.get(
+                settings.ACCRED_API_HEALTH_URL,
+                auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
+            )
+            if resp.status_code == 200:
+                accred_status = "ok"
+            else:
+                accred_status = f"error ({resp.status_code})"
+    except Exception as e:
+        accred_status = "error"
+        details["accred_error"] = str(e)
+
+    healthy = db_status == "ok" and accred_status == "ok"
+    status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "database": db_status,
+            "accred": accred_status,
+            "details": details,
+        },
+    )
 
 
 if __name__ == "__main__":

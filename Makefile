@@ -163,11 +163,11 @@ build: ## Build all projects (backend + frontend)
 .PHONY: build-docs
 build-docs: ## Build documentation site
 	@echo "Building documentation..."
-	UV_NO_ISOLATION=1 uv run mkdocs build
+	if [ -d "docs" ]; then cd docs && $(MAKE) build-docs; fi
 	@echo "✅ Documentation built!"
 
 .PHONY: serve-docs
 serve-docs: ## Serve documentation with live reload
 	@echo "Starting documentation server..."
-	mkdocs serve --dirtyreload --watch docs --watch mkdocs.yml
+	if [ -d "docs" ]; then cd docs && $(MAKE) serve-docs; fi
 

@@ -209,11 +209,12 @@ database:
   existingSecret:
     name: "db-secret"
     keys:
+      # use for backend and migrations job
       url: DB_URL
+      # use for initContainer only (wait for Postgres to be ready)
       host: DB_HOST
       port: DB_PORT
       user: DB_USER
-      password: DB_PASSWORD
 
   # Wait for PostgreSQL readiness before starting backend/migrations
   waitForPostgres:

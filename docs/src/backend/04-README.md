@@ -140,7 +140,7 @@ make db-migrate
 Key environment variables in `.env`:
 
 ```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/co2calculator
+DB_URL=postgresql://user:pass@localhost:5432/co2calculator
 SECRET_KEY=your-secret-key
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 OIDC_CLIENT_ID=your-client-id
