@@ -25,9 +25,10 @@ PRETTIER_FILES := $(filter-out %.js %.ts %.jsx %.tsx %.vue %.css %.scss,$(FILES)
 
 .PHONY: format
 format: ## Format code with prettier, eslint, and stylelint
-	@if [ "$(FILES)" = "." ]; then \
-		npx prettier --write . --ignore-unknown; \
-		npx eslint --fix . --ext .js,.ts,.jsx,.tsx,.vue; \
+	@set -e; \
+	if [ "$(FILES)" = "." ]; then \
+		npx prettier --write . --ignore-unknown && \
+		npx eslint --fix . --ext .js,.ts,.jsx,.tsx,.vue && \
 		npx stylelint --fix "**/*.{css,scss}"; \
 	else \
 		if [ -n "$(PRETTIER_FILES)" ]; then \
@@ -43,9 +44,10 @@ format: ## Format code with prettier, eslint, and stylelint
 
 .PHONY: lint
 lint: ## Check code formatting
-	@if [ "$(FILES)" = "." ]; then \
-		npx prettier --check . --ignore-unknown; \
-		npx eslint .; \
+	@set -e; \
+	if [ "$(FILES)" = "." ]; then \
+		npx prettier --check . --ignore-unknown && \
+		npx eslint . && \
 		npx stylelint "**/*.{css,scss}"; \
 	else \
 		if [ -n "$(PRETTIER_FILES)" ]; then \
@@ -61,13 +63,14 @@ lint: ## Check code formatting
 
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
-	npx quasar prepare
-	npx tsc --noEmit
+	@set -e; \
+	npx tsc --noEmit && \
 	npx vue-tsc --noEmit
 
 .PHONY: test
 test: ## Run tests (component + e2e)
-	npm run test-ct
+	@set -e; \
+	npm run test-ct && \
 	npm run test:e2e
 
 .PHONY: dev

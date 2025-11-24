@@ -47,11 +47,12 @@ MD_FILES   := $(filter %.md,$(FILES))
 # =============================================================================
 .PHONY: format
 format: ## Format code with ruff and prettier
-	@if [ -n "$(PY_FILES)" ]; then \
-		$(RUFF) format $(PY_FILES); \
+	@set -e; \
+	if [ -n "$(PY_FILES)" ]; then \
+		$(RUFF) format $(PY_FILES) && \
 		$(RUFF) check --fix $(PY_FILES); \
 	else \
-		$(RUFF) format .; \
+		$(RUFF) format . && \
 		$(RUFF) check --fix .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
@@ -62,11 +63,12 @@ format: ## Format code with ruff and prettier
 
 .PHONY: lint
 lint: ## Check code formatting
-	@if [ -n "$(PY_FILES)" ]; then \
-		$(RUFF) format --check $(PY_FILES); \
+	@set -e; \
+	if [ -n "$(PY_FILES)" ]; then \
+		$(RUFF) format --check $(PY_FILES) && \
 		$(RUFF) check $(PY_FILES); \
 	else \
-		$(RUFF) format --check .; \
+		$(RUFF) format --check . && \
 		$(RUFF) check .; \
 	fi
 	@if [ -n "$(YAML_FILES)" ] || [ -n "$(MD_FILES)" ]; then \
@@ -77,14 +79,17 @@ lint: ## Check code formatting
 
 .PHONY: type-check
 type-check: ## Run type checking with mypy
+	@set -e; \
 	uv run mypy app/
 
 .PHONY: test
 test: ## Run tests
+	@set -e; \
 	$(PYTEST) tests/ -v
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
+	@set -e; \
 	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing
 
 .PHONY: dev

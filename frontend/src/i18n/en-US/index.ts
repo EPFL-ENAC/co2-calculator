@@ -53,7 +53,8 @@ export default {
   workspace_setup_year_table_header_comparison: 'Comparison',
   workspace_setup_year_table_header_kgco2: 'kg CO₂-eq',
   workspace_setup_unit_error: 'Failed to load units.',
-  workspace_setup_unit_no_units: 'No units available. Please contact your administrator.',
+  workspace_setup_unit_no_units:
+    'No units available. Please contact your administrator.',
   workspace_setup_confirm_lab: 'Selected Lab',
   workspace_setup_year_error: 'Failed to load years.',
   workspace_setup_confirm_year: 'Selected Year',
