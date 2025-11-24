@@ -85,16 +85,16 @@ type-check: ## Run type checking with mypy
 .PHONY: test
 test: ## Run tests
 	@set -e; \
-	$(PYTEST) tests/ -v
+	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=60
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
 	@set -e; \
-	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing
+	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing  --cov-fail-under=60
 
 .PHONY: test-cov-xml
 test-cov-xml: ## Run tests with coverage and output XML report
-	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing
+	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=60
 
 .PHONY: dev
 dev: install ## Start backend development server
