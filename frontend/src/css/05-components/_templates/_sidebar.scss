@@ -8,14 +8,11 @@
 
   .co2-sidebar-item {
     gap: tokens.$sidebar-item-gap;
-    padding-left: tokens.$sidebar-padding-left;
-    padding-right: tokens.$sidebar-padding-right;
-    padding-top: tokens.$sidebar-padding-y;
-    padding-bottom: tokens.$sidebar-padding-y;
+    padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-right
+      tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
     display: flex;
     flex-direction: row;
     align-items: center;
-
     cursor: pointer;
     min-width: 0;
 
