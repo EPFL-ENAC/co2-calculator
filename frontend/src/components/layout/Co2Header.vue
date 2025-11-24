@@ -35,11 +35,9 @@ const handleLogout = async () => {
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
-        <span
-          v-html="$t('calculator_title')"
-          class="q-ml-md text-h3 text-weight-medium"
-        >
-        </span>
+        <span class="q-ml-md text-h3 text-weight-medium">{{
+          $t('calculator_title')
+        }}</span>
       </q-toolbar-title>
 
       <q-space />

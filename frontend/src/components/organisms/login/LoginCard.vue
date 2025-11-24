@@ -57,8 +57,8 @@ const buttonLabel = computed(() => {
           color="accent"
           text-color="white"
           width="100px"
-          @click="validate"
           no-caps
+          @click="validate"
         />
       </div>
     </q-form>

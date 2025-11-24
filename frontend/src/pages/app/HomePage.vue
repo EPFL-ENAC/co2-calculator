@@ -40,7 +40,9 @@ const homeIntroWithLinks = computed(() => {
       <p class="text-body1">{{ $t('home_intro_3') }}</p>
       <p class="text-body1">{{ $t('home_intro_4') }}</p>
       <p class="text-body1">
-        <span v-html="homeIntroWithLinks"></span>
+        <span>
+          {{ homeIntroWithLinks }}
+        </span>
       </p>
       <p class="text-body1 q-mb-none">{{ $t('home_intro_6') }}</p>
       <q-btn

@@ -14,7 +14,7 @@ const route = useRoute();
       <template v-for="item in timelineItems" :key="item.link">
         <Co2TimelineItem
           :item="item"
-          :currentState="timelineStore.itemStates[item.link]"
+          :current-state="timelineStore.itemStates[item.link]"
           :selected="route.params.module === item.link"
           :to="{
             name: 'module',
