@@ -31,13 +31,13 @@ $button-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $button-disabled-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $button-size-md-padding-x: opt.$tokens-spacing-16 !default;
 $button-size-md-padding-y: opt.$tokens-spacing-12 !default;
-$button-size-sm-padding-x: opt.$tokens-spacing-12 !default;
-$button-size-sm-padding-y: opt.$tokens-spacing-8 !default;
-$button-size-xs-padding-x: opt.$tokens-spacing-8 !default;
+$button-size-sm-padding-x: opt.$tokens-spacing-8 !default;
+$button-size-sm-padding-y: opt.$tokens-spacing-4 !default;
+$button-size-xs-padding-x: opt.$tokens-spacing-12 !default;
 $button-size-xs-padding-y: opt.$tokens-spacing-8 !default;
 $button-size-md-font-size: opt.$tokens-typography-font-size-md !default;
 $button-size-md-line-height: opt.$tokens-typography-line-height-md !default;
-$button-size-sm-font-size: opt.$tokens-typography-font-size-sm !default;
+$button-size-sm-font-size: opt.$tokens-typography-font-size-xs !default;
 $button-size-sm-line-height: opt.$tokens-typography-line-height-sm !default;
 $button-size-xs-font-size: opt.$tokens-typography-font-size-xs !default;
 $button-size-xs-line-height: opt.$tokens-typography-line-height-xs !default;
@@ -140,6 +140,8 @@ $status-indicator-complete-color: opt.$tokens-colors-base-white !default;
 $status-indicator-disabled-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $status-indicator-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $status-indicator-disabled-border: opt.$tokens-colors-grey-scale-grey-400 !default;
+$status-indicator-padding-x: opt.$tokens-spacing-12 !default;
+$status-indicator-padding-y: opt.$tokens-spacing-8 !default;
 
 // Pop-ups
 $pop-up-min-width: dec.$layout-pop-up-min-width !default;

@@ -19,7 +19,6 @@ const workspaceStore = useWorkspaceStore();
 
 const latestYear = computed(() => workspaceStore.getLatestYear(props.unit.id));
 
-// TODO: Get completed modules from unit results when available
 const completedModules = 0;
 </script>
 
