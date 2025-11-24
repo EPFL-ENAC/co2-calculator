@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 
 const { t } = useI18n();
