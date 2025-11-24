@@ -1,5 +1,6 @@
 import { MODULES } from 'src/constant/modules';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { ROLES } from 'src/constant/roles';
 
 export default {
   logo_alt: 'Logo EPFL',

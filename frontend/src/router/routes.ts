@@ -2,6 +2,7 @@ import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
