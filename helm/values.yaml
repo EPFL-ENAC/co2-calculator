@@ -112,6 +112,16 @@ backend:
       accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
       accredApiUrlKey: ACCRED_API_URL  # Key in the existing secret for Accred API URL
 
+  initContainers:
+    waitForPostgres:
+      resources: # Resources for the wait-for-postgres init container
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+
   migrations:
     enabled: true  # Run database migrations via init container
 

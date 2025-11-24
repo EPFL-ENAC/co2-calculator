@@ -58,6 +58,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.databaseSecretName" . }}
                   key: {{ .Values.database.existingSecret.keys.user }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.waitForPostgres.resources | nindent 12 }}
         {{- end }}
       containers:
         - name: backend
