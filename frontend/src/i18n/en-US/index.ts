@@ -39,13 +39,27 @@ export default {
   'simulation-edit': 'Edit Simulation',
   documentation: 'Documentation',
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: 'User Management',
+  [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.description]:
+    'backoffice-user-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: 'Data Management',
+  [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.description]:
+    'backoffice-data-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Documentation Editing',
+  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.description]:
+    'backoffice-documentation-editing-description',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Reporting',
+  [BACKOFFICE_NAV.BACKOFFICE_REPORTING.description]:
+    'backoffice-reporting-description',
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'User Management',
+  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]:
+    'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO2 calculator.',
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Module Management',
+  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.description]:
+    'Enable or disable calculation modules system-wide, controlling which data collection features are available to all laboratories.',
   [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
+  [SYSTEM_NAV.SYSTEM_LOGS.description]:
+    'View, search, and export application logs and user activity history for security auditing and troubleshooting.',
 
   results_btn: 'View Results',
   workspace_change_btn: 'Change',
@@ -110,4 +124,15 @@ export default {
   home_edit_btn: 'Edit',
   home_results_units: 'kg CO₂-eq',
   home_simulations_units: 'Simulations',
+  module_management_active: 'Active',
+  module_management_consequences_title: 'Consequences of disabling a module:',
+  module_management_consequence_no_access:
+    'No laboratory will have access to this module(s)',
+  module_management_consequence_not_on_home:
+    'The module will not appear on the Home page',
+  module_management_consequence_not_in_results:
+    'The data category entered in this module will not appear in the results visualization module',
+  module_management_consequence_important:
+    'Important: References to these modules in documentation pages and explanatory texts must be manually removed via the Business Manager (Full) interface',
+  module_management_save_button: 'Save',
 };

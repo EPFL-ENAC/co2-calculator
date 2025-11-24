@@ -8,8 +8,9 @@
   align-content: start;
   padding: tokens.$layout-page-padding-y tokens.$layout-page-padding-x;
   gap: tokens.$layout-gap-y;
+  width: 100%;
   max-width: tokens.$layout-page-width;
-  margin: auto;
+  margin: 0 auto;
 }
 
 .grid-1-col {
