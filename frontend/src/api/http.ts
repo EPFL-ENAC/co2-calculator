@@ -2,6 +2,7 @@ import ky from 'ky';
 
 export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
+export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 export const API_ME_URL = 'auth/me';
 export const API_REFRESH_URL = 'auth/refresh';
 export const API_LOGOUT_URL = 'auth/logout';

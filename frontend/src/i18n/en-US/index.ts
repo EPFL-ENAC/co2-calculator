@@ -7,6 +7,7 @@ export default {
   login_title: 'CO₂ Calculator',
   login_button_submit: 'Login',
   login_button_loading: 'Connecting...',
+  login_test_role_label: 'Test Role',
   calculator_title: 'CO₂ Calculator',
 
   home: 'Home',

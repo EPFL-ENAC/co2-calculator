@@ -7,6 +7,7 @@ export default {
   login_title: 'CO₂ Calculator',
   login_button_submit: 'Log in',
   login_button_loading: 'Logging in...',
+  login_test_role_label: 'Rôle de test',
   calculator_title: 'CO₂ Calculator',
   home: 'Home',
   [MODULES.MyLab]: 'My Laboratory',
