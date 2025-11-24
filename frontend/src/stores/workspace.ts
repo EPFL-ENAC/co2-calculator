@@ -123,7 +123,7 @@ export const useWorkspaceStore = defineStore(
         unitResultsErrors.value = [];
 
         unitResults.value = (await api
-          .get(`unit/${id}/results`)
+          .get(`unit/${id}/results`, { searchParams: options })
           .json()) as UnitResults;
       } catch (error) {
         console.error('Error getting unit results:', error);

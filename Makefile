@@ -98,13 +98,11 @@ ci: ## Run all CI checks (use before pushing to dev/stage/main)
 
 .PHONY: format
 format: ## Format all code (root, backend, frontend, docs, helm)
-	@echo "Formatting root files..."
+	@echo "\033[36mFormatting root files...\033[0m"
 	@npx prettier --write "*.md" "*.json" "*.yml" --ignore-unknown --ignore-path .prettierignore
-	@if [ -d "backend" ]; then cd backend && $(MAKE) format FILES="."; fi
-	@if [ -d "frontend" ]; then cd frontend && $(MAKE) format FILES="."; fi
-# 	@if [ -d "docs" ]; then cd docs && $(MAKE) format FILES="."; fi
-# 	@if [ -d "helm" ]; then cd helm && $(MAKE) format FILES="."; fi
-	@echo "✅ Formatting complete!"
+	@if [ -d "backend" ]; then $(MAKE) -C backend format FILES="."; fi
+	@if [ -d "frontend" ]; then $(MAKE) -C frontend format FILES="."; fi
+	@echo "\033[32m✅ Formatting complete!\033[0m"
 
 # =============================================================================
 # Linting
@@ -112,13 +110,25 @@ format: ## Format all code (root, backend, frontend, docs, helm)
 
 .PHONY: lint
 lint: ## Run all linters (backend, frontend, docs, helm)
-	@echo "Running linters..."
+	@echo "\033[36mRunning linters...\033[0m"
 	@set -e; \
-	if [ -d "backend" ]; then cd backend && $(MAKE) lint FILES="."; fi; \
-	if [ -d "frontend" ]; then cd frontend && $(MAKE) lint FILES="."; fi; \
-	if [ -d "docs" ]; then cd docs && $(MAKE) lint FILES="."; fi; \
-	if [ -d "helm" ]; then cd helm && $(MAKE) lint FILES="."; fi
-	@echo "✅ Linting complete!"
+	if [ -d "backend" ]; then \
+		echo "\033[33mLinting backend...\033[0m"; \
+		$(MAKE) -C backend lint FILES="."; \
+	fi; \
+	if [ -d "frontend" ]; then \
+		echo "\033[33mLinting frontend...\033[0m"; \
+		$(MAKE) -C frontend lint FILES="."; \
+	fi; \
+	if [ -d "docs" ]; then \
+		echo "\033[33mLinting docs...\033[0m"; \
+		$(MAKE) -C docs lint FILES="."; \
+	fi; \
+	if [ -d "helm" ]; then \
+		echo "\033[33mLinting helm...\033[0m"; \
+		$(MAKE) -C helm lint FILES="."; \
+	fi
+	@echo "\033[32m✅ Linting complete!\033[0m"
 
 # =============================================================================
 # Type Checking
@@ -126,11 +136,11 @@ lint: ## Run all linters (backend, frontend, docs, helm)
 
 .PHONY: type-check
 type-check: ## Run type checking (backend + frontend)
-	@echo "Running type checks..."
+	@echo "\033[36mRunning type checks...\033[0m"
 	@set -e; \
-	if [ -d "backend" ]; then cd backend && $(MAKE) type-check FILES="."; fi; \
-	if [ -d "frontend" ]; then cd frontend && $(MAKE) type-check FILES="."; fi
-	@echo "✅ Type checking complete!"
+	if [ -d "backend" ]; then $(MAKE) -C backend type-check FILES="."; fi; \
+	if [ -d "frontend" ]; then $(MAKE) -C frontend type-check FILES="."; fi
+	@echo "\033[32m✅ Type checking complete!\033[0m"
 
 # =============================================================================
 # Testing
@@ -138,11 +148,11 @@ type-check: ## Run type checking (backend + frontend)
 
 .PHONY: test
 test: ## Run all tests (backend + frontend)
-	@echo "Running tests..."
+	@echo "\033[36mRunning tests...\033[0m"
 	@set -e; \
-	if [ -d "backend" ]; then cd backend && $(MAKE) test; fi; \
-	if [ -d "frontend" ]; then cd frontend && $(MAKE) test; fi
-	@echo "✅ All tests passed!"
+	if [ -d "backend" ]; then $(MAKE) -C backend test; fi; \
+	if [ -d "frontend" ]; then $(MAKE) -C frontend test; fi
+	@echo "\033[32m✅ All tests passed!\033[0m"
 
 # =============================================================================
 # Building
@@ -150,11 +160,11 @@ test: ## Run all tests (backend + frontend)
 
 .PHONY: build
 build: ## Build all projects (backend + frontend)
-	@echo "Building projects..."
+	@echo "\033[36mBuilding projects...\033[0m"
 	@set -e; \
-	if [ -d "backend" ]; then cd backend && $(MAKE) build; fi; \
-	if [ -d "frontend" ]; then cd frontend && $(MAKE) build; fi
-	@echo "✅ Build complete!"
+	if [ -d "backend" ]; then $(MAKE) -C backend build; fi; \
+	if [ -d "frontend" ]; then $(MAKE) -C frontend build; fi
+	@echo "\033[32m✅ Build complete!\033[0m"
 
 # =============================================================================
 # Documentation

@@ -1,4 +1,5 @@
 Generating Mermaid ERD...
+
 ```mermaid
 erDiagram
   resources {
@@ -26,4 +27,5 @@ erDiagram
   resources ||--|| users : owner
   users ||--}o resources : resources
 ```
+
 Mermaid ERD generation complete.

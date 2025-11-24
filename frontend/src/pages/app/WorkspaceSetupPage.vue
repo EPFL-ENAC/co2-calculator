@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
@@ -23,10 +23,6 @@ const selectedUnitAffiliations = computed(() => {
 
 const hasMultipleYears = computed(() => {
   return (workspaceStore.unitResults?.years.length ?? 0) > 1;
-});
-
-const hasSingleYear = computed(() => {
-  return workspaceStore.unitResults?.years.length === 1;
 });
 
 const yearsCount = computed(() => {
