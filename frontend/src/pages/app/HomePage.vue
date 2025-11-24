@@ -35,7 +35,7 @@ const homeIntroWithLinks = computed(() => {
 </script>
 
 <template>
-  <q-page class="layout-grid">
+  <q-page class="page-grid">
     <q-card flat class="container">
       <h1 class="text-h2 q-mb-md">{{ $t('home_title') }}</h1>
       <p class="text-body1">{{ $t('home_intro_1') }}</p>
@@ -56,7 +56,7 @@ const homeIntroWithLinks = computed(() => {
       />
     </q-card>
 
-    <div class="column-grid-2">
+    <div class="grid-2-col">
       <q-card flat class="container">
         <h3 class="text-h4 text-weight-medium">
           {{ $t('home_results_title') }}
@@ -111,7 +111,7 @@ const homeIntroWithLinks = computed(() => {
       <span class="text-h5 text-weight-medium q-mb-md">{{
         modulesCounterText
       }}</span>
-      <div class="column-grid-3">
+      <div class="grid-3-col">
         <q-card
           v-for="moduleCard in MODULE_CARDS"
           :key="moduleCard.module"
