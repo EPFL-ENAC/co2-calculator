@@ -104,7 +104,7 @@ def login_test(role: str = "co2.user.std"):
         )
 
     # Create a fake user ID and email based on role
-    sanitized_role = role.replace('\r\n', '').replace('\n', '')
+    sanitized_role = role.replace("\r\n", "").replace("\n", "")
     user_id = f"testuser_{sanitized_role}"
     email = "testuser@example.com"
     sciper = 999999
