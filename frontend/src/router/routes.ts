@@ -164,6 +164,12 @@ const routes: RouteRecordRaw[] = [
           },
           // Back Office routes
           {
+            path: 'back-office',
+            redirect: {
+              name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
+            },
+          },
+          {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
@@ -220,6 +226,12 @@ const routes: RouteRecordRaw[] = [
             },
           },
           // System Admin routes
+          {
+            path: 'system',
+            redirect: {
+              name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
+            },
+          },
           {
             path: 'system/user-management',
             name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
