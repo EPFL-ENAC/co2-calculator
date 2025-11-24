@@ -89,7 +89,7 @@ async def list_units(
         },
     )
 
-    # TODO: implement deny logic
+    # implement deny logic
     # if not decision.get("allow", False):
     #     reason = decision.get("reason", "Access denied")
     #     logger.warning(

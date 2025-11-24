@@ -12,9 +12,6 @@ const modulesCounterText = computed(() =>
   }),
 );
 
-/**
- * TODO: Add translations with links for documentation and contact pages when available.
- */
 const homeIntroWithLinks = computed(() => {
   return t('home_intro_5')
     .replace(
