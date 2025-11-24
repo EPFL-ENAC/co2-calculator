@@ -48,9 +48,9 @@ import { SYSTEM_NAV } from 'src/constant/sidebarNavigation';
         </div>
       </div>
       <div
-        class="q-mb-md"
         v-for="moduleCard in MODULE_CARDS"
         :key="moduleCard.module"
+        class="q-mb-md"
       >
         <div q-card class="container full-width q-mx-lg">
           <div class="flex row justify-between items-center">
@@ -73,8 +73,8 @@ import { SYSTEM_NAV } from 'src/constant/sidebarNavigation';
             </div>
             <div>
               <q-checkbox
-                keep-color
                 v-model="moduleCard.active"
+                keep-color
                 :label="$t('module_management_active')"
                 color="accent"
                 class="text-weight-medium"
