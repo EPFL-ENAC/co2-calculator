@@ -1,7 +1,7 @@
 """Authentication endpoints for OAuth2/OIDC with Entra ID."""
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 from authlib.integrations.starlette_client import OAuth
@@ -85,6 +85,52 @@ def _set_auth_cookies(
         path=settings.OAUTH_COOKIE_PATH,
         secure=not settings.DEBUG,
     )
+
+
+@router.get(
+    "/login-test",
+)
+def login_test(role: str = "co2.user.std"):
+    """
+    Test login endpoint for development.
+
+    Simulates a login by setting auth cookies directly.
+    Only enabled in DEBUG mode.
+    """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test login is disabled in production",
+        )
+
+    # Create a fake user ID and email based on role
+    user_id = f"testuser_{role}"
+    email = "testuser@example.com"
+    sciper = 999999
+
+    logger.info(
+        "Test User info",
+        extra={
+            "email": email,
+            "has_sciper": bool(sciper),
+            "role": role,
+        },
+    )
+
+    # Create response
+    response = RedirectResponse(
+        url=settings.FRONTEND_URL + "/",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+    _set_auth_cookies(
+        response=response,
+        user_id=user_id,
+        email=email,
+        sciper=sciper,
+    )
+
+    return response
 
 
 @router.get("/login")
@@ -226,6 +272,30 @@ async def get_me(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
+
+        # Check it is a test user in DEBUG mode
+        if settings.DEBUG and user_id.startswith("testuser_"):
+            role = user_id[len("testuser_") :]
+            roles = []
+            if role == "co2.backoffice.admin":
+                roles = [{"role": role, "on": "global"}]
+            elif role == "co2.backoffice.std":
+                roles = [{"role": role, "on": {"affiliation": "testaffiliation"}}]
+            else:
+                roles = [{"role": "co2.user.std", "on": {"unit": "testunit"}}]
+
+            # Create a fake user object
+            test_user = UserRead(
+                id="testuser",
+                email="testuser@example.com",
+                sciper=999999,
+                is_active=True,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+                last_login=datetime.utcnow(),
+                roles=roles,
+            )
+            return test_user
 
         # Get user from database
         user = await get_user_by_id(db, user_id)

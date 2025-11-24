@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { api, API_LOGIN_URL, API_LOGOUT_URL } from 'src/api/http';
+import {
+  api,
+  API_LOGIN_URL,
+  API_LOGOUT_URL,
+  API_LOGIN_TEST_URL,
+} from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
 
@@ -29,6 +34,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function login_test(role: string) {
+    window.location.replace(`${API_LOGIN_TEST_URL}?role=${role}`);
+  }
+
   function login() {
     window.location.replace(API_LOGIN_URL);
   }
@@ -55,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     getUser,
     login,
+    login_test,
     logout,
     isAuthenticated,
   };
