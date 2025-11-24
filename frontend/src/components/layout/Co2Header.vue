@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
@@ -8,6 +9,20 @@ import { useRoute } from 'vue-router';
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+
+const unitName = computed(() => {
+  if (!route.params.unit) return '';
+  return decodeURIComponent(route.params.unit as string);
+});
+
+const year = computed(() => {
+  return route.params.year || '';
+});
+
+const workspaceDisplay = computed(() => {
+  if (!unitName.value || !year.value) return '';
+  return `${unitName.value} | ${year.value}`;
+});
 
 const handleLogout = async () => {
   await authStore.logout(router);
@@ -30,6 +45,31 @@ const handleLogout = async () => {
       <q-space />
 
       <Co2LanguageSelector />
+
+      <template v-if="route.name !== 'workspace-setup'">
+        <span
+          v-if="workspaceDisplay"
+          class="text-body2 text-weight-medium q-ml-xl q-mr-sm"
+        >
+          {{ workspaceDisplay }}
+        </span>
+        <q-btn
+          icon="o_cached"
+          color="grey-4"
+          text-color="primary"
+          :label="$t('workspace_change_btn')"
+          unelevated
+          no-caps
+          outline
+          size="sm"
+          class="text-weight-medium"
+          :to="{
+            name: 'workspace-setup',
+            params: { language: route.params.language || 'en' },
+          }"
+        />
+      </template>
+
       <q-btn
         flat
         dense

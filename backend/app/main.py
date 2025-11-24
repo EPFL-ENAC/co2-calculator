@@ -53,6 +53,8 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
+    # Prevent automatic redirect on trailing slash: Mandatory double slash handling
+    redirect_slashes=False,
     description="""
     CO2 Calculator API with hierarchical authorization using Open Policy Agent.
     

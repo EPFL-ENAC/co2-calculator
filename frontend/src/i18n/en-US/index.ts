@@ -1,4 +1,5 @@
 import { MODULES } from 'src/constant/modules';
+import { ROLES } from 'src/constant/roles';
 
 // This is just an example,
 // so you can safely delete all default props below
@@ -27,7 +28,40 @@ export default {
   'backoffice-documentation-editing': 'Documentation Editing',
   'backoffice-documentation': 'Backoffice Documentation',
   'system-documentation': 'System Documentation',
-
   results_btn: 'View Results',
+  workspace_change_btn: 'Change',
   logout: 'Logout',
+  workspace_setup_title: 'Welcome to the CO₂ calculator',
+  workspace_setup_description:
+    "Assess your unit's carbon footprint in line with the Greenhouse Gas (GHG) Protocol — the international standard for greenhouse gas accounting.\n\nFollow the steps below to get started: select your unit, choose a calculation year, and proceed to measure your CO₂ emissions.",
+  workspace_setup_unit_title: 'Select your lab',
+  workspace_setup_unit_description:
+    'Choose the unit you want to assess for its carbon footprint.',
+  workspace_setup_unit_counter: 'Your units({count})',
+  workspace_setup_unit_role: 'Your role:',
+  [ROLES.StandardUser]: 'Standard User',
+  [ROLES.PrincipalUser]: 'Principal User',
+  [ROLES.SecondaryUser]: 'Secondary User',
+  [ROLES.BackOfficeAdmin]: 'Backoffice Admin',
+  [ROLES.BackOfficeStandard]: 'Backoffice Standard User',
+  [ROLES.System]: 'System Manager',
+  workspace_setup_year_title: 'Assessment years',
+  workspace_setup_year_description: 'Choose which year to work on. ',
+  workspace_setup_year_counter: 'Recorded Years ({count})',
+  workspace_setup_year_table_header_year: 'Year',
+  workspace_setup_year_table_header_progress: 'Progress',
+  workspace_setup_year_table_header_comparison: 'Comparison',
+  workspace_setup_year_table_header_kgco2: 'kg CO₂-eq',
+  workspace_setup_unit_error: 'Failed to load units.',
+  workspace_setup_unit_no_units:
+    'No units available. Please contact your administrator.',
+  workspace_setup_confirm_lab: 'Selected Lab',
+  workspace_setup_year_error: 'Failed to load years.',
+  workspace_setup_confirm_year: 'Selected Year',
+  workspace_setup_confirm_selection: 'Continue to calculator',
+  workspace_setup_restart: 'Start Over',
+
+  workspace_setup_unit_manager: ' Head of Unit',
+  workspace_setup_unit_affiliation: 'Affiliations',
+  workspace_setup_unit_progress: ' Progress ({year} assessment)',
 };

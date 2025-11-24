@@ -1,7 +1,31 @@
 @use '../02-tokens' as tokens;
 
-// Placeholder grid system using semantic spacing tokens.
-.layout-grid {
+// Grid system using semantic spacing tokens.
+.page-grid {
   display: grid;
-  gap: tokens.$spacing-lg;
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  align-content: start;
+  padding: tokens.$layout-page-padding-y tokens.$layout-page-padding-x;
+  gap: tokens.$layout-gap-y;
+  width: tokens.$layout-page-width;
+  margin: auto;
+}
+
+.grid-1-col {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 24px;
+}
+
+.grid-2-col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.grid-3-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
 }

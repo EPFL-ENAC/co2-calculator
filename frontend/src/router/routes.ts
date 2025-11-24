@@ -1,6 +1,7 @@
 import { RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
+import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 
 // Route parameter validation patterns
 // Note: Vue Router's :param(pattern) syntax automatically wraps the pattern in parentheses
@@ -13,6 +14,7 @@ const SIMULATION_ID_PATTERN = '[^/]+'; // Any non-slash characters (simulation I
 export const LOGIN_ROUTE_NAME = 'login';
 export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
+export const WORKSPACE_ROUTE_NAME = 'workspace';
 export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
 export const NOT_FOUND_ROUTE_NAME = 'not-found';
 export const DEFAULT_ROUTE_NAME = WORKSPACE_SETUP_ROUTE_NAME;
@@ -54,6 +56,7 @@ const routes: RouteRecordRaw[] = [
             path: 'workspace-setup',
             name: WORKSPACE_SETUP_ROUTE_NAME,
             component: () => import('pages/app/WorkspaceSetupPage.vue'),
+            beforeEnter: redirectToWorkspaceIfSelectedGuard,
             meta: {
               requiresAuth: true,
               note: 'Workspace configuration - Year and lab selection',
@@ -62,7 +65,7 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
-            name: 'workspace',
+            name: WORKSPACE_ROUTE_NAME,
             children: [
               {
                 name: 'home-redirect',
