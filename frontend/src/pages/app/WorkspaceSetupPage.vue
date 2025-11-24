@@ -181,7 +181,7 @@ export async function beforeRouteEnter(to, from, next) {
       }}</span>
       <div v-if="workspaceStore.unitsErrors.length > 0" class="q-mt-sm">
         <q-banner class="container text-negative border-negative q-pa-lg">
-          <template v-slot:avatar>
+          <template #avatar>
             <q-icon name="o_warning" color="grey-3" size="md" />
           </template>
           <p class="text-body2 text-weight-bold q-mt-sm">
@@ -213,7 +213,7 @@ export async function beforeRouteEnter(to, from, next) {
       }}</span>
       <div v-if="workspaceStore.unitResultsErrors.length > 0" class="q-mt-sm">
         <q-banner class="container text-negative border-negative q-pa-lg">
-          <template v-slot:avatar>
+          <template #avatar>
             <q-icon name="o_warning" color="grey-3" size="md" />
           </template>
           <p class="text-body2 text-weight-bold q-mt-sm">
@@ -253,7 +253,7 @@ export async function beforeRouteEnter(to, from, next) {
         {{ $t('workspace_setup_confirm_selection') }}
       </h2>
       <div class="grid-2-col">
-        <q-card flat v-if="unitsWithRoles.length > 1" class="container">
+        <q-card v-if="unitsWithRoles.length > 1" flat class="container">
           <h6 class="text-h6 text-weight-medium">
             {{ $t('workspace_setup_confirm_lab') }}
           </h6>
@@ -265,8 +265,8 @@ export async function beforeRouteEnter(to, from, next) {
           </p>
         </q-card>
         <q-card
-          flat
           v-if="hasMultipleYears"
+          flat
           class="container q-mt-md"
           style="flex: 2 1 0"
         >

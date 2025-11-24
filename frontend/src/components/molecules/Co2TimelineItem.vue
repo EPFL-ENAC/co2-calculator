@@ -13,6 +13,7 @@ const props = withDefaults(
   }>(),
   {
     currentState: 'default',
+    to: '/',
     selected: false,
   },
 );
