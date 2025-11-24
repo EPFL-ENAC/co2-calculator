@@ -113,6 +113,11 @@ const reset = () => {
  * Uses unit name from URL to find and select the corresponding unit.
  */
 onMounted(async () => {
+  // Fallback: if units are empty, try to fetch them
+  if (workspaceStore.units.length === 0 && !workspaceStore.unitsLoading) {
+    await workspaceStore.getUnits();
+  }
+
   const unitName = route.query.unit;
   const year = route.query.year;
 
@@ -137,9 +142,22 @@ onMounted(async () => {
 
 <script lang="ts">
 import { useWorkspaceStore as useWorkspaceStoreInGuard } from 'src/stores/workspace';
+import { useAuthStore } from 'src/stores/auth';
 
 export async function beforeRouteEnter(to, from, next) {
   const workspaceStore = useWorkspaceStoreInGuard();
+  const authStore = useAuthStore();
+
+  // Ensure user is loaded before fetching units
+  if (!authStore.user && !authStore.loading) {
+    await authStore.getUser();
+  }
+
+  // Wait for user loading to complete if in progress
+  while (authStore.loading) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
   await workspaceStore.getUnits();
   next(async (vm) => {
     if (workspaceStore.units.length === 1) {
