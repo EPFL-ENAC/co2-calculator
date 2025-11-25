@@ -61,7 +61,13 @@ const handleLogout = async () => {
           class="text-weight-medium btn-secondary"
           :to="{
             name: 'workspace-setup',
-            params: { language: route.params.language || 'en' },
+            params: {
+              language: route.params.language || 'en',
+            },
+            query: {
+              unit: null,
+              year: null,
+            },
           }"
         />
       </template>

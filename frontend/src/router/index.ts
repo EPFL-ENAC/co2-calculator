@@ -12,7 +12,6 @@ import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
 } from './guards/defaultLanguageGuard';
-import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 /*
  * If not building with SSR mode, you can
  * directly export the Router instantiation;
@@ -60,7 +59,6 @@ export default route(function (/* { store, ssrContext } */) {
   Router.beforeEach(defaultLanguageGuard);
   Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
-  Router.beforeEach(redirectToWorkspaceIfSelectedGuard);
 
   return Router;
 });

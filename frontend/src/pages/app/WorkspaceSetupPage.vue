@@ -113,67 +113,10 @@ const reset = () => {
  * Uses unit name from URL to find and select the corresponding unit.
  */
 onMounted(async () => {
-  // Fallback: if units are empty, try to fetch them
-  if (workspaceStore.units.length === 0 && !workspaceStore.unitsLoading) {
-    await workspaceStore.getUnits();
-  }
-
-  const unitName = route.query.unit;
-  const year = route.query.year;
-
-  if (unitName && typeof unitName === 'string') {
-    const decodedUnitName = decodeURIComponent(unitName);
-    const unit = workspaceStore.units.find((u) => u.name === decodedUnitName);
-    if (unit) {
-      selectedLab.value = unit.id;
-      workspaceStore.setUnit(unit);
-      await workspaceStore.getUnitResults(unit.id);
-    }
-  }
-
-  if (year && typeof year === 'string') {
-    const yearNum = Number.parseInt(year, 10);
-    if (!Number.isNaN(yearNum)) {
-      selectedYear.value = yearNum;
-    }
-  }
-});
-</script>
-
-<script lang="ts">
-import { useWorkspaceStore as useWorkspaceStoreInGuard } from 'src/stores/workspace';
-import { useAuthStore } from 'src/stores/auth';
-
-export async function beforeRouteEnter(to, from, next) {
-  const workspaceStore = useWorkspaceStoreInGuard();
-  const authStore = useAuthStore();
-
-  // Ensure user is loaded before fetching units
-  if (!authStore.user && !authStore.loading) {
-    await authStore.getUser();
-  }
-
-  // Wait for user loading to complete if in progress
-  while (authStore.loading) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-
+  const workspaceStore = useWorkspaceStore();
+  workspaceStore.reset();
   await workspaceStore.getUnits();
-  next(async (vm) => {
-    if (workspaceStore.units.length === 1) {
-      const unit = workspaceStore.units[0];
-      vm.selectedLab.value = unit.id;
-      workspaceStore.setUnit(unit);
-      await workspaceStore.getUnitResults(unit.id);
-      if (
-        workspaceStore.unitResults &&
-        workspaceStore.unitResults.years.length === 1
-      ) {
-        vm.selectedYear.value = workspaceStore.unitResults.years[0].year;
-      }
-    }
-  });
-}
+});
 </script>
 
 <template>

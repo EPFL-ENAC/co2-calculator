@@ -193,8 +193,8 @@ export const useWorkspaceStore = defineStore(
   },
   {
     persist: {
-      key: 'workspace',
-      paths: ['selectedUnit', 'selectedYear'],
+      key: 'workspaceLocalStorage',
+      pick: ['selectedUnit', 'selectedYear'],
       storage: localStorage,
     } as PersistenceOptions,
   },
