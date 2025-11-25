@@ -20,7 +20,7 @@ export default {
   [MODULES.Infrastructure]: 'Infrastructure',
   [MODULES_DESCRIPTIONS.Infrastructure]:
     "Define your lab's physical footprint across EPFL buildings and spaces.",
-  [MODULES.EquipmentElectricConsumption]: 'Equipment Electric Con...',
+  [MODULES.EquipmentElectricConsumption]: 'Equipment Electric Consumption',
   [MODULES_DESCRIPTIONS.EquipmentElectricConsumption]:
     'List lab equipment with wattage to calculate electricity-related CO₂',
   [MODULES.Purchase]: 'Purchases',
@@ -136,4 +136,19 @@ export default {
   module_management_consequence_important:
     'Important: References to these modules in documentation pages and explanatory texts must be manually removed via the Business Manager (Full) interface',
   module_management_save_button: 'Save',
+  threshold_fixed_title: 'Fixed Threshold',
+  threshold_fixed_description:
+    'Define a fixed threshold. Any value above this will be flagged in red.',
+  threshold_fixed_value: 'Fixed Value (kg CO₂-eq)',
+  threshold_fixed_summary: 'Fixed threshold of {value} kg CO₂-eq',
+  threshold_median_title: 'Median-based Threshold',
+  threshold_median_description:
+    'Automatically flag emissions above the median value. Adjusts based on all laboratory data.',
+  threshold_median_info: 'Automatic',
+  threshold_median_summary: 'Median-based threshold',
+  threshold_top_title: 'Top Values Threshold',
+  threshold_top_description:
+    'Flag the highest emissions. Enter the number of top values.',
+  threshold_top_value: 'Top Values Count',
+  threshold_top_summary: 'Top {value} values threshold',
 };

@@ -138,4 +138,19 @@ export default {
   module_management_consequence_important:
     'Important : Les références à ces modules dans les pages de documentation et les textes explicatifs doivent être supprimées manuellement via l’interface Business Manager (Complet)',
   module_management_save_button: 'Enregistrer',
+  threshold_fixed_title: 'Seuil Fixe',
+  threshold_fixed_description:
+    'Définis un seuil fixe. Toute valeur supérieure sera signalée en rouge.',
+  threshold_fixed_value: 'Valeur fixe (kg CO₂-éq)',
+  threshold_fixed_summary: 'Seuil fixe de {value} kg CO₂-éq',
+  threshold_median_title: 'Seuil basé sur la médiane',
+  threshold_median_description:
+    'Signale automatiquement les émissions supérieures à la valeur médiane. S’ajuste en fonction de toutes les données des laboratoires.',
+  threshold_median_info: 'Automatique',
+  threshold_median_summary: 'Seuil basé sur la médiane',
+  threshold_top_title: 'Seuil des valeurs les plus élevées',
+  threshold_top_description:
+    'Signale les émissions les plus élevées. Entrez le nombre de valeurs les plus élevées.',
+  threshold_top_value: 'Nombre de valeurs les plus élevées',
+  threshold_top_summary: '{value} valeurs les plus élevées',
 };
