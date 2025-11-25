@@ -10,8 +10,7 @@
   gap: tokens.$layout-gap-y;
   width: 100%;
   max-width: tokens.$layout-page-width;
-  width: 100%;
-  margin: auto;
+  margin: 0 auto;
 }
 
 .grid-1-col {

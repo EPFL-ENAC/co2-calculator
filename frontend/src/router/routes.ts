@@ -73,6 +73,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'workspace-setup',
             name: WORKSPACE_SETUP_ROUTE_NAME,
+            beforeEnter: redirectToWorkspaceIfSelectedGuard,
             component: () => import('pages/app/WorkspaceSetupPage.vue'),
             meta: {
               requiresAuth: true,

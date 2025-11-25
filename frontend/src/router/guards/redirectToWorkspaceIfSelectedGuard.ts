@@ -1,24 +1,41 @@
-import { RouteLocationNormalized } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import {
-  WORKSPACE_ROUTE_NAME,
+  HOME_ROUTE_NAME,
   WORKSPACE_SETUP_ROUTE_NAME,
   LOGIN_ROUTE_NAME,
 } from '../routes';
 
-export default async function redirectToWorkspaceIfSelectedGuard(
-  to: RouteLocationNormalized,
-) {
+export default async function redirectToWorkspaceIfSelectedGuard(to) {
   const workspaceStore = useWorkspaceStore();
 
-  // Always allow access to workspace-setup and login pages
+  // Always allow access to login and workspace
   if (to.name === WORKSPACE_SETUP_ROUTE_NAME || to.name === LOGIN_ROUTE_NAME) {
     return true;
   }
 
-  // For all other routes, require workspace to be selected
-  // If not selected, redirect to workspace-setup
-  if (!workspaceStore.selectedUnit || !workspaceStore.selectedYear) {
+  // If workspace unit and year are selectd -> home
+  if (
+    workspaceStore.selectedUnit &&
+    workspaceStore.selectedYear &&
+    to.name === WORKSPACE_SETUP_ROUTE_NAME
+  ) {
+    const unit = encodeURIComponent(workspaceStore.selectedUnit.name);
+    const year = workspaceStore.selectedYear;
+    return {
+      name: HOME_ROUTE_NAME,
+      params: {
+        language: to.params.language,
+        unit,
+        year,
+      },
+    };
+  }
+
+  // If workspace is not selected and not already on workspace setup -> Worspace Setup
+  if (
+    (!workspaceStore.selectedUnit || !workspaceStore.selectedYear) &&
+    to.name !== WORKSPACE_SETUP_ROUTE_NAME
+  ) {
     return {
       name: WORKSPACE_SETUP_ROUTE_NAME,
       params: {
@@ -27,6 +44,5 @@ export default async function redirectToWorkspaceIfSelectedGuard(
     };
   }
 
-  // Workspace is selected, allow navigation
   return true;
 }
