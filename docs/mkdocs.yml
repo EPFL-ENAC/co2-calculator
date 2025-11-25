@@ -61,6 +61,7 @@ nav:
       - Deployment Topology: architecture/11-deployment-topology.md
       - Scalability: architecture/12-scalability.md
       - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
+      - Eco-design: architecture/ecodesign.md
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
       - EPFL Compliance: architecture/epfl-compliance-mapping.md

@@ -17,8 +17,9 @@ This documentation has been restructured into smaller, more manageable files. Pl
 11. [Deployment Topology](./11-deployment-topology.md)
 12. [Scalability & Statelessness Strategy](./12-scalability.md)
 13. [Cross-Cutting Concerns](./13-cross-cutting-concerns.md)
-14. [Architectural Decisions](./14-architectural-decisions.md) - Why we use ADRs
-15. [Appendices](./15-appendices.md)
+14. [Eco-design](./ecodesign.md)
+15. [Architectural Decisions](./14-architectural-decisions.md) - Why we use ADRs
+16. [Appendices](./15-appendices.md)
 
 For the complete index of all Architecture Decision Records (ADRs), see:
 

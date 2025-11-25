@@ -1,4 +1,4 @@
-# EcoConception
+# Eco-design
 Monitored throughout the project using the [Green IT best practices](https://rweb.greenit.fr/en). We selected the most relevant practices and their associated impact levels for this project; below is a summary of the actions we apply:
 
 ## Front-End
@@ -25,5 +25,6 @@ Monitored throughout the project using the [Green IT best practices](https://rwe
 
 ## Environmental Metrics
 These metrics are tracked with [Green IT tools](https://github.com/cnumr), as the plugin for [Lighthouse](https://github.com/cnumr/lighthouse-plugin-ecoindex#readme):
+
 - Energy efficiency: track energy usage.
 - Carbon footprint: estimate carbon impact.
