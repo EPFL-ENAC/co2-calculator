@@ -1,10 +1,10 @@
-export interface SidebarNavItem {
+export interface NavItem {
   routeName: string;
   icon: string;
   description?: string;
 }
 
-export const BACKOFFICE_NAV: Record<string, SidebarNavItem> = {
+export const BACKOFFICE_NAV: Record<string, NavItem> = {
   BACKOFFICE_REPORTING: {
     routeName: 'backoffice-reporting',
     description: 'backoffice-reporting-description',
@@ -27,7 +27,7 @@ export const BACKOFFICE_NAV: Record<string, SidebarNavItem> = {
   },
 };
 
-export const SYSTEM_NAV: Record<string, SidebarNavItem> = {
+export const SYSTEM_NAV: Record<string, NavItem> = {
   SYSTEM_USER_MANAGEMENT: {
     routeName: 'system-user-management',
     description: 'system-user-management-description',

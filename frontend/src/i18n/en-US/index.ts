@@ -1,4 +1,4 @@
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 import { ROLES } from 'src/constant/roles';
 

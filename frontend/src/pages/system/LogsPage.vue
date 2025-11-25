@@ -1,21 +1,12 @@
 <script setup lang="ts">
-import { SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { SYSTEM_NAV } from 'src/constant/navigation';
+import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
 </script>
 
 <template>
   <q-page>
-    <div class="q-my-xl q-px-xl">
-      <div class="flex items-center q-gutter-md">
-        <q-icon :name="SYSTEM_NAV.SYSTEM_LOGS.icon" size="sm" color="accent" />
-        <h1 class="text-h3 text-weight-bold">
-          {{ $t(SYSTEM_NAV.SYSTEM_LOGS.routeName) }}
-        </h1>
-      </div>
-      <p class="text-body1 text-secondary">
-        {{ $t(SYSTEM_NAV.SYSTEM_LOGS.description) }}
-      </p>
-    </div>
-    <q-separator />
+    <navigation-header :item="SYSTEM_NAV.SYSTEM_LOGS" />
+
     <div class="q-my-xl q-px-xl">
       <div class="container">
         <p class="text-h1">Placeholder: Add Grafana iFrame</p>

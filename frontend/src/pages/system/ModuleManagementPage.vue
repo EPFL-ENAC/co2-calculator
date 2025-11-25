@@ -1,22 +1,12 @@
 <script setup lang="ts">
 import { MODULE_CARDS } from 'src/constant/moduleCards';
-import { SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { SYSTEM_NAV } from 'src/constant/navigation';
+import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
 </script>
 
 <template>
   <q-page class="">
-    <div class="q-my-xl q-px-xl">
-      <div class="flex items-center q-gutter-md">
-        <q-icon name="o_view_module" size="sm" color="accent" />
-        <span class="text-h3 text-weight-bold">
-          {{ $t(SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName) }}
-        </span>
-      </div>
-      <span class="text-body1 text-secondary">
-        {{ $t(SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.description) }}
-      </span>
-    </div>
-    <q-separator />
+    <navigation-header :item="SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT" />
 
     <div class="q-my-xl q-px-xl q-pa-none">
       <div class="q-mb-xl">
