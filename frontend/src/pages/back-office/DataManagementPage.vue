@@ -1,7 +1,10 @@
+<script setup lang="ts">
+import { BACKOFFICE_NAV } from 'src/constant/navigation';
+import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+</script>
+
 <template>
   <q-page>
-    <h1 class="text-h1">Data Management</h1>
+    <navigation-header :item="BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT" />
   </q-page>
 </template>
-
-<script setup lang="ts"></script>
