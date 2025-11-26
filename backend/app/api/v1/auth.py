@@ -1,7 +1,7 @@
 """Authentication endpoints for OAuth2/OIDC with Entra ID."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from authlib.integrations.starlette_client import OAuth
@@ -13,7 +13,12 @@ from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.role_provider import get_role_provider
-from app.core.security import create_access_token, create_refresh_token, decode_jwt
+from app.core.security import (
+    _make_test_user,
+    create_access_token,
+    create_refresh_token,
+    decode_jwt,
+)
 from app.repositories.user_repo import get_user_by_id, upsert_user
 from app.schemas.user import UserRead
 
@@ -276,27 +281,7 @@ async def get_me(
 
         # Check it is a test user in DEBUG mode
         if settings.DEBUG and user_id.startswith("testuser_"):
-            role = user_id[len("testuser_") :]
-            roles = []
-            if role == "co2.backoffice.admin":
-                roles = [{"role": role, "on": "global"}]
-            elif role == "co2.backoffice.std":
-                roles = [{"role": role, "on": {"affiliation": "testaffiliation"}}]
-            else:
-                roles = [{"role": "co2.user.std", "on": {"unit": "testunit"}}]
-
-            # Create a fake user object
-            test_user = UserRead(
-                id="testuser",
-                email="testuser@example.com",
-                sciper=999999,
-                is_active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                last_login=datetime.utcnow(),
-                roles=roles,
-            )
-            return test_user
+            return _make_test_user(user_id)
 
         # Get user from database
         user = await get_user_by_id(db, user_id)
@@ -385,8 +370,14 @@ async def refresh_token(
                 detail="Invalid token payload",
             )
 
+        user = None
+        # Check it is a test user in DEBUG mode
+        if settings.DEBUG and user_id.startswith("testuser_"):
+            user = _make_test_user(user_id)
+        else:
+            user = await get_user_by_id(db, user_id)
+
         # Verify user still exists and is active
-        user = await get_user_by_id(db, user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
