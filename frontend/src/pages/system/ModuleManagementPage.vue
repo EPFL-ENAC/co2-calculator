@@ -42,7 +42,7 @@ import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
         :key="moduleCard.module"
         class="q-mb-md"
       >
-        <div q-card class="container full-width q-mx-lg">
+        <q-card flat class="container full-width q-mx-lg">
           <div class="flex row justify-between items-center">
             <div>
               <div class="flex items-center q-mb-xs">
@@ -71,7 +71,7 @@ import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
               />
             </div>
           </div>
-        </div>
+        </q-card>
       </div>
 
       <q-btn

@@ -23,3 +23,17 @@ export type Module = (typeof MODULES)[keyof typeof MODULES];
 export const MODULES_LIST: Module[] = Object.values(MODULES);
 
 export const MODULES_PATTERN = MODULES_LIST.join('|');
+
+export const MODULES_THRESHOLD_TYPES = ['fixed', 'median', 'top'] as const;
+
+export type ThresholdType = (typeof MODULES_THRESHOLD_TYPES)[number];
+
+export interface Threshold {
+  type: ThresholdType;
+  value?: number;
+}
+
+export interface ModuleThreshold {
+  module: Module;
+  threshold: Threshold;
+}
