@@ -144,32 +144,47 @@ async def health():
         db_status = "error"
         details["db_error"] = str(e)
 
-    # Accred (role_provider) check
-    try:
-        import httpx
+    # Role provider health check
+    if (settings.ROLE_PROVIDER_PLUGIN != "accred") or (
+        not settings.ACCRED_API_HEALTH_URL
+    ):
+        role_provider_status = "skipped"
+    else:
+        try:
+            import httpx
 
-        async with httpx.AsyncClient(timeout=2) as client:
-            resp = await client.get(
-                settings.ACCRED_API_HEALTH_URL,
-                auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
-            )
-            if resp.status_code == 200:
-                accred_status = "ok"
-            else:
-                accred_status = f"error ({resp.status_code})"
-    except Exception as e:
-        accred_status = "error"
-        details["accred_error"] = str(e)
+            async with httpx.AsyncClient(timeout=2) as client:
+                resp = await client.get(
+                    settings.ACCRED_API_HEALTH_URL,
+                    auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
+                )
+                if resp.status_code == 200:
+                    role_provider_status = "ok"
+                else:
+                    role_provider_status = f"error ({resp.status_code})"
+        except Exception as e:
+            role_provider_status = "error"
+            details["role_provider_error"] = str(e)
 
-    healthy = db_status == "ok" and accred_status == "ok"
+    healthy = db_status == "ok"
     status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
+    log = logger.info if healthy else logger.warning
+    log(
+        "Health check",
+        extra={
+            "healthy": healthy,
+            "database_status": db_status,
+            "role_provider": role_provider_status,
+            "details": details,
+        },
+    )
     return JSONResponse(
         status_code=status_code,
         content={
             "status": "healthy" if healthy else "unhealthy",
             "database": db_status,
-            "accred": accred_status,
+            "role_provider": role_provider_status,
             "details": details,
         },
     )
