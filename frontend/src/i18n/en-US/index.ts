@@ -94,9 +94,9 @@ export default {
   workspace_setup_confirm_year: 'Selected Year',
   workspace_setup_confirm_selection: 'Continue to calculator',
   workspace_setup_restart: 'Start Over',
-  workspace_setup_unit_manager: 'Unit Manager',
-  workspace_setup_unit_affiliation: 'Affiliation',
-  workspace_setup_unit_progress: 'Progress from last year',
+  workspace_setup_unit_manager: 'Head of Unit',
+  workspace_setup_unit_affiliation: 'Affiliations',
+  workspace_setup_unit_progress: 'Progress ({year} assessment)',
   home_title: 'Welcome to the CO2 Calculator',
   home_intro_1:
     "The Calculator CO₂ allows you to assess your laboratory's carbon footprint following the Greenhouse Gas (GHG) Protocol, the international standard for calculating greenhouse gas emissions.",

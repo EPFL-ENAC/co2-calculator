@@ -97,7 +97,7 @@ export default {
   workspace_setup_restart: 'Recommencer',
   workspace_setup_unit_manager: "Responsable d'unité",
   workspace_setup_unit_affiliation: 'Affiliation',
-  workspace_setup_unit_progress: "Progression de l'année dernière",
+  workspace_setup_unit_progress: 'Progression (évaluation {year})',
   home_title: 'Bienvenue dans le Calculateur de CO2',
   home_intro_1:
     "Le Calculateur CO₂ vous permet d'évaluer l'empreinte carbone de votre laboratoire selon le Protocole des gaz à effet de serre (GES), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
