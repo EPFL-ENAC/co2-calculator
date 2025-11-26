@@ -13,6 +13,7 @@ const SIMULATION_ID_PATTERN = '[^/]+';
 // Route name constants
 export const LOGIN_ROUTE_NAME = 'login';
 export const LOGIN_TEST_ROUTE_NAME = 'login-test';
+export const LOGIN_ROUTES = [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME];
 export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
 export const WORKSPACE_ROUTE_NAME = 'workspace';
