@@ -53,11 +53,11 @@ jobs:
 
       - name: Run Safety check
         run: uvx uv-audit --verbose
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Run Bandit security linter
         run: uvx bandit -r ./app/ -x tests,.venv   
-        continue-on-error: true
+        continue-on-error: false
 
   codeql:
     name: CodeQL Analysis
