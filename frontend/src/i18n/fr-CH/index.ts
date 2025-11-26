@@ -96,7 +96,7 @@ export default {
   workspace_setup_confirm_selection: 'Continuer vers le calculateur',
   workspace_setup_restart: 'Recommencer',
   workspace_setup_unit_manager: "Responsable d'unité",
-  workspace_setup_unit_affiliation: 'Affiliation',
+  workspace_setup_unit_affiliation: 'Affiliations',
   workspace_setup_unit_progress: 'Progression (évaluation {year})',
   home_title: 'Bienvenue dans le Calculateur de CO2',
   home_intro_1:
