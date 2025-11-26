@@ -153,4 +153,20 @@ export default {
     'Signale les émissions les plus élevées. Entrez le nombre de valeurs les plus élevées.',
   threshold_top_value: 'Nombre de valeurs les plus élevées',
   threshold_top_summary: '{value} valeurs les plus élevées',
+  data_management_reporting_year: 'Année de rapport',
+  data_management_reporting_year_hint:
+    'Sélectionnez l’année pour afficher les données d’achèvement des modules pour cette période de rapport.',
+  data_management_annual_data_import: 'Import annuel des données',
+  data_management_annual_data_import_hint:
+    'Import annuel des facteurs d’émission et autres données nécessaires au calcul CO2-éq (listes d’équipements, coefficients, etc.) via les interfaces d’importation de données CSV.',
+  data_management_data_imports_count: 'Importations de données ({count})',
+  data_management_category: 'Catégorie',
+  data_management_description: 'Description',
+  data_management_factor: 'Facteur',
+  data_management_data: 'Données',
+  data_management_download_csv_templates: 'Télécharger les modèles CSV',
+  data_management_upload_csv_files: 'Téléverser des fichiers CSV',
+  data_management_connect_api: 'Connecter API',
+  data_management_copy_previous_year: "Copier l'année précédente",
+  data_management_no_data: 'Aucune donnée disponible pour cette année.',
 };

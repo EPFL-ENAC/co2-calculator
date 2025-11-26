@@ -151,4 +151,20 @@ export default {
     'Flag the highest emissions. Enter the number of top values.',
   threshold_top_value: 'Top Values Count',
   threshold_top_summary: 'Top {value} values threshold',
+  data_management_reporting_year: 'Reporting Year',
+  data_management_reporting_year_hint:
+    'Select the year to view module completion data for that reporting period.',
+  data_management_annual_data_import: 'Annual Data Import',
+  data_management_annual_data_import_hint:
+    'Annual import of emission factors and other data necessary for CO2-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
+  data_management_data_imports_count: 'Data Imports ({count})',
+  data_management_category: 'Category',
+  data_management_description: 'Description',
+  data_management_factor: 'Factor',
+  data_management_data: 'Data',
+  data_management_download_csv_templates: 'Download CSV Templates',
+  data_management_upload_csv_files: 'Upload CSV Files',
+  data_management_connect_api: 'Connect API',
+  data_management_copy_previous_year: 'Copy Previous Year',
+  data_management_no_data: 'No data available for this year.',
 };
