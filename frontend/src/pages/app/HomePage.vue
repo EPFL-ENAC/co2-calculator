@@ -149,6 +149,7 @@ const homeIntroWithLinks = computed(() => {
               no-caps
               size="sm"
               class="text-weight-medium btn-secondary"
+              :to="{ name: 'module', params: { module: moduleCard.module } }"
             />
             <div
               v-if="moduleCard.value"
