@@ -1,34 +1,26 @@
-import common from './common';
-import Admin from './admin';
-import Backoffice from './backoffice';
-import MyLab from './mylab';
-import ProfessionalTravel from './professionaltravel';
-import Infrastructure from './infrastructure';
-import EquipmentElectricConsumption from './equipmentelectricconsumption';
-import Purchase from './purchase';
-import InternalServices from './internalservices';
-import ExternalCloud from './externalcloud';
+type TranslationModule = {
+  [key: string]: {
+    en: string;
+    fr: string;
+  };
+};
 
-const modules = [
-  common,
-  Admin,
-  Backoffice,
-  MyLab,
-  ProfessionalTravel,
-  Infrastructure,
-  EquipmentElectricConsumption,
-  Purchase,
-  InternalServices,
-  ExternalCloud,
-];
+// Load all .ts files in the current directory eagerly
+const modules = import.meta.glob<TranslationModule>('./*.ts', { eager: true });
 
 type Lang = 'en' | 'fr';
 
 const extract = (lang: Lang) => {
   const messages: Record<string, string> = {};
-  modules.forEach((mod) => {
-    // The modules are imported directly as objects because they use export default
-    const content = mod;
+
+  for (const path in modules) {
+    // Skip index.ts itself
+    if (path.includes('index.ts')) continue;
+
+    const mod = modules[path];
+    // @ts-ignore: The module structure is known but TS might complain about default export type
+    const content = mod.default || mod;
+
     Object.keys(content).forEach((key) => {
       // @ts-ignore
       if (content[key] && content[key][lang]) {
@@ -36,7 +28,7 @@ const extract = (lang: Lang) => {
         messages[key] = content[key][lang];
       }
     });
-  });
+  }
   return messages;
 };
 
