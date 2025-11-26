@@ -1,0 +1,144 @@
+<script setup lang="ts">
+import { MODULES_LIST } from 'src/constant/modules';
+
+interface Props {
+  year: number;
+}
+defineProps<Props>();
+</script>
+
+<template>
+  <q-card flat bordered class="q-pa-md q-mb-xl">
+    <div class="text-h5 text-weight-medium">
+      <q-icon name="file_download" color="accent" size="sm" class="on-left" />
+      <span>{{ $t('data_management_annual_data_import') }}</span>
+    </div>
+    <div class="q-my-md">
+      {{ $t('data_management_annual_data_import_hint') }}
+    </div>
+    <div>
+      <q-banner inline-actions class="q-px-none">
+        <template #action>
+          <q-btn
+            no-caps
+            outline
+            color="secondary"
+            icon="file_download"
+            size="sm"
+            :label="$t('data_management_download_csv_templates')"
+            class="text-weight-medium"
+          />
+          <q-btn
+            no-caps
+            color="accent"
+            icon="file_upload"
+            size="sm"
+            :label="$t('data_management_upload_csv_files')"
+            class="text-weight-medium on-right"
+          />
+          <q-btn
+            no-caps
+            color="accent"
+            icon="file_copy"
+            size="sm"
+            :label="$t('data_management_copy_previous_year')"
+            class="text-weight-medium on-right"
+          />
+        </template>
+        <div>
+          {{
+            $t('data_management_data_imports_count', {
+              count: MODULES_LIST.length,
+            })
+          }}
+        </div>
+      </q-banner>
+      <q-markup-table flat bordered>
+        <thead>
+          <tr>
+            <th align="left">{{ $t('data_management_category') }}</th>
+            <th align="left">
+              {{ $t('data_management_description') }}
+            </th>
+            <th align="left">{{ $t('data_management_data') }}</th>
+            <th align="left">{{ $t('data_management_factor') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="module in MODULES_LIST" :key="module">
+            <td class="text-weight-medium" align="left">{{ $t(module) }}</td>
+            <td align="left"></td>
+            <td align="left">
+              <div class="q-mb-sm">
+                <q-icon name="warning" size="xs" color="warning" />
+                <span class="q-ml-sm text-negative">{{
+                  $t('data_management_no_data')
+                }}</span>
+              </div>
+              <div>
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="file_upload"
+                  size="sm"
+                  :label="$t('data_management_upload_csv_files')"
+                  class="text-weight-medium"
+                />
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="link"
+                  size="sm"
+                  :label="$t('data_management_connect_api')"
+                  class="text-weight-medium on-right"
+                />
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="file_copy"
+                  size="sm"
+                  :label="$t('data_management_copy_previous_year')"
+                  class="text-weight-medium on-right"
+                />
+              </div>
+            </td>
+            <td align="left">
+              <div class="q-mb-sm">
+                <q-icon name="warning" size="xs" color="warning" />
+                <span class="q-ml-sm text-negative">{{
+                  $t('data_management_no_data')
+                }}</span>
+              </div>
+              <div>
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="file_upload"
+                  size="sm"
+                  :label="$t('data_management_upload_csv_files')"
+                  class="text-weight-medium"
+                />
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="link"
+                  size="sm"
+                  :label="$t('data_management_connect_api')"
+                  class="text-weight-medium on-right"
+                />
+                <q-btn
+                  no-caps
+                  color="accent"
+                  icon="file_copy"
+                  size="sm"
+                  :label="$t('data_management_copy_previous_year')"
+                  class="text-weight-medium on-right"
+                />
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </q-markup-table>
+    </div>
+  </q-card>
+</template>
