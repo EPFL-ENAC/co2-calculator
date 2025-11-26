@@ -84,7 +84,7 @@ async def get_current_user(
 
     # Check it is a test user in DEBUG mode
     if settings.DEBUG and user_id.startswith("testuser_"):
-        return _make_test_user(user_id)
+        return make_test_user(user_id)
 
     user = await get_user_by_id(db, user_id)
     if user is None:
@@ -107,7 +107,7 @@ async def get_current_active_user(
     return user
 
 
-def _make_test_user(user_id: str) -> User:
+def make_test_user(user_id: str) -> User:
     """Helper to create a test user object in DEBUG mode."""
     requested_role = user_id[len("testuser_") :]
     roles: List[dict] = []

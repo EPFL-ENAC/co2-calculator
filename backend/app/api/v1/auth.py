@@ -14,10 +14,10 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.role_provider import get_role_provider
 from app.core.security import (
-    _make_test_user,
     create_access_token,
     create_refresh_token,
     decode_jwt,
+    make_test_user,
 )
 from app.repositories.user_repo import get_user_by_id, upsert_user
 from app.schemas.user import UserRead
@@ -281,7 +281,7 @@ async def get_me(
 
         # Check it is a test user in DEBUG mode
         if settings.DEBUG and user_id.startswith("testuser_"):
-            return _make_test_user(user_id)
+            return make_test_user(user_id)
 
         # Get user from database
         user = await get_user_by_id(db, user_id)
@@ -373,7 +373,7 @@ async def refresh_token(
         user = None
         # Check it is a test user in DEBUG mode
         if settings.DEBUG and user_id.startswith("testuser_"):
-            user = _make_test_user(user_id)
+            user = make_test_user(user_id)
         else:
             user = await get_user_by_id(db, user_id)
 
