@@ -1,7 +1,7 @@
 """Security utilities for JWT authentication and authorization."""
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -110,7 +110,7 @@ async def get_current_active_user(
 def _make_test_user(user_id: str) -> User:
     """Helper to create a test user object in DEBUG mode."""
     requested_role = user_id[len("testuser_") :]
-    roles = []
+    roles: List[dict] = []
     if requested_role == "co2.backoffice.admin":
         roles = [{"role": requested_role, "on": "global"}]
     elif requested_role == "co2.backoffice.std":
