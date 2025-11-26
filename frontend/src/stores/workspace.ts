@@ -162,12 +162,6 @@ export const useWorkspaceStore = defineStore(
       unitResults.value = null;
     }
 
-    async function initFromPersisted() {
-      if (selectedUnit.value) {
-        await getUnitResults(selectedUnit.value.id);
-      }
-    }
-
     return {
       units,
       selectedUnit,
@@ -188,7 +182,6 @@ export const useWorkspaceStore = defineStore(
       setUnit,
       setYear,
       reset,
-      initFromPersisted,
     };
   },
   {

@@ -1,6 +1,6 @@
 import { useAuthStore } from 'src/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
-
+import { LOGIN_ROUTES } from '../routes';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
@@ -34,7 +34,7 @@ export async function authGuard(to: RouteLocationNormalized) {
   }
 
   // Redirect authenticated users away from login
-  if (to.name === 'login' && auth.isAuthenticated) {
+  if (LOGIN_ROUTES.includes(to.name as string) && auth.isAuthenticated) {
     return { name: 'workspace-setup', ...redirectTo };
   }
 
