@@ -46,13 +46,6 @@ class UserBase(SQLModel):
         description="User roles with hierarchical scopes",
     )
 
-    # @field_validator("roles", mode="before", check_fields=False)
-    # def serialize_roles(cls, v):
-    #     # Convert Role objects to dicts for JSON serialization
-    #     if isinstance(v, list):
-    #         return [r.dict() if isinstance(r, Role) else r for r in v]
-    #     return v
-
     @field_validator("roles", mode="after", check_fields=False)
     def deserialize_roles(cls, v):
         # Convert dicts back to Role objects after loading from DB
