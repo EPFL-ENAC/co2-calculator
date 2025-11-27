@@ -4,20 +4,32 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Import your Base and all models
+from sqlmodel import SQLModel
+
 from alembic import context
+from app import models  # noqa: F401 to register models with Base
 
 # Import settings to get DB_URL
 from app.core.config import get_settings
-
-# Import your Base and all models
-from app.db import Base
 
 settings = get_settings()
 
 # this is the Alembic Config object
 config = context.config
+
+url = make_url(settings.db_url)
+if (
+    url.drivername == "postgresql"
+    or url.drivername == "postgres"
+    or url.drivername == "postgresql+psycopg"
+) and not url.drivername.endswith("+asyncpg"):
+    # Add async driver + optional query params
+    url = url.set(drivername="postgresql+psycopg")
+    settings.DB_URL = str(url)
 
 # Set the database URL from settings
 config.set_main_option("sqlalchemy.url", settings.db_url)
@@ -29,7 +41,7 @@ if config.config_file_name is not None:
 # Create logger AFTER configuring logging
 logger = logging.getLogger("alembic.env")
 # Set target metadata for autogenerate support
-target_metadata = Base.metadata
+target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:
