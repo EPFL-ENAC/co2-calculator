@@ -118,7 +118,7 @@ export default {
   home_in_progress: 'In Progress',
   home_results_title: 'Results Visualization',
   home_results_subtitle: 'Annual CO2 Assessment 2024',
-  home_results_btn: 'View Full Results',
+  home_results_btn: 'View Results',
   home_simulations_title: 'Research Project Simulation',
   home_simulations_subtitle: 'Estimate project-specific carbon footprint ',
   home_simulations_btn: 'View Simulations',
