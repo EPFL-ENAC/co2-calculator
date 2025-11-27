@@ -52,7 +52,7 @@ const homeIntroWithLinks = computed(() => {
         no-caps
         size="md"
         class="text-weight-medium q-mt-xl"
-        :to="{ name: 'module', params: { module: 'my-laboratory' } }"
+        :to="{ name: 'module', params: { module: MODULES.MyLab } }"
       />
     </q-card>
 
