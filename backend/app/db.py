@@ -4,7 +4,9 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlmodel import SQLModel
 
+from app import models  # noqa: F401 to register models with Base
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -53,5 +55,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     """Initialize database tables."""
     # Import all models here to ensure they are registered with Base
+    print("Initializing database tables...")
+    # SQLModel.metadata.create_all(engine)
+
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(SQLModel.metadata.create_all)

@@ -96,6 +96,10 @@ test-cov: ## Run tests with coverage
 test-cov-xml: ## Run tests with coverage and output XML report
 	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=60
 
+.PHONY: seed-data
+seed-data: ## Seed the database with initial data
+	$(UV) run -m app.populate_fake_data
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \
