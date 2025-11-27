@@ -134,6 +134,14 @@ db-migrate: ## Run database migrations (upgrade to head)
 db-revision: ## Create new migration (usage: make db-revision message="description")
 	uv run alembic revision --autogenerate -m "$(message)"
 
+.PHONY: db-drop
+db-drop: ## Drop the database (use with caution!)
+	uv run -m scripts.manage_db --action drop || true
+.PHONY: db-create
+db-create: ## Create the database
+	uv run -m scripts.manage_db --action create  || true
+
+
 
 .PHONY: erd
 erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
