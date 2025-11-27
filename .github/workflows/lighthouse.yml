@@ -1,0 +1,59 @@
+name: Lighthouse CI
+
+on:
+  pull_request:
+    branches: [main, dev, stage, 'ci-test/**']
+    paths:
+      - "frontend/**"
+      - ".github/workflows/lighthouse.yml"
+
+jobs:
+  lighthouse:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ">=24.0.0"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          configPath: "./.lighthouserc.json"
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+          runs: 3
+
+      - name: Comment PR with Lighthouse results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('.lighthouseci/manifest.json'));
+            const comment = `## ⚡ Lighthouse CI Results
+            
+            📊 [View full report](${results[0].url})
+            
+            Performance scores will be available in the artifacts.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

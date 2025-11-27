@@ -1,0 +1,51 @@
+// Map SCSS tokens to Quasar variables ahead of pulling in the framework CSS.
+@import './02-tokens/quasar-bridge';
+
+// Establish the cascade order for the ITCSS-inspired architecture.
+@layer reset, fonts, tokens, quasar-base, layout, quasar-overrides, components, utilities;
+
+@layer reset {
+  @import './01-reset/normalize';
+}
+
+@layer fonts {
+  @import './00-fonts/fonts';
+}
+
+@layer tokens {
+  @import './02-tokens/css-properties';
+}
+
+// Wrap Quasar in a layer
+@layer quasar-base {
+  @import 'quasar/src/css/index.sass';
+}
+
+@layer layout {
+  @import './03-layout/body';
+  @import './03-layout/grid';
+  @import './03-layout/container';
+}
+
+@layer quasar-overrides {
+  @import './05-components/quasar-overrides/q-badge';
+  @import './05-components/quasar-overrides/q-btn-timeline-button';
+  @import './05-components/quasar-overrides/q-btn';
+}
+
+@layer components {
+  // example component imports
+  @import './05-components/_organisms/navigation';
+  @import './05-components/_organisms/login-card';
+  @import './05-components/_organisms/timeline';
+  @import './05-components/_templates/dashboard';
+  @import './05-components/_templates/login-page';
+  @import './05-components/_organisms/lab-selector';
+  @import './05-components/_organisms/table';
+  @import './05-components/_templates/sidebar';
+}
+
+@layer utilities {
+  @import './04-utils/spacing';
+  @import './04-utils/text';
+}

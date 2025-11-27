@@ -1,0 +1,24 @@
+@use '../../02-tokens' as tokens;
+
+.co2-sidebar {
+  height: 100%;
+  width: fit-content;
+  background-color: tokens.$sidebar-bg;
+  border-right: tokens.$sidebar-border-width solid tokens.$sidebar-border-color;
+
+  .co2-sidebar-item {
+    gap: tokens.$sidebar-item-gap;
+    padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-right
+      tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    cursor: pointer;
+    min-width: 0;
+
+    &:hover,
+    &--selected {
+      background-color: tokens.$sidebar-bg-selected;
+    }
+  }
+}

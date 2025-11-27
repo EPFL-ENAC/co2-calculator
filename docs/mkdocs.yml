@@ -1,0 +1,120 @@
+site_name: EPFL Project Technical Docs
+site_url: ""
+repo_url: https://github.com/epfl-enac/co2-calculator
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.annotate
+    - navigation.instant
+    - navigation.instant.prefetch
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+# use_directory_urls: true
+use_directory_urls: false
+watch:
+  - src
+  - mkdocs.yml
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+  - def_list
+  - md_in_html
+  - footnotes
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed
+
+docs_dir: src
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - Purpose & Scope: architecture/01-purpose-scope.md
+      - System Overview: architecture/02-system-overview.md
+      - Subsystem Map: architecture/03-subsystem-map.md
+      - Auth Flow: architecture/04-auth-flow.md
+      - Environments: architecture/05-environments.md
+      - CI/CD Pipeline: architecture/06-cicd-pipeline.md
+      - Global Conventions: architecture/07-global-conventions.md
+      - Tech Stack: architecture/08-tech-stack.md
+      - Component Breakdown: architecture/09-component-breakdown.md
+      - Data Flow: architecture/10-data-flow.md
+      - Deployment Topology: architecture/11-deployment-topology.md
+      - Scalability: architecture/12-scalability.md
+      - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
+      - Architectural Decisions: architecture/14-architectural-decisions.md
+      - Appendices: architecture/15-appendices.md
+      - EPFL Compliance: architecture/epfl-compliance-mapping.md
+      - Code Standards: architecture/code-standards.md
+
+  - Architecture Decision Records:
+      - Overview: architecture-decision-records/index.md
+      - ADR-001 Python Package Manager: architecture-decision-records/001-python-package-manager.md
+      - ADR-002 Frontend Framework: architecture-decision-records/002-frontend-framework.md
+      - ADR-003 Backend Framework: architecture-decision-records/003-backend-framework.md
+      - ADR-004 Database Selection: architecture-decision-records/004-database-selection.md
+      - ADR-005 Authorization Strategy: architecture-decision-records/005-authorization-strategy.md
+      - ADR-010 Background Job Processing: architecture-decision-records/010-background-job-processing.md
+      - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
+      - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
+
+  - Frontend:
+      - Overview: frontend/01-overview.md
+
+  - Backend:
+      - Overview: backend/01-overview.md
+
+  - Database:
+      - Overview: database/01-overview.md
+
+  - Infrastructure:
+      - Overview: infra/01-overview.md
+extra:
+  version: "1.0.0"
+extra_css:
+  - stylesheets/extra.css
+plugins:
+  # - search
+  # - with-pdf:
+  #     author: "EPFL Dev Team"
+  #     cover_subtitle: "Technical Documentation"
+  #     output_path: pdf/EPFL-Project-Docs.pdf
+  #     toc_title: "Table of Contents"
+  #     cover: true
+  #     ordered_chapter_level: 2
+  #     exclude_pages:
+  #       - index.md
+  #     enabled_if_env: ENABLE_PDF_EXPORT
+  #     # custom_styles: styles/pdf-custom.css
+  #     verbose: false
+  - git-authors
+  - git-revision-date-localized:
+      fallback_to_build_date: true
+      locale: en
+      timezone: Europe/Zurich
+  - minify:
+      minify_html: true
+      minify_css: true
+      minify_js: true
+
+copyright: >
+  2025 EPFL — GPL-3.0 License. Built with MkDocs

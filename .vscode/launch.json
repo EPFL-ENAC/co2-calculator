@@ -1,0 +1,50 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Backend Service",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/.venv/bin/uvicorn",
+      "args": [
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+        "--log-level",
+        "debug"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "python": "${workspaceFolder}/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Current Pytest File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v", "-s"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "python": "${workspaceFolder}/backend/.venv/bin/python"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All Services",
+      "configurations": [
+        "Debug Backend Service",
+      ],
+      "stopAll": true
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-backend
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.backend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "co2-calculator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      
+      initContainers:
+        {{- if .Values.database.waitForPostgres.enabled }}
+        - name: wait-for-postgres
+          image: {{ .Values.database.waitForPostgres.image.repository }}:{{ .Values.database.waitForPostgres.image.tag }}
+          imagePullPolicy: {{ .Values.database.waitForPostgres.image.pullPolicy }}
+          command: ['sh', '-c']
+          args:
+            - |
+              until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.host }}
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.port }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.user }}
+          resources:
+            {{- toYaml .Values.backend.initContainers.waitForPostgres.resources | nindent 12 }}
+        {{- end }}
+      containers:
+        - name: backend
+          securityContext:
+            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.url }}
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.secretKeyKey | default "SECRET_KEY" }}
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthClientIdKey | default "OAUTH_CLIENT_ID" }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthClientSecretKey | default "OAUTH_CLIENT_SECRET" }}
+            - name: OAUTH_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthIssuerUrlKey | default "OAUTH_ISSUER_URL" }}
+            - name: OAUTH_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthTenantIdKey | default "OAUTH_TENANT_ID" }}
+            - name: ACCRED_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiKeyKey | default "ACCRED_API_KEY" }}
+            - name: ACCRED_API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiUsernameKey | default "ACCRED_API_USERNAME" }}
+            - name: ACCRED_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiUrlKey | default "ACCRED_API_URL" }}
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

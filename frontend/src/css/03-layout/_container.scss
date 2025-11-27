@@ -1,0 +1,15 @@
+@use '../02-tokens' as tokens;
+
+.container {
+  margin: 0 auto;
+  width: 100%;
+  max-width: tokens.$layout-page-width;
+  background-color: tokens.$container-default-bg;
+  border: tokens.$container-border-weight solid tokens.$container-default-border;
+  border-radius: tokens.$container-border-radius;
+  padding: tokens.$container-padding-y tokens.$container-padding-x;
+
+  &--pa-sm {
+    padding: tokens.$container-padding-sm-y tokens.$container-padding-sm-x;
+  }
+}

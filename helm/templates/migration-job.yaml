@@ -1,0 +1,104 @@
+{{- if .Values.backend.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-migration-{{ .Release.Revision | default "1" }}
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": post-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 1200
+  template:
+    metadata:
+      labels:
+        {{- include "co2-calculator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      initContainers:
+        {{- if .Values.database.waitForPostgres.enabled }}
+        - name: wait-for-postgres
+          image: {{ .Values.database.waitForPostgres.image.repository }}:{{ .Values.database.waitForPostgres.image.tag }}
+          imagePullPolicy: {{ .Values.database.waitForPostgres.image.pullPolicy }}
+          command: ['sh', '-c']
+          args:
+            - |
+              until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.host }}
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.port }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.user }}
+          resources:
+            {{- toYaml .Values.backend.migrations.waitForPostgres.resources | nindent 12 }}
+        {{- end }}
+      containers:
+        - name: migration
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running database migrations..."
+              alembic upgrade head
+          env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecret.keys.url }}
+            {{- range $key, $value := .Values.backend.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.secretKeyKey | default "SECRET_KEY" }}
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthClientIdKey | default "OAUTH_CLIENT_ID" }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthClientSecretKey | default "OAUTH_CLIENT_SECRET" }}
+            - name: OAUTH_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.oauthIssuerUrlKey | default "OAUTH_ISSUER_URL" }}
+          resources:
+            {{- toYaml .Values.backend.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

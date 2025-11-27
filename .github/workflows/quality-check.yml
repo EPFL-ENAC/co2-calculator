@@ -2,32 +2,67 @@ name: Quality Checks
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, stage]
   push:
-    branches: [main, dev]
+    branches: [main, dev, stage, 'ci-test/**']
 
 jobs:
-  quality:
+  
+  frontent-quality:
+    name: Frontent Lint/Type Check
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./
-
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: ">=22.0.0 < 23.0.0"
+          node-version: ">=24.0.0"
           cache: "npm"
-          cache-dependency-path: "./npm-shrinkwrap.json"
+          cache-dependency-path: "./package-lock.json"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Run comprehensive quality checks
+      - name: Check code formatting
         run: make lint
 
-      # - name: Run tests
-      #   run: npm test
+      - name: Quasar prepare
+        run: npx quasar prepare
+
+      - name: Type Check
+        run: npx tsc --noEmit
+
+      - name: Type Check
+        run: npx vue-tsc --noEmit
+
+
+  backend-quality:
+    name: Backend Lint/Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check code formatting
+        run: make lint
+      
+      - name: Type Check
+        run: make type-check

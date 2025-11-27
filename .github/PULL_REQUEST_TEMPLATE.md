@@ -17,12 +17,28 @@ Please check the type that applies:
 - [ ] 🔧 Configuration change
 - [ ] 🧹 Code cleanup
 
-## How to test this
-
-<!-- How can reviewers verify this works? -->
+## Testing checklist
 
 - [ ] I've tested this change locally
-- [ ] Steps to test: (describe if needed)
+- [ ] `make ci` passes without errors
+- [ ] Tests added/updated (60% coverage minimum)
+- [ ] No test failures introduced
+
+## Code quality checklist
+
+- [ ] Code follows our standards (linter passes)
+- [ ] No hardcoded values or secrets
+- [ ] Documentation updated for new features
+- [ ] Commit messages follow convention
+- [ ] No console.log or debug statements
+
+## For UI changes only
+
+- [ ] Screenshots/GIFs/videos included below
+- [ ] WCAG Level AA accessibility verified
+- [ ] Keyboard navigation works correctly
+- [ ] Tested on mobile, tablet, and desktop
+- [ ] Focus indicators visible
 
 ## Screenshots (if applicable)
 
@@ -32,3 +48,7 @@ Please check the type that applies:
 
 - Closes #
 - Related to #
+
+---
+
+See [Development Workflow](../docs/src/architecture/workflow-guide.md) for full PR process and review criteria.

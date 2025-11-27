@@ -1,0 +1,208 @@
+@use 'components' as comp;
+@use 'decisions' as dec;
+@use 'options' as opt;
+
+// Brand colors
+$primary: dec.$color-text;
+$secondary: dec.$color-text-muted;
+$accent: dec.$color-primary !default;
+$disabled: dec.$color-text-muted !default;
+$positive: dec.$color-status-success !default;
+$negative: dec.$color-status-error !default;
+$info: dec.$color-validated !default;
+$warning: dec.$color-status-warning !default;
+
+// Grey scale
+$grey-1: opt.$tokens-colors-grey-scale-grey-100 !default;
+$grey-2: opt.$tokens-colors-grey-scale-grey-200 !default;
+$grey-3: opt.$tokens-colors-grey-scale-grey-300 !default;
+$grey-4: opt.$tokens-colors-grey-scale-grey-400 !default;
+$grey-5: opt.$tokens-colors-grey-scale-grey-500 !default;
+$grey-6: opt.$tokens-colors-grey-scale-grey-600 !default;
+
+// Spacing
+$space-base: dec.$spacing-md !default;
+$space-x-base: $space-base !default;
+$space-y-base: $space-base !default;
+$space-none: (
+  x: 0,
+  y: 0,
+) !default;
+$space-xs: (
+  x: dec.$spacing-xs,
+  y: dec.$spacing-xs,
+) !default;
+$space-sm: (
+  x: dec.$spacing-sm,
+  y: dec.$spacing-sm,
+) !default;
+$space-md: (
+  x: dec.$spacing-md,
+  y: dec.$spacing-md,
+) !default;
+$space-lg: (
+  x: dec.$spacing-lg,
+  y: dec.$spacing-lg,
+) !default;
+$space-xl: (
+  x: dec.$spacing-xl,
+  y: dec.$spacing-xl,
+) !default;
+
+// Typography
+$body-font-size: dec.$text-size-sm !default;
+$body-line-height: dec.$text-line-height-base !default;
+$typography-font-family: dec.$text-font-family !default;
+$h1: (
+  size: dec.$text-size-3xl,
+  line-height: dec.$text-line-height-4xl,
+) !default;
+$h2: (
+  size: dec.$text-size-2xl,
+  line-height: dec.$text-line-height-3xl,
+) !default;
+$h3: (
+  size: dec.$text-size-xl,
+  line-height: dec.$text-line-height-2xl,
+) !default;
+$h4: (
+  size: dec.$text-size-lg,
+  line-height: dec.$text-line-height-xl,
+) !default;
+$h5: (
+  size: dec.$text-size-base,
+  line-height: dec.$text-line-height-lg,
+) !default;
+$h6: (
+  size: dec.$text-size-sm,
+  line-height: dec.$text-line-height-base,
+) !default;
+
+// Button
+$button-font-size: 16px !default;
+$button-border-radius: comp.$button-radius !default;
+$button-push-border-radius: comp.$button-radius !default;
+$button-dense-padding: comp.$button-size-sm-padding-y
+  comp.$button-size-sm-padding-x !default;
+$button-font-size: comp.$button-size-md-font-size !default;
+$button-primary-background: comp.$button-primary-bg-default !default;
+$button-line-height: comp.$button-size-md-line-height !default;
+$button-font-weight: dec.$text-weight-bold !default;
+$button-shadow: none !default;
+$button-shadow-active: none !default;
+$button-transition: comp.$button-transition-duration !default;
+$button-padding-xs: comp.$button-size-xs-padding-y
+  comp.$button-size-xs-padding-x !default;
+$button-padding-sm: comp.$button-size-sm-padding-y
+  comp.$button-size-sm-padding-x !default;
+$button-padding-md: comp.$button-size-md-padding-y
+  comp.$button-size-md-padding-x !default;
+
+// Separators & borders
+$separator-color: dec.$color-border !default;
+$separator-dark-color: rgb(255 255 255 / 28%) !default;
+$generic-border-radius: dec.$radius-default-px !default;
+
+// Input/Form fields
+$input-font-size: comp.$field-md-font-size !default;
+$input-text-color: dec.$color-text !default;
+$input-label-color: dec.$color-text-muted !default;
+
+// Cards
+$generic-hover-transition: 0.3s cubic-bezier(0.25, 0.8, 0.5, 1) !default;
+
+// Dimmed backgrounds
+$dimmed-background: rgb(0 0 0 / 40%) !default;
+$light-dimmed-background: rgb(255 255 255 / 60%) !default;
+
+// Menu
+$menu-background: dec.$color-surface !default;
+$menu-max-width: 95vw !default;
+$menu-max-height: 65vh !default;
+
+// Tooltip
+$tooltip-color: #fafafa !default;
+$tooltip-background: opt.$tokens-colors-grey-scale-grey-600 !default;
+$tooltip-padding: dec.$spacing-xs dec.$spacing-sm !default;
+$tooltip-border-radius: dec.$radius-default !default;
+$tooltip-fontsize: dec.$text-size-xs !default;
+$tooltip-mobile-padding: dec.$spacing-sm dec.$spacing-md !default;
+$tooltip-mobile-fontsize: dec.$text-size-sm !default;
+$tooltip-max-width: 95vw !default;
+$tooltip-max-height: 65vh !default;
+
+// Table
+$table-border-color: dec.$color-border !default;
+$table-hover-background: rgb(0 0 0 / 3%) !default;
+$table-selected-background: rgb(255 0 0 / 6%) !default;
+$table-dark-border-color: $separator-dark-color !default;
+$table-dark-hover-background: rgb(255 255 255 / 7%) !default;
+$table-dark-selected-background: rgb(255 255 255 / 10%) !default;
+$table-border-radius: dec.$radius-default !default;
+$table-transition: $generic-hover-transition !default;
+
+// Layout
+$layout-border: 1px solid $separator-color !default;
+
+// Badge
+$badge-font-size: dec.$text-size-xs !default;
+$badge-line-height: 1 !default;
+
+// Item (lists)
+$item-base-color: opt.$tokens-colors-grey-scale-grey-500 !default;
+
+// Editor
+$editor-border-color: $separator-color !default;
+$editor-border-dark-color: $separator-dark-color !default;
+$editor-content-padding: dec.$spacing-sm !default;
+$editor-content-min-height: 10em !default;
+$editor-toolbar-padding: dec.$spacing-xs !default;
+$editor-hr-color: $editor-border-color !default;
+$editor-hr-dark-color: $editor-border-dark-color !default;
+$editor-button-gutter: dec.$spacing-xs !default;
+
+// Chat
+$chat-message-received-color: #000 !default;
+$chat-message-received-bg: opt.$tokens-colors-status-green !default;
+$chat-message-sent-color: #000 !default;
+$chat-message-sent-bg: opt.$tokens-colors-grey-scale-grey-400 !default;
+$chat-message-border-radius: dec.$radius-default !default;
+$chat-message-distance: dec.$spacing-sm !default;
+$chat-message-text-padding: dec.$spacing-sm !default;
+
+// Dialog
+$dialog-title-font-size: dec.$text-size-lg !default;
+$dialog-title-line-height: 1.6 !default;
+
+// Toolbar
+$toolbar-min-height: 50px !default;
+$toolbar-padding: 0 dec.$spacing-md !default;
+$toolbar-title-font-size: dec.$text-size-lg !default;
+$toolbar-title-font-weight: dec.$text-weight-regular !default;
+$toolbar-title-padding: 0 dec.$spacing-md !default;
+
+// Rating
+$rating-grade-color: opt.$tokens-colors-status-yellow !default;
+
+// CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
+// Quasar does not provide default values for these, so we need to set them here.
+$breakpoint-xs: 599px !default;
+$breakpoint-sm: 1023px !default;
+$breakpoint-md: 1439px !default;
+$breakpoint-lg: 1919px !default;
+$z-fab: 990 !default;
+$z-side: 1000 !default;
+$z-marginals: 2000 !default;
+$z-fixed-drawer: 3000 !default;
+$z-fullscreen: 6000 !default;
+$z-menu: 6000 !default;
+$z-top: 7000 !default;
+$z-tooltip: 9000 !default;
+$z-notify: 9500 !default;
+$z-max: 9998 !default;
+$flex-cols: 12 !default;
+$flex-gutter-xs: dec.$spacing-xs !default;
+$flex-gutter-sm: dec.$spacing-sm !default;
+$flex-gutter-md: dec.$spacing-md !default;
+$flex-gutter-lg: dec.$spacing-lg !default;
+$flex-gutter-xl: dec.$spacing-xl !default;
