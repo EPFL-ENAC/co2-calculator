@@ -9,6 +9,7 @@ import ModuleThresholdInput from 'src/components/organisms/data-management/Modul
 
 const props = defineProps<{
   modelValue: ModuleThreshold;
+  year: number;
 }>();
 
 const emit = defineEmits<{
