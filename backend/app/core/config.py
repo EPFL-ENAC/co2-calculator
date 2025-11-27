@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    LOCAL_ENVIRONMENT: bool = Field(
+        default=False, description="Set to True for local development environment"
+    )
     API_DOCS_PREFIX: str = "/api"
     API_VERSION: str = "/v1"
 

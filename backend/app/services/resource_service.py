@@ -9,7 +9,7 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.models.resource import Resource
-from app.models.user import User
+from app.models.user import Role, RoleScope, User
 from app.repositories import resource_repo
 from app.schemas.resource import ResourceCreate, ResourceUpdate
 
@@ -39,7 +39,7 @@ def _build_opa_input(
     if resource:
         input_data["resource"] = {
             "id": resource.id,
-            "owner_id": resource.owner_id,
+            "created_by": resource.created_by,
             "unit_id": resource.unit_id,
             "visibility": resource.visibility,
         }
@@ -206,14 +206,24 @@ async def create_resource(
         )
 
     # Validate unit_id matches user's unit (unless superuser)
-    if resource_in.unit_id != user.roles[0]["on"]["unit"]:
+    user_role = user.roles[0]
+    if isinstance(user_role, dict):
+        user_role = Role(**user_role)
+    if isinstance(user_role.on, dict):
+        user_role.on = RoleScope(**user_role.on)
+    unit_id = getattr(user_role.on, "unit", None)
+    if resource_in.unit_id != unit_id and not user.has_role_global(
+        "co2.backoffice.admin"
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot create resources for other units",
         )
 
     # Create resource
-    resource = await resource_repo.create_resource(db, resource_in, str(user.id))
+    resource = await resource_repo.create_resource(
+        db=db, resource=resource_in, user_id=str(user.id)
+    )
     logger.info(
         "Resource created",
         extra={"user_id": user.id, "resource_id": sanitize(resource.id)},

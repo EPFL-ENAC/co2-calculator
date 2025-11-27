@@ -1,5 +1,7 @@
 {
   "python-envs.defaultEnvManager": "ms-python.python:system",
   "python-envs.pythonProjects": [],
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "python.missingPackage.severity": "Warning",
+  "liveshare.diagnosticMode": true
 }

@@ -4,8 +4,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlmodel import SQLModel
 
-from app.db import Base, get_db
+from app.db import get_db
 from app.main import app
 
 # Test database URL (use in-memory SQLite for tests)
@@ -26,14 +27,15 @@ TestingSessionLocal = async_sessionmaker(
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
     """Create a fresh database for each test."""
+
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
 
     async with TestingSessionLocal() as session:
         yield session
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.drop_all)
 
 
 @pytest_asyncio.fixture(scope="function")
