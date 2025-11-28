@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.1.0...v0.1.1) (2025-11-28)
+
+
+### Bug Fixes
+
+* **release-please:** add config file for pre-bump major ([38a6b21](https://github.com/EPFL-ENAC/co2-calculator/commit/38a6b214d9a02098751ffd29d2fa89cb3a30f4b9))
+* **release-please:** add config file for pre-bump major ([#161](https://github.com/EPFL-ENAC/co2-calculator/issues/161)) ([646f42e](https://github.com/EPFL-ENAC/co2-calculator/commit/646f42e301b57c9e4cc299f9c1d3b6fc5e711c8b))
+
 ## 0.1.0 (2025-11-27)
 
 
