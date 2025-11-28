@@ -44,6 +44,20 @@ const handleLogout = async () => {
 
       <Co2LanguageSelector />
 
+      <q-btn
+        icon="o_article"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('documentation_button_label')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :href="router.resolve({ name: 'back-office-documentation' }).href"
+        target="_blank"
+      />
+
       <template v-if="route.name !== 'workspace-setup'">
         <span
           v-if="workspaceDisplay"
