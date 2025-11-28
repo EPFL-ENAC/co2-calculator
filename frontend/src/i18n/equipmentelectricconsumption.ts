@@ -19,4 +19,8 @@ Usage actif et usage standby: veuillez remplir les heures d'utilisation de chaqu
 Sous-classe: choisissez la sous-classe pour les équipements où cette information est nécessaire.
 Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas appropriée. Attention, vous devrez répercuter ce changement lors de votre prochaine mise à jour de l'inventaire, car celle-ci ne se fait pas automatiquement à travers le Calculateur CO₂.`,
   },
+  [`${MODULES.EquipmentElectricConsumption}-charts-title`]: {
+    en: 'Charts',
+    fr: 'Graphiques',
+  },
 } as const;
