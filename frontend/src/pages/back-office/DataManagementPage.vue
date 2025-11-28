@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import { MODULES_LIST } from 'src/constant/modules';
-import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import { type ModuleThreshold } from 'src/constant/modules';
 import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 </script>
 
 <template>
