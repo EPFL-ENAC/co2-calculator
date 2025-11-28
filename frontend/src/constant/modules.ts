@@ -78,3 +78,16 @@ export interface ModuleResponse {
   submodules: Record<string, Submodule>;
   totals: Totals;
 }
+
+export function getBackendModuleName(frontendModule: Module): string {
+  const moduleMap: Record<Module, string> = {
+    [MODULES.MyLab]: 'my_lab',
+    [MODULES.ProfessionalTravel]: 'professional_travel',
+    [MODULES.Infrastructure]: 'infrastructure',
+    [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
+    [MODULES.Purchase]: 'purchase',
+    [MODULES.InternalServices]: 'internal_services',
+    [MODULES.ExternalCloud]: 'external_cloud',
+  };
+  return moduleMap[frontendModule] || frontendModule;
+}
