@@ -18,13 +18,13 @@ const extract = (lang: Lang) => {
     if (path.includes('index.ts')) continue;
 
     const mod = modules[path];
-    // @ts-expect-error: The module structure is known but TS might complain about default export type
+
     const content = mod.default || mod;
 
     Object.keys(content).forEach((key) => {
-      // @ts-expect-error
+
       if (content[key] && content[key][lang]) {
-        // @ts-expect-error
+
         messages[key] = content[key][lang];
       }
     });
