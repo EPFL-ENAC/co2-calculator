@@ -273,4 +273,40 @@ export default {
     en: 'Total Lab Carbon Footprint',
     fr: '',
   },
+  common_filter_all: {
+    en: 'All',
+    fr: 'Tous',
+  },
+  common_filter_yes: {
+    en: 'Yes',
+    fr: 'Oui',
+  },
+  common_filter_no: {
+    en: 'No',
+    fr: 'Non',
+  },
+  common_filter_complete: {
+    en: 'Complete',
+    fr: 'Complet',
+  },
+  common_filter_incomplete: {
+    en: 'Incomplete',
+    fr: 'Incomplet',
+  },
+  common_filters_search_label: {
+    en: 'Search',
+    fr: 'Rechercher',
+  },
+  common_show_all_rows: {
+    en: 'View Full Table',
+    fr: 'Voir tout',
+  },
+  common_export_as_pdf: {
+    en: 'Export as PDF',
+    fr: 'Exporter en PDF',
+  },
+  common_export_as_csv: {
+    en: 'Export as CSV',
+    fr: 'Exporter en CSV',
+  },
 };

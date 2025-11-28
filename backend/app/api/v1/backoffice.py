@@ -1,7 +1,7 @@
 """Backoffice API endpoints."""
 
 from datetime import datetime, timedelta
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -321,7 +321,7 @@ class UnitReportingData(BaseModel):
 
 def get_module_status(module_data: dict | str) -> str:
     """Extract status from module data
-    handles both old string format and new object format)."""
+    (handles both old string format and new object format)."""
     if isinstance(module_data, dict):
         return module_data.get("status", "default")
     return module_data if isinstance(module_data, str) else "default"
@@ -330,7 +330,7 @@ def get_module_status(module_data: dict | str) -> str:
 def get_module_outlier_values(module_data: dict | str) -> int:
     """
     Extract outlier_values from module data
-    handles both old string format and new object format).
+    (handles both old string format and new object format).
     """
     if isinstance(module_data, dict):
         return module_data.get("outlier_values", 0)
@@ -377,7 +377,7 @@ def get_completion_for_years(completion: dict, years: list[str] | None = None) -
         return completion
 
     years_to_process = _get_years_to_process(completion, years)
-    aggregated = {}
+    aggregated: dict[str, dict[str, Any]] = {}
     status_order = {"validated": 3, "in-progress": 2, "default": 1}
 
     for year in years_to_process:
@@ -386,7 +386,10 @@ def get_completion_for_years(completion: dict, years: list[str] | None = None) -
             continue
 
         for module_name, module_data in year_data.items():
-            current_status = get_module_status(aggregated.get(module_name))
+            existing_module = aggregated.get(module_name)
+            current_status = get_module_status(
+                existing_module if existing_module else {}
+            )
             new_status = get_module_status(module_data)
             new_outlier = get_module_outlier_values(module_data)
 
@@ -401,7 +404,11 @@ def get_completion_for_years(completion: dict, years: list[str] | None = None) -
                     current_status, 0
                 ):
                     aggregated[module_name]["status"] = new_status
-                aggregated[module_name]["outlier_values"] += new_outlier
+                current_outlier = aggregated[module_name].get("outlier_values", 0)
+                if isinstance(current_outlier, int):
+                    aggregated[module_name]["outlier_values"] = (
+                        current_outlier + new_outlier
+                    )
 
     return aggregated
 
@@ -543,14 +550,20 @@ async def list_backoffice_units(
         if completion_status == "complete":
             # Filter units where all modules are validated in ALL selected years
             filtered_units = [
-                u for u in filtered_units if _is_unit_complete(u["completion"], years)
+                u
+                for u in filtered_units
+                if isinstance(u.get("completion"), dict)
+                and _is_unit_complete(cast(dict[str, Any], u["completion"]), years)
             ]
         elif completion_status == "incomplete":
             # Filter units that are not complete
             filtered_units = [
                 u
                 for u in filtered_units
-                if not _is_unit_complete(u["completion"], years)
+                if not (
+                    isinstance(u.get("completion"), dict)
+                    and _is_unit_complete(cast(dict[str, Any], u["completion"]), years)
+                )
             ]
 
     # Filter by outlier values
@@ -558,7 +571,13 @@ async def list_backoffice_units(
         filtered_units = [
             u
             for u in filtered_units
-            if (calculate_total_outlier_values(u["completion"], years) > 0)
+            if isinstance(u.get("completion"), dict)
+            and (
+                calculate_total_outlier_values(
+                    cast(dict[str, Any], u["completion"]), years
+                )
+                > 0
+            )
             == outlier_values
         ]
 
@@ -583,11 +602,12 @@ async def list_backoffice_units(
                 filtered_units = [
                     u
                     for u in filtered_units
-                    if all(
+                    if isinstance(u.get("completion"), dict)
+                    and all(
                         get_module_status(
-                            get_completion_for_years(u["completion"], years).get(
-                                module_name, {}
-                            )
+                            get_completion_for_years(
+                                cast(dict[str, Any], u["completion"]), years
+                            ).get(module_name, {})
                         )
                         in states
                         for module_name, states in module_filters_dict.items()
@@ -612,7 +632,11 @@ async def list_backoffice_units(
     if years:
         num_years = len(years)
     elif filtered_units:
-        num_years = len(_get_year_keys(filtered_units[0].get("completion", {}))) or 3
+        completion_data = filtered_units[0].get("completion", {})
+        if isinstance(completion_data, dict):
+            num_years = len(_get_year_keys(completion_data)) or 3
+        else:
+            num_years = 3
     else:
         num_years = 3
     expected_total = MODULE_COUNT * num_years
@@ -621,13 +645,24 @@ async def list_backoffice_units(
     result_units = []
     for unit in filtered_units:
         unit_dict = unit.copy()
-        unit_dict["completion"] = get_completion_for_years(unit["completion"], years)
-        unit_dict["completion_counts"] = calculate_completion_counts(
-            unit["completion"], years
-        )
-        unit_dict["outlier_values"] = calculate_total_outlier_values(
-            unit["completion"], years
-        )
+        completion_data = unit.get("completion")
+        if isinstance(completion_data, dict):
+            completion_dict = cast(dict[str, Any], completion_data)
+            unit_dict["completion"] = get_completion_for_years(completion_dict, years)
+            unit_dict["completion_counts"] = calculate_completion_counts(
+                completion_dict, years
+            )
+            unit_dict["outlier_values"] = calculate_total_outlier_values(
+                completion_dict, years
+            )
+        else:
+            unit_dict["completion"] = (
+                completion_data if completion_data is not None else {}
+            )
+            unit_dict["completion_counts"] = CompletionCounts(
+                validated=0, in_progress=0, default=0
+            )
+            unit_dict["outlier_values"] = 0
         unit_dict["expected_total"] = expected_total
         result_units.append(unit_dict)
 
@@ -662,10 +697,6 @@ async def get_backoffice_unit(
     Get a unit with reporting data for backoffice.
     Returns raw completion data with all years if no years specified.
     """
-    logger.info(
-        "User requested backoffice unit reporting data",
-        extra={"user_id": current_user.id, "unit_id": unit_id, "years": years},
-    )
 
     # Find unit by id
     unit = next((u for u in MOCK_UNITS_REPORTING if u["id"] == unit_id), None)
@@ -678,19 +709,61 @@ async def get_backoffice_unit(
     unit_dict = unit.copy()
     MODULE_COUNT = 7
 
-    if years:
-        num_years = len(years)
-        unit_dict["completion"] = get_completion_for_years(unit["completion"], years)
-    else:
-        unit_dict["completion"] = unit["completion"]
-        num_years = len(_get_year_keys(unit["completion"])) or 3
+    completion_data = unit.get("completion", {})
+    if isinstance(completion_data, dict):
+        completion_dict = cast(dict[str, Any], completion_data)
+        if years:
+            num_years = len(years)
+            unit_dict["completion"] = get_completion_for_years(completion_dict, years)
+        else:
+            unit_dict["completion"] = completion_dict
+            num_years = len(_get_year_keys(completion_dict)) or 3
 
-    unit_dict["completion_counts"] = calculate_completion_counts(
-        unit["completion"], years
-    )
-    unit_dict["outlier_values"] = calculate_total_outlier_values(
-        unit["completion"], years
-    )
+        unit_dict["completion_counts"] = calculate_completion_counts(
+            completion_dict, years
+        )
+        unit_dict["outlier_values"] = calculate_total_outlier_values(
+            completion_dict, years
+        )
+    else:
+        unit_dict["completion"] = completion_data
+        num_years = 3
+        unit_dict["completion_counts"] = CompletionCounts(
+            validated=0, in_progress=0, default=0
+        )
+        unit_dict["outlier_values"] = 0
+
     unit_dict["expected_total"] = MODULE_COUNT * num_years
 
     return unit_dict
+
+
+@router.get("/years")
+async def get_available_years(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get all available years from all units combined.
+    Returns all unique years found across all units' completion data,
+    sorted in descending order (latest first).
+    """
+    all_years: set[str] = set()
+
+    for unit in MOCK_UNITS_REPORTING:
+        completion_data = unit.get("completion", {})
+        if isinstance(completion_data, dict):
+            years = _get_year_keys(completion_data)
+            all_years.update(years)
+
+    if not all_years:
+        # Default to current year if no years found
+        current_year = str(datetime.now().year)
+        return {"years": [current_year], "latest": current_year}
+
+    # Sort years in descending order (latest first)
+    sorted_years = sorted(
+        all_years, key=lambda y: int(y) if y.isdigit() else 0, reverse=True
+    )
+    latest_year = sorted_years[0]
+
+    return {"years": sorted_years, "latest": latest_year}

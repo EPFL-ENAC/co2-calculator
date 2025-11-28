@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import AnnualDataImport from 'src/components/organisms/data-management/AnnualDataImport.vue';
 import ModulesConfig from 'src/components/organisms/data-management/ModulesConfig.vue';
 
