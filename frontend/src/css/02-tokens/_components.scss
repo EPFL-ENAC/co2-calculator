@@ -242,3 +242,10 @@ $sidebar-border-width: opt.$tokens-spacing-1 !default;
 $sidebar-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $sidebar-color: opt.$tokens-colors-base-black !default;
 $sidebar-item-gap: opt.$tokens-spacing-8 !default;
+
+// Graph Cards
+$graph-card-padding: opt.$tokens-spacing-16 !default;
+$graph-color-primary: opt.$tokens-colors-leman !default;
+$graph-font-weight: opt.$tokens-typography-font-weight-medium !default;
+$graph-font-size: opt.$tokens-typography-font-size-sm !default;
+$graph-line-height: opt.$tokens-typography-line-height-sm !default;
