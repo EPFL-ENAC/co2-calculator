@@ -302,10 +302,7 @@ class ModuleCompletion(BaseModel):
 
 class UnitReportingData(BaseModel):
     id: int
-    # Module completion data can be year-based (dict[str, dict[str, ModuleCompletion]])
-    #  or flat (dict[str, ModuleCompletion])
     completion: dict[str, Any]
-    # Calculated counts for each status (aggregated across selected years)
     completion_counts: CompletionCounts
     unit: str
     affiliation: str
@@ -666,22 +663,6 @@ async def list_backoffice_units(
         unit_dict["expected_total"] = expected_total
         result_units.append(unit_dict)
 
-    logger.info(
-        "User requested backoffice units reporting data",
-        extra={
-            "user_id": current_user.id,
-            "count": len(result_units),
-            "filters": {
-                "affiliation": affiliation,
-                "units": units,
-                "completion": completion,
-                "outlier_values": outlier_values,
-                "search": search,
-                "modules": modules,
-                "years": years,
-            },
-        },
-    )
     return result_units
 
 
