@@ -62,3 +62,8 @@ $layout-pop-up-min-width: opt.$tokens-layout-sm-modal-width !default;
 $layout-page-padding-x: opt.$tokens-spacing-16 !default;
 $layout-page-padding-y: opt.$tokens-spacing-48 !default;
 $layout-gap-y: opt.$tokens-spacing-24 !default;
+
+// Modal
+$modal-width-lg: opt.$tokens-layout-lg-modal-width !default;
+$modal-width-md: opt.$tokens-layout-md-modal-width !default;
+$modal-width-sm: opt.$tokens-layout-sm-modal-width !default;
