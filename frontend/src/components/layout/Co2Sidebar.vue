@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { SidebarNavItem } from 'src/constant/sidebarNavigation';
+import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 
 interface Props {
-  items: Record<string, SidebarNavItem>;
+  items: Record<string, NavItem>;
 }
 
 defineProps<Props>();

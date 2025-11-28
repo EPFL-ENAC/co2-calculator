@@ -8,12 +8,32 @@ const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
 const { t } = useI18n();
 
+interface Props {
+  mode?: 'test' | 'prod';
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'prod',
+});
+
 const form = ref(null);
+const role = ref('co2.user.std');
+
+const roleOptions = computed(() => [
+  'co2.user.std',
+  'co2.backoffice.admin',
+  'co2.backoffice.std',
+]);
+const isTestMode = computed(() => props.mode === 'test');
 
 function validate() {
   form.value.validate().then((success) => {
     if (success) {
-      authStore.login();
+      if (props.mode === 'test') {
+        authStore.login_test(role.value);
+      } else {
+        authStore.login();
+      }
     } else {
       console.log('Form is invalid');
     }
@@ -43,6 +63,18 @@ const buttonLabel = computed(() => {
           width="125px"
         />
         <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
+      </div>
+
+      <div v-if="isTestMode">
+        <q-select
+          v-model="role"
+          filled
+          :options="roleOptions"
+          :label="$t('login_test_role_label')"
+          :disable="loading"
+          dense
+          class="full-width"
+        />
       </div>
 
       <!-- submit button -->

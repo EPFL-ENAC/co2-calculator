@@ -10,6 +10,9 @@ interface Unit {
   principal_user_id: number;
   affiliations: string[];
   role?: string;
+  principal_user_name?: string;
+  principal_user_function?: string;
+  visibility?: string;
 }
 interface YearResult {
   year: number;
@@ -72,17 +75,32 @@ export const useWorkspaceStore = defineStore(
       try {
         unitsLoading.value = true;
         unitsErrors.value = [];
-        const user = useAuthStore().user;
+        const authStore = useAuthStore();
+
+        // Ensure user is loaded before proceeding
+        if (!authStore.user && !authStore.loading) {
+          await authStore.getUser();
+        }
+
+        // Wait for user loading to complete if in progress
+        while (authStore.loading) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const user = authStore.user;
+
         if (!user) {
           units.value = [];
+          const errorObj = new Error('User not authenticated');
+          unitsErrors.value = [errorObj];
           return;
         }
 
         const allUnits = (await api
-          .get('units', { searchParams: { limit: 1 } })
+          .get('units', { searchParams: { limit: 100 } })
           .json()) as Unit[];
 
-        units.value = allUnits;
+        units.value = allUnits || [];
       } catch (error) {
         console.error('Error getting units:', error);
         const errorObj =
@@ -144,12 +162,6 @@ export const useWorkspaceStore = defineStore(
       unitResults.value = null;
     }
 
-    async function initFromPersisted() {
-      if (selectedUnit.value) {
-        await getUnitResults(selectedUnit.value.id);
-      }
-    }
-
     return {
       units,
       selectedUnit,
@@ -170,13 +182,12 @@ export const useWorkspaceStore = defineStore(
       setUnit,
       setYear,
       reset,
-      initFromPersisted,
     };
   },
   {
     persist: {
-      key: 'workspace',
-      paths: ['selectedUnit', 'selectedYear'],
+      key: 'workspaceLocalStorage',
+      pick: ['selectedUnit', 'selectedYear'],
       storage: localStorage,
     } as PersistenceOptions,
   },

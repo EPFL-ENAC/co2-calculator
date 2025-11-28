@@ -12,6 +12,7 @@ export interface ModuleCard {
   icon: string;
   badge?: ModuleCardBadge;
   value?: string;
+  active: boolean;
 }
 
 export const MODULE_CARDS: ModuleCard[] = [
@@ -23,6 +24,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       color: 'accent',
     },
     value: "8'250",
+    active: true,
   },
   {
     module: MODULES.ProfessionalTravel,
@@ -33,11 +35,13 @@ export const MODULE_CARDS: ModuleCard[] = [
       textColor: 'grey-6',
     },
     value: "8'250",
+    active: false,
   },
   {
     module: MODULES.Infrastructure,
     icon: 'o_domain',
     value: "8'250",
+    active: false,
   },
   {
     module: MODULES.EquipmentElectricConsumption,
@@ -48,6 +52,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       textColor: 'grey-6',
     },
     value: "8'250",
+    active: false,
   },
   {
     module: MODULES.Purchase,
@@ -58,6 +63,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       textColor: 'grey-6',
     },
     value: "8'250",
+    active: false,
   },
   {
     module: MODULES.InternalServices,
@@ -68,6 +74,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       textColor: 'grey-6',
     },
     value: "8'250",
+    active: false,
   },
   {
     module: MODULES.ExternalCloud,
@@ -78,6 +85,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       textColor: 'grey-6',
     },
     value: "8'250",
+    active: false,
   },
 ] as const;
 

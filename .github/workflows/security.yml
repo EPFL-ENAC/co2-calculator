@@ -2,12 +2,9 @@ name: Security Checks
 
 on:
   pull_request:
-    branches: [main, dev, stage]
-  push:
-    branches: [main, dev, stage, 'ci-test/**']
+    branches: [main, dev, stage] # Scan PRs targeting these branches
   schedule:
-    # Run weekly on Mondays at 00:00 UTC
-    - cron: "0 0 * * 1"
+    - cron: "0 0 * * 1" # Weekly scheduled scan
 
 jobs:
   npm-audit:
@@ -56,7 +53,7 @@ jobs:
         continue-on-error: true
 
       - name: Run Bandit security linter
-        run: uvx bandit -r ./app/ -x tests,.venv   
+        run: uvx bandit -r ./app/ -x tests,.venv
         continue-on-error: true
 
   codeql:
@@ -101,6 +98,6 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
+          base: ${{ github.event.pull_request.base.ref }}
+          head: ${{ github.event.pull_request.head.ref }}
           extra_args: --debug --only-verified

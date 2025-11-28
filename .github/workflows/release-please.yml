@@ -22,3 +22,6 @@ jobs:
           # this is a built-in strategy in release-please, see "Action Inputs"
           # for more options #https://github.com/googleapis/release-please-action?tab=readme-ov-file#release-types-supported
           release-type: node
+          initial-version: 0.1.0
+          bump-minor-pre-major: true
+          package-name: co2-calculator

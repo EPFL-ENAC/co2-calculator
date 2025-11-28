@@ -1,7 +1,7 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 
 // Route parameter validation patterns
@@ -12,6 +12,8 @@ const SIMULATION_ID_PATTERN = '[^/]+';
 
 // Route name constants
 export const LOGIN_ROUTE_NAME = 'login';
+export const LOGIN_TEST_ROUTE_NAME = 'login-test';
+export const LOGIN_ROUTES = [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME];
 export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
 export const WORKSPACE_ROUTE_NAME = 'workspace';
@@ -61,10 +63,19 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'login-test',
+            name: LOGIN_TEST_ROUTE_NAME,
+            component: () => import('pages/app/LoginTestPage.vue'),
+            meta: {
+              note: 'Test User authentication - Login page',
+              breadcrumb: false,
+            },
+          },
+          {
             path: 'workspace-setup',
             name: WORKSPACE_SETUP_ROUTE_NAME,
-            component: () => import('pages/app/WorkspaceSetupPage.vue'),
             beforeEnter: redirectToWorkspaceIfSelectedGuard,
+            component: () => import('pages/app/WorkspaceSetupPage.vue'),
             meta: {
               requiresAuth: true,
               note: 'Workspace configuration - Year and lab selection',

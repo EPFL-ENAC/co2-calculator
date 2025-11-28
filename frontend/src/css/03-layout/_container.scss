@@ -12,4 +12,12 @@
   &--pa-sm {
     padding: tokens.$container-padding-sm-y tokens.$container-padding-sm-x;
   }
+
+  &--pa-none {
+    padding: 0;
+  }
+
+  &.full-width {
+    max-width: 100%;
+  }
 }

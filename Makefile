@@ -79,6 +79,18 @@ clean: ## Remove all build artifacts and dependencies
 	@echo "✅ Clean complete!"
 
 # =============================================================================
+# Development - Database Services
+# =============================================================================
+
+.PHONY: run-db
+run-db:
+	docker compose up -d --pull=always postgres
+
+.PHONY: stop-db
+stop-db:
+	docker compose down
+
+# =============================================================================
 # CI/CD - Validation Commands
 # =============================================================================
 

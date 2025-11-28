@@ -52,6 +52,7 @@ const homeIntroWithLinks = computed(() => {
         no-caps
         size="md"
         class="text-weight-medium q-mt-xl"
+        :to="{ name: 'module', params: { module: MODULES.MyLab } }"
       />
     </q-card>
 
@@ -71,6 +72,7 @@ const homeIntroWithLinks = computed(() => {
             no-caps
             size="md"
             class="text-weight-medium"
+            :to="{ name: 'results' }"
           />
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">42'000</p>
@@ -95,6 +97,7 @@ const homeIntroWithLinks = computed(() => {
             no-caps
             size="md"
             class="text-weight-medium"
+            :to="{ name: 'simulations' }"
           />
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">3</p>
@@ -149,6 +152,7 @@ const homeIntroWithLinks = computed(() => {
               no-caps
               size="sm"
               class="text-weight-medium btn-secondary"
+              :to="{ name: 'module', params: { module: moduleCard.module } }"
             />
             <div
               v-if="moduleCard.value"
