@@ -269,4 +269,8 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
+  documentation_button_label: {
+    en: 'Documentation',
+    fr: 'Documentation',
+  },
 };
