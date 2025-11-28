@@ -1,0 +1,85 @@
+@use '../../02-tokens' as tokens;
+
+.module-icon {
+  width: tokens.$icon-size-md;
+  height: tokens.$icon-size-md;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &--sm {
+    width: tokens.$icon-size-sm;
+    height: tokens.$icon-size-sm;
+  }
+
+  &--lg {
+    width: tokens.$icon-size-lg;
+    height: tokens.$icon-size-lg;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+
+    // Override inline styles and classes to use currentcolor
+    path,
+    circle,
+    rect,
+    polygon,
+    ellipse,
+    g,
+    .st0,
+    [class*='st'] {
+      fill: currentcolor;
+    }
+
+    // Override style tag inside SVG
+    style {
+      display: none;
+    }
+  }
+
+  // State-based colors
+  &--default {
+    svg {
+      path,
+      circle,
+      rect,
+      polygon,
+      ellipse,
+      .st0,
+      [class*='st'] {
+        fill: currentcolor !important;
+      }
+    }
+  }
+
+  &--in-progress {
+    svg {
+      path,
+      circle,
+      rect,
+      polygon,
+      ellipse,
+      .st0,
+      [class*='st'] {
+        fill: currentcolor !important;
+      }
+    }
+  }
+
+  &--validated {
+    svg {
+      path,
+      circle,
+      rect,
+      polygon,
+      ellipse,
+      .st0,
+      [class*='st'] {
+        fill: currentcolor !important;
+      }
+    }
+  }
+}
