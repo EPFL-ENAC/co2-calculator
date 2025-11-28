@@ -1,7 +1,16 @@
+<script setup lang="ts">
+import { SYSTEM_NAV } from 'src/constant/navigation';
+import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+</script>
+
 <template>
   <q-page>
-    <h1 class="text-h1">User Management</h1>
+    <navigation-header :item="SYSTEM_NAV.SYSTEM_USER_MANAGEMENT" />
+
+    <div class="q-my-xl q-px-xl">
+      <div class="container">
+        <p class="text-h1">Placeholder: Redirect to Accred</p>
+      </div>
+    </div>
   </q-page>
 </template>
-
-<script setup lang="ts"></script>

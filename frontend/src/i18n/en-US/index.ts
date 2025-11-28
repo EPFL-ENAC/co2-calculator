@@ -1,4 +1,4 @@
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 import { ROLES } from 'src/constant/roles';
 
@@ -7,6 +7,7 @@ export default {
   login_title: 'CO₂ Calculator',
   login_button_submit: 'Login',
   login_button_loading: 'Connecting...',
+  login_test_role_label: 'Test Role',
   calculator_title: 'CO₂ Calculator',
 
   home: 'Home',
@@ -19,7 +20,7 @@ export default {
   [MODULES.Infrastructure]: 'Infrastructure',
   [MODULES_DESCRIPTIONS.Infrastructure]:
     "Define your lab's physical footprint across EPFL buildings and spaces.",
-  [MODULES.EquipmentElectricConsumption]: 'Equipment Electric Con...',
+  [MODULES.EquipmentElectricConsumption]: 'Equipment Electric Consumption',
   [MODULES_DESCRIPTIONS.EquipmentElectricConsumption]:
     'List lab equipment with wattage to calculate electricity-related CO₂',
   [MODULES.Purchase]: 'Purchases',
@@ -39,13 +40,27 @@ export default {
   'simulation-edit': 'Edit Simulation',
   documentation: 'Documentation',
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]: 'User Management',
+  [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.description]:
+    'backoffice-user-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: 'Data Management',
+  [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.description]:
+    'backoffice-data-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Documentation Editing',
+  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.description]:
+    'backoffice-documentation-editing-description',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Reporting',
+  [BACKOFFICE_NAV.BACKOFFICE_REPORTING.description]:
+    'backoffice-reporting-description',
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'User Management',
+  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]:
+    'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO2 calculator.',
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Module Management',
+  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.description]:
+    'Enable or disable calculation modules system-wide, controlling which data collection features are available to all laboratories.',
   [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
+  [SYSTEM_NAV.SYSTEM_LOGS.description]:
+    'View, search, and export application logs and user activity history for security auditing and troubleshooting.',
 
   results_btn: 'View Results',
   workspace_change_btn: 'Change',
@@ -79,9 +94,9 @@ export default {
   workspace_setup_confirm_year: 'Selected Year',
   workspace_setup_confirm_selection: 'Continue to calculator',
   workspace_setup_restart: 'Start Over',
-  workspace_setup_unit_manager: 'Unit Manager',
-  workspace_setup_unit_affiliation: 'Affiliation',
-  workspace_setup_unit_progress: 'Progress from last year',
+  workspace_setup_unit_manager: 'Head of Unit',
+  workspace_setup_unit_affiliation: 'Affiliations',
+  workspace_setup_unit_progress: 'Progress ({year} assessment)',
   home_title: 'Welcome to the CO2 Calculator',
   home_intro_1:
     "The Calculator CO₂ allows you to assess your laboratory's carbon footprint following the Greenhouse Gas (GHG) Protocol, the international standard for calculating greenhouse gas emissions.",
@@ -103,11 +118,37 @@ export default {
   home_in_progress: 'In Progress',
   home_results_title: 'Results Visualization',
   home_results_subtitle: 'Annual CO2 Assessment 2024',
-  home_results_btn: 'View Full Results',
+  home_results_btn: 'View Results',
   home_simulations_title: 'Research Project Simulation',
   home_simulations_subtitle: 'Estimate project-specific carbon footprint ',
   home_simulations_btn: 'View Simulations',
   home_edit_btn: 'Edit',
   home_results_units: 'kg CO₂-eq',
   home_simulations_units: 'Simulations',
+  module_management_active: 'Active',
+  module_management_consequences_title: 'Consequences of disabling a module:',
+  module_management_consequence_no_access:
+    'No laboratory will have access to this module(s)',
+  module_management_consequence_not_on_home:
+    'The module will not appear on the Home page',
+  module_management_consequence_not_in_results:
+    'The data category entered in this module will not appear in the results visualization module',
+  module_management_consequence_important:
+    'Important: References to these modules in documentation pages and explanatory texts must be manually removed via the Business Manager (Full) interface',
+  module_management_save_button: 'Save',
+  threshold_fixed_title: 'Fixed Threshold',
+  threshold_fixed_description:
+    'Define a fixed threshold. Any value above this will be flagged in red.',
+  threshold_fixed_value: 'Fixed Value (kg CO₂-eq)',
+  threshold_fixed_summary: 'Fixed threshold of {value} kg CO₂-eq',
+  threshold_median_title: 'Median-based Threshold',
+  threshold_median_description:
+    'Automatically flag emissions above the median value. Adjusts based on all laboratory data.',
+  threshold_median_info: 'Automatic',
+  threshold_median_summary: 'Median-based threshold',
+  threshold_top_title: 'Top Values Threshold',
+  threshold_top_description:
+    'Flag the highest emissions. Enter the number of top values.',
+  threshold_top_value: 'Top Values Count',
+  threshold_top_summary: 'Top {value} values threshold',
 };

@@ -11,6 +11,7 @@ High-level system design, technology choices, and cross-cutting concerns:
 - System overview and component interactions
 - Security model and authentication flow
 - CI/CD pipeline and environment topology
+- Eco-design principles applied 
 - Tech stack rationale
 
 ### [Frontend](./frontend/01-overview.md)

@@ -6,7 +6,7 @@ import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute, isSystemRoute } from 'src/router/routes';
 import Co2Sidebar from 'src/components/layout/Co2Sidebar.vue';
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);

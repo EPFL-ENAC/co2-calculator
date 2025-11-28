@@ -1,12 +1,13 @@
 import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 import { ROLES } from 'src/constant/roles';
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/sidebarNavigation';
+import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 
 export default {
   logo_alt: 'EPFL Logo',
   login_title: 'CO₂ Calculator',
   login_button_submit: 'Log in',
   login_button_loading: 'Logging in...',
+  login_test_role_label: 'Rôle de test',
   calculator_title: 'CO₂ Calculator',
   home: 'Home',
   [MODULES.MyLab]: 'My Laboratory',
@@ -39,13 +40,27 @@ export default {
   documentation: 'Documentation',
   [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName]:
     'Gestion des utilisateurs',
+  [BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.description]:
+    'backoffice-user-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: 'Gestion des données',
+  [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.description]:
+    'backoffice-data-management-description',
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]:
     'Édition de la documentation',
+  [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.description]:
+    'backoffice-documentation-editing-description',
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: 'Rapports',
+  [BACKOFFICE_NAV.BACKOFFICE_REPORTING.description]:
+    'backoffice-reporting-description',
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: 'Gestion des utilisateurs',
+  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]:
+    "Gérer les comptes utilisateurs, assigner des rôles et des permissions, surveiller l'activité des utilisateurs, et contrôler l'accès au calculateur CO₂.",
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: 'Gestion des modules',
+  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.description]:
+    'Activer ou désactiver les modules de calcul systématiquement, contrôlant quelles fonctionnalités de collecte de données sont disponibles pour tous les laboratoires.',
   [SYSTEM_NAV.SYSTEM_LOGS.routeName]: 'Logs',
+  [SYSTEM_NAV.SYSTEM_LOGS.description]:
+    "Voir, rechercher et exporter les logs de l'application et l'historique d'activité des utilisateurs pour la sécurité et le dépannage.",
 
   results_btn: 'Voir les résultats',
   workspace_change_btn: 'Changer',
@@ -81,8 +96,8 @@ export default {
   workspace_setup_confirm_selection: 'Continuer vers le calculateur',
   workspace_setup_restart: 'Recommencer',
   workspace_setup_unit_manager: "Responsable d'unité",
-  workspace_setup_unit_affiliation: 'Affiliation',
-  workspace_setup_unit_progress: "Progression de l'année dernière",
+  workspace_setup_unit_affiliation: 'Affiliations',
+  workspace_setup_unit_progress: 'Progression (évaluation {year})',
   home_title: 'Bienvenue dans le Calculateur de CO2',
   home_intro_1:
     "Le Calculateur CO₂ vous permet d'évaluer l'empreinte carbone de votre laboratoire selon le Protocole des gaz à effet de serre (GES), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
@@ -111,4 +126,31 @@ export default {
   home_edit_btn: 'Editer',
   home_results_units: 'kg CO₂-éq',
   home_simulations_units: 'Simulations',
+  module_management_active: 'Actif',
+  module_management_consequences_title:
+    'Conséquences de la désactivation d’un module :',
+  module_management_consequence_no_access:
+    'Aucun laboratoire n’aura accès à ce(s) module(s)',
+  module_management_consequence_not_on_home:
+    'Le module n’apparaîtra pas sur la page d’accueil',
+  module_management_consequence_not_in_results:
+    'La catégorie de données saisie dans ce module n’apparaîtra pas dans le module de visualisation des résultats',
+  module_management_consequence_important:
+    'Important : Les références à ces modules dans les pages de documentation et les textes explicatifs doivent être supprimées manuellement via l’interface Business Manager (Complet)',
+  module_management_save_button: 'Enregistrer',
+  threshold_fixed_title: 'Seuil Fixe',
+  threshold_fixed_description:
+    'Définis un seuil fixe. Toute valeur supérieure sera signalée en rouge.',
+  threshold_fixed_value: 'Valeur fixe (kg CO₂-éq)',
+  threshold_fixed_summary: 'Seuil fixe de {value} kg CO₂-éq',
+  threshold_median_title: 'Seuil basé sur la médiane',
+  threshold_median_description:
+    'Signale automatiquement les émissions supérieures à la valeur médiane. S’ajuste en fonction de toutes les données des laboratoires.',
+  threshold_median_info: 'Automatique',
+  threshold_median_summary: 'Seuil basé sur la médiane',
+  threshold_top_title: 'Seuil des valeurs les plus élevées',
+  threshold_top_description:
+    'Signale les émissions les plus élevées. Entrez le nombre de valeurs les plus élevées.',
+  threshold_top_value: 'Nombre de valeurs les plus élevées',
+  threshold_top_summary: '{value} valeurs les plus élevées',
 };

@@ -13,7 +13,12 @@ from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.role_provider import get_role_provider
-from app.core.security import create_access_token, create_refresh_token, decode_jwt
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_jwt,
+    make_test_user,
+)
 from app.repositories.user_repo import get_user_by_id, upsert_user
 from app.schemas.user import UserRead
 
@@ -85,6 +90,53 @@ def _set_auth_cookies(
         path=settings.OAUTH_COOKIE_PATH,
         secure=not settings.DEBUG,
     )
+
+
+@router.get(
+    "/login-test",
+)
+def login_test(role: str = "co2.user.std"):
+    """
+    Test login endpoint for development.
+
+    Simulates a login by setting auth cookies directly.
+    Only enabled in DEBUG mode.
+    """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test login is disabled in production",
+        )
+
+    # Create a fake user ID and email based on role
+    sanitized_role = role.replace("\r\n", "").replace("\n", "")
+    user_id = f"testuser_{sanitized_role}"
+    email = "testuser@example.com"
+    sciper = 999999
+
+    logger.info(
+        "Test User info",
+        extra={
+            "email": email,
+            "has_sciper": bool(sciper),
+            "role": sanitized_role,
+        },
+    )
+
+    # Create response
+    response = RedirectResponse(
+        url=settings.FRONTEND_URL + "/",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+    _set_auth_cookies(
+        response=response,
+        user_id=user_id,
+        email=email,
+        sciper=sciper,
+    )
+
+    return response
 
 
 @router.get("/login")
@@ -227,6 +279,10 @@ async def get_me(
                 detail="Invalid token",
             )
 
+        # Check it is a test user in DEBUG mode
+        if settings.DEBUG and user_id.startswith("testuser_"):
+            return make_test_user(user_id)
+
         # Get user from database
         user = await get_user_by_id(db, user_id)
 
@@ -314,8 +370,14 @@ async def refresh_token(
                 detail="Invalid token payload",
             )
 
+        user = None
+        # Check it is a test user in DEBUG mode
+        if settings.DEBUG and user_id.startswith("testuser_"):
+            user = make_test_user(user_id)
+        else:
+            user = await get_user_by_id(db, user_id)
+
         # Verify user still exists and is active
-        user = await get_user_by_id(db, user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
