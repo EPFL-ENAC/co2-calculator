@@ -37,6 +37,7 @@ backend:
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000"  # Change to frontend URL in production
+    ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
