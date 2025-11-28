@@ -83,112 +83,158 @@ export default {
     en: 'Using top-N threshold: {value}',
     fr: 'Seuil Top-N utilisé : {value}',
   },
-  backoffice_reporting_year_title: {
-    en: 'Select Year for Report',
-    fr: "Sélectionner l'année pour le rapport",
+  documentation_editing_translation_title: {
+    en: 'Translation',
+    fr: '',
   },
-  backoffice_reporting_year_description: {
-    en: 'Choose the assessment year for which you want to generate the report.',
-    fr: "Choisissez l'année d'évaluation pour laquelle vous souhaitez générer le rapport.",
+  documentation_editing_translation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_row_unit_label: {
-    en: 'Unit',
-    fr: 'Unité',
+  documentation_editing_documentation_title: {
+    en: 'Documentation',
+    fr: '',
   },
-  backoffice_reporting_row_units_label: {
-    en: 'Units',
-    fr: 'Unités',
+  documentation_editing_documentation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_row_affiliation_label: {
-    en: 'Affiliation',
-    fr: 'Affiliation',
+  documentation_editing_calculator_co2_documentation_title: {
+    en: 'CO₂ Calculator Documentation',
+    fr: '',
   },
-  backoffice_reporting_row_completion_label: {
-    en: 'Completion',
-    fr: 'Complétion',
+  documentation_editing_calculator_co2_documentation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_row_principal_user_label: {
-    en: 'Principal User',
-    fr: 'Utilisateur principal',
+
+  documentation_editing_calculator_backoffice_documentation_title: {
+    en: 'Backoffice Documentation',
+    fr: '',
   },
-  backoffice_reporting_row_last_update_label: {
-    en: 'Last Update',
-    fr: 'Dernière mise à jour',
+  documentation_editing_calculator_backoffice_documentation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_row_outlier_values_label: {
-    en: 'Outlier Values',
-    fr: 'Valeurs aberrantes',
+  documentation_editing_calculator_service_documentation_title: {
+    en: 'Service Documentation',
+    fr: '',
   },
-  backoffice_reporting_row_action_label: {
-    en: 'Action',
-    fr: 'Action',
+  documentation_editing_calculator_service_documentation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_module_status_label: {
-    en: 'Filter by Module Status ({count})',
-    fr: 'Filtrer par statut de module ({count})',
+  documentation_editing_calculator_developer_documentation_title: {
+    en: 'Developer Documentation',
+    fr: '',
   },
-  backoffice_reporting_all_modules: {
-    en: 'All',
-    fr: 'Tous',
+  documentation_editing_calculator_developer_documentation_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_select_all: {
-    en: 'Select All',
-    fr: 'Tout sélectionner',
+  documentation_editing_table_label_topic: {
+    en: 'Topic',
+    fr: '',
   },
-  backoffice_reporting_unselect_all: {
-    en: 'Unselect All',
-    fr: 'Tout désélectionner',
+  documentation_editing_table_label_description: {
+    en: 'Description',
+    fr: '',
   },
-  backoffice_reporting_units_status_label: {
-    en: 'Units ({count})',
-    fr: 'Unités ({count})',
+  documentation_editing_table_label_documentation: {
+    en: 'Documentation',
+    fr: '',
   },
-  backoffice_reporting_generate_report_title: {
-    en: 'Export Data',
-    fr: 'Exporter les données',
+  documentation_editing_edit_on_github: {
+    en: 'Edit on GitHub',
+    fr: '',
   },
-  backoffice_reporting_generate_report_description: {
-    en: 'Generate your report and export in your preferred format.',
-    fr: 'Générez votre rapport et exportez-le dans le format de votre choix.',
+
+  documentation_editing_lorem_rows_topic: {
+    en: 'Lorem Ipsum',
+    fr: '',
   },
-  backoffice_reporting_generate_usage_title: {
-    en: 'Usage',
-    fr: 'Utilisation',
+  documentation_editing_lorem_rows_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu.',
+    fr: '',
   },
-  backoffice_reporting_generate_usage_description: {
-    en: 'Reports on calculator utilization: which laboratories have completed modules, user activity, data entry status, and completion rates.',
-    fr: "Rapports sur l'utilisation du calculateur : quels laboratoires ont complété les modules, activité des utilisateurs, statut de saisie des données et taux de complétion.",
+  documentation_editing_rows_common_topic: {
+    en: 'Common',
+    fr: '',
   },
-  backoffice_reporting_generate_results_title: {
-    en: 'Results',
-    fr: 'Résultats',
+  documentation_editing_rows_common_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_generate_results_description: {
-    en: 'CO₂-eq calculations with visual graphs and charts showing module completion, laboratory activity, and emissions breakdowns.',
-    fr: "Calculs CO₂-éq avec graphiques et tableaux visuels montrant la complétion des modules, l'activité des laboratoires et les répartitions des émissions.",
+  documentation_editing_rows_my_lab_topic: {
+    en: 'My Lab',
+    fr: '',
   },
-  backoffice_reporting_generate_combined_title: {
-    en: 'Combined',
-    fr: 'Combiné',
+  documentation_editing_rows_my_lab_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_generate_combined_description: {
-    en: 'Comprehensive report including both usage statistics and CO₂-eq results, ideal for executive summaries and annual reporting.',
-    fr: "Rapport complet incluant à la fois les statistiques d'utilisation et les résultats CO₂-éq, idéal pour les résumés exécutifs et les rapports annuels.",
+  documentation_editing_rows_professional_travel_topic: {
+    en: 'Professional Travel',
+    fr: '',
   },
-  backoffice_reporting_generate_formats: {
-    en: 'Export Formats: \n PDF: Formatted report with charts and visualizations, ideal for presentations and sharing. \n CSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
-    fr: "Formats d'export : \n PDF : Rapport formaté avec graphiques et visualisations, idéal pour les présentations et le partage. \n CSV : Données brutes au format tableur pour une analyse plus approfondie dans Excel ou d'autres outils.",
+  documentation_editing_rows_professional_travel_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_csv_validated: {
-    en: 'Validated',
-    fr: 'Validé',
+  documentation_editing_rows_infrastructure_topic: {
+    en: 'Infrastructure',
+    fr: '',
   },
-  backoffice_reporting_csv_in_progress: {
-    en: 'In Progress',
-    fr: 'En cours',
+  documentation_editing_rows_infrastructure_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
-  backoffice_reporting_csv_default: {
-    en: 'Default',
-    fr: 'Par défaut',
+  documentation_editing_rows_equipment_electric_consumption_topic: {
+    en: 'Equipment Electric Consumption',
+    fr: '',
+  },
+  documentation_editing_rows_equipment_electric_consumption_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
+  },
+  documentation_editing_rows_purchase_topic: {
+    en: 'Purchase',
+    fr: '',
+  },
+  documentation_editing_rows_purchase_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
+  },
+  documentation_editing_rows_internal_services_topic: {
+    en: 'Internal Services',
+    fr: '',
+  },
+  documentation_editing_rows_internal_services_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
+  },
+  documentation_editing_rows_external_cloud_topic: {
+    en: 'External Cloud',
+    fr: '',
+  },
+  documentation_editing_rows_external_cloud_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
+  },
+  documentation_editing_rows_backoffice_topic: {
+    en: 'Backoffice',
+    fr: '',
+  },
+  documentation_editing_rows_backoffice_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
+  },
+  documentation_editing_rows_admin_topic: {
+    en: 'Admin',
+    fr: '',
+  },
+  documentation_editing_rows_admin_description: {
+    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
+    fr: '',
   },
 } as const;
