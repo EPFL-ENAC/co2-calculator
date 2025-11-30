@@ -2,15 +2,16 @@
   <q-card flat class="container">
     <q-card-section class="text-center module-charts">
       <h2 class="text-h3 q-mb-none text-bold text-uppercase">
-        {{ $t(`${props.type}-charts-title`) }}
+        {{ $t(`${type}-charts-title`) }}
       </h2>
     </q-card-section>
   </q-card>
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  type: string;
+import { Module } from 'src/constant/modules';
+defineProps<{
+  type: Module;
 }>();
 </script>
 
