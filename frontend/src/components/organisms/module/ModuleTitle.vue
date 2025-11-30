@@ -3,14 +3,14 @@
     <q-card-section>
       <h1 class="text-h2 q-mb-xs">
         <q-icon
-          :name="MODULE_ICONS[props.type] ? MODULE_ICONS[props.type] : ''"
+          :name="MODULE_ICONS[type] ? MODULE_ICONS[type] : ''"
           color="accent"
           size="sm"
         ></q-icon>
-        {{ $t(`${props.type}`) }}
+        {{ $t(`${type}`) }}
       </h1>
       <p class="text-body1 q-mb-none">
-        {{ $t(`${props.type}-description`) }}
+        {{ $t(`${type}-description`) }}
       </p>
       <div class="absolute-top-right q-mr-md q-mt-md">
         <q-icon :name="outlinedInfo" size="md" class="cursor-pointer" />
@@ -20,7 +20,7 @@
           self="bottom right"
           class="u-tooltip-max-width"
         >
-          {{ $t(`${props.type}-title-tooltip`) }}
+          {{ $t(`${type}-title-tooltip`) }}
         </q-tooltip>
       </div>
     </q-card-section>
@@ -30,8 +30,9 @@
 <script setup lang="ts">
 import { MODULE_ICONS } from 'src/constant/moduleCards';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { Module } from 'src/constant/modules';
 
-const props = defineProps<{
-  type: string;
+defineProps<{
+  type: Module;
 }>();
 </script>
