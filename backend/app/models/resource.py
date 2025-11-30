@@ -1,14 +1,47 @@
 """Resource model for CO2 calculation resources."""
 
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
-
-from app.db import Base
+from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 
 
-class Resource(Base):
+class ResourceBase(SQLModel):
+    # Resource metadata
+    name: str = Field(nullable=False, index=True)
+    description: str | None = Field(nullable=True)
+    visibility: str = Field(
+        default="private",
+        nullable=False,
+        description="Visibility level: public, private, unit",
+    )
+
+    # Resource data (flexible JSON structure)
+    data: dict = Field(
+        default_factory=dict,
+        description="Resource-specific data",
+        sa_column=Column(JSON),
+    )
+    resource_metadata: dict = Field(
+        default_factory=dict,
+        description="Additional metadata",
+        sa_column=Column(JSON),
+    )
+    created_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    created_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+    updated_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+    # Ownership and access control
+    unit_id: str = Field(
+        index=True, nullable=False, description="EPFL unit/department ID"
+    )
+
+
+class Resource(ResourceBase, table=True):
     """
     Resource model representing CO2 calculation resources.
 
@@ -20,34 +53,7 @@ class Resource(Base):
 
     __tablename__ = "resources"
 
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Resource metadata
-    name = Column(String, nullable=False, index=True)
-    description = Column(Text, nullable=True)
-
-    # Ownership and access control
-    unit_id = Column(
-        String, index=True, nullable=False, comment="EPFL unit/department ID"
-    )
-    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    visibility = Column(
-        String,
-        default="private",
-        nullable=False,
-        comment="Visibility level: public, private, unit",
-    )
-
-    # Resource data (flexible JSON structure)
-    data = Column(JSON, default=dict, comment="Resource-specific data")
-    resource_metadata = Column(JSON, default=dict, comment="Additional metadata")
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    owner = relationship("User", back_populates="resources")
+    id: int | None = Field(primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return f"<Resource {self.id}: {self.name}>"

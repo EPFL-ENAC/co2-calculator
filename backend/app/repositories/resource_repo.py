@@ -1,9 +1,10 @@
 """Resource repository for database operations."""
 
+from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import func, select
 
 from app.models.resource import Resource
 from app.schemas.resource import ResourceCreate
@@ -11,7 +12,7 @@ from app.schemas.resource import ResourceCreate
 
 async def get_resource_by_id(db: AsyncSession, resource_id: int) -> Optional[Resource]:
     """Get resource by ID."""
-    result = await db.execute(select(Resource).filter(Resource.id == resource_id))
+    result = await db.execute(select(Resource).where((Resource.id == resource_id)))
     return result.scalars().first()
 
 
@@ -55,26 +56,8 @@ async def get_resources(
     return list(result.scalars().all())
 
 
-async def get_resources_by_owner(db: AsyncSession, owner_id: str) -> List[Resource]:
-    """Get all resources owned by a specific user."""
-    result = await db.execute(select(Resource).where(Resource.owner_id == owner_id))
-    return list(result.scalars().all())
-
-
-async def get_resources_by_unit(db: AsyncSession, unit_id: str) -> List[Resource]:
-    """Get all resources in a specific unit."""
-    result = await db.execute(select(Resource).where(Resource.unit_id == unit_id))
-    return list(result.scalars().all())
-
-
-async def get_public_resources(db: AsyncSession) -> List[Resource]:
-    """Get all public resources."""
-    result = await db.execute(select(Resource).where(Resource.visibility == "public"))
-    return list(result.scalars().all())
-
-
 async def create_resource(
-    db: AsyncSession, resource: ResourceCreate, owner_id: str
+    db: AsyncSession, resource: ResourceCreate, user_id: str
 ) -> Resource:
     """
     Create a new resource.
@@ -82,7 +65,7 @@ async def create_resource(
     Args:
         db: Database session
         resource: Resource creation schema
-        owner_id: Owner user ID
+        user_id: created_by user ID
 
     Returns:
         Created resource
@@ -91,10 +74,13 @@ async def create_resource(
         name=resource.name,
         description=resource.description,
         unit_id=resource.unit_id,
-        owner_id=owner_id,
+        created_by=user_id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        updated_by=user_id,
         visibility=resource.visibility,
         data=resource.data,
-        resource_metadata=resource.metadata,
+        resource_metadata=resource.resource_metadata,
     )
 
     db.add(db_resource)

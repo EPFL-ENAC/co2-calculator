@@ -48,7 +48,7 @@ async def test_auth_callback_success(monkeypatch):
         mock_authorize_access_token,
     )
     mock_role_provider = MagicMock()
-    mock_role_provider.get_roles = AsyncMock(return_value=["user"])
+    mock_role_provider.get_roles = AsyncMock(return_value=(["user"], [], []))
     monkeypatch.setattr(auth_module, "get_role_provider", lambda: mock_role_provider)
     mock_upsert_user = AsyncMock(
         return_value=MagicMock(
@@ -116,19 +116,46 @@ async def test_auth_callback_exception(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_me_success(monkeypatch):
-    mock_decode_jwt = MagicMock(return_value={"sub": "1"})
+    # Mock decode_jwt (sync function)
+    mock_decode_jwt = MagicMock(return_value={"sub": "1", "sciper": "123456"})
     monkeypatch.setattr(auth_module, "decode_jwt", mock_decode_jwt)
+
+    # Mock user object
     mock_user = MagicMock(
-        id="1", is_active=True, email="test@example.com", sciper=123456, roles=["user"]
+        id="1",
+        is_active=True,
+        email="test@example.com",
+        sciper="123456",
+        roles=["user"],
     )
-    mock_get_user_by_id = AsyncMock(return_value=mock_user)
-    monkeypatch.setattr(auth_module, "get_user_by_id", mock_get_user_by_id)
+
+    # Mock get_user_by_sciper (async function)
+    mock_get_user_by_sciper = AsyncMock(return_value=mock_user)
+    monkeypatch.setattr(auth_module, "get_user_by_sciper", mock_get_user_by_sciper)
+
+    # Mock role provider with async get_roles - return different roles to trigger update
     mock_role_provider = MagicMock()
-    mock_role_provider.get_roles = AsyncMock(return_value=["user"])
-    monkeypatch.setattr(auth_module, "get_role_provider", lambda: mock_role_provider)
-    db = MagicMock()
-    result = await auth_module.get_me(auth_token="token", db=db)
+    mock_role_provider.get_roles = AsyncMock(return_value=(["admin", "user"], [], []))
+
+    # Mock get_role_provider (sync function that returns the provider)
+    mock_get_role_provider = MagicMock(return_value=mock_role_provider)
+    monkeypatch.setattr(auth_module, "get_role_provider", mock_get_role_provider)
+
+    # Mock update_user_roles as ASYNC (this was the missing piece!)
+    mock_update_user_roles = AsyncMock()
+    monkeypatch.setattr(auth_module, "update_user_roles", mock_update_user_roles)
+
+    # Mock db
+    mock_db = AsyncMock()
+
+    # Mock cookie dependency
+    result = await auth_module.get_me(auth_token="token", db=mock_db)
     assert result == mock_user
+
+    # Verify the calls
+    mock_decode_jwt.assert_called_once_with("token")
+    mock_get_user_by_sciper.assert_called_once()
+    mock_role_provider.get_roles.assert_called_once()
 
 
 @pytest.mark.asyncio

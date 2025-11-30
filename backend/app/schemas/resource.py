@@ -1,24 +1,10 @@
 """Resource schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
-
-class ResourceBase(BaseModel):
-    """Base resource schema with common fields."""
-
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    unit_id: str = Field(..., description="EPFL unit/department ID")
-    visibility: str = Field(
-        default="private",
-        pattern="^(public|private|unit)$",
-        description="Visibility level: public, private, or unit",
-    )
-    data: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+from app.models import ResourceBase
 
 
 class ResourceCreate(ResourceBase):
@@ -27,38 +13,28 @@ class ResourceCreate(ResourceBase):
     pass
 
 
-class ResourceUpdate(BaseModel):
+class ResourceUpdate(ResourceBase):
     """Schema for updating a resource."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    visibility: Optional[str] = Field(None, pattern="^(public|private|unit)$")
-    data: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    pass
 
 
-class ResourceRead(ResourceBase):
+class ResourceBaseModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class ResourceRead(BaseModel):
     """Schema for reading resource data."""
 
     id: int
-    owner_id: str
+    created_by: str
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        # Map resource_metadata from DB to metadata in API
-        populate_by_name = True
-
-    @classmethod
-    def model_validate(cls, obj, **kwargs):
-        """Custom validation to map resource_metadata to metadata."""
-        if hasattr(obj, "resource_metadata"):
-            obj.metadata = obj.resource_metadata
-        return super().model_validate(obj, **kwargs)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-class ResourceList(BaseModel):
+class ResourceList(ResourceRead):
     """Schema for paginated resource list."""
 
     items: list[ResourceRead]

@@ -36,8 +36,7 @@ def _build_policy_input(user: User, action: str, unit: Optional[Unit] = None) ->
     if unit:
         input_data["resource"] = {
             "id": unit.id,
-            "owner_id": unit.owner_id,
-            "unit_id": unit.unit_id,
+            "created_by": unit.created_by,
             "visibility": unit.visibility,
         }
 

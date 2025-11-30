@@ -12,14 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.role_provider import get_role_provider
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_jwt,
     make_test_user,
 )
-from app.repositories.user_repo import get_user_by_id, upsert_user
+from app.providers.role_provider import get_role_provider
+from app.repositories.user_repo import (
+    get_user_by_id,
+    get_user_by_sciper,
+    update_user_roles,
+    upsert_user,
+)
 from app.schemas.user import UserRead
 
 logger = get_logger(__name__)
@@ -43,7 +48,7 @@ def _set_auth_cookies(
     response: Response,
     user_id: str,
     email: str,
-    sciper: Optional[int] = None,
+    sciper: Optional[str] = None,
 ) -> None:
     """
     Helper function to create and set authentication cookies.
@@ -112,7 +117,7 @@ def login_test(role: str = "co2.user.std"):
     sanitized_role = role.replace("\r\n", "").replace("\n", "")
     user_id = f"testuser_{sanitized_role}"
     email = "testuser@example.com"
-    sciper = 999999
+    sciper = "999999"
 
     logger.info(
         "Test User info",
@@ -192,7 +197,7 @@ async def auth_callback(
                 detail="No email found in OAuth2 response",
             )
 
-        sciper = int(user_info.get("uniqueid"))  # return sciper as int
+        sciper = user_info.get("uniqueid")  # return sciper as str
         if not sciper:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -200,7 +205,7 @@ async def auth_callback(
             )
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        roles = await role_provider.get_roles(user_info, sciper)
+        roles, units, affiliation = await role_provider.get_roles(user_info, sciper)
 
         logger.info(
             "User info retrieved from OAuth2",
@@ -208,6 +213,8 @@ async def auth_callback(
                 "email": email,
                 "has_sciper": bool(sciper),
                 "roles_count": len(roles),
+                "units_count": len(units),
+                "affiliation_count": len(affiliation),
             },
         )
 
@@ -217,6 +224,8 @@ async def auth_callback(
             email=email,
             sciper=sciper,
             roles=roles,
+            units=units,
+            affiliations=affiliation,
         )
 
         # Redirect to frontend with httpOnly cookies
@@ -239,15 +248,28 @@ async def auth_callback(
         return response
 
     except HTTPException:
+        logger.error("OAuth callback HTTP exception", exc_info=True)
         raise
     except Exception as e:
         logger.error(
-            "OAuth callback failed", extra={"error": str(e), "type": type(e).__name__}
+            "OAuth callback failed",
+            extra={"error": str(e), "type": type(e).__name__},
+            exc_info=settings.DEBUG,
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed",
-        )
+        if settings.DEBUG:
+            import traceback
+
+            tb_lines = traceback.format_exc().splitlines()
+            # Return stack trace in response (for dev only)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": str(e), "traceback": tb_lines},
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication failed",
+            )
 
 
 @router.get("/me", response_model=UserRead)
@@ -272,20 +294,24 @@ async def get_me(
         # Decode and validate token
         payload = decode_jwt(auth_token)
         user_id = payload.get("sub")
+        user_sciper = payload.get("sciper")
 
-        if not user_id:
+        if not user_sciper:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
-
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+            )
         # Check it is a test user in DEBUG mode
         if settings.DEBUG and user_id.startswith("testuser_"):
             return make_test_user(user_id)
 
         # Get user from database
-        user = await get_user_by_id(db, user_id)
-
+        user = await get_user_by_sciper(db, user_sciper)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -311,18 +337,20 @@ async def get_me(
         # Refresh roles from provider
         role_provider = get_role_provider()
         userinfo = {"email": user.email}  # Minimal userinfo for role provider
-        fresh_roles = await role_provider.get_roles(userinfo, user.sciper)
+        fresh_roles, fresh_units, fresh_affiliations = await role_provider.get_roles(
+            userinfo, user.sciper
+        )
 
         # Update user roles if changed
         if fresh_roles != user.roles:
-            user.roles = fresh_roles
-            await db.commit()
-            await db.refresh(user)
+            await update_user_roles(db, user.id, fresh_roles)
             logger.info(
                 "Refreshed user roles",
                 extra={"user_id": user.id, "roles_count": len(fresh_roles)},
             )
-
+        # not sure why sciper is set to int here
+        if user and user.sciper is not None and not isinstance(user.sciper, str):
+            user.sciper = str(user.sciper)
         return user
 
     except HTTPException:
