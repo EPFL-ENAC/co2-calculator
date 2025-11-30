@@ -3,7 +3,12 @@
     <module-title :type="currentModuleType" />
     <module-charts :type="currentModuleType" />
     <!-- module tables iteration -->
-    <module-table-section :type="currentModuleType" />
+    <module-table-section
+      :type="currentModuleType"
+      :data="data"
+      :loading="loading"
+      :error="error"
+    />
     <!-- module summary -->
   </q-page>
 </template>
@@ -16,9 +21,35 @@ import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import { Module } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
+import { onMounted, watch } from 'vue';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
+
+// compute unit and year from route params
+const unit = computed(() => String($route.params.unit ?? 'default'));
+const year = computed(() =>
+  String($route.params.year ?? new Date().getFullYear()),
+);
+
+const moduleStore = useModuleStore();
+
+const data = computed(() => moduleStore.state.data);
+const loading = computed(() => moduleStore.state.loading);
+const error = computed(() => moduleStore.state.error);
+
+// get data on mount and when route params change
+const getData = () => {
+  if (!currentModuleType.value) return;
+  moduleStore.getModuleData(currentModuleType.value, unit.value, year.value);
+};
+
+onMounted(getData);
+watch(
+  [() => currentModuleType.value, () => unit.value, () => year.value],
+  getData,
+);
 </script>
 
 <style scoped lang="scss">

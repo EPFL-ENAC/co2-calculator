@@ -14,7 +14,7 @@ export const externalCloud: ModuleConfig = {
       tableColumns: [
         { key: 'service', label: 'Service', type: 'text', sortable: true },
         { key: 'usage', label: 'Usage', type: 'number', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
       formInputs: [
         {

@@ -14,7 +14,7 @@ export const purchase: ModuleConfig = {
       tableColumns: [
         { key: 'item', label: 'Item', type: 'text', sortable: true },
         { key: 'quantity', label: 'Quantity', type: 'number', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
       formInputs: [
         {

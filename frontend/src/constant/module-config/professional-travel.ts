@@ -46,6 +46,6 @@ export const professionalTravel: ModuleConfig = {
       sortable: true,
     },
     { key: 'co2Factor', label: 'CO2 Factor', type: 'text', sortable: true },
-    { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+    { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
   ],
 };

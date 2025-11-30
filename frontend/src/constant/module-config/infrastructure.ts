@@ -14,7 +14,7 @@ export const infrastructure: ModuleConfig = {
       tableColumns: [
         { key: 'item', label: 'Item', type: 'text', sortable: true },
         { key: 'value', label: 'Value', type: 'number', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
       formInputs: [
         {

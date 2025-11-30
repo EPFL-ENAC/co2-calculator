@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { TableColumn } from 'src/constant/moduleConfig';
 
 type RowValue = string | number | boolean | null | undefined;
@@ -30,10 +30,12 @@ type ModuleRow = Record<string, RowValue>;
 const props = defineProps<{
   columns?: TableColumn[] | null;
   rows?: ModuleRow[];
+  loading?: boolean;
+  error?: string | null;
 }>();
 
 // simple local rows by default (can be passed via prop)
-const rows = ref(props.rows ?? []);
+// const rows = ref(props.rows ?? []);
 
 const qCols = computed(() => {
   return (props.columns ?? []).map((c) => ({

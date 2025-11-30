@@ -50,7 +50,7 @@ export const internalServices: ModuleConfig = {
           type: 'text',
           sortable: true,
         },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
     },
     {
@@ -59,7 +59,7 @@ export const internalServices: ModuleConfig = {
       tableColumns: [
         { key: 'material', label: 'Material', type: 'text', sortable: true },
         { key: 'weight', label: 'Weight (kg)', type: 'number', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
     },
     {
@@ -69,7 +69,7 @@ export const internalServices: ModuleConfig = {
         { key: 'date', label: 'Date', type: 'date', sortable: true },
         { key: 'weight', label: 'Weight (kg)', type: 'number', sortable: true },
         { key: 'treatment', label: 'Treatment', type: 'text', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
     },
   ],

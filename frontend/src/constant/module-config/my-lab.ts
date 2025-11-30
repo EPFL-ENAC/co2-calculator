@@ -21,7 +21,7 @@ export const myLab: ModuleConfig = {
           type: 'number',
           sortable: true,
         },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
       formInputs: [
         {
@@ -45,7 +45,7 @@ export const myLab: ModuleConfig = {
           sortable: true,
         },
         { key: 'volume', label: 'Volume (m³)', type: 'number', sortable: true },
-        { key: 'kgCO2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
       ],
       formInputs: [
         {
