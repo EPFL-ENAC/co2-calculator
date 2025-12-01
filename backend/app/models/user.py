@@ -46,6 +46,7 @@ class UserBase(SQLModel):
         description="User roles with hierarchical scopes",
     )
 
+    @classmethod
     @field_validator("roles", mode="after", check_fields=False)
     def deserialize_roles(cls, v):
         # Convert dicts back to Role objects after loading from DB
@@ -63,6 +64,7 @@ class UserBase(SQLModel):
             return roles
         return v
 
+    @classmethod
     @field_validator("roles", mode="wrap", check_fields=False)
     def serialize_roles(cls, v, handler):
         # Convert Role objects to dicts for JSON serialization
