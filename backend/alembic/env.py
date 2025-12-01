@@ -27,12 +27,11 @@ if (
     or url.drivername == "postgres"
     or url.drivername == "postgresql+psycopg"
 ) and not url.drivername.endswith("+asyncpg"):
-    # Add async driver + optional query params
+    # Just change the driver, keep everything else
     url = url.set(drivername="postgresql+psycopg")
-    settings.DB_URL = str(url)
 
-# Set the database URL from settings
-config.set_main_option("sqlalchemy.url", settings.DB_URL)
+# IMPORTANT: Use render_as_string to preserve the actual password
+config.set_main_option("sqlalchemy.url", url.render_as_string(hide_password=False))
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
