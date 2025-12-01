@@ -1,5 +1,4 @@
 Generating Mermaid ERD...
-
 ```mermaid
 erDiagram
   resources {
@@ -45,12 +44,7 @@ erDiagram
   users ||--}o resources : created_by
   users ||--}o resources : updated_by
   users ||--}o units : principal_user_id
-  users ||--}o units : updated_by
-  users ||--}o units : created_by
   units ||--}o unit_users : unit_id
   users ||--}o unit_users : user_id
-  users ||--}o users : updated_by
-  users ||--}o users : created_by
 ```
-
 Mermaid ERD generation complete.
