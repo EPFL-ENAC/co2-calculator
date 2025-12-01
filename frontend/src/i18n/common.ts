@@ -309,4 +309,8 @@ export default {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
   },
+  documentation_button_label: {
+    en: 'Documentation',
+    fr: 'Documentation',
+  },
 };

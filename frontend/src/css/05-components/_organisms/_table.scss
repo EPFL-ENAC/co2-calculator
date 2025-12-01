@@ -8,6 +8,10 @@
     border: none;
   }
 
+  .q-tr:nth-child(even) {
+    background-color: tokens.$table-bg-even;
+  }
+
   th {
     font-size: tokens.$text-size-sm;
   }
