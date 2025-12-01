@@ -8,6 +8,7 @@
           color="accent"
           size="md"
           class="q-mr-sm"
+          :aria-label="$t('module-info-label')"
         ></q-icon>
         {{ $t(`${type}`) }}
       </h1>
@@ -15,7 +16,12 @@
         {{ $t(`${type}-description`) }}
       </p>
       <div class="absolute-top-right q-mr-md q-mt-md">
-        <q-icon :name="outlinedInfo" size="md" class="cursor-pointer" />
+        <q-icon
+          :name="outlinedInfo"
+          size="md"
+          class="cursor-pointer"
+          :aria-label="$t('module-info-label')"
+        />
         <!-- tooltip width should be token related -->
         <q-tooltip
           anchor="top right"

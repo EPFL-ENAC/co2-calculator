@@ -1,5 +1,7 @@
 """Unit Results API endpoints."""
 
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +14,7 @@ router = APIRouter()
 
 
 # TODO: use snake_case keys in the response
-module_data = {
+module_data: Dict[str, Any] = {
     "module_type": "equipment-electric-consumption",
     "unit": "kWh",
     "year": "2025",

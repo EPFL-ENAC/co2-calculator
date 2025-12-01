@@ -261,12 +261,16 @@ export default {
     en: 'Edit',
     fr: 'Editer',
   },
-  home_results_units: {
+  results_units: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-éq',
   },
   home_simulations_units: {
     en: 'Simulations',
     fr: 'Simulations',
+  },
+  module_total_result_title: {
+    en: 'Total Lab Carbon Footprint',
+    fr: '',
   },
 };

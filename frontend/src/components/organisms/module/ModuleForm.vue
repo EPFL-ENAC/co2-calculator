@@ -74,13 +74,12 @@ function init() {
     errors[i.id] = null;
   });
 }
-init();
 
 // re-init when inputs change (e.g. dynamic config)
 watch(
   () => props.inputs,
   () => init(),
-  { deep: true },
+  { deep: true, immediate: true },
 );
 
 function fieldComponent(type: string): Component {

@@ -11,19 +11,24 @@
       :error="error"
     />
     <!-- module summary -->
+    <module-total-result
+      v-if="currentModuleType === MODULES.EquipmentElectricConsumption"
+      :data="data?.totals?.total_kg_co2eq"
+      :type="currentModuleType"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { computed } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 
 import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
+import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
 import { Module, MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
-import { onMounted, watch } from 'vue';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
@@ -66,7 +71,7 @@ watch(
 @use 'src/css/02-tokens' as tokens;
 .module-page {
   padding-top: tokens.$template-padding-y;
-  // gap: tokens.$template-gap;
+  padding-bottom: tokens.$template-padding-y;
   display: grid;
   grid-auto-flow: row;
   row-gap: tokens.$template-gap;

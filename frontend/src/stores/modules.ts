@@ -52,9 +52,9 @@ export const useModuleStore = defineStore('modules', () => {
       state.data = (await api
         .get(`modules/${moduleTypeEncoded}/${unitEncoded}/${yearEncoded}`)
         .json()) as ModuleResponse;
-    } catch (err: Error | unknown) {
+    } catch (err: unknown) {
       if (err instanceof Error) {
-        state.error = err?.message ?? 'Unknown error';
+        state.error = err.message ?? 'Unknown error';
         state.data = null;
       } else {
         state.error = 'Unknown error';

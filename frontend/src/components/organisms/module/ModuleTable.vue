@@ -3,6 +3,8 @@
     :columns="qCols"
     :rows="rows"
     row-key="id"
+    :loading="loading"
+    :error="error"
     flat
     bordered
     dense
@@ -25,7 +27,7 @@ import { computed } from 'vue';
 import type { TableColumn } from 'src/constant/moduleConfig';
 
 type RowValue = string | number | boolean | null | undefined;
-type ModuleRow = Record<string, RowValue>;
+type ModuleRow = Record<string, RowValue> & { id: string | number };
 
 const props = defineProps<{
   columns?: TableColumn[] | null;

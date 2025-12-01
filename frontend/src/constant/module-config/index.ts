@@ -1,6 +1,6 @@
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import { equipmentElectricConsumption } from 'src/constant/module-config/equipment-electric-consumption';
-import { professionalTravel } from 'src/constant/module-config//professional-travel';
+import { professionalTravel } from 'src/constant/module-config/professional-travel';
 import { myLab } from 'src/constant/module-config/my-lab';
 import { internalServices } from 'src/constant/module-config/internal-services';
 import { externalCloud } from 'src/constant/module-config/external-cloud';
