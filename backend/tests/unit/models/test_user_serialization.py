@@ -1,4 +1,3 @@
-
 from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserBase
 
 
