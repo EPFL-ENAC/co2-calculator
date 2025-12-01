@@ -1,11 +1,13 @@
 <template>
-  <q-card flat class="container">
+  <q-card flat class="module-title-card relative container">
     <q-card-section>
       <h1 class="text-h2 q-mb-xs">
         <q-icon
-          :name="MODULE_ICONS[type] ? MODULE_ICONS[type] : ''"
+          v-if="iconName"
+          :name="iconName"
           color="accent"
-          size="sm"
+          size="md"
+          class="q-mr-sm"
         ></q-icon>
         {{ $t(`${type}`) }}
       </h1>
@@ -31,8 +33,15 @@
 import { MODULE_ICONS } from 'src/constant/moduleCards';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { Module } from 'src/constant/modules';
+import { computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
   type: Module;
 }>();
+const iconName = computed(() => MODULE_ICONS[props.type] || null);
 </script>
+<style scoped lang="scss">
+.module-title-card {
+  height: 100%;
+}
+</style>

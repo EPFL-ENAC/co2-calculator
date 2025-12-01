@@ -8,6 +8,8 @@ import {
   ModuleStates,
 } from 'src/constant/moduleStates';
 
+import type { ModuleResponse } from 'src/constant/modules';
+
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
     [MODULES.MyLab]: MODULE_STATES.Validated,
@@ -33,13 +35,13 @@ export const useModuleStore = defineStore('modules', () => {
   const state = reactive<{
     loading: boolean;
     error: string | null;
-    data: object | null; // bad type
+    data: ModuleResponse | null;
   }>({
     loading: false,
     error: null,
     data: null,
   });
-  async function getModuleData(moduleType: string, unit: string, year: string) {
+  async function getModuleData(moduleType: Module, unit: string, year: string) {
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -49,7 +51,7 @@ export const useModuleStore = defineStore('modules', () => {
       const yearEncoded = encodeURIComponent(year);
       state.data = (await api
         .get(`modules/${moduleTypeEncoded}/${unitEncoded}/${yearEncoded}`)
-        .json()) as object; // bad type
+        .json()) as ModuleResponse;
     } catch (err: Error | unknown) {
       if (err instanceof Error) {
         state.error = err?.message ?? 'Unknown error';
