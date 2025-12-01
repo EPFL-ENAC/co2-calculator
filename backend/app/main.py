@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
         logger.info("Loki enabled", extra={"loki_enabled": settings.LOKI_ENABLED})
 
     # Initialize database (in production, use Alembic migrations)
-    if settings.DEBUG:
-        logger.warning("Debug mode: Database tables will be auto-created")
+    if settings.LOCAL_ENVIRONMENT:
+        logger.warning("Local mode: Database tables will be auto-created")
         from app.db import init_db
 
         await init_db()
