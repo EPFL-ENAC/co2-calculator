@@ -83,4 +83,60 @@ export default {
     en: 'Using top-N threshold: {value}',
     fr: 'Seuil Top-N utilisé : {value}',
   },
+  data_management_reporting_year: {
+    en: 'Reporting Year',
+    fr: 'Année de rapport',
+  },
+  data_management_reporting_year_hint: {
+    en: 'Select the year to view module completion data for that reporting period.',
+    fr: "Sélectionnez l'année pour afficher les données d'achèvement du module pour cette période de rapport.",
+  },
+  data_management_annual_data_import: {
+    en: 'Annual Data Import',
+    fr: 'Importation annuelle des données',
+  },
+  data_management_annual_data_import_hint: {
+    en: 'Annual import of emission factors and other data necessary for CO2-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
+    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO2-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV.",
+  },
+  data_management_data_imports_count: {
+    en: 'Data Imports ({count})',
+    fr: 'Importations de données ({count})',
+  },
+  data_management_category: {
+    en: 'Category',
+    fr: 'Catégorie',
+  },
+  data_management_description: {
+    en: 'Description',
+    fr: 'Description',
+  },
+  data_management_factor: {
+    en: 'Factor',
+    fr: 'Facteur',
+  },
+  data_management_data: {
+    en: 'Data',
+    fr: 'Données',
+  },
+  data_management_download_csv_templates: {
+    en: 'Download CSV Templates',
+    fr: 'Télécharger les modèles CSV',
+  },
+  data_management_upload_csv_files: {
+    en: 'Upload CSV Files',
+    fr: 'Téléverser les fichiers CSV',
+  },
+  data_management_connect_api: {
+    en: 'Connect API',
+    fr: "Connecter l'API",
+  },
+  data_management_copy_previous_year: {
+    en: 'Copy Previous Year',
+    fr: "Copier l'année précédente",
+  },
+  data_management_no_data: {
+    en: 'No data available for this year.',
+    fr: 'Aucune donnée disponible pour cette année.',
+  },
 } as const;
