@@ -293,4 +293,19 @@ export default {
     en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
     fr: '',
   },
+  backoffice_user_management_page_title: {
+    en: 'User Management',
+    fr: 'Gestion des utilisateurs',
+  },
+  backoffice_user_management_page_description: {
+    en: 'Welcome to the User Management page. From here, you can access the Accred system to edit and manage all user accounts, including updating user information, assigning appropriate roles, and configuring access permissions. Additionally, you can access our detailed documentation which provides step-by-step instructions and guidelines for effectively managing users within the system.',
+  },
+  backoffice_user_management_page_button_label: {
+    en: 'Edit on Accred',
+    fr: 'Accéder au système Accred',
+  },
+  backoffice_user_management_page_button_label_outline: {
+    en: 'Access Documentation',
+    fr: 'Accéder à la documentation',
+  },
 } as const;
