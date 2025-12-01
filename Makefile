@@ -66,6 +66,8 @@ install: ## Install all dependencies and set up git hooks
 	cd frontend && $(MAKE) install
 	@echo "Installing docs dependencies..."
 	cd docs && $(MAKE) install
+	@echo "Install env files if missing..."
+	@if [ ! -f .database.env ]; then cp .database.env.example .database.env; fi
 	@echo "✅ Setup complete!"
 
 .PHONY: clean
@@ -89,6 +91,10 @@ run-db:
 .PHONY: stop-db
 stop-db:
 	docker compose down
+.PHONY: clean-db
+clean-db:
+	docker compose down -v
+	docker volume rm co2-calculator_postgres-data-18 || true
 
 # =============================================================================
 # CI/CD - Validation Commands

@@ -14,12 +14,12 @@ def parse_args():
 
 
 settings = get_settings()
-url_obj = make_url(settings.db_url)
+url_obj = make_url(settings.DB_URL)
 default_db_name = url_obj.database
 
 
 def get_default_db_url():
-    url_obj = make_url(settings.db_url)
+    url_obj = make_url(settings.DB_URL)
     if (
         url_obj.drivername == "postgresql"
         or url_obj.drivername == "postgres"

@@ -12,14 +12,14 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-url = make_url(settings.db_url)
+url = make_url(settings.DB_URL)
 is_sqlite = False
 if (
     url.drivername == "sqlite" or url.drivername == "sqlite3"
 ) and not url.drivername.endswith("+aiosqlite"):
     # Add async driver for SQLite
     async_url = url.set(drivername="sqlite+aiosqlite")
-    settings.db_url = str(async_url)
+    settings.DB_URL = str(async_url)
     is_sqlite = True
 # Create SQLAlchemy engine
 
@@ -35,7 +35,7 @@ if (
     settings.DB_URL = str(async_url)
 
 engine = create_async_engine(
-    settings.db_url,
+    settings.DB_URL,
     pool_pre_ping=True,  # Verify connections before using them
     echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False} if is_sqlite else {},
