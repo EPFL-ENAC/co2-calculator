@@ -83,60 +83,112 @@ export default {
     en: 'Using top-N threshold: {value}',
     fr: 'Seuil Top-N utilisé : {value}',
   },
-  data_management_reporting_year: {
-    en: 'Reporting Year',
-    fr: 'Année de rapport',
+  backoffice_reporting_year_title: {
+    en: 'Select Year for Report',
+    fr: "Sélectionner l'année pour le rapport",
   },
-  data_management_reporting_year_hint: {
-    en: 'Select the year to view module completion data for that reporting period.',
-    fr: "Sélectionnez l'année pour afficher les données d'achèvement du module pour cette période de rapport.",
+  backoffice_reporting_year_description: {
+    en: 'Choose the assessment year for which you want to generate the report.',
+    fr: "Choisissez l'année d'évaluation pour laquelle vous souhaitez générer le rapport.",
   },
-  data_management_annual_data_import: {
-    en: 'Annual Data Import',
-    fr: 'Importation annuelle des données',
+  backoffice_reporting_row_unit_label: {
+    en: 'Unit',
+    fr: 'Unité',
   },
-  data_management_annual_data_import_hint: {
-    en: 'Annual import of emission factors and other data necessary for CO2-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
-    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO2-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV.",
+  backoffice_reporting_row_units_label: {
+    en: 'Units',
+    fr: 'Unités',
   },
-  data_management_data_imports_count: {
-    en: 'Data Imports ({count})',
-    fr: 'Importations de données ({count})',
+  backoffice_reporting_row_affiliation_label: {
+    en: 'Affiliation',
+    fr: 'Affiliation',
   },
-  data_management_category: {
-    en: 'Category',
-    fr: 'Catégorie',
+  backoffice_reporting_row_completion_label: {
+    en: 'Completion',
+    fr: 'Complétion',
   },
-  data_management_description: {
-    en: 'Description',
-    fr: 'Description',
+  backoffice_reporting_row_principal_user_label: {
+    en: 'Principal User',
+    fr: 'Utilisateur principal',
   },
-  data_management_factor: {
-    en: 'Factor',
-    fr: 'Facteur',
+  backoffice_reporting_row_last_update_label: {
+    en: 'Last Update',
+    fr: 'Dernière mise à jour',
   },
-  data_management_data: {
-    en: 'Data',
-    fr: 'Données',
+  backoffice_reporting_row_outlier_values_label: {
+    en: 'Outlier Values',
+    fr: 'Valeurs aberrantes',
   },
-  data_management_download_csv_templates: {
-    en: 'Download CSV Templates',
-    fr: 'Télécharger les modèles CSV',
+  backoffice_reporting_row_action_label: {
+    en: 'Action',
+    fr: 'Action',
   },
-  data_management_upload_csv_files: {
-    en: 'Upload CSV Files',
-    fr: 'Téléverser les fichiers CSV',
+  backoffice_reporting_module_status_label: {
+    en: 'Filter by Module Status ({count})',
+    fr: 'Filtrer par statut de module ({count})',
   },
-  data_management_connect_api: {
-    en: 'Connect API',
-    fr: "Connecter l'API",
+  backoffice_reporting_all_modules: {
+    en: 'All',
+    fr: 'Tous',
   },
-  data_management_copy_previous_year: {
-    en: 'Copy Previous Year',
-    fr: "Copier l'année précédente",
+  backoffice_reporting_select_all: {
+    en: 'Select All',
+    fr: 'Tout sélectionner',
   },
-  data_management_no_data: {
-    en: 'No data available for this year.',
-    fr: 'Aucune donnée disponible pour cette année.',
+  backoffice_reporting_unselect_all: {
+    en: 'Unselect All',
+    fr: 'Tout désélectionner',
+  },
+  backoffice_reporting_units_status_label: {
+    en: 'Units ({count})',
+    fr: 'Unités ({count})',
+  },
+  backoffice_reporting_generate_report_title: {
+    en: 'Export Data',
+    fr: 'Exporter les données',
+  },
+  backoffice_reporting_generate_report_description: {
+    en: 'Generate your report and export in your preferred format.',
+    fr: 'Générez votre rapport et exportez-le dans le format de votre choix.',
+  },
+  backoffice_reporting_generate_usage_title: {
+    en: 'Usage',
+    fr: 'Utilisation',
+  },
+  backoffice_reporting_generate_usage_description: {
+    en: 'Reports on calculator utilization: which laboratories have completed modules, user activity, data entry status, and completion rates.',
+    fr: "Rapports sur l'utilisation du calculateur : quels laboratoires ont complété les modules, activité des utilisateurs, statut de saisie des données et taux de complétion.",
+  },
+  backoffice_reporting_generate_results_title: {
+    en: 'Results',
+    fr: 'Résultats',
+  },
+  backoffice_reporting_generate_results_description: {
+    en: 'CO₂-eq calculations with visual graphs and charts showing module completion, laboratory activity, and emissions breakdowns.',
+    fr: "Calculs CO₂-éq avec graphiques et tableaux visuels montrant la complétion des modules, l'activité des laboratoires et les répartitions des émissions.",
+  },
+  backoffice_reporting_generate_combined_title: {
+    en: 'Combined',
+    fr: 'Combiné',
+  },
+  backoffice_reporting_generate_combined_description: {
+    en: 'Comprehensive report including both usage statistics and CO₂-eq results, ideal for executive summaries and annual reporting.',
+    fr: "Rapport complet incluant à la fois les statistiques d'utilisation et les résultats CO₂-éq, idéal pour les résumés exécutifs et les rapports annuels.",
+  },
+  backoffice_reporting_generate_formats: {
+    en: 'Export Formats: \n PDF: Formatted report with charts and visualizations, ideal for presentations and sharing. \n CSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
+    fr: "Formats d'export : \n PDF : Rapport formaté avec graphiques et visualisations, idéal pour les présentations et le partage. \n CSV : Données brutes au format tableur pour une analyse plus approfondie dans Excel ou d'autres outils.",
+  },
+  backoffice_reporting_csv_validated: {
+    en: 'Validated',
+    fr: 'Validé',
+  },
+  backoffice_reporting_csv_in_progress: {
+    en: 'In Progress',
+    fr: 'En cours',
+  },
+  backoffice_reporting_csv_default: {
+    en: 'Default',
+    fr: 'Par défaut',
   },
 } as const;
