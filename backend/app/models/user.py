@@ -93,8 +93,8 @@ class UserBase(SQLModel):
     updated_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True))
     )
-    created_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
-    updated_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+    created_by: Optional[str] = Field(default=None, index=True)
+    updated_by: Optional[str] = Field(default=None, index=True)
 
 
 class User(UserBase, table=True):
