@@ -21,7 +21,7 @@ settings = get_settings()
 # this is the Alembic Config object
 config = context.config
 
-url = make_url(settings.db_url)
+url = make_url(settings.DB_URL)
 if (
     url.drivername == "postgresql"
     or url.drivername == "postgres"
@@ -32,7 +32,7 @@ if (
     settings.DB_URL = str(url)
 
 # Set the database URL from settings
-config.set_main_option("sqlalchemy.url", settings.db_url)
+config.set_main_option("sqlalchemy.url", settings.DB_URL)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

@@ -56,11 +56,7 @@ kubectl create secret generic backend-secret -n prod \
 
 # Database secret
 kubectl create secret generic db-secret -n prod \
-  --from-literal=DB_URL='postgresql+psycopg://user:pass@host:5432/db' \
-  --from-literal=DB_HOST='postgres.prod.svc' \
-  --from-literal=DB_PORT='5432' \
-  --from-literal=DB_USER='app_user' \
-  --from-literal=DB_PASSWORD='secure_password'
+  --from-literal=DB_URL='postgresql+psycopg://user:pass@host:5432/db'
 ```
 
 ### 2. Configure values.prod.yaml

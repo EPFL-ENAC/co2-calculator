@@ -36,6 +36,7 @@ services:
     container_name: co2-calculator-postgres
     env_file:
       - ./backend/.env
+      - ./.database.env
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
@@ -44,11 +45,7 @@ services:
       - postgres-data-18:/var/lib/postgresql/data
     command: ["postgres", "-c", "listen_addresses=*"]
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U $$DB_USER -d $$DB_NAME -h $$DB_HOST -p $$DB_PORT",
-        ]
+      test: ["CMD-SHELL", "pg_isready -d $$DB_URL"]
       interval: 3s
       timeout: 5s
       retries: 5
@@ -79,8 +76,6 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # OVERRIDE to use service name 'postgres' as host in Docker Compose
-      DB_HOST: postgres
       DEBUG: "False"
     ports:
       - "8008:8000"
