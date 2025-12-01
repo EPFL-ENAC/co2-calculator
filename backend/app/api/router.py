@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, resources, unit_results, units, users
+from app.api.v1 import auth, modules, resources, unit_results, units, users
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(resources.router, prefix="/resources", tags=["resources"])
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
+api_router.include_router(modules.router, prefix="/modules", tags=["modules"])
