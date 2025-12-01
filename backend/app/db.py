@@ -18,24 +18,24 @@ if (
     url.drivername == "sqlite" or url.drivername == "sqlite3"
 ) and not url.drivername.endswith("+aiosqlite"):
     # Add async driver for SQLite
-    async_url = url.set(drivername="sqlite+aiosqlite")
-    settings.DB_URL = str(async_url)
+    url = url.set(drivername="sqlite+aiosqlite")
     is_sqlite = True
-# Create SQLAlchemy engine
 
 if (
     url.drivername == "postgresql"
     or url.drivername == "postgres"
     or url.drivername == "postgresql+psycopg"
 ) and not url.drivername.endswith("+asyncpg"):
-    # Add async driver + optional query params
-    async_url = url.set(
-        drivername="postgresql+psycopg", query={"async_fallback": "true"}
-    )
-    settings.DB_URL = str(async_url)
+    # Preserve existing query params and add async_fallback
+    existing_query = dict(url.query)
+    existing_query["async_fallback"] = "true"
+    url = url.set(drivername="postgresql+psycopg", query=existing_query)
+
+# Use the modified url for the engine
+final_db_url = url.render_as_string(hide_password=False)
 
 engine = create_async_engine(
-    settings.DB_URL,
+    final_db_url,  # This has the actual password
     pool_pre_ping=True,  # Verify connections before using them
     echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False} if is_sqlite else {},
