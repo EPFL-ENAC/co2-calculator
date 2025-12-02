@@ -1,10 +1,8 @@
 <template>
   <div>
-    <!-- TODO: use i18n key instead-->
-    <h2>{{ currentModuleConfig.name }}</h2>
-    <p>{{ currentModuleConfig.description }}</p>
     <div
       v-if="currentModuleConfig.hasSubmodules && currentModuleConfig.submodules"
+      class="module-table-section__submodules"
     >
       <sub-module-section
         v-for="sub in currentModuleConfig.submodules"
@@ -49,3 +47,10 @@ const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[props.type] as ModuleConfig,
 );
 </script>
+
+<style scoped lang="scss">
+.module-table-section__submodules {
+  display: grid;
+  grid-gap: 1rem;
+}
+</style>

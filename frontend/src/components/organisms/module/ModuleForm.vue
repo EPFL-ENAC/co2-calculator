@@ -1,5 +1,5 @@
 <template>
-  <q-card>
+  <q-card flat>
     <q-card-section>
       <q-form @submit.prevent="onSubmit">
         <div v-if="!inputs || inputs.length === 0" class="text-subtle">
@@ -30,9 +30,27 @@
           </component>
         </div>
 
-        <q-card-actions align="right">
-          <q-btn flat label="Reset" @click="reset" />
-          <q-btn color="primary" label="Submit" type="submit" />
+        <q-card-actions class="action-no-margin q-mt-xl">
+          <q-btn
+            icon="o_  add_circle"
+            color="accent"
+            :label="$t('common_add_button')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium"
+            type="submit"
+          />
+          <q-btn
+            outline
+            icon="o_add_comment"
+            color="primary"
+            :label="$t('common_add_with_note_button')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium q-mr-sm"
+          />
         </q-card-actions>
       </q-form>
     </q-card-section>
@@ -146,4 +164,8 @@ function reset() {
   });
 }
 </script>
-<style scoped></style>
+<style scoped>
+.action-no-margin {
+  padding: 0;
+}
+</style>

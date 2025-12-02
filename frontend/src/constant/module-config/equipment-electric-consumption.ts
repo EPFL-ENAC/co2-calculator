@@ -7,6 +7,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
   description:
     'List lab equipment with wattage to calculate electricity-related CO2',
   hasSubmodules: true,
+  isCollapsible: true,
   formStructure: 'perSubmodule',
   submodules: [
     {

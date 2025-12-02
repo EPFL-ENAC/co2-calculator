@@ -325,4 +325,12 @@ export default {
     en: 'Documentation',
     fr: 'Documentation',
   },
+  common_add_button: {
+    en: 'Add',
+    fr: 'Ajouter',
+  },
+  common_add_with_note_button: {
+    en: 'Add with note',
+    fr: 'Ajouter avec note',
+  },
 };
