@@ -70,12 +70,12 @@ export default {
     fr: 'Se déconnecter',
   },
   workspace_setup_title: {
-    en: 'Welcome to the CO₂ calculator',
-    fr: 'Bienvenue dans le calculateur CO₂',
+    en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL!',
+    fr: 'Bienvenue dans le Calculateur CO₂ des activités de recherche de l’EPFL !',
   },
   workspace_setup_description: {
-    en: "Assess your unit's carbon footprint in line with the Greenhouse Gas (GHG) Protocol — the international standard for greenhouse gas accounting.\n\nFollow the steps below to get started: select your unit, choose a calculation year, and proceed to measure your CO₂ emissions.",
-    fr: 'Please set up your workspace before using the CO₂ calculator.',
+    en: "Assess your unit's carbon footprint, identify areas for improvement, and commit to a concrete reduction plan.\nSelect your unit and the year, and let's get started!",
+    fr: 'Évaluez l’empreinte carbone de votre unité, repérez les leviers d’action et engagez-vous dans une démarche de réduction concrète. \nChoisissez votre unité, l’année, puis obtenez vos résultats !',
   },
   workspace_setup_unit_title: {
     en: 'Select your lab',
