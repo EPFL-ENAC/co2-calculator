@@ -10,6 +10,5 @@
     "prettier": "^3.5.3",
     "puppeteer": "^24.31.0"
   },
-  "version": "0.1.1",
-  "dependencies": {}
+  "version": "0.1.1"
 }
