@@ -5,8 +5,9 @@
     header-class="text-h5 text-weight-medium"
     class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
   >
-    <q-card-section>
-      <div v-if="submodule.tableColumns" class="q-mt-md">
+    <q-separator />
+    <q-card-section class="q-pa-none">
+      <div class="q-mx-lg q-my-xl" v-if="submodule.tableColumns">
         <module-table
           :columns="submodule.tableColumns"
           :rows="rows"
@@ -14,8 +15,8 @@
           :error="error"
         />
       </div>
-
-      <div v-if="submodule.formInputs" class="q-mt-md">
+      <q-separator />
+      <div v-if="submodule.formInputs">
         <module-form :inputs="submodule.formInputs" />
       </div>
     </q-card-section>

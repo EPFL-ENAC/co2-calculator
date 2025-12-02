@@ -40,7 +40,7 @@ const toggleLabel = computed(() =>
     : t('common_validate'),
 );
 const toggleColor = computed(() =>
-  currentState.value === 'validated' ? 'info' : 'primary',
+  currentState.value === 'validated' ? 'primary' : 'info',
 );
 
 function toggleState() {
@@ -145,7 +145,7 @@ const handleLogout = async () => {
 
         <q-btn
           v-if="route.name === 'module'"
-          :outline="currentState === 'validated' ? false : true"
+          :outline="currentState === 'validated' ? true : false"
           :label="toggleLabel"
           :color="toggleColor"
           unelevated

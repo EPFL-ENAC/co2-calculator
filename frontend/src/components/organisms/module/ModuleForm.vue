@@ -1,36 +1,48 @@
 <template>
   <q-card flat>
-    <q-card-section>
+    <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
-        <div v-if="!inputs || inputs.length === 0" class="text-subtle">
-          No form configured
+        <div class="q-mx-lg q-my-xl">
+          <div v-if="!inputs || inputs.length === 0" class="text-subtle">
+            No form configured
+          </div>
+
+          <div class="form-grid">
+            <div
+              v-for="inp in inputs ?? []"
+              :key="inp.id"
+              :class="['form-field', getGridClass(inp.ratio)]"
+            >
+              <component
+                :is="fieldComponent(inp.type)"
+                v-model="form[inp.id]"
+                :label="inp.label"
+                :placeholder="inp.placeholder"
+                :type="inp.type === 'number' ? 'number' : undefined"
+                :options="
+                  inp.options?.map((o) => ({ label: o.label, value: o.value }))
+                "
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :min="inp.min"
+                :max="inp.max"
+                dense
+                outlined
+              >
+                <template v-if="inp.icon" #prepend>
+                  <q-icon :name="inp.icon" color="grey-6" size="xs" />
+                </template>
+                <template v-if="inp.type === 'select'" #hint>
+                  <div class="text-subtle">Select a value</div>
+                </template>
+              </component>
+            </div>
+          </div>
         </div>
 
-        <div v-for="inp in inputs ?? []" :key="inp.id" class="q-mb-md">
-          <component
-            :is="fieldComponent(inp.type)"
-            v-model="form[inp.id]"
-            :label="inp.label"
-            :placeholder="inp.placeholder"
-            :type="inp.type === 'number' ? 'number' : undefined"
-            :options="
-              inp.options?.map((o) => ({ label: o.label, value: o.value }))
-            "
-            :error="!!errors[inp.id]"
-            :error-message="errors[inp.id]"
-            :min="inp.min"
-            :max="inp.max"
-            dense
-            hide-bottom-space
-            style="max-width: 720px"
-          >
-            <template v-if="inp.type === 'select'" #hint>
-              <div class="text-subtle">Select a value</div>
-            </template>
-          </component>
-        </div>
+        <q-separator />
 
-        <q-card-actions class="action-no-margin q-mt-xl">
+        <q-card-actions class="action-no-margin q-mx-lg q-my-xl">
           <q-btn
             icon="o_  add_circle"
             color="accent"
@@ -163,9 +175,50 @@ function reset() {
     errors[i.id] = null;
   });
 }
+
+function getGridClass(ratio?: string): string {
+  if (!ratio) return 'form-field--full';
+  // Parse ratio like "3/4" -> calculate grid span
+  const [numerator, denominator] = ratio.split('/').map(Number);
+  if (!numerator || !denominator) return 'form-field--full';
+  const span = Math.round((numerator / denominator) * 12);
+  return `form-field--span-${span}`;
+}
 </script>
-<style scoped>
+<style scoped lang="scss">
 .action-no-margin {
   padding: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  row-gap: 0.25rem;
+  column-gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-field {
+  min-width: 0;
+}
+
+.form-field--full {
+  grid-column: span 12;
+}
+
+@for $i from 1 through 12 {
+  .form-field--span-#{$i} {
+    grid-column: span #{$i};
+  }
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field {
+    grid-column: span 1 !important;
+  }
 }
 </style>

@@ -1,6 +1,5 @@
 <template>
-  <div class="q-mb-sm flex justify-between items-center">
-    <div class="text-body2 text-weight-medium">Table title (0)</div>
+  <div class="q-mb-md flex justify-between items-center">
     <div>
       <q-btn
         outline
