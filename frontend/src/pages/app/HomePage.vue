@@ -7,7 +7,7 @@ import { MODULE_CARDS } from 'src/constant/moduleCards';
 const { t } = useI18n();
 
 const modulesCounterText = computed(() =>
-  t('workspace_setup_unit_counter', {
+  t('home_modules_counter', {
     count: Object.keys(MODULES).length + 1,
   }),
 );
@@ -110,9 +110,9 @@ const homeIntroWithLinks = computed(() => {
     </div>
 
     <div>
-      <span class="text-h5 text-weight-medium q-mb-md">{{
-        modulesCounterText
-      }}</span>
+      <div class="text-h5 text-weight-medium q-mb-sm">
+        {{ modulesCounterText }}
+      </div>
       <div class="grid-3-col">
         <q-card
           v-for="moduleCard in MODULE_CARDS"
