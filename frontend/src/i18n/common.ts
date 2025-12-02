@@ -337,4 +337,12 @@ export default {
     en: 'Actions',
     fr: 'Actions',
   },
+  common_validate: {
+    en: 'Validate',
+    fr: 'Valider',
+  },
+  common_unvalidate: {
+    en: 'Unvalidate',
+    fr: 'Invalider',
+  },
 };
