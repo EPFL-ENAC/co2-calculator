@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const { t } = useI18n();
 
@@ -122,7 +123,7 @@ const homeIntroWithLinks = computed(() => {
         >
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
-              <q-icon :name="moduleCard.icon" color="accent" size="sm" />
+              <module-icon :name="moduleCard.module" size="md" color="accent" />
               <h3 class="text-h5 text-weight-medium">
                 {{ $t(moduleCard.module) }}
               </h3>

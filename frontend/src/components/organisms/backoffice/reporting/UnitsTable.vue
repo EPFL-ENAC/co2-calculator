@@ -191,7 +191,7 @@ const pagination = computed(() => {
           <q-badge
             v-if="row.outlier_values > 0"
             color="red"
-            :label="`${row.outlier_values} Errors`"
+            :label="`${row.outlier_values} ${t('backoffice_reporting_errors_label')}`"
             class="text-white"
           />
           <span v-else class="text-grey-6">—</span>

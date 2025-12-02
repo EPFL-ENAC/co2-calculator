@@ -116,7 +116,7 @@ watch(
         input-debounce="0"
         emit-value
         map-options
-        :label="$t('backoffice_reporting_row_units_label')"
+        :label="$t('backoffice_reporting_filter_units_label')"
         class="full-width"
         @filter="filterUnits"
       >
