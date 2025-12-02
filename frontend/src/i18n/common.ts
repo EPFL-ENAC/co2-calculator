@@ -83,11 +83,11 @@ export default {
   },
   workspace_setup_unit_description: {
     en: 'Choose the unit you want to assess for its carbon footprint.',
-    fr: 'You have access to several laboratories. Please select the one you wish to work on:',
+    fr: "Choisissez l’unité dont vous souhaitez évaluer l'empreinte carbone.",
   },
   workspace_setup_unit_counter: {
-    en: 'Your units({count})',
-    fr: 'Your Laboratories ({count})',
+    en: 'Your units ({count})',
+    fr: 'Vos unités ({count})',
   },
   workspace_setup_unit_role: {
     en: 'Your role:',
@@ -122,8 +122,8 @@ export default {
     fr: 'Années d’évaluation',
   },
   workspace_setup_year_description: {
-    en: 'Choose which year to work on. ',
-    fr: 'Choisissez l’année sur laquelle vous souhaitez travailler.',
+    en: 'Choose which year to evaluate',
+    fr: 'Choisissez l’année sur laquelle vous souhaitez évaluer',
   },
   workspace_setup_year_counter: {
     en: 'Recorded Years ({count})',
