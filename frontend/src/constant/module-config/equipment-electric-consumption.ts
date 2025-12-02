@@ -8,6 +8,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
     'List lab equipment with wattage to calculate electricity-related CO2',
   hasSubmodules: true,
   isCollapsible: true,
+
   formStructure: 'perSubmodule',
   submodules: [
     {
@@ -15,13 +16,26 @@ export const equipmentElectricConsumption: ModuleConfig = {
       name: 'Scientific Equipment',
       count: 4,
       tableColumns: [
-        { key: 'name', label: 'Name', type: 'text', sortable: true },
-        { key: 'class', label: 'Class', type: 'select', sortable: true },
+        {
+          key: 'name',
+          label: 'Name',
+          type: 'text',
+          sortable: true,
+          align: 'left',
+        },
+        {
+          key: 'class',
+          label: 'Class',
+          type: 'select',
+          sortable: true,
+          align: 'left',
+        },
         {
           key: 'sub_class',
           label: 'Sub-class',
           type: 'select',
           sortable: true,
+          align: 'left',
         },
         {
           key: 'act_usage',
@@ -29,6 +43,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'number',
           unit: '%',
           sortable: true,
+          align: 'right',
         },
         {
           key: 'pas_usage',
@@ -36,6 +51,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'number',
           unit: '%',
           sortable: true,
+          align: 'right',
         },
         {
           key: 'act_power',
@@ -43,6 +59,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'number',
           unit: 'W',
           sortable: true,
+          align: 'right',
         },
         {
           key: 'pas_power',
@@ -50,8 +67,15 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'number',
           unit: 'W',
           sortable: true,
+          align: 'right',
         },
-        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
+        {
+          key: 'kg_co2eq',
+          label: 'kg CO2-eq',
+          type: 'number',
+          sortable: true,
+          align: 'right',
+        },
       ],
       formInputs: [
         {

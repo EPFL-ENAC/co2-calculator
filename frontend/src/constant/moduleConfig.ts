@@ -19,6 +19,7 @@ export interface TableColumn {
   type: ColumnType;
   unit?: string;
   sortable?: boolean;
+  align?: 'left' | 'right' | 'center';
 }
 
 export interface Submodule {

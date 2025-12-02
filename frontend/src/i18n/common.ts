@@ -333,4 +333,8 @@ export default {
     en: 'Add with note',
     fr: 'Ajouter avec note',
   },
+  common_actions: {
+    en: 'Actions',
+    fr: 'Actions',
+  },
 };
