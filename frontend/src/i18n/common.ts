@@ -333,4 +333,16 @@ export default {
     en: 'Add with note',
     fr: 'Ajouter avec note',
   },
+  common_actions: {
+    en: 'Actions',
+    fr: 'Actions',
+  },
+  common_validate: {
+    en: 'Validate',
+    fr: 'Valider',
+  },
+  common_unvalidate: {
+    en: 'Unvalidate',
+    fr: 'Invalider',
+  },
 };

@@ -1,6 +1,5 @@
 <template>
-  <div class="q-mb-sm flex justify-between items-center">
-    <div class="text-body2 text-weight-medium">Table title (0)</div>
+  <div class="q-mb-md flex justify-between items-center">
     <div>
       <q-btn
         outline
@@ -32,11 +31,64 @@
     :error="error"
     flat
     no-data-label="No items"
+    :pagination="pagination"
   >
+    <template v-slot:pagination="scope">
+      <q-btn
+        icon="chevron_left"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isFirstPage"
+        @click="scope.prevPage"
+      />
+
+      <q-btn
+        icon="chevron_right"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isLastPage"
+        @click="scope.nextPage"
+      />
+    </template>
     <template #body="slotProps">
       <q-tr :props="{ props: slotProps }" class="q-tr--no-hover">
-        <q-td v-for="col in qCols" :key="col.name" :props="slotProps">
-          {{ renderCell(slotProps.row, col) }}
+        <q-td
+          v-for="col in qCols"
+          :key="col.name"
+          :props="slotProps"
+          :align="col.align"
+        >
+          <template v-if="col.name === 'action'">
+            <!-- Placeholder for action buttons, etc. -->
+            <q-btn
+              icon="o_edit"
+              color="grey-4"
+              text-color="primary"
+              unelevated
+              no-caps
+              outline
+              size="xs"
+              class="square-button q-mr-sm"
+            />
+            <q-btn
+              icon="o_delete"
+              color="grey-4"
+              text-color="primary"
+              unelevated
+              no-caps
+              outline
+              square
+              size="xs"
+              class="square-button"
+            />
+          </template>
+          <template v-else>
+            {{ renderCell(slotProps.row, col) }}
+          </template>
         </q-td>
       </q-tr>
     </template>
@@ -48,8 +100,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { TableColumn } from 'src/constant/moduleConfig';
+import { useI18n } from 'vue-i18n';
+
+const { t: $t } = useI18n();
 
 type RowValue = string | number | boolean | null | undefined;
 type ModuleRow = Record<string, RowValue> & { id: string | number };
@@ -61,16 +116,31 @@ const props = defineProps<{
   error?: string | null;
 }>();
 
+const pagination = ref({
+  page: 1,
+  rowsPerPage: 20,
+});
+
 // simple local rows by default (can be passed via prop)
 // const rows = ref(props.rows ?? []);
 
 const qCols = computed(() => {
-  return (props.columns ?? []).map((c) => ({
+  const baseCols = (props.columns ?? []).map((c) => ({
     name: c.key,
     label: c.unit ? `${c.label} (${c.unit})` : c.label,
     field: c.key,
     sortable: !!c.sortable,
+    align: c.align ?? 'left',
   }));
+
+  baseCols.push({
+    name: 'action',
+    label: $t('common_actions'), // Or use $t('common_actions') for translation
+    field: 'action',
+    align: 'right',
+    sortable: false,
+  });
+  return baseCols;
 });
 
 function renderCell(row: ModuleRow, col: { field: string }) {

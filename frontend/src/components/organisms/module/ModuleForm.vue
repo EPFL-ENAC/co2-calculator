@@ -1,36 +1,50 @@
 <template>
   <q-card flat>
-    <q-card-section>
+    <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
-        <div v-if="!inputs || inputs.length === 0" class="text-subtle">
-          No form configured
+        <div class="q-mx-lg q-my-xl">
+          <div v-if="!inputs || inputs.length === 0" class="text-subtle">
+            No form configured
+          </div>
+
+          <div class="form-grid">
+            <div
+              v-for="inp in inputs ?? []"
+              :key="inp.id"
+              :class="['form-field', getGridClass(inp.ratio)]"
+            >
+              <component
+                :is="fieldComponent(inp.type)"
+                v-model="form[inp.id]"
+                :label="inp.label"
+                :placeholder="inp.placeholder"
+                :type="inp.type === 'number' ? 'number' : undefined"
+                :options="
+                  inp.options?.map((o) => ({ label: o.label, value: o.value }))
+                "
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :min="inp.min"
+                :max="inp.max"
+                :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
+                :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
+                :color="inp.type === 'checkbox' ? 'accent' : undefined"
+                :size="inp.type === 'checkbox' ? 'xs' : undefined"
+              >
+                <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
+                  <q-icon :name="inp.icon" color="grey-6" size="xs" />
+                </template>
+                <template v-if="inp.type === 'select'" #hint>
+                  <div class="text-subtle">Select a value</div>
+                </template>
+              </component>
+            </div>
+          </div>
         </div>
 
-        <div v-for="inp in inputs ?? []" :key="inp.id" class="q-mb-md">
-          <component
-            :is="fieldComponent(inp.type)"
-            v-model="form[inp.id]"
-            :label="inp.label"
-            :placeholder="inp.placeholder"
-            :type="inp.type === 'number' ? 'number' : undefined"
-            :options="
-              inp.options?.map((o) => ({ label: o.label, value: o.value }))
-            "
-            :error="!!errors[inp.id]"
-            :error-message="errors[inp.id]"
-            :min="inp.min"
-            :max="inp.max"
-            dense
-            hide-bottom-space
-            style="max-width: 720px"
-          >
-            <template v-if="inp.type === 'select'" #hint>
-              <div class="text-subtle">Select a value</div>
-            </template>
-          </component>
-        </div>
+        <q-separator />
 
-        <q-card-actions class="action-no-margin q-mt-xl">
+        <q-card-actions class="action-no-margin q-mx-lg q-my-xl">
           <q-btn
             icon="o_  add_circle"
             color="accent"
@@ -81,6 +95,7 @@ function init() {
   (props.inputs ?? []).forEach((i) => {
     switch (i.type) {
       case 'checkbox':
+      case 'boolean':
         form[i.id] = false;
         break;
       case 'number':
@@ -105,6 +120,7 @@ function fieldComponent(type: string): Component {
     case 'select':
       return QSelect;
     case 'checkbox':
+    case 'boolean':
       return QCheckbox;
     default:
       return QInput;
@@ -115,7 +131,7 @@ function validateField(i: FormInput) {
   const v = form[i.id];
   errors[i.id] = null;
   if (i.required) {
-    if (i.type === 'checkbox') {
+    if (i.type === 'checkbox' || i.type === 'boolean') {
       if (!v) errors[i.id] = 'Required';
     } else if (v === '' || v === null || v === undefined) {
       errors[i.id] = 'Required';
@@ -157,15 +173,56 @@ function onSubmit() {
 
 function reset() {
   (props.inputs ?? []).forEach((i) => {
-    if (i.type === 'checkbox') form[i.id] = false;
+    if (i.type === 'checkbox' || i.type === 'boolean') form[i.id] = false;
     else if (i.type === 'number') form[i.id] = null;
     else form[i.id] = '';
     errors[i.id] = null;
   });
 }
+
+function getGridClass(ratio?: string): string {
+  if (!ratio) return 'form-field--full';
+  // Parse ratio like "3/4" -> calculate grid span
+  const [numerator, denominator] = ratio.split('/').map(Number);
+  if (!numerator || !denominator) return 'form-field--full';
+  const span = Math.round((numerator / denominator) * 12);
+  return `form-field--span-${span}`;
+}
 </script>
-<style scoped>
+<style scoped lang="scss">
 .action-no-margin {
   padding: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  row-gap: 0.25rem;
+  column-gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-field {
+  min-width: 0;
+}
+
+.form-field--full {
+  grid-column: span 12;
+}
+
+@for $i from 1 through 12 {
+  .form-field--span-#{$i} {
+    grid-column: span #{$i};
+  }
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field {
+    grid-column: span 1 !important;
+  }
 }
 </style>
