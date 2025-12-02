@@ -1,19 +1,44 @@
 <template>
+  <div class="q-mb-sm flex justify-between items-center">
+    <div class="text-body2 text-weight-medium">Table title (0)</div>
+    <div>
+      <q-btn
+        outline
+        icon="o_view_list"
+        color="primary"
+        :label="$t('common_upload_csv')"
+        unelevated
+        no-caps
+        size="sm"
+        class="text-weight-medium q-mr-sm"
+      />
+      <q-btn
+        icon="download"
+        color="accent"
+        :label="$t('common_download_csv_template')"
+        unelevated
+        no-caps
+        size="sm"
+        class="text-weight-medium"
+      />
+    </div>
+  </div>
   <q-table
+    class="co2-table border"
     :columns="qCols"
     :rows="rows"
     row-key="id"
     :loading="loading"
     :error="error"
     flat
-    bordered
-    dense
     no-data-label="No items"
   >
-    <template #body-cell="slotProps">
-      <q-td :props="slotProps">
-        {{ renderCell(slotProps.row, slotProps.col) }}
-      </q-td>
+    <template #body="slotProps">
+      <q-tr :props="{ props: slotProps }" class="q-tr--no-hover">
+        <q-td v-for="col in qCols" :key="col.name" :props="slotProps">
+          {{ renderCell(slotProps.row, col) }}
+        </q-td>
+      </q-tr>
     </template>
 
     <template #no-data>
@@ -54,4 +79,3 @@ function renderCell(row: ModuleRow, col: { field: string }) {
   return String(val);
 }
 </script>
-<style scoped></style>

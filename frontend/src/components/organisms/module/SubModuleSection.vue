@@ -1,15 +1,11 @@
 <template>
-  <q-card class="q-mb-md">
+  <q-expansion-item
+    :label="submodule.name + ` (${rows.length})`"
+    flat
+    header-class="text-h5 text-weight-medium"
+    class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
+  >
     <q-card-section>
-      <div class="row items-center justify-between">
-        <div>
-          <h3 class="q-mb-xs">{{ submodule.name }}</h3>
-          <div v-if="submodule.count !== undefined" class="text-subtle">
-            Count: {{ submodule.count }}
-          </div>
-        </div>
-      </div>
-
       <div v-if="submodule.tableColumns" class="q-mt-md">
         <module-table
           :columns="submodule.tableColumns"
@@ -23,7 +19,7 @@
         <module-form :inputs="submodule.formInputs" />
       </div>
     </q-card-section>
-  </q-card>
+  </q-expansion-item>
 </template>
 
 <script setup lang="ts">

@@ -35,6 +35,7 @@ export interface ModuleConfig {
   name: string;
   description: string;
   hasSubmodules: boolean;
+  isCollapsible?: boolean;
   formStructure: FormStructure;
   formInputs?: FormInput[];
   submodules?: Submodule[];
