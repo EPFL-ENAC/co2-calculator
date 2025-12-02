@@ -8,7 +8,7 @@
     border: none;
   }
 
-  .q-tr:nth-child(even) {
+  tbody .q-tr:nth-child(even) {
     background-color: tokens.$table-bg-even;
   }
 

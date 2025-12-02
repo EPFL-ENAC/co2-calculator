@@ -309,6 +309,14 @@ export default {
     en: 'Export as PDF',
     fr: 'Exporter en PDF',
   },
+  common_upload_csv: {
+    en: 'Upload CSV',
+    fr: 'Importer CSV',
+  },
+  common_download_csv_template: {
+    en: 'Download CSV Template',
+    fr: 'Télécharger le modèle CSV',
+  },
   common_export_as_csv: {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
