@@ -31,7 +31,29 @@
     :error="error"
     flat
     no-data-label="No items"
+    :pagination="pagination"
   >
+    <template v-slot:pagination="scope">
+      <q-btn
+        icon="chevron_left"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isFirstPage"
+        @click="scope.prevPage"
+      />
+
+      <q-btn
+        icon="chevron_right"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isLastPage"
+        @click="scope.nextPage"
+      />
+    </template>
     <template #body="slotProps">
       <q-tr :props="{ props: slotProps }" class="q-tr--no-hover">
         <q-td
@@ -78,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { TableColumn } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 
@@ -93,6 +115,11 @@ const props = defineProps<{
   loading?: boolean;
   error?: string | null;
 }>();
+
+const pagination = ref({
+  page: 1,
+  rowsPerPage: 20,
+});
 
 // simple local rows by default (can be passed via prop)
 // const rows = ref(props.rows ?? []);
