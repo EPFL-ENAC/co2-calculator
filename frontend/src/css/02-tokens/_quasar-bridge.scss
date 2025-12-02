@@ -184,12 +184,13 @@ $toolbar-title-padding: 0 dec.$spacing-md !default;
 // Rating
 $rating-grade-color: opt.$tokens-colors-status-yellow !default;
 
-// CRITICAL MANUAL FIXES FOR Z-INDEX AND FLEXBOX VARIABLES
-// Quasar does not provide default values for these, so we need to set them here.
-$breakpoint-xs: 599px !default;
-$breakpoint-sm: 1023px !default;
-$breakpoint-md: 1439px !default;
-$breakpoint-lg: 1919px !default;
+// Breakpoints
+$breakpoint-xs: 599px !default; // Mobile max-width
+$breakpoint-sm: 1199px !default; // Tablet max-width
+$breakpoint-md: 1200px !default; // Desktop min-width (effectively desktop and above)
+$breakpoint-lg: 1919px !default; // Large desktop (kept for compatibility)
+
+// Z-index
 $z-fab: 990 !default;
 $z-side: 1000 !default;
 $z-marginals: 2000 !default;
@@ -200,6 +201,8 @@ $z-top: 7000 !default;
 $z-tooltip: 9000 !default;
 $z-notify: 9500 !default;
 $z-max: 9998 !default;
+
+// Flexbox
 $flex-cols: 12 !default;
 $flex-gutter-xs: dec.$spacing-xs !default;
 $flex-gutter-sm: dec.$spacing-sm !default;
