@@ -261,6 +261,10 @@ export default {
     en: 'Edit',
     fr: 'Editer',
   },
+  home_modules_counter: {
+    en: 'Modules ({count})',
+    fr: 'Modules ({count})',
+  },
   results_units: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-éq',
