@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
+import { api } from 'src/api/http';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
 } from 'src/constant/moduleStates';
+
+import type { ModuleResponse } from 'src/constant/modules';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
@@ -25,5 +28,45 @@ export const useTimelineStore = defineStore('timeline', () => {
   return {
     itemStates,
     setState,
+  };
+});
+
+export const useModuleStore = defineStore('modules', () => {
+  const state = reactive<{
+    loading: boolean;
+    error: string | null;
+    data: ModuleResponse | null;
+  }>({
+    loading: false,
+    error: null,
+    data: null,
+  });
+  async function getModuleData(moduleType: Module, unit: string, year: string) {
+    state.loading = true;
+    state.error = null;
+    state.data = null;
+    try {
+      const moduleTypeEncoded = encodeURIComponent(moduleType);
+      const unitEncoded = encodeURIComponent(unit);
+      const yearEncoded = encodeURIComponent(year);
+      state.data = (await api
+        .get(`modules/${moduleTypeEncoded}/${unitEncoded}/${yearEncoded}`)
+        .json()) as ModuleResponse;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+        state.data = null;
+      } else {
+        state.error = 'Unknown error';
+        state.data = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  return {
+    getModuleData,
+    state,
   };
 });

@@ -29,27 +29,17 @@ spec:
           command: ['sh', '-c']
           args:
             - |
-              until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER}; do
+              until pg_isready -d ${DB_URL}; do
                 echo "Waiting for PostgreSQL to be ready..."
                 sleep 2
               done
               echo "PostgreSQL is ready!"
           env:
-            - name: DB_HOST
+            - name: DB_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "co2-calculator.databaseSecretName" . }}
-                  key: {{ .Values.database.existingSecret.keys.host }}
-            - name: DB_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.databaseSecretName" . }}
-                  key: {{ .Values.database.existingSecret.keys.port }}
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "co2-calculator.databaseSecretName" . }}
-                  key: {{ .Values.database.existingSecret.keys.user }}
+                  key: {{ .Values.database.existingSecret.keys.url }}
           resources:
             {{- toYaml .Values.backend.migrations.waitForPostgres.resources | nindent 12 }}
         {{- end }}

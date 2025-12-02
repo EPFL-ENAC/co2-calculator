@@ -1,45 +1,122 @@
 """User model for authentication and authorization."""
 
 from datetime import datetime
-from typing import List, Optional
+from enum import Enum
+from typing import TYPE_CHECKING, List, Optional, Union
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import BaseModel, field_validator
 
-from app.db import Base
+if TYPE_CHECKING:
+    pass
+
+# from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+# from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 
 
-class User(Base):
+class RoleName(str, Enum):
+    CO2_USER_STD = "co2.user.std"
+    CO2_USER_PRINCIPAL = "co2.user.principal"
+    CO2_USER_SECONDARY = "co2.user.secondary"
+    CO2_BACKOFFICE_STD = "co2.backoffice.std"
+    CO2_BACKOFFICE_ADMIN = "co2.backoffice.admin"
+    CO2_SERVICE_MGR = "co2.service.mgr"
+
+
+class GlobalScope(BaseModel):
+    scope: str = "global"
+
+
+class RoleScope(BaseModel):
+    unit: Optional[str] = None
+    affiliation: Optional[str] = None
+
+
+class Role(BaseModel):
+    role: RoleName
+    on: Union[RoleScope, GlobalScope]
+
+
+class UserBase(SQLModel):
+    # Role-based access control (hierarchical structure)
+    # Format: [{"role": "co2.user.std", "on": {"unit": "12345"}}]
+    roles: List[Role] = Field(
+        default_factory=list,
+        sa_column=Column(JSON),
+        description="User roles with hierarchical scopes",
+    )
+
+    @classmethod
+    @field_validator("roles", mode="after", check_fields=False)
+    def deserialize_roles(cls, v):
+        # Convert dicts back to Role objects after loading from DB
+        if isinstance(v, list):
+            roles = []
+            for r in v:
+                if isinstance(r, dict):
+                    # Ensure 'role' is an Enum, not a string
+                    role_val = r.get("role")
+                    if isinstance(role_val, str):
+                        r["role"] = RoleName(role_val)
+                    roles.append(Role(**r))
+                else:
+                    roles.append(r)
+            return roles
+        return v
+
+    @classmethod
+    @field_validator("roles", mode="wrap", check_fields=False)
+    def serialize_roles(cls, v, handler):
+        # Convert Role objects to dicts for JSON serialization
+        def role_to_dict(role):
+            d = role.model_dump() if isinstance(role, Role) else role
+            if isinstance(d.get("role"), Enum):
+                d["role"] = d["role"].value
+            return d
+
+        if isinstance(v, list):
+            v = [role_to_dict(r) for r in v]
+        return handler(v)
+
+    # EPFL-specific fields
+    sciper: Optional[str] = Field(
+        unique=True, index=True, nullable=True, description="EPFL SCIPER number"
+    )
+
+    # Status
+    is_active: bool = Field(default=True)
+
+    last_login: Optional[datetime] = Field(default=None, nullable=True)
+    created_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    created_by: Optional[str] = Field(default=None, index=True)
+    updated_by: Optional[str] = Field(default=None, index=True)
+
+
+class User(UserBase, table=True):
     """User model representing authenticated users in the system."""
 
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    id: str = Field(primary_key=True, index=True)
+    email: str = Field(unique=True, index=True, nullable=False)
 
-    # EPFL-specific fields
-    sciper: Mapped[Optional[int]] = mapped_column(
-        Integer, unique=True, index=True, nullable=True, comment="EPFL SCIPER number"
-    )
+    # # Relationship to UnitUser
+    # unit_users: list["UnitUser"] = Relationship(
+    #     back_populates="user",
+    #     sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    # )
 
-    # Role-based access control (hierarchical structure)
-    # Format: [{"role": "co2.user.std", "on": {"unit": "12345"}}]
-    roles: Mapped[List[dict]] = mapped_column(
-        JSON, default=list, comment="User roles with hierarchical scopes"
-    )
+    # # Relationships
+    # units: list["Unit"] = Relationship(back_populates="users", link_model=UnitUser)
 
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
-    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    # Relationships
-    resources = relationship("Resource", back_populates="owner")
+    # resources: list["Resource"] = Relationship(
+    #     back_populates="user",
+    # )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
@@ -55,7 +132,7 @@ class User(Base):
         """
         if not self.roles:
             return False
-        return any(r.get("role") == role for r in self.roles)
+        return any(r.role == role for r in self.roles)
 
     def has_role_on(self, role: str, scope_type: str, scope_id: str) -> bool:
         """Check if user has a specific role on a specific resource.
@@ -71,9 +148,12 @@ class User(Base):
         if not self.roles:
             return False
         for r in self.roles:
-            if r.get("role") == role:
-                on = r.get("on")
-                if isinstance(on, dict) and on.get(scope_type) == scope_id:
+            if r.role == role:
+                on = r.on
+                if (
+                    isinstance(on, RoleScope)
+                    and getattr(on, scope_type, None) == scope_id
+                ):
                     return True
         return False
 
@@ -88,6 +168,4 @@ class User(Base):
         """
         if not self.roles:
             return False
-        return any(
-            r.get("role") == role and r.get("on") == "global" for r in self.roles
-        )
+        return any(r.role == role and isinstance(r.on, GlobalScope) for r in self.roles)

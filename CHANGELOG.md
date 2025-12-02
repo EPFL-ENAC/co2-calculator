@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.1.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.1.0...v0.1.1) (2025-11-28)
+
+
+### Bug Fixes
+
+* **release-please:** add config file for pre-bump major ([38a6b21](https://github.com/EPFL-ENAC/co2-calculator/commit/38a6b214d9a02098751ffd29d2fa89cb3a30f4b9))
+* **release-please:** add config file for pre-bump major ([#161](https://github.com/EPFL-ENAC/co2-calculator/issues/161)) ([646f42e](https://github.com/EPFL-ENAC/co2-calculator/commit/646f42e301b57c9e4cc299f9c1d3b6fc5e711c8b))
+
+
+### feat
+- feat: Adding links to edit buttons
+- feat(backend): make test user when refresh or get current user are called #114
+- feat(frontend): add module thershold configuration #43
+- feat: redirect from workspace setup
+- feat: added page header component based on sidebar nav item
+- feat: module management page
+- feat: added test login entry point and role for development #114
+
+### fix
+- fix: correct link
+- fix: add links + small translation change
+- fix: changing texts in workspace setup
+- fix: changing texts in workspace setup
+- fix(frontend): if loggedIn and in /login or /login-test redirect to default
+Functions prefixed with underscore are considered private to their module.
+- fix(login-refresh): correct mypy typecheck
+- fix(frontend): no more scroll top on route replace/push
+- fix(frontend): remove and add better guard for default redirect
+- fix: fixed a few worspace issues
+- fix: adjust class positioning and checkbox label in ModuleManagementPage
+- fix(helm): add resources to backend init
+- fix(frontend): add potential fix for code scanning alert no. 69: Log Injection
+Co-authored-by: Copilot Autofix powered by AI <62310815+github-advanced-security[bot]@users.noreply.github.com>
+
+### docs
+- docs: add eco-design section and update navigation
+- docs: rewrite ecoconception
+- docs: rewrite ecoconception
+
+### chore
+- chore(ci): validate only security on pull request
+- chore(frontend): remove useless/duplicate call to getUnitResults
+- chore: make format
+- chore(tests): add enough unit and integration tests to pass 100% coverage
+- chore(backend): make test fail <60% of coverage
+- chore(backend-coverage): add codecov token
+- chore(backend-coverage): add coverage xml
+
+### refactor
+- refactor(security): rename _make_test_user to make_test_user for consistency
+
+### test
+- fix(frontend): if loggedIn and in /login or /login-test redirect to default
+- refactor(security): rename _make_test_user to make_test_user for consistency
+Importing _make_test_user violates Python naming conventions.
+- feat(backend): make test user when refresh or get current user are called #114
+- chore(tests): add enough unit and integration tests to pass 100% coverage
+- chore(backend): make test fail <60% of coverage
+- feat: added test login entry point and role for development #114
+
+
+
 ## 0.1.0 (2025-11-27)
 
 

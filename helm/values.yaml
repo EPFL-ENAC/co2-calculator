@@ -37,6 +37,7 @@ backend:
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000"  # Change to frontend URL in production
+    ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
@@ -215,10 +216,7 @@ database:
   # Secret containing database connection details
   # This secret must contain the following keys:
   #   - DB_URL: Full PostgreSQL connection string (used by backend)
-  #     Format: postgresql+psycopg://user:password@host:port/database?async_fallback=True
-  #   - DB_HOST: Database hostname (used by wait-for-postgres init container)
-  #   - DB_PORT: Database port (used by wait-for-postgres init container)
-  #   - DB_USER: Database username (used by wait-for-postgres init container)
+  #     Format: postgresql://user:password@host:port/database
   #   - DB_PASSWORD: Database password (used by Bitnami PostgreSQL chart)
   #
   # These keys map to the Bitnami PostgreSQL chart's existingSecret configuration:
@@ -230,10 +228,8 @@ database:
     keys:
       # use for backend and migrations job
       url: DB_URL
-      # use for initContainer only (wait for Postgres to be ready)
-      host: DB_HOST
-      port: DB_PORT
-      user: DB_USER
+      # use for bitnami/postgresql chart
+      password: DB_PASSWORD
 
   # Wait for PostgreSQL readiness before starting backend/migrations
   waitForPostgres:

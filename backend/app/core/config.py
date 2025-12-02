@@ -18,60 +18,21 @@ class Settings(BaseSettings):
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    LOCAL_ENVIRONMENT: bool = Field(
+        default=False, description="Set to True for local development environment"
+    )
     API_DOCS_PREFIX: str = "/api"
     API_VERSION: str = "/v1"
 
     # Database Configuration
-    # Option 1: Provide full DB_URL directly (takes precedence)
+    # Provide full DB_URL directly (takes precedence)
     DB_URL: Optional[str] = Field(
-        default=None,
+        default="sqlite+aiosqlite:///./co2_calculator.db",
         description="""
-            Full database URL. If not set, defaults to SQLite
-            or constructed PostgreSQL URL based on other settings: DB_*
+            Full database URL. If not set, defaults to SQLite.
+            Example: sqlite+aiosqlite:///./co2_calculator.db
             """,
     )
-
-    # Option 2: Provide PostgreSQL connection details (optional, for PostgreSQL)
-    DB_USER: Optional[str] = Field(
-        default=None, description="Database user (optional, for PostgreSQL)"
-    )
-    DB_PASSWORD: Optional[str] = Field(
-        default=None, description="Database password (optional, for PostgreSQL)"
-    )
-    DB_NAME: Optional[str] = Field(
-        default=None, description="Database name (optional, for PostgreSQL)"
-    )
-
-    # necessary to build the DB URL if DB_URL is not provided
-    DB_HOST: Optional[str] = Field(
-        default=None, description="Database host (optional, for PostgreSQL)"
-    )
-    DB_PORT: Optional[int] = Field(
-        default=None, description="Database port (optional, for PostgreSQL)"
-    )
-
-    @computed_field
-    def db_url(self) -> str:
-        """
-        Get the database URL.
-
-        Priority:
-        1. If DB_URL is explicitly set, use it
-        2. If DB_USER, DB_PASSWORD, DB_HOST, DB_NAME are all set, build PostgreSQL URL
-        3. Otherwise, default to SQLite
-        """
-        # If DB_URL is explicitly provided, use it
-        if self.DB_URL:
-            return self.DB_URL
-
-        # If PostgreSQL credentials are provided, build the URL
-        if all(
-            [self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME]
-        ):
-            return f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?async_fallback=True"
-
-        # Default to SQLite for local development
-        return "sqlite+aiosqlite:///./co2_calculator.db"
 
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(
@@ -94,7 +55,8 @@ class Settings(BaseSettings):
     LOKI_URL: Optional[str] = None  # e.g. http://loki:3100
     LOKI_TENANT_ID: Optional[str] = None  # X-Scope-OrgID if multi-tenant
     LOKI_TIMEOUT: float = 2.0  # seconds
-    LOKI_LABEL_JOB: Optional[str] = None  # default job label; falls back to APP_NAME
+    # default job label; falls back to APP_NAME
+    LOKI_LABEL_JOB: Optional[str] = None
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
     # Role Provider Plugin Configuration

@@ -4,57 +4,60 @@ import pytest
 import pytest_asyncio
 from fastapi import HTTPException
 
-from app.models.resource import Resource
-from app.models.user import User
+from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.repositories.resource_repo import create_resource
+from app.repositories.user_repo import upsert_user
 from app.schemas.resource import ResourceCreate
 from app.services import resource_service
 
-standar_user_role = {
-    "role": "co2.user.std",
-    "on": {"unit": "12345"},
-}
+TEST_UNIT_ID = "12345"
+OTHER_UNIT_ID = "67890"
 
-other_user_role = {
-    "role": "co2.user.std",
-    "on": {"unit": "67890"},
-}
+standar_user_role = Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit=TEST_UNIT_ID))
+other_user_role = Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit=OTHER_UNIT_ID))
+admin_user_role = Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
 
 
-admin_user_role = {
-    "role": "co2.backoffice.admin",
-    "on": "global",
-}
+@pytest_asyncio.fixture
+async def test_unit():
+    return TEST_UNIT_ID
+
+
+@pytest_asyncio.fixture
+async def other_unit():
+    return OTHER_UNIT_ID
 
 
 @pytest_asyncio.fixture
 async def test_user(db_session):
     """Create a test user for testing."""
-    user = User(
-        id="test@example.com",
-        email="test@example.com",
+    user = await upsert_user(
+        db=db_session,
+        email="testuser_co2.user.std@example.com",
+        sciper="999999",
         roles=[standar_user_role],
-        is_active=True,
+        units=[TEST_UNIT_ID],
+        affiliations=[],
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
     return user
 
 
 @pytest_asyncio.fixture
-async def test_resource(db_session, test_user):
+async def test_resource(db_session, test_user, test_unit):
     """Create a test resource for testing."""
-    resource = Resource(
-        name="Test Resource",
-        description="Test Description",
-        unit_id=test_user.roles[0]["on"]["unit"],
-        owner_id=test_user.id,
-        visibility="private",
-        data={"key": "value"},
+
+    resource = await create_resource(
+        db=db_session,
+        resource=ResourceCreate(
+            name="Initial Resource",
+            description="Initial Description",
+            unit_id=test_unit,
+            visibility="private",
+            data={"initial": "data"},
+            resource_metadata={"foo": "bar"},
+        ),
+        user_id=test_user.id,
     )
-    db_session.add(resource)
-    await db_session.commit()
-    await db_session.refresh(resource)
     return resource
 
 
@@ -101,16 +104,16 @@ async def test_get_resource_not_found(db_session, test_user, mock_policy_allow):
 
 
 @pytest.fixture
-def sample_resource_data(test_user):
+def sample_resource_data():
     """Sample resource data for testing."""
-    return {
-        "name": "Test Resource",
-        "description": "Test Description",
-        "unit_id": test_user.roles[0]["on"]["unit"],
-        "visibility": "private",
-        "data": {"key": "value"},
-        "metadata": {"test": True},
-    }
+    return ResourceCreate(
+        name="Test Resource",
+        description="Test Description",
+        unit_id=TEST_UNIT_ID,
+        visibility="private",
+        data={"key": "value"},
+        resource_metadata={"test": True},
+    )
 
 
 @pytest.mark.asyncio
@@ -118,27 +121,26 @@ async def test_create_resource(
     db_session, test_user, mock_policy_allow, sample_resource_data
 ):
     """Test creating a resource."""
-    resource_data = ResourceCreate(**sample_resource_data)
 
     resource = await resource_service.create_resource(
-        db=db_session, resource_in=resource_data, user=test_user
+        db=db_session, resource_in=sample_resource_data, user=test_user
     )
 
     assert resource is not None
-    assert resource.name == sample_resource_data["name"]
-    assert resource.owner_id == test_user.id
+    assert resource.name == sample_resource_data.name
+    assert resource.created_by == test_user.id
 
 
 @pytest.fixture
-def sample_resource_denied_data():
+def sample_resource_denied_data(other_unit):
     """Sample resource data for testing."""
     return {
         "name": "Test Resource",
         "description": "Test Description",
-        "unit_id": other_user_role["on"]["unit"],
+        "unit_id": other_unit,
         "visibility": "private",
         "data": {"key": "value"},
-        "metadata": {"test": True},
+        "resource_metadata": {"test": True},
     }
 
 

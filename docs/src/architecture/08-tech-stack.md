@@ -106,14 +106,8 @@ Via `pydantic-settings` in `backend/app/core/config.py`:
 
 ```bash
 # Option 1: Full URL (takes precedence)
-DB_URL="postgresql+psycopg://user:pass@host:5432/db?async_fallback=True"
+DB_URL="postgresql://user:pass@host:5432/db"
 
-# Option 2: Individual fields (composed into URL)
-DB_USER=user
-DB_PASSWORD=password
-DB_HOST=postgres.example.com
-DB_PORT=5432
-DB_NAME=co2_calculator
 ```
 
 **Migrations**: Alembic in `backend/alembic/versions` (code review required).

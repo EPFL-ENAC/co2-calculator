@@ -5,12 +5,13 @@ user roles from different sources (JWT claims, EPFL Accred API, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.models.user import GlobalScope, Role, RoleName, RoleScope
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -21,13 +22,13 @@ class RoleProvider(ABC):
 
     Role providers are responsible for fetching and transforming user roles
     from various sources into the standardized hierarchical format:
-    [{"role": "co2.user.std", "on": {"unit": "12345"}}]
+    [{"role": RoleName.CO2_USER_STD, "on": {"unit": "12345"}}]
     """
 
     @abstractmethod
     async def get_roles(
-        self, userinfo: Dict[str, Any], sciper: int
-    ) -> List[Dict[str, Any]]:
+        self, userinfo: Dict[str, Any], sciper: str
+    ) -> Tuple[List[Role], List[str], List[str]]:
         """Get roles for a user.
 
         Args:
@@ -35,9 +36,13 @@ class RoleProvider(ABC):
             sciper: EPFL SCIPER number of the user
 
         Returns:
-            List of role dicts with structure:
-            [{"role": "co2.user.std", "on": {"unit": "12345"}}]
-            or [{"role": "co2.backoffice.admin", "on": "global"}]
+            Tuple containing:
+            - List of role dicts with structure:
+              [{"role": RoleName.CO2_USER_STD, "on": {"unit": "12345"}}]
+              or [{"role": RoleName.CO2_BACKOFFICE_ADMIN, "on": GlobalScope()}]
+              for global roles
+            - List of unit IDs (strings)
+            - List of affiliations (strings)
         """
         pass
 
@@ -53,8 +58,8 @@ class DefaultRoleProvider(RoleProvider):
     """
 
     async def get_roles(
-        self, userinfo: Dict[str, Any], sciper: int
-    ) -> List[Dict[str, Any]]:
+        self, userinfo: Dict[str, Any], sciper: str
+    ) -> Tuple[List[Role], List[str], List[str]]:
         """Extract and parse roles from JWT claims.
 
         Args:
@@ -62,7 +67,10 @@ class DefaultRoleProvider(RoleProvider):
             sciper: EPFL SCIPER number (not used in default provider)
 
         Returns:
-            List of parsed role dicts
+            Tuple containing:
+            - List of parsed Role objects
+            - List of unit IDs (strings)
+            - List of affiliations (strings)
         """
         jwt_roles = userinfo.get("roles", [])
 
@@ -71,10 +79,12 @@ class DefaultRoleProvider(RoleProvider):
                 "No roles found in JWT claims for user",
                 extra={"sciper": sciper, "email": userinfo.get("email")},
             )
-            return []
+            return [], [], []
 
-        parsed_roles = []
+        parsed_roles: List[Role] = []
 
+        units = set()
+        affiliations = set()
         for role_str in jwt_roles:
             if not isinstance(role_str, str):
                 logger.warning(
@@ -92,20 +102,32 @@ class DefaultRoleProvider(RoleProvider):
 
             # Parse "role@scope:value" format
             parts = role_str.split("@", 1)
-            role_name = parts[0].strip()
+            role_name = RoleName(parts[0].strip())
             scope_part = parts[1].strip()
 
             if scope_part == "global":
-                parsed_roles.append({"role": role_name, "on": "global"})
+                parsed_roles.append(Role(role=role_name, on=GlobalScope()))
             elif ":" in scope_part:
                 # Parse "unit:12345" → {"unit": "12345"}
                 scope_type, scope_id = scope_part.split(":", 1)
-                parsed_roles.append(
-                    {
-                        "role": role_name,
-                        "on": {scope_type.strip(): scope_id.strip()},  # type: ignore
-                    }
-                )
+                scope_type = scope_type.strip()
+                scope_id = scope_id.strip()
+                if scope_type == "unit":
+                    parsed_roles.append(
+                        Role(
+                            role=role_name,
+                            on=RoleScope(unit=scope_id),
+                        )
+                    )
+                    units.add(scope_id)
+                elif scope_type == "affiliation":
+                    affiliations.add(scope_id)
+                    parsed_roles.append(
+                        Role(
+                            role=role_name,
+                            on=RoleScope(affiliation=scope_id),
+                        )
+                    )
             else:
                 logger.warning(
                     "Invalid scope format, skipping",
@@ -122,7 +144,7 @@ class DefaultRoleProvider(RoleProvider):
             },
         )
 
-        return parsed_roles
+        return parsed_roles, list(units), list(affiliations)
 
 
 class AccredRoleProvider(RoleProvider):
@@ -150,8 +172,8 @@ class AccredRoleProvider(RoleProvider):
             )
 
     async def get_roles(
-        self, userinfo: Dict[str, Any], sciper: int
-    ) -> List[Dict[str, Any]]:
+        self, userinfo: Dict[str, Any], sciper: str
+    ) -> Tuple[List[Role], List[str], List[str]]:
         """Fetch roles from EPFL Accred API.
 
         Args:
@@ -166,7 +188,7 @@ class AccredRoleProvider(RoleProvider):
                 "Cannot fetch roles: Accred API not configured",
                 extra={"sciper": sciper},
             )
-            return []
+            return [], [], []
 
         try:
             # Call EPFL Accred authorizations endpoint
@@ -197,18 +219,23 @@ class AccredRoleProvider(RoleProvider):
                 logger.info(
                     "No authorizations found in Accred API", extra={"sciper": sciper}
                 )
-                return []
+                return [], [], []
 
             # Map authorizations to roles
-            roles = []
+            roles: List[Role] = []
             # "co2.user.std", --> applied to unit
             # "co2.user.principal", --> applied to unit
             # "co2.user.secondary", --> applied to unit
             # "co2.backoffice.admin", --> applied globally
             # "co2.backoffice.std" --> applied to affiliation
-
+            units = set()
+            affiliations = set()
             for auth in authorizations:
                 auth_name = auth.get("name", "")
+                units.add(auth.get("accredunitid"))
+                affiliations.add(
+                    auth.get("reason", {}).get("resource", {}).get("sortpath")
+                )
 
                 # Only process authorizations starting with "co2."
                 if not auth_name.startswith("co2."):
@@ -226,20 +253,25 @@ class AccredRoleProvider(RoleProvider):
                         extra={"auth_name": auth_name, "sciper": sciper},
                     )
                     continue
-                if auth_name == "co2.backoffice.admin":
+                if auth_name == RoleName.CO2_BACKOFFICE_ADMIN:
                     # Global admin role
-                    roles.append({"role": auth_name, "on": "global"})
-                elif auth_name == "co2.backoffice.std":
+                    roles.append(Role(role=auth_name, on=GlobalScope()))
+                elif auth_name == RoleName.CO2_BACKOFFICE_STD:
                     affiliations_names = (
                         auth.get("reason").get("resource").get("sortpath")
                     )
                     # Map to affiliation scope (placeholder logic)
                     roles.append(
-                        {"role": auth_name, "on": {"affiliation": affiliations_names}}
+                        Role(
+                            role=auth_name,
+                            on=RoleScope(affiliation=affiliations_names),
+                        )
                     )
                 else:
                     # Map authorization to role with unit scope
-                    roles.append({"role": auth_name, "on": {"unit": accred_unit_id}})
+                    roles.append(
+                        Role(role=auth_name, on=RoleScope(unit=str(accred_unit_id)))
+                    )
 
             logger.info(
                 "Fetched roles from Accred API",
@@ -250,7 +282,7 @@ class AccredRoleProvider(RoleProvider):
                 },
             )
 
-            return roles
+            return roles, list(units), list(affiliations)
 
         except httpx.HTTPStatusError as e:
             logger.error(
@@ -261,18 +293,19 @@ class AccredRoleProvider(RoleProvider):
                     "error": str(e),
                 },
             )
-            return []
+            raise
         except httpx.RequestError as e:
             logger.error(
                 "Accred API request error", extra={"sciper": sciper, "error": str(e)}
             )
-            return []
+            raise
         except Exception as e:
             logger.error(
                 "Unexpected error fetching roles from Accred API",
                 extra={"sciper": sciper, "error": str(e), "type": type(e).__name__},
             )
-            return []
+            logger.exception("Unexpected error fetching roles from Accred API")
+            raise
 
 
 def get_role_provider() -> RoleProvider:

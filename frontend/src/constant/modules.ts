@@ -37,3 +37,57 @@ export interface ModuleThreshold {
   module: Module;
   threshold: Threshold;
 }
+
+// MODULE RESPONSE TYPES
+export interface ModuleItem {
+  name: string;
+  class?: string;
+  sub_class?: string;
+  act_usage?: number;
+  pas_usage?: number;
+  act_power?: number;
+  pas_power?: number;
+  kg_co2eq?: number;
+  id?: string;
+}
+
+export interface Submodule {
+  id: string;
+  name: string;
+  count?: number;
+  items: ModuleItem[];
+  summary: {
+    total_items: number;
+    annual_consumption_kwh: number;
+    total_kg_co2eq: number;
+  };
+}
+
+export interface Totals {
+  total_submodules: number;
+  total_items: number;
+  total_annual_consumption_kwh: number;
+  total_kg_co2eq: number;
+}
+
+export interface ModuleResponse {
+  module_type: string;
+  unit: string;
+  year: string;
+  retrieved_at: string;
+  submodules: Record<string, Submodule>;
+  totals: Totals;
+}
+
+export function getBackendModuleName(frontendModule: Module): string {
+  const moduleMap: Record<Module, string> = {
+    [MODULES.MyLab]: 'my_lab',
+    [MODULES.ProfessionalTravel]: 'professional_travel',
+    [MODULES.Infrastructure]: 'infrastructure',
+    [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
+    [MODULES.Purchase]: 'purchase',
+    [MODULES.InternalServices]: 'internal_services',
+    [MODULES.ExternalCloud]: 'external_cloud',
+  };
+  return moduleMap[frontendModule] || frontendModule;
+}

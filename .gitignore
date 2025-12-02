@@ -2,3 +2,5 @@ node_modules
 site
 .DS_Store
 *local*.md
+*.local.*
+.database.env

@@ -25,6 +25,7 @@
   @import './03-layout/body';
   @import './03-layout/grid';
   @import './03-layout/container';
+  @import './03-layout/modal';
 }
 
 @layer quasar-overrides {
@@ -48,4 +49,5 @@
 @layer utilities {
   @import './04-utils/spacing';
   @import './04-utils/text';
+  @import './04-utils/tooltip';
 }

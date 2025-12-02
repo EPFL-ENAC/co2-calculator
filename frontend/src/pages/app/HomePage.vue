@@ -77,7 +77,7 @@ const homeIntroWithLinks = computed(() => {
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">42'000</p>
             <p class="text-secondary text-body2 q-mb-none">
-              {{ $t('home_results_units') }}
+              {{ $t('results_units') }}
             </p>
           </div>
         </div>
@@ -160,7 +160,7 @@ const homeIntroWithLinks = computed(() => {
             >
               <p class="text-weight-medium q-mb-none">{{ moduleCard.value }}</p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{ $t('home_results_units') }}
+                {{ $t('results_units') }}
               </p>
             </div>
           </div>

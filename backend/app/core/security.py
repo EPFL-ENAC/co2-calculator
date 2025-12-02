@@ -120,7 +120,7 @@ def make_test_user(user_id: str) -> User:
     return User(
         id=user_id,
         email=f"{user_id}@example.com",
-        sciper=999999,
+        sciper="999999",
         is_active=True,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
