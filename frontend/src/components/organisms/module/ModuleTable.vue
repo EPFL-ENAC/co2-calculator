@@ -33,10 +33,10 @@
     flat
     no-data-label="No items"
   >
-    <template #body="props">
-      <q-tr :props="props" class="q-tr--no-hover">
-        <q-td v-for="col in qCols" :key="col.name" :props="props">
-          {{ renderCell(props.row, col) }}
+    <template #body="slotProps">
+      <q-tr :props="{ props: slotProps }" class="q-tr--no-hover">
+        <q-td v-for="col in qCols" :key="col.name" :props="slotProps">
+          {{ renderCell(slotProps.row, col) }}
         </q-td>
       </q-tr>
     </template>
