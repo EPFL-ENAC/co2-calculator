@@ -153,6 +153,15 @@ export const equipmentElectricConsumption: ModuleConfig = {
           ratio: '4/12',
         },
         {
+          id: 'sci_has_active_usage',
+          label: 'Active Usage',
+          type: 'checkbox',
+          required: true,
+          min: 0,
+          ratio: '2/12',
+        },
+
+        {
           id: 'sci_pas_usage',
           label: 'Passive Usage',
           icon: 'o_donut_large',
@@ -182,6 +191,14 @@ export const equipmentElectricConsumption: ModuleConfig = {
           required: true,
           min: 0,
           ratio: '4/12',
+        },
+        {
+          id: 'sci_has_passive_usage',
+          label: 'Passive Usage',
+          type: 'checkbox',
+          required: true,
+          min: 0,
+          ratio: '2/12',
         },
       ],
     },

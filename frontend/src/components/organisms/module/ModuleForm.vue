@@ -26,10 +26,12 @@
                 :error-message="errors[inp.id]"
                 :min="inp.min"
                 :max="inp.max"
-                dense
-                outlined
+                :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
+                :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
+                :color="inp.type === 'checkbox' ? 'accent' : undefined"
+                :size="inp.type === 'checkbox' ? 'xs' : undefined"
               >
-                <template v-if="inp.icon" #prepend>
+                <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
                 </template>
                 <template v-if="inp.type === 'select'" #hint>
@@ -93,6 +95,7 @@ function init() {
   (props.inputs ?? []).forEach((i) => {
     switch (i.type) {
       case 'checkbox':
+      case 'boolean':
         form[i.id] = false;
         break;
       case 'number':
@@ -117,6 +120,7 @@ function fieldComponent(type: string): Component {
     case 'select':
       return QSelect;
     case 'checkbox':
+    case 'boolean':
       return QCheckbox;
     default:
       return QInput;
@@ -127,7 +131,7 @@ function validateField(i: FormInput) {
   const v = form[i.id];
   errors[i.id] = null;
   if (i.required) {
-    if (i.type === 'checkbox') {
+    if (i.type === 'checkbox' || i.type === 'boolean') {
       if (!v) errors[i.id] = 'Required';
     } else if (v === '' || v === null || v === undefined) {
       errors[i.id] = 'Required';
@@ -169,7 +173,7 @@ function onSubmit() {
 
 function reset() {
   (props.inputs ?? []).forEach((i) => {
-    if (i.type === 'checkbox') form[i.id] = false;
+    if (i.type === 'checkbox' || i.type === 'boolean') form[i.id] = false;
     else if (i.type === 'number') form[i.id] = null;
     else form[i.id] = '';
     errors[i.id] = null;
