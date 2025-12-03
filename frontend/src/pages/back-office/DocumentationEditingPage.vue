@@ -167,8 +167,9 @@ const columns: QTableColumn[] = [
                   outline
                   size="sm"
                   class="text-weight-medium"
-                  rel="noopener noreferrer"
                   :href="props.row.githubUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 />
               </q-td>
             </q-tr>
@@ -215,6 +216,7 @@ const columns: QTableColumn[] = [
                       size="sm"
                       class="text-weight-medium"
                       :href="props.row.githubUrl"
+                      target="_blank"
                       rel="noopener noreferrer"
                     />
                   </q-td>
