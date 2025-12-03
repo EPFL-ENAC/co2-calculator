@@ -21,8 +21,27 @@
         class="text-weight-medium"
       />
     </div>
+    <div>
+      <q-btn
+        icon="o_add_circle"
+        color="accent"
+        :label="$t('common_add_button')"
+        unelevated
+        no-caps
+        size="sm"
+        class="text-weight-medium"
+        @click="openCreateDialog"
+      />
+    </div>
   </div>
-
+  <q-dialog v-model="editDialogOpen" persistent>
+    <ModuleForm
+      :inputs="editInputs"
+      :row-data="editRowData"
+      @submit="onFormSubmit"
+      @edit="editDialogOpen = false"
+    />
+  </q-dialog>
   <q-table
     class="co2-table border"
     :columns="qCols"
@@ -99,6 +118,8 @@
               class="square-button"
               @click="
                 ItemName = getItemName(slotProps.row);
+                deleteItemName = getItemName(slotProps.row);
+                deleteRowId = getRowId(slotProps.row);
                 confirmDelete = true;
               "
             />
@@ -195,6 +216,7 @@
           no-caps
           size="md"
           class="text-weight-medium col"
+          @click="onConfirmDelete"
         />
       </q-card-actions>
     </q-card>
@@ -207,15 +229,18 @@ import type { TableColumn, FormInput } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import { QInput, QSelect } from 'quasar';
+import { useModuleStore } from 'src/stores/modules';
+import type { Module } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 
-type RowValue = string | number | boolean | null | undefined;
-type ModuleRow = Record<string, RowValue> & { id: string | number };
-
 const editDialogOpen = ref(false);
 const editInputs = ref<FormInput[] | null>(null);
-const editRowData = ref<Record<string, RowValue> | null>(null);
+type FieldValue = string | number | boolean | null;
+const editRowData = ref<Record<string, FieldValue> | null>(null);
+
+type RowValue = string | number | boolean | null | undefined;
+type ModuleRow = Record<string, RowValue> & { id: string | number };
 
 const props = defineProps<{
   columns?: TableColumn[] | null;
@@ -223,6 +248,9 @@ const props = defineProps<{
   loading?: boolean;
   error?: string | null;
   formInputs?: FormInput[] | null;
+  moduleType: Module | string;
+  unitId: string;
+  year: string | number;
 }>();
 
 const pagination = ref({
@@ -248,6 +276,8 @@ const componentMap = {
   QInput,
   QSelect,
 };
+const deleteItemName = ref<string>('');
+const deleteRowId = ref<number | null>(null);
 
 // simple local rows by default (can be passed via prop)
 // const rows = ref(props.rows ?? []);
@@ -289,46 +319,109 @@ function onEditSubmit() {
   editRowData.value = null;
 }
 
-function mapRowDataToFormInputs(
-  row: ModuleRow,
-  columns: TableColumn[] | null | undefined,
-  formInputs: FormInput[] | null | undefined,
-): Record<string, RowValue> {
-  if (!formInputs || !columns) return { ...row };
+// function mapRowDataToFormInputs(
+//   row: ModuleRow,
+//   columns: TableColumn[] | null | undefined,
+//   formInputs: FormInput[] | null | undefined,
+// ): Record<string, RowValue> {
+//   if (!formInputs || !columns) return { ...row };
 
-  const mapped: Record<string, RowValue> = {};
+//   const mapped: Record<string, RowValue> = {};
 
-  formInputs.forEach((formInput) => {
-    // Try direct match first
-    if (row[formInput.id] !== undefined) {
-      mapped[formInput.id] = row[formInput.id];
-      return;
-    }
+//   formInputs.forEach((formInput) => {
+//     // Try direct match first
+//     if (row[formInput.id] !== undefined) {
+//       mapped[formInput.id] = row[formInput.id];
+//       return;
+//     }
 
-    // Find column where form input ID ends with column key (e.g., 'sci_name' -> 'name')
-    const col = columns.find((c) => formInput.id.endsWith(`_${c.key}`));
-    if (col && row[col.key] !== undefined) {
-      mapped[formInput.id] = row[col.key];
-    }
-  });
+//     // Find column where form input ID ends with column key (e.g., 'sci_name' -> 'name')
+//     const col = columns.find((c) => formInput.id.endsWith(`_${c.key}`));
+//     if (col && row[col.key] !== undefined) {
+//       mapped[formInput.id] = row[col.key];
+//     }
+//   });
 
-  return mapped;
+//   return mapped;
+// }
+
+function onFormSubmit(
+  payload: Record<string, string | number | boolean | null>,
+) {
+  const store = useModuleStore();
+  const moduleType = props.moduleType as Module;
+  const unit = props.unitId;
+  const year = String(props.year);
+  const idRaw = editRowData.value?.id;
+  const equipmentId = Number(idRaw);
+  const isEdit = Number.isFinite(equipmentId);
+
+  const p = isEdit
+    ? store.updateEquipment(moduleType, unit, year, equipmentId, payload)
+    : store.createEquipment(moduleType, unit, year, payload);
+
+  p.finally(() => (editDialogOpen.value = false));
 }
 
 function openEditDialog(row: ModuleRow) {
-  ItemName.value = getItemName(row);
-  // Set inputs first, then rowData, so form initializes correctly
-  editInputs.value = props.formInputs || null;
-  // Map row data keys to form input IDs
-  editRowData.value = mapRowDataToFormInputs(
-    row,
-    props.columns,
-    props.formInputs,
-  );
+  editRowData.value = row;
+  editInputs.value =
+    props.columns?.map((c) => ({
+      id: c.key,
+      label: c.label,
+      type: 'text',
+      required: false,
+    })) || null;
+  editDialogOpen.value = true;
+}
+
+// function openEditDialog(row: ModuleRow) {
+//   ItemName.value = getItemName(row);
+//   // Set inputs first, then rowData, so form initializes correctly
+//   editInputs.value = props.formInputs || null;
+//   // Map row data keys to form input IDs
+//   editRowData.value = mapRowDataToFormInputs(
+//     row,
+//     props.columns,
+//     props.formInputs,
+//   );
+// }
+
+function openCreateDialog() {
+  editRowData.value = null;
+  editInputs.value =
+    props.columns?.map((c) => ({
+      id: c.key,
+      label: c.label,
+      type: 'text',
+      required: false,
+    })) || null;
   editDialogOpen.value = true;
 }
 
 function getItemName(row: ModuleRow): string {
   return row.name ? String(row.name) : String(row.id || 'this item');
+}
+
+function getRowId(row: ModuleRow): number | null {
+  const n = Number(row.id);
+  return Number.isFinite(n) ? n : null;
+}
+
+function onConfirmDelete() {
+  const store = useModuleStore();
+  if (deleteRowId.value == null) {
+    confirmDelete.value = false;
+    return;
+  }
+  const moduleType = props.moduleType as Module;
+  const unit = props.unitId;
+  const year = String(props.year);
+  store
+    .deleteEquipment(moduleType, unit, year, deleteRowId.value)
+    .finally(() => {
+      confirmDelete.value = false;
+      deleteRowId.value = null;
+    });
 }
 </script>

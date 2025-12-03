@@ -11,6 +11,9 @@
         :data="props.data"
         :loading="props.loading"
         :error="props.error"
+        :module-type="props.type"
+        :unit-id="props.unitId"
+        :year="props.year"
       />
     </div>
     <div v-else>
@@ -19,6 +22,9 @@
         :data="props.data"
         :loading="props.loading"
         :error="props.error"
+        :module-type="props.type"
+        :unit-id="props.unitId"
+        :year="props.year"
       />
       <module-form :inputs="currentModuleConfig.formInputs" />
     </div>
@@ -41,6 +47,8 @@ const props = defineProps<{
   data: ModuleResponse | null;
   loading: boolean;
   error: string | null;
+  unitId: string;
+  year: string | number;
 }>();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(

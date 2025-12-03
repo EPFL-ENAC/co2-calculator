@@ -9,6 +9,8 @@
       :data="data"
       :loading="loading"
       :error="error"
+      :unit-id="unit"
+      :year="year"
     />
     <!-- module summary -->
     <module-total-result
