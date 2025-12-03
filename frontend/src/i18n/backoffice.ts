@@ -433,4 +433,12 @@ export default {
     en: 'Documentation',
     fr: 'Documentation',
   },
+  user_management_access_button: {
+    en: 'Back-office Management',
+    fr: 'Gestion du back-office',
+  },
+  back_to_calculator_button: {
+    en: 'Back to Calculator',
+    fr: 'Retour au calculateur',
+  },
 } as const;
