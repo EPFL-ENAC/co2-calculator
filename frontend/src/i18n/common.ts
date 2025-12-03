@@ -75,7 +75,7 @@ export default {
   },
   workspace_setup_description: {
     en: "Assess your unit's carbon footprint, identify areas for improvement, and commit to a concrete reduction plan.\nSelect your unit and the year, and let's get started!",
-    fr: 'Évaluez l’empreinte carbone de votre unité, repérez les leviers d’action et engagez-vous dans une démarche de réduction concrète. \nChoisissez votre unité, l’année, puis obtenez vos résultats !',
+    fr: 'Évaluez l’empreinte carbone de votre unité, repérez les leviers d’action et engagez-vous dans une démarche de réduction concrète.\n Choisissez votre unité, l’année, puis obtenez vos résultats !',
   },
   workspace_setup_unit_title: {
     en: 'Select your lab',
