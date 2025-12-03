@@ -81,12 +81,4 @@ export const MODULE_CARDS: ModuleCard[] = [
   },
 ] as const;
 
-export const MODULE_ICONS = MODULE_CARDS.reduce(
-  (acc, card) => {
-    acc[card.module] = card.module;
-    return acc;
-  },
-  {} as Record<Module, string>,
-);
-
 export type ModuleCardType = (typeof MODULE_CARDS)[number];
