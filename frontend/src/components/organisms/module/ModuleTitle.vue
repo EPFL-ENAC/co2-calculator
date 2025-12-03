@@ -2,17 +2,19 @@
   <q-card flat class="module-title-card relative container">
     <q-card-section>
       <div class="row justify-between">
-        <h1 class="text-h3 text-weight-medium q-mb-xs">
-          <q-icon
+        <div class="flex items-center q-mb-xs">
+          <module-icon
             v-if="iconName"
             :name="iconName"
             color="accent"
-            size="sm"
+            size="md"
             class="q-mr-sm"
             :aria-label="$t('module-info-label')"
-          ></q-icon>
-          {{ $t(`${type}`) }}
-        </h1>
+          ></module-icon>
+          <span class="text-h3 text-weight-medium q-mb-none">{{
+            $t(`${type}`)
+          }}</span>
+        </div>
         <q-icon
           :name="outlinedInfo"
           size="sm"
@@ -27,7 +29,7 @@
       </p>
       <div class="absolute-top-right q-mr-md q-mt-md"></div>
       <q-tooltip
-        anchor="bottom right"
+        anchor="top right"
         self="bottom right"
         class="u-tooltip-max-width"
       >
@@ -42,6 +44,7 @@ import { MODULE_ICONS } from 'src/constant/moduleCards';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { Module } from 'src/constant/modules';
 import { computed } from 'vue';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const props = defineProps<{
   type: Module;
