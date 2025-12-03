@@ -338,11 +338,11 @@ export default {
     fr: 'Actions',
   },
   common_validate: {
-    en: 'Validate',
-    fr: 'Valider',
+    en: 'Validate Module',
+    fr: 'Valider le module',
   },
   common_unvalidate: {
-    en: 'Unvalidate',
-    fr: 'Invalider',
+    en: 'Edit Module',
+    fr: 'Éditer le module',
   },
 };
