@@ -7,7 +7,7 @@
   >
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div class="q-mx-lg q-my-xl" v-if="submodule.tableColumns">
+      <div v-if="submodule.tableColumns" class="q-mx-lg q-my-xl">
         <module-table
           :columns="submodule.tableColumns"
           :rows="rows"

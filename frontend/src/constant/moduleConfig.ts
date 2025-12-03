@@ -27,6 +27,9 @@ export interface TableColumn {
   type: ColumnType;
   unit?: string;
   sortable?: boolean;
+  inputTypeName?: string;
+  editableInline?: boolean;
+  options?: Array<{ value: string; label: string }>;
   align?: 'left' | 'right' | 'center';
 }
 

@@ -33,7 +33,7 @@
     no-data-label="No items"
     :pagination="pagination"
   >
-    <template v-slot:pagination="scope">
+    <template #pagination="scope">
       <q-btn
         icon="chevron_left"
         color="grey-8"
@@ -62,7 +62,18 @@
           :props="slotProps"
           :align="col.align"
         >
-          <template v-if="col.name === 'action'">
+          <template v-if="col.editableInline">
+            <component
+              :is="col.inputComponent"
+              v-model="slotProps.row[col.field]"
+              :options="col.options || []"
+              dense
+              hide-bottom-space
+              outlined
+              class="inline-input"
+            ></component>
+          </template>
+          <template v-else-if="col.name === 'action'">
             <!-- Placeholder for action buttons, etc. -->
             <q-btn
               icon="o_edit"
@@ -161,6 +172,7 @@
 import { computed, ref } from 'vue';
 import type { TableColumn } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
+import { QInput, QSelect } from 'quasar';
 
 const { t: $t } = useI18n();
 
@@ -182,6 +194,12 @@ const pagination = ref({
 const confirmDelete = ref(false);
 const deleteItemName = ref<string>('');
 
+// Component map to convert strings to component references
+const componentMap = {
+  QInput,
+  QSelect,
+};
+
 // simple local rows by default (can be passed via prop)
 // const rows = ref(props.rows ?? []);
 
@@ -192,6 +210,9 @@ const qCols = computed(() => {
     field: c.key,
     sortable: !!c.sortable,
     align: c.align ?? 'left',
+    inputComponent: c.inputTypeName ? componentMap[c.inputTypeName] : QInput,
+    editableInline: !!c.editableInline,
+    options: c.options || undefined,
   }));
 
   baseCols.push({
@@ -200,6 +221,9 @@ const qCols = computed(() => {
     field: 'action',
     align: 'right',
     sortable: false,
+    inputComponent: QInput,
+    editableInline: false,
+    options: undefined,
   });
   return baseCols;
 });

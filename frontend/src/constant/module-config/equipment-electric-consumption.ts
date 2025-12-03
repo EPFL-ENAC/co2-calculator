@@ -36,6 +36,8 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'select',
           sortable: true,
           align: 'left',
+          inputTypeName: 'QSelect',
+          editableInline: true,
         },
         {
           key: 'act_usage',
@@ -44,6 +46,8 @@ export const equipmentElectricConsumption: ModuleConfig = {
           unit: '%',
           sortable: true,
           align: 'right',
+          inputTypeName: 'QInput',
+          editableInline: true,
         },
         {
           key: 'pas_usage',
@@ -52,6 +56,8 @@ export const equipmentElectricConsumption: ModuleConfig = {
           unit: '%',
           sortable: true,
           align: 'right',
+          inputTypeName: 'QInput',
+          editableInline: true,
         },
         {
           key: 'act_power',
