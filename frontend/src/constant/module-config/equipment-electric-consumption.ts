@@ -98,7 +98,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
           icon: 'o_category',
           type: 'select',
           required: true,
-          ratio: '1/3',
+          ratio: '1/2',
           options: [
             { value: 'agitator', label: 'Agitator' },
             { value: 'centrifuge', label: 'Centrifuge' },
@@ -111,21 +111,12 @@ export const equipmentElectricConsumption: ModuleConfig = {
           type: 'select',
           required: true,
           min: 0,
-          ratio: '1/3',
+          ratio: '1/2',
           options: [
             { value: '500', label: '500' },
             { value: '800', label: '800' },
             { value: '300', label: '300' },
           ],
-        },
-        {
-          id: 'sci_quantity',
-          label: 'Quantity',
-          icon: 'o_shopping_cart',
-          type: 'number',
-          required: true,
-          min: 0,
-          ratio: '1/3',
         },
         {
           id: 'sci_act_usage',
@@ -257,14 +248,6 @@ export const equipmentElectricConsumption: ModuleConfig = {
           label: 'Equipment Name',
           type: 'text',
           required: true,
-        },
-        {
-          id: 'it_quantity',
-          label: 'Quantity',
-          type: 'number',
-          required: true,
-          min: 1,
-          ratio: '1/3',
         },
         {
           id: 'it_power',

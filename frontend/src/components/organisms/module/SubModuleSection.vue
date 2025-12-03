@@ -13,6 +13,7 @@
           :rows="rows"
           :loading="loading"
           :error="error"
+          :form-inputs="submodule.formInputs"
         />
       </div>
       <q-separator />

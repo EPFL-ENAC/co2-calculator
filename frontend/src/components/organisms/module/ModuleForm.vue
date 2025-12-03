@@ -45,26 +45,53 @@
         <q-separator />
 
         <q-card-actions class="action-no-margin q-mx-lg q-my-xl">
-          <q-btn
-            icon="o_  add_circle"
-            color="accent"
-            :label="$t('common_add_button')"
-            unelevated
-            no-caps
-            size="md"
-            class="text-weight-medium"
-            type="submit"
-          />
-          <q-btn
-            outline
-            icon="o_add_comment"
-            color="primary"
-            :label="$t('common_add_with_note_button')"
-            unelevated
-            no-caps
-            size="md"
-            class="text-weight-medium q-mr-sm"
-          />
+          <template v-if="rowData">
+            <!-- Edit mode buttons -->
+            <q-btn
+              outline
+              color="grey-4"
+              text-color="primary"
+              :label="$t('common_cancel')"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium"
+              @click="$emit('edit', null)"
+            />
+            <q-btn
+              icon="o_save"
+              color="accent"
+              :label="$t('common_save')"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium"
+              type="submit"
+            />
+          </template>
+          <template v-else>
+            <!-- Add mode buttons -->
+            <q-btn
+              icon="o_add_circle"
+              color="accent"
+              :label="$t('common_add_button')"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium"
+              type="submit"
+            />
+            <q-btn
+              outline
+              icon="o_add_comment"
+              color="primary"
+              :label="$t('common_add_with_note_button')"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium q-mr-sm"
+            />
+          </template>
         </q-card-actions>
       </q-form>
     </q-card-section>
@@ -76,41 +103,52 @@ import { reactive, watch } from 'vue';
 import type { FormInput } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t: $t } = useI18n();
+
+type FieldValue = string | number | boolean | null;
 
 const props = defineProps<{
   inputs?: FormInput[] | null;
+  rowData?: Record<string, FieldValue> | null;
 }>();
 const emit = defineEmits<{
   (
     e: 'submit',
     payload: Record<string, string | number | boolean | null>,
   ): void;
+  (e: 'edit', payload: Record<string, FieldValue> | null): void;
 }>();
-
-type FieldValue = string | number | boolean | null;
 const form = reactive<Record<string, FieldValue>>({});
 const errors = reactive<Record<string, string | null>>({});
 
 function init() {
   (props.inputs ?? []).forEach((i) => {
-    switch (i.type) {
-      case 'checkbox':
-      case 'boolean':
-        form[i.id] = false;
-        break;
-      case 'number':
-        form[i.id] = null;
-        break;
-      default:
-        form[i.id] = '';
+    if (props.rowData && props.rowData[i.id] !== undefined) {
+      // Edit mode: populate from rowData
+      form[i.id] = props.rowData[i.id];
+    } else {
+      // Add mode: initialize with defaults
+      switch (i.type) {
+        case 'checkbox':
+        case 'boolean':
+          form[i.id] = false;
+          break;
+        case 'number':
+          form[i.id] = null;
+          break;
+        default:
+          form[i.id] = '';
+      }
     }
     errors[i.id] = null;
   });
 }
 
-// re-init when inputs change (e.g. dynamic config)
+// re-init when inputs or rowData change (e.g. dynamic config or edit mode)
 watch(
-  () => props.inputs,
+  () => [props.inputs, props.rowData],
   () => init(),
   { deep: true, immediate: true },
 );
