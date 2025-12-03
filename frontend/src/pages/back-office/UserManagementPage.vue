@@ -24,7 +24,7 @@ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHead
         <q-btn
           outline
           no-caps
-          :label="$t('user_management_page_button_label_outline')"
+          :label="$t('user_management_page_button_documentation_label')"
           color="primary"
           size="md"
           class="text-weight-medium"
