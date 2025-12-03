@@ -50,6 +50,23 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # CO2 Calculation Constants
+    EMISSION_FACTOR_SWISS_MIX: float = Field(
+        default=0.125,
+        description=(
+            "Swiss electricity mix emission factor in kgCO2eq/kWh "
+            "(configurable from backoffice in future)"
+        ),
+    )
+    HOURS_PER_WEEK: int = Field(
+        default=168,
+        description="Total hours per week for equipment usage calculation",
+    )
+    WEEKS_PER_YEAR: int = Field(
+        default=52,
+        description="Weeks per year for annual CO2 calculation",
+    )
+
     # Loki (optional)
     LOKI_ENABLED: bool = False
     LOKI_URL: Optional[str] = None  # e.g. http://loki:3100

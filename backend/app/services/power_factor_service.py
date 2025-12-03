@@ -1,0 +1,18 @@
+from typing import List
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.repositories.power_factor_repo import PowerFactorRepository
+
+
+class PowerFactorService:
+    def __init__(self, repo: PowerFactorRepository | None = None):
+        self.repo = repo or PowerFactorRepository()
+
+    async def get_classes(self, session: AsyncSession, submodule: str) -> List[str]:
+        return await self.repo.list_classes(session, submodule)
+
+    async def get_subclasses(
+        self, session: AsyncSession, submodule: str, equipment_class: str
+    ) -> List[str]:
+        return await self.repo.list_subclasses(session, submodule, equipment_class)

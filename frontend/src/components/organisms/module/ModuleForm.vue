@@ -20,7 +20,16 @@
                 :placeholder="inp.placeholder"
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="
-                  inp.options?.map((o) => ({ label: o.label, value: o.value }))
+                  dynamicOptions[inp.id] ??
+                  inp.options?.map((o) => ({
+                    label: o.label,
+                    value: o.value,
+                  })) ??
+                  []
+                "
+                :loading="
+                  (inp.id === 'sci_class' && loadingClasses) ||
+                  (inp.id === 'sci_sub_class' && loadingSubclasses)
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -99,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { reactive, watch, ref } from 'vue';
 import type { FormInput } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
@@ -107,23 +116,76 @@ import { useI18n } from 'vue-i18n';
 
 const { t: $t } = useI18n();
 
-type FieldValue = string | number | boolean | null;
+type FieldValue = string | number | boolean | null | Option;
+import { usePowerFactorsStore } from 'src/stores/powerFactors';
 
 const props = defineProps<{
   inputs?: FormInput[] | null;
   rowData?: Record<string, FieldValue> | null;
+  submoduleKey?: 'scientific' | 'it' | 'other';
 }>();
 const emit = defineEmits<{
   (
     e: 'submit',
-    payload: Record<string, string | number | boolean | null>,
+    payload: Record<string, string | number | boolean | null | Option>,
   ): void;
   (e: 'edit', payload: Record<string, FieldValue> | null): void;
 }>();
 const form = reactive<Record<string, FieldValue>>({});
 const errors = reactive<Record<string, string | null>>({});
+const dynamicOptions = reactive<
+  Record<string, { label: string; value: string }[]>
+>({});
+const loadingClasses = ref(false);
+const loadingSubclasses = ref(false);
+
+async function loadClassOptions() {
+  if (!props.submoduleKey) return;
+  loadingClasses.value = true;
+  try {
+    const store = usePowerFactorsStore();
+    dynamicOptions['sci_class'] = await store.fetchClassOptions(
+      props.submoduleKey,
+    );
+  } catch {
+    dynamicOptions['sci_class'] = [];
+  } finally {
+    loadingClasses.value = false;
+  }
+}
+
+interface Option {
+  label: string;
+  value: string;
+}
+
+async function loadSubclassOptions(selectedClass: Option | null) {
+  if (!props.submoduleKey || !selectedClass) {
+    dynamicOptions['sci_sub_class'] = [];
+    return;
+  }
+  loadingSubclasses.value = true;
+  try {
+    const store = usePowerFactorsStore();
+    dynamicOptions['sci_sub_class'] = await store.fetchSubclassOptions(
+      props.submoduleKey,
+      selectedClass.value,
+    );
+  } catch {
+    dynamicOptions['sci_sub_class'] = [];
+  } finally {
+    loadingSubclasses.value = false;
+  }
+}
 
 function init() {
+  if (props.rowData) {
+    Object.keys(props.rowData).forEach((key) => {
+      form[key] = props.rowData[key];
+      errors[key] = null;
+    });
+    return;
+  }
   (props.inputs ?? []).forEach((i) => {
     if (props.rowData && props.rowData[i.id] !== undefined) {
       // Edit mode: populate from rowData
@@ -151,6 +213,24 @@ watch(
   () => [props.inputs, props.rowData],
   () => init(),
   { deep: true, immediate: true },
+);
+
+watch(
+  () => props.submoduleKey,
+  async () => {
+    await loadClassOptions();
+    if ('sci_sub_class' in form) form['sci_sub_class'] = '';
+    dynamicOptions['sci_sub_class'] = [];
+  },
+  { immediate: true },
+);
+
+watch(
+  () => form['sci_class'] as Option | null,
+  async (val) => {
+    await loadSubclassOptions(val);
+    if ('sci_sub_class' in form) form['sci_sub_class'] = '';
+  },
 );
 
 function fieldComponent(type: string): Component {
@@ -195,7 +275,7 @@ function validateForm() {
 function onSubmit() {
   if (!validateForm()) return;
   // Normalize payload types (numbers remain numbers, booleans kept, empty -> null/string)
-  const payload: Record<string, string | number | boolean | null> = {};
+  const payload: Record<string, string | number | boolean | null | Option> = {};
   Object.keys(form).forEach((k) => {
     const cfg = (props.inputs ?? []).find((i) => i.id === k);
     const val = form[k];
