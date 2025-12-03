@@ -421,4 +421,16 @@ export default {
     en: 'PDF: Formatted report with charts and visualizations, ideal for presentations and sharing.\nCSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
     fr: '',
   },
+  user_management_page_description: {
+    en: 'User management at EPFL is handled via Accred.',
+    fr: "La gestion des utilisateurs à l'EPFL est gérée via Accred.",
+  },
+  user_management_page_button_label: {
+    en: 'Open Accred',
+    fr: 'Ouvrir Accred',
+  },
+  user_management_page_button_label_outline: {
+    en: 'Documentation',
+    fr: 'Documentation',
+  },
 } as const;
