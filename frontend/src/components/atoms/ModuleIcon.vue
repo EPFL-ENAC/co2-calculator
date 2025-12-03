@@ -6,10 +6,11 @@ const props = withDefaults(
   defineProps<{
     name: string;
     size?: 'sm' | 'md' | 'lg';
-    color?: string;
+    color?: string; // e.g., 'primary', 'accent', 'grey-8';
   }>(),
   {
     size: 'md',
+    color: 'accent',
   },
 );
 
