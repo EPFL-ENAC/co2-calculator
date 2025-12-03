@@ -1,0 +1,7 @@
+@use '../../02-tokens' as tokens;
+
+.q-tooltip {
+  box-shadow: tokens.$tooltip-box-shadow;
+  max-width: tokens.$tooltip-max-width;
+  line-height: tokens.$tooltip-line-height;
+}

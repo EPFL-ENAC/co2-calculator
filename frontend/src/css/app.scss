@@ -32,6 +32,7 @@
   @import './05-components/quasar-overrides/q-badge';
   @import './05-components/quasar-overrides/q-btn-timeline-button';
   @import './05-components/quasar-overrides/q-btn';
+  @import './05-components/quasar-overrides/q-tooltip';
 }
 
 @layer components {
@@ -50,5 +51,4 @@
 @layer utilities {
   @import './04-utils/spacing';
   @import './04-utils/text';
-  @import './04-utils/tooltip';
 }
