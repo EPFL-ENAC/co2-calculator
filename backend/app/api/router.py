@@ -2,8 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, backoffice, resources, unit_results, units, users
-from app.api.v1 import auth, modules, resources, unit_results, units, users
+from app.api.v1 import auth, backoffice, modules, resources, unit_results, units, users
 
 api_router = APIRouter()
 

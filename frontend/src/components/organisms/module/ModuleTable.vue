@@ -22,6 +22,7 @@
       />
     </div>
   </div>
+
   <q-table
     class="co2-table border"
     :columns="qCols"
@@ -84,6 +85,7 @@
               outline
               size="xs"
               class="square-button q-mr-sm"
+              @click="openEditDialog(slotProps.row)"
             />
             <q-btn
               icon="o_delete"
@@ -96,7 +98,7 @@
               size="xs"
               class="square-button"
               @click="
-                deleteItemName = getItemName(slotProps.row);
+                ItemName = getItemName(slotProps.row);
                 confirmDelete = true;
               "
             />
@@ -113,13 +115,44 @@
     </template>
   </q-table>
 
-  <q-dialog v-model="confirmDelete" persistent>
-    <q-card class="column modal modal--md">
+  <q-dialog v-model="editDialogOpen" persistent>
+    <q-card class="column" style="width: 1200px; max-width: 90vw">
+      <q-card-section class="flex justify-between items-center">
+        <div class="text-h4 text-weight-medium">
+          {{
+            $t('common_edit_dialog_title', {
+              item: ItemName || 'this item',
+            })
+          }}
+        </div>
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          icon="o_close"
+          color="grey-6"
+          class="text-weight-medium"
+        />
+      </q-card-section>
+      <q-separator />
+      <q-card-section class="q-pa-none">
+        <ModuleForm
+          :inputs="editInputs"
+          :row-data="editRowData"
+          @submit="onEditSubmit"
+          @edit="editDialogOpen = false"
+        />
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
+    <q-card class="column">
       <q-card-section class="flex justify-between items-center">
         <div class="text-h4 text-weight-medium">
           {{
             $t('common_delete_dialog_title', {
-              item: deleteItemName || 'this item',
+              item: ItemName || 'this item',
             })
           }}
         </div>
@@ -137,7 +170,7 @@
         <span class="text-body1">
           {{
             $t('common_delete_dialog_description', {
-              item: deleteItemName || 'this item',
+              item: ItemName || 'this item',
             })
           }}
         </span>
@@ -169,9 +202,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import type { TableColumn } from 'src/constant/moduleConfig';
+import { computed, ref, watch, nextTick } from 'vue';
+import type { TableColumn, FormInput } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
+import ModuleForm from './ModuleForm.vue';
 import { QInput, QSelect } from 'quasar';
 
 const { t: $t } = useI18n();
@@ -179,11 +213,16 @@ const { t: $t } = useI18n();
 type RowValue = string | number | boolean | null | undefined;
 type ModuleRow = Record<string, RowValue> & { id: string | number };
 
+const editDialogOpen = ref(false);
+const editInputs = ref<FormInput[] | null>(null);
+const editRowData = ref<Record<string, RowValue> | null>(null);
+
 const props = defineProps<{
   columns?: TableColumn[] | null;
   rows?: ModuleRow[];
   loading?: boolean;
   error?: string | null;
+  formInputs?: FormInput[] | null;
 }>();
 
 const pagination = ref({
@@ -192,7 +231,17 @@ const pagination = ref({
 });
 
 const confirmDelete = ref(false);
-const deleteItemName = ref<string>('');
+const ItemName = ref<string>('');
+
+// Reset editRowData after dialog closes to prevent layout shift
+watch(editDialogOpen, (isOpen) => {
+  if (!isOpen) {
+    nextTick(() => {
+      editRowData.value = null;
+      editInputs.value = null;
+    });
+  }
+});
 
 // Component map to convert strings to component references
 const componentMap = {
@@ -232,6 +281,51 @@ function renderCell(row: ModuleRow, col: { field: string }) {
   const val = row[col.field];
   if (val === undefined || val === null) return '-';
   return String(val);
+}
+
+function onEditSubmit() {
+  // Handle form submission if needed
+  editDialogOpen.value = false;
+  editRowData.value = null;
+}
+
+function mapRowDataToFormInputs(
+  row: ModuleRow,
+  columns: TableColumn[] | null | undefined,
+  formInputs: FormInput[] | null | undefined,
+): Record<string, RowValue> {
+  if (!formInputs || !columns) return { ...row };
+
+  const mapped: Record<string, RowValue> = {};
+
+  formInputs.forEach((formInput) => {
+    // Try direct match first
+    if (row[formInput.id] !== undefined) {
+      mapped[formInput.id] = row[formInput.id];
+      return;
+    }
+
+    // Find column where form input ID ends with column key (e.g., 'sci_name' -> 'name')
+    const col = columns.find((c) => formInput.id.endsWith(`_${c.key}`));
+    if (col && row[col.key] !== undefined) {
+      mapped[formInput.id] = row[col.key];
+    }
+  });
+
+  return mapped;
+}
+
+function openEditDialog(row: ModuleRow) {
+  ItemName.value = getItemName(row);
+  // Set inputs first, then rowData, so form initializes correctly
+  editInputs.value = props.formInputs || null;
+  // Map row data keys to form input IDs
+  editRowData.value = mapRowDataToFormInputs(
+    row,
+    props.columns,
+    props.formInputs,
+  );
+  editDialogOpen.value = true;
 }
 
 function getItemName(row: ModuleRow): string {

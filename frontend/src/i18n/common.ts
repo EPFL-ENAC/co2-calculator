@@ -353,6 +353,10 @@ export default {
     en: 'Are you sure you want to delete {item}? This action cannot be undone.',
     fr: 'Êtes-vous sûr de vouloir supprimer {item} ? Cette action est irréversible.',
   },
+  common_edit_dialog_title: {
+    en: 'Edit {item}',
+    fr: 'Éditer {item}',
+  },
   common_delete: {
     en: 'Delete',
     fr: 'Supprimer',
@@ -360,5 +364,9 @@ export default {
   common_cancel: {
     en: 'Cancel',
     fr: 'Annuler',
+  },
+  common_save: {
+    en: 'Save',
+    fr: 'Enregistrer',
   },
 };
