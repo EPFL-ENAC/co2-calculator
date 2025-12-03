@@ -121,15 +121,15 @@ $menu-max-width: 95vw !default;
 $menu-max-height: 65vh !default;
 
 // Tooltip
-$tooltip-color: #fafafa !default;
-$tooltip-background: opt.$tokens-colors-grey-scale-grey-600 !default;
-$tooltip-padding: dec.$spacing-xs dec.$spacing-sm !default;
-$tooltip-border-radius: dec.$radius-default !default;
-$tooltip-fontsize: dec.$text-size-xs !default;
-$tooltip-mobile-padding: dec.$spacing-sm dec.$spacing-md !default;
-$tooltip-mobile-fontsize: dec.$text-size-sm !default;
-$tooltip-max-width: 95vw !default;
-$tooltip-max-height: 65vh !default;
+$tooltip-color: dec.$tooltip-color !default;
+$tooltip-background: dec.$tooltip-background !default;
+$tooltip-padding: dec.$tooltip-padding-x dec.$tooltip-padding-y !default;
+$tooltip-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$tooltip-fontsize: dec.$tooltip-fontsize !default;
+$tooltip-mobile-padding: dec.$tooltip-padding-x dec.$tooltip-padding-y !default;
+$tooltip-mobile-fontsize: dec.$tooltip-fontsize !default;
+$tooltip-max-width: dec.$tooltip-max-width !default;
+$tooltip-box-shadow: dec.$tooltip-box-shadow !default;
 
 // Table
 $table-border-color: dec.$color-border !default;

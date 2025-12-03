@@ -28,12 +28,11 @@
         {{ $t(`${type}-description`) }}
       </p>
       <div class="absolute-top-right q-mr-md q-mt-md"></div>
-      <q-tooltip
-        anchor="top right"
-        self="bottom right"
-        class="u-tooltip-max-width"
-      >
-        {{ $t(`${type}-title-tooltip`) }}
+      <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+        <div class="text-h5 text-weight-medium q-mb-sm">
+          {{ $t(`${type}-title-tooltip-title`) }}
+        </div>
+        {{ $t(`${type}-title-tooltip-description`) }}
       </q-tooltip>
     </q-card-section>
   </q-card>
