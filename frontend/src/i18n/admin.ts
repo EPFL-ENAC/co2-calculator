@@ -58,11 +58,11 @@ export default {
     fr: "La gestion des utilisateurs à l'EPFL est gérée via Accred.",
   },
   user_management_page_button_label_system: {
-    en: 'Open Accred',
-    fr: 'Ouvrir Accred',
+    en: 'Go to User management system (Accred)',
+    fr: 'Accéder au système de gestion des utilisateurs (Accred)',
   },
-  user_management_page_button_label_outline_system: {
-    en: 'Documentation',
-    fr: 'Documentation',
+  user_management_page_button_documentation_label_system: {
+    en: 'Go to User management system documentation',
+    fr: 'Documentation de la gestion des utilisateurs',
   },
 } as const;
