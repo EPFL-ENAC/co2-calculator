@@ -9,11 +9,11 @@ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHead
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="text-body1 q-mb-xl">
-          {{ $t('backoffice_user_management_page_description') }}
+          {{ $t('user_management_page_description_system') }}
         </div>
         <q-btn
           no-caps
-          :label="$t('backoffice_user_management_page_button_label')"
+          :label="$t('user_management_page_button_label_system')"
           color="accent"
           size="md"
           class="q-mr-sm text-weight-medium"
@@ -24,7 +24,7 @@ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHead
         <q-btn
           outline
           no-caps
-          :label="$t('backoffice_user_management_page_button_label_outline')"
+          :label="$t('user_management_page_button_label_outline_system')"
           color="primary"
           size="md"
           class="text-weight-medium"

@@ -53,4 +53,16 @@ export default {
     en: 'Save',
     fr: 'Enregistrer',
   },
+  user_management_page_description_system: {
+    en: 'User management at EPFL is handled via Accred.',
+    fr: "La gestion des utilisateurs à l'EPFL est gérée via Accred.",
+  },
+  user_management_page_button_label_system: {
+    en: 'Open Accred',
+    fr: 'Ouvrir Accred',
+  },
+  user_management_page_button_label_outline_system: {
+    en: 'Documentation',
+    fr: 'Documentation',
+  },
 } as const;
