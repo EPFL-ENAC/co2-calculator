@@ -345,4 +345,20 @@ export default {
     en: 'Edit Module',
     fr: 'Éditer le module',
   },
+  common_delete_dialog_title: {
+    en: 'Delete {item}',
+    fr: 'Supprimer {item}',
+  },
+  common_delete_dialog_description: {
+    en: 'Are you sure you want to delete {item}? This action cannot be undone.',
+    fr: 'Êtes-vous sûr de vouloir supprimer {item} ? Cette action est irréversible.',
+  },
+  common_delete: {
+    en: 'Delete',
+    fr: 'Supprimer',
+  },
+  common_cancel: {
+    en: 'Cancel',
+    fr: 'Annuler',
+  },
 };

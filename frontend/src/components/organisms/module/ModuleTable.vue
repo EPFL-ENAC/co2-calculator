@@ -84,6 +84,10 @@
               square
               size="xs"
               class="square-button"
+              @click="
+                deleteItemName = getItemName(slotProps.row);
+                confirmDelete = true;
+              "
             />
           </template>
           <template v-else>
@@ -97,6 +101,60 @@
       <div class="text-center q-pa-md">No data available</div>
     </template>
   </q-table>
+
+  <q-dialog v-model="confirmDelete" persistent>
+    <q-card class="column modal modal--md">
+      <q-card-section class="flex justify-between items-center">
+        <div class="text-h4 text-weight-medium">
+          {{
+            $t('common_delete_dialog_title', {
+              item: deleteItemName || 'this item',
+            })
+          }}
+        </div>
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          icon="o_close"
+          color="grey-6"
+          class="text-weight-medium"
+        />
+      </q-card-section>
+      <q-separator />
+      <q-card-section class="q-py-lg q-px-md">
+        <span class="text-body1">
+          {{
+            $t('common_delete_dialog_description', {
+              item: deleteItemName || 'this item',
+            })
+          }}
+        </span>
+      </q-card-section>
+      <q-separator />
+      <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
+        <q-btn
+          color="grey-4"
+          text-color="primary"
+          :label="$t('common_cancel')"
+          unelevated
+          no-caps
+          outline
+          size="md"
+          class="text-weight-medium col"
+          @click="confirmDelete = false"
+        />
+        <q-btn
+          color="accent"
+          :label="$t('common_delete')"
+          unelevated
+          no-caps
+          size="md"
+          class="text-weight-medium col"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup lang="ts">
@@ -120,6 +178,9 @@ const pagination = ref({
   page: 1,
   rowsPerPage: 20,
 });
+
+const confirmDelete = ref(false);
+const deleteItemName = ref<string>('');
 
 // simple local rows by default (can be passed via prop)
 // const rows = ref(props.rows ?? []);
@@ -147,5 +208,9 @@ function renderCell(row: ModuleRow, col: { field: string }) {
   const val = row[col.field];
   if (val === undefined || val === null) return '-';
   return String(val);
+}
+
+function getItemName(row: ModuleRow): string {
+  return row.name ? String(row.name) : String(row.id || 'this item');
 }
 </script>
