@@ -28,8 +28,8 @@
                   []
                 "
                 :loading="
-                  (inp.id === 'sci_class' && loadingClasses) ||
-                  (inp.id === 'sci_sub_class' && loadingSubclasses)
+                  (inp.id === 'class' && loadingClasses) ||
+                  (inp.id === 'sub_class' && loadingSubclasses)
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -144,11 +144,9 @@ async function loadClassOptions() {
   loadingClasses.value = true;
   try {
     const store = usePowerFactorsStore();
-    dynamicOptions['sci_class'] = await store.fetchClassOptions(
-      props.submoduleKey,
-    );
+    dynamicOptions['class'] = await store.fetchClassOptions(props.submoduleKey);
   } catch {
-    dynamicOptions['sci_class'] = [];
+    dynamicOptions['class'] = [];
   } finally {
     loadingClasses.value = false;
   }
@@ -161,18 +159,18 @@ interface Option {
 
 async function loadSubclassOptions(selectedClass: Option | null) {
   if (!props.submoduleKey || !selectedClass) {
-    dynamicOptions['sci_sub_class'] = [];
+    dynamicOptions['sub_class'] = [];
     return;
   }
   loadingSubclasses.value = true;
   try {
     const store = usePowerFactorsStore();
-    dynamicOptions['sci_sub_class'] = await store.fetchSubclassOptions(
+    dynamicOptions['sub_class'] = await store.fetchSubclassOptions(
       props.submoduleKey,
       selectedClass.value,
     );
   } catch {
-    dynamicOptions['sci_sub_class'] = [];
+    dynamicOptions['sub_class'] = [];
   } finally {
     loadingSubclasses.value = false;
   }
@@ -219,17 +217,17 @@ watch(
   () => props.submoduleKey,
   async () => {
     await loadClassOptions();
-    if ('sci_sub_class' in form) form['sci_sub_class'] = '';
-    dynamicOptions['sci_sub_class'] = [];
+    if ('sub_class' in form) form['sub_class'] = '';
+    dynamicOptions['sub_class'] = [];
   },
   { immediate: true },
 );
 
 watch(
-  () => form['sci_class'] as Option | null,
+  () => form['class'] as Option | null,
   async (val) => {
     await loadSubclassOptions(val);
-    if ('sci_sub_class' in form) form['sci_sub_class'] = '';
+    if ('sub_class' in form) form['sub_class'] = '';
   },
 );
 

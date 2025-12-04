@@ -84,25 +84,43 @@ def normalize_equipment_class(equipment_class: str) -> str:
 def lookup_power_factor(
     equipment_class: str,
     power_factors_map: Dict[str, PowerFactor],
-) -> PowerFactor:
+) -> Optional[PowerFactor]:
     """
     Lookup power factor for equipment by class name only.
 
     Searches across all submodules since class names are mostly unique.
-    Raises ValueError if no matching power factor is found.
+    Returns None if no match found OR if multiple matches exist (ambiguous).
+
+    Logic:
+    - If 0 matches: Returns None (no power factor available)
+    - If 1 match: Returns the power factor (unambiguous)
+    - If >1 matches: Returns first match for testing, logs warning (sub-class required)
     """
     normalized_class = normalize_equipment_class(equipment_class)
 
-    # Search for matching class across all submodules
-    for key, pf in power_factors_map.items():
-        if pf.equipment_class.lower() == normalized_class:
-            return pf
+    # Find ALL matching power factors across all submodules
+    matches = [
+        pf
+        for pf in power_factors_map.values()
+        if pf.equipment_class.lower() == normalized_class
+    ]
 
-    raise ValueError(
-        f"No power factor found for class='{equipment_class}' "
-        f"(normalized='{normalized_class}'). "
-        f"Please add a power factor entry to table_power.csv."
-    )
+    if len(matches) == 0:
+        # No power factor found
+        return None
+    elif len(matches) == 1:
+        # Unambiguous match
+        return matches[0]
+    else:
+        # Multiple matches - ambiguous, requires sub-class
+        # For testing purposes, return first match but log warning
+        sub_classes = [pf.sub_class for pf in matches if pf.sub_class]
+        logger.warning(
+            f"Class '{equipment_class}' has {len(matches)} power factors "
+            f"with different sub-classes: {sub_classes}. "
+            f"Sub-class selection required. Using first match for testing."
+        )
+        return matches[0]  # Temporary: return first match for testing
 
 
 async def seed_equipment(session: AsyncSession) -> None:
@@ -141,6 +159,8 @@ async def seed_equipment(session: AsyncSession) -> None:
     # Read and parse CSV
     equipment_list: List[Equipment] = []
     matched_count = 0
+    no_match_count = 0
+    ambiguous_classes: Dict[str, int] = {}  # Track classes requiring sub-class
 
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -150,6 +170,19 @@ async def seed_equipment(session: AsyncSession) -> None:
             name = row.get("Name 1", "").strip()
             category = row.get("Category", "").strip()
             equipment_class = row.get("Class", "").strip()
+            # Find all matching power factors for this class
+            all_matches = [
+                pf
+                for pf in power_factors_map.values()
+                if pf.equipment_class.lower() == equipment_class.lower()
+            ]
+
+            # If class has multiple power factors,
+            # assign first one's sub-class for testing
+            if len(all_matches) > 1:
+                equipment_subclass = all_matches[0].sub_class
+            else:
+                equipment_subclass = None
             service_date_str = row.get("Service Date", "").strip()
             status = row.get("Status", "In service").strip()
 
@@ -157,17 +190,36 @@ async def seed_equipment(session: AsyncSession) -> None:
                 logger.warning(f"Skipping row {idx} with missing data: {row}")
                 continue
 
-            # Lookup power factor - will raise ValueError if not found
-            try:
-                power_factor = lookup_power_factor(equipment_class, power_factors_map)
-            except ValueError as e:
-                logger.error(f"Row {idx} - {name}: {e}")
-                raise  # Re-raise to stop seeding
+            # Lookup power factor - returns None if not found or ambiguous
+            power_factor = lookup_power_factor(equipment_class, power_factors_map)
 
-            matched_count += 1
-            power_factor_id = power_factor.id
-            # Derive submodule from the matched power factor
-            submodule = power_factor.submodule
+            if power_factor is None:
+                # No power factor found
+                logger.warning(
+                    f"Row {idx} - {name}: No power factor found for class "
+                    f"'{equipment_class}'. Equipment will be created without "
+                    f"power factor (no emissions calculated)."
+                )
+                no_match_count += 1
+                power_factor_id = None
+                submodule = category  # Fallback to original category
+            else:
+                matched_count += 1
+                power_factor_id = power_factor.id
+                # Derive submodule from the matched power factor
+                submodule = power_factor.submodule
+
+                # Check if this class has multiple power factors (ambiguous)
+                all_matches = [
+                    pf
+                    for pf in power_factors_map.values()
+                    if pf.equipment_class.lower() == equipment_class.lower()
+                ]
+                if len(all_matches) > 1:
+                    ambiguous_classes[equipment_class] = (
+                        ambiguous_classes.get(equipment_class, 0) + 1
+                    )
+
             # Use power_factor_id - actual values will be looked up at calculation time
             active_power_w = None
             standby_power_w = None
@@ -198,7 +250,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 category=category,  # Original category from synth_data
                 submodule=submodule,  # Mapped submodule for grouping
                 equipment_class=equipment_class,
-                sub_class=None,  # Not in synth_data.csv
+                sub_class=equipment_subclass,  # Not in synth_data.csv
                 service_date=service_date,
                 status=status,
                 active_usage_pct=active_usage_pct,
@@ -219,9 +271,31 @@ async def seed_equipment(session: AsyncSession) -> None:
     await session.commit()
 
     logger.info(
-        f"Created {len(equipment_list)} equipment records "
-        f"(all {matched_count} matched with power factors)"
+        f"Created {len(equipment_list)} equipment records: "
+        f"{matched_count} matched with power factors, "
+        f"{no_match_count} without power factors"
     )
+
+    # Report ambiguous classes that require sub-class selection
+    if ambiguous_classes:
+        logger.warning(
+            f"\n{'=' * 60}\n"
+            f"AMBIGUOUS EQUIPMENT CLASSES (Sub-class Required):\n"
+            f"{'=' * 60}"
+        )
+        for eq_class, count in sorted(ambiguous_classes.items()):
+            logger.warning(
+                f"  - '{eq_class}': {count} equipment item(s) "
+                f"(using first match for testing)"
+            )
+        logger.warning(
+            f"{'=' * 60}\n"
+            f"Total: {len(ambiguous_classes)} classes, "
+            f"{sum(ambiguous_classes.values())} equipment items\n"
+            f"Note: These equipment have been assigned a power factor for testing,\n"
+            f"but should specify a sub-class for accurate emission calculations.\n"
+            f"{'=' * 60}"
+        )
 
 
 async def seed_equipment_emissions(session: AsyncSession) -> None:
@@ -289,7 +363,12 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 )
                 continue
         else:
-            logger.warning(f"No power values available for equipment {equipment.id}")
+            # No power factor assigned - likely requires sub-class selection
+            logger.info(
+                f"Skipping emissions for equipment {equipment.id} ({equipment.name}): "
+                f"No power factor assigned. Class '{equipment.equipment_class}' may "
+                f"require sub-class selection."
+            )
             continue
 
         # Prepare equipment data for calculation
@@ -330,7 +409,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     session.add_all(emissions_list)
     await session.commit()
 
-    logger.info(f"Created {len(emissions_list)} equipment emission records")
+    skipped_count = len(equipment_list) - len(emissions_list)
+    logger.info(
+        f"Created {len(emissions_list)} equipment emission records "
+        f"({skipped_count} equipment skipped - no power factor assigned)"
+    )
 
     # Calculate and log summary statistics
     total_kwh = sum(e.annual_kwh for e in emissions_list)
