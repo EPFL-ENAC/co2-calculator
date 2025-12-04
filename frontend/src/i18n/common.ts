@@ -274,7 +274,7 @@ export default {
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total Lab Carbon Footprint',
+    en: 'Total Unit Carbon Footprint',
     fr: '',
   },
   common_filter_all: {
