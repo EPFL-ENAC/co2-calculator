@@ -34,14 +34,6 @@
       />
     </div>
   </div>
-  <q-dialog v-model="editDialogOpen" persistent>
-    <ModuleForm
-      :inputs="editInputs"
-      :row-data="editRowData"
-      @submit="onFormSubmit"
-      @edit="editDialogOpen = false"
-    />
-  </q-dialog>
   <q-table
     class="co2-table border"
     :columns="qCols"
@@ -137,7 +129,7 @@
   </q-table>
 
   <q-dialog v-model="editDialogOpen" persistent>
-    <q-card class="column" style="width: 1200px; max-width: 90vw">
+    <q-card style="width: 1200px; max-width: 90vw">
       <q-card-section class="flex justify-between items-center">
         <div class="text-h4 text-weight-medium">
           {{
@@ -160,7 +152,7 @@
         <ModuleForm
           :inputs="editInputs"
           :row-data="editRowData"
-          @submit="onEditSubmit"
+          @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
       </q-card-section>
@@ -313,12 +305,6 @@ function renderCell(row: ModuleRow, col: { field: string }) {
   return String(val);
 }
 
-function onEditSubmit() {
-  // Handle form submission if needed
-  editDialogOpen.value = false;
-  editRowData.value = null;
-}
-
 // function mapRowDataToFormInputs(
 //   row: ModuleRow,
 //   columns: TableColumn[] | null | undefined,
@@ -355,12 +341,16 @@ function onFormSubmit(
   const idRaw = editRowData.value?.id;
   const equipmentId = Number(idRaw);
   const isEdit = Number.isFinite(equipmentId);
-
+  payload.act_usage = Number(payload.act_usage);
+  payload.pas_usage = Number(payload.pas_usage);
   const p = isEdit
     ? store.updateEquipment(moduleType, unit, year, equipmentId, payload)
     : store.createEquipment(moduleType, unit, year, payload);
 
-  p.finally(() => (editDialogOpen.value = false));
+  p.finally(() => {
+    editDialogOpen.value = false;
+    editRowData.value = null;
+  });
 }
 
 function openEditDialog(row: ModuleRow) {
