@@ -6,7 +6,7 @@ name: deploy
     branches:
       - dev
       - stage
-      - 'ci-test/**'
+      - "ci-test/**"
     tags: ["v*.*.*"]
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.4.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.6.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
     with:
@@ -22,10 +22,11 @@ jobs:
       ORG: epfl
       REPO: co2-calculator
       build_context: '[ "./frontend", "./backend" ]' # context paths to build
+      argo_repository: "['EPFL-ENAC/enack8s-app-config', 'EPFL-ENAC/openshift-app-config']"
   publish-chart:
-      uses: ./.github/workflows/publish_chart.yaml
-      needs:
-        - deploy
-      with:
-        registry: "epfl-enac/co2-calculator"
-        name: 'co2-calculator'
+    uses: ./.github/workflows/publish_chart.yaml
+    needs:
+      - deploy
+    with:
+      registry: "epfl-enac/co2-calculator"
+      name: "co2-calculator"
