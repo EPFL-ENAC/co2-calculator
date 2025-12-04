@@ -2,7 +2,7 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 
 export default {
   [MODULES.EquipmentElectricConsumption]: {
-    en: 'Equipments',
+    en: 'Equipment',
     fr: 'Équipements',
   },
   [MODULES_DESCRIPTIONS.EquipmentElectricConsumption]: {
