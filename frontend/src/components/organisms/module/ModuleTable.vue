@@ -152,6 +152,7 @@
         <ModuleForm
           :inputs="editInputs"
           :row-data="editRowData"
+          :submodule-key="moduleType as ModuleSubType"
           @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
@@ -234,6 +235,7 @@ const editRowData = ref<Record<string, FieldValue> | null>(null);
 type RowValue = string | number | boolean | null | undefined;
 type ModuleRow = Record<string, RowValue> & { id: string | number };
 
+type ModuleSubType = 'scientific' | 'it' | 'other';
 const props = defineProps<{
   columns?: TableColumn[] | null;
   rows?: ModuleRow[];
