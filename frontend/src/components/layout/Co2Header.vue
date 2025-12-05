@@ -154,16 +154,23 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         />
       </template>
 
-      <q-btn
+      <q-btn-dropdown
         flat
         dense
         no-caps
-        size="md"
         color="accent"
-        :label="$t('logout')"
+        size="md"
+        :label="authStore.displayName"
         class="q-ml-xl text-weight-medium"
-        @click="handleLogout"
-      />
+      >
+        <q-list>
+          <q-item clickable @click="handleLogout">
+            <q-item-section>
+              <q-item-label>{{ $t('logout') }}</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-btn-dropdown>
     </q-toolbar>
     <q-separator />
     <!-- Bottom toolbar: Breadcrumbs and Action Button -->
