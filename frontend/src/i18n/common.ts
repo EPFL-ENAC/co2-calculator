@@ -143,7 +143,7 @@ export default {
   },
   workspace_setup_year_table_header_kgco2: {
     en: 'kg CO₂-eq',
-    fr: 'kg CO₂-éq',
+    fr: 'kg CO₂-eq',
   },
   workspace_setup_unit_error: {
     en: 'Failed to load units.',
@@ -267,18 +267,18 @@ export default {
   },
   results_units: {
     en: 'kg CO₂-eq',
-    fr: 'kg CO₂-éq',
+    fr: 'kg CO₂-eq',
   },
   kgco2eq: {
     en: 'kg CO₂-eq',
-    fr: 'kg CO₂-éq',
+    fr: 'kg CO₂-eq',
   },
   home_simulations_units: {
     en: 'Simulations',
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total {type} Footprint',
+    en: 'Total {type} Carbon Footprint',
     fr: '',
   },
   common_filter_all: {

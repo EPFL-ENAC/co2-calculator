@@ -392,7 +392,7 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
   if (col.name === 'kg_co2eq') {
     const n = Number(val);
     if (!Number.isFinite(n)) return '-';
-    return n.toFixed(2);
+    return n.toFixed(0);
   }
   return String(val);
 }

@@ -28,7 +28,7 @@ const baseModuleFields: ModuleField[] = [
     // tooltip: 'Class can be edited via the Edit button only',
     inputTypeName: 'QSelect',
     readOnly: false,
-    // editableInline: true,
+    editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
   },
@@ -54,7 +54,7 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     unit: 'hrs/wk',
     sortable: true,
-    align: 'right',
+    align: 'left',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -68,7 +68,7 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     unit: 'hrs/wk',
     sortable: true,
-    align: 'right',
+    align: 'left',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -82,7 +82,7 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     unit: 'W',
     sortable: true,
-    align: 'right',
+    align: 'left',
     tooltip: powerTooltip,
     readOnly: true,
     ratio: '3/12',
@@ -96,7 +96,7 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     unit: 'W',
     sortable: true,
-    align: 'right',
+    align: 'left',
     tooltip: powerTooltip,
     readOnly: true,
     ratio: '3/12',
@@ -104,16 +104,20 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-éq',
+    label: 'kg CO₂-eq',
     type: 'number',
     hideIn: {
       form: true,
     },
     sortable: true,
-    align: 'right',
+    align: 'left',
     tooltip: emissionTooltip,
   },
 ];
+
+// remove subclass field for equipment-electric-consumption module
+const itmodulefields: ModuleField[] = baseModuleFields.filter(field => field.id !== 'sub_class');
+
 
 export const equipmentElectricConsumption: ModuleConfig = {
   id: 'module_elec_001',
@@ -123,7 +127,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
   hasTooltip: false,
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0], // fixed threshold; configurable via backoffice later
-    value: 100, // kg CO₂-éq; implicit coloring only
+    value: 100, // kg CO₂-eq; implicit coloring only
   },
 
   hasSubmodules: true,
@@ -140,7 +144,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       id: 'sub_it',
       name: 'IT Equipment',
       count: 4,
-      moduleFields: baseModuleFields,
+      moduleFields: itmodulefields,
     },
     {
       id: 'sub_other',
