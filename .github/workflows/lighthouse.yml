@@ -22,7 +22,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: "./frontend/package-lock.json"
 
-      - name: Install dependencies
+      - name: Install Lighthouse plugin at root
+        run: npm install --no-save lighthouse-plugin-ecoindex-core puppeteer
+
+      - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm ci
 
