@@ -62,7 +62,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'pas_usage',
-    label: 'Passive Usage',
+    label: 'Standby Usage',
     type: 'number',
     required: true,
     min: 0,
@@ -90,7 +90,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'pas_power',
-    label: 'Passive Power',
+    label: 'Standby Power',
     type: 'number',
     required: true,
     min: 0,
