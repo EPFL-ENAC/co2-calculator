@@ -6,7 +6,7 @@
       "settings": {
         "preset": "desktop",
         "plugins": [
-          "./frontend/node_modules/lighthouse-plugin-ecoindex-core"
+          "lighthouse-plugin-ecoindex-core"
         ]
       }
     },
