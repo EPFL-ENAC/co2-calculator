@@ -7,7 +7,7 @@
       </div>
       <!-- right side total lab carbon footprint value  on two lines
            first line:  value in i18n number format 
-           second line: kg CO₂-éq -->
+           second line: kg CO₂-eq -->
       <div class="text-h3 module-total-result__value">
         <h1 class="text-h1 text-weight-bold q-mb-none">
           {{ new Intl.NumberFormat().format(data) }}

@@ -24,7 +24,7 @@ const moduleFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-éq',
+    label: 'kg CO₂-eq',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
