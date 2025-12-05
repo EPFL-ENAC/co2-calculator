@@ -7,6 +7,6 @@ export default {
   },
   [MODULES_DESCRIPTIONS.ExternalCloud]: {
     en: 'Measure cloud computing emissions from external service providers.',
-    fr: 'Measure cloud computing emissions from external service providers.',
+    fr: 'Mesurer les émissions liées au cloud computing provenant de fournisseurs de services externes.',
   },
 } as const;
