@@ -1,9 +1,43 @@
-import { ModuleConfig } from 'src/constant/moduleConfig';
+import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+
+const goodsFields: ModuleField[] = [
+  {
+    id: 'item',
+    label: 'Item',
+    type: 'text',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'quantity',
+    label: 'Quantity',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'kg_co2eq',
+    label: 'kg CO₂-éq',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'purchase_item',
+    label: 'Item Name',
+    type: 'text',
+    required: true,
+    hideIn: { table: true },
+  },
+];
 
 export const purchase: ModuleConfig = {
   id: 'module_purchase_001',
   type: 'purchase',
   name: 'Purchase',
+  hasDescription: true,
+  hasDescriptionSubtext: true,
+  hasTooltip: true,
   description: 'Track purchased goods and materials',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
@@ -11,19 +45,7 @@ export const purchase: ModuleConfig = {
     {
       id: 'sub_goods',
       name: 'Goods',
-      tableColumns: [
-        { key: 'item', label: 'Item', type: 'text', sortable: true },
-        { key: 'quantity', label: 'Quantity', type: 'number', sortable: true },
-        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
-      ],
-      formInputs: [
-        {
-          id: 'purchase_item',
-          label: 'Item Name',
-          type: 'text',
-          required: true,
-        },
-      ],
+      moduleFields: goodsFields,
     },
   ],
 };

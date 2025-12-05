@@ -21,13 +21,15 @@ const route = useRoute();
             params: { ...route.params, module: item.link },
           }"
         />
-        <q-separator class="timeline-separator self-center bg-grey-5" />
+        <q-separator
+          class="timeline-separator separator self-center bg-grey-5"
+        />
       </template>
 
       <q-icon
         name="arrow_forward"
         color="grey-6"
-        class="self-center timeline-arrow"
+        class="self-center timeline-arrow separator"
       />
       <q-btn
         icon="o_bar_chart"
@@ -42,3 +44,9 @@ const route = useRoute();
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.separator {
+  margin-top: 12px;
+}
+</style>

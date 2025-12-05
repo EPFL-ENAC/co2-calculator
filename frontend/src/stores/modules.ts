@@ -41,16 +41,21 @@ export const useModuleStore = defineStore('modules', () => {
     error: null,
     data: null,
   });
+  function modulePath(moduleType: Module, unit: string, year: string) {
+    const moduleTypeEncoded = encodeURIComponent(moduleType);
+    const unitEncoded = encodeURIComponent(unit);
+    const yearEncoded = encodeURIComponent(year);
+    // Backend expects /{unit_id}/{year}/{module_id}
+    return `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
+  }
+
   async function getModuleData(moduleType: Module, unit: string, year: string) {
     state.loading = true;
     state.error = null;
     state.data = null;
     try {
-      const moduleTypeEncoded = encodeURIComponent(moduleType);
-      const unitEncoded = encodeURIComponent(unit);
-      const yearEncoded = encodeURIComponent(year);
       state.data = (await api
-        .get(`modules/${moduleTypeEncoded}/${unitEncoded}/${yearEncoded}`)
+        .get(modulePath(moduleType, unit, year))
         .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -64,9 +69,114 @@ export const useModuleStore = defineStore('modules', () => {
       state.loading = false;
     }
   }
+  interface Option {
+    label: string;
+    value: string;
+  }
+  type FieldValue = string | number | boolean | null | Option;
+  async function postItem(
+    moduleType: Module,
+    unitId: string,
+    year: string | number,
+    submoduleId: string,
+    payload: Record<string, FieldValue>,
+  ) {
+    state.error = null;
+    try {
+      if (typeof year === 'number') {
+        year = year.toString();
+      }
+
+      const path = `${modulePath(moduleType, unitId, year)}/equipment`;
+      const normalized: Record<string, string | number | boolean | null> = {
+        unit_id: unitId,
+      };
+
+      Object.entries(payload).forEach(([key, raw]) => {
+        let value: unknown = raw;
+        if (
+          value &&
+          typeof value === 'object' &&
+          'value' in (value as Option) &&
+          typeof (value as Option).value === 'string'
+        ) {
+          value = (value as Option).value;
+        }
+        normalized[key] =
+          value === undefined
+            ? null
+            : (value as string | number | boolean | null);
+      });
+
+      // Backend expects `submodule` (scientific|it|other), not `submodule_id`
+      if (submoduleId) {
+        const cleaned = submoduleId.startsWith('sub_')
+          ? submoduleId.replace('sub_', '')
+          : submoduleId;
+        normalized.submodule = cleaned as string;
+      }
+
+      // Fallback category if not provided by the form
+      if (!('category' in normalized) || !normalized.category) {
+        normalized.category = (normalized.class as string) || 'Uncategorized';
+      }
+
+      const body = normalized;
+      await api.post(path, { json: body }).json();
+      await getModuleData(moduleType, unitId, year);
+    } catch (err: unknown) {
+      if (err instanceof Error) state.error = err.message ?? 'Unknown error';
+      else state.error = 'Unknown error';
+      throw err;
+    }
+  }
+
+  async function patchItem(
+    moduleType: Module,
+    unit: string,
+    year: string,
+    equipmentId: number,
+    payload: Record<string, FieldValue>,
+  ) {
+    state.error = null;
+    try {
+      const path = `${modulePath(moduleType, unit, year)}/equipment/${encodeURIComponent(
+        String(equipmentId),
+      )}`;
+      await api.patch(path, { json: payload }).json();
+      await getModuleData(moduleType, unit, year);
+    } catch (err: unknown) {
+      if (err instanceof Error) state.error = err.message ?? 'Unknown error';
+      else state.error = 'Unknown error';
+      throw err;
+    }
+  }
+
+  async function deleteItem(
+    moduleType: Module,
+    unit: string,
+    year: string,
+    equipmentId: number,
+  ) {
+    state.error = null;
+    try {
+      const path = `${modulePath(moduleType, unit, year)}/equipment/${encodeURIComponent(
+        String(equipmentId),
+      )}`;
+      await api.delete(path);
+      await getModuleData(moduleType, unit, year);
+    } catch (err: unknown) {
+      if (err instanceof Error) state.error = err.message ?? 'Unknown error';
+      else state.error = 'Unknown error';
+      throw err;
+    }
+  }
 
   return {
     getModuleData,
+    postItem,
+    patchItem,
+    deleteItem,
     state,
   };
 });

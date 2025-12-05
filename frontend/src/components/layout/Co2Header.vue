@@ -5,10 +5,17 @@ import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import Co2Timeline from '../organisms/layout/Co2Timeline.vue';
 import { useRoute } from 'vue-router';
+import { useTimelineStore } from 'src/stores/modules';
+import { Module } from 'src/constant/modules';
+import { useI18n } from 'vue-i18n';
+import { ROLES } from 'src/constant/roles';
+import { isBackOfficeRoute } from 'src/router/routes';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const timelineStore = useTimelineStore();
+const { t } = useI18n();
 
 const unitName = computed(() => {
   if (!route.params.unit) return '';
@@ -24,9 +31,41 @@ const workspaceDisplay = computed(() => {
   return `${unitName.value} | ${year.value}`;
 });
 
+const currentModule = computed(() => route.params.module as string | undefined);
+const currentState = computed(() => {
+  if (!currentModule.value) return null;
+  return timelineStore.itemStates[currentModule.value];
+});
+const toggleLabel = computed(() =>
+  currentState.value === 'validated'
+    ? t('common_unvalidate')
+    : t('common_validate'),
+);
+const toggleColor = computed(() =>
+  currentState.value === 'validated' ? 'primary' : 'info',
+);
+
+function toggleState() {
+  if (!currentModule.value) return;
+  const newState =
+    currentState.value === 'validated' ? 'in-progress' : 'validated';
+  timelineStore.setState(currentModule.value as Module, newState);
+}
+
 const handleLogout = async () => {
   await authStore.logout(router);
 };
+
+const hasBackOfficeAccess = computed(() => {
+  if (!authStore.user) return false;
+  const userRoles = authStore.user.roles.map((r) => r.role);
+  return (
+    userRoles.includes(ROLES.BackOfficeAdmin) ||
+    userRoles.includes(ROLES.BackOfficeStandard)
+  );
+});
+
+const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
 </script>
 
 <template>
@@ -55,6 +94,36 @@ const handleLogout = async () => {
         size="sm"
         class="text-weight-medium q-ml-xl"
         :to="{ name: 'back-office-documentation' }"
+      />
+
+      <q-btn
+        v-if="hasBackOfficeAccess && !isInBackOfficeRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('user_management_access_button')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{ name: 'back-office' }"
+      />
+      <q-btn
+        v-if="hasBackOfficeAccess && isInBackOfficeRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('back_to_calculator_button')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{
+          name: 'workspace-setup',
+          params: {
+            language: route.params.language || 'en',
+          },
+        }"
       />
 
       <template v-if="route.name !== 'workspace-setup'">
@@ -118,12 +187,15 @@ const handleLogout = async () => {
         <q-space />
 
         <q-btn
-          color="red"
-          label="Fake Button"
+          v-if="route.name === 'module'"
+          :outline="currentState === 'validated' ? true : false"
+          :label="toggleLabel"
+          :color="toggleColor"
           unelevated
           no-caps
           size="md"
           class="text-weight-medium"
+          @click="toggleState"
         />
       </q-toolbar>
       <q-separator />

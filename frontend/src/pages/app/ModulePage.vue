@@ -1,6 +1,11 @@
 <template>
   <q-page class="module-page">
-    <module-title :type="currentModuleType" />
+    <module-title
+      :type="currentModuleType"
+      :has-description="currentModuleConfig.hasDescription"
+      :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
+      :has-tooltip="currentModuleConfig.hasTooltip"
+    />
     <module-charts :type="currentModuleType" />
     <!-- module tables iteration -->
     <module-table-section
@@ -9,10 +14,16 @@
       :data="data"
       :loading="loading"
       :error="error"
+      :unit-id="unit"
+      :year="year"
     />
     <!-- module summary -->
     <module-total-result
-      v-if="currentModuleType === MODULES.EquipmentElectricConsumption"
+      v-if="
+        (
+          [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+        ).includes(currentModuleType)
+      "
       :data="data?.totals?.total_kg_co2eq"
       :type="currentModuleType"
     />
@@ -21,7 +32,7 @@
 
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, watch, Ref } from 'vue';
 
 import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
@@ -29,9 +40,15 @@ import ModuleTableSection from 'src/components/organisms/module/ModuleTableSecti
 import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
 import { Module, MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { ModuleConfig } from 'src/constant/moduleConfig';
+import { MODULES_CONFIG } from 'src/constant/module-config';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
+
+const currentModuleConfig: Ref<ModuleConfig> = computed(
+  () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,
+);
 
 // compute unit and year from route params
 const unit = computed(() => String($route.params.unit ?? 'default'));

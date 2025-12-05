@@ -7,6 +7,7 @@ import { Module, getBackendModuleName } from 'src/constant/modules';
 import { MODULE_STATES, ModuleState } from 'src/constant/moduleStates';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ReportExport from './ReportExport.vue';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const backofficeStore = useBackofficeStore();
 
@@ -127,7 +128,7 @@ watch(
 
 interface ModuleRow {
   module: Module;
-  icon: string;
+
   status: string;
   statusColor: string;
   statusTextColor?: string;
@@ -228,7 +229,6 @@ const moduleRows = computed<ModuleRow[]>(() => {
 
     return {
       module: card.module,
-      icon: card.icon,
       status,
       statusColor,
       statusTextColor,
@@ -240,21 +240,21 @@ const moduleRows = computed<ModuleRow[]>(() => {
 const columns = computed<QTableColumn[]>(() => [
   {
     name: 'module',
-    label: 'Module',
+    label: t('backoffice_reporting_row_module_label'),
     field: 'module',
     align: 'left',
     sortable: true,
   },
   {
     name: 'status',
-    label: 'Status',
+    label: t('backoffice_reporting_row_status_label'),
     field: 'status',
     align: 'left',
     sortable: true,
   },
   {
     name: 'outlier_values',
-    label: 'Outlier Values',
+    label: t('backoffice_reporting_row_outlier_values_label'),
     field: 'outlierValues',
     align: 'left',
     sortable: true,
@@ -295,7 +295,7 @@ const columns = computed<QTableColumn[]>(() => [
               :options="availableYears"
               outlined
               dense
-              label="Select Year"
+              :label="t('backoffice_reporting_select_year')"
               class="full-width"
               :disable="availableYears.length === 1"
               emit-value
@@ -349,9 +349,11 @@ const columns = computed<QTableColumn[]>(() => [
             v-if="!loading && !error && unitData"
             class="flex justify-between q-mt-lg q-mb-sm"
           >
-            <span class="text-body1 text-weight-medium"
-              >Modules ({{ moduleRows.length }})</span
-            >
+            <span class="text-body1 text-weight-medium">{{
+              t('backoffice_reporting_modules_label', {
+                count: moduleRows.length,
+              })
+            }}</span>
           </div>
           <q-table
             v-if="!loading && !error && unitData"
@@ -374,7 +376,7 @@ const columns = computed<QTableColumn[]>(() => [
                 <!-- Module -->
                 <q-td key="module">
                   <div class="flex items-center q-gutter-sm">
-                    <q-icon :name="row.icon" color="accent" size="xs" />
+                    <ModuleIcon :name="row.module" color="accent" size="md" />
                     <span class="text-body2 text-weight-medium">{{
                       t(row.module)
                     }}</span>

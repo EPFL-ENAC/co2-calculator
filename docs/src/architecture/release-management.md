@@ -54,11 +54,11 @@ feature/* → dev → stage → main (pre-prod/prod)
 
 ### Environment Overview
 
-| Branch  | Environment   | Purpose                       |
-| ------- | ------------- | ----------------------------- |
-| `dev`   | Development   | Daily development and testing |
-| `stage` | Staging       | Pre-production validation     |
-| `main`  | Pre-prod/Prod | Internal/public releases      |
+| Branch  | Environment   | Purpose                       | sprint |
+| ------- | ------------- | ----------------------------- | ------ |
+| `dev`   | Development   | Daily development and testing | N      |
+| `stage` | Staging       | Pre-production validation     | N-1    |
+| `main`  | Pre-prod/Prod | Internal/public releases      | N-2    |
 
 For deployment triggers and technical flow, see
 [CI/CD Pipeline](06-cicd-pipeline.md#deployment-flow).
@@ -83,7 +83,7 @@ For deployment triggers and technical flow, see
 **URL:** https://co2-calculator-stage.epfl.ch  
 **Purpose:** Pre-production validation
 
-**Deployment:** Manual PR from `dev` to `stage` at sprint end
+**Deployment:** Rebase `dev` to `stage` at sprint end
 
 **Validation:**
 
@@ -98,7 +98,7 @@ For deployment triggers and technical flow, see
 **URL:** https://co2-calculator.epfl.ch  
 **Purpose:** Internal releases (v0.x.x), then public (v1.0.0+)
 
-**Deployment:** Manual PR from `stage` to `main` with version tag
+**Deployment:** Manual PR from `stage` to `main` with version tag with release-please
 
 **Validation:**
 
@@ -119,29 +119,15 @@ Follow this checklist for each sprint release:
    - Documentation updated
 
 2. **Promote to Staging**
-
-   ```bash
-   git checkout stage
-   git pull origin stage
-   git merge dev
-   git push origin stage
-   ```
-
-   - Create PR for visibility
+   - Fast forward stage to dev
    - PM performs final validation
    - Run full test suite
+   - PO and PM validate changes from previous sprint
 
 3. **Create Release**
-
-   ```bash
-   git checkout main
-   git pull origin main
-   git merge stage
-   git tag -a v0.X.0 -m "Sprint X release"
-   git push origin main --tags
-   ```
-
-   - Version increments MINOR (v0.X.0)
+   - Create Pull request from stage to main that will be validated by external code-reviewer
+     - once code review is validated, PR is merged to main, and release please create PR for release
+   - Version increments MINOR (v0.X.0) (release-please)
    - Automated changelog generation
    - Deploy to pre-production
 

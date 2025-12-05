@@ -21,6 +21,7 @@ class RoleName(str, Enum):
     CO2_BACKOFFICE_STD = "co2.backoffice.std"
     CO2_BACKOFFICE_ADMIN = "co2.backoffice.admin"
     CO2_SERVICE_MGR = "co2.service.mgr"
+    CO2_INVENTORY_VIEWER = "co2.inventory.data"
 
 
 class GlobalScope(BaseModel):

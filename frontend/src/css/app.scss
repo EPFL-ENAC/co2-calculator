@@ -32,10 +32,13 @@
   @import './05-components/quasar-overrides/q-badge';
   @import './05-components/quasar-overrides/q-btn-timeline-button';
   @import './05-components/quasar-overrides/q-btn';
+  @import './05-components/quasar-overrides/q-tooltip';
+  @import './05-components/quasar-overrides/q-dialog';
 }
 
 @layer components {
   // example component imports
+  @import './05-components/_atoms/icon';
   @import './05-components/_organisms/navigation';
   @import './05-components/_organisms/login-card';
   @import './05-components/_organisms/timeline';
@@ -49,5 +52,4 @@
 @layer utilities {
   @import './04-utils/spacing';
   @import './04-utils/text';
-  @import './04-utils/tooltip';
 }

@@ -6,7 +6,7 @@ export default {
     fr: 'Gestion des utilisateurs',
   },
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]: {
-    en: 'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO2 calculator.',
+    en: 'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO₂ calculator.',
     fr: "Gérer les comptes utilisateurs, assigner des rôles et des permissions, surveiller l'activité des utilisateurs, et contrôler l'accès au calculateur CO₂.",
   },
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: {
@@ -52,5 +52,17 @@ export default {
   module_management_save_button: {
     en: 'Save',
     fr: 'Enregistrer',
+  },
+  user_management_page_description_system: {
+    en: 'User management at EPFL is handled via Accred.',
+    fr: "La gestion des utilisateurs à l'EPFL est gérée via Accred.",
+  },
+  user_management_page_button_label_system: {
+    en: 'Go to User management system (Accred)',
+    fr: 'Accéder au système de gestion des utilisateurs (Accred)',
+  },
+  user_management_page_button_documentation_label_system: {
+    en: 'Go to User management system documentation',
+    fr: 'Documentation de la gestion des utilisateurs',
   },
 } as const;

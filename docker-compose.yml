@@ -57,6 +57,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     ports:
       - "5050:80"
     depends_on:
@@ -128,5 +130,7 @@ services:
       - backend
 
 volumes:
+  pgadmin_data:
+    driver: local
   postgres-data-18:
     driver: local
