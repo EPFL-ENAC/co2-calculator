@@ -12,7 +12,8 @@ const goodsFields: ModuleField[] = [
     id: 'quantity',
     label: 'Quantity',
     type: 'number',
-    hideIn: { form: true },    sortable: true,
+    hideIn: { form: true },
+    sortable: true,
   },
   {
     id: 'kg_co2eq',

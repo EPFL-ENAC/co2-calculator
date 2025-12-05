@@ -103,7 +103,9 @@ export const useModuleStore = defineStore('modules', () => {
           value = (value as Option).value;
         }
         normalized[key] =
-          value === undefined ? null : (value as string | number | boolean | null);
+          value === undefined
+            ? null
+            : (value as string | number | boolean | null);
       });
 
       // Backend expects `submodule` (scientific|it|other), not `submodule_id`
