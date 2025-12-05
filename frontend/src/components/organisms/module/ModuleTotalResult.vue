@@ -3,11 +3,11 @@
     <q-card-section class="module-total-result__container items-center">
       <!-- left side total lab carbon footprint  text i18n-->
       <div class="text-body1 text-weight-medium">
-        {{ $t('module_total_result_title') }}
+        {{ $t('module_total_result_title', { type: $t(type) }) }}
       </div>
       <!-- right side total lab carbon footprint value  on two lines
            first line:  value in i18n number format 
-           second line: kg Co2-eq -->
+           second line: kg CO₂-éq -->
       <div class="text-h3 module-total-result__value">
         <h1 class="text-h1 text-weight-bold q-mb-none">
           {{ new Intl.NumberFormat().format(data) }}

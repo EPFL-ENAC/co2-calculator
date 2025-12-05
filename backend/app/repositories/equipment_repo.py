@@ -163,6 +163,8 @@ async def get_equipment_with_emissions(
     # Apply pagination
     if limit:
         query = query.limit(limit)
+    # Order by equipment class for predictable grouping
+    query = query.order_by(col(Equipment.equipment_class))
     query = query.offset(offset)
 
     # Execute query

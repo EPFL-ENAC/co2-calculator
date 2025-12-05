@@ -1,76 +1,152 @@
-import { ModuleConfig } from 'src/constant/moduleConfig';
+import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+
+const rootFields: ModuleField[] = [
+  {
+    id: 'waste_general',
+    label: 'General Waste (kg/month)',
+    type: 'number',
+    required: true,
+    min: 0,
+    hideIn: { table: true },
+  },
+  {
+    id: 'waste_recycling',
+    label: 'Recyclable Waste (kg/month)',
+    type: 'number',
+    required: true,
+    min: 0,
+    hideIn: { table: true },
+  },
+  {
+    id: 'waste_organic',
+    label: 'Organic Waste (kg/month)',
+    type: 'number',
+    required: true,
+    min: 0,
+    hideIn: { table: true },
+  },
+  {
+    id: 'waste_hazardous',
+    label: 'Hazardous Waste (kg/month)',
+    type: 'number',
+    required: true,
+    min: 0,
+    hideIn: { table: true },
+  },
+];
+
+const generalWasteFields: ModuleField[] = [
+  {
+    id: 'date',
+    label: 'Date',
+    type: 'date',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'weight',
+    label: 'Weight (kg)',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'disposal',
+    label: 'Disposal Method',
+    type: 'text',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'kg_co2eq',
+    label: 'kg CO₂-éq',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+];
+
+const recyclingFields: ModuleField[] = [
+  {
+    id: 'material',
+    label: 'Material',
+    type: 'text',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'weight',
+    label: 'Weight (kg)',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'kg_co2eq',
+    label: 'kg CO₂-éq',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+];
+
+const organicFields: ModuleField[] = [
+  {
+    id: 'date',
+    label: 'Date',
+    type: 'date',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'weight',
+    label: 'Weight (kg)',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'treatment',
+    label: 'Treatment',
+    type: 'text',
+    hideIn: { form: true },
+    sortable: true,
+  },
+  {
+    id: 'kg_co2eq',
+    label: 'kg CO₂-éq',
+    type: 'number',
+    hideIn: { form: true },
+    sortable: true,
+  },
+];
 
 export const internalServices: ModuleConfig = {
   id: 'module_waste_001',
   type: 'internal-services',
   name: 'Waste Management',
+  hasDescription: true,
+  hasDescriptionSubtext: true,
+  hasTooltip: true,
   description: 'Categorize and track waste streams',
   hasSubmodules: true,
   formStructure: 'single',
-  formInputs: [
-    {
-      id: 'waste_general',
-      label: 'General Waste (kg/month)',
-      type: 'number',
-      required: true,
-      min: 0,
-    },
-    {
-      id: 'waste_recycling',
-      label: 'Recyclable Waste (kg/month)',
-      type: 'number',
-      required: true,
-      min: 0,
-    },
-    {
-      id: 'waste_organic',
-      label: 'Organic Waste (kg/month)',
-      type: 'number',
-      required: true,
-      min: 0,
-    },
-    {
-      id: 'waste_hazardous',
-      label: 'Hazardous Waste (kg/month)',
-      type: 'number',
-      required: true,
-      min: 0,
-    },
-  ],
+  moduleFields: rootFields,
   submodules: [
     {
       id: 'sub_general_waste',
       name: 'General Waste',
-      tableColumns: [
-        { key: 'date', label: 'Date', type: 'date', sortable: true },
-        { key: 'weight', label: 'Weight (kg)', type: 'number', sortable: true },
-        {
-          key: 'disposal',
-          label: 'Disposal Method',
-          type: 'text',
-          sortable: true,
-        },
-        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
-      ],
+      moduleFields: generalWasteFields,
     },
     {
       id: 'sub_recycling',
       name: 'Recycling',
-      tableColumns: [
-        { key: 'material', label: 'Material', type: 'text', sortable: true },
-        { key: 'weight', label: 'Weight (kg)', type: 'number', sortable: true },
-        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
-      ],
+      moduleFields: recyclingFields,
     },
     {
       id: 'sub_organic',
       name: 'Organic Waste',
-      tableColumns: [
-        { key: 'date', label: 'Date', type: 'date', sortable: true },
-        { key: 'weight', label: 'Weight (kg)', type: 'number', sortable: true },
-        { key: 'treatment', label: 'Treatment', type: 'text', sortable: true },
-        { key: 'kg_co2eq', label: 'kg CO2-eq', type: 'number', sortable: true },
-      ],
+      moduleFields: organicFields,
     },
   ],
 };

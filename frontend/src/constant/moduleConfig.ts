@@ -1,55 +1,59 @@
+import { Threshold } from './modules';
+
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
-export type FormInputType =
+export type FieldType =
   | 'text'
   | 'number'
   | 'select'
   | 'date'
   | 'checkbox'
   | 'boolean';
-export type ColumnType = 'text' | 'number' | 'select' | 'date';
 
-export interface FormInput {
+export interface ModuleField {
   id: string;
-  label: string;
-  type: FormInputType;
-  icon?: string;
+  label?: string;
+  labelKey?: string;
+  type: FieldType;
   required?: boolean;
   placeholder?: string;
   min?: number;
   max?: number;
   options?: Array<{ value: string; label: string }>;
-  ratio?: string;
-}
-
-export interface TableColumn {
-  key: string;
-  label: string;
-  type: ColumnType;
+  // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
+  tooltip?: string;
   sortable?: boolean;
   inputTypeName?: string;
   editableInline?: boolean;
-  options?: Array<{ value: string; label: string }>;
+  readOnly?: boolean;
   align?: 'left' | 'right' | 'center';
+  ratio?: string;
+  icon?: string;
+  hideIn?: {
+    table?: boolean;
+    form?: boolean;
+  };
 }
 
 export interface Submodule {
   id: string;
   name: string;
   count?: number;
-  tableColumns: TableColumn[];
-  formInputs?: FormInput[];
+  moduleFields: ModuleField[];
 }
 
 export interface ModuleConfig {
   id: string;
   type: string;
-  name: string;
-  description: string;
+  name?: string;
+  description?: string;
+  hasDescription: boolean;
+  hasDescriptionSubtext?: boolean;
+  hasTooltip: boolean;
   hasSubmodules: boolean;
   isCollapsible?: boolean;
   formStructure: FormStructure;
-  formInputs?: FormInput[];
+  moduleFields?: ModuleField[];
   submodules?: Submodule[];
-  tableColumns?: TableColumn[];
+  threshold?: Threshold;
 }

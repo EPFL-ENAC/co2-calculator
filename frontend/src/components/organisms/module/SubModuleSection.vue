@@ -9,23 +9,35 @@
   >
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div v-if="submodule.tableColumns" class="q-mx-lg q-my-xl">
+      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
-          :columns="submodule.tableColumns"
+          :module-fields="submodule.moduleFields"
           :rows="rows"
           :loading="loading"
           :error="error"
-          :form-inputs="submodule.formInputs"
           :module-type="moduleType"
+          :submodule-type="submoduleType"
           :unit-id="unitId"
           :year="year"
+          :threshold="threshold"
         />
       </div>
       <q-separator />
-      <div v-if="submodule.formInputs">
+      <div v-if="submodule.moduleFields">
         <module-form
-          :inputs="submodule.formInputs"
-          :submodule-key="submoduleKey"
+          :fields="submodule.moduleFields"
+          :submodule-type="submoduleType"
+          :module-type="moduleType"
+          @submit="
+            (payload: Record<string, FieldValue>) =>
+              moduleStore.postItem(
+                moduleType,
+                unitId,
+                year,
+                submodule.id,
+                payload,
+              )
+          "
         />
       </div>
     </q-card-section>
@@ -38,6 +50,13 @@ import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
 import type { ModuleResponse, ModuleItem, Module } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
+interface Option {
+  label: string;
+  value: string;
+}
+type FieldValue = string | number | boolean | null | Option;
+const moduleStore = useModuleStore();
 
 const props = defineProps<{
   submodule: ConfigSubmodule;
@@ -45,8 +64,10 @@ const props = defineProps<{
   error?: string | null;
   data?: ModuleResponse | null;
   moduleType: Module;
+  submoduleType: string; // for now use string to allow dynamic submodule types
   unitId: string;
   year: string | number;
+  threshold?: import('src/constant/modules').Threshold;
 }>();
 
 const rows = computed(() => {
@@ -58,7 +79,7 @@ const rows = computed(() => {
   }));
 });
 
-const submoduleKey = computed(() => {
+const submoduleType = computed(() => {
   switch (props.submodule.id) {
     case 'sub_scientific':
       return 'scientific';

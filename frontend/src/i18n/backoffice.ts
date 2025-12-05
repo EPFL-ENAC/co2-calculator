@@ -96,8 +96,8 @@ export default {
     fr: 'Importation annuelle des données',
   },
   data_management_annual_data_import_hint: {
-    en: 'Annual import of emission factors and other data necessary for CO2-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
-    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO2-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV.",
+    en: 'Annual import of emission factors and other data necessary for CO₂-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
+    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO₂-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV.",
   },
   data_management_data_imports_count: {
     en: 'Data Imports ({count})',
@@ -394,7 +394,7 @@ export default {
     fr: '',
   },
   backoffice_reporting_generate_results_description: {
-    en: 'CO2-eq calculations with visual graphs and charts showing module completion, laboratory activity, and emissions breakdowns.',
+    en: 'CO₂-eq calculations with visual graphs and charts showing module completion, laboratory activity, and emissions breakdowns.',
     fr: '',
   },
   backoffice_reporting_generate_combined_title: {
@@ -402,7 +402,7 @@ export default {
     fr: '',
   },
   backoffice_reporting_generate_combined_description: {
-    en: 'Comprehensive report including both usage statistics and CO2-eq results, ideal for executive summaries and annual reporting.',
+    en: 'Comprehensive report including both usage statistics and CO₂-eq results, ideal for executive summaries and annual reporting.',
     fr: '',
   },
   backoffice_reporting_csv_validated: {

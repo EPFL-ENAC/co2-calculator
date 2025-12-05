@@ -3,20 +3,24 @@
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
-          <div v-if="!inputs || inputs.length === 0" class="text-subtle">
+          <div v-if="visibleFields.length === 0" class="text-subtle">
             No form configured
           </div>
 
           <div class="form-grid">
             <div
-              v-for="inp in inputs ?? []"
+              v-for="inp in visibleFields"
               :key="inp.id"
-              :class="['form-field', getGridClass(inp.ratio)]"
+              :class="['form-field', getGridClass(inp.ratio ?? inp?.ratio)]"
             >
               <component
                 :is="fieldComponent(inp.type)"
                 v-model="form[inp.id]"
-                :label="inp.label"
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    moduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
                 :placeholder="inp.placeholder"
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="
@@ -92,6 +96,7 @@
             />
             <q-btn
               outline
+              disabled
               icon="o_add_comment"
               color="primary"
               :label="$t('common_add_with_note_button')"
@@ -108,27 +113,34 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, ref } from 'vue';
-import type { FormInput } from 'src/constant/moduleConfig';
+import { reactive, watch, ref, computed } from 'vue';
+import type { ModuleField } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t: $t } = useI18n();
 
+interface Option {
+  label: string;
+  value: string;
+}
 type FieldValue = string | number | boolean | null | Option;
 import { usePowerFactorsStore } from 'src/stores/powerFactors';
+import type { Module } from 'src/constant/modules';
 
 const props = defineProps<{
-  inputs?: FormInput[] | null;
+  fields?: ModuleField[] | null;
   rowData?: Record<string, FieldValue> | null;
-  submoduleKey?: 'scientific' | 'it' | 'other';
+  submoduleType?: 'scientific' | 'it' | 'other';
+  moduleType: Module | string;
 }>();
+
+const visibleFields = computed(() =>
+  (props.fields ?? []).filter((f) => !f.hideIn?.form),
+);
 const emit = defineEmits<{
-  (
-    e: 'submit',
-    payload: Record<string, string | number | boolean | null | Option>,
-  ): void;
+  (e: 'submit', payload: Record<string, FieldValue>): void;
   (e: 'edit', payload: Record<string, FieldValue> | null): void;
 }>();
 const form = reactive<Record<string, FieldValue>>({});
@@ -138,13 +150,28 @@ const dynamicOptions = reactive<
 >({});
 const loadingClasses = ref(false);
 const loadingSubclasses = ref(false);
+const loadingPowerFactor = ref(false);
+
+function validateUsage(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return { valid: false, parsed: null, error: 'Required' };
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n))
+    return { valid: false, parsed: null, error: 'Number required' };
+  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
+  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
+  return { valid: true, parsed: n, error: null };
+}
 
 async function loadClassOptions() {
-  if (!props.submoduleKey) return;
+  if (!props.submoduleType) return;
   loadingClasses.value = true;
   try {
     const store = usePowerFactorsStore();
-    dynamicOptions['class'] = await store.fetchClassOptions(props.submoduleKey);
+    dynamicOptions['class'] = await store.fetchClassOptions(
+      props.submoduleType,
+    );
   } catch {
     dynamicOptions['class'] = [];
   } finally {
@@ -152,13 +179,8 @@ async function loadClassOptions() {
   }
 }
 
-interface Option {
-  label: string;
-  value: string;
-}
-
 async function loadSubclassOptions(selectedClass: Option | null) {
-  if (!props.submoduleKey || !selectedClass) {
+  if (!props.submoduleType || !selectedClass) {
     dynamicOptions['sub_class'] = [];
     return;
   }
@@ -166,13 +188,49 @@ async function loadSubclassOptions(selectedClass: Option | null) {
   try {
     const store = usePowerFactorsStore();
     dynamicOptions['sub_class'] = await store.fetchSubclassOptions(
-      props.submoduleKey,
+      props.submoduleType,
       selectedClass.value,
     );
   } catch {
     dynamicOptions['sub_class'] = [];
   } finally {
     loadingSubclasses.value = false;
+  }
+}
+
+async function loadPowerFactor() {
+  if (!props.submoduleType) return;
+  const store = usePowerFactorsStore();
+
+  const rawClass = form['class'] as Option | string | null;
+  const classValue =
+    rawClass && typeof rawClass === 'object'
+      ? rawClass.value
+      : (rawClass as string | null);
+
+  if (!classValue) return;
+
+  const rawSubClass = form['sub_class'] as Option | string | null;
+  const subClassValue =
+    rawSubClass && typeof rawSubClass === 'object'
+      ? rawSubClass.value
+      : (rawSubClass as string | null);
+
+  loadingPowerFactor.value = true;
+  try {
+    const pf = await store.fetchPowerFactor(
+      props.submoduleType,
+      classValue,
+      subClassValue,
+    );
+    if (pf) {
+      form['act_power'] = pf.active_power_w as unknown as FieldValue;
+      form['pas_power'] = pf.standby_power_w as unknown as FieldValue;
+    }
+  } catch {
+    // silently ignore, user can still fill manually
+  } finally {
+    loadingPowerFactor.value = false;
   }
 }
 
@@ -184,13 +242,12 @@ function init() {
     });
     return;
   }
-  (props.inputs ?? []).forEach((i) => {
+  visibleFields.value.forEach((i) => {
+    const effectiveType = i.type;
     if (props.rowData && props.rowData[i.id] !== undefined) {
-      // Edit mode: populate from rowData
       form[i.id] = props.rowData[i.id];
     } else {
-      // Add mode: initialize with defaults
-      switch (i.type) {
+      switch (effectiveType) {
         case 'checkbox':
         case 'boolean':
           form[i.id] = false;
@@ -208,17 +265,19 @@ function init() {
 
 // re-init when inputs or rowData change (e.g. dynamic config or edit mode)
 watch(
-  () => [props.inputs, props.rowData],
+  () => [props.fields, props.rowData],
   () => init(),
   { deep: true, immediate: true },
 );
 
 watch(
-  () => props.submoduleKey,
+  () => props.submoduleType,
   async () => {
     await loadClassOptions();
     if ('sub_class' in form) form['sub_class'] = '';
     dynamicOptions['sub_class'] = [];
+    if ('act_power' in form) form['act_power'] = null;
+    if ('pas_power' in form) form['pas_power'] = null;
   },
   { immediate: true },
 );
@@ -228,6 +287,14 @@ watch(
   async (val) => {
     await loadSubclassOptions(val);
     if ('sub_class' in form) form['sub_class'] = '';
+    await loadPowerFactor();
+  },
+);
+
+watch(
+  () => form['sub_class'] as Option | null,
+  async () => {
+    await loadPowerFactor();
   },
 );
 
@@ -243,17 +310,29 @@ function fieldComponent(type: string): Component {
   }
 }
 
-function validateField(i: FormInput) {
+function validateField(i: ModuleField) {
   const v = form[i.id];
+  const effectiveType = i.type;
   errors[i.id] = null;
+
+  if (i.id === 'act_usage' || i.id === 'pas_usage') {
+    const validation = validateUsage(v);
+    if (!validation.valid) {
+      errors[i.id] = validation.error;
+      return false;
+    }
+    form[i.id] = validation.parsed as FieldValue;
+    return true;
+  }
+
   if (i.required) {
-    if (i.type === 'checkbox' || i.type === 'boolean') {
+    if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
       if (!v) errors[i.id] = 'Required';
     } else if (v === '' || v === null || v === undefined) {
       errors[i.id] = 'Required';
     }
   }
-  if (i.type === 'number' && v !== '' && v !== null && v !== undefined) {
+  if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
     const n = Number(v);
     if (Number.isNaN(n)) errors[i.id] = 'Must be a number';
     if (i.min !== undefined && n < i.min) errors[i.id] = `Min ${i.min}`;
@@ -264,7 +343,7 @@ function validateField(i: FormInput) {
 
 function validateForm() {
   let ok = true;
-  (props.inputs ?? []).forEach((i) => {
+  visibleFields.value.forEach((i) => {
     if (!validateField(i)) ok = false;
   });
   return ok;
@@ -275,9 +354,10 @@ function onSubmit() {
   // Normalize payload types (numbers remain numbers, booleans kept, empty -> null/string)
   const payload: Record<string, string | number | boolean | null | Option> = {};
   Object.keys(form).forEach((k) => {
-    const cfg = (props.inputs ?? []).find((i) => i.id === k);
+    const cfg = visibleFields.value.find((i) => i.id === k);
+    const effectiveType = cfg?.type;
     const val = form[k];
-    if (cfg?.type === 'number') {
+    if (effectiveType === 'number') {
       payload[k] = val === null || val === '' ? null : Number(val);
     } else {
       payload[k] = val;
@@ -288,9 +368,11 @@ function onSubmit() {
 }
 
 function reset() {
-  (props.inputs ?? []).forEach((i) => {
-    if (i.type === 'checkbox' || i.type === 'boolean') form[i.id] = false;
-    else if (i.type === 'number') form[i.id] = null;
+  visibleFields.value.forEach((i) => {
+    const effectiveType = i.type;
+    if (effectiveType === 'checkbox' || effectiveType === 'boolean')
+      form[i.id] = false;
+    else if (effectiveType === 'number') form[i.id] = null;
     else form[i.id] = '';
     errors[i.id] = null;
   });

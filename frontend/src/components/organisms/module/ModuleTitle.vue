@@ -16,23 +16,33 @@
           }}</span>
         </div>
         <q-icon
+          v-if="hasTooltip"
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer"
           :aria-label="$t('module-info-label')"
         />
-        <!-- tooltip width should be token related -->
       </div>
 
-      <p class="text-body2 q-mb-none">
+      <p v-if="hasDescription" class="text-body2 q-mb-none">
         {{ $t(`${type}-description`) }}
       </p>
-      <div class="absolute-top-right q-mr-md q-mt-md"></div>
-      <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+      <div
+        v-if="hasDescriptionSubtext"
+        class="text-caption text-grey-6 q-mt-sm q-mb-none"
+      >
+        {{ $t(`${type}-title-subtext`) }}
+      </div>
+      <q-tooltip
+        v-if="hasTooltip"
+        anchor="center right"
+        self="top right"
+        class="u-tooltip"
+      >
         <div class="text-h5 text-weight-medium q-mb-sm">
           {{ $t(`${type}-title-tooltip-title`) }}
         </div>
-        {{ $t(`${type}-title-tooltip-description`) }}
+        {{ $t(`${type}-title-subtext`) }}
       </q-tooltip>
     </q-card-section>
   </q-card>
@@ -43,8 +53,21 @@ import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { Module } from 'src/constant/modules';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
+/*
+i18n keys used in this component:
+- module-info-label
+- {module-type}
+- {module-type}-description
+- {module-type}-subtext
+- {module-type}-title-tooltip-title
+- {module-type}-title-subtext
+*/
+
 defineProps<{
   type: Module;
+  hasTooltip: boolean;
+  hasDescription: boolean;
+  hasDescriptionSubtext?: boolean;
 }>();
 </script>
 <style scoped lang="scss">

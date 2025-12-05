@@ -13,7 +13,7 @@ export default {
     en: 'About Equipment Electric Consumption',
     fr: 'À propos de la consommation électrique des équipements',
   },
-  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-description`]: {
+  [`${MODULES.EquipmentElectricConsumption}-title-subtext`]: {
     en: `This module allows you to estimate the electrical consumption of the scientific, IT, and other equipment in your unit. The equipment list comes from the equipment inventory carried out by your unit for the faculty. Please fill in the following columns:
 Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task. If your equipement active or standby use is different from the one used by default, please contact xxx.
 Subclass: Choose the subclass for equipment where this information is necessary.
@@ -26,5 +26,33 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
   [`${MODULES.EquipmentElectricConsumption}-charts-title`]: {
     en: 'Charts',
     fr: 'Graphiques',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name`]: {
+    en: '{moduleTitle} - Name',
+    fr: '',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-scientific`]: {
+    en: 'Scientific Equipment',
+    fr: '',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-it`]: {
+    en: 'IT Equipment',
+    fr: '',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-other`]: {
+    en: 'Other Equipment',
+    fr: '',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.power`]: {
+    en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
+    fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.emission`]: {
+    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
+    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
+  },
+  equipment_edit_disclaimer: {
+    en: `Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.`,
+    fr: `Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.`,
   },
 } as const;

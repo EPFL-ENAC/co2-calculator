@@ -16,3 +16,14 @@ class PowerFactorService:
         self, session: AsyncSession, submodule: str, equipment_class: str
     ) -> List[str]:
         return await self.repo.list_subclasses(session, submodule, equipment_class)
+
+    async def get_power_factor(
+        self,
+        session: AsyncSession,
+        submodule: str,
+        equipment_class: str,
+        sub_class: str | None,
+    ):
+        return await self.repo.get_power_factor(
+            session, submodule, equipment_class, sub_class
+        )

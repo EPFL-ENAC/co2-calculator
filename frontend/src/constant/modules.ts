@@ -48,6 +48,8 @@ export interface ModuleItem {
   act_power?: number;
   pas_power?: number;
   kg_co2eq?: number;
+  status?: string;
+  is_new?: boolean;
   id?: string;
 }
 

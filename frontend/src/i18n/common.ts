@@ -186,8 +186,8 @@ export default {
     fr: "Progression de l'année dernière",
   },
   home_title: {
-    en: 'Welcome to the CO2 Calculator',
-    fr: 'Bienvenue dans le Calculateur de CO2',
+    en: 'Welcome to the CO₂ Calculator',
+    fr: 'Bienvenue dans le Calculateur de CO₂',
   },
   home_intro_1: {
     en: "The Calculator CO₂ allows you to assess your laboratory's carbon footprint following the Greenhouse Gas (GHG) Protocol, the international standard for calculating greenhouse gas emissions.",
@@ -238,8 +238,8 @@ export default {
     fr: 'Visualisation Voire',
   },
   home_results_subtitle: {
-    en: 'Annual CO2 Assessment 2024',
-    fr: 'Bilan CO2 Annuel 2024',
+    en: 'Annual CO₂ Assessment 2024',
+    fr: 'Bilan CO₂ Annuel 2024',
   },
   home_results_btn: {
     en: 'View Full Results',
@@ -269,12 +269,16 @@ export default {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-éq',
   },
+  kgco2eq: {
+    en: 'kg CO₂-eq',
+    fr: 'kg CO₂-éq',
+  },
   home_simulations_units: {
     en: 'Simulations',
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total Unit Carbon Footprint',
+    en: 'Total {type} Footprint',
     fr: '',
   },
   common_filter_all: {
@@ -301,6 +305,10 @@ export default {
     en: 'Search',
     fr: 'Rechercher',
   },
+  common_search_placeholder: {
+    en: 'Search rows',
+    fr: 'Rechercher dans le tableau',
+  },
   common_show_all_rows: {
     en: 'View Full Table',
     fr: 'Voir tout',
@@ -316,6 +324,14 @@ export default {
   common_download_csv_template: {
     en: 'Download CSV Template',
     fr: 'Télécharger le modèle CSV',
+  },
+  common_upload_csv_mock: {
+    en: 'CSV upload coming soon (mocked UI only)',
+    fr: 'Import CSV à venir (interface simulée)',
+  },
+  common_download_csv_template_mock: {
+    en: 'CSV template download (mocked)',
+    fr: 'Téléchargement du modèle CSV (simulé)',
   },
   common_export_as_csv: {
     en: 'Export as CSV',

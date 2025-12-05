@@ -69,33 +69,72 @@ export const useModuleStore = defineStore('modules', () => {
       state.loading = false;
     }
   }
-
-  async function createEquipment(
+  interface Option {
+    label: string;
+    value: string;
+  }
+  type FieldValue = string | number | boolean | null | Option;
+  async function postItem(
     moduleType: Module,
-    unit: string,
-    year: string,
-    payload: Record<string, string | number | boolean | null>,
+    unitId: string,
+    year: string | number,
+    submoduleId: string,
+    payload: Record<string, FieldValue>,
   ) {
     state.error = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}/equipment`;
-      // Backend validates body.unit_id equals path unit
-      const body = { unit_id: unit, ...payload } as Record<string, unknown>;
+      if (typeof year === 'number') {
+        year = year.toString();
+      }
+
+      const path = `${modulePath(moduleType, unitId, year)}/equipment`;
+      const normalized: Record<string, string | number | boolean | null> = {
+        unit_id: unitId,
+      };
+
+      Object.entries(payload).forEach(([key, raw]) => {
+        let value: unknown = raw;
+        if (
+          value &&
+          typeof value === 'object' &&
+          'value' in (value as Option) &&
+          typeof (value as Option).value === 'string'
+        ) {
+          value = (value as Option).value;
+        }
+        normalized[key] =
+          value === undefined ? null : (value as string | number | boolean | null);
+      });
+
+      // Backend expects `submodule` (scientific|it|other), not `submodule_id`
+      if (submoduleId) {
+        const cleaned = submoduleId.startsWith('sub_')
+          ? submoduleId.replace('sub_', '')
+          : submoduleId;
+        normalized.submodule = cleaned as string;
+      }
+
+      // Fallback category if not provided by the form
+      if (!('category' in normalized) || !normalized.category) {
+        normalized.category = (normalized.class as string) || 'Uncategorized';
+      }
+
+      const body = normalized;
       await api.post(path, { json: body }).json();
-      await getModuleData(moduleType, unit, year);
+      await getModuleData(moduleType, unitId, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
-      throw err; // let caller handle UI feedback
+      throw err;
     }
   }
 
-  async function updateEquipment(
+  async function patchItem(
     moduleType: Module,
     unit: string,
     year: string,
     equipmentId: number,
-    payload: Record<string, string | number | boolean | null>,
+    payload: Record<string, FieldValue>,
   ) {
     state.error = null;
     try {
@@ -111,7 +150,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function deleteEquipment(
+  async function deleteItem(
     moduleType: Module,
     unit: string,
     year: string,
@@ -133,9 +172,9 @@ export const useModuleStore = defineStore('modules', () => {
 
   return {
     getModuleData,
-    createEquipment,
-    updateEquipment,
-    deleteEquipment,
+    postItem,
+    patchItem,
+    deleteItem,
     state,
   };
 });

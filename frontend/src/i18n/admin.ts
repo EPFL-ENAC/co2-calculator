@@ -6,7 +6,7 @@ export default {
     fr: 'Gestion des utilisateurs',
   },
   [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]: {
-    en: 'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO2 calculator.',
+    en: 'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO₂ calculator.',
     fr: "Gérer les comptes utilisateurs, assigner des rôles et des permissions, surveiller l'activité des utilisateurs, et contrôler l'accès au calculateur CO₂.",
   },
   [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: {

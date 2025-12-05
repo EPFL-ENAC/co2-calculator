@@ -1,6 +1,6 @@
 <template>
-  <div class="q-mb-md flex justify-between items-center">
-    <div>
+  <div class="q-mb-md flex justify-between items-center wrap">
+    <div class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -9,7 +9,8 @@
         unelevated
         no-caps
         size="sm"
-        class="text-weight-medium q-mr-sm"
+        class="text-weight-medium"
+        @click="onUploadCsv"
       />
       <q-btn
         icon="download"
@@ -19,32 +20,60 @@
         no-caps
         size="sm"
         class="text-weight-medium"
+        @click="onDownloadTemplate"
       />
     </div>
-    <div>
-      <q-btn
-        icon="o_add_circle"
-        color="accent"
-        :label="$t('common_add_button')"
-        unelevated
-        no-caps
-        size="sm"
-        class="text-weight-medium"
-        @click="openCreateDialog"
-      />
-    </div>
+    <q-input
+      v-model="filterTerm"
+      dense
+      outlined
+      debounce="200"
+      class="table-search"
+      :placeholder="$t('common_search_placeholder') || 'Search'"
+      clearable
+      clear-icon="o_close"
+      prefix-icon="o_search"
+    >
+      <template #prepend>
+        <q-icon name="o_search" color="grey-6" size="16px" />
+      </template>
+    </q-input>
   </div>
   <q-table
     class="co2-table border"
     :columns="qCols"
-    :rows="rows"
+    :rows="localRows"
     row-key="id"
     :loading="loading"
     :error="error"
+    dense
     flat
     no-data-label="No items"
     :pagination="pagination"
+    :filter="filterTerm"
   >
+    <template #header="scope">
+      <q-tr :props="scope">
+        <q-th
+          v-for="col in scope.cols"
+          :key="col.name"
+          :props="scope"
+          :align="col.align"
+          class="q-pa-md"
+        >
+          <span>{{ col.label }}</span>
+          <q-icon
+            v-if="col.tooltip"
+            name="o_info"
+            size="16px"
+            color="grey-6"
+            class="q-ml-xs"
+          >
+            <q-tooltip class="tooltip">{{ $t(col.tooltip) }}</q-tooltip>
+          </q-icon>
+        </q-th>
+      </q-tr>
+    </template>
     <template #pagination="scope">
       <q-btn
         icon="chevron_left"
@@ -67,43 +96,41 @@
       />
     </template>
     <template #body="slotProps">
-      <q-tr :props="{ props: slotProps }" class="q-tr--no-hover">
+      <q-tr
+        :props="{ props: slotProps }"
+        class="q-tr--no-hover"
+        :class="rowClasses(slotProps.row)"
+      >
         <q-td
           v-for="col in qCols"
           :key="col.name"
           :props="slotProps"
           :align="col.align"
+          :class="cellClasses(slotProps.row, col)"
         >
           <template v-if="col.editableInline">
             <component
               :is="col.inputComponent"
               v-model="slotProps.row[col.field]"
+              :type="col.type === 'number' ? 'number' : undefined"
               :options="col.options || []"
-              dense
+              :dense="true"
               hide-bottom-space
               outlined
               class="inline-input"
+              :error="!!getError(slotProps.row, col)"
+              :error-message="getError(slotProps.row, col)"
+              @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
           <template v-else-if="col.name === 'action'">
-            <!-- Placeholder for action buttons, etc. -->
-            <q-btn
-              icon="o_edit"
-              color="grey-4"
-              text-color="primary"
-              unelevated
-              no-caps
-              outline
-              size="xs"
-              class="square-button q-mr-sm"
-              @click="openEditDialog(slotProps.row)"
-            />
             <q-btn
               icon="o_delete"
               color="grey-4"
               text-color="primary"
               unelevated
               no-caps
+              dense
               outline
               square
               size="xs"
@@ -117,7 +144,18 @@
             />
           </template>
           <template v-else>
-            {{ renderCell(slotProps.row, col) }}
+            <div class="cell-content">
+              <span>{{ renderCell(slotProps.row, col) }}</span>
+              <q-badge
+                v-if="col.name === 'name' && isNew(slotProps.row)"
+                color="accent"
+                class="q-ml-xs"
+                rounded
+                outline
+                dense
+                label="New"
+              />
+            </div>
           </template>
         </q-td>
       </q-tr>
@@ -149,10 +187,17 @@
       </q-card-section>
       <q-separator />
       <q-card-section class="q-pa-none">
-        <ModuleForm
-          :inputs="editInputs"
+        <div class="q-pa-md text-body2 text-grey-7">
+          {{
+            $t('equipment_edit_disclaimer') ||
+            "Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire. Your change won't be reflected in the DB. If you change power, contact us."
+          }}
+        </div>
+        <module-form
+          :fields="editInputs"
           :row-data="editRowData"
-          :submodule-key="moduleType as ModuleSubType"
+          :submodule-type="submoduleType"
+          :module-type="moduleType"
           @submit="onFormSubmit"
           @edit="editDialogOpen = false"
         />
@@ -218,33 +263,40 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
-import type { TableColumn, FormInput } from 'src/constant/moduleConfig';
+import type { ModuleField } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
-import { QInput, QSelect } from 'quasar';
+import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
-import type { Module } from 'src/constant/modules';
+import type { Module, Threshold } from 'src/constant/modules';
+import { usePowerFactorsStore } from 'src/stores/powerFactors';
 
 const { t: $t } = useI18n();
+const $q = useQuasar();
 
 const editDialogOpen = ref(false);
-const editInputs = ref<FormInput[] | null>(null);
+const editInputs = ref<ModuleField[] | null>(null);
 type FieldValue = string | number | boolean | null;
 const editRowData = ref<Record<string, FieldValue> | null>(null);
 
 type RowValue = string | number | boolean | null | undefined;
-type ModuleRow = Record<string, RowValue> & { id: string | number };
+type ModuleRow = Record<string, RowValue> & {
+  id: string | number;
+  is_new?: boolean;
+  status?: string;
+};
 
 type ModuleSubType = 'scientific' | 'it' | 'other';
 const props = defineProps<{
-  columns?: TableColumn[] | null;
+  moduleFields?: ModuleField[] | null;
   rows?: ModuleRow[];
   loading?: boolean;
   error?: string | null;
-  formInputs?: FormInput[] | null;
   moduleType: Module | string;
+  submoduleType?: ModuleSubType;
   unitId: string;
   year: string | number;
+  threshold?: Threshold;
 }>();
 
 const pagination = ref({
@@ -252,6 +304,7 @@ const pagination = ref({
   rowsPerPage: 20,
 });
 
+const filterTerm = ref('');
 const confirmDelete = ref(false);
 const ItemName = ref<string>('');
 
@@ -265,130 +318,83 @@ watch(editDialogOpen, (isOpen) => {
   }
 });
 
-// Component map to convert strings to component references
-const componentMap = {
-  QInput,
-  QSelect,
-};
 const deleteItemName = ref<string>('');
 const deleteRowId = ref<number | null>(null);
 
-// simple local rows by default (can be passed via prop)
-// const rows = ref(props.rows ?? []);
+const localRows = ref<ModuleRow[]>(props.rows ?? []);
+watch(
+  () => props.rows,
+  (val) => {
+    localRows.value = Array.isArray(val) ? val.map((r) => ({ ...r })) : [];
+  },
+  { immediate: true, deep: true },
+);
 
-const qCols = computed(() => {
-  const baseCols = (props.columns ?? []).map((c) => ({
-    name: c.key,
-    label: c.unit ? `${c.label} (${c.unit})` : c.label,
-    field: c.key,
-    sortable: !!c.sortable,
-    align: c.align ?? 'left',
-    inputComponent: c.inputTypeName ? componentMap[c.inputTypeName] : QInput,
-    editableInline: !!c.editableInline,
-    options: c.options || undefined,
-  }));
+type TableViewColumn = {
+  name: string;
+  label: string;
+  field: string;
+  sortable: boolean;
+  align: 'left' | 'right' | 'center';
+  inputComponent: typeof QInput | typeof QSelect;
+  editableInline: boolean;
+  options?: Array<{ value: string; label: string }>;
+  tooltip?: string;
+  type: ModuleField['type'];
+};
+
+const qCols = computed<TableViewColumn[]>(() => {
+  const baseCols = (props.moduleFields ?? [])
+    .filter((f) => !f.hideIn?.table)
+    .map((f) => {
+      const unit = f.unit;
+      const labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      const sortable = f.sortable ?? false;
+      const align = f.align ?? 'left';
+      const tooltip = f.tooltip;
+      const readOnly = f.readOnly ?? false;
+      const editableInline = !!(f.editableInline ?? false) && !readOnly;
+      const options = f.options ?? undefined;
+      const inputComponent: typeof QInput | typeof QSelect =
+        f.type === 'select' ? QSelect : QInput;
+      return {
+        name: f.id,
+        label: labelText,
+        field: f.id,
+        sortable,
+        align,
+        inputComponent,
+        editableInline,
+        options,
+        tooltip,
+        type: f.type,
+      };
+    });
 
   baseCols.push({
     name: 'action',
-    label: $t('common_actions'), // Or use $t('common_actions') for translation
+    label: $t('common_actions'),
     field: 'action',
     align: 'right',
     sortable: false,
     inputComponent: QInput,
     editableInline: false,
     options: undefined,
+    tooltip: undefined,
+    type: 'text',
   });
   return baseCols;
 });
 
-function renderCell(row: ModuleRow, col: { field: string }) {
+function renderCell(row: ModuleRow, col: { field: string; name: string }) {
   const val = row[col.field];
-  if (val === undefined || val === null) return '-';
+  if (val === undefined || val === null || val === '') return '-';
+  if (col.name === 'kg_co2eq') {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return '-';
+    return n.toFixed(2);
+  }
   return String(val);
-}
-
-// function mapRowDataToFormInputs(
-//   row: ModuleRow,
-//   columns: TableColumn[] | null | undefined,
-//   formInputs: FormInput[] | null | undefined,
-// ): Record<string, RowValue> {
-//   if (!formInputs || !columns) return { ...row };
-
-//   const mapped: Record<string, RowValue> = {};
-
-//   formInputs.forEach((formInput) => {
-//     // Try direct match first
-//     if (row[formInput.id] !== undefined) {
-//       mapped[formInput.id] = row[formInput.id];
-//       return;
-//     }
-
-//     // Find column where form input ID ends with column key (e.g., 'sci_name' -> 'name')
-//     const col = columns.find((c) => formInput.id.endsWith(`_${c.key}`));
-//     if (col && row[col.key] !== undefined) {
-//       mapped[formInput.id] = row[col.key];
-//     }
-//   });
-
-//   return mapped;
-// }
-
-function onFormSubmit(
-  payload: Record<string, string | number | boolean | null>,
-) {
-  const store = useModuleStore();
-  const moduleType = props.moduleType as Module;
-  const unit = props.unitId;
-  const year = String(props.year);
-  const idRaw = editRowData.value?.id;
-  const equipmentId = Number(idRaw);
-  const isEdit = Number.isFinite(equipmentId);
-  payload.act_usage = Number(payload.act_usage);
-  payload.pas_usage = Number(payload.pas_usage);
-  const p = isEdit
-    ? store.updateEquipment(moduleType, unit, year, equipmentId, payload)
-    : store.createEquipment(moduleType, unit, year, payload);
-
-  p.finally(() => {
-    editDialogOpen.value = false;
-    editRowData.value = null;
-  });
-}
-
-function openEditDialog(row: ModuleRow) {
-  editRowData.value = row;
-  editInputs.value =
-    props.columns?.map((c) => ({
-      id: c.key,
-      label: c.label,
-      type: 'text',
-      required: false,
-    })) || null;
-  editDialogOpen.value = true;
-}
-
-// function openEditDialog(row: ModuleRow) {
-//   ItemName.value = getItemName(row);
-//   // Set inputs first, then rowData, so form initializes correctly
-//   editInputs.value = props.formInputs || null;
-//   // Map row data keys to form input IDs
-//   editRowData.value = mapRowDataToFormInputs(
-//     row,
-//     props.columns,
-//     props.formInputs,
-//   );
-// }
-
-function openCreateDialog() {
-  editRowData.value = null;
-  editInputs.value =
-    props.columns?.map((c) => ({
-      id: c.key,
-      label: c.label,
-      type: 'text',
-      required: false,
-    })) || null;
-  editDialogOpen.value = true;
 }
 
 function getItemName(row: ModuleRow): string {
@@ -400,6 +406,185 @@ function getRowId(row: ModuleRow): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const inlineErrors = ref<Record<string, string>>({});
+function errorKey(row: ModuleRow, col: { name: string }) {
+  return `${row.id}-${col.name}`;
+}
+function setError(row: ModuleRow, col: { name: string }, msg: string | null) {
+  const key = errorKey(row, col);
+  if (!msg) delete inlineErrors.value[key];
+  else inlineErrors.value[key] = msg;
+}
+function getError(row: ModuleRow, col: { name: string }) {
+  return inlineErrors.value[errorKey(row, col)] ?? '';
+}
+
+function validateUsage(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return { valid: false, parsed: null, error: 'Required' };
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n))
+    return { valid: false, parsed: null, error: 'Number required' };
+  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
+  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
+  return { valid: true, parsed: n, error: null };
+}
+
+async function commitInline(
+  row: ModuleRow,
+  col: { name: string; field: string; editableInline?: boolean },
+) {
+  if (!col.editableInline) return;
+  const rawVal = row[col.field];
+  const validation = validateUsage(rawVal);
+  if (!validation.valid) {
+    setError(row, col, validation.error);
+    return;
+  }
+  setError(row, col, null);
+  const moduleType = props.moduleType as Module;
+  const store = useModuleStore();
+  const id = getRowId(row);
+  if (id == null) return;
+  try {
+    await store.patchItem(moduleType, props.unitId, String(props.year), id, {
+      [col.field]: validation.parsed,
+    });
+  } catch (err) {
+    setError(row, col, err instanceof Error ? err.message : 'Save failed');
+  }
+}
+
+function rowClasses(row: ModuleRow) {
+  return {
+    'row-new': isNew(row),
+    'row-incomplete': !isComplete(row),
+  };
+}
+
+function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
+  if (col.name === 'kg_co2eq') {
+    if (row.status && String(row.status).toLowerCase() !== 'in service')
+      return '';
+    const thresholdVal = props.threshold?.value ?? null;
+    const val = Number(row[col.field]);
+    if (thresholdVal !== null && Number.isFinite(val) && val > thresholdVal) {
+      return 'text-negative';
+    }
+  }
+  return '';
+}
+
+function isNew(row: ModuleRow) {
+  return Boolean(row.is_new);
+}
+
+function isComplete(row: ModuleRow) {
+  const required = [
+    'name',
+    'class',
+    'act_usage',
+    'pas_usage',
+    'act_power',
+    'pas_power',
+  ];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function onFormSubmit(
+  payload: Record<string, string | number | boolean | null>,
+) {
+  const store = useModuleStore();
+  const pfStore = usePowerFactorsStore();
+  const moduleType = props.moduleType as Module;
+  const unit = props.unitId;
+  const year = String(props.year);
+  const idRaw = editRowData.value?.id;
+  const equipmentId = Number(idRaw);
+  const isEdit = Number.isFinite(equipmentId);
+  const submoduleId = '';
+
+  // Normalize class value
+  const classValRaw = payload.class as string | { value?: string } | null;
+  const classValCandidate =
+    classValRaw && typeof classValRaw === 'object'
+      ? (classValRaw.value ?? '')
+      : (classValRaw ?? '');
+  const classVal = classValCandidate ? String(classValCandidate) : '';
+
+  const basePayload: Record<string, FieldValue> = {
+    ...payload,
+    class: classVal,
+  };
+
+  // Auto-populate power factors if we know submodule and class
+  const submoduleKey = props.submoduleType as
+    | 'scientific'
+    | 'it'
+    | 'other'
+    | undefined;
+  const currentRow = localRows.value.find((r) => Number(r.id) === equipmentId);
+  const subClassVal = currentRow?.sub_class
+    ? String(currentRow.sub_class)
+    : undefined;
+
+  const maybeFetchPower = async () => {
+    if (!submoduleKey || !classVal) return null;
+    try {
+      return await pfStore.fetchPowerFactor(
+        submoduleKey,
+        String(classVal),
+        subClassVal,
+      );
+    } catch (err) {
+      console.warn('Failed to fetch power factor', err);
+      return null;
+    }
+  };
+
+  const perform = async () => {
+    const pf = await maybeFetchPower();
+    if (pf) {
+      basePayload.act_power = pf.active_power_w;
+      basePayload.pas_power = pf.standby_power_w;
+    }
+    basePayload.act_usage = Number(payload.act_usage);
+    basePayload.pas_usage = Number(payload.pas_usage);
+
+    const p = isEdit
+      ? store.patchItem(moduleType, unit, year, equipmentId, basePayload)
+      : store.postItem(moduleType, unit, year, submoduleId, basePayload);
+
+    await p.finally(() => {
+      editDialogOpen.value = false;
+      editRowData.value = null;
+    });
+  };
+
+  perform();
+}
+
+function onUploadCsv() {
+  $q.notify({
+    color: 'info',
+    message: $t('common_upload_csv_mock') || 'CSV upload coming soon (mocked)',
+    position: 'top',
+  });
+}
+
+function onDownloadTemplate() {
+  $q.notify({
+    color: 'info',
+    message:
+      $t('common_download_csv_template_mock') ||
+      'CSV template download (mocked)',
+    position: 'top',
+  });
+}
+
 function onConfirmDelete() {
   const store = useModuleStore();
   if (deleteRowId.value == null) {
@@ -409,11 +594,37 @@ function onConfirmDelete() {
   const moduleType = props.moduleType as Module;
   const unit = props.unitId;
   const year = String(props.year);
-  store
-    .deleteEquipment(moduleType, unit, year, deleteRowId.value)
-    .finally(() => {
-      confirmDelete.value = false;
-      deleteRowId.value = null;
-    });
+  store.deleteItem(moduleType, unit, year, deleteRowId.value).finally(() => {
+    confirmDelete.value = false;
+    deleteRowId.value = null;
+  });
 }
 </script>
+
+<style scoped lang="scss">
+.table-search {
+  min-width: 240px;
+}
+
+.inline-input {
+  width: 120px;
+}
+
+.row-new {
+  border-left: 4px solid #f2c037;
+}
+
+.row-incomplete {
+  background: #fff4e5;
+}
+
+.cell-content {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip {
+  max-width: 280px;
+  white-space: normal;
+}
+</style>

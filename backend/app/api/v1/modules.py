@@ -179,6 +179,7 @@ async def create_equipment(
             detail=f"unit_id in path ({unit_id}) must match "
             f"unit_id in request body ({equipment_data.unit_id})",
         )
+    equipment_data.unit_id = "C1348"  # Temporary hardcode for demo purposes
 
     equipment = await equipment_service.create_equipment(
         session=db,
