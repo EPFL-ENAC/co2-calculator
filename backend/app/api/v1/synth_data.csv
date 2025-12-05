@@ -1,0 +1,53 @@
+Cost Center,Cost Center FR Description,Name 1,Category,Class,Service Date,Status
+C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,Cameras,12/7/2024,In service
+C1348,UP du Prof. Hummel,Audio system,Audiovisual,Other audiovisual equipment,10/2/2024,In service
+C1348,Unité du Prof. Lemaitre,"Dell P2721Q (3840 x 2160 pixels, 27 "")",Audiovisual,Screens,8/11/2024,In service
+C1348,Unité du Prof. Lemaitre,ARMOIRE CLIMATISEE LIEBHERR 210924,Exploitat. and constr.material,Special furniture,1/1/2024,In service
+C1348,Laboratoire de nanofluidique quantique,"HPT-200 bench-top plasma unit, comprisin",Infrastructure,Other infrastructure equipment,10/1/2024,In service
+C1348,Unité du Prof. Lemaitre,Nanoject II,Infrastructure,CPG fixed equipment,1/19/2024,In service
+C1348,Unité de la Prof. Oricchio,hotte sterile classe 2,Infrastructure,Hoods,12/21/2024,In service
+C1348,L. méca matériaux souples et biologiques,Kibernetik KSG118L03 (109 l),Infrastructure,Kitchen freezer,3/6/2024,In service
+C1348,UP du Prof. Persat,Flux Laminaire FASTER modèle SafeFAST El,Infrastructure,Hoods,4/17/2024,In service
+C1348,UP du Prof. Persat,Autoclave Benchtop 23 L,Infrastructure,Autoclaves,9/22/2024,In service
+C1348,Lab. de télédétection environnementale,Remorque Böckmann pour Radar du LTE,Intendancy and furniture,Vehicles,5/23/2024,In service
+C1348,Laboratoire de biorobotique,Canon Powershot S120,Intendancy and furniture,Photo camera,2/4/2024,In service
+C1348,Laboratoire de mécanismes synaptiques,"Water cooler for cameras, cooling system",Intendancy and furniture,Cameras,1/10/2024,In service
+C1348,Lab. nanodynamique moléculaire,OPA Option 2,Intendancy and furniture,Other audiovisual equipment,6/27/2024,In service
+C1348,Laboratoire de biorobotique,Écran/TV Samsung UE40J5170,Intendancy and furniture,Screens,3/17/2024,In service
+C1348,Laboratoire d'ergonomie éducative,iPad 10.2-inch Wi-Fi 32 GB Space Gray 8.,"IT, audio. and repro. material",Tablet,3/16/2024,In service
+C1348,Laboratoire de biorobotique,Captiva PC 8837,"IT, audio. and repro. material",Desktop,3/15/2024,In service
+C1348,Laboratoire de biorobotique,Lenovo Thinkpad T430S,"IT, audio. and repro. material",Laptop,4/19/2024,In service
+C1348,Lab. de télédétection environnementale,NAS lteawaca4,"IT, audio. and repro. material",Other IT / telecom  equipment,10/13/2024,In service
+C1348,Lab. de circuits pour télécommunications,PowerEdge R210 II Condor Cluster Servers,"IT, audio. and repro. material",Servers,1/27/2024,In service
+C1348,Lab. de télédétection environnementale,Base;Écran 4K Dell UltraSharp 32 - ,"IT, audio. and repro. material",Monitors,11/25/2024,In service
+C1348,Chaire de géométrie algébrique,Imprimante HP LaserJet Enterprise M506dn,"IT, audio. and repro. material",Printers,12/12/2024,In service
+C1348,Laboratoire de science des données,Apple iPhone 11 Pro,"IT, audio. and repro. material",Telecom,12/19/2024,In service
+C1348,Unité de la Prof. Oricchio,Scanner Epson Perfection V37,"IT, audio. and repro. material",Scanners,11/3/2024,In service
+C1348,UP du Prof. Hummel,Dicom router anonymisation software.,"IT, audio. and repro. material",Software,7/9/2024,In service
+C1348,Laboratoire de biorobotique,Ethernet Switch TRENDnet TPE-80WS,"IT, audio. and repro. material",Network,10/10/2024,In service
+C1348,Lab. de circuits pour télécommunications,Gigabyte GeForce RTX 3090 VISION OC 24G,"IT, audio. and repro. material",Components,1/15/2024,In service
+C1348,Laboratoire de mécanismes synaptiques,BAIN-MARIE JULABO MP PA KU,Reprography,Other stewardship equipment,1/1/2024,In service
+C1348,Lab. de télédétection environnementale,Micro Rain Radar METEK GmbH MRR-Pro,Reprography,Other stewardship equipment,11/15/2024,In service
+C1348,L. des avancées en transport d'énergie,"Binder - KBF -S ECO 720 (230V), Eco Soli",Scientifical equipment,Other measuring equipment,4/27/2024,In service
+C1348,Unité du Prof. Lemaitre,Thermostast Numérique,Scientifical equipment,Agitator / Incubator,4/17/2024,In service
+C1348,Laboratoire des microsystèmes souples,Oscilloscope,Scientifical equipment,Other electrotechnical equip.,3/15/2024,In service
+C1348,L. de nanostructures superficielles,Power supply for EFM,Scientifical equipment,"Other biological, chem. and phys. equip.",11/4/2024,In service
+C1348,Laboratoire de mécanismes synaptiques,MICROMANIPULATEUR LUIGS & NEUMANN SM5,Scientifical equipment,Other microscopy equipment,1/1/2024,In service
+C1348,UP du Prof. Persat,Nikon Eclipse Ti2 Microscope,Scientifical equipment,Optical microscopes,11/22/2024,In service
+C1348,Laboratoire de biorobotique,OMRON Cellule Delta,Scientifical equipment,Robots,5/16/2024,In service
+C1348,Laboratoire de mécanismes synaptiques,TABLE ANTIVIBRATOIRE TMC 63 530,Scientifical equipment,Pneumatic tables,1/1/2024,In service
+C1348,Lab. de nanochimie pour l'énergie,Autolab PGSTAT101,Scientifical equipment,Potentiostat,5/28/2024,In service
+C1348,Laboratoire matériaux semiconducteurs,ARC SP-2155,Scientifical equipment,Optical microscopes,2/5/2024,In service
+C1348,Unité du Prof. Lemaitre,LOUPE BINOCULAIRE,Scientifical equipment,Stereo microscopes,9/28/2024,In service
+C1348,Lab. de télédétection environnementale,TABLE OPTIQUE TMC 78B47112,Scientifical equipment,Pneumatic tables,11/6/2024,In service
+C1348,Lab. de télédétection environnementale,SONDE OTT PARSIVEL,Scientifical equipment,Probes,6/6/2024,In service
+C1348,Unité du Prof. McKinney,AGITATEUR MAGNETIQUE,Scientifical equipment,Agitator / Incubator,12/14/2024,In service
+C1348,Laboratoire de biorobotique,Mini45 F/T transducer,Scientifical equipment,Probes,1/6/2024,In service
+C1348,UP du Prof. Persat,AGITATEUR HEKDOLPH UNIMAX 2010,Scientifical equipment,Agitator / Incubator,1/1/2024,In service
+C1348,Laboratoire de biorobotique,Machine à commande numérique XYZ,Scientifical equipment,Milling machine,1/4/2024,In service
+C1348,L. de physique des roches et géofluides,Enceinte sous pression de 250 mL –,Scientifical equipment,Chemical reactors,5/9/2024,In service
+C1348,Unité du Prof. Lemaitre,Centrifugeuse,Scientifical equipment,Centrifugation,3/27/2024,In service
+C1348,Lab. de télédétection environnementale,SONDE OTT PARSIVEL,Scientifical equipment,Probes,6/6/2024,In service
+C1348,Unité du Prof. Lemaitre,Centrifugeuse réfrigérée,Scientifical equipment,Centrifugation,8/2/2024,In service
+C1348,Unité du Prof. Lemaitre,AGITATEUR THERMOSTATISE,Scientifical equipment,Agitator / Incubator,7/20/2024,In service
+C1348,UP du Prof. Hummel,64Ch actiCAP Slim - size 56,Scientifical equipment,EEG /ECG / EMG,12/23/2024,In service

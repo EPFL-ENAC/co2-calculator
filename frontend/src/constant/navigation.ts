@@ -2,6 +2,7 @@ export interface NavItem {
   routeName: string;
   icon: string;
   description?: string;
+  limitedAccess?: boolean;
 }
 
 export const BACKOFFICE_NAV: Record<string, NavItem> = {
@@ -14,11 +15,13 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     routeName: 'backoffice-user-management',
     description: 'backoffice-user-management-description',
     icon: 'o_people',
+    limitedAccess: true,
   },
   BACKOFFICE_DATA_MANAGEMENT: {
     routeName: 'backoffice-data-management',
     description: 'backoffice-data-management-description',
     icon: 'data_object',
+    limitedAccess: true,
   },
   BACKOFFICE_DOCUMENTATION_EDITING: {
     routeName: 'backoffice-documentation-editing',

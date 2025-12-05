@@ -70,12 +70,12 @@ export default {
     fr: 'Se déconnecter',
   },
   workspace_setup_title: {
-    en: 'Welcome to the CO₂ calculator',
-    fr: 'Bienvenue dans le calculateur CO₂',
+    en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL!',
+    fr: 'Bienvenue dans le Calculateur CO₂ des activités de recherche de l’EPFL !',
   },
   workspace_setup_description: {
-    en: "Assess your unit's carbon footprint in line with the Greenhouse Gas (GHG) Protocol — the international standard for greenhouse gas accounting.\n\nFollow the steps below to get started: select your unit, choose a calculation year, and proceed to measure your CO₂ emissions.",
-    fr: 'Please set up your workspace before using the CO₂ calculator.',
+    en: "Assess your unit's carbon footprint, identify areas for improvement, and commit to a concrete reduction plan.\nSelect your unit and the year, and let's get started!",
+    fr: 'Évaluez l’empreinte carbone de votre unité, repérez les leviers d’action et engagez-vous dans une démarche de réduction concrète. \nChoisissez votre unité, l’année, puis obtenez vos résultats !',
   },
   workspace_setup_unit_title: {
     en: 'Select your lab',
@@ -83,11 +83,11 @@ export default {
   },
   workspace_setup_unit_description: {
     en: 'Choose the unit you want to assess for its carbon footprint.',
-    fr: 'You have access to several laboratories. Please select the one you wish to work on:',
+    fr: "Choisissez l’unité dont vous souhaitez évaluer l'empreinte carbone.",
   },
   workspace_setup_unit_counter: {
-    en: 'Your units({count})',
-    fr: 'Your Laboratories ({count})',
+    en: 'Your units ({count})',
+    fr: 'Vos unités ({count})',
   },
   workspace_setup_unit_role: {
     en: 'Your role:',
@@ -122,8 +122,8 @@ export default {
     fr: 'Années d’évaluation',
   },
   workspace_setup_year_description: {
-    en: 'Choose which year to work on. ',
-    fr: 'Choisissez l’année sur laquelle vous souhaitez travailler.',
+    en: 'Choose which year to evaluate',
+    fr: 'Choisissez l’année sur laquelle vous souhaitez évaluer',
   },
   workspace_setup_year_counter: {
     en: 'Recorded Years ({count})',
@@ -261,6 +261,10 @@ export default {
     en: 'Edit',
     fr: 'Editer',
   },
+  home_modules_counter: {
+    en: 'Modules ({count})',
+    fr: 'Modules ({count})',
+  },
   results_units: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-éq',
@@ -270,7 +274,7 @@ export default {
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total Lab Carbon Footprint',
+    en: 'Total Unit Carbon Footprint',
     fr: '',
   },
   common_filter_all: {
@@ -305,6 +309,14 @@ export default {
     en: 'Export as PDF',
     fr: 'Exporter en PDF',
   },
+  common_upload_csv: {
+    en: 'Upload CSV',
+    fr: 'Importer CSV',
+  },
+  common_download_csv_template: {
+    en: 'Download CSV Template',
+    fr: 'Télécharger le modèle CSV',
+  },
   common_export_as_csv: {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
@@ -312,5 +324,49 @@ export default {
   documentation_button_label: {
     en: 'Documentation',
     fr: 'Documentation',
+  },
+  common_add_button: {
+    en: 'Add',
+    fr: 'Ajouter',
+  },
+  common_add_with_note_button: {
+    en: 'Add with note',
+    fr: 'Ajouter avec note',
+  },
+  common_actions: {
+    en: 'Actions',
+    fr: 'Actions',
+  },
+  common_validate: {
+    en: 'Validate Module',
+    fr: 'Valider le module',
+  },
+  common_unvalidate: {
+    en: 'Edit Module',
+    fr: 'Éditer le module',
+  },
+  common_delete_dialog_title: {
+    en: 'Delete {item}',
+    fr: 'Supprimer {item}',
+  },
+  common_delete_dialog_description: {
+    en: 'Are you sure you want to delete {item}? This action cannot be undone.',
+    fr: 'Êtes-vous sûr de vouloir supprimer {item} ? Cette action est irréversible.',
+  },
+  common_edit_dialog_title: {
+    en: 'Edit {item}',
+    fr: 'Éditer {item}',
+  },
+  common_delete: {
+    en: 'Delete',
+    fr: 'Supprimer',
+  },
+  common_cancel: {
+    en: 'Cancel',
+    fr: 'Annuler',
+  },
+  common_save: {
+    en: 'Save',
+    fr: 'Enregistrer',
   },
 };

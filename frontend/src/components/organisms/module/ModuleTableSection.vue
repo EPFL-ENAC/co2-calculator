@@ -1,10 +1,8 @@
 <template>
   <div>
-    <!-- TODO: use i18n key instead-->
-    <h2>{{ currentModuleConfig.name }}</h2>
-    <p>{{ currentModuleConfig.description }}</p>
     <div
       v-if="currentModuleConfig.hasSubmodules && currentModuleConfig.submodules"
+      class="module-table-section__submodules"
     >
       <sub-module-section
         v-for="sub in currentModuleConfig.submodules"
@@ -13,6 +11,9 @@
         :data="props.data"
         :loading="props.loading"
         :error="props.error"
+        :module-type="props.type"
+        :unit-id="props.unitId"
+        :year="props.year"
       />
     </div>
     <div v-else>
@@ -21,6 +22,9 @@
         :data="props.data"
         :loading="props.loading"
         :error="props.error"
+        :module-type="props.type"
+        :unit-id="props.unitId"
+        :year="props.year"
       />
       <module-form :inputs="currentModuleConfig.formInputs" />
     </div>
@@ -43,9 +47,18 @@ const props = defineProps<{
   data: ModuleResponse | null;
   loading: boolean;
   error: string | null;
+  unitId: string;
+  year: string | number;
 }>();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[props.type] as ModuleConfig,
 );
 </script>
+
+<style scoped lang="scss">
+.module-table-section__submodules {
+  display: grid;
+  grid-gap: 1rem;
+}
+</style>

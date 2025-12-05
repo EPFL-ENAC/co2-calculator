@@ -67,3 +67,19 @@ $layout-gap-y: opt.$tokens-spacing-24 !default;
 $modal-width-lg: opt.$tokens-layout-lg-modal-width !default;
 $modal-width-md: opt.$tokens-layout-md-modal-width !default;
 $modal-width-sm: opt.$tokens-layout-sm-modal-width !default;
+
+// Icons
+$icon-size-sm: opt.$tokens-icon-size-sm !default;
+$icon-size-md: opt.$tokens-icon-size-md !default;
+$icon-size-lg: opt.$tokens-icon-size-lg !default;
+
+// Tooltip
+$tooltip-color: opt.$tokens-colors-base-black !default;
+$tooltip-background: opt.$tokens-colors-base-white !default;
+$tooltip-fontsize: opt.$tokens-typography-font-size-sm !default;
+$tooltip-line-height: opt.$tokens-typography-line-height-2xl !default;
+$tooltip-padding-x: opt.$tokens-spacing-32 !default;
+$tooltip-padding-y: opt.$tokens-spacing-48 !default;
+$tooltip-max-width: opt.$tokens-layout-md-modal-width !default;
+$tooltip-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
+$tooltip-box-shadow: opt.$tokens-box-shadow !default;

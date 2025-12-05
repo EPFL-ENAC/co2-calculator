@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { TimelineItem } from 'src/constant/timelineItems';
 import { ModuleState } from 'src/constant/moduleStates';
 import { RouteLocationRaw } from 'vue-router';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -33,7 +34,7 @@ const stateColor = computed(() => {
 
 <template>
   <div class="timeline-item-wrapper column items-center justify-between">
-    <q-icon :color="stateColor" size="xs" :name="item.icon" />
+    <module-icon :name="item.link" size="md" :color="stateColor" />
     <q-btn
       :to="to"
       size="xs"

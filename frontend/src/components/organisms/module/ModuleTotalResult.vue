@@ -1,17 +1,17 @@
 <template>
   <q-card flat class="module-total-result relative container">
-    <q-card-section class="module-total-result__container">
+    <q-card-section class="module-total-result__container items-center">
       <!-- left side total lab carbon footprint  text i18n-->
-      <div class="text-h3">
+      <div class="text-body1 text-weight-medium">
         {{ $t('module_total_result_title') }}
       </div>
       <!-- right side total lab carbon footprint value  on two lines
            first line:  value in i18n number format 
            second line: kg Co2-eq -->
       <div class="text-h3 module-total-result__value">
-        <h4>
+        <h1 class="text-h1 text-weight-bold q-mb-none">
           {{ new Intl.NumberFormat().format(data) }}
-        </h4>
+        </h1>
         <p class="text-body2 text-secondary q-mb-none">
           {{ $t('results_units') }}
         </p>
@@ -32,7 +32,11 @@ defineProps<{
 @use 'src/css/02-tokens' as tokens;
 
 .module-total-result {
-  background-color: tokens.$summary-card-bg;
+  background-color: tokens.$module-result-bg;
+  border: tokens.$module-result-border-weight solid
+    tokens.$module-result-border-color;
+  border-radius: tokens.$module-result-border-radius;
+  padding: tokens.$module-result-padding-y tokens.$module-result-padding-x;
 }
 .module-total-result__container {
   display: grid;

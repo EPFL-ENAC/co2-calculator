@@ -3,6 +3,7 @@ import type { ModuleCard } from 'src/constant/moduleCards';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
 import { computed } from 'vue';
 import type { Module } from 'src/constant/modules';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 export interface ModuleStateData {
   module: Module;
@@ -45,7 +46,7 @@ function toggleState(state: ModuleState, checked: boolean) {
   <div class="container container--pa-sm full-width">
     <div class="flex justify-between">
       <div class="q-gutter-sm row items-center">
-        <q-icon :name="moduleCard.icon" color="accent" size="xs" />
+        <module-icon :name="moduleCard.module" size="md" color="accent" />
         <h3 class="text-h6 text-weight-medium">
           {{ $t(moduleCard.module) }}
         </h3>

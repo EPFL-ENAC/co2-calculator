@@ -1,16 +1,24 @@
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
-export type FormInputType = 'text' | 'number' | 'select' | 'date' | 'checkbox';
+export type FormInputType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'date'
+  | 'checkbox'
+  | 'boolean';
 export type ColumnType = 'text' | 'number' | 'select' | 'date';
 
 export interface FormInput {
   id: string;
   label: string;
   type: FormInputType;
+  icon?: string;
   required?: boolean;
   placeholder?: string;
   min?: number;
   max?: number;
   options?: Array<{ value: string; label: string }>;
+  ratio?: string;
 }
 
 export interface TableColumn {
@@ -19,6 +27,10 @@ export interface TableColumn {
   type: ColumnType;
   unit?: string;
   sortable?: boolean;
+  inputTypeName?: string;
+  editableInline?: boolean;
+  options?: Array<{ value: string; label: string }>;
+  align?: 'left' | 'right' | 'center';
 }
 
 export interface Submodule {
@@ -35,6 +47,7 @@ export interface ModuleConfig {
   name: string;
   description: string;
   hasSubmodules: boolean;
+  isCollapsible?: boolean;
   formStructure: FormStructure;
   formInputs?: FormInput[];
   submodules?: Submodule[];

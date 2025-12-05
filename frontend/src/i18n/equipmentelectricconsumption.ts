@@ -2,14 +2,18 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 
 export default {
   [MODULES.EquipmentElectricConsumption]: {
-    en: 'Electrical Consumption of Equipment',
-    fr: 'Consommation électrique des équipements',
+    en: 'Equipment',
+    fr: 'Équipements',
   },
   [MODULES_DESCRIPTIONS.EquipmentElectricConsumption]: {
     en: 'Estimate the electrical consumption of all equipment in your unit',
     fr: 'Estimez la consommation électrique de tous les équipements dans votre unité',
   },
-  [`${MODULES.EquipmentElectricConsumption}-title-tooltip`]: {
+  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-title`]: {
+    en: 'About Equipment Electric Consumption',
+    fr: 'À propos de la consommation électrique des équipements',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-description`]: {
     en: `This module allows you to estimate the electrical consumption of the scientific, IT, and other equipment in your unit. The equipment list comes from the equipment inventory carried out by your unit for the faculty. Please fill in the following columns:
 Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task. If your equipement active or standby use is different from the one used by default, please contact xxx.
 Subclass: Choose the subclass for equipment where this information is necessary.
