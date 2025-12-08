@@ -217,8 +217,8 @@ class TestSubmoduleAndModuleAggregation:
             {
                 "id": 1,
                 "name": "Desktop 1",
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,
@@ -247,7 +247,7 @@ class TestSubmoduleAndModuleAggregation:
 
         assert summary["total_items"] == 3
         assert summary["total_kg_co2eq"] == 98.39
-        assert summary["annual_consumption_kwh"] > 700  # Realistic range
+        assert summary["annual_consumption_kwh"] == 570.44  # 251.16 + 209.04 + 110.24
 
     def test_complete_module_with_multiple_submodules(self):
         """Test complete module calculation with realistic submodule structure."""
@@ -297,24 +297,24 @@ class TestSubmoduleAndModuleAggregation:
         """Test aggregation with mixed equipment statuses."""
         items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,
                 "status": "In service",
             },
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 0.0,  # Not in service
                 "status": "Decommissioned",
             },
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,
@@ -338,8 +338,8 @@ class TestVersionedCalculationIntegration:
     ):
         """Test versioned calculation using emission factor from database."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
             "status": "In service",
@@ -364,8 +364,8 @@ class TestVersionedCalculationIntegration:
     ):
         """Test versioned calculations with different emission factors."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
             "status": "In service",
@@ -408,8 +408,8 @@ class TestEnrichmentWithRealisticWorkflow:
                 "id": 1,
                 "name": "Desktop Computer - Office 101",
                 "category": "desktop",
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "status": "In service",
@@ -447,8 +447,9 @@ class TestEnrichmentWithRealisticWorkflow:
         # Verify all items have CO2 calculations
         assert all("kg_co2eq" in item for item in enriched_items)
         assert enriched_items[0]["kg_co2eq"] == 31.39
-        assert enriched_items[1]["kg_co2eq"] == 7.59
-        assert enriched_items[2]["kg_co2eq"] == 327.6
+        assert enriched_items[1]["kg_co2eq"] == 4.52
+        # Server: 100hrs * 300W * 52 / 1000 * 0.125 = 195.0
+        assert enriched_items[2]["kg_co2eq"] == 195.0
 
         # Verify original data is preserved
         assert enriched_items[0]["name"] == "Desktop Computer - Office 101"
@@ -459,22 +460,22 @@ class TestEnrichmentWithRealisticWorkflow:
         """Test complete workflow: enrich items then calculate summary."""
         equipment_items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "status": "In service",
             },
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "status": "In service",
             },
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "status": "In service",
@@ -550,8 +551,8 @@ class TestEdgeCasesAndBoundaryConditions:
         num_items = 1000
         items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,

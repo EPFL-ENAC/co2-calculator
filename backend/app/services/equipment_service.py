@@ -431,8 +431,8 @@ async def create_equipment(
             )
         calc_payload = calculate_equipment_emission_versioned(
             {
-                "act_usage_pct": equipment.active_usage_pct or 0,
-                "pas_usage_pct": equipment.passive_usage_pct or 0,
+                "act_usage": equipment.active_usage_pct or 0,
+                "pas_usage": equipment.passive_usage_pct or 0,
                 "act_power_w": equipment.active_power_w or 0,
                 "pas_power_w": equipment.standby_power_w or 0,
                 "status": equipment.status,
@@ -575,8 +575,8 @@ async def update_equipment(
         await equipment_repo.retire_current_emission(session, updated_equipment.id)
         calc_payload = calculate_equipment_emission_versioned(
             {
-                "act_usage_pct": updated_equipment.active_usage_pct or 0,
-                "pas_usage_pct": updated_equipment.passive_usage_pct or 0,
+                "act_usage": updated_equipment.active_usage_pct or 0,
+                "pas_usage": updated_equipment.passive_usage_pct or 0,
                 "act_power_w": updated_equipment.active_power_w or 0,
                 "pas_power_w": updated_equipment.standby_power_w or 0,
                 "status": updated_equipment.status,
