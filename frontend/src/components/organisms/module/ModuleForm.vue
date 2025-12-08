@@ -132,7 +132,7 @@ import type { ModuleField } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useModulePowerFactors } from 'src/composables/useModulePowerFactors';
+import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 
 const { t: $t } = useI18n();
 
@@ -160,7 +160,7 @@ const emit = defineEmits<{
 const form = reactive<Record<string, FieldValue>>({});
 const errors = reactive<Record<string, string | null>>({});
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useModulePowerFactors(form, toRef(props, 'submoduleType'));
+  useEquipmentClassOptions(form, toRef(props, 'submoduleType'));
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -175,7 +175,7 @@ function validateUsage(value: unknown) {
 }
 
 // legacy helpers kept only for typing compatibility; logic lives
-// entirely in the useModulePowerFactors composable.
+// entirely in the useEquipmentClassOptions composable.
 // They are intentionally not used here.
 
 function init() {

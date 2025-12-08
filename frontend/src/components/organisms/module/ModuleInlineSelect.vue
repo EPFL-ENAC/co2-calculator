@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
-import { useModulePowerFactors } from 'src/composables/useModulePowerFactors';
+import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import type { Module } from 'src/constant/modules';
 
 type ModuleSubType = 'scientific' | 'it' | 'other';
@@ -53,7 +53,7 @@ const isClass = computed(() => props.fieldId === 'class');
 const isSubClass = computed(() => props.fieldId === 'sub_class');
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useModulePowerFactors(props.row, toRef(props, 'submoduleType'));
+  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'));
 
 const classOptions = computed(() => dynamicOptions['class'] ?? []);
 const subClassOptions = computed(() => dynamicOptions['sub_class'] ?? []);
@@ -73,8 +73,8 @@ const model = computed({
 });
 
 async function onChange() {
-  // Persist the changed field to the backend along with any
-  // power-factor-derived fields updated by the composable.
+  // Persist only the changed class/sub_class field.
+  // Backend will auto-resolve power_factor_id and power values.
   const { useModuleStore } = await import('src/stores/modules');
   const store = useModuleStore();
   const idNum = Number(props.row.id);
@@ -83,16 +83,6 @@ async function onChange() {
   const payload: Record<string, string | number | boolean | null> = {
     [props.fieldId]: model.value as string | number | boolean | null,
   };
-
-  // If act_power / pas_power are present on the row (and likely
-  // have been refreshed by useModulePowerFactors), include them so
-  // backend stays in sync with derived values.
-  if ('act_power' in props.row) {
-    payload.act_power = props.row.act_power as string | number | boolean | null;
-  }
-  if ('pas_power' in props.row) {
-    payload.pas_power = props.row.pas_power as string | number | boolean | null;
-  }
 
   await store.patchItem(
     props.moduleType as Module,

@@ -280,7 +280,6 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import type { Module, Threshold } from 'src/constant/modules';
-import { usePowerFactorsStore } from 'src/stores/powerFactors';
 
 const { t: $t } = useI18n();
 const $q = useQuasar();
@@ -523,7 +522,6 @@ function onFormSubmit(
   payload: Record<string, string | number | boolean | null>,
 ) {
   const store = useModuleStore();
-  const pfStore = usePowerFactorsStore();
   const moduleType = props.moduleType as Module;
   const unit = props.unitId;
   const year = String(props.year);
@@ -545,37 +543,9 @@ function onFormSubmit(
     class: classVal,
   };
 
-  // Auto-populate power factors if we know submodule and class
-  const submoduleKey = props.submoduleType as
-    | 'scientific'
-    | 'it'
-    | 'other'
-    | undefined;
-  const currentRow = localRows.value.find((r) => Number(r.id) === equipmentId);
-  const subClassVal = currentRow?.sub_class
-    ? String(currentRow.sub_class)
-    : undefined;
-
-  const maybeFetchPower = async () => {
-    if (!submoduleKey || !classVal) return null;
-    try {
-      return await pfStore.fetchPowerFactor(
-        submoduleKey,
-        String(classVal),
-        subClassVal,
-      );
-    } catch (err) {
-      console.warn('Failed to fetch power factor', err);
-      return null;
-    }
-  };
-
   const perform = async () => {
-    const pf = await maybeFetchPower();
-    if (pf) {
-      basePayload.act_power = pf.active_power_w;
-      basePayload.pas_power = pf.standby_power_w;
-    }
+    // Backend will auto-resolve power_factor_id and power values
+    // based on class/sub_class, so no need to fetch them here
     basePayload.act_usage = Number(payload.act_usage);
     basePayload.pas_usage = Number(payload.pas_usage);
 
