@@ -342,8 +342,8 @@ class TestEnrichItemWithCalculations:
         item = {
             "id": 1,
             "name": "Desktop Computer",
-            "act_usage": 25,  # percentage
-            "pas_usage": 75,
+            "act_usage": 42,  # hours per week
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
             "status": "In service",
@@ -353,15 +353,15 @@ class TestEnrichItemWithCalculations:
 
         assert "kg_co2eq" in result
         assert result["kg_co2eq"] > 0
-        # Verify calculation: 25% = 42hrs, 75% = 126hrs
+        # Verify calculation: 42hrs active, 126hrs passive
         # (42*100 + 126*5) * 52 / 1000 * 0.125 = 31.39
         assert result["kg_co2eq"] == 31.39
 
     def test_enrich_item_uses_default_emission_factor(self):
         """Test that default Swiss emission factor is used when not provided."""
         item = {
-            "act_usage": 25,
-            "pas_usage": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
             "status": "In service",
@@ -378,8 +378,8 @@ class TestEnrichItemWithCalculations:
     def test_enrich_item_not_in_service(self):
         """Test enrichment for equipment not in service."""
         item = {
-            "act_usage": 25,
-            "pas_usage": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
             "status": "Decommissioned",
@@ -392,8 +392,8 @@ class TestEnrichItemWithCalculations:
     def test_enrich_item_with_version_tracking(self):
         """Test enrichment includes version tracking metadata."""
         item = {
-            "act_usage": 25,
-            "pas_usage": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
             "status": "In service",
@@ -449,8 +449,8 @@ class TestEnrichItemWithCalculations:
     def test_enrich_item_modifies_in_place(self):
         """Test that enrichment modifies the item dict in-place."""
         item = {
-            "act_usage": 25,
-            "pas_usage": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
         }
@@ -469,8 +469,8 @@ class TestCalculateSubmoduleSummary:
         """Test summary calculation for a single item."""
         items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,
@@ -488,8 +488,8 @@ class TestCalculateSubmoduleSummary:
         """Test summary calculation for multiple items."""
         items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 31.39,
@@ -513,8 +513,11 @@ class TestCalculateSubmoduleSummary:
         result = calculate_submodule_summary(items, emission_factor=0.125)
 
         assert result["total_items"] == 3
-        # Recalculated: 251.16 + 884.52 + 92.16 = 1227.84
-        assert pytest.approx(result["annual_consumption_kwh"], rel=0.01) == 1227.84
+        # Item 1: (42*100 + 126*5) * 52 / 1000 = 251.16 kWh
+        # Item 2: (50*200 + 50*10) * 52 / 1000 = 546.0 kWh
+        # Item 3: (10*50 + 90*2) * 52 / 1000 = 35.36 kWh
+        # Total: 832.52 kWh
+        assert pytest.approx(result["annual_consumption_kwh"], rel=0.01) == 832.52
         assert result["total_kg_co2eq"] == 175.53
 
     def test_summary_empty_items(self):
@@ -531,8 +534,8 @@ class TestCalculateSubmoduleSummary:
         """Test that summary uses pre-calculated kg_co2eq from items."""
         items = [
             {
-                "act_usage": 25,
-                "pas_usage": 75,
+                "act_usage": 42,
+                "pas_usage": 126,
                 "act_power": 100,
                 "pas_power": 5,
                 "kg_co2eq": 999.99,  # Custom value
@@ -654,8 +657,8 @@ class TestCalculateEquipmentEmissionVersioned:
     def test_versioned_calculation_basic(self):
         """Test basic versioned calculation with metadata."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
             "status": "In service",
@@ -678,8 +681,8 @@ class TestCalculateEquipmentEmissionVersioned:
     def test_versioned_calculation_includes_inputs(self):
         """Test versioned calculation includes calculation inputs metadata."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
             "status": "In service",
@@ -693,8 +696,8 @@ class TestCalculateEquipmentEmissionVersioned:
 
         assert "calculation_inputs" in result
         inputs = result["calculation_inputs"]
-        assert inputs["act_usage_pct"] == 25
-        assert inputs["pas_usage_pct"] == 75
+        assert inputs["act_usage_hrs_wk"] == 42
+        assert inputs["pas_usage_hrs_wk"] == 126
         assert inputs["act_power_w"] == 100
         assert inputs["pas_power_w"] == 5
         assert inputs["emission_factor"] == 0.125
@@ -704,8 +707,8 @@ class TestCalculateEquipmentEmissionVersioned:
         """Test versioned calculation handles alternative key names."""
         # Using 'act_usage' instead of 'act_usage_pct'
         equipment_data = {
-            "act_usage": 25,
-            "pas_usage": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power": 100,
             "pas_power": 5,
             "status": "In service",
@@ -723,8 +726,8 @@ class TestCalculateEquipmentEmissionVersioned:
     def test_versioned_calculation_not_in_service(self):
         """Test versioned calculation for equipment not in service."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
             "status": "Decommissioned",
@@ -743,8 +746,8 @@ class TestCalculateEquipmentEmissionVersioned:
     def test_versioned_calculation_no_power_factor(self):
         """Test versioned calculation without power factor ID."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
         }
@@ -761,8 +764,8 @@ class TestCalculateEquipmentEmissionVersioned:
     def test_versioned_calculation_custom_formula_version(self):
         """Test versioned calculation with custom formula version."""
         equipment_data = {
-            "act_usage_pct": 25,
-            "pas_usage_pct": 75,
+            "act_usage": 42,
+            "pas_usage": 126,
             "act_power_w": 100,
             "pas_power_w": 5,
         }
@@ -777,10 +780,10 @@ class TestCalculateEquipmentEmissionVersioned:
         assert result["formula_version"] == "v2_exponential"
 
     def test_versioned_calculation_with_hours(self):
-        """Test versioned calculation when usage is in hours (> 100)."""
+        """Test versioned calculation when usage is in hours."""
         equipment_data = {
-            "act_usage_pct": 40,  # Will be treated as hours
-            "pas_usage_pct": 128,
+            "act_usage": 40,
+            "pas_usage": 128,
             "act_power_w": 100,
             "pas_power_w": 5,
         }
