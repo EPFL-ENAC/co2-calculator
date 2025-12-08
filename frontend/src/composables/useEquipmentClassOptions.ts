@@ -8,6 +8,8 @@ type SubmoduleType = 'scientific' | 'it' | 'other' | undefined;
 interface FieldConfig {
   classFieldId?: string;
   subClassFieldId?: string;
+  actPowerFieldId?: string;
+  pasPowerFieldId?: string;
 }
 
 export function useEquipmentClassOptions<
@@ -19,10 +21,13 @@ export function useEquipmentClassOptions<
 ) {
   const classFieldId = config.classFieldId ?? 'class';
   const subClassFieldId = config.subClassFieldId ?? 'sub_class';
+  const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
+  const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
 
   const dynamicOptions = reactive<Record<string, Option[]>>({});
   const loadingClasses = ref(false);
   const loadingSubclasses = ref(false);
+  const loadingPowerFactor = ref(false);
   const subclassLoadError = ref(false);
 
   const store = usePowerFactorsStore();
@@ -86,10 +91,43 @@ export function useEquipmentClassOptions<
     }
   }
 
+  async function loadPowerFactor() {
+    const sub = submoduleType.value;
+    if (!sub) return;
+
+    const cls = normalizeValue(entity[classFieldId]);
+    if (!cls) return;
+
+    const subCls = normalizeValue(entity[subClassFieldId]);
+
+    loadingPowerFactor.value = true;
+    try {
+      const pf = await store.fetchPowerFactor(sub, cls, subCls);
+      if (pf) {
+        if (actPowerFieldId in entity)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (entity as any)[actPowerFieldId] = pf.active_power_w;
+        if (pasPowerFieldId in entity)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (entity as any)[pasPowerFieldId] = pf.standby_power_w;
+      }
+    } catch {
+      // ignore, user can still fill manually
+    } finally {
+      loadingPowerFactor.value = false;
+    }
+  }
+
   function resetSubclass() {
     if (subClassFieldId in entity)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (entity as any)[subClassFieldId] = '';
+    if (actPowerFieldId in entity)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (entity as any)[actPowerFieldId] = null;
+    if (pasPowerFieldId in entity)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (entity as any)[pasPowerFieldId] = null;
   }
 
   // React to submodule type changes
@@ -135,17 +173,29 @@ export function useEquipmentClassOptions<
       ) {
         resetSubclass();
       }
+
+      await loadPowerFactor();
     },
     { immediate: true },
+  );
+
+  // When subclass changes, refresh power factor
+  watch(
+    () => entity[subClassFieldId],
+    async () => {
+      await loadPowerFactor();
+    },
   );
 
   return {
     dynamicOptions,
     loadingClasses,
     loadingSubclasses,
+    loadingPowerFactor,
     subclassLoadError,
     loadClassOptions,
     loadSubclassOptions,
+    loadPowerFactor,
     resetSubclass,
   };
 }
