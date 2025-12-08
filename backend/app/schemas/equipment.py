@@ -3,7 +3,11 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.core.config import get_settings
+
+settings = get_settings()
 
 
 class EquipmentItemResponse(BaseModel):
@@ -15,8 +19,8 @@ class EquipmentItemResponse(BaseModel):
     submodule: str = Field(..., description="Submodule grouping")
     class_: str = Field(..., alias="class", description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
-    act_usage: float = Field(..., description="Active usage percentage")
-    pas_usage: float = Field(..., description="Passive usage percentage")
+    act_usage: float = Field(..., description="Active usage hours per week")
+    pas_usage: float = Field(..., description="Passive usage hours per week")
     act_power: float = Field(..., description="Active power in Watts")
     pas_power: float = Field(..., description="Standby power in Watts")
     status: str = Field(..., description="Equipment status")
@@ -103,10 +107,16 @@ class EquipmentCreateRequest(BaseModel):
     class_: str = Field(..., alias="class", description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: Optional[float] = Field(
-        None, ge=0, le=100, description="Active usage percentage (0-100)"
+        None,
+        ge=0,
+        le=settings.HOURS_PER_WEEK,
+        description=f"Active usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
     pas_usage: Optional[float] = Field(
-        None, ge=0, le=100, description="Passive usage percentage (0-100)"
+        None,
+        ge=0,
+        le=settings.HOURS_PER_WEEK,
+        description=f"Passive usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
     act_power: Optional[float] = Field(None, ge=0, description="Active power in Watts")
     pas_power: Optional[float] = Field(None, ge=0, description="Standby power in Watts")
@@ -131,6 +141,19 @@ class EquipmentCreateRequest(BaseModel):
             raise ValueError(f"submodule must be one of: {allowed}")
         return v
 
+    @model_validator(mode="after")
+    def validate_total_usage(self):
+        """Validate total usage doesn't exceed
+        {settings.HOURS_PER_WEEK} hours per week."""
+        if self.act_usage is not None and self.pas_usage is not None:
+            total = self.act_usage + self.pas_usage
+            if total > settings.HOURS_PER_WEEK:
+                raise ValueError(
+                    f"Total usage (act_usage + pas_usage) cannot exceed "
+                    f"{settings.HOURS_PER_WEEK} hours per week. Got: {total}"
+                )
+        return self
+
     class Config:
         """Pydantic config."""
 
@@ -151,10 +174,16 @@ class EquipmentUpdateRequest(BaseModel):
     class_: Optional[str] = Field(None, alias="class", description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: Optional[float] = Field(
-        None, ge=0, le=100, description="Active usage percentage (0-100)"
+        None,
+        ge=0,
+        le=settings.HOURS_PER_WEEK,
+        description=f"Active usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
     pas_usage: Optional[float] = Field(
-        None, ge=0, le=100, description="Passive usage percentage (0-100)"
+        None,
+        ge=0,
+        le=settings.HOURS_PER_WEEK,
+        description=f"Passive usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
     act_power: Optional[float] = Field(None, ge=0, description="Active power in Watts")
     pas_power: Optional[float] = Field(None, ge=0, description="Standby power in Watts")
@@ -178,6 +207,19 @@ class EquipmentUpdateRequest(BaseModel):
                 raise ValueError(f"submodule must be one of: {allowed}")
         return v
 
+    @model_validator(mode="after")
+    def validate_total_usage(self):
+        """Validate total usage doesn't exceed
+        settings.HOURS_PER_WEEK hours per week."""
+        if self.act_usage is not None and self.pas_usage is not None:
+            total = self.act_usage + self.pas_usage
+            if total > settings.HOURS_PER_WEEK:
+                raise ValueError(
+                    f"Total usage (act_usage + pas_usage) cannot exceed "
+                    f"{settings.HOURS_PER_WEEK} hours per week. Got: {total}"
+                )
+        return self
+
     class Config:
         """Pydantic config."""
 
@@ -195,8 +237,8 @@ class EquipmentDetailResponse(BaseModel):
     submodule: str = Field(..., description="Submodule grouping")
     class_: str = Field(..., alias="class", description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
-    act_usage: Optional[float] = Field(None, description="Active usage percentage")
-    pas_usage: Optional[float] = Field(None, description="Passive usage percentage")
+    act_usage: Optional[float] = Field(None, description="Active usage hours per week")
+    pas_usage: Optional[float] = Field(None, description="Passive usage hours per week")
     act_power: Optional[float] = Field(None, description="Active power in Watts")
     pas_power: Optional[float] = Field(None, description="Standby power in Watts")
     power_factor_id: Optional[int] = Field(None, description="Power factor reference")

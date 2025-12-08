@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 
 from pydantic import BaseModel
 
@@ -9,6 +9,10 @@ class EquipmentClassList(BaseModel):
 
 class EquipmentSubclassList(BaseModel):
     items: List[str]
+
+
+class EquipmentSubclassMap(BaseModel):
+    items: Dict[str, List[str]]
 
 
 class PowerFactorOut(BaseModel):

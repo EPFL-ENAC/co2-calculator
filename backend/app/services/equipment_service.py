@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.repositories import equipment_repo
+from app.repositories.power_factor_repo import PowerFactorRepository
 from app.schemas.equipment import (
     EquipmentCreateRequest,
     EquipmentDetailResponse,
@@ -355,6 +356,33 @@ async def create_equipment(
         if old_key in data_dict:
             data_dict[new_key] = data_dict.pop(old_key)
 
+    # Resolve power_factor_id if equipment_class is provided
+    if "equipment_class" in data_dict and data_dict["equipment_class"]:
+        equipment_class = data_dict["equipment_class"]
+        sub_class = data_dict.get("sub_class")
+        submodule = data_dict.get("submodule")
+
+        if submodule and equipment_class:
+            # Look up the power factor
+            pf_repo = PowerFactorRepository()
+            power_factor = await pf_repo.get_power_factor(
+                session, submodule, equipment_class, sub_class
+            )
+
+            if not power_factor:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"No power factor found for submodule='{submodule}', "
+                        f"class='{equipment_class}', sub_class='{sub_class}'"
+                    ),
+                )
+
+            # Set the resolved power_factor_id and power values
+            data_dict["power_factor_id"] = power_factor.id
+            data_dict["active_power_w"] = power_factor.active_power_w
+            data_dict["standby_power_w"] = power_factor.standby_power_w
+
     # Add audit fields
     data_dict["created_by"] = user_id
     data_dict["updated_by"] = user_id
@@ -403,8 +431,8 @@ async def create_equipment(
             )
         calc_payload = calculate_equipment_emission_versioned(
             {
-                "act_usage_pct": equipment.active_usage_pct or 0,
-                "pas_usage_pct": equipment.passive_usage_pct or 0,
+                "act_usage": equipment.active_usage_pct or 0,
+                "pas_usage": equipment.passive_usage_pct or 0,
                 "act_power_w": equipment.active_power_w or 0,
                 "pas_power_w": equipment.standby_power_w or 0,
                 "status": equipment.status,
@@ -468,6 +496,36 @@ async def update_equipment(
         if old_key in update_dict:
             update_dict[new_key] = update_dict.pop(old_key)
 
+    # Resolve power_factor_id if equipment_class or sub_class changed
+    class_changed = "equipment_class" in update_dict
+    subclass_changed = "sub_class" in update_dict
+
+    if class_changed or subclass_changed:
+        # Get the values to use for lookup (new if provided, else existing)
+        equipment_class = update_dict.get("equipment_class", equipment.equipment_class)
+        sub_class = update_dict.get("sub_class", equipment.sub_class)
+        submodule = update_dict.get("submodule", equipment.submodule)
+
+        # Look up the power factor
+        pf_repo = PowerFactorRepository()
+        power_factor = await pf_repo.get_power_factor(
+            session, submodule, equipment_class, sub_class
+        )
+
+        if not power_factor:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"No power factor found for submodule='{submodule}', "
+                    f"class='{equipment_class}', sub_class='{sub_class}'"
+                ),
+            )
+
+        # Set the resolved power_factor_id and power values
+        update_dict["power_factor_id"] = power_factor.id
+        update_dict["active_power_w"] = power_factor.active_power_w
+        update_dict["standby_power_w"] = power_factor.standby_power_w
+
     # Add audit field
     update_dict["updated_by"] = user_id
 
@@ -517,8 +575,8 @@ async def update_equipment(
         await equipment_repo.retire_current_emission(session, updated_equipment.id)
         calc_payload = calculate_equipment_emission_versioned(
             {
-                "act_usage_pct": updated_equipment.active_usage_pct or 0,
-                "pas_usage_pct": updated_equipment.passive_usage_pct or 0,
+                "act_usage": updated_equipment.active_usage_pct or 0,
+                "pas_usage": updated_equipment.passive_usage_pct or 0,
                 "act_power_w": updated_equipment.active_power_w or 0,
                 "pas_power_w": updated_equipment.standby_power_w or 0,
                 "status": updated_equipment.status,

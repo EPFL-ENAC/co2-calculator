@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,3 +27,8 @@ class PowerFactorService:
         return await self.repo.get_power_factor(
             session, submodule, equipment_class, sub_class
         )
+
+    async def get_class_subclass_map(
+        self, session: AsyncSession, submodule: str
+    ) -> Dict[str, List[str]]:
+        return await self.repo.get_class_subclass_map(session, submodule)

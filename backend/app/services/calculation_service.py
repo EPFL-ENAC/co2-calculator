@@ -92,7 +92,8 @@ def convert_percentage_to_hours(
     """
     Convert usage percentages to hours per week.
 
-    Assumes percentages sum to 100% and represent distribution across 168 hours/week.
+    Assumes percentages sum to 100% and represent
+    distribution across settings.HOURS_PER_WEEK hours/week.
 
     Args:
         act_usage_pct: Active usage percentage (0-100)
@@ -125,8 +126,10 @@ def enrich_item_with_calculations(
     Modifies the item dict in-place and returns it.
 
     Args:
-        item: Equipment item dict with act_usage, pas_usage, act_power, pas_power
-        emission_factor: Emission factor to use (defaults to Swiss mix from settings)
+        item: Equipment item dict with act_usage, pas_usage (in hrs/wk),
+              act_power, pas_power
+        emission_factor: Emission factor to use (defaults to Swiss mix
+                        from settings)
         factor_version_id: ID of emission factor version used
             (for versioned calculations)
         power_factor_version_id: ID of power factor version used
@@ -135,20 +138,13 @@ def enrich_item_with_calculations(
     Returns:
         The enriched item dict with kg_co2eq field added
     """
+    logger.debug(f"Enriching item ID={item.get('id')} with CO2 calculations")
     if emission_factor is None:
         emission_factor = settings.EMISSION_FACTOR_SWISS_MIX
 
-    # Get usage values - could be percentages or hours
-    # For now, assume they are percentages and convert
-    act_usage = item.get("act_usage", 0)
-    pas_usage = item.get("pas_usage", 0)
-
-    # If percentages, convert to hours
-    if act_usage + pas_usage <= 100:
-        act_hrs, pas_hrs = convert_percentage_to_hours(act_usage, pas_usage)
-    else:
-        # Assume already in hours
-        act_hrs, pas_hrs = act_usage, pas_usage
+    # Get usage values in hours per week
+    act_hrs = item.get("act_usage", 0)
+    pas_hrs = item.get("pas_usage", 0)
 
     # Get power values
     act_power = item.get("act_power", 0)
@@ -195,15 +191,9 @@ def calculate_submodule_summary(
     total_co2 = 0.0
 
     for item in items:
-        # Get usage and power
-        act_usage = item.get("act_usage", 0)
-        pas_usage = item.get("pas_usage", 0)
-
-        # Convert percentages to hours if needed
-        if act_usage + pas_usage <= 100:
-            act_hrs, pas_hrs = convert_percentage_to_hours(act_usage, pas_usage)
-        else:
-            act_hrs, pas_hrs = act_usage, pas_usage
+        # Get usage in hours per week
+        act_hrs = item.get("act_usage", 0)
+        pas_hrs = item.get("pas_usage", 0)
 
         act_power = item.get("act_power", 0)
         pas_power = item.get("pas_power", 0)
@@ -266,8 +256,8 @@ def calculate_equipment_emission_versioned(
     calculations to the equipment_emissions table.
 
     Args:
-        equipment_data: Dict with act_usage_pct, pas_usage_pct, act_power_w,
-        pas_power_w,status
+        equipment_data: Dict with act_usage (hrs/wk), pas_usage (hrs/wk),
+                       act_power_w, pas_power_w, status
         emission_factor: Emission factor value in kgCO2eq/kWh
         emission_factor_id: ID of the emission factor version used
         power_factor_id: ID of the power factor version used (if applicable)
@@ -276,16 +266,9 @@ def calculate_equipment_emission_versioned(
     Returns:
         Dict with annual_kwh, kg_co2eq, and metadata for storing in equipment_emissions
     """
-    # Extract values
-    act_usage = equipment_data.get("act_usage_pct", equipment_data.get("act_usage", 0))
-    pas_usage = equipment_data.get("pas_usage_pct", equipment_data.get("pas_usage", 0))
-
-    # Convert percentages to hours
-    if act_usage + pas_usage <= 100:
-        act_hrs, pas_hrs = convert_percentage_to_hours(act_usage, pas_usage)
-    else:
-        act_hrs, pas_hrs = act_usage, pas_usage
-
+    # Extract values - usage is in hours/week
+    act_hrs = equipment_data.get("act_usage", 0)
+    pas_hrs = equipment_data.get("pas_usage", 0)
     act_power = equipment_data.get("act_power_w", equipment_data.get("act_power", 0))
     pas_power = equipment_data.get("pas_power_w", equipment_data.get("pas_power", 0))
     status = equipment_data.get("status", "In service")
@@ -304,8 +287,8 @@ def calculate_equipment_emission_versioned(
         "power_factor_id": power_factor_id,
         "formula_version": formula_version,
         "calculation_inputs": {
-            "act_usage_pct": act_usage,
-            "pas_usage_pct": pas_usage,
+            "act_usage_hrs_wk": act_hrs,
+            "pas_usage_hrs_wk": pas_hrs,
             "act_power_w": act_power,
             "pas_power_w": pas_power,
             "emission_factor": emission_factor,

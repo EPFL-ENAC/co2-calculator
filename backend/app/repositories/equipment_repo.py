@@ -4,10 +4,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlmodel import col, select
+from sqlmodel import update as sqlmodel_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.emission_factor import EmissionFactor
+from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.equipment import Equipment, EquipmentEmission
 
 logger = get_logger(__name__)
@@ -139,10 +140,14 @@ async def get_equipment_with_emissions(
     """
     # Build base query with join
     query = (
-        select(Equipment, EquipmentEmission)
+        select(Equipment, EquipmentEmission, PowerFactor)
         .join(
             EquipmentEmission,
             col(Equipment.id) == col(EquipmentEmission.equipment_id),
+        )
+        .outerjoin(
+            PowerFactor,
+            col(EquipmentEmission.power_factor_id) == col(PowerFactor.id),
         )
         .where(col(EquipmentEmission.is_current) == True)  # noqa: E712
     )
@@ -171,10 +176,9 @@ async def get_equipment_with_emissions(
     result = await session.execute(query)
     rows = result.all()
 
-    # Convert to typed list of tuples
-    equipment_emissions: List[Tuple[Equipment, EquipmentEmission]] = [
-        (row[0], row[1]) for row in rows
-    ]
+    equipment_emissions: List[Tuple[Equipment, EquipmentEmission]] = []
+    for equipment, emission, power_factor in rows:
+        equipment_emissions.append((equipment, emission))
 
     logger.debug(
         f"Retrieved {len(equipment_emissions)} equipment items "
@@ -310,7 +314,6 @@ async def retire_current_emission(session: AsyncSession, equipment_id: int) -> N
     """
     Mark the current emission row for equipment as not current.
     """
-    from sqlmodel import update as sqlmodel_update
 
     stmt = (
         sqlmodel_update(EquipmentEmission)

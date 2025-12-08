@@ -38,10 +38,6 @@ $breakpoint-desktop: 1200px;
   grid-template-columns: repeat(1, 1fr);
   gap: 16px;
 
-  @media (min-width: $breakpoint-mobile) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   @media (min-width: $breakpoint-desktop) {
     grid-template-columns: repeat(3, 1fr);
   }

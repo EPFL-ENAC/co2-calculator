@@ -5,6 +5,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 
 from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.providers.role_provider import get_role_provider
 from app.repositories.resource_repo import create_resource
 from app.repositories.user_repo import upsert_user
 from app.schemas.resource import ResourceCreate
@@ -31,13 +32,18 @@ async def other_unit():
 @pytest_asyncio.fixture
 async def test_user(db_session):
     """Create a test user for testing."""
+    role_provider = get_role_provider("test")
+    testuser_info = {
+        "requested_role": "co2.user.std",
+        "email": "testuser_co2.user.std@example.org",
+    }
+    sciper = role_provider.get_sciper(testuser_info)
+    roles = await role_provider.get_roles(testuser_info)
     user = await upsert_user(
         db=db_session,
-        email="testuser_co2.user.std@example.com",
-        sciper="999999",
-        roles=[standar_user_role],
-        units=[TEST_UNIT_ID],
-        affiliations=[],
+        email=testuser_info.get("email"),
+        sciper=sciper,
+        roles=roles,
     )
     return user
 

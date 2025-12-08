@@ -105,6 +105,50 @@ async def sample_equipment(db_session: AsyncSession, emission_factor: EmissionFa
     return equipment_data
 
 
+@pytest.fixture
+async def power_factors(db_session: AsyncSession):
+    """Create power factors for testing."""
+    from app.models.emission_factor import PowerFactor
+
+    # Create power factors for the equipment classes used in tests
+    factors = [
+        PowerFactor(
+            submodule="scientific",
+            equipment_class="Laboratory",
+            sub_class="Microscope",
+            active_power_w=200.0,
+            standby_power_w=20.0,
+            version=1,
+            valid_from=datetime(2024, 1, 1),
+            valid_to=None,
+            source="Test data",
+            power_metadata={},
+        ),
+        PowerFactor(
+            submodule="scientific",
+            equipment_class="Laboratory",
+            sub_class="Advanced Microscope",
+            active_power_w=250.0,
+            standby_power_w=30.0,
+            version=1,
+            valid_from=datetime(2024, 1, 1),
+            valid_to=None,
+            source="Test data",
+            power_metadata={},
+        ),
+    ]
+
+    for factor in factors:
+        db_session.add(factor)
+
+    await db_session.commit()
+
+    for factor in factors:
+        await db_session.refresh(factor)
+
+    return factors
+
+
 @pytest.mark.asyncio
 async def test_get_module_success(
     client: AsyncClient, mock_current_user, sample_equipment
@@ -267,7 +311,9 @@ async def test_get_submodule_nonexistent(
 
 
 @pytest.mark.asyncio
-async def test_create_equipment_success(client: AsyncClient, mock_current_user):
+async def test_create_equipment_success(
+    client: AsyncClient, mock_current_user, power_factors
+):
     """Test creating equipment successfully."""
     equipment_data = {
         "unit_id": "C1348",
@@ -544,7 +590,7 @@ async def test_delete_equipment_not_found(client: AsyncClient, mock_current_user
 
 @pytest.mark.asyncio
 async def test_create_equipment_with_optional_fields(
-    client: AsyncClient, mock_current_user
+    client: AsyncClient, mock_current_user, power_factors
 ):
     """Test creating equipment with all optional fields."""
     equipment_data = {

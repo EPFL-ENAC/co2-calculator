@@ -10,7 +10,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import func, select
 
-from app.models.user import Role, User
+from app.models.user import Role, RoleScope, User
 from app.repositories.unit_repo import upsert_unit
 from app.repositories.unit_user_repo import upsert_unit_user
 
@@ -44,8 +44,6 @@ async def upsert_user(
     email: str,
     sciper: Optional[str] = None,
     roles: Optional[List[Role]] = None,
-    units: Optional[List[str]] = None,
-    affiliations: Optional[List[str]] = None,
 ) -> User:
     """
     Create or update a user (internal operation for OAuth flow).
@@ -61,6 +59,12 @@ async def upsert_user(
     """
     user = await get_user_by_email(db, email)
 
+    # Find units in roles
+    units: list[str] = []
+    for role in roles or []:
+        if isinstance(role.on, RoleScope):
+            if role.on.unit and role.on.unit not in (units or []):
+                units.append(role.on.unit)
     #  1. Upsert units
     for unit_id in units or []:
         await upsert_unit(db, unit_id)
@@ -121,6 +125,18 @@ async def update_user_roles(
     if not user:
         return None
 
+    # Update units in roles
+    units: list[str] = []
+    for role in roles:
+        if isinstance(role.on, RoleScope):
+            if role.on.unit and role.on.unit not in units:
+                units.append(role.on.unit)
+    # FIXME: This may lead to dangling UnitUser entries if units are removed from roles
+    for unit_id in units or []:
+        await upsert_unit(db, unit_id)
+        await upsert_unit_user(db, unit_id=unit_id, user_id=user.id)
+
+    # Update roles
     payload = user.model_copy()
     payload.roles = roles
     payload.updated_at = datetime.utcnow()
