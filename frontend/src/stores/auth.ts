@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const displayName = computed(() => {
     if (!user.value) return '';
-    const name = user.value.id || user.value.email.split('@')[0];
+    const name = user.value.email.split('@')[0] || user.value.id || '?';
     return name;
   });
 

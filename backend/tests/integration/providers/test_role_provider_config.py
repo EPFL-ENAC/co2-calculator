@@ -29,7 +29,7 @@ class TestRoleProviderIntegration:
                 ],
             }
 
-            roles, _, _ = await provider.get_roles(userinfo, 123456)
+            roles = await provider.get_roles(userinfo)
 
             assert len(roles) == 3
             assert all(isinstance(role, Role) for role in roles)
@@ -66,7 +66,7 @@ class TestRoleProviderIntegration:
 
                 mock_client_class.return_value = mock_client
 
-                roles, _, _ = await provider.get_roles({}, 123456)
+                roles = await provider.get_roles({"uniqueid": 123456})
 
             assert len(roles) == 1
             assert roles[0].role == RoleName.CO2_USER_STD

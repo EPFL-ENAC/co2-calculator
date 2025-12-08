@@ -1,8 +1,7 @@
 """Security utilities for JWT authentication and authorization."""
 
-import hashlib
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db import get_db
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, User
+from app.models.user import User
 from app.repositories.user_repo import get_user_by_id
 
 settings = get_settings()
@@ -83,10 +82,6 @@ async def get_current_user(
             detail="Could not validate credentials",
         )
 
-    # Check it is a test user in DEBUG mode
-    if settings.DEBUG and user_id.startswith("testuser_"):
-        return make_test_user(user_id)
-
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(
@@ -106,58 +101,3 @@ async def get_current_active_user(
             detail="Inactive user",
         )
     return user
-
-
-def make_test_user(user_id: str) -> User:
-    """Helper to create a test user object in DEBUG mode."""
-    requested_role = user_id[len("testuser_") :]
-    # Create roles based on requested role
-    roles: List[Role] = []
-    if requested_role == "co2.user.std":
-        roles = [
-            Role(
-                role=RoleName.CO2_USER_STD,
-                on=RoleScope(unit="testunit", affiliation="testaffiliation"),
-            )
-        ]
-    elif requested_role == "co2.user.secondary":
-        roles = [
-            Role(
-                role=RoleName.CO2_USER_SECONDARY,
-                on=RoleScope(unit="testunit", affiliation="testaffiliation"),
-            )
-        ]
-    elif requested_role == "co2.user.principal":
-        roles = [
-            Role(
-                role=RoleName.CO2_USER_PRINCIPAL,
-                on=RoleScope(unit="testunit", affiliation="testaffiliation"),
-            )
-        ]
-    elif requested_role == "co2.backoffice.std":
-        roles = [
-            Role(
-                role=RoleName.CO2_BACKOFFICE_STD,
-                on=RoleScope(affiliation="testaffiliation"),
-            )
-        ]
-    elif requested_role == "co2.backoffice.admin":
-        roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope(scope="global"))
-        ]
-    elif requested_role == "co2.service.mgr":
-        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope(scope="global"))]
-    else:
-        roles = []
-    # Make a consistent 10-digit sciper based on user_id
-    sciper = str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
-    return User(
-        id=user_id,
-        email=f"{user_id}@example.org",
-        sciper=sciper,
-        is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        last_login=datetime.utcnow(),
-        roles=roles,
-    )
