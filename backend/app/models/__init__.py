@@ -33,6 +33,9 @@ Resource.user = Relationship(
     sa_relationship_kwargs={"foreign_keys": "[Resource.updated_by]"},
 )
 
+## implement join later then for equipment power_Factors
+# and equipment_emissions and user if needed
+
 __all__ = [
     "Unit",
     "User",

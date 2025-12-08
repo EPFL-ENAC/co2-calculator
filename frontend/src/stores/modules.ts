@@ -8,7 +8,7 @@ import {
   ModuleStates,
 } from 'src/constant/moduleStates';
 
-import type { ModuleResponse } from 'src/constant/modules';
+import type { ModuleResponse, Submodule } from 'src/constant/modules';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
@@ -36,10 +36,21 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
+    loadingSubmodule: Record<string, boolean>; // key: submodule ID
+    errorSubmodule: Record<string, string | null>; // key: submodule ID
+    dataSubmodule: Record<string, Submodule | null>; // key: submodule ID
+    paginationSubmodule: Record<
+      string,
+      { page: number; limit: number; total: number }
+    >; // key: submodule ID
   }>({
     loading: false,
     error: null,
     data: null,
+    loadingSubmodule: {},
+    errorSubmodule: {},
+    dataSubmodule: {},
+    paginationSubmodule: {},
   });
   function modulePath(moduleType: Module, unit: string, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -69,6 +80,49 @@ export const useModuleStore = defineStore('modules', () => {
       state.loading = false;
     }
   }
+
+  async function getSubmoduleData(
+    moduleType: Module,
+    unit: string,
+    year: string,
+    submoduleId: string,
+    page = 1,
+    limit = 50,
+  ) {
+    state.loadingSubmodule[submoduleId] = true;
+    state.errorSubmodule[submoduleId] = null;
+    state.dataSubmodule[submoduleId] = null;
+    try {
+      const response = await api
+        .get(
+          `${modulePath(
+            moduleType,
+            unit,
+            year,
+          )}/submodules/${encodeURIComponent(
+            submoduleId,
+          )}?page=${page}&limit=${limit}`,
+        )
+        .json();
+      state.dataSubmodule[submoduleId] = response as Submodule;
+      state.paginationSubmodule[submoduleId] = {
+        page,
+        limit,
+        total: (response as Submodule).summary.total_items,
+      };
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorSubmodule[submoduleId] = err.message ?? 'Unknown error';
+        state.dataSubmodule[submoduleId] = null;
+      } else {
+        state.errorSubmodule[submoduleId] = 'Unknown error';
+        state.dataSubmodule[submoduleId] = null;
+      }
+    } finally {
+      state.loadingSubmodule[submoduleId] = false;
+    }
+  }
+
   interface Option {
     label: string;
     value: string;
@@ -174,6 +228,7 @@ export const useModuleStore = defineStore('modules', () => {
 
   return {
     getModuleData,
+    getSubmoduleData,
     postItem,
     patchItem,
     deleteItem,

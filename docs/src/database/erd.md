@@ -108,14 +108,14 @@ erDiagram
   }
   users ||--}o emission_factors : created_by
   users ||--}o power_factors : created_by
+  users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
   power_factors ||--}o equipment : power_factor_id
-  users ||--}o equipment : created_by
-  power_factors ||--}o equipment_emissions : power_factor_id
   emission_factors ||--}o equipment_emissions : emission_factor_id
   equipment ||--}o equipment_emissions : equipment_id
-  users ||--}o resources : updated_by
+  power_factors ||--}o equipment_emissions : power_factor_id
   users ||--}o resources : created_by
+  users ||--}o resources : updated_by
   users ||--}o units : principal_user_id
   users ||--}o unit_users : user_id
   units ||--}o unit_users : unit_id
