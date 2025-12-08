@@ -69,7 +69,7 @@ make build         # Build projects
 
 ### Code Quality
 
-[![Codecov](https://codecov.io/gh/EPFL-ENAC/epfl-calculator-co2/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/EPFL-ENAC/epfl-calculator-co2)
+[![Codecov](https://codecov.io/gh/EPFL-ENAC/co2-calculator/branch/main/graph/badge.svg?flag=backend)](https://codecov.io/gh/EPFL-ENAC/co2-calculator)
 
 ### Security & Status
 
