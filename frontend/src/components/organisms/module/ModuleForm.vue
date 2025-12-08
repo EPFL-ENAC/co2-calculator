@@ -13,8 +13,20 @@
               :key="inp.id"
               :class="['form-field', getGridClass(inp.ratio ?? inp?.ratio)]"
             >
+              <template
+                v-if="
+                  inp.id === 'sub_class' &&
+                  !loadingSubclasses &&
+                  (!dynamicOptions['sub_class'] ||
+                    dynamicOptions['sub_class'].length === 0) &&
+                  !form['sub_class']
+                "
+              >
+                <div class="subclass-placeholder" />
+              </template>
               <component
                 :is="fieldComponent(inp.type)"
+                v-else
                 v-model="form[inp.id]"
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
@@ -41,6 +53,8 @@
                 :max="inp.max"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
+                :readonly="inp.id === 'act_power' || inp.id === 'pas_power'"
+                :disable="inp.id === 'act_power' || inp.id === 'pas_power'"
                 :color="inp.type === 'checkbox' ? 'accent' : undefined"
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
               >
@@ -113,11 +127,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, ref, computed } from 'vue';
+import { reactive, watch, computed, toRef } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useModulePowerFactors } from 'src/composables/useModulePowerFactors';
 
 const { t: $t } = useI18n();
 
@@ -126,7 +141,6 @@ interface Option {
   value: string;
 }
 type FieldValue = string | number | boolean | null | Option;
-import { usePowerFactorsStore } from 'src/stores/powerFactors';
 import type { Module } from 'src/constant/modules';
 
 const props = defineProps<{
@@ -145,12 +159,8 @@ const emit = defineEmits<{
 }>();
 const form = reactive<Record<string, FieldValue>>({});
 const errors = reactive<Record<string, string | null>>({});
-const dynamicOptions = reactive<
-  Record<string, { label: string; value: string }[]>
->({});
-const loadingClasses = ref(false);
-const loadingSubclasses = ref(false);
-const loadingPowerFactor = ref(false);
+const { dynamicOptions, loadingClasses, loadingSubclasses } =
+  useModulePowerFactors(form, toRef(props, 'submoduleType'));
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -164,75 +174,9 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
-async function loadClassOptions() {
-  if (!props.submoduleType) return;
-  loadingClasses.value = true;
-  try {
-    const store = usePowerFactorsStore();
-    dynamicOptions['class'] = await store.fetchClassOptions(
-      props.submoduleType,
-    );
-  } catch {
-    dynamicOptions['class'] = [];
-  } finally {
-    loadingClasses.value = false;
-  }
-}
-
-async function loadSubclassOptions(selectedClass: Option | null) {
-  if (!props.submoduleType || !selectedClass) {
-    dynamicOptions['sub_class'] = [];
-    return;
-  }
-  loadingSubclasses.value = true;
-  try {
-    const store = usePowerFactorsStore();
-    dynamicOptions['sub_class'] = await store.fetchSubclassOptions(
-      props.submoduleType,
-      selectedClass.value,
-    );
-  } catch {
-    dynamicOptions['sub_class'] = [];
-  } finally {
-    loadingSubclasses.value = false;
-  }
-}
-
-async function loadPowerFactor() {
-  if (!props.submoduleType) return;
-  const store = usePowerFactorsStore();
-
-  const rawClass = form['class'] as Option | string | null;
-  const classValue =
-    rawClass && typeof rawClass === 'object'
-      ? rawClass.value
-      : (rawClass as string | null);
-
-  if (!classValue) return;
-
-  const rawSubClass = form['sub_class'] as Option | string | null;
-  const subClassValue =
-    rawSubClass && typeof rawSubClass === 'object'
-      ? rawSubClass.value
-      : (rawSubClass as string | null);
-
-  loadingPowerFactor.value = true;
-  try {
-    const pf = await store.fetchPowerFactor(
-      props.submoduleType,
-      classValue,
-      subClassValue,
-    );
-    if (pf) {
-      form['act_power'] = pf.active_power_w as unknown as FieldValue;
-      form['pas_power'] = pf.standby_power_w as unknown as FieldValue;
-    }
-  } catch {
-    // silently ignore, user can still fill manually
-  } finally {
-    loadingPowerFactor.value = false;
-  }
-}
+// legacy helpers kept only for typing compatibility; logic lives
+// entirely in the useModulePowerFactors composable.
+// They are intentionally not used here.
 
 function init() {
   if (props.rowData) {
@@ -268,34 +212,6 @@ watch(
   () => [props.fields, props.rowData],
   () => init(),
   { deep: true, immediate: true },
-);
-
-watch(
-  () => props.submoduleType,
-  async () => {
-    await loadClassOptions();
-    if ('sub_class' in form) form['sub_class'] = '';
-    dynamicOptions['sub_class'] = [];
-    if ('act_power' in form) form['act_power'] = null;
-    if ('pas_power' in form) form['pas_power'] = null;
-  },
-  { immediate: true },
-);
-
-watch(
-  () => form['class'] as Option | null,
-  async (val) => {
-    await loadSubclassOptions(val);
-    if ('sub_class' in form) form['sub_class'] = '';
-    await loadPowerFactor();
-  },
-);
-
-watch(
-  () => form['sub_class'] as Option | null,
-  async () => {
-    await loadPowerFactor();
-  },
 );
 
 function fieldComponent(type: string): Component {
@@ -388,6 +304,7 @@ function getGridClass(ratio?: string): string {
 }
 </script>
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
 .action-no-margin {
   padding: 0;
 }
@@ -406,6 +323,28 @@ function getGridClass(ratio?: string): string {
 
 .form-field--full {
   grid-column: span 12;
+}
+
+.subclass-placeholder {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  border-radius: tokens.$field-border-radius;
+  //   border: 1px solid #999;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  transition: border-color 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 2.5rem;
+  background: linear-gradient(
+    to bottom right,
+    transparent 0%,
+    transparent 49.5%,
+    #e0e0e0 50.5%,
+    #e0e0e0 100%
+  );
+  cursor: not-allowed;
 }
 
 @for $i from 1 through 12 {
