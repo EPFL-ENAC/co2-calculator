@@ -91,6 +91,12 @@ export function useEquipmentClassOptions<
     }
   }
 
+  function subclassRequired(): boolean {
+    // If subclass options exist and are non-empty, then a subclass is required
+    const options = dynamicOptions[subClassFieldId];
+    return Array.isArray(options) && options.length > 0;
+  }
+
   async function loadPowerFactor() {
     const sub = submoduleType.value;
     if (!sub) return;
@@ -99,6 +105,14 @@ export function useEquipmentClassOptions<
     if (!cls) return;
 
     const subCls = normalizeValue(entity[subClassFieldId]);
+
+    // Only load power factor if:
+    // 1. Subclass is NOT required (no subclass options available), OR
+    // 2. Subclass is required AND one has been selected
+    if (subclassRequired() && !subCls) {
+      // Subclass is required but not selected yet - don't fetch power factor
+      return;
+    }
 
     loadingPowerFactor.value = true;
     try {
