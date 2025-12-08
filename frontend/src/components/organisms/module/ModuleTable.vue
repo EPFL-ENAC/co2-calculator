@@ -573,7 +573,7 @@ function onUploadCsv() {
 function onDownloadTemplate() {
   // Mocked download
   const csvContent =
-    'Name,Class,SubClass,Active Power (W),Standby Power (W),Active Usage (hrs/week),Passive Usage (hrs/week)\n' +
+    'Name,Class,SubClass,Active power (W),Standby power (W),Active usage (hrs/week),Passive usage (hrs/week)\n' +
     'Example Equipment,Example Class,Example Subclass,100,10,40,128';
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

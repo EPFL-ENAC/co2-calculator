@@ -48,7 +48,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'act_usage',
-    label: 'Active Usage',
+    label: 'Active usage',
     type: 'number',
     required: true,
     min: 0,
@@ -62,7 +62,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'pas_usage',
-    label: 'Standby Usage',
+    label: 'Standby usage',
     type: 'number',
     required: true,
     min: 0,
@@ -76,7 +76,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'act_power',
-    label: 'Active Power',
+    label: 'Active power',
     type: 'number',
     required: true,
     min: 0,
