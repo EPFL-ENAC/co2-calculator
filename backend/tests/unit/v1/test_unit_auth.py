@@ -135,7 +135,7 @@ async def test_get_me_success(monkeypatch):
 
     # Mock role provider with async get_roles - return different roles to trigger update
     mock_role_provider = MagicMock()
-    mock_role_provider.get_roles_by_sciper = AsyncMock(return_value=(["admin", "user"]))
+    mock_role_provider.get_roles_by_sciper = AsyncMock(return_value=["admin", "user"])
 
     # Mock get_role_provider (sync function that returns the provider)
     mock_get_role_provider = MagicMock(return_value=mock_role_provider)

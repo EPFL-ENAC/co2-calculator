@@ -368,7 +368,6 @@ async def get_me(
         raise
     except Exception as e:
         logger.error("Failed to get user info", extra={"error": str(e)})
-        logger.error(str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

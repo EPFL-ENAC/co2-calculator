@@ -64,8 +64,6 @@ async def upsert_user(
     for role in roles or []:
         if isinstance(role.on, RoleScope):
             if role.on.unit and role.on.unit not in (units or []):
-                if units is None:
-                    units = []
                 units.append(role.on.unit)
     #  1. Upsert units
     for unit_id in units or []:
@@ -131,9 +129,7 @@ async def update_user_roles(
     units: list[str] = []
     for role in roles:
         if isinstance(role.on, RoleScope):
-            if role.on.unit and role.on.unit not in (units or []):
-                if units is None:
-                    units = []
+            if role.on.unit and role.on.unit not in units:
                 units.append(role.on.unit)
     # FIXME: This may lead to dangling UnitUser entries if units are removed from roles
     for unit_id in units or []:

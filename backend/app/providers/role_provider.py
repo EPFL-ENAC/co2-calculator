@@ -54,7 +54,7 @@ class RoleProvider(ABC):
 
     @abstractmethod
     async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
-        """Get roles for a user.
+        """Get roles for a user by SCIPER number.
 
         Args:
             sciper: EPFL SCIPER number of the user
@@ -208,7 +208,7 @@ class TestRoleProvider(RoleProvider):
         """Return test roles for a user.
 
         Args:
-            userinfo: Containes the requested role for the test user
+            userinfo: Contains the requested role for the test user
 
         Returns:
             List of test Role objects
@@ -258,7 +258,7 @@ class TestRoleProvider(RoleProvider):
         return roles
 
     async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
-        """Return test roles for a user by its SCIPER number.
+        """Return test roles for a user by their SCIPER number.
 
         Args:
             sciper: EPFL SCIPER number of the user
@@ -266,7 +266,7 @@ class TestRoleProvider(RoleProvider):
             List of test Role objects
         """
         # From sciper, find the requested role
-        for role_name in RoleName:
+        for role_name in RoleName.__members__.values():
             # Make a consistent 10-digit sciper based on user_id
             role_sciper = self._make_sciper(f"testuser_{role_name.value}")
             if sciper == role_sciper:

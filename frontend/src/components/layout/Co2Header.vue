@@ -57,7 +57,6 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  console.log(authStore.user);
   if (!authStore.user) return false;
   const userRoles = authStore.user.roles.map((r) => r.role);
   return (
