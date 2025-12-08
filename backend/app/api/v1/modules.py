@@ -104,6 +104,7 @@ async def get_submodule(
         f"page={page}, limit={limit}"
     )
 
+    unit_id = str("C1348")  # Temporary hardcode for demo purposes
     # Extract submodule key from ID
     if not submodule_id.startswith("sub_"):
         raise HTTPException(

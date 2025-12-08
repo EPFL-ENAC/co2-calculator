@@ -109,8 +109,18 @@
           :class="cellClasses(slotProps.row, col)"
         >
           <template v-if="col.editableInline">
+            <module-inline-select
+              v-if="col.name === 'class' || col.name === 'sub_class'"
+              :row="slotProps.row"
+              :field-id="col.field"
+              :module-type="moduleType"
+              :submodule-type="submoduleType"
+              :unit-id="unitId"
+              :year="year"
+            />
             <component
               :is="col.inputComponent"
+              v-else
               v-model="slotProps.row[col.field]"
               :type="col.type === 'number' ? 'number' : undefined"
               :options="col.options || []"
@@ -266,10 +276,10 @@ import { computed, ref, watch, nextTick } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
+import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import type { Module, Threshold } from 'src/constant/modules';
-import { usePowerFactorsStore } from 'src/stores/powerFactors';
 
 const { t: $t } = useI18n();
 const $q = useQuasar();
@@ -353,7 +363,11 @@ const qCols = computed<TableViewColumn[]>(() => {
       const align = f.align ?? 'left';
       const tooltip = f.tooltip;
       const readOnly = f.readOnly ?? false;
-      const editableInline = !!(f.editableInline ?? false) && !readOnly;
+      const editableInline =
+        !!(f.editableInline ?? false) &&
+        !readOnly &&
+        f.id !== 'act_power' &&
+        f.id !== 'pas_power';
       const options = f.options ?? undefined;
       const inputComponent: typeof QInput | typeof QSelect =
         f.type === 'select' ? QSelect : QInput;
@@ -436,20 +450,30 @@ async function commitInline(
   col: { name: string; field: string; editableInline?: boolean },
 ) {
   if (!col.editableInline) return;
+  // Only usage fields use the hours/week validation; other inline
+  // fields (including selects) are patched as-is.
+  const isUsageField = col.name === 'act_usage' || col.name === 'pas_usage';
   const rawVal = row[col.field];
-  const validation = validateUsage(rawVal);
-  if (!validation.valid) {
-    setError(row, col, validation.error);
-    return;
-  }
-  setError(row, col, null);
+  const valueToSave = (() => {
+    if (!isUsageField) return rawVal;
+    const validation = validateUsage(rawVal);
+    if (!validation.valid) {
+      setError(row, col, validation.error);
+      return null;
+    }
+    setError(row, col, null);
+    return validation.parsed;
+  })();
+
+  if (valueToSave === null) return;
+
   const moduleType = props.moduleType as Module;
   const store = useModuleStore();
   const id = getRowId(row);
   if (id == null) return;
   try {
     await store.patchItem(moduleType, props.unitId, String(props.year), id, {
-      [col.field]: validation.parsed,
+      [col.field]: valueToSave,
     });
   } catch (err) {
     setError(row, col, err instanceof Error ? err.message : 'Save failed');
@@ -498,7 +522,6 @@ function onFormSubmit(
   payload: Record<string, string | number | boolean | null>,
 ) {
   const store = useModuleStore();
-  const pfStore = usePowerFactorsStore();
   const moduleType = props.moduleType as Module;
   const unit = props.unitId;
   const year = String(props.year);
@@ -520,37 +543,9 @@ function onFormSubmit(
     class: classVal,
   };
 
-  // Auto-populate power factors if we know submodule and class
-  const submoduleKey = props.submoduleType as
-    | 'scientific'
-    | 'it'
-    | 'other'
-    | undefined;
-  const currentRow = localRows.value.find((r) => Number(r.id) === equipmentId);
-  const subClassVal = currentRow?.sub_class
-    ? String(currentRow.sub_class)
-    : undefined;
-
-  const maybeFetchPower = async () => {
-    if (!submoduleKey || !classVal) return null;
-    try {
-      return await pfStore.fetchPowerFactor(
-        submoduleKey,
-        String(classVal),
-        subClassVal,
-      );
-    } catch (err) {
-      console.warn('Failed to fetch power factor', err);
-      return null;
-    }
-  };
-
   const perform = async () => {
-    const pf = await maybeFetchPower();
-    if (pf) {
-      basePayload.act_power = pf.active_power_w;
-      basePayload.pas_power = pf.standby_power_w;
-    }
+    // Backend will auto-resolve power_factor_id and power values
+    // based on class/sub_class, so no need to fetch them here
     basePayload.act_usage = Number(payload.act_usage);
     basePayload.pas_usage = Number(payload.pas_usage);
 
@@ -576,6 +571,21 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
+  // Mocked download
+  const csvContent =
+    'Name,Class,SubClass,Active power (W),Standby power (W),Active usage (hrs/week),Passive usage (hrs/week)\n' +
+    'Example Equipment,Example Class,Example Subclass,100,10,40,128';
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const csvUrl = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = csvUrl;
+  a.download = 'equipment-template.csv'; // filename for the user
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
   $q.notify({
     color: 'info',
     message:

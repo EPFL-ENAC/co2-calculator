@@ -5,6 +5,7 @@ from app.api.deps import get_db
 from app.schemas.power_factor import (
     EquipmentClassList,
     EquipmentSubclassList,
+    EquipmentSubclassMap,
     PowerFactorOut,
 )
 from app.services.power_factor_service import PowerFactorService
@@ -36,6 +37,20 @@ async def list_subclasses(
     normalized = " / ".join([part.strip() for part in equipment_class.split("/")])
     items = await service.get_subclasses(session, submodule, normalized)
     return EquipmentSubclassList(items=items)
+
+
+@router.get(
+    "/{submodule}/class-subclass-map",
+    response_model=EquipmentSubclassMap,
+)
+async def get_class_subclass_map(
+    submodule: str,
+    session: AsyncSession = Depends(get_db),
+):
+    """Return all subclasses grouped by class for a given submodule."""
+    service = PowerFactorService()
+    mapping = await service.get_class_subclass_map(session, submodule)
+    return EquipmentSubclassMap(items=mapping)
 
 
 @router.get(
