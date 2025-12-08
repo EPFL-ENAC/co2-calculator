@@ -333,7 +333,6 @@ function getGridClass(ratio?: string): string {
   justify-content: center;
   color: #999;
   border-radius: tokens.$field-border-radius;
-  //   border: 1px solid #999;
   border: 1px solid rgba(0, 0, 0, 0.18);
   transition: border-color 0.36s cubic-bezier(0.4, 0, 0.2, 1);
   height: 2.5rem;

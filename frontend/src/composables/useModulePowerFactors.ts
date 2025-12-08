@@ -163,7 +163,7 @@ export function useModulePowerFactors<TEntity extends Record<string, unknown>>(
 
       // If the class has changed after initialization, clear
       // subclass/power so the user explicitly re-selects.
-      if (submoduleInitialized && oldVal != null && newVal !== oldVal) {
+      if (submoduleInitialized && oldVal !== null && newVal !== oldVal) {
         if (subClassFieldId in entity)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (entity as any)[subClassFieldId] = '';
