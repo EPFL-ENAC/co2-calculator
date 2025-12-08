@@ -55,4 +55,50 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     en: `Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.`,
     fr: `Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.`,
   },
+  [`${MODULES.EquipmentElectricConsumption}-results-total-electricity-use`]: {
+    en: 'Total Electricity Use',
+    fr: 'Consommation électrique totale',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-results-total-electricity-use-tooltip`]:
+    {
+      en: 'Total electricity consumption of all equipment in the unit',
+      fr: "Consommation électrique totale de tous les équipements de l'unité",
+    },
+  [`${MODULES.EquipmentElectricConsumption}-results-total-electricity-use-comparison`]:
+    {
+      en: 'Equivalent to the public lighting network of a town of {residents} residents for a full year.',
+      fr: "Équivalent au réseau d'éclairage public d'une ville de {residents} habitants pendant une année complète.",
+    },
+  [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total`]: {
+    en: "Share of the Lab's total",
+    fr: 'Part du total du laboratoire',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total-unit`]: {
+    en: "of lab's total",
+    fr: 'total du lab',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total-tooltip`]:
+    {
+      en: "Percentage of the lab's total carbon footprint represented by equipment electricity consumption",
+      fr: "Pourcentage de l'empreinte carbone totale du laboratoire représenté par la consommation électrique des équipements",
+    },
+  [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total-comparison`]:
+    {
+      en: 'at EPFL in average Electrical Consumption represents {percentage}.',
+      fr: "à l'EPFL en moyenne, la consommation électrique représente {percentage}.",
+    },
+  [`${MODULES.EquipmentElectricConsumption}-results-year-to-year-evolution`]: {
+    en: 'Year-to-year Evolution',
+    fr: "Évolution d'année en année",
+  },
+  [`${MODULES.EquipmentElectricConsumption}-results-year-to-year-evolution-tooltip`]:
+    {
+      en: 'Change in electricity consumption compared to the previous year',
+      fr: "Évolution de la consommation électrique par rapport à l'année précédente",
+    },
+  [`${MODULES.EquipmentElectricConsumption}-results-year-to-year-evolution-comparison`]:
+    {
+      en: 'Equivalent to {freezers} freezers a full year.',
+      fr: 'Équivalent à {freezers} congélateurs pendant une année complète.',
+    },
 } as const;

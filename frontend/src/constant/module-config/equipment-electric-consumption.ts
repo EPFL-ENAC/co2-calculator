@@ -133,6 +133,8 @@ export const equipmentElectricConsumption: ModuleConfig = {
 
   hasSubmodules: true,
   isCollapsible: true,
+  uncertainty: 'high',
+
   formStructure: 'perSubmodule',
   submodules: [
     {
@@ -152,6 +154,42 @@ export const equipmentElectricConsumption: ModuleConfig = {
       name: 'Other',
       count: 4,
       moduleFields: baseModuleFields,
+    },
+  ],
+  resultBigNumbers: [
+    {
+      titleKey: 'equipment-electric-consumption-results-total-electricity-use',
+      numberKey: 'total_electricity_use',
+      comparisonKey:
+        'equipment-electric-consumption-results-total-electricity-use-comparison',
+      comparisonParams: { residents: "10'200" },
+      comparisonHighlight: "10'200",
+      color: 'negative',
+      tooltipKey:
+        'equipment-electric-consumption-results-total-electricity-use-tooltip',
+    },
+    {
+      titleKey: 'equipment-electric-consumption-results-share-of-lab-total',
+      numberKey: 'share_of_lab_total',
+      unitKey: 'equipment-electric-consumption-results-share-of-lab-total-unit',
+      comparisonKey:
+        'equipment-electric-consumption-results-share-of-lab-total-comparison',
+      comparisonParams: { percentage: '28%' },
+      comparisonHighlight: '28%',
+      color: 'negative',
+      tooltipKey:
+        'equipment-electric-consumption-results-share-of-lab-total-tooltip',
+    },
+    {
+      titleKey: 'equipment-electric-consumption-results-year-to-year-evolution',
+      numberKey: 'year_to_year_evolution',
+      comparisonKey:
+        'equipment-electric-consumption-results-year-to-year-evolution-comparison',
+      comparisonParams: { freezers: '3' },
+      comparisonHighlight: '3 freezers',
+      color: 'positive',
+      tooltipKey:
+        'equipment-electric-consumption-results-year-to-year-evolution-tooltip',
     },
   ],
 };

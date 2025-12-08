@@ -42,6 +42,19 @@ export interface Submodule {
   moduleFields: ModuleField[];
 }
 
+export interface ResultBigNumberConfig {
+  titleKey: string;
+  numberKey: string;
+  unit?: string;
+  unitKey?: string;
+  unitParams?: Record<string, string>;
+  comparisonKey?: string;
+  comparisonParams?: Record<string, string>;
+  comparisonHighlight?: string;
+  color?: 'positive' | 'negative' | 'primary' | 'secondary' | 'accent';
+  tooltipKey?: string;
+}
+
 export interface ModuleConfig {
   id: string;
   type: string;
@@ -52,8 +65,11 @@ export interface ModuleConfig {
   hasTooltip: boolean;
   hasSubmodules: boolean;
   isCollapsible?: boolean;
+  uncertainty?: 'high' | 'medium' | 'low';
   formStructure: FormStructure;
   moduleFields?: ModuleField[];
   submodules?: Submodule[];
   threshold?: Threshold;
+  tableColumns?: ModuleField[];
+  resultBigNumbers?: ResultBigNumberConfig[];
 }

@@ -61,6 +61,18 @@ export default {
     en: 'View Results',
     fr: 'Voir les résultats',
   },
+  results_download_pdf: {
+    en: 'Download as PDF',
+    fr: 'Télécharger en PDF',
+  },
+  results_colorblind_mode: {
+    en: 'Colorblind mode',
+    fr: 'Mode daltonien',
+  },
+  results_view_uncertainties: {
+    en: 'View Uncertainties',
+    fr: 'Voir les incertitudes',
+  },
   workspace_change_btn: {
     en: 'Change',
     fr: 'Changer',
@@ -273,6 +285,82 @@ export default {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
+  results_title: {
+    en: 'Results',
+    fr: 'Résultats',
+  },
+  results_subtitle: {
+    en: 'Overview of your carbon footprint calculations',
+    fr: "Aperçu de vos calculs d'empreinte carbone",
+  },
+  results_total_unit_carbon_footprint: {
+    en: 'Total unit carbon footprint',
+    fr: "Empreinte carbone totale de l'unité",
+  },
+  results_carbon_footprint_per_fte: {
+    en: 'Carbon footprint per FTE',
+    fr: 'Empreinte carbone par ETP',
+  },
+  results_unit_carbon_footprint: {
+    en: 'Unit carbon footprint',
+    fr: "Empreinte carbone de l'unité",
+  },
+  results_total_unit_carbon_footprint_tooltip: {
+    en: 'Total carbon footprint of the unit including all modules',
+    fr: "Empreinte carbone totale de l'unité incluant tous les modules",
+  },
+  results_carbon_footprint_per_fte_tooltip: {
+    en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
+    fr: 'Empreinte carbone par équivalent temps plein (ETP)',
+  },
+  results_unit_carbon_footprint_tooltip: {
+    en: 'Unit carbon footprint compared to previous year',
+    fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
+  },
+  results_equivalent_to_car: {
+    en: 'is equivalent to ~{km} km driven with car',
+    fr: 'équivaut à ~{km} km parcourus en voiture',
+  },
+  results_paris_agreement_budget: {
+    en: 'The total carbon budget per person according to Paris agreement is 2t CO₂-eq',
+    fr: "Le budget carbone total par personne selon l'accord de Paris est de 2t CO₂-éq",
+  },
+  results_compared_to: {
+    en: 'compared to {year}',
+    fr: 'par rapport à {year}',
+  },
+  results_value_of: {
+    en: 'value of {value} t CO₂-eq',
+    fr: 'valeur de {value} t CO₂-éq',
+  },
+  results_module_carbon_footprint: {
+    en: 'Module Carbon Footprint',
+    fr: 'Empreinte carbone du module',
+  },
+  results_carbon_footprint_per_person: {
+    en: 'Carbon Footprint Per Person',
+    fr: 'Empreinte carbone par personne',
+  },
+  results_by_category_title: {
+    en: 'Results by Category',
+    fr: 'Résultats par catégorie',
+  },
+  results_by_category_subtitle: {
+    en: 'Annual Carbon Footprint {year}',
+    fr: 'Bilan CO2 Annuel {year}',
+  },
+  results_equipment_distribution_title: {
+    en: 'Equipment Distribution',
+    fr: 'Distribution des équipements',
+  },
+  results_objectives_2040_title: {
+    en: 'Reduction objective 2040',
+    fr: 'Objectif de réduction 2040',
+  },
+  results_objectives_2040_subtitle: {
+    en: 'Comparison with intermediate long-term objectives',
+    fr: 'Comparaison avec les objectifs intermédiaires à long terme',
+  },
   home_simulations_units: {
     en: 'Simulations',
     fr: 'Simulations',
@@ -384,5 +472,17 @@ export default {
   common_save: {
     en: 'Save',
     fr: 'Enregistrer',
+  },
+  uncertainty_low: {
+    en: 'Low Uncertainty',
+    fr: 'Faible incertitude',
+  },
+  uncertainty_medium: {
+    en: 'Moderate Uncertainty',
+    fr: 'Incertitude modérée',
+  },
+  uncertainty_high: {
+    en: 'High Uncertainty',
+    fr: 'Forte incertitude',
   },
 };
