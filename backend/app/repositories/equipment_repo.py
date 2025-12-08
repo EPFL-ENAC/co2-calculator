@@ -178,13 +178,6 @@ async def get_equipment_with_emissions(
 
     equipment_emissions: List[Tuple[Equipment, EquipmentEmission]] = []
     for equipment, emission, power_factor in rows:
-        # Fill in power from power_factors if equipment has no measured values
-        if power_factor is not None:
-            if equipment.active_power_w is None:
-                equipment.active_power_w = power_factor.active_power_w
-            if equipment.standby_power_w is None:
-                equipment.standby_power_w = power_factor.standby_power_w
-
         equipment_emissions.append((equipment, emission))
 
     logger.debug(
