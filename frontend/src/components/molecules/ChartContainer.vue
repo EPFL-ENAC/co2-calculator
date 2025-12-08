@@ -5,7 +5,7 @@ defineProps<{
 </script>
 <template>
   <q-card flat class="container container--pa-none">
-    <q-card-section class="flex items-center q-mb-xs">
+    <q-card-section class="flex items-center">
       <q-icon name="o_info" size="xs" color="primary">
         <q-tooltip
           v-if="$slots.tooltip"
@@ -27,11 +27,11 @@ defineProps<{
 </template>
 <style scoped lang="scss">
 .chart-container {
-  padding: 0;
+  padding: 16px;
+  padding: 24px;
   margin: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  aspect-ratio: 4/3;
 }
 </style>
