@@ -116,8 +116,9 @@ const baseModuleFields: ModuleField[] = [
 ];
 
 // remove subclass field for equipment-electric-consumption module
-const itmodulefields: ModuleField[] = baseModuleFields.filter(field => field.id !== 'sub_class');
-
+const itmodulefields: ModuleField[] = baseModuleFields.filter(
+  (field) => field.id !== 'sub_class',
+);
 
 export const equipmentElectricConsumption: ModuleConfig = {
   id: 'module_elec_001',

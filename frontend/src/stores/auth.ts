@@ -23,6 +23,12 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
 
+  const displayName = computed(() => {
+    if (!user.value) return '';
+    const name = user.value.email.split('@')[0] || user.value.id || '?';
+    return name;
+  });
+
   async function getUser() {
     try {
       loading.value = true;
@@ -62,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     loading,
+    displayName,
     getUser,
     login,
     login_test,

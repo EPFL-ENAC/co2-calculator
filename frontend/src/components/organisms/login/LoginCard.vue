@@ -20,9 +20,12 @@ const form = ref(null);
 const role = ref('co2.user.std');
 
 const roleOptions = computed(() => [
-  'co2.user.std',
-  'co2.backoffice.admin',
-  'co2.backoffice.std',
+  { value: 'co2.user.std', label: 'User Standard' },
+  { value: 'co2.user.principal', label: 'Unit Manager' },
+  { value: 'co2.user.secondary', label: 'Delegate of Unit Manager' },
+  { value: 'co2.backoffice.std', label: 'Back Office Restricted' },
+  { value: 'co2.backoffice.admin', label: 'Back Office Administrator' },
+  { value: 'co2.service.mgr', label: 'System IT Administrator' },
 ]);
 const isTestMode = computed(() => props.mode === 'test');
 
@@ -73,6 +76,8 @@ const buttonLabel = computed(() => {
           :label="$t('login_test_role_label')"
           :disable="loading"
           dense
+          map-options
+          emit-value
           class="full-width"
         />
       </div>
