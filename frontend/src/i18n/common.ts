@@ -202,28 +202,28 @@ export default {
     fr: 'Bienvenue dans le Calculateur de CO₂',
   },
   home_intro_1: {
-    en: "The Calculator CO₂ allows you to assess your laboratory's carbon footprint following the Greenhouse Gas (GHG) Protocol, the international standard for calculating greenhouse gas emissions.",
-    fr: "Le Calculateur CO₂ vous permet d'évaluer l'empreinte carbone de votre laboratoire selon le Protocole des gaz à effet de serre (GES), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
+    en: 'The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), the international standard for calculating greenhouse gas emissions.',
+    fr: "Le Calculateur CO₂ permet d'évaluer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
   },
   home_intro_2: {
-    en: "Complete the various data entry modules to obtain a comprehensive estimate of your laboratory's CO₂ equivalent emissions. Data can be entered manually or imported via CSV file.",
-    fr: 'Complétez les différents modules de saisie de données pour obtenir une estimation complète des émissions équivalentes CO₂ de votre laboratoire. Les données peuvent être saisies manuellement ou importées via un fichier CSV.',
+    en: "Fill in the various data entry modules according to your authorization level to obtain a complete estimate of your unit's CO₂ equivalent emissions CO₂-equivalent emissions for your unit (Staff, Professional Travel, Infrastructure, Equipment, Purchases, Internal Services, External Cloud), view and analyze your results, simulate the footprint of research projects, and export your data!",
+    fr: 'Remplissez les différents modules de saisie de données en fonction de votre niveau d’autorisation pour obtenir une estimation complète des émissions de CO₂-équivalent de votre unité (Personnel, Déplacements professionnels, Infrastructure, Consommation électrique des équipements, Achats, Services internes, Impact du cloud externe), consultez et analysez vos résultats, simulez l’empreinte de projets de recherche et exportez vos données !',
   },
   home_intro_3: {
-    en: 'As a Principal User, you have full access to all calculator functionalities. You can delegate access to other team members by granting them Principal User or Standard User roles.',
-    fr: "En tant qu'Utilisateur principal, vous avez un accès complet à toutes les fonctionnalités du calculateur. Vous pouvez déléguer l'accès à d'autres membres de l'équipe en leur attribuant les rôles d'Utilisateur principal ou d'Utilisateur standard.",
+    en: 'Data can be entered manually or imported via a CSV file.',
+    fr: 'Les données peuvent être saisies manuellement ou importées via un fichier CSV.',
   },
   home_intro_4: {
-    en: 'You can complete all data entry modules (My Laboratory, Professional Travel, Infrastructure, Equipment Electrical Consumption, Purchases, Internal Services, External Cloud Impact), view and analyze your results, simulate research projects, and export your data.',
-    fr: 'Vous pouvez compléter tous les modules de saisie de données (Mon laboratoire, Déplacements professionnels, Infrastructure, Consommation électrique des équipements, Achats, Services internes, Impact du cloud externe), consulter et analyser vos résultats, simuler des projets de recherche et exporter vos données.',
+    en: 'Only the main user has full access to all the features of the calculator but can delegate access to other team members by assigning them the role of main user or standard user via Accred.',
+    fr: "Seul l’utilisateur principal a un accès complet à toutes les fonctionnalités du calculateur mais peut déléguer l'accès à d'autres membres de l'équipe en leur attribuant le rôle d'utilisateur principal ou d'utilisateur standard via Accred.",
   },
   home_intro_5: {
-    en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, visit our {documentationLink} page. If you need assistance, please visit our {contactLink} page.",
-    fr: "Pour plus d'informations sur la méthodologie et la stratégie Climat et Durabilité de l'EPFL, visitez notre page {documentationLink}. Si vous avez besoin d'aide, veuillez consulter notre page {contactLink}.",
+    en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, see our [page](https://www.epfl.ch/about/sustainability/strategy/). If you need help, please contact us.",
+    fr: "Pour plus d'informations sur la méthodologie et la Stratégie Climat et Durabilité de l'EPFL, consultez notre [page](https://www.epfl.ch/about/sustainability/fr/strategie/). Si vous avez besoin d'aide, veuillez nous contacter.",
   },
   home_intro_6: {
-    en: 'Click the Start button below to begin completing the modules sequentially, or access individual modules directly in the section below. Once validated, your results will be available for visualization with detailed breakdowns and multi-year comparisons.',
-    fr: 'Cliquez sur le bouton Démarrer ci-dessous pour commencer à compléter les modules séquentiellement, ou accédez directement aux modules individuels dans la section ci-dessous. Une fois validés, vos résultats seront disponibles pour visualisation avec des analyses détaillées et des comparaisons pluriannuelles.',
+    en: 'Click on the “Start” button below to begin filling in the modules in order or go directly to the individual modules in the section below. Once validated, your results will be available in the “view results” area.',
+    fr: "Cliquez sur le bouton « Démarrer » ci-dessous pour commencer à remplir les modules dans l'ordre, ou accédez directement aux modules individuels dans la section ci-dessous. Une fois validés, vos résultats seront disponibles dans l’espace « visualisation résultats ».",
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
