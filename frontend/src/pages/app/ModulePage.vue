@@ -27,6 +27,7 @@
       :data="data?.totals?.total_kg_co2eq"
       :type="currentModuleType"
     />
+    <module-navigation :current-module="currentModuleType" />
   </q-page>
 </template>
 
@@ -38,6 +39,7 @@ import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
+import ModuleNavigation from 'src/components/organisms/module/ModuleNavigation.vue';
 import { Module, MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
