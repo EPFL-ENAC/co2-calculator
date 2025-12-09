@@ -23,7 +23,7 @@ const categoryColors: Record<string, string> = {
   'Grey Energy': getElementColor('grey-energy'),
 };
 
-// Data structure based on the image description
+// Categories list
 const categories = [
   'Unit-gas',
   'Infrastructure-gas',
@@ -39,96 +39,218 @@ const categories = [
   'Grey Energy',
 ];
 
-// Series data based on the image description
-const seriesData: BarSeriesOption[] = categories.map((category) => {
-  const values: (number | null)[] = [];
+// Bar labels for x-axis
+const barLabels = [
+  'Unit-gas',
+  'Infrastructure-gas',
+  'Infrastructure',
+  'Equipment',
+  'Commuting',
+  'Food',
+  'Professional Travel',
+  'IT',
+  'Research Core Facilities',
+  'Purchases',
+  'Waste',
+  'Grey Energy',
+];
 
-  // Scope 1 - Bar 1
-  if (category === 'Unit-gas') values.push(2.5);
-  else if (category === 'Infrastructure-gas') values.push(1.0);
-  else values.push(null);
+// Collect all sub-categories used in the data
+const subCategories = [
+  'Unit-gas',
+  'Infrastructure-gas',
+  'Professional Travel',
+  'Purchases',
+  'Equipment',
+  'Research Core Facilities',
+  'IT',
+  'Food',
+  'Commuting',
+  'Train',
+  'Plane',
+  'SCITAS',
+  'RCP',
+  'Bio-chemicals',
+  'Consumables',
+  'Services',
+  'Other',
+  'Waste',
+  'GC',
+  'PH',
+  'Heating',
+  'Cooling',
+  'Ventilation',
+  'Lighting',
+  'Scientific',
+];
 
-  // Scope 1 - Bar 2
-  if (category === 'Professional Travel') values.push(3.0);
-  else if (category === 'Infrastructure-gas') values.push(2.0);
-  else values.push(null);
+// Build dataset source: each row represents a bar, columns represent sub-categories
+const buildDatasetSource = (): Record<string, string | number | null>[] => {
+  const source: Record<string, string | number | null>[] = [];
 
-  // Scope 2 - Bar 1
-  if (category === 'Purchases') values.push(9.0);
-  else if (category === 'Equipment') values.push(3.0);
-  else values.push(null);
+  // Initialize all bars with null values for all sub-categories
+  for (let barIndex = 0; barIndex < barLabels.length; barIndex++) {
+    const barData: Record<string, string | number | null> = {
+      bar: barLabels[barIndex],
+    };
+    subCategories.forEach((subCategory) => {
+      barData[subCategory] = null;
+    });
+    source.push(barData);
+  }
 
-  // Scope 2 - Bar 2
-  if (category === 'Research Core Facilities') values.push(10.0);
-  else if (category === 'IT') values.push(3.0);
-  else values.push(null);
+  // Bar 0: Unit-gas
+  source[0]['Unit-gas'] = 2.5;
 
-  // Scope 3 - Bar 1
-  if (category === 'Food') values.push(8.0);
-  else if (category === 'Commuting') values.push(8.0);
-  else values.push(null);
+  // Bar 1: Infrastructure-gas
+  source[1]['Infrastructure-gas'] = 2.0;
 
-  // Scope 3 - Bar 2
-  if (category === 'Equipment') values.push(2.5);
-  else if (category === 'IT') values.push(3.0);
-  else values.push(null);
+  // Bar 2: Infrastructure
+  source[2]['Heating'] = 9.0;
+  source[2]['Cooling'] = 3.0;
+  source[2]['Ventilation'] = 9.0;
+  source[2]['Lighting'] = 3.0;
 
-  // Scope 3 - Bar 3
-  if (category === 'Infrastructure') values.push(1.5);
-  else if (category === 'Research Core Facilities') values.push(3.0);
-  else values.push(null);
+  // Bar 3: Equipment
+  source[3]['Scientific'] = 10.0;
+  source[3]['IT'] = 3.0;
+  source[3]['Other'] = 0.2;
 
-  // Scope 3 - Bar 4
-  if (category === 'Professional Travel') values.push(25.0);
-  else if (category === 'Commuting') values.push(8.0);
-  else values.push(null);
+  // Bar 4: Commuting
+  source[4]['Commuting'] = 8.0;
 
-  // Scope 3 - Bar 5
-  if (category === 'Purchases') values.push(3.0);
-  else values.push(null);
+  // Bar 5: Food
+  source[5]['Food'] = 2.5;
 
-  // Scope 3 - Bar 6
-  if (category === 'Waste') values.push(2.0);
-  else if (category === 'Grey Energy') values.push(3.0);
-  else values.push(null);
+  // Bar 6: Professional Travel
+  source[6]['Train'] = 1.5;
+  source[6]['Plane'] = 3.0;
 
-  // Estimated - Bar 1
-  if (category === 'Purchases') values.push(9.0);
-  else if (category === 'Waste') values.push(3.0);
-  else values.push(null);
+  // Bar 7: IT
+  source[7]['IT'] = 25.0;
 
-  // Estimated - Bar 2
-  if (category === 'Waste') values.push(10.0);
-  else if (category === 'Grey Energy') values.push(4.0);
-  else values.push(null);
+  // Bar 8: Research Core Facilities
+  source[8]['SCITAS'] = 1.0;
+  source[8]['RCP'] = 1.5;
 
-  // Estimated - Bar 3
-  if (category === 'Purchases') values.push(6.0);
-  else values.push(null);
+  // Bar 9: Purchases
+  source[9]['Bio-chemicals'] = 2.0;
+  source[9]['Consumables'] = 3.0;
+  source[9]['Equipment'] = 1.0;
+  source[9]['Services'] = 2.0;
+  source[9]['Other'] = 0.2;
 
-  // Estimated - Bar 4
-  if (category === 'Grey Energy') values.push(4.0);
-  else values.push(null);
+  // Bar 10: Waste
+  source[10]['Waste'] = 10.0;
 
-  return {
-    name: category,
-    type: 'bar',
-    stack: 'total',
-    data: values,
-    barWidth: '70%',
-    barCategoryGap: '20%',
-    itemStyle: {
-      color: categoryColors[category],
-    },
-  } as BarSeriesOption;
-});
+  // Bar 11: Grey Energy
+  source[11]['GC'] = 4.0;
+  source[11]['PH'] = 4.0;
+
+  return source;
+};
+
+// Create dataset configuration
+const dataset = {
+  dimensions: ['bar', ...subCategories],
+  source: buildDatasetSource(),
+};
 
 const initChart = () => {
   if (!chartRef.value) return;
 
   chartInstance = echarts.init(chartRef.value);
 
+  // Map main categories (bars) to their sub-categories
+  const barToSubCategories: Record<string, string[]> = {
+    'Unit-gas': ['Unit-gas'],
+    'Infrastructure-gas': ['Infrastructure-gas'],
+    Infrastructure: ['Heating', 'Cooling', 'Ventilation', 'Lighting'],
+    Equipment: ['Scientific', 'IT', 'Other'],
+    Commuting: ['Commuting'],
+    Food: ['Food'],
+    'Professional Travel': ['Train', 'Plane'],
+    IT: ['IT'],
+    'Research Core Facilities': ['SCITAS', 'RCP'],
+    Purchases: [
+      'Bio-chemicals',
+      'Consumables',
+      'Equipment',
+      'Services',
+      'Other',
+    ],
+    Waste: ['Waste'],
+    'Grey Energy': ['GC', 'PH'],
+  };
+
+  // Find sub-categories that have at least one non-null value in the dataset
+  const subCategoriesWithData = subCategories.filter((subCategory) => {
+    return dataset.source.some((row) => {
+      const value = (row as Record<string, unknown>)[subCategory];
+      return value !== null && value !== undefined && value !== 0;
+    });
+  });
+
+  // Find which main category each sub-category belongs to
+  const subCategoryToMainCategory: Record<string, string> = {};
+  Object.entries(barToSubCategories).forEach(([mainCategory, subCats]) => {
+    subCats.forEach((subCat) => {
+      subCategoryToMainCategory[subCat] = mainCategory;
+    });
+  });
+
+  // Create series only for sub-categories that have data (these are hidden from legend)
+  const categorySeries: BarSeriesOption[] = subCategoriesWithData.map(
+    (subCategory) => {
+      // Try to find a color for this sub-category, fallback to a default
+      let color = categoryColors[subCategory];
+      if (!color) {
+        // If sub-category doesn't have a direct color, try to find it in categories
+        const mainCategory = categories.find((cat) => cat === subCategory);
+        color = mainCategory ? categoryColors[mainCategory] : '#999999';
+      }
+
+      return {
+        name: subCategory,
+        type: 'bar',
+        datasetIndex: 0,
+        encode: {
+          x: 'bar',
+          y: subCategory,
+        },
+        stack: 'total',
+        barWidth: '70%',
+        barCategoryGap: '20%',
+        itemStyle: {
+          color: color,
+        },
+      };
+    },
+  );
+
+  // Create placeholder series for main categories (only for legend display)
+  // Use barLabels order to ensure same order as bars
+  const legendSeries: BarSeriesOption[] = barLabels.map((mainCategory) => {
+    const color = categoryColors[mainCategory] || '#999999';
+    return {
+      name: mainCategory,
+      type: 'bar',
+      data: [],
+      itemStyle: {
+        color: color,
+      },
+      // These series don't render but appear in legend
+      silent: true,
+      tooltip: {
+        show: false,
+      },
+      // Make sure they appear in legend
+      legendHoverLink: true,
+    };
+  });
+
   const option: EChartsOption = {
+    dataset: [dataset],
     tooltip: {
       trigger: 'axis',
       axisPointer: {
@@ -141,37 +263,56 @@ const initChart = () => {
             marker?: string;
             seriesName?: string;
             value?: number | null;
+            color?: string;
           };
           if (!firstParam) {
             return '';
           }
           const axisValue = firstParam.axisValue || '';
-          let result = `${axisValue}<br/>`;
+          let result = `<b>${axisValue}</b><br/>`;
           let total = 0;
-          params.forEach((param) => {
+
+          // Filter and sort params to show only non-null values
+          const validParams = params.filter((param) => {
             const p = param as {
-              marker?: string;
-              seriesName?: string;
               value?: number | null;
             };
-            if (
+            return (
               p &&
               p.value !== null &&
               p.value !== undefined &&
-              typeof p.value === 'number'
+              typeof p.value === 'number' &&
+              p.value > 0
+            );
+          }) as Array<{
+            marker?: string;
+            seriesName?: string;
+            value?: number | null;
+            color?: string;
+          }>;
+
+          validParams.forEach((param) => {
+            if (
+              param.value !== null &&
+              param.value !== undefined &&
+              typeof param.value === 'number'
             ) {
-              result += `${p.marker || ''}${p.seriesName || ''}: ${p.value.toFixed(1)} t CO₂-eq<br/>`;
-              total += p.value;
+              result += `${param.marker || '●'} <span style="color: ${param.color || '#333'}">${param.seriesName || ''}</span>: ${param.value.toFixed(1)} t CO₂-eq<br/>`;
+              total += param.value;
             }
           });
-          result += `<b>Total: ${total.toFixed(1)} t CO₂-eq</b>`;
+
+          if (validParams.length > 0) {
+            result += `<br/><b>Total: ${total.toFixed(1)} t CO₂-eq</b>`;
+          }
+
           return result;
         }
         return '';
       },
     },
     legend: {
-      data: categories,
+      data: barLabels,
       bottom: 0,
       type: 'plain',
       orient: 'horizontal',
@@ -188,7 +329,6 @@ const initChart = () => {
     },
     xAxis: {
       type: 'category',
-
       axisLabel: {
         show: false,
       },
@@ -249,7 +389,7 @@ const initChart = () => {
           },
           label: {
             show: true,
-            position: [2.5, 0], // Center of xAxis 2-3, at top
+            position: [2.5, 0],
             formatter: 'Scope 2',
             fontSize: 12,
             fontWeight: 'bold',
@@ -295,7 +435,7 @@ const initChart = () => {
           },
           label: {
             show: true,
-            position: [11.5, 0], // Center of xAxis 10-13, at top
+            position: [13.5, 0], // Center of xAxis 10-13, at top
             formatter: 'Estimated',
             fontSize: 12,
             fontWeight: 'bold',
@@ -335,11 +475,49 @@ const initChart = () => {
         z: 10,
       } as BarSeriesOption,
 
-      ...seriesData,
+      ...legendSeries, // Main categories for legend
+      ...categorySeries, // Sub-categories for actual bars (hidden from legend)
     ],
   };
 
   chartInstance.setOption(option);
+
+  // Handle legend clicks to show/hide bars
+  chartInstance.on(
+    'legendselectchanged',
+    (params: { selected: Record<string, boolean>; name: string }) => {
+      const mainCategory = params.name;
+      const isSelected = params.selected[mainCategory];
+
+      // Find the bar index for this main category
+      const barIndex = barLabels.indexOf(mainCategory);
+      if (barIndex === -1) return;
+
+      // Get the bar data row from the dataset
+      const barData = dataset.source[barIndex] as Record<string, unknown>;
+
+      // Find all sub-categories that have data in this specific bar
+      const subCatsInThisBar: string[] = [];
+      subCategories.forEach((subCat) => {
+        const value = barData[subCat];
+        if (value !== null && value !== undefined && value !== 0) {
+          subCatsInThisBar.push(subCat);
+        }
+      });
+
+      // Build update object for all sub-categories in this bar
+      const selectedUpdate: Record<string, boolean> = {};
+      subCatsInThisBar.forEach((subCat) => {
+        selectedUpdate[subCat] = isSelected;
+      });
+
+      // Update sub-category series visibility
+      chartInstance?.dispatchAction({
+        type: 'legendSelect',
+        selected: selectedUpdate,
+      });
+    },
+  );
 
   // Handle window resize
   const handleResize = () => {
