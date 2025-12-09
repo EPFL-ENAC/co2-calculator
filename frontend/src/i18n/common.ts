@@ -202,7 +202,7 @@ export default {
     fr: 'Bienvenue dans le Calculateur de CO₂',
   },
   home_intro_1: {
-    en: "The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), the international standard for calculating greenhouse gas emissions.",
+    en: 'The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), the international standard for calculating greenhouse gas emissions.',
     fr: "Le Calculateur CO₂ permet d'évaluer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
   },
   home_intro_2: {
@@ -211,7 +211,7 @@ export default {
   },
   home_intro_3: {
     en: 'Data can be entered manually or imported via a CSV file.',
-    fr: "Les données peuvent être saisies manuellement ou importées via un fichier CSV.",
+    fr: 'Les données peuvent être saisies manuellement ou importées via un fichier CSV.',
   },
   home_intro_4: {
     en: 'Only the main user has full access to all the features of the calculator but can delegate access to other team members by assigning them the role of main user or standard user via Accred.',
