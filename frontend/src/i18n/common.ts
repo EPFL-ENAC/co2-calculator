@@ -206,7 +206,7 @@ export default {
     fr: "Le Calculateur CO₂ permet d'évaluer l'empreinte carbone d’une unité, en conformité au Protocole des gaz à effet de serre ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
   },
   home_intro_2: {
-    en: "Fill in the various data entry modules according to your authorization level to obtain a complete estimate of your unit's CO₂ equivalent emissions CO₂-equivalent emissions for your unit (Staff, Professional Travel, Infrastructure, Equipment, Purchases, Internal Services, External Cloud ), view and analyze your results, simulate the footprint of research projects, and export your data!",
+    en: "Fill in the various data entry modules according to your authorization level to obtain a complete estimate of your unit's CO₂ equivalent emissions CO₂-equivalent emissions for your unit (Staff, Professional Travel, Infrastructure, Equipment, Purchases, Internal Services, External Cloud), view and analyze your results, simulate the footprint of research projects, and export your data!",
     fr: 'Remplissez les différents modules de saisie de données en fonction de votre niveau d’autorisation pour obtenir une estimation complète des émissions de CO₂-équivalent de votre unité (Personnel, Déplacements professionnels, Infrastructure, Consommation électrique des équipements, Achats, Services internes, Impact du cloud externe), consultez et analysez vos résultats, simulez l’empreinte de projets de recherche et exportez vos données !',
   },
   home_intro_3: {
