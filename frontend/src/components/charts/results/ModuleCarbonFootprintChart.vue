@@ -7,153 +7,131 @@ import { getElementColor } from 'src/constant/chart-colors';
 const chartRef = ref<HTMLDivElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
 
-// Category colors using the chart color scale utility
-const categoryColors: Record<string, string> = {
-  'Unit-gas': getElementColor('unit-gas'),
-  'Infrastructure-gas': getElementColor('infrastructure-gas'),
-  Infrastructure: getElementColor('infrastructure-category'),
-  Equipment: getElementColor('equipment'),
-  Commuting: getElementColor('commuting'),
-  Food: getElementColor('food'),
-  'Professional Travel': getElementColor('professional-travel-category'),
-  IT: getElementColor('it'),
-  'Research Core Facilities': getElementColor('research-core-facilities'),
-  Purchases: getElementColor('purchases'),
-  Waste: getElementColor('waste'),
-  'Grey Energy': getElementColor('grey-energy'),
-};
+interface CategoryConfig {
+  name: string;
+  colorId: string;
+  subCategories?: string[];
+}
 
-// Categories list
-const categories = [
-  'Unit-gas',
-  'Infrastructure-gas',
-  'Infrastructure',
-  'Equipment',
-  'Commuting',
-  'Food',
-  'Professional Travel',
-  'IT',
-  'Research Core Facilities',
-  'Purchases',
-  'Waste',
-  'Grey Energy',
+const categoryConfigs: CategoryConfig[] = [
+  { name: 'Unit-gas', colorId: 'unit-gas' },
+  { name: 'Infrastructure-gas', colorId: 'infrastructure-gas' },
+  {
+    name: 'Infrastructure',
+    colorId: 'infrastructure-category',
+    subCategories: ['Heating', 'Cooling', 'Ventilation', 'Lighting'],
+  },
+  {
+    name: 'Equipment',
+    colorId: 'equipment',
+    subCategories: ['Scientific', 'IT Equipment', 'Other'],
+  },
+  { name: 'Commuting', colorId: 'commuting' },
+  { name: 'Food', colorId: 'food' },
+  {
+    name: 'Professional Travel',
+    colorId: 'professional-travel-category',
+    subCategories: ['Train', 'Plane'],
+  },
+  { name: 'IT', colorId: 'it' },
+  {
+    name: 'Research Core Facilities',
+    colorId: 'research-core-facilities',
+    subCategories: ['SCITAS', 'RCP'],
+  },
+  {
+    name: 'Purchases',
+    colorId: 'purchases',
+    subCategories: [
+      'Bio-chemicals',
+      'Consumables',
+      'Equipment',
+      'Services',
+      'Other Purchases',
+    ],
+  },
+  { name: 'Waste', colorId: 'waste' },
+  { name: 'Grey Energy', colorId: 'grey-energy', subCategories: ['PH', 'GC'] },
 ];
 
-// Bar labels for x-axis
-const barLabels = [
-  'Unit-gas',
-  'Infrastructure-gas',
-  'Infrastructure',
-  'Equipment',
-  'Commuting',
-  'Food',
-  'Professional Travel',
-  'IT',
-  'Research Core Facilities',
-  'Purchases',
-  'Waste',
-  'Grey Energy',
-];
+const barLabels = categoryConfigs.map((c) => c.name);
 
-// Collect all sub-categories used in the data
-const subCategories = [
-  'Unit-gas',
-  'Infrastructure-gas',
-  'Professional Travel',
-  'Purchases',
-  'Equipment',
-  'Research Core Facilities',
-  'IT',
-  'Food',
-  'Commuting',
-  'Train',
-  'Plane',
-  'SCITAS',
-  'RCP',
-  'Bio-chemicals',
-  'Consumables',
-  'Services',
-  'Other',
-  'Waste',
-  'GC',
-  'PH',
-  'Heating',
-  'Cooling',
-  'Ventilation',
-  'Lighting',
-  'Scientific',
-];
+// Build mappings
+const barToSubCategories: Record<string, string[]> = {};
+const subCategoryToMainCategory: Record<string, string> = {};
+const allSubCategories = new Set<string>();
 
-// Build dataset source: each row represents a bar, columns represent sub-categories
+categoryConfigs.forEach((config) => {
+  const subCats = config.subCategories?.length
+    ? config.subCategories
+    : [config.name];
+  barToSubCategories[config.name] = subCats;
+  subCats.forEach((sub) => {
+    subCategoryToMainCategory[sub] = config.name;
+    allSubCategories.add(sub);
+  });
+});
+
+const subCategories = Array.from(allSubCategories);
+
+// Build dataset source
 const buildDatasetSource = (): Record<string, string | number | null>[] => {
-  const source: Record<string, string | number | null>[] = [];
+  const source = barLabels.map((bar) => {
+    const row: Record<string, string | number | null> = { bar };
+    subCategories.forEach((sub) => (row[sub] = null));
+    return row;
+  });
 
-  // Initialize all bars with null values for all sub-categories
-  for (let barIndex = 0; barIndex < barLabels.length; barIndex++) {
-    const barData: Record<string, string | number | null> = {
-      bar: barLabels[barIndex],
-    };
-    subCategories.forEach((subCategory) => {
-      barData[subCategory] = null;
-    });
-    source.push(barData);
-  }
-
-  // Bar 0: Unit-gas
+  // Set data values
   source[0]['Unit-gas'] = 2.5;
-
-  // Bar 1: Infrastructure-gas
   source[1]['Infrastructure-gas'] = 2.0;
-
-  // Bar 2: Infrastructure
   source[2]['Heating'] = 9.0;
   source[2]['Cooling'] = 3.0;
   source[2]['Ventilation'] = 9.0;
   source[2]['Lighting'] = 3.0;
-
-  // Bar 3: Equipment
   source[3]['Scientific'] = 10.0;
-  source[3]['IT'] = 3.0;
-  source[3]['Other'] = 0.2;
-
-  // Bar 4: Commuting
+  source[3]['IT Equipment'] = 3.0;
   source[4]['Commuting'] = 8.0;
-
-  // Bar 5: Food
   source[5]['Food'] = 2.5;
-
-  // Bar 6: Professional Travel
   source[6]['Train'] = 1.5;
   source[6]['Plane'] = 3.0;
-
-  // Bar 7: IT
   source[7]['IT'] = 25.0;
-
-  // Bar 8: Research Core Facilities
   source[8]['SCITAS'] = 1.0;
   source[8]['RCP'] = 1.5;
-
-  // Bar 9: Purchases
   source[9]['Bio-chemicals'] = 2.0;
   source[9]['Consumables'] = 3.0;
   source[9]['Equipment'] = 1.0;
   source[9]['Services'] = 2.0;
-  source[9]['Other'] = 0.2;
-
-  // Bar 10: Waste
+  source[9]['Other Purchases'] = 0.2;
   source[10]['Waste'] = 10.0;
-
-  // Bar 11: Grey Energy
   source[11]['GC'] = 4.0;
   source[11]['PH'] = 4.0;
 
   return source;
 };
 
-// Create dataset configuration
 const dataset = {
   dimensions: ['bar', ...subCategories],
   source: buildDatasetSource(),
+};
+
+// Scope configurations
+const scopeAreas = [
+  { label: 'Scope 1', color: '#F5F5F5', range: [0, 1] },
+  { label: 'Scope 2', color: '#E8E8E8', range: [2, 3] },
+  { label: 'Scope 3', color: '#D0D0D0', range: [4, 9] },
+  { label: 'Estimated', color: '#D0D0D0', range: [10, 11] },
+];
+
+const getColor = (categoryName: string, shade: number = 2): string => {
+  const config = categoryConfigs.find((c) => c.name === categoryName);
+  return getElementColor(config.colorId, shade);
+};
+
+const getSubCategoryColor = (subCategory: string, index: number): string => {
+  const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
+  const shade = mainCategory === subCategory ? 2 : Math.min(index, 4);
+  return getColor(mainCategory, shade);
 };
 
 const initChart = () => {
@@ -161,154 +139,176 @@ const initChart = () => {
 
   chartInstance = echarts.init(chartRef.value);
 
-  // Map main categories (bars) to their sub-categories
-  const barToSubCategories: Record<string, string[]> = {
-    'Unit-gas': ['Unit-gas'],
-    'Infrastructure-gas': ['Infrastructure-gas'],
-    Infrastructure: ['Heating', 'Cooling', 'Ventilation', 'Lighting'],
-    Equipment: ['Scientific', 'IT', 'Other'],
-    Commuting: ['Commuting'],
-    Food: ['Food'],
-    'Professional Travel': ['Train', 'Plane'],
-    IT: ['IT'],
-    'Research Core Facilities': ['SCITAS', 'RCP'],
-    Purchases: [
-      'Bio-chemicals',
-      'Consumables',
-      'Equipment',
-      'Services',
-      'Other',
-    ],
-    Waste: ['Waste'],
-    'Grey Energy': ['GC', 'PH'],
-  };
+  // Get subcategories with data
+  const subCategoriesWithData = subCategories.filter((sub) =>
+    dataset.source.some((row) => {
+      const val = row[sub];
+      return val !== null && val !== undefined && val !== 0;
+    }),
+  );
 
-  // Find sub-categories that have at least one non-null value in the dataset
-  const subCategoriesWithData = subCategories.filter((subCategory) => {
-    return dataset.source.some((row) => {
-      const value = (row as Record<string, unknown>)[subCategory];
-      return value !== null && value !== undefined && value !== 0;
-    });
+  // Sort subcategories for proper stacking
+  const sortedSubCategories = [...subCategoriesWithData].sort((a, b) => {
+    const mainA = subCategoryToMainCategory[a] || a;
+    const mainB = subCategoryToMainCategory[b] || b;
+    if (mainA !== mainB) return 0;
+    const subCats = barToSubCategories[mainA] || [];
+    return subCats.indexOf(a) - subCats.indexOf(b);
   });
 
-  // Find which main category each sub-category belongs to
-  const subCategoryToMainCategory: Record<string, string> = {};
-  Object.entries(barToSubCategories).forEach(([mainCategory, subCats]) => {
-    subCats.forEach((subCat) => {
-      subCategoryToMainCategory[subCat] = mainCategory;
-    });
-  });
-
-  // Create series only for sub-categories that have data (these are hidden from legend)
-  const categorySeries: BarSeriesOption[] = subCategoriesWithData.map(
+  // Create bar series
+  const categorySeries: BarSeriesOption[] = sortedSubCategories.map(
     (subCategory) => {
-      // Try to find a color for this sub-category, fallback to a default
-      let color = categoryColors[subCategory];
-      if (!color) {
-        // If sub-category doesn't have a direct color, try to find it in categories
-        const mainCategory = categories.find((cat) => cat === subCategory);
-        color = mainCategory ? categoryColors[mainCategory] : '#999999';
-      }
-
+      const mainCategory =
+        subCategoryToMainCategory[subCategory] || subCategory;
+      const subCats = barToSubCategories[mainCategory] || [];
+      const index = subCats.indexOf(subCategory);
       return {
         name: subCategory,
         type: 'bar',
         datasetIndex: 0,
-        encode: {
-          x: 'bar',
-          y: subCategory,
-        },
+        encode: { x: 'bar', y: subCategory },
         stack: 'total',
-        barWidth: '70%',
-        barCategoryGap: '20%',
+        barWidth: '80%',
+
         itemStyle: {
-          color: color,
+          color: getSubCategoryColor(subCategory, index >= 0 ? index : 0),
         },
+        animation: true,
+        animationDuration: 300,
+        animationEasing: 'cubicOut',
+        legendHoverLink: false,
       };
     },
   );
 
-  // Create placeholder series for main categories (only for legend display)
-  // Use barLabels order to ensure same order as bars
-  const legendSeries: BarSeriesOption[] = barLabels.map((mainCategory) => {
-    const color = categoryColors[mainCategory] || '#999999';
-    return {
-      name: mainCategory,
-      type: 'bar',
-      data: [],
-      itemStyle: {
-        color: color,
-      },
-      // These series don't render but appear in legend
+  // Create legend series
+  const legendSeries: BarSeriesOption[] = barLabels.map((category) => ({
+    name: category,
+    type: 'bar',
+    data: [],
+    itemStyle: { color: getColor(category) },
+    silent: true,
+    tooltip: { show: false },
+    legendHoverLink: true,
+  }));
+
+  // Create scope markArea series
+  const scopeSeries: BarSeriesOption[] = scopeAreas.map((scope) => ({
+    type: 'bar',
+    data: [],
+    markArea: {
       silent: true,
-      tooltip: {
-        show: false,
+      itemStyle: { color: scope.color, opacity: 0.3 },
+      label: {
+        show: true,
+        position: 'insideTop',
+        formatter: scope.label,
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#333',
       },
-      // Make sure they appear in legend
-      legendHoverLink: true,
-    };
-  });
+      data: [[{ xAxis: scope.range[0] }, { xAxis: scope.range[1] }]],
+    },
+    z: 0,
+  }));
+
+  // Separator line
+  const separatorSeries: BarSeriesOption = {
+    type: 'bar',
+    data: [],
+    markLine: {
+      silent: true,
+      symbol: 'none',
+      lineStyle: { color: '#666', type: 'dashed', width: 2 },
+      data: [
+        [
+          { xAxis: 9.5, yAxis: 0 },
+          { xAxis: 9.5, yAxis: 35 },
+        ],
+      ],
+    },
+    z: 10,
+  };
 
   const option: EChartsOption = {
     dataset: [dataset],
     tooltip: {
       trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
+      axisPointer: { type: 'shadow' },
+      position: (
+        point: number[],
+        _params: unknown,
+        _dom: unknown,
+        _rect: unknown,
+        size: { viewSize: number[]; contentSize: number[] },
+      ) => [
+        point[0] - size.contentSize[0] / 2,
+        point[1] - size.contentSize[1] - 10,
+      ],
+      confine: true,
+      extraCssText: 'min-width: 220px;',
       formatter: (params: unknown) => {
-        if (Array.isArray(params) && params.length > 0) {
-          const firstParam = params[0] as {
-            axisValue?: string;
-            marker?: string;
-            seriesName?: string;
-            value?: number | null;
-            color?: string;
-          };
-          if (!firstParam) {
-            return '';
+        if (!Array.isArray(params) || params.length === 0) return '';
+        const first = params[0] as { axisValue?: string; seriesName?: string };
+        if (!first?.axisValue) return '';
+
+        const categoryName = first.axisValue;
+        const categoryRow = dataset.source.find(
+          (row) => row.bar === categoryName,
+        );
+        if (!categoryRow) return '';
+
+        // Get all subcategories for this category
+        const subCats = barToSubCategories[categoryName] || [];
+
+        // Collect all subcategory values for this category
+        const subCategoryData: Array<{
+          name: string;
+          value: number;
+          color: string;
+        }> = [];
+
+        let categoryTotal = 0;
+
+        subCats.forEach((subCat) => {
+          const value = categoryRow[subCat];
+          if (
+            value !== null &&
+            value !== undefined &&
+            typeof value === 'number' &&
+            value > 0
+          ) {
+            const mainCategory = subCategoryToMainCategory[subCat] || subCat;
+            const subCatsForCategory = barToSubCategories[mainCategory] || [];
+            const index = subCatsForCategory.indexOf(subCat);
+            const color = getSubCategoryColor(subCat, index >= 0 ? index : 0);
+
+            subCategoryData.push({
+              name: subCat,
+              value,
+              color,
+            });
+            categoryTotal += value;
           }
-          const axisValue = firstParam.axisValue || '';
-          let result = `<b>${axisValue}</b><br/>`;
-          let total = 0;
+        });
 
-          // Filter and sort params to show only non-null values
-          const validParams = params.filter((param) => {
-            const p = param as {
-              value?: number | null;
-            };
-            return (
-              p &&
-              p.value !== null &&
-              p.value !== undefined &&
-              typeof p.value === 'number' &&
-              p.value > 0
-            );
-          }) as Array<{
-            marker?: string;
-            seriesName?: string;
-            value?: number | null;
-            color?: string;
-          }>;
+        if (subCategoryData.length === 0) return '';
 
-          validParams.forEach((param) => {
-            if (
-              param.value !== null &&
-              param.value !== undefined &&
-              typeof param.value === 'number'
-            ) {
-              result += `${param.marker || '●'} <span style="color: ${param.color || '#333'}">${param.seriesName || ''}</span>: ${param.value.toFixed(1)} t CO₂-eq<br/>`;
-              total += param.value;
-            }
-          });
-
-          if (validParams.length > 0) {
-            result += `<br/><b>Total: ${total.toFixed(1)} t CO₂-eq</b>`;
-          }
-
-          return result;
+        // If single subcategory, show dot at category level
+        if (subCategoryData.length === 1) {
+          const item = subCategoryData[0];
+          return `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <b>${categoryName}</b></span> <b>${categoryTotal.toFixed(1)}</b></div>`;
         }
-        return '';
+
+        // Category name with total and all subcategories
+        let result = `<div style="display: flex; justify-content: space-between; align-items: center;"><b>${categoryName}</b> <b>${categoryTotal.toFixed(1)}</b></div>`;
+        result += '<br/>';
+        [...subCategoryData].reverse().forEach((item) => {
+          result += `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <span>${item.name}</span></span> <span>${item.value.toFixed(1)}</span></div>`;
+        });
+
+        return result;
       },
     },
     legend: {
@@ -319,20 +319,21 @@ const initChart = () => {
       itemGap: 8,
       itemWidth: 10,
       itemHeight: 10,
+      selectedMode: false,
     },
     grid: {
       left: '10%',
-      right: '4%',
+      right: '10%',
       bottom: '15%',
       top: '0%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
-      axisLabel: {
-        show: false,
-      },
-      boundaryGap: true,
+      axisLabel: { show: false },
+      boundaryGap: false,
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
     yAxis: {
       type: 'value',
@@ -340,189 +341,21 @@ const initChart = () => {
       nameLocation: 'middle',
       nameGap: 50,
       nameRotate: 90,
-      nameTextStyle: {
-        fontSize: 10,
-        fontWeight: 'normal',
-      },
+      nameTextStyle: { fontSize: 10, fontWeight: 'normal' },
       max: 35,
-      splitLine: {
-        show: true,
-        lineStyle: {
-          color: '#E0E0E0',
-          type: 'solid',
-        },
-      },
+      splitLine: { show: true, lineStyle: { color: '#E0E0E0', type: 'solid' } },
     },
     series: [
-      // Background areas for scopes (progressively greyer)
-      {
-        type: 'bar',
-        data: [],
-        markArea: {
-          silent: true,
-          itemStyle: {
-            color: '#F5F5F5', // Light grey for Scope 1
-            opacity: 0.3,
-          },
-          label: {
-            show: true,
-            position: [0.5, 0], // Center of xAxis 0-1, at top
-            formatter: 'Scope 1',
-            fontSize: 12,
-            fontWeight: 'bold',
-            color: '#333',
-          },
-          data: [
-            [{ xAxis: 0 }, { xAxis: 1 }], // Scope 1 (bars 0-1)
-          ],
-        },
-        z: 0,
-      } as BarSeriesOption,
-      {
-        type: 'bar',
-        data: [],
-        markArea: {
-          silent: true,
-          itemStyle: {
-            color: '#E8E8E8', // Medium grey for Scope 2
-            opacity: 0.3,
-          },
-          label: {
-            show: true,
-            position: [2.5, 0],
-            formatter: 'Scope 2',
-            fontSize: 12,
-            fontWeight: 'bold',
-            color: '#333',
-          },
-          data: [
-            [{ xAxis: 2 }, { xAxis: 3 }], // Scope 2 (bars 2-3)
-          ],
-        },
-        z: 0,
-      } as BarSeriesOption,
-      {
-        type: 'bar',
-        data: [],
-        markArea: {
-          silent: true,
-          itemStyle: {
-            color: '#D0D0D0', // Darker grey for Scope 3
-            opacity: 0.3,
-          },
-          label: {
-            show: true,
-            position: [6.5, 0], // Center of xAxis 4-9, at top
-            formatter: 'Scope 3',
-            fontSize: 12,
-            fontWeight: 'bold',
-            color: '#333',
-          },
-          data: [
-            [{ xAxis: 4 }, { xAxis: 9 }], // Scope 3 (bars 4-9)
-          ],
-        },
-        z: 0,
-      } as BarSeriesOption,
-      {
-        type: 'bar',
-        data: [],
-        markArea: {
-          silent: true,
-          itemStyle: {
-            color: '#D0D0D0', // Darkest grey for Estimated (darker than Scope 3)
-            opacity: 0.3,
-          },
-          label: {
-            show: true,
-            position: [13.5, 0], // Center of xAxis 10-13, at top
-            formatter: 'Estimated',
-            fontSize: 12,
-            fontWeight: 'bold',
-            color: '#333',
-          },
-          data: [
-            [{ xAxis: 10 }, { xAxis: 13 }], // Estimated (bars 10-13)
-          ],
-        },
-        z: 0,
-      } as BarSeriesOption,
-      // Dotted line separator between Scope 3 and Estimated
-      {
-        type: 'bar',
-        data: [],
-        markLine: {
-          silent: true,
-          symbol: 'none',
-          lineStyle: {
-            color: '#666',
-            type: 'dashed',
-            width: 2,
-          },
-          data: [
-            [
-              {
-                xAxis: 10, // Between bar 9 (last Scope 3) and bar 10 (first Estimated)
-                yAxis: 0,
-              },
-              {
-                xAxis: 10,
-                yAxis: 35, // Full height
-              },
-            ],
-          ],
-        },
-        z: 10,
-      } as BarSeriesOption,
-
-      ...legendSeries, // Main categories for legend
-      ...categorySeries, // Sub-categories for actual bars (hidden from legend)
+      ...scopeSeries,
+      separatorSeries,
+      ...legendSeries,
+      ...categorySeries,
     ],
   };
 
   chartInstance.setOption(option);
 
-  // Handle legend clicks to show/hide bars
-  chartInstance.on(
-    'legendselectchanged',
-    (params: { selected: Record<string, boolean>; name: string }) => {
-      const mainCategory = params.name;
-      const isSelected = params.selected[mainCategory];
-
-      // Find the bar index for this main category
-      const barIndex = barLabels.indexOf(mainCategory);
-      if (barIndex === -1) return;
-
-      // Get the bar data row from the dataset
-      const barData = dataset.source[barIndex] as Record<string, unknown>;
-
-      // Find all sub-categories that have data in this specific bar
-      const subCatsInThisBar: string[] = [];
-      subCategories.forEach((subCat) => {
-        const value = barData[subCat];
-        if (value !== null && value !== undefined && value !== 0) {
-          subCatsInThisBar.push(subCat);
-        }
-      });
-
-      // Build update object for all sub-categories in this bar
-      const selectedUpdate: Record<string, boolean> = {};
-      subCatsInThisBar.forEach((subCat) => {
-        selectedUpdate[subCat] = isSelected;
-      });
-
-      // Update sub-category series visibility
-      chartInstance?.dispatchAction({
-        type: 'legendSelect',
-        selected: selectedUpdate,
-      });
-    },
-  );
-
-  // Handle window resize
-  const handleResize = () => {
-    chartInstance?.resize();
-  };
+  const handleResize = () => chartInstance?.resize();
   window.addEventListener('resize', handleResize);
 };
 

@@ -109,49 +109,49 @@ export const chartColorScale: ColorColumn[] = [
     colors: ['#6D6E79', '#A4A5B5', '#DBDDF0', '#E3E5F5', '#ECEDF9'],
     colorblindColors: ['#6B6B6B', '#8C8C8C', '#ADADAD', '#CECECE', '#EFEFEF'],
   },
+  // Column 16 - Not Defined
+  {
+    id: 16,
+    colors: ['#000000', '#000000', '#000000', '#000000', '#000000'],
+    colorblindColors: ['#000000', '#000000', '#000000', '#000000', '#000000'],
+  },
 ];
 
 export interface ChartElement {
   id: string;
   name: string;
-  columnIndex: number;
+  columnId: number;
 }
 
 export const chartElements: ChartElement[] = [
-  // Modules
-  { id: 'my-lab', name: 'My Lab', columnIndex: 2 }, // Column 3 (Orange/Ochre) - id: 3
-  {
-    id: 'equipment-electric-consumption',
-    name: 'Equipment Electric Consumption',
-    columnIndex: 6,
-  }, // Column 7 (Blue) - id: 7
-  { id: 'professional-travel', name: 'Professional Travel', columnIndex: 8 }, // Column 9 (Light Blue) - id: 9
-  { id: 'infrastructure', name: 'Infrastructure', columnIndex: 4 }, // Column 5 (Blue-Grey) - id: 5
-  { id: 'internal-services', name: 'Internal Services', columnIndex: 5 }, // Column 6 (Purple-Grey) - id: 6
-  { id: 'external-cloud', name: 'External Cloud', columnIndex: 3 }, // Column 4 (Purple) - id: 4
-  { id: 'purchase', name: 'Purchase', columnIndex: 0 }, // Column 1 (Olive Green/Brown) - id: 1
-
-  // Categories
-  { id: 'food', name: 'Food', columnIndex: 5 }, // Column 6 (Purple-Grey) - id: 6
-  { id: 'waste', name: 'Waste', columnIndex: 2 }, // Column 3 (Orange/Ochre) - id: 3
-  { id: 'commuting', name: 'Commuting', columnIndex: 8 }, // Column 9 (Light Blue) - id: 9
-  { id: 'unit-gas', name: 'Unit Gas', columnIndex: 3 }, // Column 4 (Purple) - id: 4
-  { id: 'infrastructure-gas', name: 'Infrastructure Gas', columnIndex: 3 }, // Column 4 (Purple) - id: 4
-  { id: 'equipment', name: 'Equipment', columnIndex: 6 }, // Column 7 (Blue) - id: 7
-  { id: 'it', name: 'IT', columnIndex: 5 }, // Column 6 (Purple-Grey) - id: 6
-  {
-    id: 'research-core-facilities',
-    name: 'Research Core Facilities',
-    columnIndex: 10,
-  }, // Column 11 (Green) - id: 11
-  { id: 'purchases', name: 'Purchases', columnIndex: 0 }, // Column 1 (Olive Green/Brown) - id: 1
+  { id: 'unit-gas', name: 'Unit Gas', columnId: 16 },
+  { id: 'infrastructure-gas', name: 'Infrastructure Gas', columnId: 16 },
+  { id: 'infrastructure-category', name: 'Infrastructure', columnId: 6 },
+  { id: 'equipment', name: 'Equipment', columnId: 5 },
+  { id: 'commuting', name: 'Commuting', columnId: 9 },
+  { id: 'food', name: 'Food', columnId: 10 },
   {
     id: 'professional-travel-category',
     name: 'Professional Travel',
-    columnIndex: 8,
-  }, // Column 9 (Light Blue) - id: 9
-  { id: 'grey-energy', name: 'Grey Energy', columnIndex: 14 }, // Column 15 (Light Grey) - id: 15
-  { id: 'infrastructure-category', name: 'Infrastructure', columnIndex: 4 }, // Column 5 (Blue-Grey) - id: 5
+    columnId: 8,
+  },
+  { id: 'it', name: 'IT', columnId: 16 },
+  {
+    id: 'research-core-facilities',
+    name: 'Research Core Facilities',
+    columnId: 10,
+  },
+  { id: 'purchases', name: 'Purchases', columnId: 11 },
+  { id: 'waste', name: 'Waste', columnId: 12 },
+  { id: 'grey-energy', name: 'Grey Energy', columnId: 15 },
+  {
+    id: 'equipment-electric-consumption',
+    name: 'Equipment',
+    columnId: 5,
+  },
+  { id: 'internal-services', name: 'Internal Services', columnId: 2 },
+  { id: 'external-cloud', name: 'External Cloud', columnId: 4 },
+  { id: 'purchase', name: 'Purchase', columnId: 11 },
 ];
 
 export const getElementColor = (
@@ -159,9 +159,12 @@ export const getElementColor = (
   shade: number = 2,
   colorblind: boolean = false,
 ): string => {
-  const element = chartElements.find((e) => e.id === elementId.toLowerCase());
-  const columnIndex = element?.columnIndex ?? 14; // Default to column 15
-  const column = chartColorScale[columnIndex];
-  const colorArray = colorblind ? column.colorblindColors : column.colors;
-  return colorArray[shade] ?? colorArray[2];
+  const columnId =
+    chartElements.find((e) => e.id === elementId.toLowerCase())?.columnId ?? 14;
+  const column =
+    chartColorScale.find((c) => c.id === columnId) ?? chartColorScale[13];
+  return (
+    (colorblind ? column.colorblindColors : column.colors)[shade] ??
+    column.colors[2]
+  );
 };
