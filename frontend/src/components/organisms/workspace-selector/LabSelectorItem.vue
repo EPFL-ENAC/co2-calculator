@@ -9,9 +9,11 @@ const props = defineProps<{
   unit: {
     id: number;
     name: string;
-    principal_user_id: number;
+    principal_user_id: string;
+    principal_user_function: string;
+    principal_user_name: string;
+    current_user_role: string;
     affiliations: string[];
-    role?: string;
   };
 }>();
 
@@ -32,11 +34,13 @@ const completedModules = 0;
     <div class="row items-center justify-between">
       <h3 class="text-h4 text-weight-bold">{{ unit.name }}</h3>
       <q-badge
-        v-if="unit.role"
+        v-if="unit.current_user_role"
         rounded
-        :outline="unit.role !== ROLES.PrincipalUser"
-        :color="unit.role === ROLES.PrincipalUser ? 'accent' : 'primary'"
-        :label="$t(unit.role)"
+        :outline="unit.current_user_role !== ROLES.PrincipalUser"
+        :color="
+          unit.current_user_role === ROLES.PrincipalUser ? 'accent' : 'primary'
+        "
+        :label="$t(unit.current_user_role)"
         class="q-pa-sm"
       />
     </div>
@@ -45,7 +49,7 @@ const completedModules = 0;
         $t('workspace_setup_unit_manager')
       }}</span>
       <span class="text-body2 text-weight-bold">{{
-        unit.principal_user_id
+        unit.principal_user_name
       }}</span>
     </div>
     <q-separator class="q-my-sm" :color="selected ? 'accent' : 'grey-4'" />
@@ -74,7 +78,7 @@ const completedModules = 0;
           :key="i"
           class="segment"
           :class="{ filled: i <= completedModules, selected: selected }"
-        />
+        ></div>
       </div>
     </div>
   </q-card>

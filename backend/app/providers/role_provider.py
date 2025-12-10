@@ -27,13 +27,13 @@ class RoleProvider(ABC):
     """
 
     @abstractmethod
-    def get_sciper(self, userinfo: Dict[str, Any]) -> str:
-        """Get SCIPER number for a user.
+    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+        """Get user ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            SCIPER number as a string
+            User ID as a string
         """
         pass
 
@@ -53,12 +53,11 @@ class RoleProvider(ABC):
         pass
 
     @abstractmethod
-    async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
-        """Get roles for a user by SCIPER number.
+    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+        """Get roles for a user by user ID.
 
         Args:
-            sciper: EPFL SCIPER number of the user
-
+            user_id: User ID of the user
         Returns:
             List of role dicts with structure:
               [{"role": RoleName.CO2_USER_STD, "on": {"unit": "12345"}}]
@@ -78,22 +77,22 @@ class DefaultRoleProvider(RoleProvider):
     Roles without scope (bare strings) will be skipped with a warning.
     """
 
-    def get_sciper(self, userinfo: Dict[str, Any]) -> str:
-        """Get SCIPER number for a user.
+    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+        """Get user ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            SCIPER number as a string
+            User ID as a string
         """
-        sciper = userinfo.get("sub")
-        if not sciper:
+        user_id = userinfo.get("sub")
+        if not user_id:
             logger.warning(
-                "No SCIPER number found in userinfo",
+                "No user ID found in userinfo",
                 extra={"userinfo": userinfo},
             )
             return ""
-        return str(sciper)
+        return str(user_id)
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Extract and parse roles from JWT claims.
@@ -104,13 +103,13 @@ class DefaultRoleProvider(RoleProvider):
         Returns:
             List of parsed Role objects
         """
-        sciper = self.get_sciper(userinfo)
+        user_id = self.get_user_id(userinfo)
         jwt_roles = userinfo.get("roles", [])
 
         if not jwt_roles:
             logger.warning(
                 "No roles found in JWT claims for user",
-                extra={"sciper": sciper, "email": userinfo.get("email")},
+                extra={"user_id": user_id, "email": userinfo.get("email")},
             )
             return []
 
@@ -120,14 +119,14 @@ class DefaultRoleProvider(RoleProvider):
             if not isinstance(role_str, str):
                 logger.warning(
                     "Invalid role format (not a string), skipping",
-                    extra={"role": role_str, "sciper": sciper},
+                    extra={"role": role_str, "user_id": user_id},
                 )
                 continue
 
             if "@" not in role_str:
                 logger.warning(
                     "Role without scope (@), skipping",
-                    extra={"role": role_str, "sciper": sciper},
+                    extra={"role": role_str, "user_id": user_id},
                 )
                 continue
 
@@ -160,14 +159,14 @@ class DefaultRoleProvider(RoleProvider):
             else:
                 logger.warning(
                     "Invalid scope format, skipping",
-                    extra={"role": role_str, "scope": scope_part, "sciper": sciper},
+                    extra={"role": role_str, "scope": scope_part, "user_id": user_id},
                 )
                 continue
 
         logger.info(
             "Parsed roles from JWT claims",
             extra={
-                "sciper": sciper,
+                "user_id": user_id,
                 "raw_count": len(jwt_roles),
                 "parsed_count": len(parsed_roles),
             },
@@ -175,17 +174,17 @@ class DefaultRoleProvider(RoleProvider):
 
         return parsed_roles
 
-    async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Not implemented for DefaultRoleProvider.
 
         Args:
-            sciper: EPFL SCIPER number of the user
+            user_id: User ID of the user
         Returns:
-            Empty list as this provider does not support fetching by sciper
+            Empty list as this provider does not support fetching by user ID
         """
         logger.warning(
-            "get_roles_by_sciper not implemented for DefaultRoleProvider",
-            extra={"sciper": sciper},
+            "get_roles_by_user_id not implemented for DefaultRoleProvider",
+            extra={"user_id": user_id},
         )
         return []
 
@@ -193,16 +192,16 @@ class DefaultRoleProvider(RoleProvider):
 class TestRoleProvider(RoleProvider):
     """Test role provider for development and testing."""
 
-    def get_sciper(self, userinfo: Dict[str, Any]) -> str:
-        """Get SCIPER number for a user.
+    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+        """Get user ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            SCIPER number as a string
+            User ID as a string
         """
         user_id = userinfo.get("requested_role", "co2.user.std")
-        return self._make_sciper(f"testuser_{user_id}")
+        return self._make_user_id(f"testuser_{user_id}")
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Return test roles for a user.
@@ -257,26 +256,26 @@ class TestRoleProvider(RoleProvider):
 
         return roles
 
-    async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
-        """Return test roles for a user by their SCIPER number.
+    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
+        """Return test roles for a user by their user ID.
 
         Args:
-            sciper: EPFL SCIPER number of the user
+            user_id: User ID of the user
         Returns:
             List of test Role objects
         """
-        # From sciper, find the requested role
+        # From user_id, find the requested role
         for role_name in RoleName.__members__.values():
-            # Make a consistent 10-digit sciper based on user_id
-            role_sciper = self._make_sciper(f"testuser_{role_name.value}")
-            if sciper == role_sciper:
+            # Make a consistent 10-digit user ID based on user_id
+            role_user_id = self._make_user_id(f"testuser_{role_name.value}")
+            if user_id == role_user_id:
                 userinfo = {"requested_role": role_name.value}
                 return await self.get_roles(userinfo)
         # No matching test user found
         return []
 
-    def _make_sciper(self, user_id: str) -> str:
-        """Make a consistent 10-digit sciper based on user_id."""
+    def _make_user_id(self, user_id: str) -> str:
+        """Make a consistent 10-digit user ID based on user_id."""
         return str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
 
 
@@ -304,46 +303,45 @@ class AccredRoleProvider(RoleProvider):
                 "Set ACCRED_API_URL, ACCRED_API_USERNAME, and ACCRED_API_KEY."
             )
 
-    def get_sciper(self, userinfo: Dict[str, Any]) -> str:
-        """Get SCIPER number for a user.
+    def get_user_id(self, userinfo: Dict[str, Any]) -> str:
+        """Get user ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            SCIPER number as a string
+            User ID as a string
         """
-        sciper = userinfo.get("uniqueid")  # return sciper as str
-        if not sciper:
+        user_id = userinfo.get("uniqueid")  # return user_id as str
+        if not user_id:
             logger.warning(
-                "No SCIPER number found in userinfo",
+                "No user ID found in userinfo",
                 extra={"userinfo": userinfo},
             )
-            raise ValueError("SCIPER number is required for Accred role provider")
-        return str(sciper)
+            raise ValueError("User ID is required for Accred role provider")
+        return str(user_id)
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
             userinfo: OAuth userinfo dict (not used in accred provider)
-            sciper: EPFL SCIPER number to query authorizations
+            user_id: User ID to query authorizations
 
         Returns:
             List of role dicts derived from authorizations
         """
         try:
-            sciper = self.get_sciper(userinfo)
-            return await self.get_roles_by_sciper(sciper)
+            user_id = self.get_user_id(userinfo)
+            return await self.get_roles_by_user_id(user_id)
         except ValueError as e:
             logger.error(f"Error getting roles: {e}", extra={"userinfo": userinfo})
             return []
 
-    async def get_roles_by_sciper(self, sciper: str) -> List[Role]:
+    async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Fetch roles from EPFL Accred API.
 
         Args:
-            sciper: EPFL SCIPER number to query authorizations
-
+            user_id: User ID to query authorizations
         Returns:
             List of role dicts derived from authorizations
         """
@@ -351,7 +349,7 @@ class AccredRoleProvider(RoleProvider):
         if not all([self.api_url, self.api_username, self.api_key]):
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
-                extra={"sciper": sciper},
+                extra={"user_id": user_id},
             )
             return []
 
@@ -360,7 +358,7 @@ class AccredRoleProvider(RoleProvider):
             url = f"{self.api_url}/authorizations"
             params: dict[str, str | int] = {
                 "type": "right",
-                "persid": sciper,
+                "persid": user_id,
                 "state": "active",
                 "expand": "0",
                 "searchauthorization": "co2.",
@@ -382,7 +380,7 @@ class AccredRoleProvider(RoleProvider):
 
             if not authorizations:
                 logger.info(
-                    "No authorizations found in Accred API", extra={"sciper": sciper}
+                    "No authorizations found in Accred API", extra={"user_id": user_id}
                 )
                 return []
 
@@ -409,7 +407,7 @@ class AccredRoleProvider(RoleProvider):
                 if not accred_unit_id:
                     logger.warning(
                         "Authorization missing accredunitid, skipping",
-                        extra={"auth_name": auth_name, "sciper": sciper},
+                        extra={"auth_name": auth_name, "user_id": user_id},
                     )
                     continue
                 if auth_name == RoleName.CO2_BACKOFFICE_ADMIN:
@@ -435,7 +433,7 @@ class AccredRoleProvider(RoleProvider):
             logger.info(
                 "Fetched roles from Accred API",
                 extra={
-                    "sciper": sciper,
+                    "user_id": user_id,
                     "total_authorizations": len(authorizations),
                     "co2_roles": len(roles),
                 },
@@ -447,7 +445,7 @@ class AccredRoleProvider(RoleProvider):
             logger.error(
                 "Accred API HTTP error",
                 extra={
-                    "sciper": sciper,
+                    "user_id": user_id,
                     "status_code": e.response.status_code,
                     "error": str(e),
                 },
@@ -455,13 +453,13 @@ class AccredRoleProvider(RoleProvider):
             raise
         except httpx.RequestError as e:
             logger.error(
-                "Accred API request error", extra={"sciper": sciper, "error": str(e)}
+                "Accred API request error", extra={"user_id": user_id, "error": str(e)}
             )
             raise
         except Exception as e:
             logger.error(
                 "Unexpected error fetching roles from Accred API",
-                extra={"sciper": sciper, "error": str(e), "type": type(e).__name__},
+                extra={"user_id": user_id, "error": str(e), "type": type(e).__name__},
             )
             logger.exception("Unexpected error fetching roles from Accred API")
             raise

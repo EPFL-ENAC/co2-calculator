@@ -136,7 +136,7 @@ async def health():
 
         session = await get_db_session()
         async with session:
-            from sqlalchemy import text
+            from sqlmodel import text
 
             await session.execute(text("SELECT 1"))
         db_status = "ok"
@@ -190,7 +190,8 @@ async def health():
     )
 
 
-if __name__ == "__main__":
+def run_main():
+    """Run the application using Uvicorn."""
     import uvicorn
 
     uvicorn.run(
@@ -200,3 +201,7 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),
     )
+
+
+if __name__ == "__main__":
+    run_main()

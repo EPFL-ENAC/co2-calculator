@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from app.models.user import GlobalScope, Role, RoleName, RoleScope
 from app.providers.role_provider import get_role_provider
 from app.repositories.resource_repo import create_resource
-from app.repositories.user_repo import upsert_user
+from app.repositories.user_repo import UserRepository
 from app.schemas.resource import ResourceCreate
 from app.services import resource_service
 
@@ -36,15 +36,17 @@ async def test_user(db_session):
     testuser_info = {
         "requested_role": "co2.user.std",
         "email": "testuser_co2.user.std@example.org",
+        "sub": "testuser_co2.user.std_id",
     }
-    sciper = role_provider.get_sciper(testuser_info)
+    user_id = role_provider.get_user_id(testuser_info)
     roles = await role_provider.get_roles(testuser_info)
-    user = await upsert_user(
-        db=db_session,
+    user_repo = UserRepository(db_session)
+    user = await user_repo.create(
         email=testuser_info.get("email"),
-        sciper=sciper,
+        user_id=user_id,
         roles=roles,
     )
+    user.roles = roles
     return user
 
 

@@ -3,14 +3,16 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
+
+# from app.repositories.unit_repo import upsert_unit
 from app.schemas.unit import UnitRead
-from app.services import unit_service
+from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -39,7 +41,7 @@ async def list_units(
     - Unit membership
     - Unit visibility
     """
-    units = await unit_service.list_units(db, current_user, skip=skip, limit=limit)
+    units = await UnitService(db).get_user_units(current_user, skip=skip, limit=limit)
     logger.info(
         "User requested unit list",
         extra={"user_id": current_user.id, "count": len(units)},
@@ -49,7 +51,7 @@ async def list_units(
 
 @router.get("/{unit_id}", response_model=UnitRead)
 async def get_unit(
-    unit_id: int,
+    unit_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -59,7 +61,7 @@ async def get_unit(
     Returns 403 if user is not authorized to access this resource.
     Returns 404 if resource does not exist.
     """
-    unit = await unit_service.get_unit(db, unit_id, current_user)
+    unit = await UnitService(db).get_by_id(unit_id, current_user)
     logger.info(
         "User requested unit",
         extra={"user_id": current_user.id, "unit_id": sanitize(unit_id)},

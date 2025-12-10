@@ -3,8 +3,8 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.resource import Resource
 from app.schemas.resource import ResourceCreate

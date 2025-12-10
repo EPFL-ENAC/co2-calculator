@@ -13,7 +13,25 @@ class UnitBase(SQLModel):
 
     name: str = Field(nullable=False, index=True)
     principal_user_id: str | None = Field(
-        foreign_key="users.id", nullable=True, index=True
+        default=None,  # Removed: foreign_key="users.id"
+        nullable=True,
+        index=True,
+        description="Principal user SCIPER",
+    )
+    principal_user_function: str | None = Field(
+        default=None,
+        nullable=True,
+        description="Function/title of the principal user",
+    )
+    principal_user_name: str | None = Field(
+        default=None,
+        nullable=True,
+        description="Name of the principal user",
+    )
+    principal_user_email: str | None = Field(
+        default=None,
+        nullable=True,
+        description="Email of the principal user",
     )
     affiliations: list = Field(
         default=list,
@@ -46,6 +64,11 @@ class Unit(UnitBase, table=True):
 
     __tablename__ = "units"
     id: str | None = Field(default=None, primary_key=True, index=True)
+    cf: str | None = Field(
+        default=None,
+        nullable=True,
+        description="other id associated with the unit",
+    )
 
     def __repr__(self) -> str:
         return f"<Unit {self.id}: {self.name}>"
