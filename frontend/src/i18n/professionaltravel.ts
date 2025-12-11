@@ -3,11 +3,11 @@ import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 export default {
   [MODULES.ProfessionalTravel]: {
     en: 'Professional Travel',
-    fr: 'Professional Travel',
+    fr: 'Voyages',
   },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
     en: 'Record team travel by plane and train with automatic CO₂ calculations',
-    fr: 'Record team trips by plane and train with automatic CO₂ calculations',
+    fr: 'Voyges professionels en train et en avion',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint`]: {
     en: 'Total Travel Carbon Footprint',
