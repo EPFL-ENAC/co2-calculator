@@ -19,7 +19,7 @@ beautifulsoup4==4.14.2 \
     --hash=sha256:2a98ab9f944a11acee9cc848508ec28d9228abfd522ef0fad6a02a72e0ded69e \
     --hash=sha256:5ef6fa3a8cbece8488d66985560f97ed091e22bbc4e9c2338508a9d5de6d4515
     # via mkdocs-with-pdf
-brotli==1.1.0 ; platform_python_implementation == 'CPython' \
+brotli==1.2.0 ; platform_python_implementation == 'CPython' \
     --hash=sha256:316cc9b17edf613ac76b1f1f305d2a748f1b976b033b049a6ecdfd5612c70409 \
     --hash=sha256:32d95b80260d79926f5fab3c41701dbb818fde1c9da590e77e571eefd14abe28 \
     --hash=sha256:3c0ef38c7a7014ffac184db9e04debe495d317cc9c6fb10071f7fefd93100a4f \
