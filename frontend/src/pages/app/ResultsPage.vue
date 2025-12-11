@@ -17,11 +17,13 @@ const viewUncertainties = ref(false);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
 
+import { formatNumber } from 'src/utils/number';
+
 // TODO: Replace with actual backend data when available
 // This function will get the number value from backend response using numberKey
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getNumberValue = (_module: string, _numberKey: string): string => {
-  return "37'250";
+  return formatNumber(37250);
 };
 
 const getUncertainty = (

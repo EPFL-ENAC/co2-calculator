@@ -10,7 +10,7 @@
            second line: kg CO₂-eq -->
       <div class="text-h3 module-total-result__value">
         <h1 class="text-h1 text-weight-bold q-mb-none">
-          {{ new Intl.NumberFormat().format(data) }}
+          {{ formatNumber(data) }}
         </h1>
         <p class="text-body2 text-secondary q-mb-none">
           {{ $t('results_units') }}
@@ -22,6 +22,7 @@
 
 <script setup lang="ts">
 import { Module } from 'src/constant/modules';
+import { formatNumber } from 'src/utils/number';
 
 defineProps<{
   type: Module;

@@ -280,6 +280,7 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import type { Module, Threshold } from 'src/constant/modules';
+import { formatNumber } from 'src/utils/number';
 
 const { t: $t } = useI18n();
 const $q = useQuasar();
@@ -404,11 +405,13 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq') {
-    const n = Number(val);
-    if (!Number.isFinite(n)) return '-';
-    return n.toFixed(0);
+    return formatNumber(val as number, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
   }
-  return String(val);
+  // Check if the value is a number and format it
+  return formatNumber(val as number);
 }
 
 function getItemName(row: ModuleRow): string {
