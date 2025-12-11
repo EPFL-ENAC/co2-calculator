@@ -2,11 +2,10 @@ import { ref } from 'vue';
 
 export interface ColorColumn {
   id: number;
-  colors: string[]; // 5 shades: [darkest, dark, base, light, lightest]
-  colorblindColors: string[]; // 5 shades for colorblind users
+  colors: string[];
+  colorblindColors: string[];
 }
 
-// Reactive ref for colorblind mode
 export const colorblindMode = ref(false);
 
 export const chartColorScale: ColorColumn[] = [

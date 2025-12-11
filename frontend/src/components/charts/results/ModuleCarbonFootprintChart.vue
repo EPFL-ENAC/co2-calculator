@@ -61,12 +61,18 @@ const categories: CategoryConfig[] = [
   },
 ];
 
+// Top-level category labels
+const topLevelCategories = [
+  { label: 'Calculated', startIndex: 0, endIndex: 7 },
+  { label: 'Estimated', startIndex: 8, endIndex: 11 },
+];
+
 // Scope configurations
 const scopeAreas = [
   { label: 'Scope 1', color: '#F5F5F5', startIndex: 0, endIndex: 1 },
   { label: 'Scope 2', color: '#E8E8E8', startIndex: 2, endIndex: 3 },
   { label: 'Scope 3', color: '#D0D0D0', startIndex: 4, endIndex: 7 },
-  { label: 'Estimated', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
+  { label: '', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
 ];
 
 const barLabels = categories.map((c) => c.name);
@@ -314,7 +320,36 @@ const initChart = () => {
     const secondPos = chartInstance.convertToPixel('xAxis', barLabels[1]);
     const barWidth = firstPos && secondPos ? Math.abs(secondPos - firstPos) : 0;
 
-    // Build graphics array directly using flatMap
+    // Build top-level category labels (Calculated, Estimated)
+    const topLevelGraphics = topLevelCategories.map((category) => {
+      const startPos = chartInstance!.convertToPixel(
+        'xAxis',
+        barLabels[category.startIndex],
+      );
+      const endPos = chartInstance!.convertToPixel(
+        'xAxis',
+        barLabels[category.endIndex],
+      );
+
+      const startX = startPos - barWidth / 2;
+      const endX = endPos + barWidth / 2;
+      const width = endX - startX;
+
+      return {
+        type: 'text' as const,
+        x: startX + width / 2,
+        y: plotTop + 10,
+        style: {
+          text: category.label,
+          fontSize: 11,
+          fontWeight: 'bold',
+          textAlign: 'center',
+        },
+        z: 3,
+      };
+    });
+
+    // Build scope graphics array
     const scopeGraphics = scopeAreas
       .map((scope) => {
         const startPos = chartInstance!.convertToPixel(
@@ -349,7 +384,7 @@ const initChart = () => {
           {
             type: 'text' as const,
             x: startX + width / 2,
-            y: plotTop + 15,
+            y: plotTop + 30,
             style: {
               text: scope.label,
               fontSize: 10,
@@ -362,7 +397,7 @@ const initChart = () => {
       })
       .flat();
 
-    // Add separator line between Scope 3 and Estimated
+    // Add separator line after Scope 3 (between index 7 and 8)
     const separatorPos = chartInstance.convertToPixel('xAxis', barLabels[7]);
     const nextPos = chartInstance.convertToPixel('xAxis', barLabels[8]);
     const separatorGraphics =
@@ -386,7 +421,11 @@ const initChart = () => {
           ]
         : [];
 
-    const graphics = [...scopeGraphics, ...separatorGraphics];
+    const graphics = [
+      ...topLevelGraphics,
+      ...scopeGraphics,
+      ...separatorGraphics,
+    ];
     chartInstance.setOption({ graphic: graphics });
   };
 
