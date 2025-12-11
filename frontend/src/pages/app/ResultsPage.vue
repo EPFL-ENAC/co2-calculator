@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
+import { colorblindMode as globalColorblindMode } from 'src/constant/chart-colors';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ChartContainer from 'src/components/molecules/ChartContainer.vue';
@@ -14,6 +15,14 @@ const { t } = useI18n();
 
 const colorblindMode = ref(false);
 const viewUncertainties = ref(false);
+
+// Sync local colorblindMode with global ref
+watch(colorblindMode, (newValue) => {
+  globalColorblindMode.value = newValue;
+});
+
+// Initialize global ref with local value
+globalColorblindMode.value = colorblindMode.value;
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
 

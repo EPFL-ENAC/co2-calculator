@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import * as echarts from 'echarts';
 import type { EChartsOption, BarSeriesOption } from 'echarts';
-import { getElementColor } from 'src/constant/chart-colors';
+import { getElementColor, colorblindMode } from 'src/constant/chart-colors';
 
 const chartRef = ref<HTMLDivElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
@@ -11,127 +11,123 @@ interface CategoryConfig {
   name: string;
   colorId: string;
   subCategories?: string[];
+  value?: number;
+  values?: Record<string, number>;
 }
 
-const categoryConfigs: CategoryConfig[] = [
-  { name: 'Unit-gas', colorId: 'unit-gas' },
-  { name: 'Infrastructure-gas', colorId: 'infrastructure-gas' },
+// Category configurations
+const categories: CategoryConfig[] = [
+  { name: 'Unit-gas', colorId: 'unit-gas', value: 2.5 },
+  { name: 'Infrastructure-gas', colorId: 'infrastructure-gas', value: 2.0 },
   {
     name: 'Infrastructure',
     colorId: 'infrastructure-category',
-    subCategories: ['Heating', 'Cooling', 'Ventilation', 'Lighting'],
+    values: { Heating: 9.0, Cooling: 3.0, Ventilation: 9.0, Lighting: 3.0 },
   },
   {
     name: 'Equipment',
     colorId: 'equipment',
-    subCategories: ['Scientific', 'IT Equipment', 'Other'],
+    values: { Scientific: 10.0, 'IT Equipment': 3.0 },
   },
-  { name: 'Commuting', colorId: 'commuting' },
-  { name: 'Food', colorId: 'food' },
+  { name: 'Commuting', colorId: 'commuting', value: 8.0 },
+  { name: 'Food', colorId: 'food', value: 2.5 },
   {
     name: 'Professional Travel',
     colorId: 'professional-travel-category',
-    subCategories: ['Train', 'Plane'],
+    values: { Train: 1.5, Plane: 3.0 },
   },
-  { name: 'IT', colorId: 'it' },
+  { name: 'IT', colorId: 'it', value: 25.0 },
   {
     name: 'Research Core Facilities',
     colorId: 'research-core-facilities',
-    subCategories: ['SCITAS', 'RCP'],
+    values: { SCITAS: 1.0, RCP: 1.5 },
   },
   {
     name: 'Purchases',
     colorId: 'purchases',
-    subCategories: [
-      'Bio-chemicals',
-      'Consumables',
-      'Equipment',
-      'Services',
-      'Other Purchases',
-    ],
+    values: {
+      'Bio-chemicals': 2.0,
+      Consumables: 3.0,
+      Equipment: 1.0,
+      Services: 2.0,
+      'Other Purchases': 0.2,
+    },
   },
-  { name: 'Waste', colorId: 'waste' },
-  { name: 'Grey Energy', colorId: 'grey-energy', subCategories: ['PH', 'GC'] },
+  { name: 'Waste', colorId: 'waste', value: 10.0 },
+  {
+    name: 'Grey Energy',
+    colorId: 'grey-energy',
+    values: { GC: 4.0, PH: 4.0 },
+  },
 ];
-
-const barLabels = categoryConfigs.map((c) => c.name);
-
-// Build mappings
-const barToSubCategories: Record<string, string[]> = {};
-const subCategoryToMainCategory: Record<string, string> = {};
-const allSubCategories = new Set<string>();
-
-categoryConfigs.forEach((config) => {
-  const subCats = config.subCategories?.length
-    ? config.subCategories
-    : [config.name];
-  barToSubCategories[config.name] = subCats;
-  subCats.forEach((sub) => {
-    subCategoryToMainCategory[sub] = config.name;
-    allSubCategories.add(sub);
-  });
-});
-
-const subCategories = Array.from(allSubCategories);
-
-// Build dataset source
-const buildDatasetSource = (): Record<string, string | number | null>[] => {
-  const source = barLabels.map((bar) => {
-    const row: Record<string, string | number | null> = { bar };
-    subCategories.forEach((sub) => (row[sub] = null));
-    return row;
-  });
-
-  // Set data values
-  source[0]['Unit-gas'] = 2.5;
-  source[1]['Infrastructure-gas'] = 2.0;
-  source[2]['Heating'] = 9.0;
-  source[2]['Cooling'] = 3.0;
-  source[2]['Ventilation'] = 9.0;
-  source[2]['Lighting'] = 3.0;
-  source[3]['Scientific'] = 10.0;
-  source[3]['IT Equipment'] = 3.0;
-  source[4]['Commuting'] = 8.0;
-  source[5]['Food'] = 2.5;
-  source[6]['Train'] = 1.5;
-  source[6]['Plane'] = 3.0;
-  source[7]['IT'] = 25.0;
-  source[8]['SCITAS'] = 1.0;
-  source[8]['RCP'] = 1.5;
-  source[9]['Bio-chemicals'] = 2.0;
-  source[9]['Consumables'] = 3.0;
-  source[9]['Equipment'] = 1.0;
-  source[9]['Services'] = 2.0;
-  source[9]['Other Purchases'] = 0.2;
-  source[10]['Waste'] = 10.0;
-  source[11]['GC'] = 4.0;
-  source[11]['PH'] = 4.0;
-
-  return source;
-};
-
-const dataset = {
-  dimensions: ['bar', ...subCategories],
-  source: buildDatasetSource(),
-};
 
 // Scope configurations
 const scopeAreas = [
-  { label: 'Scope 1', color: '#F5F5F5', range: [0, 1] },
-  { label: 'Scope 2', color: '#E8E8E8', range: [2, 3] },
-  { label: 'Scope 3', color: '#D0D0D0', range: [4, 9] },
-  { label: 'Estimated', color: '#D0D0D0', range: [10, 11] },
+  { label: 'Scope 1', color: '#F5F5F5', startIndex: 0, endIndex: 1 },
+  { label: 'Scope 2', color: '#E8E8E8', startIndex: 2, endIndex: 3 },
+  { label: 'Scope 3', color: '#D0D0D0', startIndex: 4, endIndex: 7 },
+  { label: 'Estimated', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
 ];
 
-const getColor = (categoryName: string, shade: number = 2): string => {
-  const config = categoryConfigs.find((c) => c.name === categoryName);
-  return getElementColor(config.colorId, shade);
+const barLabels = categories.map((c) => c.name);
+
+// Build mappings - derive subCategories from values keys or use explicit subCategories
+const barToSubCategories = Object.fromEntries(
+  categories.map((config) => [
+    config.name,
+    config.subCategories?.length
+      ? config.subCategories
+      : config.values
+        ? Object.keys(config.values)
+        : [config.name],
+  ]),
+);
+
+const subCategoryToMainCategory = Object.fromEntries(
+  categories.flatMap((config) => {
+    const subCats = barToSubCategories[config.name];
+    return subCats.map((sub) => [sub, config.name]);
+  }),
+);
+
+const subCategories = Object.keys(subCategoryToMainCategory);
+
+// Build dataset
+const datasetSource: Record<string, string | number>[] = categories.map(
+  (config) => ({
+    bar: config.name,
+    ...(config.value !== undefined
+      ? { [config.name]: config.value }
+      : config.values || {}),
+  }),
+);
+
+const dataset = {
+  dimensions: ['bar', ...subCategories],
+  source: datasetSource,
 };
+
+// Calculate max value for y-axis
+const calculateMaxValue = (): number =>
+  Math.max(
+    ...dataset.source.map((row) =>
+      subCategories.reduce((sum, sub) => sum + ((row[sub] as number) || 0), 0),
+    ),
+  ) + 10;
+
+// Color helpers - uses global colorblindMode ref automatically
+const getColor = (categoryName: string, shade: number = 2): string =>
+  getElementColor(
+    categories.find((c) => c.name === categoryName)?.colorId || '',
+    shade,
+  );
 
 const getSubCategoryColor = (subCategory: string, index: number): string => {
   const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
-  const shade = mainCategory === subCategory ? 2 : Math.min(index, 4);
-  return getColor(mainCategory, shade);
+  return getColor(
+    mainCategory,
+    mainCategory === subCategory ? 2 : Math.min(index, 4),
+  );
 };
 
 const initChart = () => {
@@ -167,12 +163,18 @@ const initChart = () => {
         name: subCategory,
         type: 'bar',
         datasetIndex: 0,
-        encode: { x: 'bar', y: subCategory },
+        encode: { y: subCategory },
         stack: 'total',
         barWidth: '80%',
+        barCategoryGap: '20%',
 
         itemStyle: {
           color: getSubCategoryColor(subCategory, index >= 0 ? index : 0),
+        },
+        emphasis: {
+          itemStyle: {
+            color: getSubCategoryColor(subCategory, index >= 0 ? index : 0),
+          },
         },
         animation: true,
         animationDuration: 300,
@@ -188,64 +190,13 @@ const initChart = () => {
     type: 'bar',
     data: [],
     itemStyle: { color: getColor(category) },
-    silent: true,
-    tooltip: { show: false },
-    legendHoverLink: true,
   }));
-
-  // Create scope markArea series
-  const scopeSeries: BarSeriesOption[] = scopeAreas.map((scope) => ({
-    type: 'bar',
-    data: [],
-    markArea: {
-      silent: true,
-      itemStyle: { color: scope.color, opacity: 0.3 },
-      label: {
-        show: true,
-        position: 'insideTop',
-        formatter: scope.label,
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#333',
-      },
-      data: [[{ xAxis: scope.range[0] }, { xAxis: scope.range[1] }]],
-    },
-    z: 0,
-  }));
-
-  // Separator line
-  const separatorSeries: BarSeriesOption = {
-    type: 'bar',
-    data: [],
-    markLine: {
-      silent: true,
-      symbol: 'none',
-      lineStyle: { color: '#666', type: 'dashed', width: 2 },
-      data: [
-        [
-          { xAxis: 9.5, yAxis: 0 },
-          { xAxis: 9.5, yAxis: 35 },
-        ],
-      ],
-    },
-    z: 10,
-  };
 
   const option: EChartsOption = {
     dataset: [dataset],
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      position: (
-        point: number[],
-        _params: unknown,
-        _dom: unknown,
-        _rect: unknown,
-        size: { viewSize: number[]; contentSize: number[] },
-      ) => [
-        point[0] - size.contentSize[0] / 2,
-        point[1] - size.contentSize[1] - 10,
-      ],
+      axisPointer: { type: 'none' },
       confine: true,
       extraCssText: 'min-width: 220px;',
       formatter: (params: unknown) => {
@@ -259,15 +210,8 @@ const initChart = () => {
         );
         if (!categoryRow) return '';
 
-        // Get all subcategories for this category
-        const subCats = barToSubCategories[categoryName] || [];
-
-        // Collect all subcategory values for this category
-        const subCategoryData: Array<{
-          name: string;
-          value: number;
-          color: string;
-        }> = [];
+        const subCats = barToSubCategories[categoryName];
+        const subCategoryData = [];
 
         let categoryTotal = 0;
 
@@ -322,45 +266,149 @@ const initChart = () => {
       selectedMode: false,
     },
     grid: {
-      left: '10%',
-      right: '10%',
+      left: '5%',
+      right: '0%',
       bottom: '15%',
       top: '0%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
+      data: barLabels,
       axisLabel: { show: false },
-      boundaryGap: false,
-      axisLine: { show: false },
-      axisTick: { show: false },
+      boundaryGap: true,
     },
     yAxis: {
       type: 'value',
       name: 't CO₂-eq',
       nameLocation: 'middle',
-      nameGap: 50,
+      nameGap: 30,
       nameRotate: 90,
       nameTextStyle: { fontSize: 10, fontWeight: 'normal' },
-      max: 35,
+      max: calculateMaxValue(),
       splitLine: { show: true, lineStyle: { color: '#E0E0E0', type: 'solid' } },
     },
-    series: [
-      ...scopeSeries,
-      separatorSeries,
-      ...legendSeries,
-      ...categorySeries,
-    ],
+    series: [...legendSeries, ...categorySeries],
   };
 
   chartInstance.setOption(option);
 
-  const handleResize = () => chartInstance?.resize();
+  // Add scope rectangles and separator line using graphics (calculated after render)
+  const updateScopeGraphics = () => {
+    if (!chartInstance) return;
+
+    // Get plot area bounds from option
+    const option = chartInstance.getOption() as EChartsOption;
+    const grid =
+      (Array.isArray(option.grid) ? option.grid[0] : option.grid) || {};
+    const gridTop = parseFloat(String(grid.top || '0%').replace('%', '')) || 0;
+    const gridBottom =
+      parseFloat(String(grid.bottom || '15%').replace('%', '')) || 15;
+    const chartHeight = chartInstance.getHeight();
+    const plotTop = (chartHeight * gridTop) / 100;
+    const plotBottom = chartHeight - (chartHeight * gridBottom) / 100;
+    const plotHeight = plotBottom - plotTop;
+
+    // Calculate bar width from spacing between first two categories
+    const firstPos = chartInstance.convertToPixel('xAxis', barLabels[0]);
+    const secondPos = chartInstance.convertToPixel('xAxis', barLabels[1]);
+    const barWidth = firstPos && secondPos ? Math.abs(secondPos - firstPos) : 0;
+
+    // Build graphics array directly using flatMap
+    const scopeGraphics = scopeAreas
+      .map((scope) => {
+        const startPos = chartInstance!.convertToPixel(
+          'xAxis',
+          barLabels[scope.startIndex],
+        );
+        const endPos = chartInstance!.convertToPixel(
+          'xAxis',
+          barLabels[scope.endIndex],
+        );
+
+        const startX = startPos - barWidth / 2;
+        const endX = endPos + barWidth / 2;
+        const width = endX - startX;
+
+        return [
+          // Rectangle
+          {
+            type: 'rect' as const,
+            shape: {
+              x: startX,
+              y: plotTop,
+              width: width,
+              height: plotHeight,
+            },
+            style: {
+              fill: scope.color,
+              opacity: 0.3,
+            },
+            z: 0,
+          },
+          {
+            type: 'text' as const,
+            x: startX + width / 2,
+            y: plotTop + 15,
+            style: {
+              text: scope.label,
+              fontSize: 10,
+              fontWeight: 'bold',
+              textAlign: 'center',
+            },
+            z: 1,
+          },
+        ];
+      })
+      .flat();
+
+    // Add separator line between Scope 3 and Estimated
+    const separatorPos = chartInstance.convertToPixel('xAxis', barLabels[7]);
+    const nextPos = chartInstance.convertToPixel('xAxis', barLabels[8]);
+    const separatorGraphics =
+      separatorPos && nextPos
+        ? [
+            {
+              type: 'line' as const,
+              shape: {
+                x1: (separatorPos + nextPos) / 2,
+                y1: plotTop,
+                x2: (separatorPos + nextPos) / 2,
+                y2: plotTop + plotHeight,
+              },
+              style: {
+                stroke: '#666',
+                lineDash: [5, 5],
+                lineWidth: 1,
+              },
+              z: 2,
+            },
+          ]
+        : [];
+
+    const graphics = [...scopeGraphics, ...separatorGraphics];
+    chartInstance.setOption({ graphic: graphics });
+  };
+
+  // Update graphics after chart renders
+  setTimeout(updateScopeGraphics, 100);
+
+  const handleResize = () => {
+    chartInstance?.resize();
+    setTimeout(updateScopeGraphics, 100);
+  };
   window.addEventListener('resize', handleResize);
 };
 
 onMounted(() => {
   initChart();
+});
+
+// Watch for colorblind mode changes and update chart
+watch(colorblindMode, () => {
+  if (chartInstance) {
+    initChart();
+  }
 });
 </script>
 
