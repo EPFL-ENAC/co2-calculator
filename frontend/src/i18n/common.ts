@@ -81,6 +81,10 @@ export default {
     en: 'Logout',
     fr: 'Se déconnecter',
   },
+  tco2eq: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-eq',
+  },
   workspace_setup_title: {
     en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL!',
     fr: 'Bienvenue dans le Calculateur CO₂ des activités de recherche de l’EPFL !',

@@ -1,13 +1,33 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { computed, ref, onMounted, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
-import * as echarts from 'echarts';
+import { use } from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
+import { BarChart } from 'echarts/charts';
 import type { EChartsOption, BarSeriesOption } from 'echarts';
+import type { ECharts } from 'echarts/core';
+import {
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  DatasetComponent,
+  GraphicComponent,
+} from 'echarts/components';
+import VChart from 'vue-echarts';
 import { getElement, colorblindMode } from 'src/constant/charts';
 
-const chartRef = ref<HTMLDivElement | null>(null);
-let chartInstance: echarts.ECharts | null = null;
-let resizeHandler: (() => void) | null = null;
+use([
+  CanvasRenderer,
+  BarChart,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  DatasetComponent,
+  GraphicComponent,
+]);
+
+const chartRef = ref<ECharts>();
+const graphicsRef = ref<EChartsOption['graphic']>([]);
 const { t, locale } = useI18n();
 
 interface CategoryConfig {
@@ -71,23 +91,8 @@ const categories: CategoryConfig[] = [
   },
 ];
 
-const initChart = () => {
-  if (!chartRef.value) return;
-
-  // Dispose existing chart instance if it exists
-  if (chartInstance) {
-    chartInstance.dispose();
-    chartInstance = null;
-  }
-
-  // Remove existing resize listener if it exists
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler);
-    resizeHandler = null;
-  }
-
-  chartInstance = echarts.init(chartRef.value);
-
+// Build chart data and mappings
+const buildChartData = () => {
   const barLabels = categories.map((c) => t(c.elementId));
 
   // Build all mappings and dataset in one pass
@@ -126,25 +131,83 @@ const initChart = () => {
     source: datasetSource,
   };
 
-  // Color helpers
-  const getColor = (elementId: string, shade: number = 2): string =>
-    getElement(elementId, shade);
-
-  const getSubCategoryColor = (subCategory: string, index: number): string => {
-    const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
-    const categoryConfig = categories.find((c) => c.elementId === mainCategory);
-    // If category has a single value (no subcategories), use middle shade (2)
-    const shade = categoryConfig?.value !== undefined ? 2 : Math.min(index, 4);
-    return getColor(mainCategory, shade);
+  return {
+    barLabels,
+    translatedNameToelementId,
+    barToSubCategories,
+    subCategoryToMainCategory,
+    dataset,
+    subCategories,
   };
+};
 
-  // Top-level category labels (re-evaluated on each init to reflect locale changes)
+// Color helpers
+const getColor = (elementId: string, shade: number = 2): string =>
+  getElement(elementId, shade);
+
+const getSubCategoryColor = (
+  subCategory: string,
+  index: number,
+  subCategoryToMainCategory: Record<string, string>,
+): string => {
+  const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
+  const categoryConfig = categories.find((c) => c.elementId === mainCategory);
+  // If category has a single value (no subcategories), use middle shade (2)
+  const shade = categoryConfig?.value !== undefined ? 2 : Math.min(index, 4);
+  return getColor(mainCategory, shade);
+};
+
+// Build top-level category labels (Calculated, Estimated)
+const buildTopLevelGraphics = (
+  chart: ECharts,
+  barLabels: string[],
+  plotTop: number,
+  barWidth: number,
+) => {
   const topLevelCategories = [
     { label: t('charts-calculated'), startIndex: 0, endIndex: 7 },
     { label: t('charts-estimated'), startIndex: 8, endIndex: 11 },
   ];
 
-  // Scope configurations (re-evaluated on each init to reflect locale changes)
+  return topLevelCategories
+    .map((category) => {
+      const startPos = chart.convertToPixel(
+        'xAxis',
+        barLabels[category.startIndex],
+      );
+      const endPos = chart.convertToPixel(
+        'xAxis',
+        barLabels[category.endIndex],
+      );
+
+      const startX = startPos - barWidth / 2;
+      const endX = endPos + barWidth / 2;
+      const width = endX - startX;
+
+      return {
+        type: 'text' as const,
+        x: startX + width / 2,
+        y: plotTop + 10,
+        style: {
+          text: category.label,
+          fontSize: 11,
+          fontWeight: 'bold',
+          textAlign: 'center',
+        },
+        z: 3,
+      };
+    })
+    .filter((g) => g !== null);
+};
+
+// Build scope graphics array
+const buildScopeGraphics = (
+  chart: ECharts,
+  barLabels: string[],
+  plotTop: number,
+  plotHeight: number,
+  barWidth: number,
+) => {
   const scopeAreas = [
     {
       label: t('charts-scope') + ' 1',
@@ -167,6 +230,152 @@ const initChart = () => {
     { label: '', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
   ];
 
+  return scopeAreas
+    .map((scope) => {
+      const startPos = chart.convertToPixel(
+        'xAxis',
+        barLabels[scope.startIndex],
+      );
+      const endPos = chart.convertToPixel('xAxis', barLabels[scope.endIndex]);
+
+      if (startPos == null || endPos == null || !barWidth) {
+        return [];
+      }
+
+      const startX = startPos - barWidth / 2;
+      const endX = endPos + barWidth / 2;
+      const width = endX - startX;
+
+      return [
+        {
+          type: 'rect' as const,
+          shape: {
+            x: startX,
+            y: plotTop,
+            width: width,
+            height: plotHeight,
+          },
+          style: {
+            fill: scope.color,
+            opacity: 0.3,
+          },
+          z: -1,
+        },
+        {
+          type: 'text' as const,
+          x: startX + width / 2,
+          y: plotTop + 30,
+          style: {
+            text: scope.label,
+            fontSize: 10,
+            fontWeight: 'bold',
+            textAlign: 'center',
+          },
+          z: 1,
+        },
+      ];
+    })
+    .flat();
+};
+
+// Build separator line after Scope 3
+const buildSeparatorGraphics = (
+  chart: ECharts,
+  barLabels: string[],
+  plotTop: number,
+  plotHeight: number,
+) => {
+  const separatorPos = chart.convertToPixel('xAxis', barLabels[7]);
+  const nextPos = chart.convertToPixel('xAxis', barLabels[8]);
+
+  if (!separatorPos || !nextPos) return [];
+
+  return [
+    {
+      type: 'line' as const,
+      shape: {
+        x1: (separatorPos + nextPos) / 2,
+        y1: plotTop,
+        x2: (separatorPos + nextPos) / 2,
+        y2: plotTop + plotHeight,
+      },
+      style: {
+        stroke: '#666',
+        lineDash: [5, 5],
+        lineWidth: 1,
+      },
+      z: 2,
+    },
+  ];
+};
+
+// Update scope graphics after chart renders
+const updateScopeGraphics = () => {
+  if (!chartRef.value) return;
+
+  const chartData = buildChartData();
+  const { barLabels } = chartData;
+
+  // Get plot area bounds from option
+  const option = chartRef.value.getOption() as EChartsOption;
+  const grid =
+    (Array.isArray(option.grid) ? option.grid[0] : option.grid) || {};
+  const gridTop = parseFloat(String(grid.top || '0%').replace('%', '')) || 0;
+  const gridBottom =
+    parseFloat(String(grid.bottom || '15%').replace('%', '')) || 15;
+  const chartHeight = chartRef.value.getHeight();
+  const plotTop = (chartHeight * gridTop) / 100;
+  const plotBottom = chartHeight - (chartHeight * gridBottom) / 100;
+  const plotHeight = plotBottom - plotTop;
+
+  const firstPos = chartRef.value.convertToPixel('xAxis', barLabels[0]);
+  const secondPos = chartRef.value.convertToPixel('xAxis', barLabels[1]);
+  const barWidth = firstPos && secondPos ? Math.abs(secondPos - firstPos) : 0;
+
+  const topLevelGraphics = buildTopLevelGraphics(
+    chartRef.value,
+    barLabels,
+    plotTop,
+    barWidth,
+  );
+  const scopeGraphics = buildScopeGraphics(
+    chartRef.value,
+    barLabels,
+    plotTop,
+    plotHeight,
+    barWidth,
+  );
+  const separatorGraphics = buildSeparatorGraphics(
+    chartRef.value,
+    barLabels,
+    plotTop,
+    plotHeight,
+  );
+
+  const graphics = [
+    ...topLevelGraphics,
+    ...scopeGraphics,
+    ...separatorGraphics,
+  ];
+
+  if (graphics.length > 0 && barWidth > 0) {
+    graphicsRef.value = graphics;
+    chartRef.value.setOption({ graphic: graphics }, { notMerge: false });
+  }
+};
+
+// Computed chart option
+const chartOption = computed<EChartsOption>(() => {
+  const chartData = buildChartData();
+  const {
+    barLabels,
+    translatedNameToelementId,
+    barToSubCategories,
+    subCategoryToMainCategory,
+    dataset,
+    subCategories,
+  } = chartData;
+
   // Calculate max value for y-axis
   const calculateMaxValue = (): number =>
     Math.max(
@@ -178,22 +387,20 @@ const initChart = () => {
       ),
     ) + 10;
 
-  // Get subcategories with data
-  const subCategoriesWithData = subCategories.filter((sub) =>
-    dataset.source.some((row) => {
-      const val = row[sub];
-      return val !== null && val !== undefined && val !== 0;
-    }),
-  );
-
-  // Sort subcategories for proper stacking
-  const sortedSubCategories = [...subCategoriesWithData].sort((a, b) => {
-    const mainA = subCategoryToMainCategory[a] || a;
-    const mainB = subCategoryToMainCategory[b] || b;
-    if (mainA !== mainB) return 0;
-    const subCats = barToSubCategories[mainA] || [];
-    return subCats.indexOf(a) - subCats.indexOf(b);
-  });
+  // Get and sort subcategories with data for proper stacking
+  const sortedSubCategories = subCategories
+    .filter((sub) =>
+      dataset.source.some((row) => {
+        return row[sub];
+      }),
+    )
+    .sort((a, b) => {
+      const mainA = subCategoryToMainCategory[a] || a;
+      const mainB = subCategoryToMainCategory[b] || b;
+      if (mainA !== mainB) return 0;
+      const subCats = barToSubCategories[mainA] || [];
+      return subCats.indexOf(a) - subCats.indexOf(b);
+    });
 
   // Create bar series
   const categorySeries: BarSeriesOption[] = sortedSubCategories.map(
@@ -216,11 +423,19 @@ const initChart = () => {
         barCategoryGap: '20%',
 
         itemStyle: {
-          color: getSubCategoryColor(subCategory, index >= 0 ? index : 0),
+          color: getSubCategoryColor(
+            subCategory,
+            index >= 0 ? index : 0,
+            subCategoryToMainCategory,
+          ),
         },
         emphasis: {
           itemStyle: {
-            color: getSubCategoryColor(subCategory, index >= 0 ? index : 0),
+            color: getSubCategoryColor(
+              subCategory,
+              index >= 0 ? index : 0,
+              subCategoryToMainCategory,
+            ),
           },
         },
         animation: true,
@@ -239,8 +454,9 @@ const initChart = () => {
     itemStyle: { color: getColor(config.elementId) },
   }));
 
-  const option: EChartsOption = {
+  return {
     dataset: [dataset],
+    graphic: graphicsRef.value as EChartsOption['graphic'],
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'none' },
@@ -255,11 +471,9 @@ const initChart = () => {
         const categoryRow = dataset.source.find(
           (row) => row.bar === categoryName,
         );
-        if (!categoryRow) return '';
 
         // Get elementId from translated name
         const elementId = translatedNameToelementId[categoryName];
-        if (!elementId) return '';
 
         const subCats = barToSubCategories[elementId];
         const subCategoryData = [];
@@ -269,12 +483,14 @@ const initChart = () => {
         subCats.forEach((subCat) => {
           const value = categoryRow[subCat];
 
-          const mainCategoryelementId =
-            subCategoryToMainCategory[subCat] || elementId;
-          const subCatsForCategory =
-            barToSubCategories[mainCategoryelementId] || [];
+          const mainCategoryelementId = subCategoryToMainCategory[subCat];
+          const subCatsForCategory = barToSubCategories[mainCategoryelementId];
           const index = subCatsForCategory.indexOf(subCat);
-          const color = getSubCategoryColor(subCat, index >= 0 ? index : 0);
+          const color = getSubCategoryColor(
+            subCat,
+            index,
+            subCategoryToMainCategory,
+          );
 
           subCategoryData.push({
             name: subCat,
@@ -331,190 +547,89 @@ const initChart = () => {
     },
     yAxis: {
       type: 'value',
-      name: 't CO₂-eq',
+      name: t('tco2eq'),
       nameLocation: 'middle',
       nameGap: 30,
       nameRotate: 90,
-      nameTextStyle: { fontSize: 10, fontWeight: 'normal' },
+      nameTextStyle: { fontSize: 10, fontWeight: 'bold' },
       max: calculateMaxValue(),
       splitLine: { show: true, lineStyle: { color: '#E0E0E0', type: 'solid' } },
     },
     series: [...legendSeries, ...categorySeries],
   };
-
-  chartInstance.setOption(option);
-
-  // Add scope rectangles and separator line using graphics (calculated after render)
-  const updateScopeGraphics = () => {
-    if (!chartInstance) return;
-
-    // Get plot area bounds from option
-    const option = chartInstance.getOption() as EChartsOption;
-    const grid =
-      (Array.isArray(option.grid) ? option.grid[0] : option.grid) || {};
-    const gridTop = parseFloat(String(grid.top || '0%').replace('%', '')) || 0;
-    const gridBottom =
-      parseFloat(String(grid.bottom || '15%').replace('%', '')) || 15;
-    const chartHeight = chartInstance.getHeight();
-    const plotTop = (chartHeight * gridTop) / 100;
-    const plotBottom = chartHeight - (chartHeight * gridBottom) / 100;
-    const plotHeight = plotBottom - plotTop;
-
-    // Calculate bar width from spacing between first two categories
-    const firstPos = chartInstance.convertToPixel('xAxis', barLabels[0]);
-    const secondPos = chartInstance.convertToPixel('xAxis', barLabels[1]);
-    const barWidth = firstPos && secondPos ? Math.abs(secondPos - firstPos) : 0;
-
-    // Build top-level category labels (Calculated, Estimated)
-    const topLevelGraphics = topLevelCategories.map((category) => {
-      const startPos = chartInstance!.convertToPixel(
-        'xAxis',
-        barLabels[category.startIndex],
-      );
-      const endPos = chartInstance!.convertToPixel(
-        'xAxis',
-        barLabels[category.endIndex],
-      );
-
-      const startX = startPos - barWidth / 2;
-      const endX = endPos + barWidth / 2;
-      const width = endX - startX;
-
-      return {
-        type: 'text' as const,
-        x: startX + width / 2,
-        y: plotTop + 10,
-        style: {
-          text: category.label,
-          fontSize: 11,
-          fontWeight: 'bold',
-          textAlign: 'center',
-        },
-        z: 3,
-      };
-    });
-
-    // Build scope graphics array
-    const scopeGraphics = scopeAreas
-      .map((scope) => {
-        const startPos = chartInstance!.convertToPixel(
-          'xAxis',
-          barLabels[scope.startIndex],
-        );
-        const endPos = chartInstance!.convertToPixel(
-          'xAxis',
-          barLabels[scope.endIndex],
-        );
-
-        const startX = startPos - barWidth / 2;
-        const endX = endPos + barWidth / 2;
-        const width = endX - startX;
-
-        return [
-          // Rectangle
-          {
-            type: 'rect' as const,
-            shape: {
-              x: startX,
-              y: plotTop,
-              width: width,
-              height: plotHeight,
-            },
-            style: {
-              fill: scope.color,
-              opacity: 0.3,
-            },
-            z: 0,
-          },
-          {
-            type: 'text' as const,
-            x: startX + width / 2,
-            y: plotTop + 30,
-            style: {
-              text: scope.label,
-              fontSize: 10,
-              fontWeight: 'bold',
-              textAlign: 'center',
-            },
-            z: 1,
-          },
-        ];
-      })
-      .flat();
-
-    // Add separator line after Scope 3 (between index 7 and 8)
-    const separatorPos = chartInstance.convertToPixel('xAxis', barLabels[7]);
-    const nextPos = chartInstance.convertToPixel('xAxis', barLabels[8]);
-    const separatorGraphics =
-      separatorPos && nextPos
-        ? [
-            {
-              type: 'line' as const,
-              shape: {
-                x1: (separatorPos + nextPos) / 2,
-                y1: plotTop,
-                x2: (separatorPos + nextPos) / 2,
-                y2: plotTop + plotHeight,
-              },
-              style: {
-                stroke: '#666',
-                lineDash: [5, 5],
-                lineWidth: 1,
-              },
-              z: 2,
-            },
-          ]
-        : [];
-
-    const graphics = [
-      ...topLevelGraphics,
-      ...scopeGraphics,
-      ...separatorGraphics,
-    ];
-    chartInstance.setOption({ graphic: graphics });
-  };
-
-  // Update graphics after chart renders
-  setTimeout(updateScopeGraphics, 100);
-
-  resizeHandler = () => {
-    chartInstance?.resize();
-    setTimeout(updateScopeGraphics, 100);
-  };
-  window.addEventListener('resize', resizeHandler);
-};
-
-onMounted(() => {
-  initChart();
 });
 
-// Watch for colorblind mode changes and update chart
+// Watch for chart instance and update graphics after render
+watch(
+  () => chartRef.value,
+  (newInstance) => {
+    if (newInstance) {
+      // Wait for chart to be fully rendered
+      nextTick(() => {
+        setTimeout(() => {
+          updateScopeGraphics();
+        }, 300);
+      });
+    }
+  },
+  { immediate: true },
+);
+
+// Watch for chartOption changes and update graphics
+watch(
+  () => chartOption.value,
+  () => {
+    if (chartRef.value) {
+      // Delay to ensure chart has rendered with new option
+      nextTick(() => {
+        setTimeout(() => {
+          updateScopeGraphics();
+        }, 500);
+      });
+    }
+  },
+  { flush: 'post' },
+);
+
+// Watch for colorblind mode changes and update graphics
 watch(colorblindMode, () => {
-  if (chartInstance) {
-    initChart();
+  if (chartRef.value) {
+    nextTick(() => {
+      setTimeout(() => {
+        updateScopeGraphics();
+      }, 300);
+    });
   }
 });
 
-// Watch for locale changes and update chart to refresh translations
+// Watch for locale changes and update graphics
 watch(locale, () => {
-  if (chartInstance) {
-    initChart();
+  if (chartRef.value) {
+    nextTick(() => {
+      setTimeout(() => {
+        updateScopeGraphics();
+      }, 300);
+    });
   }
 });
 
-// Cleanup on component unmount
-onBeforeUnmount(() => {
-  if (chartInstance) {
-    chartInstance.dispose();
-    chartInstance = null;
-  }
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler);
-    resizeHandler = null;
-  }
+// Update graphics on mount after chart is ready
+onMounted(() => {
+  nextTick(() => {
+    setTimeout(() => {
+      updateScopeGraphics();
+    }, 300);
+  });
 });
 </script>
 
 <template>
-  <div ref="chartRef" style="width: 100%; min-height: 500px"></div>
+  <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
 </template>
+
+<style scoped>
+.chart {
+  width: 100%;
+  min-height: 500px;
+}
+</style>
