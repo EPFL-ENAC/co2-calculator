@@ -7,6 +7,6 @@ export default {
   },
   [MODULES_DESCRIPTIONS.Infrastructure]: {
     en: "Define your lab's physical footprint across EPFL buildings and spaces.",
-    fr: "Define your laboratory's physical footprint in EPFL buildings and spaces.",
+    fr: "Bâtiments etc",
   },
 } as const;
