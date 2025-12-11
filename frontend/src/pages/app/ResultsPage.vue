@@ -42,6 +42,28 @@ const getUncertainty = (
       return { color: 'primary', label: '' };
   }
 };
+
+const downloadPDF = () => {
+  // Get the HTML content of the current page
+  const htmlContent = document.documentElement.outerHTML;
+
+  // Create a blob with the HTML content
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+
+  // Create a download link
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'results-page.html';
+
+  // Trigger the download
+  document.body.appendChild(link);
+  link.click();
+
+  // Clean up
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 </script>
 
 <template>
@@ -50,6 +72,100 @@ const getUncertainty = (
     <q-separator />
     <div class="page-grid">
       <q-card flat bordered class="q-pa-xl">
+  <q-page class="page-grid">
+    <q-card flat bordered class="q-pa-xl">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-h2 text-weight-medium">
+            {{ $t('results_title') }}
+          </h2>
+          <span class="text-body1 text-secondary">{{
+            $t('results_subtitle')
+          }}</span>
+        </div>
+
+        <div class="flex column justify-between">
+          <q-btn
+            color="accent"
+            icon="download"
+            :label="$t('results_download_pdf')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium q-mb-md"
+            @click="downloadPDF"
+          />
+          <div class="flex column">
+            <q-checkbox
+              v-model="colorblindMode"
+              :label="$t('results_colorblind_mode')"
+              color="accent"
+              class="text-weight-medium"
+              size="xs"
+            />
+            <q-checkbox
+              v-model="viewUncertainties"
+              :label="$t('results_view_uncertainties')"
+              color="accent"
+              class="text-weight-medium"
+              size="xs"
+            />
+          </div>
+        </div>
+      </div>
+    </q-card>
+    <q-card flat class="grid-3-col">
+      <BigNumber
+        :title="$t('results_total_unit_carbon_footprint')"
+        number="37'250"
+        :comparison="$t('results_equivalent_to_car', { km: '0.34 kg' })"
+        comparison-highlight="0.34 kg CO₂-eq/km"
+        color="negative"
+      >
+        <template #tooltip>tip</template>
+      </BigNumber>
+      <BigNumber
+        :title="$t('results_carbon_footprint_per_fte')"
+        number="8.2"
+        :comparison="
+          $t('results_paris_agreement_value', {
+            value: `${formatNumber(2)}t CO₂-eq`,
+          })
+        "
+        :comparison-highlight="`${formatNumber(2)}t CO₂-eq`"
+        color="negative"
+      >
+        <template #tooltip>{{
+          $t('results_paris_agreement_tooltip')
+        }}</template>
+      </BigNumber>
+      <BigNumber
+        :title="$t('results_unit_carbon_footprint')"
+        number="-11.3%"
+        :unit="$t('results_compared_to', { year: '2023' })"
+        color="positive"
+        :comparison="
+          $t('results_compared_to_value_of', {
+            value: `${formatNumber(48)}t CO₂-eq`,
+          })
+        "
+        :comparison-highlight="`${formatNumber(48)}t CO₂-eq`"
+      >
+        <template #tooltip>tooltip</template>
+      </BigNumber>
+    </q-card>
+    <q-card flat class="grid-2-col">
+      <ChartContainer :title="$t('results_module_carbon_footprint')">
+        <template #tooltip>tooltip</template>
+        <ModuleCarbonFootprintChart />
+      </ChartContainer>
+      <ChartContainer :title="$t('results_carbon_footprint_per_person')">
+        <template #tooltip>tooltip</template>
+        <CarbonFootPrintPerPersonChart />
+      </ChartContainer>
+    </q-card>
+    <div class="q-mt-xl">
+      <q-card bordered flat class="q-pa-xl">
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-h2 text-weight-medium">
@@ -89,38 +205,35 @@ const getUncertainty = (
           </div>
         </div>
       </q-card>
-      <q-card flat class="grid-3-col">
-        <BigNumber
-          :title="$t('results_total_unit_carbon_footprint')"
-          number="37'250"
-          :comparison="$t('results_equivalent_to_car', { km: '10\'000' })"
-          comparison-highlight="10'000"
-          color="negative"
-        >
-          <template #tooltip>tip</template>
-        </BigNumber>
-        <BigNumber
-          :title="$t('results_carbon_footprint_per_fte')"
-          number="8.2"
-          :comparison="$t('results_paris_agreement_budget')"
-          comparison-highlight="2t CO₂-eq"
-          color="negative"
-        >
-          <template #tooltip>tooltip</template>
-        </BigNumber>
-        <BigNumber
-          :title="$t('results_unit_carbon_footprint')"
-          number="-11.3%"
-          :unit="$t('results_compared_to', { year: '2022' })"
-          color="positive"
-          :comparison="$t('results_value_of', { value: '42\'500' })"
-          comparison-highlight="42'500 t CO₂-eq"
-        >
-          <template #tooltip>tooltip</template>
-        </BigNumber>
-      </q-card>
-      <q-card flat class="grid-2-col">
-        <ModuleCarbonFootprintChart />
+      <template v-for="module in MODULES_LIST" :key="module">
+        <q-card flat bordered class="q-pa-none q-mt-xl">
+          <q-expansion-item expand-separator default-opened>
+            <template #header>
+              <div class="flex justify-between items-center">
+                <module-icon
+                  :name="module"
+                  size="md"
+                  color="accent"
+                  class="q-mr-sm"
+                />
+                <div class="text-h5 text-weight-medium">{{ $t(module) }}</div>
+                <q-badge
+                  v-if="
+                    getModuleConfig(module)?.uncertainty && viewUncertainties
+                  "
+                  outline
+                  rounded
+                  :color="
+                    getUncertainty(getModuleConfig(module)?.uncertainty).color
+                  "
+                  :label="
+                    getUncertainty(getModuleConfig(module)?.uncertainty).label
+                  "
+                  class="q-ml-sm"
+                />
+              </div>
+            </template>
+            <q-separator />
 
         <ChartContainer :title="$t('results_carbon_footprint_per_person')">
           <template #tooltip>tooltip</template>
