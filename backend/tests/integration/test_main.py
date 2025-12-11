@@ -28,7 +28,7 @@ async def test_health_db_ok(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
     resp = await main.health()
     assert resp.status_code == 200
     assert resp.body
@@ -42,7 +42,7 @@ async def test_health_db_error(monkeypatch):
         raise Exception("db fail")
 
     monkeypatch.setattr("app.db.get_db_session", raise_exc)
-    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
     resp = await main.health()
     assert resp.status_code == 503
     assert b"unhealthy" in resp.body
@@ -50,16 +50,16 @@ async def test_health_db_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_health_role_provider_skipped(monkeypatch):
-    # ROLE_PROVIDER_PLUGIN != "accred"
+    # PROVIDER_PLUGIN != "accred"
     monkeypatch.setattr("app.db.get_db_session", AsyncMock())
-    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
     resp = await main.health()
     assert b"skipped" in resp.body
 
 
 @pytest.mark.asyncio
 async def test_health_role_provider_ok(monkeypatch):
-    # ROLE_PROVIDER_PLUGIN == "accred" and health returns 200
+    # PROVIDER_PLUGIN == "accred" and health returns 200
     class DummySession:
         async def __aenter__(self):
             return self
@@ -71,7 +71,7 @@ async def test_health_role_provider_ok(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_PLUGIN", "accred")
+    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "accred")
     monkeypatch.setattr(main.settings, "ACCRED_API_HEALTH_URL", "http://fake")
     monkeypatch.setattr(main.settings, "ACCRED_API_USERNAME", "u")
     monkeypatch.setattr(main.settings, "ACCRED_API_KEY", "k")
@@ -88,7 +88,7 @@ async def test_health_role_provider_ok(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_health_role_provider_error(monkeypatch):
-    # ROLE_PROVIDER_PLUGIN == "accred" and health raises error
+    # PROVIDER_PLUGIN == "accred" and health raises error
     class DummySession:
         async def __aenter__(self):
             return self
@@ -100,7 +100,7 @@ async def test_health_role_provider_error(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_PLUGIN", "accred")
+    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "accred")
     monkeypatch.setattr(main.settings, "ACCRED_API_HEALTH_URL", "http://fake")
     monkeypatch.setattr(main.settings, "ACCRED_API_USERNAME", "u")
     monkeypatch.setattr(main.settings, "ACCRED_API_KEY", "k")

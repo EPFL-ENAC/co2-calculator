@@ -243,7 +243,7 @@ def get_unit_provider(
         UnitProvider instance
     """
     if not provider_type:
-        provider_type = settings.ROLE_PROVIDER_PLUGIN
+        provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == "default":
         logger.info("Using DefaultUnitProvider (Database)")

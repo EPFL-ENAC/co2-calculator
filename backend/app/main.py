@@ -145,9 +145,7 @@ async def health():
         details["db_error"] = str(e)
 
     # Role provider health check
-    if (settings.ROLE_PROVIDER_PLUGIN != "accred") or (
-        not settings.ACCRED_API_HEALTH_URL
-    ):
+    if (settings.PROVIDER_PLUGIN != "accred") or (not settings.ACCRED_API_HEALTH_URL):
         role_provider_status = "skipped"
     else:
         try:

@@ -74,86 +74,6 @@ class UserBase(SQLModel):
             for r in value
         ]
 
-    # # --------------------------
-    # # LOAD FROM DB  → convert roles_raw → roles (Role objects)
-    # # --------------------------
-    # @model_validator(mode="before")
-    # def load_roles(cls, values):
-    #     if isinstance(values, dict):
-    #         raw = values.get("roles_raw")
-    #         provided_roles = values.get("roles")
-    #     else:
-    #         provided_roles = getattr(values, "roles", None)
-    #         raw = getattr(values, "roles_raw", None)
-
-    #     # If "roles" is already set explicitly (e.g. during create() / update())
-    #     # then don't overwrite it.
-    #     if provided_roles is not None:
-    #         return values
-
-    #     if isinstance(raw, list):
-    #         roles: list[Role] = []
-    #         for r in raw:
-    #             if isinstance(r, dict):
-    #                 # Convert string role → enum
-    #                 role_val = r.get("role")
-    #                 if isinstance(role_val, str):
-    #                     r = {**r, "role": RoleName(role_val)}
-    #                 roles.append(Role(**r))
-    #             else:
-    #                 # Already a Role object
-    #                 roles.append(r)
-
-    #         values["roles"] = roles
-
-    #     return values
-
-    # # --------------------------
-    # # DUMP TO DB  → convert roles → roles_raw (dicts)
-    # # --------------------------
-    # @model_validator(mode="after")
-    # def dump_roles(self):
-    #     def role_to_dict(role: Role):
-    #         d = role.model_dump()
-    #         if isinstance(d.get("role"), Enum):
-    #             d["role"] = d["role"].value
-    #         return d
-
-    #     self.roles_raw = [role_to_dict(r) for r in self.roles]
-    #     return self
-
-    # @classmethod
-    # @field_validator("roles", mode="after", check_fields=False)
-    # def deserialize_roles(cls, v):
-    #     # Convert dicts back to Role objects after loading from DB
-    #     if isinstance(v, list):
-    #         roles = []
-    #         for r in v:
-    #             if isinstance(r, dict):
-    #                 # Ensure 'role' is an Enum, not a string
-    #                 role_val = r.get("role")
-    #                 if isinstance(role_val, str):
-    #                     r["role"] = RoleName(role_val)
-    #                 roles.append(Role(**r))
-    #             else:
-    #                 roles.append(r)
-    #         return roles
-    #     return v
-
-    # @classmethod
-    # @field_validator("roles", mode="wrap", check_fields=False)
-    # def serialize_roles(cls, v, handler):
-    #     # Convert Role objects to dicts for JSON serialization
-    #     def role_to_dict(role):
-    #         d = role.model_dump() if isinstance(role, Role) else role
-    #         if isinstance(d.get("role"), Enum):
-    #             d["role"] = d["role"].value
-    #         return d
-
-    #     if isinstance(v, list):
-    #         v = [role_to_dict(r) for r in v]
-    #     return handler(v)
-
     # Status
     is_active: bool = Field(default=True)
 
@@ -174,6 +94,10 @@ class User(UserBase, table=True):
     __tablename__ = "users"
 
     id: str = Field(primary_key=True, index=True, description="Sciper in EPFL context")
+    provider: str = Field(
+        nullable=False,
+        description="Authentication provider (e.g. default, test, accred, ...)",
+    )
     email: str = Field(unique=True, index=True, nullable=False)
     display_name: Optional[str] = Field(default=None, nullable=True)
 

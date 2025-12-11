@@ -33,7 +33,7 @@ backend:
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     REFRESH_TOKEN_EXPIRE_HOURS: "12"
-    ROLE_PROVIDER_PLUGIN: "default"  # Could be 'default' or 'accred'
+    PROVIDER_PLUGIN: "default"  # Could be 'default' or 'accred' or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000"  # Change to frontend URL in production

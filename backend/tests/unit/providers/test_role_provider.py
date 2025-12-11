@@ -28,7 +28,7 @@ def mock_settings():
     settings.ACCRED_API_URL = "https://api.epfl.ch"
     settings.ACCRED_API_USERNAME = "test_user"
     settings.ACCRED_API_KEY = "test_key"
-    settings.ROLE_PROVIDER_PLUGIN = "default"
+    settings.PROVIDER_PLUGIN = "default"
     return settings
 
 
@@ -541,7 +541,7 @@ class TestGetRoleProvider:
     def test_get_default_role_provider(self):
         """Test that DefaultRoleProvider is returned for 'default' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "default"
+            mock_settings.PROVIDER_PLUGIN = "default"
 
             provider = get_role_provider()
 
@@ -550,7 +550,7 @@ class TestGetRoleProvider:
     def test_get_accred_role_provider(self):
         """Test that AccredRoleProvider is returned for 'accred' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "accred"
+            mock_settings.PROVIDER_PLUGIN = "accred"
             mock_settings.ACCRED_API_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
@@ -562,7 +562,7 @@ class TestGetRoleProvider:
     def test_get_unknown_role_provider_fallback_to_default(self):
         """Test that unknown provider type falls back to DefaultRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "unknown"
+            mock_settings.PROVIDER_PLUGIN = "unknown"
 
             provider = get_role_provider()
 

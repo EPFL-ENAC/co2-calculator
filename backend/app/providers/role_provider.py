@@ -469,7 +469,7 @@ def get_role_provider(provider_type: str | None = None) -> RoleProvider:
     """Factory function to get the configured role provider.
 
     Returns the appropriate role provider based on the
-    ROLE_PROVIDER_PLUGIN setting.
+    PROVIDER_PLUGIN setting.
 
     Args:
         provider_type: Optional provider type override
@@ -481,7 +481,7 @@ def get_role_provider(provider_type: str | None = None) -> RoleProvider:
         ValueError: If an unknown provider type is configured
     """
     if not provider_type:
-        provider_type = settings.ROLE_PROVIDER_PLUGIN
+        provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == "default":
         logger.info("Using DefaultRoleProvider (JWT claims)")
