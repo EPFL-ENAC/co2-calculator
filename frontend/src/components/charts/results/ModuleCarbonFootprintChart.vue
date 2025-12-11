@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import * as echarts from 'echarts';
 import type { EChartsOption, BarSeriesOption } from 'echarts';
-import { getElementColor, colorblindMode } from 'src/constant/chart-colors';
+import { getElement, colorblindMode } from 'src/constant/charts';
 
 const chartRef = ref<HTMLDivElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
+let resizeHandler: (() => void) | null = null;
+const { t, locale } = useI18n();
 
 interface CategoryConfig {
-  name: string;
-  colorId: string;
+  elementId: string;
   subCategories?: string[];
   value?: number;
   values?: Record<string, number>;
@@ -17,129 +19,164 @@ interface CategoryConfig {
 
 // Category configurations
 const categories: CategoryConfig[] = [
-  { name: 'Unit-gas', colorId: 'unit-gas', value: 2.5 },
-  { name: 'Infrastructure-gas', colorId: 'infrastructure-gas', value: 2.0 },
+  { elementId: 'charts-unit-gas-category', value: 2.5 },
   {
-    name: 'Infrastructure',
-    colorId: 'infrastructure-category',
-    values: { Heating: 9.0, Cooling: 3.0, Ventilation: 9.0, Lighting: 3.0 },
+    elementId: 'charts-infrastructure-gas-category',
+    value: 2.0,
   },
   {
-    name: 'Equipment',
-    colorId: 'equipment',
-    values: { Scientific: 10.0, 'IT Equipment': 3.0 },
+    elementId: 'charts-infrastructure-category',
+    values: {
+      'charts-heating-subcategory': 9.0,
+      'charts-cooling-subcategory': 3.0,
+      'charts-ventilation-subcategory': 9.0,
+      'charts-lighting-subcategory': 3.0,
+    },
   },
-  { name: 'Commuting', colorId: 'commuting', value: 8.0 },
-  { name: 'Food', colorId: 'food', value: 2.5 },
   {
-    name: 'Professional Travel',
-    colorId: 'professional-travel-category',
-    values: { Train: 1.5, Plane: 3.0 },
+    elementId: 'charts-equipment-category',
+    values: {
+      'charts-scientific-subcategory': 10.0,
+      'charts-it-subcategory': 3.0,
+    },
   },
-  { name: 'IT', colorId: 'it', value: 25.0 },
+  { elementId: 'charts-commuting-category', value: 8.0 },
+  { elementId: 'charts-food-category', value: 2.5 },
   {
-    name: 'Research Core Facilities',
-    colorId: 'research-core-facilities',
+    elementId: 'charts-professional-travel-category',
+    values: {
+      'charts-train-subcategory': 1.5,
+      'charts-plane-subcategory': 3.0,
+    },
+  },
+  { elementId: 'charts-it-category', value: 25.0 },
+  {
+    elementId: 'charts-research-core-facilities-category',
     values: { SCITAS: 1.0, RCP: 1.5 },
   },
   {
-    name: 'Purchases',
-    colorId: 'purchases',
+    elementId: 'charts-purchases-category',
     values: {
-      'Bio-chemicals': 2.0,
-      Consumables: 3.0,
-      Equipment: 1.0,
-      Services: 2.0,
-      'Other Purchases': 0.2,
+      'charts-bio-chemicals-subcategory': 2.0,
+      'charts-consumables-subcategory': 3.0,
+      'charts-equipment-subcategory': 1.0,
+      'charts-services-subcategory': 2.0,
+      'charts-other-purchases-subcategory': 0.2,
     },
   },
-  { name: 'Waste', colorId: 'waste', value: 10.0 },
+  { elementId: 'charts-waste-category', value: 10.0 },
   {
-    name: 'Grey Energy',
-    colorId: 'grey-energy',
+    elementId: 'charts-grey-energy-category',
     values: { GC: 4.0, PH: 4.0 },
   },
 ];
 
-// Top-level category labels
-const topLevelCategories = [
-  { label: 'Calculated', startIndex: 0, endIndex: 7 },
-  { label: 'Estimated', startIndex: 8, endIndex: 11 },
-];
-
-// Scope configurations
-const scopeAreas = [
-  { label: 'Scope 1', color: '#F5F5F5', startIndex: 0, endIndex: 1 },
-  { label: 'Scope 2', color: '#E8E8E8', startIndex: 2, endIndex: 3 },
-  { label: 'Scope 3', color: '#D0D0D0', startIndex: 4, endIndex: 7 },
-  { label: '', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
-];
-
-const barLabels = categories.map((c) => c.name);
-
-// Build mappings - derive subCategories from values keys or use explicit subCategories
-const barToSubCategories = Object.fromEntries(
-  categories.map((config) => [
-    config.name,
-    config.subCategories?.length
-      ? config.subCategories
-      : config.values
-        ? Object.keys(config.values)
-        : [config.name],
-  ]),
-);
-
-const subCategoryToMainCategory = Object.fromEntries(
-  categories.flatMap((config) => {
-    const subCats = barToSubCategories[config.name];
-    return subCats.map((sub) => [sub, config.name]);
-  }),
-);
-
-const subCategories = Object.keys(subCategoryToMainCategory);
-
-// Build dataset
-const datasetSource: Record<string, string | number>[] = categories.map(
-  (config) => ({
-    bar: config.name,
-    ...(config.value !== undefined
-      ? { [config.name]: config.value }
-      : config.values || {}),
-  }),
-);
-
-const dataset = {
-  dimensions: ['bar', ...subCategories],
-  source: datasetSource,
-};
-
-// Calculate max value for y-axis
-const calculateMaxValue = (): number =>
-  Math.max(
-    ...dataset.source.map((row) =>
-      subCategories.reduce((sum, sub) => sum + ((row[sub] as number) || 0), 0),
-    ),
-  ) + 10;
-
-// Color helpers - uses global colorblindMode ref automatically
-const getColor = (categoryName: string, shade: number = 2): string =>
-  getElementColor(
-    categories.find((c) => c.name === categoryName)?.colorId || '',
-    shade,
-  );
-
-const getSubCategoryColor = (subCategory: string, index: number): string => {
-  const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
-  return getColor(
-    mainCategory,
-    mainCategory === subCategory ? 2 : Math.min(index, 4),
-  );
-};
-
 const initChart = () => {
   if (!chartRef.value) return;
 
+  // Dispose existing chart instance if it exists
+  if (chartInstance) {
+    chartInstance.dispose();
+    chartInstance = null;
+  }
+
+  // Remove existing resize listener if it exists
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
+  }
+
   chartInstance = echarts.init(chartRef.value);
+
+  const barLabels = categories.map((c) => t(c.elementId));
+
+  // Build all mappings and dataset in one pass
+  const translatedNameToelementId: Record<string, string> = {};
+  const barToSubCategories: Record<string, string[]> = {};
+  const subCategoryToMainCategory: Record<string, string> = {};
+  const datasetSource: Record<string, string | number>[] = [];
+
+  categories.forEach((config) => {
+    const categoryName = t(config.elementId);
+    translatedNameToelementId[categoryName] = config.elementId;
+
+    const subCats = config.subCategories?.length
+      ? config.subCategories
+      : config.values
+        ? Object.keys(config.values)
+        : [categoryName];
+
+    barToSubCategories[config.elementId] = subCats;
+    subCats.forEach((sub) => {
+      subCategoryToMainCategory[sub] = config.elementId;
+    });
+
+    datasetSource.push({
+      bar: categoryName,
+      ...(config.value !== undefined
+        ? { [categoryName]: config.value }
+        : config.values || {}),
+    });
+  });
+
+  const subCategories = Object.keys(subCategoryToMainCategory);
+
+  const dataset = {
+    dimensions: ['bar', ...subCategories],
+    source: datasetSource,
+  };
+
+  // Color helpers
+  const getColor = (elementId: string, shade: number = 2): string =>
+    getElement(elementId, shade);
+
+  const getSubCategoryColor = (subCategory: string, index: number): string => {
+    const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
+    const categoryConfig = categories.find((c) => c.elementId === mainCategory);
+    // If category has a single value (no subcategories), use middle shade (2)
+    const shade = categoryConfig?.value !== undefined ? 2 : Math.min(index, 4);
+    return getColor(mainCategory, shade);
+  };
+
+  // Top-level category labels (re-evaluated on each init to reflect locale changes)
+  const topLevelCategories = [
+    { label: t('charts-calculated'), startIndex: 0, endIndex: 7 },
+    { label: t('charts-estimated'), startIndex: 8, endIndex: 11 },
+  ];
+
+  // Scope configurations (re-evaluated on each init to reflect locale changes)
+  const scopeAreas = [
+    {
+      label: t('charts-scope') + ' 1',
+      color: '#F5F5F5',
+      startIndex: 0,
+      endIndex: 1,
+    },
+    {
+      label: t('charts-scope') + ' 2',
+      color: '#E8E8E8',
+      startIndex: 2,
+      endIndex: 3,
+    },
+    {
+      label: t('charts-scope') + ' 3',
+      color: '#D0D0D0',
+      startIndex: 4,
+      endIndex: 7,
+    },
+    { label: '', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
+  ];
+
+  // Calculate max value for y-axis
+  const calculateMaxValue = (): number =>
+    Math.max(
+      ...dataset.source.map((row) =>
+        subCategories.reduce(
+          (sum, sub) => sum + ((row[sub] as number) || 0),
+          0,
+        ),
+      ),
+    ) + 10;
 
   // Get subcategories with data
   const subCategoriesWithData = subCategories.filter((sub) =>
@@ -165,8 +202,12 @@ const initChart = () => {
         subCategoryToMainCategory[subCategory] || subCategory;
       const subCats = barToSubCategories[mainCategory] || [];
       const index = subCats.indexOf(subCategory);
+      // Only translate if it's a translation key (starts with 'charts-'), otherwise use as-is (building names)
+      const displayName = subCategory.startsWith('charts-')
+        ? t(subCategory)
+        : subCategory;
       return {
-        name: subCategory,
+        name: displayName,
         type: 'bar',
         datasetIndex: 0,
         encode: { y: subCategory },
@@ -191,11 +232,11 @@ const initChart = () => {
   );
 
   // Create legend series
-  const legendSeries: BarSeriesOption[] = barLabels.map((category) => ({
-    name: category,
+  const legendSeries: BarSeriesOption[] = categories.map((config) => ({
+    name: t(config.elementId),
     type: 'bar',
     data: [],
-    itemStyle: { color: getColor(category) },
+    itemStyle: { color: getColor(config.elementId) },
   }));
 
   const option: EChartsOption = {
@@ -216,31 +257,31 @@ const initChart = () => {
         );
         if (!categoryRow) return '';
 
-        const subCats = barToSubCategories[categoryName];
+        // Get elementId from translated name
+        const elementId = translatedNameToelementId[categoryName];
+        if (!elementId) return '';
+
+        const subCats = barToSubCategories[elementId];
         const subCategoryData = [];
 
         let categoryTotal = 0;
 
         subCats.forEach((subCat) => {
           const value = categoryRow[subCat];
-          if (
-            value !== null &&
-            value !== undefined &&
-            typeof value === 'number' &&
-            value > 0
-          ) {
-            const mainCategory = subCategoryToMainCategory[subCat] || subCat;
-            const subCatsForCategory = barToSubCategories[mainCategory] || [];
-            const index = subCatsForCategory.indexOf(subCat);
-            const color = getSubCategoryColor(subCat, index >= 0 ? index : 0);
 
-            subCategoryData.push({
-              name: subCat,
-              value,
-              color,
-            });
-            categoryTotal += value;
-          }
+          const mainCategoryelementId =
+            subCategoryToMainCategory[subCat] || elementId;
+          const subCatsForCategory =
+            barToSubCategories[mainCategoryelementId] || [];
+          const index = subCatsForCategory.indexOf(subCat);
+          const color = getSubCategoryColor(subCat, index >= 0 ? index : 0);
+
+          subCategoryData.push({
+            name: subCat,
+            value,
+            color,
+          });
+          categoryTotal += Number(value);
         });
 
         if (subCategoryData.length === 0) return '';
@@ -255,7 +296,11 @@ const initChart = () => {
         let result = `<div style="display: flex; justify-content: space-between; align-items: center;"><b>${categoryName}</b> <b>${categoryTotal.toFixed(1)}</b></div>`;
         result += '<br/>';
         [...subCategoryData].reverse().forEach((item) => {
-          result += `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <span>${item.name}</span></span> <span>${item.value.toFixed(1)}</span></div>`;
+          // Only translate if it's a translation key (starts with 'charts-'), otherwise use as-is (building names)
+          const displayName = item.name.startsWith('charts-')
+            ? t(item.name)
+            : item.name;
+          result += `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <span>${displayName}</span></span> <span>${item.value.toFixed(1)}</span></div>`;
         });
 
         return result;
@@ -432,11 +477,11 @@ const initChart = () => {
   // Update graphics after chart renders
   setTimeout(updateScopeGraphics, 100);
 
-  const handleResize = () => {
+  resizeHandler = () => {
     chartInstance?.resize();
     setTimeout(updateScopeGraphics, 100);
   };
-  window.addEventListener('resize', handleResize);
+  window.addEventListener('resize', resizeHandler);
 };
 
 onMounted(() => {
@@ -449,11 +494,27 @@ watch(colorblindMode, () => {
     initChart();
   }
 });
+
+// Watch for locale changes and update chart to refresh translations
+watch(locale, () => {
+  if (chartInstance) {
+    initChart();
+  }
+});
+
+// Cleanup on component unmount
+onBeforeUnmount(() => {
+  if (chartInstance) {
+    chartInstance.dispose();
+    chartInstance = null;
+  }
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler);
+    resizeHandler = null;
+  }
+});
 </script>
 
 <template>
-  <div
-    ref="chartRef"
-    style="width: 100%; height: 500px; min-height: 500px"
-  ></div>
+  <div ref="chartRef" style="width: 100%; min-height: 500px"></div>
 </template>

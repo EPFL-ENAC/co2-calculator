@@ -3,7 +3,7 @@ import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
-import { colorblindMode as globalColorblindMode } from 'src/constant/chart-colors';
+import { colorblindMode as globalColorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ChartContainer from 'src/components/molecules/ChartContainer.vue';

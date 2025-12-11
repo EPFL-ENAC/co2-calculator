@@ -485,4 +485,149 @@ export default {
     en: 'High Uncertainty',
     fr: 'Forte incertitude',
   },
+
+  'charts-unit-gas-category': {
+    en: 'Unit-gas',
+    fr: 'Gaz unitaire',
+  },
+  'charts-infrastructure-gas-category': {
+    en: 'Infrastructure-gas',
+    fr: 'Gaz infrastructure',
+  },
+  'charts-infrastructure-category': {
+    en: 'Infrastructure',
+    fr: 'Infrastructure',
+  },
+  'charts-equipment-category': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-commuting-category': {
+    en: 'Commuting',
+    fr: 'Déplacements domicile-travail',
+  },
+  'charts-food-category': {
+    en: 'Food',
+    fr: 'Alimentation',
+  },
+  'charts-professional-travel-category': {
+    en: 'Professional Travel',
+    fr: 'Voyages professionnels',
+  },
+  'charts-it-category': {
+    en: 'IT',
+    fr: 'Informatique',
+  },
+  'charts-research-core-facilities-category': {
+    en: 'Research Core Facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  'charts-purchases-category': {
+    en: 'Purchases',
+    fr: 'Achats',
+  },
+  'charts-waste-category': {
+    en: 'Waste',
+    fr: 'Déchets',
+  },
+  'charts-grey-energy-category': {
+    en: 'Grey Energy',
+    fr: 'Énergie grise',
+  },
+  'charts-equipment-electric-consumption-category': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-internal-services-category': {
+    en: 'Internal Services',
+    fr: 'Services internes',
+  },
+  'charts-external-cloud-category': {
+    en: 'External Cloud',
+    fr: 'Cloud externe',
+  },
+  'charts-purchase-category': {
+    en: 'Purchase',
+    fr: 'Achat',
+  },
+  'charts-bio-chemicals-subcategory': {
+    en: 'Bio-chemicals',
+    fr: 'Bio-chimiques',
+  },
+  'charts-consumables-subcategory': {
+    en: 'Consumables',
+    fr: 'Consommables',
+  },
+  'charts-equipment-subcategory': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-services-subcategory': {
+    en: 'Services',
+    fr: 'Services',
+  },
+  'charts-other-purchases-subcategory': {
+    en: 'Other Purchases',
+    fr: 'Autres achats',
+  },
+  'charts-gc-subcategory': {
+    en: 'GC',
+    fr: 'GC',
+  },
+  'charts-ph-subcategory': {
+    en: 'PH',
+    fr: 'PH',
+  },
+  'charts-train-subcategory': {
+    en: 'Train',
+    fr: 'Train',
+  },
+  'charts-plane-subcategory': {
+    en: 'Plane',
+    fr: 'Avion',
+  },
+  'charts-heating-subcategory': {
+    en: 'Heating',
+    fr: 'Chauffage',
+  },
+  'charts-cooling-subcategory': {
+    en: 'Cooling',
+    fr: 'Refroidissement',
+  },
+  'charts-ventilation-subcategory': {
+    en: 'Ventilation',
+    fr: 'Ventilation',
+  },
+  'charts-lighting-subcategory': {
+    en: 'Lighting',
+    fr: 'Éclairage',
+  },
+  'charts-scientific-subcategory': {
+    en: 'Scientific',
+    fr: 'Scientifique',
+  },
+  'charts-it-subcategory': {
+    en: 'IT',
+    fr: 'Informatique',
+  },
+  'charts-scitas-subcategory': {
+    en: 'SCITAS',
+    fr: 'SCITAS',
+  },
+  'charts-rcp-subcategory': {
+    en: 'RCP',
+    fr: 'RCP',
+  },
+  'charts-calculated': {
+    en: 'Calculated',
+    fr: 'Calculé',
+  },
+  'charts-estimated': {
+    en: 'Estimated',
+    fr: 'Estimation',
+  },
+  'charts-scope': {
+    en: 'Scope',
+    fr: 'Scope',
+  },
 };
