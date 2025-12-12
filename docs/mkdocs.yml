@@ -89,6 +89,12 @@ nav:
 
   - Infrastructure:
       - Overview: infra/01-overview.md
+  
+  - User Documentation:
+      - Overview: user-docs/01-overview.md
+      - Module Equipment: user-docs/02-equipment.md
+      - Module Travel: user-docs/03-travel.md
+      - Module Headcount: user-docs/04-headcount.md
 extra:
   version: "1.0.0"
 extra_css:
