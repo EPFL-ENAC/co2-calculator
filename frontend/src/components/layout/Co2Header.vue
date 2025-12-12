@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
-import Co2Timeline from '../organisms/layout/Co2Timeline.vue';
 import { useRoute } from 'vue-router';
 import { useTimelineStore } from 'src/stores/modules';
 import { Module } from 'src/constant/modules';
@@ -205,10 +204,6 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
           @click="toggleState"
         />
       </q-toolbar>
-      <q-separator />
-    </template>
-    <template v-if="route.name === 'module'">
-      <Co2Timeline />
       <q-separator />
     </template>
   </q-header>
