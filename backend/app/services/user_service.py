@@ -58,6 +58,7 @@ class UserService:
         user_id: Optional[str] = None,
         roles: Optional[List[Role]] = None,
         stop_recursion: bool = False,
+        provider: Optional[str] = None,
     ) -> User:
         """
         Create or update a user with all related entities.
@@ -68,15 +69,33 @@ class UserService:
         3. UnitUser association management
         """
         # step 1. Get or create user
-        existing_user = await self.user_repo.get_by_email(email)
-
+        existing_user = await self.user_repo.get_by_id(user_id) if user_id else None
+        if not existing_user:
+            existing_user = await self.user_repo.get_by_email(email)
+        if existing_user and existing_user.provider != provider:
+            logger.warning(
+                "User provider mismatch during upsert",
+                extra={
+                    "user_id": existing_user.id,
+                    "existing_provider": existing_user.provider,
+                    "new_provider": provider,
+                },
+            )
+            raise ValueError("User provider mismatch during upsert")
         if existing_user:
             user = await self.user_repo.update(
-                user_id=existing_user.id, display_name=display_name, roles=roles
+                user_id=existing_user.id,
+                display_name=display_name,
+                roles=roles,
+                provider=provider,
             )
         else:
             user = await self.user_repo.create(
-                email=email, display_name=display_name, user_id=user_id, roles=roles
+                email=email,
+                display_name=display_name,
+                user_id=user_id,
+                roles=roles,
+                provider=provider,
             )
 
         if stop_recursion:
@@ -87,12 +106,14 @@ class UserService:
         if not unit_ids:
             return user
 
+        if not user.provider:
+            raise ValueError("User provider is required for unit synchronization")
         # step 3. Fetch full unit details from provider
-        unit_provider = get_unit_provider()
+        unit_provider = get_unit_provider(provider_type=user.provider)
         units = await unit_provider.get_units(unit_ids=unit_ids)
 
         # 4. Upsert units with full metadata
-        role_provider = get_role_provider()
+        role_provider = get_role_provider(provider_type=user.provider)
         for unit in units:
             if not unit.principal_user_id:
                 raise ValueError(
@@ -113,6 +134,7 @@ class UserService:
                     user_id=unit.principal_user_id,
                     roles=principal_roles,
                     stop_recursion=True,
+                    provider=user.provider,
                 )
             await self.unit_repo.upsert(unit, user_id=user.id)
 
@@ -139,12 +161,13 @@ class UserService:
             extra={
                 "user_id": user.id,
                 "unit_count": len(unit_ids),
+                "provider": user.provider,
             },
         )
 
         return user
 
-    async def get_by_id(self, user_id: str) -> User:
+    async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID."""
         return await self.user_repo.get_by_id(user_id)
 

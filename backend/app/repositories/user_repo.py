@@ -20,34 +20,16 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # @staticmethod
-    # def _serialize_roles(roles: Optional[List[Role]]) -> List[dict[str, Any]]:
-    #     """Serialize Role objects to dicts for JSON storage."""
-    #     if not roles:
-    #         return []
-    #     return [r.model_dump() if hasattr(r, "model_dump") else r for r in roles]
-
-    # def _deserialize_user(self, user: User) -> User:
-    #     """Re-validate user to deserialize roles from DB."""
-    #     # should remove seralizer now
-    #     if user:
-    #         return User.model_validate(user)
-    #     return user
-
-    async def get_by_id(self, user_id: str) -> User:
+    async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID."""
         result = await self.session.exec(select(User).where(User.id == user_id))
         entity = result.one_or_none()
-        if not entity:
-            raise HTTPException(status_code=404, detail="User not found")
-        # return self._deserialize_user(entity)
         return entity
 
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email."""
         result = await self.session.exec(select(User).where(User.email == email))
         entity = result.one_or_none()
-        # return self._deserialize_user(entity)
         return entity
 
     async def create(
@@ -56,6 +38,7 @@ class UserRepository:
         email: str = "",
         display_name: Optional[str] = None,
         roles: Optional[List[Role]] = None,
+        provider: Optional[str] = None,
     ) -> User:
         """Create a new user."""
         now = datetime.utcnow()
@@ -63,7 +46,6 @@ class UserRepository:
             id=user_id,
             email=email,
             display_name=display_name,
-            # roles=self._serialize_roles(roles),
             roles=roles or [],
             is_active=True,
             last_login=now,
@@ -71,6 +53,7 @@ class UserRepository:
             created_by=user_id,
             updated_at=now,
             updated_by=user_id,
+            provider=provider,
         )
         self.session.add(entity)
         await self.session.commit()
@@ -82,6 +65,7 @@ class UserRepository:
         user_id: str,
         display_name: Optional[str] = None,
         roles: Optional[List[Role]] = None,
+        provider: Optional[str] = None,
     ) -> User:
         """Update an existing user."""
         result = await self.session.exec(select(User).where(User.id == user_id))
@@ -92,7 +76,6 @@ class UserRepository:
         now = datetime.utcnow()
 
         if roles is not None:
-            # entity.roles = self._serialize_roles(roles)
             entity.roles = roles
 
         entity.last_login = now
@@ -100,6 +83,7 @@ class UserRepository:
 
         entity.display_name = display_name or entity.display_name
         entity.updated_by = user_id
+        entity.provider = provider or entity.provider
         # force revalidation
         await self.session.commit()
         await self.session.refresh(entity)

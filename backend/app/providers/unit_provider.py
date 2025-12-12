@@ -25,6 +25,10 @@ settings = get_settings()
 
 
 class UnitProvider(ABC):
+    """Abstract base class for unit providers."""
+
+    type: str = "abstract"
+
     @abstractmethod
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
         """
@@ -53,6 +57,8 @@ class UnitProvider(ABC):
 
 
 class DefaultUnitProvider(UnitProvider):
+    type: str = "default"
+
     def __init__(self, db_session: Session):
         self.db_session = db_session
 
@@ -66,6 +72,7 @@ class DefaultUnitProvider(UnitProvider):
 
 
 class AccredUnitProvider(UnitProvider):
+    type: str = "accred"
     """Accred unit provider that fetches units from EPFL Accred API.
 
     Calls the EPFL Accred units endpoint to fetch unit details
@@ -204,6 +211,8 @@ class AccredUnitProvider(UnitProvider):
 
 
 class TestUnitProvider(UnitProvider):
+    type: str = "test"
+
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
         """Return test units for development."""
         all_test_units = [

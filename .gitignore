@@ -4,3 +4,4 @@ site
 *local*.md
 *.local.*
 .database.env
+*.csv

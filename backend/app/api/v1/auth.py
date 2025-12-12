@@ -114,7 +114,8 @@ async def login_test(
     sanitized_role = role.replace("\r\n", "").replace("\n", "")
 
     # Fetch roles using configured role provider
-    role_provider = get_role_provider("test")
+    provider = "test"
+    role_provider = get_role_provider(provider)
     user_info = {
         "requested_role": sanitized_role,
         "email": f"testuser_{sanitized_role}@example.org",
@@ -144,6 +145,7 @@ async def login_test(
         user_id=user_id,
         display_name=f"Test User: {sanitized_role}",
         roles=roles,
+        provider=provider,
     )
 
     # Create response
@@ -243,6 +245,7 @@ async def auth_callback(
             display_name=display_name,
             user_id=user_id,
             roles=roles,
+            provider=role_provider.type,
         )
 
         # Redirect to frontend with httpOnly cookies
@@ -344,7 +347,7 @@ async def get_me(
             )
 
         # Refresh roles from provider
-        role_provider = get_role_provider()
+        role_provider = get_role_provider(user.provider)
         # Check it is a test user in DEBUG mode
         if settings.DEBUG and user.email.startswith("testuser_"):
             role_provider = get_role_provider("test")
@@ -358,6 +361,7 @@ async def get_me(
                 user_id=user.id,
                 roles=fresh_roles,
                 stop_recursion=False,
+                provider=role_provider.type,
             )
             logger.info(
                 "Refreshed user roles",

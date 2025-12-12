@@ -26,6 +26,8 @@ class RoleProvider(ABC):
     [{"role": RoleName.CO2_USER_STD, "on": {"unit": "12345"}}]
     """
 
+    type: str = "abstract"
+
     @abstractmethod
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
         """Get user ID for a user.
@@ -76,6 +78,8 @@ class DefaultRoleProvider(RoleProvider):
 
     Roles without scope (bare strings) will be skipped with a warning.
     """
+
+    type: str = "default"
 
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
         """Get user ID for a user.
@@ -192,6 +196,8 @@ class DefaultRoleProvider(RoleProvider):
 class TestRoleProvider(RoleProvider):
     """Test role provider for development and testing."""
 
+    type: str = "test"
+
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
         """Get user ID for a user.
 
@@ -290,6 +296,8 @@ class AccredRoleProvider(RoleProvider):
     This is a placeholder implementation that can be extended to support
     more sophisticated role mapping logic.
     """
+
+    type: str = "accred"
 
     def __init__(self):
         """Initialize the Accred provider with API credentials."""
