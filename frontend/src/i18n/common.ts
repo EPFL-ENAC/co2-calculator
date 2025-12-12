@@ -493,7 +493,6 @@ export default {
     en: 'High Uncertainty',
     fr: 'Forte incertitude',
   },
-
   'charts-unit-gas-category': {
     en: 'Unit-gas',
     fr: 'Gaz unitaire',
@@ -626,7 +625,6 @@ export default {
     en: 'RCP',
     fr: 'RCP',
   },
-
   'charts-calculated': {
     en: 'Calculated',
     fr: 'Calculé',
@@ -638,5 +636,9 @@ export default {
   'charts-scope': {
     en: 'Scope',
     fr: 'Scope',
+  },
+  header_documentation_link: {
+    en: 'https://epfl-enac.github.io/co2-calculator/',
+    fr: 'https://epfl-enac.github.io/co2-calculator/',
   },
 };
