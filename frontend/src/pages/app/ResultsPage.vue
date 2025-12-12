@@ -124,10 +124,8 @@ const getUncertainty = (
       </BigNumber>
     </q-card>
     <q-card flat class="grid-2-col">
-      <ChartContainer :title="$t('results_module_carbon_footprint')">
-        <template #tooltip>tooltip</template>
-        <ModuleCarbonFootprintChart />
-      </ChartContainer>
+      <ModuleCarbonFootprintChart />
+
       <ChartContainer :title="$t('results_carbon_footprint_per_person')">
         <template #tooltip>tooltip</template>
         <CarbonFootPrintPerPersonChart />

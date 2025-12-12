@@ -338,8 +338,12 @@ export default {
     fr: 'valeur de {value} t CO₂-éq',
   },
   results_module_carbon_footprint: {
-    en: 'Module Carbon Footprint',
-    fr: 'Empreinte carbone du module',
+    en: 'My Unit Carbon Footprint ',
+    fr: "Empreinte carbone de l'unité",
+  },
+  results_module_carbon_toggle_additional_data: {
+    en: 'Show additional data',
+    fr: 'Afficher les données supplémentaires',
   },
   results_carbon_footprint_per_person: {
     en: 'Carbon Footprint Per Person',
@@ -622,6 +626,7 @@ export default {
     en: 'RCP',
     fr: 'RCP',
   },
+
   'charts-calculated': {
     en: 'Calculated',
     fr: 'Calculé',

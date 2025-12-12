@@ -127,16 +127,22 @@ export const element: Record<string, ColorColumn> = {
 export const elementIds = Object.keys(element);
 
 export const getElement = (
-  elementId: string,
-  shade: number = 2,
+  column: number,
+  row: number = 2,
   colorblind?: boolean,
 ): string => {
-  const column = element[elementId];
+  const colorColumn = chartColorScale[column];
+  if (!colorColumn) {
+    // Fallback to column 0 if invalid
+    return chartColorScale[0].colors[2];
+  }
 
   const useColorblindMode =
     colorblind !== undefined ? colorblind : colorblindMode.value;
-  const colors = useColorblindMode ? column.colorblindColors : column.colors;
+  const colors = useColorblindMode
+    ? colorColumn.colorblindColors
+    : colorColumn.colors;
 
-  // Return color at specified shade, or default to middle shade (2) if invalid
-  return colors[shade] ? colors[shade] : colors[2];
+  // Return color at specified row, or default to middle row (2) if invalid
+  return colors[row] ? colors[row] : colors[2];
 };

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch, nextTick } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
-import type { EChartsOption, BarSeriesOption } from 'echarts';
+import type { EChartsOption } from 'echarts';
+import { graphic } from 'echarts';
 import type { ECharts } from 'echarts/core';
+import { getElement } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -14,7 +16,14 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { getElement, colorblindMode } from 'src/constant/charts';
+import type { CallbackDataParams } from 'echarts/types/dist/shared';
+
+interface AxisTooltipParams extends CallbackDataParams {
+  axisValue: string;
+  value: number;
+  marker: string;
+  seriesName: string;
+}
 
 use([
   CanvasRenderer,
@@ -27,609 +36,562 @@ use([
 ]);
 
 const chartRef = ref<ECharts>();
-const graphicsRef = ref<EChartsOption['graphic']>([]);
-const { t, locale } = useI18n();
+const { t } = useI18n();
+const toggleAdditionalData = ref(false);
 
-interface CategoryConfig {
-  elementId: string;
-  subCategories?: string[];
-  value?: number;
-  values?: Record<string, number>;
-}
-
-// Category configurations
-const categories: CategoryConfig[] = [
-  { elementId: 'charts-unit-gas-category', value: 2.5 },
-  {
-    elementId: 'charts-infrastructure-gas-category',
-    value: 2.0,
-  },
-  {
-    elementId: 'charts-infrastructure-category',
-    values: {
-      'charts-heating-subcategory': 9.0,
-      'charts-cooling-subcategory': 3.0,
-      'charts-ventilation-subcategory': 9.0,
-      'charts-lighting-subcategory': 3.0,
-    },
-  },
-  {
-    elementId: 'charts-equipment-category',
-    values: {
-      'charts-scientific-subcategory': 10.0,
-      'charts-it-subcategory': 3.0,
-    },
-  },
-  { elementId: 'charts-commuting-category', value: 8.0 },
-  { elementId: 'charts-food-category', value: 2.5 },
-  {
-    elementId: 'charts-professional-travel-category',
-    values: {
-      'charts-train-subcategory': 1.5,
-      'charts-plane-subcategory': 3.0,
-    },
-  },
-  { elementId: 'charts-it-category', value: 25.0 },
-  {
-    elementId: 'charts-research-core-facilities-category',
-    values: { SCITAS: 1.0, RCP: 1.5 },
-  },
-  {
-    elementId: 'charts-purchases-category',
-    values: {
-      'charts-bio-chemicals-subcategory': 2.0,
-      'charts-consumables-subcategory': 3.0,
-      'charts-equipment-subcategory': 1.0,
-      'charts-services-subcategory': 2.0,
-      'charts-other-purchases-subcategory': 0.2,
-    },
-  },
-  { elementId: 'charts-waste-category', value: 10.0 },
-  {
-    elementId: 'charts-grey-energy-category',
-    values: { GC: 4.0, PH: 4.0 },
-  },
-];
-
-// Build chart data and mappings
-const buildChartData = () => {
-  const barLabels = categories.map((c) => t(c.elementId));
-
-  // Build all mappings and dataset in one pass
-  const translatedNameToelementId: Record<string, string> = {};
-  const barToSubCategories: Record<string, string[]> = {};
-  const subCategoryToMainCategory: Record<string, string> = {};
-  const datasetSource: Record<string, string | number>[] = [];
-
-  categories.forEach((config) => {
-    const categoryName = t(config.elementId);
-    translatedNameToelementId[categoryName] = config.elementId;
-
-    const subCats = config.subCategories?.length
-      ? config.subCategories
-      : config.values
-        ? Object.keys(config.values)
-        : [categoryName];
-
-    barToSubCategories[config.elementId] = subCats;
-    subCats.forEach((sub) => {
-      subCategoryToMainCategory[sub] = config.elementId;
-    });
-
-    datasetSource.push({
-      bar: categoryName,
-      ...(config.value !== undefined
-        ? { [categoryName]: config.value }
-        : config.values || {}),
-    });
-  });
-
-  const subCategories = Object.keys(subCategoryToMainCategory);
-
-  const dataset = {
-    dimensions: ['bar', ...subCategories],
-    source: datasetSource,
-  };
-
-  return {
-    barLabels,
-    translatedNameToelementId,
-    barToSubCategories,
-    subCategoryToMainCategory,
-    dataset,
-    subCategories,
-  };
-};
-
-// Color helpers
-const getColor = (elementId: string, shade: number = 2): string =>
-  getElement(elementId, shade);
-
-const getSubCategoryColor = (
-  subCategory: string,
-  index: number,
-  subCategoryToMainCategory: Record<string, string>,
-): string => {
-  const mainCategory = subCategoryToMainCategory[subCategory] || subCategory;
-  const categoryConfig = categories.find((c) => c.elementId === mainCategory);
-  // If category has a single value (no subcategories), use middle shade (2)
-  const shade = categoryConfig?.value !== undefined ? 2 : Math.min(index, 4);
-  return getColor(mainCategory, shade);
-};
-
-// Build top-level category labels (Calculated, Estimated)
-const buildTopLevelGraphics = (
-  chart: ECharts,
-  barLabels: string[],
-  plotTop: number,
-  barWidth: number,
-) => {
-  const topLevelCategories = [
-    { label: t('charts-calculated'), startIndex: 0, endIndex: 7 },
-    { label: t('charts-estimated'), startIndex: 8, endIndex: 11 },
-  ];
-
-  return topLevelCategories
-    .map((category) => {
-      const startPos = chart.convertToPixel(
-        'xAxis',
-        barLabels[category.startIndex],
-      );
-      const endPos = chart.convertToPixel(
-        'xAxis',
-        barLabels[category.endIndex],
-      );
-
-      const startX = startPos - barWidth / 2;
-      const endX = endPos + barWidth / 2;
-      const width = endX - startX;
-
-      return {
-        type: 'text' as const,
-        x: startX + width / 2,
-        y: plotTop + 10,
-        style: {
-          text: category.label,
-          fontSize: 11,
-          fontWeight: 'bold',
-          textAlign: 'center',
-        },
-        z: 3,
-      };
-    })
-    .filter((g) => g !== null);
-};
-
-// Build scope graphics array
-const buildScopeGraphics = (
-  chart: ECharts,
-  barLabels: string[],
-  plotTop: number,
-  plotHeight: number,
-  barWidth: number,
-) => {
-  const scopeAreas = [
-    {
-      label: t('charts-scope') + ' 1',
-      color: '#F5F5F5',
-      startIndex: 0,
-      endIndex: 1,
-    },
-    {
-      label: t('charts-scope') + ' 2',
-      color: '#E8E8E8',
-      startIndex: 2,
-      endIndex: 3,
-    },
-    {
-      label: t('charts-scope') + ' 3',
-      color: '#D0D0D0',
-      startIndex: 4,
-      endIndex: 7,
-    },
-    { label: '', color: '#D0D0D0', startIndex: 8, endIndex: 11 },
-  ];
-
-  return scopeAreas
-    .map((scope) => {
-      const startPos = chart.convertToPixel(
-        'xAxis',
-        barLabels[scope.startIndex],
-      );
-      const endPos = chart.convertToPixel('xAxis', barLabels[scope.endIndex]);
-
-      if (startPos == null || endPos == null || !barWidth) {
-        return [];
-      }
-
-      const startX = startPos - barWidth / 2;
-      const endX = endPos + barWidth / 2;
-      const width = endX - startX;
-
-      return [
-        {
-          type: 'rect' as const,
-          shape: {
-            x: startX,
-            y: plotTop,
-            width: width,
-            height: plotHeight,
-          },
-          style: {
-            fill: scope.color,
-            opacity: 0.3,
-          },
-          z: -1,
-        },
-        {
-          type: 'text' as const,
-          x: startX + width / 2,
-          y: plotTop + 30,
-          style: {
-            text: scope.label,
-            fontSize: 10,
-            fontWeight: 'bold',
-            textAlign: 'center',
-          },
-          z: 1,
-        },
-      ];
-    })
-    .flat();
-};
-
-// Build separator line after Scope 3
-const buildSeparatorGraphics = (
-  chart: ECharts,
-  barLabels: string[],
-  plotTop: number,
-  plotHeight: number,
-) => {
-  const separatorPos = chart.convertToPixel('xAxis', barLabels[7]);
-  const nextPos = chart.convertToPixel('xAxis', barLabels[8]);
-
-  if (!separatorPos || !nextPos) return [];
-
-  return [
-    {
-      type: 'line' as const,
-      shape: {
-        x1: (separatorPos + nextPos) / 2,
-        y1: plotTop,
-        x2: (separatorPos + nextPos) / 2,
-        y2: plotTop + plotHeight,
-      },
-      style: {
-        stroke: '#666',
-        lineDash: [5, 5],
-        lineWidth: 1,
-      },
-      z: 2,
-    },
-  ];
-};
-
-// Update scope graphics after chart renders
-const updateScopeGraphics = () => {
-  if (!chartRef.value) return;
-
-  const chartData = buildChartData();
-  const { barLabels } = chartData;
-
-  // Get plot area bounds from option
-  const option = chartRef.value.getOption() as EChartsOption;
-  const grid =
-    (Array.isArray(option.grid) ? option.grid[0] : option.grid) || {};
-  const gridTop = parseFloat(String(grid.top || '0%').replace('%', '')) || 0;
-  const gridBottom =
-    parseFloat(String(grid.bottom || '15%').replace('%', '')) || 15;
-  const chartHeight = chartRef.value.getHeight();
-  const plotTop = (chartHeight * gridTop) / 100;
-  const plotBottom = chartHeight - (chartHeight * gridBottom) / 100;
-  const plotHeight = plotBottom - plotTop;
-
-  const firstPos = chartRef.value.convertToPixel('xAxis', barLabels[0]);
-  const secondPos = chartRef.value.convertToPixel('xAxis', barLabels[1]);
-  const barWidth = firstPos && secondPos ? Math.abs(secondPos - firstPos) : 0;
-
-  const topLevelGraphics = buildTopLevelGraphics(
-    chartRef.value,
-    barLabels,
-    plotTop,
-    barWidth,
-  );
-  const scopeGraphics = buildScopeGraphics(
-    chartRef.value,
-    barLabels,
-    plotTop,
-    plotHeight,
-    barWidth,
-  );
-  const separatorGraphics = buildSeparatorGraphics(
-    chartRef.value,
-    barLabels,
-    plotTop,
-    plotHeight,
-  );
-
-  const graphics = [
-    ...topLevelGraphics,
-    ...scopeGraphics,
-    ...separatorGraphics,
-  ];
-
-  if (graphics.length > 0 && barWidth > 0) {
-    graphicsRef.value = graphics;
-    chartRef.value.setOption({ graphic: graphics }, { notMerge: false });
+const additionalDataConfig = computed(() => {
+  if (toggleAdditionalData.value) {
+    return {
+      firstRectWidth: 72,
+      secondRectLeft: 118,
+      secondRectWidth: 75,
+      secondTextLeft: 128,
+      thirdRectLeft: 193,
+      thirdRectWidth: 500,
+      thirdTextLeft: 203,
+      estimatedText: t('charts-estimated'),
+    };
   }
-};
-
-// Computed chart option
-const chartOption = computed<EChartsOption>(() => {
-  const chartData = buildChartData();
-  const {
-    barLabels,
-    translatedNameToelementId,
-    barToSubCategories,
-    subCategoryToMainCategory,
-    dataset,
-    subCategories,
-  } = chartData;
-
-  // Calculate max value for y-axis
-  const calculateMaxValue = (): number =>
-    Math.max(
-      ...dataset.source.map((row) =>
-        subCategories.reduce(
-          (sum, sub) => sum + ((row[sub] as number) || 0),
-          0,
-        ),
-      ),
-    ) + 10;
-
-  // Get and sort subcategories with data for proper stacking
-  const sortedSubCategories = subCategories
-    .filter((sub) =>
-      dataset.source.some((row) => {
-        return row[sub];
-      }),
-    )
-    .sort((a, b) => {
-      const mainA = subCategoryToMainCategory[a] || a;
-      const mainB = subCategoryToMainCategory[b] || b;
-      if (mainA !== mainB) return 0;
-      const subCats = barToSubCategories[mainA] || [];
-      return subCats.indexOf(a) - subCats.indexOf(b);
-    });
-
-  // Create bar series
-  const categorySeries: BarSeriesOption[] = sortedSubCategories.map(
-    (subCategory) => {
-      const mainCategory =
-        subCategoryToMainCategory[subCategory] || subCategory;
-      const subCats = barToSubCategories[mainCategory] || [];
-      const index = subCats.indexOf(subCategory);
-      // Only translate if it's a translation key (starts with 'charts-'), otherwise use as-is (building names)
-      const displayName = subCategory.startsWith('charts-')
-        ? t(subCategory)
-        : subCategory;
-      return {
-        name: displayName,
-        type: 'bar',
-        datasetIndex: 0,
-        encode: { y: subCategory },
-        stack: 'total',
-        barWidth: '80%',
-        barCategoryGap: '20%',
-
-        itemStyle: {
-          color: getSubCategoryColor(
-            subCategory,
-            index >= 0 ? index : 0,
-            subCategoryToMainCategory,
-          ),
-        },
-        emphasis: {
-          itemStyle: {
-            color: getSubCategoryColor(
-              subCategory,
-              index >= 0 ? index : 0,
-              subCategoryToMainCategory,
-            ),
-          },
-        },
-        animation: true,
-        animationDuration: 300,
-        animationEasing: 'cubicOut',
-        legendHoverLink: false,
-      };
-    },
-  );
-
-  // Create legend series
-  const legendSeries: BarSeriesOption[] = categories.map((config) => ({
-    name: t(config.elementId),
-    type: 'bar',
-    data: [],
-    itemStyle: { color: getColor(config.elementId) },
-  }));
 
   return {
-    dataset: [dataset],
-    graphic: graphicsRef.value as EChartsOption['graphic'],
+    firstRectWidth: 109,
+    secondRectLeft: 155,
+    secondRectWidth: 108,
+    secondTextLeft: 165,
+    thirdRectLeft: 263,
+    thirdRectWidth: 500,
+    thirdTextLeft: 273,
+    estimatedText: '',
+  };
+});
+
+const chartOption = computed((): EChartsOption => {
+  return {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'none' },
-      confine: true,
-      extraCssText: 'min-width: 220px;',
-      formatter: (params: unknown) => {
-        if (!Array.isArray(params) || params.length === 0) return '';
-        const first = params[0] as { axisValue?: string; seriesName?: string };
-        if (!first?.axisValue) return '';
+      axisPointer: {
+        type: 'shadow',
+      },
 
-        const categoryName = first.axisValue;
-        const categoryRow = dataset.source.find(
-          (row) => row.bar === categoryName,
-        );
+      formatter: function (params: AxisTooltipParams[]) {
+        let total = 0;
+        let tooltip = `<strong>${params[0].axisValue}</strong><br/>`;
 
-        // Get elementId from translated name
-        const elementId = translatedNameToelementId[categoryName];
-
-        const subCats = barToSubCategories[elementId];
-        const subCategoryData = [];
-
-        let categoryTotal = 0;
-
-        subCats.forEach((subCat) => {
-          const value = categoryRow[subCat];
-
-          const mainCategoryelementId = subCategoryToMainCategory[subCat];
-          const subCatsForCategory = barToSubCategories[mainCategoryelementId];
-          const index = subCatsForCategory.indexOf(subCat);
-          const color = getSubCategoryColor(
-            subCat,
-            index,
-            subCategoryToMainCategory,
-          );
-
-          subCategoryData.push({
-            name: subCat,
-            value,
-            color,
-          });
-          categoryTotal += Number(value);
+        params.reverse().forEach((param: AxisTooltipParams) => {
+          if (param.value > 0) {
+            tooltip += `${param.marker} ${param.seriesName}: <strong>${param.value} </strong><br/>`;
+            total += param.value;
+          }
         });
-
-        if (subCategoryData.length === 0) return '';
-
-        // If single subcategory, show dot at category level
-        if (subCategoryData.length === 1) {
-          const item = subCategoryData[0];
-          return `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <b>${categoryName}</b></span> <b>${categoryTotal.toFixed(1)}</b></div>`;
-        }
-
-        // Category name with total and all subcategories
-        let result = `<div style="display: flex; justify-content: space-between; align-items: center;"><b>${categoryName}</b> <b>${categoryTotal.toFixed(1)}</b></div>`;
-        result += '<br/>';
-        [...subCategoryData].reverse().forEach((item) => {
-          // Only translate if it's a translation key (starts with 'charts-'), otherwise use as-is (building names)
-          const displayName = item.name.startsWith('charts-')
-            ? t(item.name)
-            : item.name;
-          result += `<div style="display: flex; justify-content: space-between; align-items: center;"><span><span style="color: ${item.color}">●</span> <span>${displayName}</span></span> <span>${item.value.toFixed(1)}</span></div>`;
-        });
-
-        return result;
+        tooltip += `<hr style="margin: 4px 0"/>Total: <strong>${total.toFixed(1)}</strong>`;
+        return tooltip;
       },
     },
-    legend: {
-      data: barLabels,
-      bottom: 0,
-      type: 'plain',
-      orient: 'horizontal',
-      itemGap: 8,
-      itemWidth: 10,
-      itemHeight: 10,
-      selectedMode: false,
-    },
+
     grid: {
       left: '5%',
-      right: '0%',
-      bottom: '15%',
-      top: '0%',
+      right: '4%',
+      top: '3%',
+      bottom: '0%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
-      data: barLabels,
-      axisLabel: { show: false },
-      boundaryGap: true,
+      data: (() => {
+        const baseCategories = [
+          t('charts-unit-gas-category'),
+          t('charts-infrastructure-gas-category'),
+          t('charts-infrastructure-category'),
+          t('charts-equipment-category'),
+          t('charts-commuting-category'),
+          t('charts-food-category'),
+          t('charts-professional-travel-category'),
+          t('charts-it-category'),
+        ];
+        if (toggleAdditionalData.value) {
+          return [
+            ...baseCategories,
+            t('charts-research-core-facilities-category'),
+            t('charts-purchases-category'),
+            t('charts-waste-category'),
+            t('charts-grey-energy-category'),
+          ];
+        }
+        return baseCategories;
+      })(),
+      axisLabel: {
+        interval: 0,
+        rotate: 45,
+        fontSize: 11,
+      },
     },
     yAxis: {
       type: 'value',
-      name: t('tco2eq'),
+      name: 'tCO2eq',
       nameLocation: 'middle',
       nameGap: 30,
       nameRotate: 90,
-      nameTextStyle: { fontSize: 10, fontWeight: 'bold' },
-      max: calculateMaxValue(),
-      splitLine: { show: true, lineStyle: { color: '#E0E0E0', type: 'solid' } },
+      nameTextStyle: {
+        fontSize: 11,
+        fontWeight: 'bold',
+      },
+      axisLabel: {
+        formatter: '{value}',
+      },
     },
-    series: [...legendSeries, ...categorySeries],
+    graphic: [
+      {
+        type: 'rect',
+        left: '46px',
+        top: '15px',
+        shape: {
+          width: additionalDataConfig.value.firstRectWidth,
+          height: 300,
+        },
+        style: {
+          fill: new graphic.LinearGradient(0, 0, 0, 1, [
+            {
+              offset: 0,
+              color: 'rgba(240,240,240,0.9)',
+            },
+            {
+              offset: 1,
+              color: 'rgba(240,240,240,0.1)',
+            },
+          ]),
+        },
+      },
+      {
+        type: 'text',
+        left: '56px', // Position at horizontal center according to its parent.
+        top: '30px', // Position at vertical center according to its parent.
+        style: {
+          fill: '#000000',
+          text: t('charts-scope') + ' 1',
+          font: '11px SuisseIntl',
+        },
+      },
+      {
+        type: 'rect',
+        left: additionalDataConfig.value.secondRectLeft,
+        top: '15px',
+        shape: {
+          width: additionalDataConfig.value.secondRectWidth,
+          height: 300,
+        },
+        style: {
+          fill: new graphic.LinearGradient(0, 0, 0, 1, [
+            {
+              offset: 0,
+              color: 'rgba(229,229,229,0.9)',
+            },
+            {
+              offset: 1,
+              color: 'rgba(229,229,229,0.1)',
+            },
+          ]),
+        },
+      },
+      {
+        type: 'text',
+        left: additionalDataConfig.value.secondTextLeft,
+        top: '30px', // Position at vertical center according to its parent.
+        style: {
+          fill: '#000000',
+          text: t('charts-scope') + ' 2',
+          font: '11px SuisseIntl',
+        },
+      },
+      {
+        type: 'rect',
+        left: additionalDataConfig.value.thirdRectLeft,
+        top: '15px',
+        shape: {
+          width: additionalDataConfig.value.thirdRectWidth,
+          height: 300,
+        },
+        style: {
+          fill: new graphic.LinearGradient(0, 0, 0, 1, [
+            {
+              offset: 0,
+              color: 'rgba(210,210,210,0.9)',
+            },
+            {
+              offset: 1,
+              color: 'rgba(210,210,210,0.1)',
+            },
+          ]),
+        },
+      },
+      {
+        type: 'text',
+        left: additionalDataConfig.value.thirdTextLeft,
+        top: '30px', // Position at vertical center according to its parent.
+        style: {
+          fill: '#000000',
+          text: t('charts-scope') + ' 3',
+          font: '11px SuisseIntl',
+        },
+      },
+      {
+        type: 'text',
+        left: '56px', // Position at horizontal center according to its parent.
+        top: '00px', // Position at vertical center according to its parent.
+        style: {
+          fill: '#000000',
+          text: t('charts-calculated'),
+          font: '11px SuisseIntl',
+        },
+      },
+      {
+        type: 'text',
+        left: '345px',
+        top: '0px', // Position at vertical center according to its parent.
+        style: {
+          fill: '#000000',
+          text: additionalDataConfig.value.estimatedText,
+          font: '11px SuisseIntl',
+        },
+      },
+      ...(() => {
+        if (toggleAdditionalData.value) {
+          return [
+            {
+              type: 'rect',
+              left: '335px',
+              top: '0px',
+              shape: {
+                width: 1,
+                height: 420,
+              },
+              style: {
+                fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                  {
+                    offset: 0,
+                    color: 'rgba(0,0,0)',
+                  },
+                  {
+                    offset: 1,
+                    color: 'rgba(240,240,240,0.1)',
+                  },
+                ]),
+              },
+              z: 100,
+            },
+          ];
+        }
+        return [];
+      })(),
+    ],
+    series: [
+      {
+        name: 'Unit Gas',
+        type: 'bar',
+        stack: 'total',
+        data: [2.5, 0, 0, 0, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(15),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Infrastructure Gas',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 2, 0, 0, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(15),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Cooling',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 9, 0, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(5, 0),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Ventilation',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 3, 0, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(5, 1),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Lighting',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 9, 0, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(5, 2),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Scientific',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 10, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(4, 0),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'IT',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 3, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(4, 1),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Other',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0.2, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement(4, 2),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Commuting',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0, 8, 0, 0, 0],
+        itemStyle: {
+          color: getElement(8),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Food',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0, 0, 2.5, 0, 0],
+        itemStyle: {
+          color: getElement(9),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Train',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0, 0, 0, 1.5, 0],
+        itemStyle: {
+          color: getElement(7, 0),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+      {
+        name: 'Plane',
+        type: 'bar',
+        stack: 'total',
+        data: [0, 0, 0, 0, 0, 0, 3, 0],
+        itemStyle: {
+          color: getElement(7, 1),
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          focus: 'series',
+        },
+      },
+
+      ...(() => {
+        if (toggleAdditionalData.value) {
+          return [
+            {
+              name: 'IT',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 0],
+              itemStyle: {
+                color: getElement(15),
+              },
+            },
+            {
+              name: 'SCITAS',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(9, 0),
+              },
+            },
+            {
+              name: 'RCP',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 1.5, 0, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(9, 1),
+              },
+            },
+            {
+              name: 'Bio Chemicals',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(10, 0),
+              },
+            },
+            {
+              name: 'Consumables',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(10, 1),
+              },
+            },
+            {
+              name: 'Equipment',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(10, 2),
+              },
+            },
+            {
+              name: 'Services',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
+              itemStyle: {
+                color: getElement(10, 3),
+              },
+            },
+            {
+              name: 'Waste',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0] as number[],
+              itemStyle: {
+                color: getElement(11),
+              },
+            },
+            {
+              name: 'Grey Energy',
+              type: 'bar' as const,
+              stack: 'total',
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] as number[],
+              itemStyle: {
+                color: getElement(10),
+              },
+            },
+          ];
+        }
+        return [];
+      })(),
+    ],
   };
-});
-
-// Watch for chart instance and update graphics after render
-watch(
-  () => chartRef.value,
-  (newInstance) => {
-    if (newInstance) {
-      // Wait for chart to be fully rendered
-      nextTick(() => {
-        setTimeout(() => {
-          updateScopeGraphics();
-        }, 300);
-      });
-    }
-  },
-  { immediate: true },
-);
-
-// Watch for chartOption changes and update graphics
-watch(
-  () => chartOption.value,
-  () => {
-    if (chartRef.value) {
-      // Delay to ensure chart has rendered with new option
-      nextTick(() => {
-        setTimeout(() => {
-          updateScopeGraphics();
-        }, 500);
-      });
-    }
-  },
-  { flush: 'post' },
-);
-
-// Watch for colorblind mode changes and update graphics
-watch(colorblindMode, () => {
-  if (chartRef.value) {
-    nextTick(() => {
-      setTimeout(() => {
-        updateScopeGraphics();
-      }, 300);
-    });
-  }
-});
-
-// Watch for locale changes and update graphics
-watch(locale, () => {
-  if (chartRef.value) {
-    nextTick(() => {
-      setTimeout(() => {
-        updateScopeGraphics();
-      }, 300);
-    });
-  }
-});
-
-// Update graphics on mount after chart is ready
-onMounted(() => {
-  nextTick(() => {
-    setTimeout(() => {
-      updateScopeGraphics();
-    }, 300);
-  });
 });
 </script>
 
 <template>
-  <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
+  <q-card flat class="container container--pa-none">
+    <q-card-section class="flex justify-between items-center">
+      <div>
+        <q-icon name="o_info" size="xs" color="primary">
+          <q-tooltip
+            v-if="$slots.tooltip"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip"
+          >
+            <slot name="tooltip"></slot>
+          </q-tooltip>
+        </q-icon>
+        <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
+          {{ $t('results_module_carbon_footprint') }}
+        </span>
+      </div>
+      <q-checkbox
+        v-model="toggleAdditionalData"
+        :label="$t('results_module_carbon_toggle_additional_data')"
+        size="xs"
+        color="accent"
+      />
+    </q-card-section>
+    <q-card-section class="chart-container flex justify-center items-center">
+      <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
+    </q-card-section>
+  </q-card>
 </template>
 
 <style scoped>
 .chart {
-  width: 100%;
+  width: 500px;
   min-height: 500px;
 }
 </style>
