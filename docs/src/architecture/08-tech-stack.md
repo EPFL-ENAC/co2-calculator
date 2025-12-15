@@ -30,12 +30,12 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Frontend
 
- - **Language**: [TypeScript](https://www.typescriptlang.org/)
- - **Runtime**: [Node.js 24.x](https://nodejs.org/)
- - **Package Manager**: [npm (v10+)](https://www.npmjs.com/)
- - **Type Checking**: [vue-tsc](https://deepwiki.com/vuejs/language-tools)
- - **Dependency File**: `frontend/package.json`
- - **Lockfile**: `package-lock.json`
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Runtime**: [Node.js 24.x](https://nodejs.org/)
+- **Package Manager**: [npm (v10+)](https://www.npmjs.com/)
+- **Type Checking**: [vue-tsc](https://deepwiki.com/vuejs/language-tools)
+- **Dependency File**: `frontend/package.json`
+- **Lockfile**: `package-lock.json`
 
 ---
 
