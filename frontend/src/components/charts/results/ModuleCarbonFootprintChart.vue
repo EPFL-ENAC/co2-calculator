@@ -6,7 +6,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import type { ECharts } from 'echarts/core';
 import { getElement } from 'src/constant/charts';
 import {
   TooltipComponent,
@@ -35,7 +34,6 @@ use([
   GraphicComponent,
 ]);
 
-const chartRef = ref<ECharts>();
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
@@ -127,7 +125,7 @@ const chartOption = computed((): EChartsOption => {
     },
     yAxis: {
       type: 'value',
-      name: 'tCO2eq',
+      name: t('tco2eq'),
       nameLocation: 'middle',
       nameGap: 30,
       nameRotate: 90,
@@ -290,7 +288,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [2.5, 0, 0, 0, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(15),
+          color: getElement('notDefined'),
         },
         label: {
           show: false,
@@ -305,7 +303,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 2, 0, 0, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(15),
+          color: getElement('notDefined'),
         },
         label: {
           show: false,
@@ -320,7 +318,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 9, 0, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(5, 0),
+          color: getElement('blueGrey', 0),
         },
         label: {
           show: false,
@@ -335,7 +333,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 3, 0, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(5, 1),
+          color: getElement('blueGrey', 1),
         },
         label: {
           show: false,
@@ -350,7 +348,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 9, 0, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(5, 2),
+          color: getElement('blueGrey', 2),
         },
         label: {
           show: false,
@@ -365,7 +363,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 10, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(4, 0),
+          color: getElement('purple', 0),
         },
         label: {
           show: false,
@@ -380,7 +378,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 3, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(4, 1),
+          color: getElement('purple', 1),
         },
         label: {
           show: false,
@@ -395,7 +393,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 0.2, 0, 0, 0, 0],
         itemStyle: {
-          color: getElement(4, 2),
+          color: getElement('purple', 2),
         },
         label: {
           show: false,
@@ -410,7 +408,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 0, 8, 0, 0, 0],
         itemStyle: {
-          color: getElement(8),
+          color: getElement('tealBlue'),
         },
         label: {
           show: false,
@@ -425,7 +423,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 0, 0, 2.5, 0, 0],
         itemStyle: {
-          color: getElement(9),
+          color: getElement('forestGreen'),
         },
         label: {
           show: false,
@@ -440,7 +438,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 0, 0, 0, 1.5, 0],
         itemStyle: {
-          color: getElement(7, 0),
+          color: getElement('blue', 0),
         },
         label: {
           show: false,
@@ -455,7 +453,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: [0, 0, 0, 0, 0, 0, 3, 0],
         itemStyle: {
-          color: getElement(7, 1),
+          color: getElement('blue', 1),
         },
         label: {
           show: false,
@@ -464,89 +462,89 @@ const chartOption = computed((): EChartsOption => {
           focus: 'series',
         },
       },
+      {
+        name: 'IT Infrastructure',
+        type: 'bar' as const,
+        stack: 'total',
+        data: [0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 0],
+        itemStyle: {
+          color: getElement('notDefined'),
+        },
+      },
 
       ...(() => {
         if (toggleAdditionalData.value) {
           return [
             {
-              name: 'IT',
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 0],
-              itemStyle: {
-                color: getElement(15),
-              },
-            },
-            {
-              name: 'SCITAS',
+              name: t('charts-scitas-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] as number[],
               itemStyle: {
-                color: getElement(9, 0),
+                color: getElement('purpleGrey', 0),
               },
             },
             {
-              name: 'RCP',
+              name: t('charts-rcp-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 1.5, 0, 0, 0] as number[],
               itemStyle: {
-                color: getElement(9, 1),
+                color: getElement('purpleGrey', 1),
               },
             },
             {
-              name: 'Bio Chemicals',
+              name: t('charts-bio-chemicals-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
               itemStyle: {
-                color: getElement(10, 0),
+                color: getElement('green', 0),
               },
             },
             {
-              name: 'Consumables',
+              name: t('charts-consumables-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0] as number[],
               itemStyle: {
-                color: getElement(10, 1),
+                color: getElement('green', 1),
               },
             },
             {
-              name: 'Equipment',
+              name: t('charts-equipment-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] as number[],
               itemStyle: {
-                color: getElement(10, 2),
+                color: getElement('green', 2),
               },
             },
             {
-              name: 'Services',
+              name: t('charts-services-subcategory'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
               itemStyle: {
-                color: getElement(10, 3),
+                color: getElement('green', 3),
               },
             },
             {
-              name: 'Waste',
+              name: t('charts-waste-category'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0] as number[],
               itemStyle: {
-                color: getElement(11),
+                color: getElement('limeGreen'),
               },
             },
             {
-              name: 'Grey Energy',
+              name: t('charts-grey-energy-category'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] as number[],
               itemStyle: {
-                color: getElement(10),
+                color: getElement('neutralGrey'),
               },
             },
           ];
