@@ -45,6 +45,7 @@ async def test_user(db_session):
         email=testuser_info.get("email"),
         user_id=user_id,
         roles=roles,
+        provider="test",
     )
     user.roles = roles
     return user

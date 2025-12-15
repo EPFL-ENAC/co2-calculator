@@ -21,9 +21,8 @@ from app.core.role_priority import pick_role_for_unit
 from app.models.user import Role, RoleScope, User
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
-from app.repositories.unit_repo import UnitRepository
-from app.repositories.unit_user_repo import UnitUserRepository
 from app.repositories.user_repo import UserRepository
+from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
 
 logger = get_logger(__name__)
@@ -35,9 +34,8 @@ class UserService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.user_repo = UserRepository(session)
-        self.unit_repo = UnitRepository(session)
-        self.unit_user_repo = UnitUserRepository(session)
         self.unit_user_service = UnitUserService(session)
+        self.unit_service = UnitService(session)
 
     def get_user_unit_ids(self, roles: Optional[List[Role]]) -> list[str]:
         """Get list of unit IDs associated with a user."""
@@ -136,7 +134,7 @@ class UserService:
                     stop_recursion=True,
                     provider=user.provider,
                 )
-            await self.unit_repo.upsert(unit, user_id=user.id)
+            await self.unit_service.upsert_unit(unit, user, provider=user.provider)
 
         # step 5. Create/update UnitUser associations
         for unit_id in unit_ids:

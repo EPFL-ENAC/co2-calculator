@@ -208,7 +208,9 @@ class UnitService:
 
         return unit
 
-    async def upsert_unit(self, unit_data: Unit, user: User) -> Unit:
+    async def upsert_unit(
+        self, unit_data: Unit, user: User, provider: Optional[str] = None
+    ) -> Unit:
         """
         Create or update a unit (internal operation).
 
@@ -220,7 +222,9 @@ class UnitService:
         NO policy checks - this is internal.
         """
         # Upsert unit
-        unit = await self.unit_repo.upsert(unit_data, user_id=user.id)
+        unit = await self.unit_repo.upsert(
+            unit_data, user_id=user.id, provider=user.provider
+        )
 
         logger.info(
             "Unit upserted (internal)",

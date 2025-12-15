@@ -55,6 +55,7 @@ class UnitRepository:
         principal_user_function: Optional[str] = None,
         affiliations: Optional[List[str]] = None,
         created_by: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> Unit:
         """Create a new unit."""
         now = datetime.utcnow()
@@ -69,6 +70,7 @@ class UnitRepository:
             updated_at=now,
             created_by=created_by,
             updated_by=created_by,
+            provider=provider,
         )
         self.session.add(entity)
         await self.session.commit()
@@ -84,6 +86,7 @@ class UnitRepository:
         principal_user_function: Optional[str] = None,
         affiliations: Optional[List[str]] = None,
         updated_by: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> Unit:
         """Update an existing unit."""
         result = await self.session.exec(select(Unit).where(Unit.id == unit_id))
@@ -104,6 +107,8 @@ class UnitRepository:
         if affiliations is not None:
             entity.affiliations = affiliations
 
+        entity.provider = provider or entity.provider
+
         entity.updated_at = now
         if updated_by is not None:
             entity.updated_by = updated_by
@@ -116,6 +121,7 @@ class UnitRepository:
         self,
         unit_data: Unit,
         user_id: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> Unit:
         """Create or update a unit."""
         existing = await self.get_by_id(unit_data.id)
@@ -129,6 +135,7 @@ class UnitRepository:
                 principal_user_function=unit_data.principal_user_function,
                 affiliations=unit_data.affiliations,
                 updated_by=user_id,
+                provider=provider,
             )
         else:
             if not unit_data.id:
@@ -142,6 +149,7 @@ class UnitRepository:
                 principal_user_function=unit_data.principal_user_function,
                 affiliations=unit_data.affiliations,
                 created_by=user_id,
+                provider=provider,
             )
 
     async def count(self, filters: Optional[dict] = None) -> int:

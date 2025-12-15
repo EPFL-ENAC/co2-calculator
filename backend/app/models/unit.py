@@ -69,6 +69,10 @@ class Unit(UnitBase, table=True):
         nullable=True,
         description="other id associated with the unit",
     )
+    provider: str = Field(
+        nullable=False,
+        description="Authentication provider (e.g. default, test, accred, ...)",
+    )
 
     def __repr__(self) -> str:
         return f"<Unit {self.id}: {self.name}>"

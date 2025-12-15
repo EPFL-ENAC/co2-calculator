@@ -92,6 +92,7 @@ erDiagram
     VARCHAR updated_by
     VARCHAR id
     VARCHAR cf
+    VARCHAR provider
   }
   unit_users {
     VARCHAR unit_id
@@ -113,14 +114,14 @@ erDiagram
   }
   users ||--}o emission_factors : created_by
   users ||--}o power_factors : created_by
-  users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
   power_factors ||--}o equipment : power_factor_id
-  emission_factors ||--}o equipment_emissions : emission_factor_id
+  users ||--}o equipment : created_by
   equipment ||--}o equipment_emissions : equipment_id
   power_factors ||--}o equipment_emissions : power_factor_id
-  users ||--}o resources : updated_by
+  emission_factors ||--}o equipment_emissions : emission_factor_id
   users ||--}o resources : created_by
+  users ||--}o resources : updated_by
   users ||--}o unit_users : user_id
   units ||--}o unit_users : unit_id
 ```
