@@ -367,7 +367,7 @@ export default {
   },
   module_total_result_title: {
     en: 'Total {type} Carbon Footprint',
-    fr: '',
+    fr: 'Empreinte Carbone {type}',
   },
   common_filter_all: {
     en: 'All',
