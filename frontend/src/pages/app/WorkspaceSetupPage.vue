@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import type { Unit } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
@@ -65,13 +66,7 @@ const updateUrlFromSelections = () => {
   });
 };
 
-const handleUnitSelect = async (unit: {
-  id: number;
-  name: string;
-  principal_user_id: number;
-  affiliations: string[];
-  role?: string;
-}) => {
+const handleUnitSelect = async (unit: Unit) => {
   selectedLab.value = unit.id;
   workspaceStore.setUnit(unit);
   selectedYear.value = null; // Clear year selection when unit changes

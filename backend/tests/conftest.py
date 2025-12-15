@@ -68,7 +68,7 @@ def mock_policy_allow(monkeypatch):
 
     async def mock_query_policy(*args, **kwargs):
         """Async mock for OPA query."""
-        return {"allow": True, "filters": {}}
+        return {"allow": True, "filters": {"unit_ids": ["12345"]}}
 
     # Patch it in the resource_service module where it's being called
     monkeypatch.setattr("app.services.resource_service.query_policy", mock_query_policy)

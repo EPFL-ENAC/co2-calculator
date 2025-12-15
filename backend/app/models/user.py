@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     pass
@@ -21,6 +21,7 @@ class RoleName(str, Enum):
     CO2_BACKOFFICE_STD = "co2.backoffice.std"
     CO2_BACKOFFICE_ADMIN = "co2.backoffice.admin"
     CO2_SERVICE_MGR = "co2.service.mgr"
+    # it's not used in the code, but kept for backward compatibility
     CO2_INVENTORY_VIEWER = "co2.inventory.data"
 
 
@@ -41,48 +42,37 @@ class Role(BaseModel):
 class UserBase(SQLModel):
     # Role-based access control (hierarchical structure)
     # Format: [{"role": "co2.user.std", "on": {"unit": "12345"}}]
-    roles: List[Role] = Field(
-        default_factory=list,
+    # roles: List[Role] = Field(
+    #     default_factory=list,
+    #     description="User roles with hierarchical scopes",
+    # )
+    # roles: List[Role] = Field(
+    #     default_factory=list,
+    #     description="User roles with hierarchical scopes",
+    #     exclude=True,
+    # )
+
+    roles_raw: Optional[List[dict]] = Field(
+        default=None,
         sa_column=Column(JSON),
-        description="User roles with hierarchical scopes",
+        description="Raw roles data for DB storage",
     )
 
-    @classmethod
-    @field_validator("roles", mode="after", check_fields=False)
-    def deserialize_roles(cls, v):
-        # Convert dicts back to Role objects after loading from DB
-        if isinstance(v, list):
-            roles = []
-            for r in v:
-                if isinstance(r, dict):
-                    # Ensure 'role' is an Enum, not a string
-                    role_val = r.get("role")
-                    if isinstance(role_val, str):
-                        r["role"] = RoleName(role_val)
-                    roles.append(Role(**r))
-                else:
-                    roles.append(r)
-            return roles
-        return v
+    @property
+    def roles(self) -> List[Role]:
+        if self.roles_raw:
+            return [Role(**r) if isinstance(r, dict) else r for r in self.roles_raw]
+        return []
 
-    @classmethod
-    @field_validator("roles", mode="wrap", check_fields=False)
-    def serialize_roles(cls, v, handler):
-        # Convert Role objects to dicts for JSON serialization
-        def role_to_dict(role):
-            d = role.model_dump() if isinstance(role, Role) else role
-            if isinstance(d.get("role"), Enum):
-                d["role"] = d["role"].value
-            return d
-
-        if isinstance(v, list):
-            v = [role_to_dict(r) for r in v]
-        return handler(v)
-
-    # EPFL-specific fields
-    sciper: Optional[str] = Field(
-        unique=True, index=True, nullable=True, description="EPFL SCIPER number"
-    )
+    @roles.setter
+    def roles(self, value: List[Role]):
+        self.roles_raw = [
+            {
+                **r.model_dump(),
+                "role": r.role.value if isinstance(r.role, Enum) else r.role,
+            }
+            for r in value
+        ]
 
     # Status
     is_active: bool = Field(default=True)
@@ -103,8 +93,13 @@ class User(UserBase, table=True):
 
     __tablename__ = "users"
 
-    id: str = Field(primary_key=True, index=True)
+    id: str = Field(primary_key=True, index=True, description="Sciper in EPFL context")
+    provider: str = Field(
+        nullable=False,
+        description="Authentication provider (e.g. default, test, accred, ...)",
+    )
     email: str = Field(unique=True, index=True, nullable=False)
+    display_name: Optional[str] = Field(default=None, nullable=True)
 
     # # Relationship to UnitUser
     # unit_users: list["UnitUser"] = Relationship(

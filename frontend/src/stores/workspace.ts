@@ -1,17 +1,16 @@
 import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
-import { useAuthStore } from './auth';
 import { api } from 'src/api/http';
 
-interface Unit {
+export interface Unit {
   id: number;
   name: string;
-  principal_user_id: number;
+  principal_user_id: string;
+  principal_user_function: string;
+  principal_user_name: string;
   affiliations: string[];
-  role?: string;
-  principal_user_name?: string;
-  principal_user_function?: string;
+  current_user_role: string;
   visibility?: string;
 }
 interface YearResult {
@@ -75,30 +74,8 @@ export const useWorkspaceStore = defineStore(
       try {
         unitsLoading.value = true;
         unitsErrors.value = [];
-        const authStore = useAuthStore();
 
-        // Ensure user is loaded before proceeding
-        if (!authStore.user && !authStore.loading) {
-          await authStore.getUser();
-        }
-
-        // Wait for user loading to complete if in progress
-        while (authStore.loading) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        const user = authStore.user;
-
-        if (!user) {
-          units.value = [];
-          const errorObj = new Error('User not authenticated');
-          unitsErrors.value = [errorObj];
-          return;
-        }
-
-        const allUnits = (await api
-          .get('units', { searchParams: { limit: 100 } })
-          .json()) as Unit[];
+        const allUnits = (await api.get('users/units').json()) as Unit[];
 
         units.value = allUnits || [];
       } catch (error) {

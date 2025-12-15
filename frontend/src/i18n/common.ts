@@ -98,8 +98,8 @@ export default {
     fr: "Choisissez l’unité dont vous souhaitez évaluer l'empreinte carbone.",
   },
   workspace_setup_unit_counter: {
-    en: 'Your units ({count})',
-    fr: 'Vos unités ({count})',
+    en: 'Your unit | Your units ({count}) ',
+    fr: 'Ton unité | Vos unités ({count})',
   },
   workspace_setup_unit_role: {
     en: 'Your role:',

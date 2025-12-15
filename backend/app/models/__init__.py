@@ -33,6 +33,14 @@ Resource.user = Relationship(
     sa_relationship_kwargs={"foreign_keys": "[Resource.updated_by]"},
 )
 
+
+# After model_rebuild()
+Unit.unit_users = Relationship(back_populates="unit")
+UnitUser.unit = Relationship(back_populates="unit_users")
+
+User.unit_users = Relationship(back_populates="user")
+UnitUser.user = Relationship(back_populates="unit_users")
+
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed
 
