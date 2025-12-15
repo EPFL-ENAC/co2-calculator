@@ -3,21 +3,22 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
+import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ChartContainer from 'src/components/molecules/ChartContainer.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.vue';
+import { formatNumber } from 'src/utils/number';
 
 const { t } = useI18n();
 
-const colorblindMode = ref(false);
+// Use global colorblindMode directly as single source of truth
+// No local ref, no watcher, no initialization override
 const viewUncertainties = ref(false);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
-
-import { formatNumber } from 'src/utils/number';
 
 // TODO: Replace with actual backend data when available
 // This function will get the number value from backend response using numberKey
@@ -115,10 +116,8 @@ const getUncertainty = (
       </BigNumber>
     </q-card>
     <q-card flat class="grid-2-col">
-      <ChartContainer :title="$t('results_module_carbon_footprint')">
-        <template #tooltip>tooltip</template>
-        <ModuleCarbonFootprintChart />
-      </ChartContainer>
+      <ModuleCarbonFootprintChart />
+
       <ChartContainer :title="$t('results_carbon_footprint_per_person')">
         <template #tooltip>tooltip</template>
         <CarbonFootPrintPerPersonChart />
