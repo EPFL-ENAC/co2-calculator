@@ -92,7 +92,8 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         outline
         size="sm"
         class="text-weight-medium q-ml-xl"
-        :to="{ name: 'back-office-documentation' }"
+        :href="$t('header_documentation_link')"
+        target="_blank"
       />
 
       <q-btn
