@@ -59,7 +59,7 @@
           :key="col.name"
           :props="scope"
           :align="col.align"
-          class="q-pa-md"
+          class="q-pa-xs"
         >
           <span>{{ col.label }}</span>
           <q-icon
@@ -172,12 +172,12 @@
     </template>
 
     <template #no-data>
-      <div class="text-center q-pa-md">No data available</div>
+      <div class="text-center q-pa-sm">No data available</div>
     </template>
   </q-table>
 
   <q-dialog v-model="editDialogOpen" persistent>
-    <q-card style="width: 1200px; max-width: 90vw">
+    <q-card style="width: 1320px; max-width: 90vw">
       <q-card-section class="flex justify-between items-center">
         <div class="text-h4 text-weight-medium">
           {{
