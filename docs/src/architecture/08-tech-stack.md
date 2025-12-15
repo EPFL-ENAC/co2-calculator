@@ -86,7 +86,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 ### Development
 
 - **Testing**: [pytest](https://docs.pytest.org/en/stable/) + [pytest-asyncio](https://pytest-asyncio.readthedocs.io/en/latest/) + [pytest-cov](https://pytest-cov.readthedocs.io/en/latest/)
-- **Linting**: [ruff](https://beta.ruff.rs/)
+- **Linting**: [ruff](https://docs.astral.sh/ruff/)
 - **Type Checking**: [mypy](https://mypy-lang.org/)
 - **Load Testing**: [locust](https://locust.io/)
 
