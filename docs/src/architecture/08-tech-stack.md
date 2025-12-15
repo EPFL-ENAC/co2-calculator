@@ -26,7 +26,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 - **Language**: [Python 3.12](https://www.python.org/) (target: 3.13 when stable in Alpine)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/)
 - **Dependency File**: `backend/pyproject.toml`
- - **Lockfile**: `uv.lock`
+- **Lockfile**: `uv.lock`
 
 ### Frontend
 
