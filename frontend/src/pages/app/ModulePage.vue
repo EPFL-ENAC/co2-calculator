@@ -1,33 +1,37 @@
 <template>
-  <q-page class="module-page">
-    <module-title
-      :type="currentModuleType"
-      :has-description="currentModuleConfig.hasDescription"
-      :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
-      :has-tooltip="currentModuleConfig.hasTooltip"
-    />
-    <module-charts :type="currentModuleType" />
-    <!-- module tables iteration -->
-    <module-table-section
-      v-if="currentModuleType === MODULES.EquipmentElectricConsumption"
-      :type="currentModuleType"
-      :data="data"
-      :loading="loading"
-      :error="error"
-      :unit-id="unit"
-      :year="year"
-    />
-    <!-- module summary -->
-    <module-total-result
-      v-if="
-        (
-          [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
-        ).includes(currentModuleType)
-      "
-      :data="data?.totals?.total_kg_co2eq"
-      :type="currentModuleType"
-    />
-    <module-navigation :current-module="currentModuleType" />
+  <q-page>
+    <Co2Timeline />
+    <q-separator />
+    <div class="module-page">
+      <module-title
+        :type="currentModuleType"
+        :has-description="currentModuleConfig.hasDescription"
+        :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
+        :has-tooltip="currentModuleConfig.hasTooltip"
+      />
+      <module-charts :type="currentModuleType" />
+      <!-- module tables iteration -->
+      <module-table-section
+        v-if="currentModuleType === MODULES.EquipmentElectricConsumption"
+        :type="currentModuleType"
+        :data="data"
+        :loading="loading"
+        :error="error"
+        :unit-id="unit"
+        :year="year"
+      />
+      <!-- module summary -->
+      <module-total-result
+        v-if="
+          (
+            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+          ).includes(currentModuleType)
+        "
+        :data="data?.totals?.total_kg_co2eq"
+        :type="currentModuleType"
+      />
+      <module-navigation :current-module="currentModuleType" />
+    </div>
   </q-page>
 </template>
 
@@ -44,6 +48,7 @@ import { Module, MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import { MODULES_CONFIG } from 'src/constant/module-config';
+import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
