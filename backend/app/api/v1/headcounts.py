@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.models.user import User
@@ -49,8 +50,8 @@ async def create_headcount(
     """
     try:
         logger.info(
-            f"Creating headcount for unit={unit_id}, year={year}, "
-            f"module={module_id} by user={current_user.id}"
+            f"Creating headcount for unit={sanitize(unit_id)}, year={year}, "
+            f"module={module_id} by user={sanitize(current_user.id)}"
         )
 
         headcount = await service.create_headcount(
@@ -59,7 +60,7 @@ async def create_headcount(
             user_id=current_user.id,
         )
 
-        logger.info(f"Successfully created headcount id={headcount.id}")
+        logger.info(f"Successfully created headcount id={sanitize(headcount.id)}")
         return headcount
 
     except Exception as e:
@@ -107,7 +108,7 @@ async def get_headcount(
     headcount = await service.get_by_id(headcount_id)
 
     if not headcount:
-        logger.warning(f"Headcount id={headcount_id} not found")
+        logger.warning(f"Headcount id={sanitize(headcount_id)} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Headcount with id {headcount_id} not found",
@@ -167,7 +168,7 @@ async def update_headcount(
     )
 
     if not headcount:
-        logger.warning(f"Headcount id={headcount_id} not found for update")
+        logger.warning(f"Headcount id={sanitize(headcount_id)} not found for update")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Headcount with id {headcount_id} not found",
@@ -176,15 +177,15 @@ async def update_headcount(
     # Optional: Verify unit_id matches
     if headcount.unit_id != unit_id:
         logger.warning(
-            f"Unit mismatch during update: requested={unit_id}, "
-            f"found={headcount.unit_id}"
+            f"Unit mismatch during update: requested={sanitize(unit_id)}, "
+            f"found={sanitize(headcount.unit_id)}"
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Headcount not found for this unit",
         )
 
-    logger.info(f"Successfully updated headcount id={headcount_id}")
+    logger.info(f"Successfully updated headcount id={sanitize(headcount_id)}")
     return headcount
 
 
@@ -215,15 +216,15 @@ async def delete_headcount(
         HTTPException: 404 if headcount not found
     """
     logger.info(
-        f"Deleting headcount id={headcount_id} for unit={unit_id}, "
-        f"year={year} by user={current_user.id}"
+        f"Deleting headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
+        f"year={year} by user={sanitize(current_user.id)}"
     )
 
     # First verify the headcount exists and belongs to the unit
     headcount = await service.get_by_id(headcount_id)
 
     if not headcount:
-        logger.warning(f"Headcount id={headcount_id} not found for deletion")
+        logger.warning(f"Headcount id={sanitize(headcount_id)} not found for deletion")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Headcount with id {headcount_id} not found",
@@ -232,8 +233,8 @@ async def delete_headcount(
     # Optional: Verify unit_id matches
     if headcount.unit_id != unit_id:
         logger.warning(
-            f"Unit mismatch during delete: requested={unit_id}, "
-            f"found={headcount.unit_id}"
+            f"Unit mismatch during delete: requested={sanitize(unit_id)}, "
+            f"found={sanitize(headcount.unit_id)}"
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -243,10 +244,10 @@ async def delete_headcount(
     success = await service.delete_headcount(headcount_id)
 
     if not success:
-        logger.error(f"Failed to delete headcount id={headcount_id}")
+        logger.error(f"Failed to delete headcount id={sanitize(headcount_id)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete headcount record",
         )
 
-    logger.info(f"Successfully deleted headcount id={headcount_id}")
+    logger.info(f"Successfully deleted headcount id={sanitize(headcount_id)}")
