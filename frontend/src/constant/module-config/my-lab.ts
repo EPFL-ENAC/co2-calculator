@@ -20,6 +20,7 @@ const memberFields: ModuleField[] = [
   {
     id: 'name',
     label: 'Name',
+    labelKey: 'my-lab-member-form-field-name-label',
     type: 'text',
     sortable: true,
     required: true,
@@ -29,6 +30,7 @@ const memberFields: ModuleField[] = [
   {
     id: 'position',
     label: 'Position',
+    labelKey: 'my-lab-member-form-field-position-label',
     type: 'text',
     sortable: true,
     ratio: '4/12',
@@ -37,6 +39,7 @@ const memberFields: ModuleField[] = [
   {
     id: 'fte',
     label: 'Full-Time Equivalent (FTE)',
+    labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
     min: 0,
@@ -52,15 +55,8 @@ const memberFieldDynamicIcons = memberFields.map((field) => ({
 
 const studentFields: ModuleField[] = [
   {
-    id: 'position',
-    label: 'Position',
-    type: 'text',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
     id: 'fte',
-    label: 'Full-Time Equivalent (FTE)',
+    labelKey: 'my-lab-student_form_field_fte_label',
     type: 'number',
     required: true,
     min: 0,

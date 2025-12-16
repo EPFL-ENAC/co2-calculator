@@ -27,6 +27,35 @@ export default {
     en: 'Add FTE',
     fr: 'Ajouter un EPT',
   },
+  [`${MODULES.MyLab}-member-form-title`]: {
+    // en: 'Add Full-Time Equivalent member',
+    // fr: 'Ajouter un membre à équivalent plein-temps',
+    en: 'Add FTE',
+    fr: 'Ajouter un EPT',
+  },
+  // module member
+
+  [`${MODULES.MyLab}-member-form-field-fte-label`]: {
+    en: 'Full-Time Equivalent (FTE)',
+    fr: 'Équivalent plein-temps (EPT)',
+  },
+  [`${MODULES.MyLab}-member-form-field-position-label`]: {
+    en: 'Position',
+    fr: 'Poste',
+  },
+  [`${MODULES.MyLab}-member-form-field-name-label`]: {
+    en: 'Name',
+    fr: 'Nom',
+  },
+  // module_mylab_student_form_field_fte_label
+  [`${MODULES.MyLab}-student_form_field_fte_label`]: {
+    en: 'Total Student FTE',
+    fr: 'EPT étudiants total',
+  },
+  [`${MODULES.MyLab}-student-form-title`]: {
+    en: 'Student FTE',
+    fr: 'EPT étudiants',
+  },
   [`${MODULES.MyLab}-member-form-title-info-label`]: {
     en: 'fte member tooltip',
     fr: '',

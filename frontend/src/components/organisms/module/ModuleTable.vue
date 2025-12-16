@@ -369,7 +369,16 @@ const qCols = computed<TableViewColumn[]>(() => {
     .filter((f) => !f.hideIn?.table)
     .map((f) => {
       const unit = f.unit;
-      const labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      const i18nLabelKey = f.labelKey ?? '';
+      if (i18nLabelKey) {
+        // Use i18n label if available
+        const translated = $t(i18nLabelKey);
+        if (translated && translated !== i18nLabelKey) {
+          // Only use if translation exists
+          labelText = translated;
+        }
+      }
       const sortable = f.sortable ?? false;
       const align = f.align ?? 'left';
       const tooltip = f.tooltip;
