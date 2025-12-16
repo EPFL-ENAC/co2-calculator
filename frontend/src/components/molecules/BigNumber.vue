@@ -63,7 +63,7 @@ const comparisonParts = computed(() => {
           {{ number }}
         </div>
         <div class="text-secondary text-body2 q-mb-none">
-          {{ unit ? unit : $t('results_units') }}
+          {{ unit ? unit : $t('results_units_tonnes') }}
         </div>
       </div>
 

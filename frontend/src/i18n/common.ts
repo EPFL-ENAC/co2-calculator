@@ -286,6 +286,10 @@ export default {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
+  results_units_tonnes: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-eq',
+  },
   kgco2eq: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
@@ -295,8 +299,8 @@ export default {
     fr: 'Résultats',
   },
   results_subtitle: {
-    en: 'Overview of your carbon footprint calculations',
-    fr: "Aperçu de vos calculs d'empreinte carbone",
+    en: 'Annual carbon footprint',
+    fr: 'Empreinte carbone annuelle',
   },
   results_total_unit_carbon_footprint: {
     en: 'Total unit carbon footprint',
@@ -323,16 +327,28 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'is equivalent to ~{km} km driven with car',
-    fr: 'équivaut à ~{km} km parcourus en voiture',
+    en: 'is equivalent to driven by car, calculated with {km} CO₂-eq/km',
+    fr: 'équivaut à parcouru en voiture, calculé avec {km} CO₂-eq/km',
   },
-  results_paris_agreement_budget: {
-    en: 'The total carbon budget per person according to Paris agreement is 2t CO₂-eq',
-    fr: "Le budget carbone total par personne selon l'accord de Paris est de 2t CO₂-éq",
+  results_paris_agreement_value: {
+    en: 'The total carbon budget per person according to the Paris Agreement is {value}',
+    fr: "Le budget carbone total par personne selon l'accord de Paris est de {value}",
+  },
+  results_paris_agreement_tooltip: {
+    en: 'Following the Paris Agreement.',
+    fr: "Conformément à l'accord de Paris.",
   },
   results_compared_to: {
     en: 'compared to {year}',
     fr: 'par rapport à {year}',
+  },
+  results_compared_to_value_of: {
+    en: 'Compared to value of {value}',
+    fr: 'Par rapport à la valeur de {value}',
+  },
+  results_no_comparison_year_available: {
+    en: 'No comparison year available',
+    fr: 'Aucune année de comparaison disponible',
   },
   results_value_of: {
     en: 'value of {value} t CO₂-eq',
