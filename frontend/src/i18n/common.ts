@@ -342,8 +342,8 @@ export default {
     fr: "Empreinte carbone de l'unité",
   },
   results_module_carbon_toggle_additional_data: {
-    en: 'Show additional data',
-    fr: 'Afficher les données supplémentaires',
+    en: 'Show additional estimated categories',
+    fr: 'Afficher les catégories supplémentaires',
   },
   results_carbon_footprint_per_person: {
     en: 'Carbon Footprint Per Person',
@@ -625,13 +625,13 @@ export default {
     en: 'RCP',
     fr: 'RCP',
   },
-  'charts-calculated': {
-    en: 'Calculated',
-    fr: 'Calculé',
+  'charts-main-category': {
+    en: 'Main Categories',
+    fr: 'Catégories principales',
   },
-  'charts-estimated': {
-    en: 'Estimated',
-    fr: 'Estimation',
+  'charts-additional-category': {
+    en: 'Additional Categories',
+    fr: 'Catégorie supplémentaire',
   },
   'charts-scope': {
     en: 'Scope',
