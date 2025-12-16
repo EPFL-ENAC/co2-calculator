@@ -12,6 +12,18 @@
         :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
       />
     </q-card-title>
+    <q-card-subtitle v-if="hasSubtitle" class="q-mx-lg q-my-xl">
+      {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
+    </q-card-subtitle>
+    <q-expansion-item
+      v-if="hasStudentHelper"
+      flat
+      :label="$t(`${moduleType}-${submoduleType}-student-helper-title`)"
+      header-class="text-h5 text-weight-medium"
+      class="q-mx-lg q-my-xl"
+    >
+      student helper placeholder
+    </q-expansion-item>
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -113,7 +125,7 @@
             <q-btn
               icon="o_add_circle"
               color="accent"
-              :label="$t('common_add_button')"
+              :label="$t(addButtonLabelKey)"
               unelevated
               no-caps
               size="md"
@@ -121,6 +133,7 @@
               type="submit"
             />
             <q-btn
+              v-if="hasAddWithNote"
               outline
               disabled
               icon="o_add_comment"
@@ -164,12 +177,20 @@ const props = withDefaults(
     submoduleType?: AllSubmoduleTypes;
     moduleType: Module | string;
     hasTooltip?: boolean;
+    hasSubtitle?: boolean;
+    hasStudentHelper?: boolean;
+    hasAddWithNote?: boolean;
+    addButtonLabelKey?: string;
   }>(),
   {
     fields: null,
     rowData: null,
     submoduleType: undefined,
     hasTooltip: true,
+    hasSubtitle: false,
+    hasStudentHelper: false,
+    hasAddWithNote: true,
+    addButtonLabelKey: 'common_add_button',
   },
 );
 

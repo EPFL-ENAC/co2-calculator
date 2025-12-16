@@ -43,6 +43,11 @@ export interface Submodule {
   tableNameKey?: string; // i18n key for table name
   count?: number;
   moduleFields: ModuleField[];
+  hasTableTopBar?: boolean;
+  hasFormSubtitle?: boolean;
+  hasStudentHelper?: boolean;
+  hasFormAddWithNote?: boolean;
+  addButtonLabelKey?: string;
 }
 
 export interface ResultBigNumberConfig {

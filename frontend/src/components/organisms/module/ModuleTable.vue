@@ -1,5 +1,5 @@
 <template>
-  <div class="q-mb-md flex justify-between items-center wrap">
+  <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
     <div class="q-gutter-sm">
       <q-btn
         outline
@@ -22,6 +22,19 @@
         class="text-weight-medium"
         @click="onDownloadTemplate"
       />
+      <q-icon
+        :name="outlinedInfo"
+        size="sm"
+        class="cursor-pointer"
+        :aria-label="
+          $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`)
+        "
+      />
+      <q-tooltip anchor="center left" self="top right" class="u-tooltip">
+        <p>
+          {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+        </p>
+      </q-tooltip>
     </div>
     <q-input
       v-model="filterTerm"
@@ -279,7 +292,7 @@ import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
-
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -307,18 +320,21 @@ type ModuleRow = Record<string, RowValue> & {
 };
 
 type CommonProps = {
-  moduleFields?: ModuleField[] | null;
-  rows?: ModuleRow[];
+  moduleFields: ModuleField[] | null;
+  rows: ModuleRow[];
   loading?: boolean;
-  error?: string | null;
+  error: string | null;
   unitId: string;
   year: string | number;
-  threshold?: Threshold;
+  threshold: Threshold;
+  hasTopBar?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
-const props = defineProps<ModuleTableProps>();
+const props = withDefaults(defineProps<ModuleTableProps>(), {
+  hasTopBar: true,
+});
 
 const pagination = ref({
   page: 1,

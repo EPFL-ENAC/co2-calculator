@@ -23,8 +23,12 @@ export default {
     fr: 'Membre ({count})| Membres ({count})',
   },
   [`${MODULES.MyLab}-student-table-title`]: {
-    en: 'Student ({count})| Students ({count})',
-    fr: 'Étudiant ({count})| Étudiants ({count})',
+    en: 'Students',
+    fr: 'Étudiants',
+  },
+  [`${MODULES.MyLab}-member-table-title-info-tooltip`]: {
+    en: 'You can add data one at a time using the Add FTE below, or upload several entries at once using a file that follows the template.',
+    fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter un EPT » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
   },
   [`${MODULES.MyLab}-charts-title`]: {
     en: 'Charts',
@@ -64,6 +68,17 @@ export default {
   [`${MODULES.MyLab}-student-form-title`]: {
     en: 'Student FTE',
     fr: 'EPT étudiants',
+  },
+
+  [`${MODULES.MyLab}-student-form-subtitle`]: {
+    en: `Please use the
+      Student FTE Calculator Helper below, then enter the aggregated usage time.
+    `,
+    fr: `Veuillez utiliser l'outil Calculateur d’EPT étudiants ci-dessous, puis saisir le temps d'utilisation agrégé.`,
+  },
+  [`${MODULES.MyLab}-student-student-helper-title`]: {
+    en: 'Student FTE Calculator Helper',
+    fr: 'FTE étudiants - Outil d’aide au calcul',
   },
   [`${MODULES.MyLab}-member-form-title-info-label`]: {
     en: 'fte member tooltip',
