@@ -102,7 +102,7 @@ watch(
   align-items: start;
   grid-auto-rows: max-content;
   width: 100%;
-  max-width: tokens.$layout-page-width;
+
   // center the page
   justify-self: center; // center within the parent grid cell
 }
