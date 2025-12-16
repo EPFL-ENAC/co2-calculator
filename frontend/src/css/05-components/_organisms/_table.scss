@@ -3,6 +3,7 @@
 .co2-table {
   border: 1px solid tokens.$table-border-color;
   border-radius: tokens.$table-border-radius;
+  font-size: tokens.$text-size-sm;
 
   .q-table td {
     border: none;
