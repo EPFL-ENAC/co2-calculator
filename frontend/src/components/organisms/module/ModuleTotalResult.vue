@@ -3,7 +3,9 @@
     <q-card-section class="module-total-result__container items-center">
       <!-- left side total lab carbon footprint  text i18n-->
       <div class="text-body1 text-weight-medium">
-        {{ $t('module_total_result_title', { type: $t(type) }) }}
+        {{
+          $t('module_total_result_title', { type: type, typeI18n: $t(type) })
+        }}
       </div>
       <!-- right side total lab carbon footprint value  on two lines
            first line:  value in i18n number format 
@@ -13,7 +15,7 @@
           {{ formatNumber(data) }}
         </h1>
         <p class="text-body2 text-secondary q-mb-none">
-          {{ $t('results_units') }}
+          {{ $t('module_total_result_title_unit', { type: type }) }}
         </p>
       </div>
     </q-card-section>

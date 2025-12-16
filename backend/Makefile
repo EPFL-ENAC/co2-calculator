@@ -94,6 +94,7 @@ test-cov: ## Run tests with coverage
 
 .PHONY: test-cov-xml
 test-cov-xml: ## Run tests with coverage and output XML report
+	@set -e; \
 	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=60
 
 .PHONY: seed-data

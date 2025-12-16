@@ -1,9 +1,8 @@
 import { reactive, ref, watch, type Ref } from 'vue';
 import { usePowerFactorsStore } from 'src/stores/powerFactors';
+import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
-
-type SubmoduleType = 'scientific' | 'it' | 'other' | undefined;
 
 interface FieldConfig {
   classFieldId?: string;
@@ -16,7 +15,7 @@ export function useEquipmentClassOptions<
   TEntity extends Record<string, unknown>,
 >(
   entity: TEntity,
-  submoduleType: Ref<SubmoduleType>,
+  submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
 ) {
   const classFieldId = config.classFieldId ?? 'class';

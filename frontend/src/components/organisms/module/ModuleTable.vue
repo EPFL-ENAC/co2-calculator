@@ -114,7 +114,7 @@
               :row="slotProps.row"
               :field-id="col.field"
               :module-type="moduleType"
-              :submodule-type="submoduleType"
+              :submodule-type="submoduleType as any"
               :unit-id="unitId"
               :year="year"
             />
@@ -279,10 +279,19 @@ import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
-import type { Module, Threshold } from 'src/constant/modules';
+
+import type {
+  Module,
+  ConditionalSubmoduleProps,
+  Threshold,
+} from 'src/constant/modules';
+
+import { MODULES } from 'src/constant/modules';
+
 import { formatNumber } from 'src/utils/number';
 
 const { t: $t } = useI18n();
+
 const $q = useQuasar();
 
 const editDialogOpen = ref(false);
@@ -297,18 +306,19 @@ type ModuleRow = Record<string, RowValue> & {
   status?: string;
 };
 
-type ModuleSubType = 'scientific' | 'it' | 'other';
-const props = defineProps<{
+type CommonProps = {
   moduleFields?: ModuleField[] | null;
   rows?: ModuleRow[];
   loading?: boolean;
   error?: string | null;
-  moduleType: Module | string;
-  submoduleType?: ModuleSubType;
   unitId: string;
   year: string | number;
   threshold?: Threshold;
-}>();
+};
+
+type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
+
+const props = defineProps<ModuleTableProps>();
 
 const pagination = ref({
   page: 1,
@@ -359,7 +369,16 @@ const qCols = computed<TableViewColumn[]>(() => {
     .filter((f) => !f.hideIn?.table)
     .map((f) => {
       const unit = f.unit;
-      const labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      const i18nLabelKey = f.labelKey ?? '';
+      if (i18nLabelKey) {
+        // Use i18n label if available
+        const translated = $t(i18nLabelKey);
+        if (translated && translated !== i18nLabelKey) {
+          // Only use if translation exists
+          labelText = translated;
+        }
+      }
       const sortable = f.sortable ?? false;
       const align = f.align ?? 'left';
       const tooltip = f.tooltip;
@@ -575,16 +594,24 @@ function onUploadCsv() {
 
 function onDownloadTemplate() {
   // Mocked download
-  const csvContent =
+  const csvEquipmentContent =
     'Name,Class,SubClass,Active power (W),Standby power (W),Active usage (hrs/week),Passive usage (hrs/week)\n' +
     'Example Equipment,Example Class,Example Subclass,100,10,40,128';
+
+  const csvHeadcountContent =
+    'Position,Full-Time Equivalent (FTE)\n' + 'Researcher,5\n' + 'Technician,3';
+
+  const csvContent =
+    props.moduleType === MODULES.MyLab
+      ? csvHeadcountContent
+      : csvEquipmentContent;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const csvUrl = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = csvUrl;
-  a.download = 'equipment-template.csv'; // filename for the user
+  a.download = `${props.moduleType}-template.csv`; // filename for the user
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

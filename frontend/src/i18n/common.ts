@@ -1,4 +1,5 @@
 import { ROLES } from 'src/constant/roles';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   logo_alt: {
@@ -374,8 +375,38 @@ export default {
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total {type} Carbon Footprint',
-    fr: 'Empreinte Carbone {type}',
+    en: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'Total FTE';
+      }
+      if (named('typeI18n')) {
+        return `Total ${named('typeI18n')} Carbon Footprint`;
+      }
+      return 'Total Carbon Footprint';
+    },
+    fr: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'Total ETP';
+      }
+      if (named('typeI18n')) {
+        return `Empreinte Carbone ${named('typeI18n')}`;
+      }
+      return 'Empreinte Carbone Totale';
+    },
+  },
+  module_total_result_title_unit: {
+    en: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'FTE';
+      }
+      return 'kg CO₂-eq';
+    },
+    fr: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'ETP';
+      }
+      return 'kg CO₂-eq';
+    },
   },
   common_filter_all: {
     en: 'All',

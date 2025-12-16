@@ -1,66 +1,63 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 
-const potableFields: ModuleField[] = [
+// Define an icon map to convert string keys to SVG icons
+import {
+  outlinedFilterDrama,
+  outlinedAssignmentInd,
+  outlinedTimer,
+} from '@quasar/extras/material-icons-outlined';
+
+export const iconMap: Record<string, string> = {
+  o_filter_drama: outlinedFilterDrama,
+  o_assignment_ind: outlinedAssignmentInd,
+  o_timer: outlinedTimer,
+  // Add more mappings as needed
+};
+
+// EN : Name | Position | Full-Time Equivalent (FTE)
+// FR : Nom | Position | Équivalent plein-temps (EPT)
+const memberFields: ModuleField[] = [
   {
-    id: 'source',
-    label: 'Source',
+    id: 'name',
+    labelKey: 'my-lab-member-form-field-name-label',
     type: 'text',
-    hideIn: { form: true },
     sortable: true,
+    required: true,
+    ratio: '4/12',
+    icon: 'o_filter_drama',
   },
   {
-    id: 'consumption',
-    label: 'Consumption (m³)',
-    type: 'number',
-    hideIn: { form: true },
+    id: 'position',
+    labelKey: 'my-lab-member-form-field-position-label',
+    type: 'text',
     sortable: true,
+    ratio: '4/12',
+    icon: 'o_assignment_ind',
   },
   {
-    id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
-    type: 'number',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
-    id: 'potable_monthly',
-    label: 'Monthly Consumption (m³)',
+    id: 'fte',
+    labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
     min: 0,
-    hideIn: { table: true },
+    ratio: '4/12',
+    icon: 'o_timer',
   },
 ];
 
-const wastewaterFields: ModuleField[] = [
+const memberFieldDynamicIcons = memberFields.map((field) => ({
+  ...field,
+  icon: iconMap[field.icon],
+}));
+
+const studentFields: ModuleField[] = [
   {
-    id: 'treatment',
-    label: 'Treatment Type',
-    type: 'text',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
-    id: 'volume',
-    label: 'Volume (m³)',
-    type: 'number',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
-    id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
-    type: 'number',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
-    id: 'waste_monthly',
-    label: 'Monthly Volume (m³)',
+    id: 'fte',
+    labelKey: 'my-lab-student_form_field_fte_label',
     type: 'number',
     required: true,
     min: 0,
-    hideIn: { table: true },
+    hideIn: { table: false },
   },
 ];
 
@@ -70,23 +67,23 @@ export const myLab: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
-  name: 'Water Consumption',
+  name: 'Headcount',
   description:
-    'Track water usage by category and calculate environmental impact',
+    'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
   submodules: [
     {
-      id: 'sub_potable',
-      name: 'Potable Water',
-      count: 1,
-      moduleFields: potableFields,
+      id: 'member',
+      type: 'member',
+      tableNameKey: 'my-lab-member-table-title',
+      moduleFields: memberFieldDynamicIcons,
     },
     {
-      id: 'sub_wastewater',
-      name: 'Wastewater',
-      count: 1,
-      moduleFields: wastewaterFields,
+      id: 'student',
+      type: 'student',
+      tableNameKey: 'my-lab-student-table-title',
+      moduleFields: studentFields,
     },
   ],
 };

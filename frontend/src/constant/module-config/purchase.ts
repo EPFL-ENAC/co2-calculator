@@ -1,4 +1,5 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { PurchaseSubType, SUBMODULE_PURCHASE_TYPES } from '../modules';
 
 const goodsFields: ModuleField[] = [
   {
@@ -44,6 +45,7 @@ export const purchase: ModuleConfig = {
   submodules: [
     {
       id: 'sub_goods',
+      type: SUBMODULE_PURCHASE_TYPES.Good as PurchaseSubType,
       name: 'Goods',
       moduleFields: goodsFields,
     },

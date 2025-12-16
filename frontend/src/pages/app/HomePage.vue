@@ -161,7 +161,11 @@ const homeIntroWithLinks = computed(() => {
             >
               <p class="text-weight-medium q-mb-none">{{ moduleCard.value }}</p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{ $t('results_units') }}
+                {{
+                  $t('module_total_result_title_unit', {
+                    type: moduleCard.module,
+                  })
+                }}
               </p>
             </div>
           </div>

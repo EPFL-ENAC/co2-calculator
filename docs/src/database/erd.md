@@ -1,4 +1,5 @@
 Generating Mermaid ERD...
+
 ```mermaid
 erDiagram
   emission_factors {
@@ -65,6 +66,25 @@ erDiagram
     BOOLEAN is_current
     INTEGER id
   }
+  headcounts {
+    DATETIME created_at
+    DATETIME updated_at
+    VARCHAR created_by
+    VARCHAR updated_by
+    DATE date
+    VARCHAR(50) unit_id
+    VARCHAR(255) unit_name
+    VARCHAR(50) cf
+    VARCHAR(255) cf_name
+    VARCHAR(50) cf_user_id
+    VARCHAR(255) display_name
+    VARCHAR(100) status
+    VARCHAR(255) function
+    VARCHAR(20) sciper
+    FLOAT ept
+    INTEGER id
+    VARCHAR(50) provider
+  }
   resources {
     VARCHAR name
     VARCHAR description
@@ -114,15 +134,16 @@ erDiagram
   }
   users ||--}o emission_factors : created_by
   users ||--}o power_factors : created_by
+  users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
   power_factors ||--}o equipment : power_factor_id
-  users ||--}o equipment : created_by
+  emission_factors ||--}o equipment_emissions : emission_factor_id
   equipment ||--}o equipment_emissions : equipment_id
   power_factors ||--}o equipment_emissions : power_factor_id
-  emission_factors ||--}o equipment_emissions : emission_factor_id
   users ||--}o resources : created_by
   users ||--}o resources : updated_by
   users ||--}o unit_users : user_id
   units ||--}o unit_users : unit_id
 ```
+
 Mermaid ERD generation complete.
