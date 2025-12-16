@@ -1,7 +1,10 @@
 <template>
   <q-expansion-item
+    v-if="submodule.tableNameKey"
     :label="
-      submodule.name + ` (${data?.submodules?.[submodule.id]?.count || 0})`
+      $t(submodule.tableNameKey, {
+        count: data?.submodules?.[submodule.id]?.count || 0,
+      })
     "
     flat
     header-class="text-h5 text-weight-medium"

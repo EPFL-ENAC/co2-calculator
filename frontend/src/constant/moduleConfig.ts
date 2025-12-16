@@ -38,7 +38,9 @@ export interface ModuleField {
 export interface Submodule {
   id: string;
   type: AllSubmoduleTypes;
-  name: string;
+  name?: string; // deprecated, use nameKey instead
+  nameKey?: string; // i18n key for submodule name
+  tableNameKey?: string; // i18n key for table name
   count?: number;
   moduleFields: ModuleField[];
 }

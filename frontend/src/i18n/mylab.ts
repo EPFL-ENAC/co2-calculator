@@ -17,6 +17,15 @@ export default {
     en: 'The total FTE is used to generate the generic indicators for Food and Commuting, as well as total carbon footprint per FTE for your unit.',
     fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs génériques relatifs à l'Alimentation et au Mobilité pendulaire, ainsi que l'empreinte carbone totale par EPT pour votre unité.",
   },
+
+  [`${MODULES.MyLab}-member-table-title`]: {
+    en: 'Member ({count})| Members ({count})',
+    fr: 'Membre ({count})| Membres ({count})',
+  },
+  [`${MODULES.MyLab}-student-table-title`]: {
+    en: 'Student ({count})| Students ({count})',
+    fr: 'Étudiant ({count})| Étudiants ({count})',
+  },
   [`${MODULES.MyLab}-charts-title`]: {
     en: 'Charts',
     fr: 'Graphiques',
@@ -41,7 +50,7 @@ export default {
   },
   [`${MODULES.MyLab}-member-form-field-position-label`]: {
     en: 'Position',
-    fr: 'Poste',
+    fr: 'Position',
   },
   [`${MODULES.MyLab}-member-form-field-name-label`]: {
     en: 'Name',

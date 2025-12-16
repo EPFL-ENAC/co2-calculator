@@ -19,7 +19,6 @@ export const iconMap: Record<string, string> = {
 const memberFields: ModuleField[] = [
   {
     id: 'name',
-    label: 'Name',
     labelKey: 'my-lab-member-form-field-name-label',
     type: 'text',
     sortable: true,
@@ -29,7 +28,6 @@ const memberFields: ModuleField[] = [
   },
   {
     id: 'position',
-    label: 'Position',
     labelKey: 'my-lab-member-form-field-position-label',
     type: 'text',
     sortable: true,
@@ -38,7 +36,6 @@ const memberFields: ModuleField[] = [
   },
   {
     id: 'fte',
-    label: 'Full-Time Equivalent (FTE)',
     labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
@@ -79,13 +76,13 @@ export const myLab: ModuleConfig = {
     {
       id: 'member',
       type: 'member',
-      name: 'Member',
+      tableNameKey: 'my-lab-member-table-title',
       moduleFields: memberFieldDynamicIcons,
     },
     {
       id: 'student',
       type: 'student',
-      name: 'Student',
+      tableNameKey: 'my-lab-student-table-title',
       moduleFields: studentFields,
     },
   ],

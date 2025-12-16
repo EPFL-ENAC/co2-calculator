@@ -145,25 +145,31 @@ export const equipmentElectricConsumption: ModuleConfig = {
   uncertainty: 'high',
 
   formStructure: 'perSubmodule',
+
   submodules: [
     {
       id: 'scientific',
       type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
-      name: 'Scientific Equipment',
+      // name: 'Scientific Equipment',
+      tableNameKey:
+        'equipment-electric-consumption-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
     },
     {
       id: 'it',
       type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
-      name: 'IT Equipment',
+      // name: 'IT Equipment',
+      tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,
     },
     {
       id: 'other',
       type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
-      name: 'Other',
+      // name: 'Other',
+      tableNameKey:
+        'equipment-electric-consumption-other-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
     },
