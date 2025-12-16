@@ -85,7 +85,7 @@ const getData = () => {
     moduleStore.state.error = null;
     return;
   }
-  moduleStore.getModuleData(currentModuleType.value, unit.value, year.value);
+  moduleStore.getModuleTotals(currentModuleType.value, unit.value, year.value);
 };
 
 onMounted(getData);

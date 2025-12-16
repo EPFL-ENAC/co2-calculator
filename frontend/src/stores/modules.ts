@@ -41,8 +41,15 @@ export const useModuleStore = defineStore('modules', () => {
     dataSubmodule: Record<string, Submodule | null>; // key: submodule ID
     paginationSubmodule: Record<
       string,
-      { page: number; limit: number; total: number }
+      {
+        page: number;
+        limit: number;
+        total: number;
+        sortedBy?: string;
+        sortOrder?: string;
+      }
     >; // key: submodule ID
+    loadedSubmodules: Record<string, boolean>; // key: submodule ID
   }>({
     loading: false,
     error: null,
@@ -51,6 +58,7 @@ export const useModuleStore = defineStore('modules', () => {
     errorSubmodule: {},
     dataSubmodule: {},
     paginationSubmodule: {},
+    loadedSubmodules: {},
   });
   function modulePath(moduleType: Module, unit: string, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -81,27 +89,56 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getModuleTotals(
+    moduleType: Module,
+    unit: string,
+    year: string,
+  ) {
+    state.loading = true;
+    state.error = null;
+    try {
+      const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
+      state.data = (await api.get(path).json()) as ModuleResponse;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+      } else {
+        state.error = 'Unknown error';
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
   async function getSubmoduleData(
     moduleType: Module,
     unit: string,
     year: string,
     submoduleId: string,
     page = 1,
-    limit = 50,
+    limit = 20,
+    sortBy?: string,
+    sortOrder?: string,
   ) {
     state.loadingSubmodule[submoduleId] = true;
     state.errorSubmodule[submoduleId] = null;
     state.dataSubmodule[submoduleId] = null;
     try {
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+      if (sortBy) {
+        queryParams.append('sort_by', sortBy);
+      }
+      if (sortOrder) {
+        queryParams.append('sort_order', sortOrder);
+      }
       const response = await api
         .get(
-          `${modulePath(
-            moduleType,
-            unit,
-            year,
-          )}/submodules/${encodeURIComponent(
+          `${modulePath(moduleType, unit, year)}/sub_${encodeURIComponent(
             submoduleId,
-          )}?page=${page}&limit=${limit}`,
+          )}?${queryParams.toString()}`,
         )
         .json();
       state.dataSubmodule[submoduleId] = response as Submodule;
@@ -109,7 +146,10 @@ export const useModuleStore = defineStore('modules', () => {
         page,
         limit,
         total: (response as Submodule).summary.total_items,
+        sortedBy: sortBy,
+        sortOrder: sortOrder,
       };
+      state.loadedSubmodules[submoduleId] = true;
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.errorSubmodule[submoduleId] = err.message ?? 'Unknown error';
@@ -121,6 +161,21 @@ export const useModuleStore = defineStore('modules', () => {
     } finally {
       state.loadingSubmodule[submoduleId] = false;
     }
+  }
+
+  function findSubmoduleForEquipment(equipmentId: number): string | null {
+    for (const [submoduleId, submodule] of Object.entries(
+      state.dataSubmodule,
+    )) {
+      if (!submodule) continue;
+      const found = submodule.items.find(
+        (item) => item.id !== undefined && Number(item.id) === equipmentId,
+      );
+      if (found) {
+        return submoduleId;
+      }
+    }
+    return null;
   }
 
   interface Option {
@@ -177,7 +232,29 @@ export const useModuleStore = defineStore('modules', () => {
 
       const body = normalized;
       await api.post(path, { json: body }).json();
-      await getModuleData(moduleType, unitId, year);
+
+      // Normalize submoduleId for store key (remove 'sub_' prefix if present)
+      const normalizedSubmoduleId = submoduleId.startsWith('sub_')
+        ? submoduleId.replace('sub_', '')
+        : submoduleId;
+
+      // Refresh module totals
+      await getModuleTotals(moduleType, unitId, year);
+
+      // Refetch the affected submodule with current pagination/sort state
+      const pagination = state.paginationSubmodule[normalizedSubmoduleId];
+      if (pagination) {
+        await getSubmoduleData(
+          moduleType,
+          unitId,
+          year,
+          normalizedSubmoduleId,
+          pagination.page,
+          pagination.limit,
+          pagination.sortedBy,
+          pagination.sortOrder,
+        );
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -198,7 +275,29 @@ export const useModuleStore = defineStore('modules', () => {
         String(equipmentId),
       )}`;
       await api.patch(path, { json: payload }).json();
-      await getModuleData(moduleType, unit, year);
+
+      // Find affected submodule
+      const affectedSubmoduleId = findSubmoduleForEquipment(equipmentId);
+
+      // Refresh module totals
+      await getModuleTotals(moduleType, unit, year);
+
+      // Refetch the affected submodule with current pagination/sort state
+      if (affectedSubmoduleId) {
+        const pagination = state.paginationSubmodule[affectedSubmoduleId];
+        if (pagination) {
+          await getSubmoduleData(
+            moduleType,
+            unit,
+            year,
+            affectedSubmoduleId,
+            pagination.page,
+            pagination.limit,
+            pagination.sortedBy,
+            pagination.sortOrder,
+          );
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -214,11 +313,33 @@ export const useModuleStore = defineStore('modules', () => {
   ) {
     state.error = null;
     try {
+      // Find affected submodule BEFORE deleting (item won't be in data after deletion)
+      const affectedSubmoduleId = findSubmoduleForEquipment(equipmentId);
+
       const path = `${modulePath(moduleType, unit, year)}/equipment/${encodeURIComponent(
         String(equipmentId),
       )}`;
       await api.delete(path);
-      await getModuleData(moduleType, unit, year);
+
+      // Refresh module totals
+      await getModuleTotals(moduleType, unit, year);
+
+      // Refetch the affected submodule with current pagination/sort state
+      if (affectedSubmoduleId) {
+        const pagination = state.paginationSubmodule[affectedSubmoduleId];
+        if (pagination) {
+          await getSubmoduleData(
+            moduleType,
+            unit,
+            year,
+            affectedSubmoduleId,
+            pagination.page,
+            pagination.limit,
+            pagination.sortedBy,
+            pagination.sortOrder,
+          );
+        }
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -228,6 +349,7 @@ export const useModuleStore = defineStore('modules', () => {
 
   return {
     getModuleData,
+    getModuleTotals,
     getSubmoduleData,
     postItem,
     patchItem,
