@@ -110,11 +110,14 @@ const resultsRoute = computed(() => {
 </template>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
 .module-navigation {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  width: 100%;
+  width: tokens.$layout-page-width;
+  margin: 0 auto;
 
   &__link {
     display: flex;
