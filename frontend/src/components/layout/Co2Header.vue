@@ -72,10 +72,15 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <!-- Top toolbar: Logo, Title, Language Selector -->
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
-        <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
-        <span class="q-ml-md text-h3 text-weight-medium">{{
-          $t('calculator_title')
-        }}</span>
+        <router-link
+          :to="{ name: 'home', params: route.params }"
+          class="toolbar-home-link row items-center no-wrap"
+        >
+          <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
+          <span class="q-ml-md text-h3 text-weight-medium">{{
+            $t('calculator_title')
+          }}</span>
+        </router-link>
       </q-toolbar-title>
 
       <q-space />
@@ -209,3 +214,9 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     </template>
   </q-header>
 </template>
+<style scoped>
+.toolbar-home-link {
+  text-decoration: none;
+  color: inherit;
+}
+</style>
