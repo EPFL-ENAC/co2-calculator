@@ -50,8 +50,8 @@ async def create_headcount(
     """
     try:
         logger.info(
-            f"Creating headcount for unit={sanitize(unit_id)}, year={year}, "
-            f"module={module_id} by user={sanitize(current_user.id)}"
+            f"Creating headcount for unit={sanitize(unit_id)}, year={sanitize(year)}, "
+            f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
         )
 
         headcount = await service.create_headcount(
@@ -217,7 +217,7 @@ async def delete_headcount(
     """
     logger.info(
         f"Deleting headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
-        f"year={year} by user={sanitize(current_user.id)}"
+        f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
     # First verify the headcount exists and belongs to the unit
