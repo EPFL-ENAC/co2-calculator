@@ -101,8 +101,8 @@ async def get_headcount(
         HTTPException: 404 if headcount not found
     """
     logger.info(
-        f"Fetching headcount id={headcount_id} for unit={unit_id}, "
-        f"year={year} by user={current_user.id}"
+        f"Fetching headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
+        f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
     headcount = await service.get_by_id(headcount_id)
@@ -116,7 +116,10 @@ async def get_headcount(
 
     # Optional: Verify unit_id matches
     if headcount.unit_id != unit_id:
-        logger.warning(f"Unit mismatch: requested={unit_id}, found={headcount.unit_id}")
+        logger.warning(
+            f"Unit mismatch: requested={sanitize(unit_id)},"
+            f" found={sanitize(headcount.unit_id)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Headcount not found for this unit",
@@ -157,8 +160,8 @@ async def update_headcount(
         HTTPException: 404 if headcount not found
     """
     logger.info(
-        f"Updating headcount id={headcount_id} for unit={unit_id}, "
-        f"year={year} by user={current_user.id}"
+        f"Updating headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
+        f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
     headcount = await service.update_headcount(

@@ -1,0 +1,9 @@
+name: "CodeQL Configuration"
+
+queries:
+  # Exclude the py/unused-global-variable query for specific paths
+  - exclude:
+      id: py/unused-global-variable
+      paths:
+        # Exclude all Alembic migration files
+        - 'backend/alembic/versions/**'
