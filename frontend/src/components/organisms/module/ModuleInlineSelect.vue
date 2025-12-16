@@ -29,9 +29,7 @@
 import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import type { Module } from 'src/constant/modules';
-
-type ModuleSubType = 'scientific' | 'it' | 'other';
+import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 
 interface ModuleRow {
   id: string | number;
@@ -40,14 +38,17 @@ interface ModuleRow {
   [key: string]: any;
 }
 
-const props = defineProps<{
+type CommonProps = {
   row: ModuleRow;
   fieldId: string;
-  moduleType: Module | string;
-  submoduleType?: ModuleSubType;
+
   unitId: string;
   year: string | number;
-}>();
+};
+
+type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
+
+const props = defineProps<ModuleTableProps>();
 
 const isClass = computed(() => props.fieldId === 'class');
 const isSubClass = computed(() => props.fieldId === 'sub_class');

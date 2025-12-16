@@ -1,5 +1,5 @@
-import { Threshold } from './modules';
-
+import { Threshold } from 'src/constant/modules';
+import type { AllSubmoduleTypes } from 'src/constant/modules';
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
 export type FieldType =
   | 'text'
@@ -37,6 +37,7 @@ export interface ModuleField {
 
 export interface Submodule {
   id: string;
+  type: AllSubmoduleTypes;
   name: string;
   count?: number;
   moduleFields: ModuleField[];

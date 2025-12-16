@@ -1,4 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { SUBMODULE_INFRASTRUCTURE_TYPES } from 'src/constant/modules';
+import type { InfrastructureSubType } from 'src/constant/modules';
 
 const buildingFields: ModuleField[] = [
   {
@@ -44,6 +46,7 @@ export const infrastructure: ModuleConfig = {
   submodules: [
     {
       id: 'sub_building',
+      type: SUBMODULE_INFRASTRUCTURE_TYPES.Building as InfrastructureSubType,
       name: 'Building',
       moduleFields: buildingFields,
     },

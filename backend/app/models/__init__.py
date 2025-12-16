@@ -14,6 +14,13 @@ from .equipment import (
     EquipmentEmission,
     EquipmentEmissionBase,
 )
+from .headcount import (
+    HeadCount,
+    HeadCountBase,
+    HeadCountCreate,
+    HeadCountRead,
+    HeadCountUpdate,
+)
 from .resource import Resource, ResourceBase
 from .unit import Unit
 from .unit_user import UnitUser
@@ -59,4 +66,9 @@ __all__ = [
     "EquipmentBase",
     "EquipmentEmission",
     "EquipmentEmissionBase",
+    "HeadCount",
+    "HeadCountBase",
+    "HeadCountCreate",
+    "HeadCountRead",
+    "HeadCountUpdate",
 ]

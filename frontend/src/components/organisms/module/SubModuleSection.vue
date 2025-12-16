@@ -16,7 +16,7 @@
           :loading="loading"
           :error="error"
           :module-type="moduleType"
-          :submodule-type="submoduleType"
+          :submodule-type="submoduleType as any"
           :unit-id="unitId"
           :year="year"
           :threshold="threshold"
@@ -49,7 +49,12 @@ import { Submodule as ConfigSubmodule } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
-import type { ModuleResponse, ModuleItem, Module } from 'src/constant/modules';
+import type {
+  ModuleResponse,
+  ModuleItem,
+  Threshold,
+  ConditionalSubmoduleProps,
+} from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
   label: string;
@@ -58,17 +63,19 @@ interface Option {
 type FieldValue = string | number | boolean | null | Option;
 const moduleStore = useModuleStore();
 
-const props = defineProps<{
+type CommonProps = {
   submodule: ConfigSubmodule;
   loading?: boolean;
   error?: string | null;
   data?: ModuleResponse | null;
-  moduleType: Module;
-  submoduleType: string; // for now use string to allow dynamic submodule types
   unitId: string;
   year: string | number;
-  threshold?: import('src/constant/modules').Threshold;
-}>();
+  threshold?: Threshold;
+};
+
+type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
+
+const props = defineProps<SubModuleSectionProps>();
 
 const rows = computed(() => {
   const items = props.data?.submodules?.[props.submodule.id]?.items ?? [];
@@ -77,18 +84,5 @@ const rows = computed(() => {
     id: it.id ?? `${props.submodule.id}_${i}`,
     ...it,
   }));
-});
-
-const submoduleType = computed(() => {
-  switch (props.submodule.id) {
-    case 'sub_scientific':
-      return 'scientific';
-    case 'sub_it':
-      return 'it';
-    case 'sub_other':
-      return 'other';
-    default:
-      return undefined as unknown as 'scientific' | 'it' | 'other' | undefined;
-  }
 });
 </script>

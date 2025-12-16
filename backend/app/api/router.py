@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth,
     backoffice,
+    headcounts,
     modules,
     power_factors,
     resources,
@@ -26,3 +27,4 @@ api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(
     power_factors.router, prefix="/power-factors", tags=["power-factors"]
 )
+api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])

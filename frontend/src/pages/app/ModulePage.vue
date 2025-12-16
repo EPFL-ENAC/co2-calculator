@@ -12,7 +12,11 @@
       <module-charts :type="currentModuleType" />
       <!-- module tables iteration -->
       <module-table-section
-        v-if="currentModuleType === MODULES.EquipmentElectricConsumption"
+        v-if="
+          (
+            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+          ).includes(currentModuleType)
+        "
         :type="currentModuleType"
         :data="data"
         :loading="loading"

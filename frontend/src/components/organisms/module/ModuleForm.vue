@@ -1,5 +1,17 @@
 <template>
   <q-card flat>
+    <q-card-title class="row flex justify-between items-center q-mx-lg q-my-xl">
+      <h3 class="text-h3 text-weight-medium q-mb-none">
+        {{ $t(`${moduleType}-${submoduleType}-form-title`) }}
+      </h3>
+      <q-icon
+        v-if="hasTooltip"
+        :name="outlinedInfo"
+        size="sm"
+        class="cursor-pointer"
+        :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
+      />
+    </q-card-title>
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -128,6 +140,8 @@
 
 <script setup lang="ts">
 import { reactive, watch, computed, toRef } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
@@ -141,14 +155,23 @@ interface Option {
   value: string;
 }
 type FieldValue = string | number | boolean | null | Option;
-import type { Module } from 'src/constant/modules';
+import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
 
-const props = defineProps<{
-  fields?: ModuleField[] | null;
-  rowData?: Record<string, FieldValue> | null;
-  submoduleType?: 'scientific' | 'it' | 'other';
-  moduleType: Module | string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    fields?: ModuleField[] | null;
+    rowData?: Record<string, FieldValue> | null;
+    submoduleType?: AllSubmoduleTypes;
+    moduleType: Module | string;
+    hasTooltip?: boolean;
+  }>(),
+  {
+    fields: null,
+    rowData: null,
+    submoduleType: undefined,
+    hasTooltip: true,
+  },
+);
 
 const visibleFields = computed(() =>
   (props.fields ?? []).filter((f) => !f.hideIn?.form),

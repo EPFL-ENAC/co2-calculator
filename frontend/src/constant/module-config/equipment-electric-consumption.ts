@@ -1,5 +1,14 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from '../modules';
+import type {
+  Module,
+  EquipmentElectricConsumptionSubType,
+} from 'src/constant/modules';
+
+import {
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+  SUBMODULE_EQUIPMENT_TYPES,
+} from 'src/constant/modules';
 
 const powerTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.power`;
 
@@ -122,7 +131,7 @@ const itmodulefields: ModuleField[] = baseModuleFields.filter(
 
 export const equipmentElectricConsumption: ModuleConfig = {
   id: 'module_elec_001',
-  type: 'equipment-electric-consumption',
+  type: MODULES.EquipmentElectricConsumption as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: false,
@@ -138,19 +147,22 @@ export const equipmentElectricConsumption: ModuleConfig = {
   formStructure: 'perSubmodule',
   submodules: [
     {
-      id: 'sub_scientific',
+      id: 'scientific',
+      type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
       name: 'Scientific Equipment',
       count: 4,
       moduleFields: baseModuleFields,
     },
     {
-      id: 'sub_it',
+      id: 'it',
+      type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
       name: 'IT Equipment',
       count: 4,
       moduleFields: itmodulefields,
     },
     {
-      id: 'sub_other',
+      id: 'other',
+      type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
       name: 'Other',
       count: 4,
       moduleFields: baseModuleFields,
