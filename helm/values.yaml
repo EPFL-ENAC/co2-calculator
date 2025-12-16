@@ -70,7 +70,6 @@ backend:
 
   resources:
     limits:
-      cpu: 500m
       memory: 512Mi
     requests:
       cpu: 100m
@@ -117,7 +116,6 @@ backend:
     waitForPostgres:
       resources: # Resources for the wait-for-postgres init container
         limits:
-          cpu: 100m
           memory: 128Mi
         requests:
           cpu: 50m
@@ -128,7 +126,6 @@ backend:
 
     resources: # Resources for the migration job container
       limits:
-        cpu: 300m
         memory: 512Mi
       requests:
         cpu: 100m
@@ -137,7 +134,6 @@ backend:
     waitForPostgres:
       resources: # Resources for the wait-for-postgres init container
         limits:
-          cpu: 100m
           memory: 128Mi
         requests:
           cpu: 50m
@@ -177,7 +173,6 @@ frontend:
 
   resources:
     limits:
-      cpu: 200m
       memory: 256Mi
     requests:
       cpu: 50m
