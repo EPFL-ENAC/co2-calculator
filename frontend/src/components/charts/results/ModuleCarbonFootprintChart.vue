@@ -47,7 +47,7 @@ const additionalDataConfig = computed(() => {
       thirdRectLeft: 193,
       thirdRectWidth: 500,
       thirdTextLeft: 203,
-      estimatedText: t('charts-estimated'),
+      estimatedText: t('charts-additional-category'),
     };
   }
 
@@ -62,6 +62,13 @@ const additionalDataConfig = computed(() => {
     estimatedText: '',
   };
 });
+
+const getDataArray = (baseData: number[]): number[] => {
+  if (toggleAdditionalData.value) {
+    return [...baseData, 0, 0, 0, 0];
+  }
+  return baseData;
+};
 
 const chartOption = computed((): EChartsOption => {
   return {
@@ -101,16 +108,16 @@ const chartOption = computed((): EChartsOption => {
           t('charts-infrastructure-gas-category'),
           t('charts-infrastructure-category'),
           t('charts-equipment-category'),
-          t('charts-commuting-category'),
-          t('charts-food-category'),
           t('charts-professional-travel-category'),
           t('charts-it-category'),
+          t('charts-purchases-category'),
+          t('charts-research-core-facilities-category'),
         ];
         if (toggleAdditionalData.value) {
           return [
             ...baseCategories,
-            t('charts-research-core-facilities-category'),
-            t('charts-purchases-category'),
+            t('charts-commuting-category'),
+            t('charts-food-category'),
             t('charts-waste-category'),
             t('charts-grey-energy-category'),
           ];
@@ -125,6 +132,7 @@ const chartOption = computed((): EChartsOption => {
     },
     yAxis: {
       type: 'value',
+      max: 30,
       name: t('tco2eq'),
       nameLocation: 'middle',
       nameGap: 30,
@@ -237,7 +245,7 @@ const chartOption = computed((): EChartsOption => {
         top: '00px', // Position at vertical center according to its parent.
         style: {
           fill: '#000000',
-          text: t('charts-calculated'),
+          text: t('charts-main-category'),
           font: '11px SuisseIntl',
         },
       },
@@ -286,189 +294,183 @@ const chartOption = computed((): EChartsOption => {
         name: 'Unit Gas',
         type: 'bar',
         stack: 'total',
-        data: [2.5, 0, 0, 0, 0, 0, 0, 0],
+        data: getDataArray([2.5, 0, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('notDefined'),
         },
         label: {
           show: false,
-        },
-        emphasis: {
-          focus: 'series',
         },
       },
       {
         name: 'Infrastructure Gas',
         type: 'bar',
         stack: 'total',
-        data: [0, 2, 0, 0, 0, 0, 0, 0],
+        data: getDataArray([0, 2, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('notDefined'),
         },
         label: {
           show: false,
-        },
-        emphasis: {
-          focus: 'series',
         },
       },
       {
         name: 'Cooling',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 9, 0, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('blueGrey', 0),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Ventilation',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 3, 0, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 3, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('blueGrey', 1),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Lighting',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 9, 0, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('blueGrey', 2),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Scientific',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 0, 10, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 0, 10, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('purple', 0),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'IT',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 0, 3, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 0, 3, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('purple', 1),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Other',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 0, 0.2, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 0, 0.2, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('purple', 2),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
-      },
-      {
-        name: 'Commuting',
-        type: 'bar',
-        stack: 'total',
-        data: [0, 0, 0, 0, 8, 0, 0, 0],
-        itemStyle: {
-          color: getElement('tealBlue'),
-        },
-        label: {
-          show: false,
-        },
-        emphasis: {
-          focus: 'series',
-        },
-      },
-      {
-        name: 'Food',
-        type: 'bar',
-        stack: 'total',
-        data: [0, 0, 0, 0, 0, 2.5, 0, 0],
-        itemStyle: {
-          color: getElement('forestGreen'),
-        },
-        label: {
-          show: false,
-        },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Train',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 0, 0, 0, 0, 1.5, 0],
+        data: getDataArray([0, 0, 0, 0, 1.5, 0, 0, 0]),
         itemStyle: {
           color: getElement('blue', 0),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'Plane',
         type: 'bar',
         stack: 'total',
-        data: [0, 0, 0, 0, 0, 0, 3, 0],
+        data: getDataArray([0, 0, 0, 0, 3, 0, 0, 0]),
         itemStyle: {
           color: getElement('blue', 1),
         },
         label: {
           show: false,
         },
-        emphasis: {
-          focus: 'series',
-        },
       },
       {
         name: 'IT Infrastructure',
         type: 'bar' as const,
         stack: 'total',
-        data: [0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 0],
+        data: getDataArray([0, 0, 0, 0, 0, 25, 0, 0]),
         itemStyle: {
           color: getElement('notDefined'),
+        },
+      },
+      {
+        name: t('charts-bio-chemicals-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 0),
+        },
+      },
+      {
+        name: t('charts-consumables-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 3, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 1),
+        },
+      },
+      {
+        name: t('charts-equipment-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 1, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 2),
+        },
+      },
+      {
+        name: t('charts-services-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 3),
+        },
+      },
+      {
+        name: t('charts-scitas-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1]) as number[],
+        itemStyle: {
+          color: getElement('purpleGrey', 0),
+        },
+      },
+      {
+        name: t('charts-rcp-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1.5]) as number[],
+        itemStyle: {
+          color: getElement('purpleGrey', 1),
         },
       },
 
@@ -476,57 +478,21 @@ const chartOption = computed((): EChartsOption => {
         if (toggleAdditionalData.value) {
           return [
             {
-              name: t('charts-scitas-subcategory'),
+              name: 'Commuting',
               type: 'bar' as const,
               stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] as number[],
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0] as number[],
               itemStyle: {
-                color: getElement('purpleGrey', 0),
+                color: getElement('tealBlue'),
               },
             },
             {
-              name: t('charts-rcp-subcategory'),
+              name: 'Food',
               type: 'bar' as const,
               stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 1.5, 0, 0, 0] as number[],
+              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0] as number[],
               itemStyle: {
-                color: getElement('purpleGrey', 1),
-              },
-            },
-            {
-              name: t('charts-bio-chemicals-subcategory'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
-              itemStyle: {
-                color: getElement('green', 0),
-              },
-            },
-            {
-              name: t('charts-consumables-subcategory'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0] as number[],
-              itemStyle: {
-                color: getElement('green', 1),
-              },
-            },
-            {
-              name: t('charts-equipment-subcategory'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] as number[],
-              itemStyle: {
-                color: getElement('green', 2),
-              },
-            },
-            {
-              name: t('charts-services-subcategory'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0] as number[],
-              itemStyle: {
-                color: getElement('green', 3),
+                color: getElement('forestGreen'),
               },
             },
             {
