@@ -34,6 +34,8 @@
           :module-type="moduleType"
           :has-subtitle="submodule.hasFormSubtitle"
           :has-student-helper="submodule.hasStudentHelper"
+          :has-add-with-note="submodule.hasFormAddWithNote"
+          :add-button-label-key="submodule.addButtonLabelKey"
           @submit="
             (payload: Record<string, FieldValue>) =>
               moduleStore.postItem(

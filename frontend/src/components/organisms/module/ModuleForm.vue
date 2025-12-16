@@ -125,7 +125,7 @@
             <q-btn
               icon="o_add_circle"
               color="accent"
-              :label="$t('common_add_button')"
+              :label="$t(addButtonLabelKey)"
               unelevated
               no-caps
               size="md"
@@ -133,6 +133,7 @@
               type="submit"
             />
             <q-btn
+              v-if="hasAddWithNote"
               outline
               disabled
               icon="o_add_comment"
@@ -178,6 +179,8 @@ const props = withDefaults(
     hasTooltip?: boolean;
     hasSubtitle?: boolean;
     hasStudentHelper?: boolean;
+    hasAddWithNote?: boolean;
+    addButtonLabelKey?: string;
   }>(),
   {
     fields: null,
@@ -186,6 +189,8 @@ const props = withDefaults(
     hasTooltip: true,
     hasSubtitle: false,
     hasStudentHelper: false,
+    hasAddWithNote: true,
+    addButtonLabelKey: 'common_add_button',
   },
 );
 

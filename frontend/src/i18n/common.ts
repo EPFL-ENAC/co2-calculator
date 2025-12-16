@@ -488,6 +488,10 @@ export default {
     en: 'Add',
     fr: 'Ajouter',
   },
+  common_update_button: {
+    en: 'Update',
+    fr: 'Mettre à jour',
+  },
   common_add_with_note_button: {
     en: 'Add with note',
     fr: 'Ajouter avec note',

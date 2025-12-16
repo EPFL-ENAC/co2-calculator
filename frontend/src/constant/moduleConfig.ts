@@ -46,6 +46,8 @@ export interface Submodule {
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
   hasStudentHelper?: boolean;
+  hasFormAddWithNote?: boolean;
+  addButtonLabelKey?: string;
 }
 
 export interface ResultBigNumberConfig {

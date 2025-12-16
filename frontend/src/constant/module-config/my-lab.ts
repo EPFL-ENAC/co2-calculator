@@ -86,6 +86,8 @@ export const myLab: ModuleConfig = {
       hasTableTopBar: false,
       hasFormSubtitle: true,
       hasStudentHelper: true,
+      hasFormAddWithNote: false,
+      addButtonLabelKey: 'common_update_button',
       moduleFields: studentFields,
     },
   ],
