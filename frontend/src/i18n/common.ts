@@ -286,6 +286,10 @@ export default {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
+  results_units_tonnes: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-eq',
+  },
   kgco2eq: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
