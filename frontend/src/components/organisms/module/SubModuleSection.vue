@@ -23,6 +23,7 @@
           :unit-id="unitId"
           :year="year"
           :threshold="threshold"
+          :has-top-bar="submodule.hasTableTopBar"
         />
       </div>
       <q-separator />
@@ -31,6 +32,8 @@
           :fields="submodule.moduleFields"
           :submodule-type="submoduleType"
           :module-type="moduleType"
+          :has-subtitle="submodule.hasFormSubtitle"
+          :has-student-helper="submodule.hasStudentHelper"
           @submit="
             (payload: Record<string, FieldValue>) =>
               moduleStore.postItem(

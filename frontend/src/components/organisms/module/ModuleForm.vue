@@ -12,6 +12,18 @@
         :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
       />
     </q-card-title>
+    <q-card-subtitle v-if="hasSubtitle" class="q-mx-lg q-my-xl">
+      {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
+    </q-card-subtitle>
+    <q-expansion-item
+      v-if="hasStudentHelper"
+      flat
+      :label="$t(`${moduleType}-${submoduleType}-student-helper-title`)"
+      header-class="text-h5 text-weight-medium"
+      class="q-mx-lg q-my-xl"
+    >
+      student helper placeholder
+    </q-expansion-item>
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -164,12 +176,16 @@ const props = withDefaults(
     submoduleType?: AllSubmoduleTypes;
     moduleType: Module | string;
     hasTooltip?: boolean;
+    hasSubtitle?: boolean;
+    hasStudentHelper?: boolean;
   }>(),
   {
     fields: null,
     rowData: null,
     submoduleType: undefined,
     hasTooltip: true,
+    hasSubtitle: false,
+    hasStudentHelper: false,
   },
 );
 
