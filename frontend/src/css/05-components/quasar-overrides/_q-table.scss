@@ -1,0 +1,14 @@
+.q-table th,
+.q-table td {
+  padding: 4px 2px;
+}
+
+.q-table th:first-child,
+.q-table td:first-child {
+  padding-left: 16px;
+}
+
+.q-table th:last-child,
+.q-table td:last-child {
+  padding-right: 16px;
+}
