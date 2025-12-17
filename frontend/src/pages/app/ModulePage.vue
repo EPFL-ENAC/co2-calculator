@@ -31,7 +31,7 @@
             [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
           ).includes(currentModuleType)
         "
-        :data="data?.totals?.total_kg_co2eq"
+        :data="totalResult"
         :type="currentModuleType"
       />
       <module-navigation :current-module="currentModuleType" />
@@ -62,23 +62,27 @@ const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,
 );
 
-// compute unit and year from route params
-// const unit = computed(() => String($route.params.unit ?? 'default'));
-// const year = computed(() =>
-//   String($route.params.year ?? new Date().getFullYear()),
-// );
 const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
+// COMPUTED
 const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);
+const totalResult = computed(() => {
+  if (currentModuleType.value === MODULES.MyLab) {
+    return moduleStore.state.data?.totals?.total_annual_fte;
+  }
+  return moduleStore.state.data?.totals?.total_kg_co2eq;
+});
 
 const AuthorizedModules: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.MyLab,
 ];
+
+// ACTIONS
 // get data on mount and when route params change
 const getData = () => {
   if (!currentModuleType.value) return;
