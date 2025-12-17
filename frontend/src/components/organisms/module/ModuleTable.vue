@@ -53,13 +53,13 @@
     </q-input>
   </div>
   <q-table
-    v-model:pagination="pagination"
+    v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
     :columns="qCols"
-    :rows="localRows"
+    :rows="moduleStore.state.dataSubmodule[submoduleType]?.items || []"
     row-key="id"
-    :loading="loading"
-    :error="error"
+    :loading="moduleStore.state.loadingSubmodule[submoduleType]"
+    :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
     no-data-label="No items"
@@ -286,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick, onMounted } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
@@ -322,21 +322,10 @@ type ModuleRow = Record<string, RowValue> & {
 
 type CommonProps = {
   moduleFields: ModuleField[] | null;
-  rows: ModuleRow[];
-  loading?: boolean;
-  error: string | null;
   unitId: string;
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;
-  submoduleId: string;
-  paginationData: {
-    page: number;
-    limit: number;
-    total: number;
-    sortedBy?: string;
-    sortOrder?: string;
-  };
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -345,34 +334,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
 
-const emit = defineEmits<{
-  'page-change': [page: number];
-  'sort-change': [sortBy: string, sortOrder: string];
-}>();
-
-// Server-side pagination: use props.paginationData if available, otherwise fallback to local state
-const localPagination = ref({
-  page: 1,
-  rowsPerPage: 20,
-});
-
-const pagination = computed(() => {
-  if (props.paginationData) {
-    // Server-side pagination
-    return {
-      page: props.paginationData.page,
-      rowsPerPage: props.paginationData.limit,
-      rowsNumber: props.paginationData.total,
-      sortBy: props.paginationData.sortedBy,
-      descending: props.paginationData.sortOrder === 'desc',
-    };
-  }
-  // Client-side pagination (fallback)
-  return {
-    page: localPagination.value.page,
-    rowsPerPage: localPagination.value.rowsPerPage,
-  };
-});
+const moduleStore = useModuleStore();
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
@@ -390,15 +352,6 @@ watch(editDialogOpen, (isOpen) => {
 
 const deleteItemName = ref<string>('');
 const deleteRowId = ref<number | null>(null);
-
-const localRows = ref<ModuleRow[]>(props.rows ?? []);
-watch(
-  () => props.rows,
-  (val) => {
-    localRows.value = Array.isArray(val) ? val.map((r) => ({ ...r })) : [];
-  },
-  { immediate: true, deep: true },
-);
 
 type TableViewColumn = {
   name: string;
@@ -689,7 +642,7 @@ function onConfirmDelete() {
   });
 }
 
-function onRequest(request: {
+async function onRequest(request: {
   pagination: {
     page: number;
     rowsPerPage: number;
@@ -699,38 +652,63 @@ function onRequest(request: {
   };
   filter?: string;
 }) {
-  // Only handle server-side pagination if paginationData prop is provided
-  if (!props.paginationData) {
-    // Client-side pagination: update local state
-    localPagination.value = {
-      page: request.pagination.page,
-      rowsPerPage: request.pagination.rowsPerPage,
-    };
-    return;
-  }
-
   // Server-side pagination: check what changed
-  const currentPage = props.paginationData.page;
-  const currentSortBy = props.paginationData.sortedBy;
-  const currentSortOrder = props.paginationData.sortOrder;
-
-  const newPage = request.pagination.page;
+  const pagination = moduleStore.state.paginationSubmodule[props.submoduleType];
+  const currentSortBy = pagination.sortBy;
+  const currentSortOrder = pagination.descending;
   const newSortBy = request.pagination.sortBy;
-  const newSortOrder = request.pagination.descending ? 'desc' : 'asc';
-
+  const newSortOrder = request.pagination.descending;
   // Check if sort changed (sort changes take priority and typically reset to page 1)
   const sortChanged =
     newSortBy &&
     (newSortBy !== currentSortBy || newSortOrder !== currentSortOrder);
+  moduleStore.state.paginationSubmodule[props.submoduleType] =
+    request.pagination;
 
+  moduleStore.state.filterTermSubmodule[props.submoduleType] =
+    request.filter || '';
   if (sortChanged) {
-    // When sort changes, emit sort-change (parent will reset to page 1)
-    emit('sort-change', newSortBy, newSortOrder);
-  } else if (newPage !== currentPage) {
-    // Only emit page-change if sort didn't change
-    emit('page-change', newPage);
+    // When sort changes, reset to page 1
+    await moduleStore.getSubmoduleData({
+      submoduleType: props.submoduleType,
+      moduleType: props.moduleType,
+      unit: props.unitId,
+      year: String(props.year),
+    });
+  } else {
+    // Only change page if sort didn't change
+    await moduleStore.getSubmoduleData({
+      submoduleType: props.submoduleType,
+      moduleType: props.moduleType,
+      unit: props.unitId,
+      year: String(props.year),
+    });
   }
 }
+
+watch(
+  () => moduleStore.state.expandedSubmodules[props.submoduleType],
+  (isExpanded) => {
+    if (isExpanded) {
+      moduleStore.initializeSubmoduleState(props.submoduleType);
+
+      // table-specific work
+      moduleStore.getSubmoduleData({
+        submoduleType: props.submoduleType,
+        moduleType: props.moduleType,
+        unit: props.unitId,
+        year: String(props.year),
+      });
+      // or recompute columns, resize, etc.
+    }
+  },
+);
+
+onMounted(() => {
+  moduleStore.initializeSubmoduleState(props.submoduleType);
+  // Clear inline errors on mount
+  inlineErrors.value = {};
+});
 </script>
 
 <style scoped lang="scss">

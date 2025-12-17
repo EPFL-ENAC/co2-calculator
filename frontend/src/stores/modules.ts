@@ -36,17 +36,19 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
+    expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
     dataSubmodule: Record<string, Submodule | null>; // key: submodule ID
+    filterTermSubmodule: Record<string, string>; // key: submodule ID
     paginationSubmodule: Record<
       string,
       {
         page: number;
-        limit: number;
-        total: number;
-        sortedBy?: string;
-        sortOrder?: string;
+        rowsPerPage: number;
+        sortBy?: string;
+        descending?: boolean;
+        rowsNumber?: number;
       }
     >; // key: submodule ID
     loadedSubmodules: Record<string, boolean>; // key: submodule ID
@@ -54,11 +56,13 @@ export const useModuleStore = defineStore('modules', () => {
     loading: false,
     error: null,
     data: null,
-    loadingSubmodule: {},
-    errorSubmodule: {},
-    dataSubmodule: {},
-    paginationSubmodule: {},
-    loadedSubmodules: {},
+    filterTermSubmodule: reactive({}),
+    expandedSubmodules: reactive({}),
+    loadingSubmodule: reactive({}),
+    errorSubmodule: reactive({}),
+    dataSubmodule: reactive({}),
+    paginationSubmodule: reactive({}),
+    loadedSubmodules: reactive({}),
   });
   function modulePath(moduleType: Module, unit: string, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -66,6 +70,32 @@ export const useModuleStore = defineStore('modules', () => {
     const yearEncoded = encodeURIComponent(year);
     // Backend expects /{unit_id}/{year}/{module_id}
     return `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
+  }
+
+  function initializeSubmoduleState(submoduleId: string) {
+    if (!(submoduleId in state.expandedSubmodules)) {
+      state.expandedSubmodules[submoduleId] = false;
+    }
+    if (!(submoduleId in state.loadingSubmodule)) {
+      state.loadingSubmodule[submoduleId] = false;
+    }
+    if (!(submoduleId in state.errorSubmodule)) {
+      state.errorSubmodule[submoduleId] = null;
+    }
+    if (!(submoduleId in state.dataSubmodule)) {
+      state.dataSubmodule[submoduleId] = null;
+    }
+    // always initialize pagination with defaults
+    state.paginationSubmodule[submoduleId] = {
+      sortBy: 'name',
+      descending: false,
+      page: 1,
+      rowsPerPage: 20,
+      rowsNumber: 0,
+    };
+    if (!(submoduleId in state.loadedSubmodules)) {
+      state.loadedSubmodules[submoduleId] = false;
+    }
   }
 
   async function getModuleData(moduleType: Module, unit: string, year: string) {
@@ -110,56 +140,64 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getSubmoduleData(
-    moduleType: Module,
-    unit: string,
-    year: string,
-    submoduleId: string,
-    page = 1,
-    limit = 20,
-    sortBy?: string,
-    sortOrder?: string,
-  ) {
-    state.loadingSubmodule[submoduleId] = true;
-    state.errorSubmodule[submoduleId] = null;
-    state.dataSubmodule[submoduleId] = null;
+  async function getSubmoduleData({
+    moduleType,
+    submoduleType,
+    unit,
+    year,
+  }: {
+    moduleType: Module;
+    submoduleType: string;
+    unit: string;
+    year: string;
+  }) {
+    state.loadingSubmodule[submoduleType] = true;
+    state.errorSubmodule[submoduleType] = null;
+    state.dataSubmodule[submoduleType] = null;
+    const pagination = state.paginationSubmodule[submoduleType];
     try {
       const queryParams = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
+        page: String(pagination.page),
+        limit: String(pagination.rowsPerPage),
       });
-      if (sortBy) {
-        queryParams.append('sort_by', sortBy);
+      if (pagination.sortBy) {
+        queryParams.append('sort_by', pagination.sortBy);
       }
-      if (sortOrder) {
-        queryParams.append('sort_order', sortOrder);
+      if (pagination.descending) {
+        queryParams.append('sort_order', pagination.descending ? 'desc' : 'asc');
+      }
+      const filterTerm = state.filterTermSubmodule[submoduleType];
+      if (filterTerm && filterTerm.trim().length > 0) {
+        queryParams.append('filter', filterTerm.trim());
       }
       const response = await api
         .get(
           `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
-            submoduleId,
+            submoduleType,
           )}?${queryParams.toString()}`,
         )
         .json();
-      state.dataSubmodule[submoduleId] = response as Submodule;
-      state.paginationSubmodule[submoduleId] = {
-        page,
-        limit,
-        total: (response as Submodule).summary.total_items,
-        sortedBy: sortBy,
-        sortOrder: sortOrder,
+      state.dataSubmodule[submoduleType] = response as Submodule;
+      // update pagination state based on response
+      state.paginationSubmodule[submoduleType] = {
+        page: pagination.page,
+        rowsNumber: (response as Submodule).summary.total_items,
+        sortBy: pagination.sortBy, // SortBy in the API
+        descending: pagination.descending, // sortOrder in the API
+        rowsPerPage: pagination.rowsPerPage,
       };
-      state.loadedSubmodules[submoduleId] = true;
+
+      state.loadedSubmodules[submoduleType] = true;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        state.errorSubmodule[submoduleId] = err.message ?? 'Unknown error';
-        state.dataSubmodule[submoduleId] = null;
+        state.errorSubmodule[submoduleType] = err.message ?? 'Unknown error';
+        state.dataSubmodule[submoduleType] = null;
       } else {
-        state.errorSubmodule[submoduleId] = 'Unknown error';
-        state.dataSubmodule[submoduleId] = null;
+        state.errorSubmodule[submoduleType] = 'Unknown error';
+        state.dataSubmodule[submoduleType] = null;
       }
     } finally {
-      state.loadingSubmodule[submoduleId] = false;
+      state.loadingSubmodule[submoduleType] = false;
     }
   }
 
@@ -244,15 +282,12 @@ export const useModuleStore = defineStore('modules', () => {
       // Refetch the affected submodule with current pagination/sort state
       const pagination = state.paginationSubmodule[normalizedSubmoduleId];
       if (pagination) {
-        await getSubmoduleData(
+        await getSubmoduleData({
           moduleType,
-          unitId,
+          unit: unitId,
           year,
-          normalizedSubmoduleId,
-          pagination.page,
-          pagination.limit,
-          pagination.sortedBy,
-          pagination.sortOrder,
+          submoduleType: normalizedSubmoduleId,
+        }
         );
       }
     } catch (err: unknown) {
@@ -286,15 +321,12 @@ export const useModuleStore = defineStore('modules', () => {
       if (affectedSubmoduleId) {
         const pagination = state.paginationSubmodule[affectedSubmoduleId];
         if (pagination) {
-          await getSubmoduleData(
+          await getSubmoduleData({
+            submoduleType: affectedSubmoduleId,
             moduleType,
             unit,
             year,
-            affectedSubmoduleId,
-            pagination.page,
-            pagination.limit,
-            pagination.sortedBy,
-            pagination.sortOrder,
+          }
           );
         }
       }
@@ -329,14 +361,12 @@ export const useModuleStore = defineStore('modules', () => {
         const pagination = state.paginationSubmodule[affectedSubmoduleId];
         if (pagination) {
           await getSubmoduleData(
-            moduleType,
-            unit,
-            year,
-            affectedSubmoduleId,
-            pagination.page,
-            pagination.limit,
-            pagination.sortedBy,
-            pagination.sortOrder,
+            {
+              moduleType,
+              submoduleType: affectedSubmoduleId,
+              unit,
+              year,
+            }
           );
         }
       }
@@ -348,6 +378,7 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   return {
+    initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
     getSubmoduleData,
