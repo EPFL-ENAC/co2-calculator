@@ -14,21 +14,16 @@ const modulesCounterText = computed(() =>
 );
 
 const homeIntroWithLinks = computed(() => {
-  return t('home_intro_5')
-    .replace(
-      '{documentationLink}',
-      t('info_with_link', {
-        url: '/documentation',
-        linkText: t('documentation'),
-      }),
-    )
-    .replace(
-      '{contactLink}',
-      t('info_with_link', {
-        url: '/contact',
-        linkText: t('contact'),
-      }),
-    );
+  return t('home_intro_5', {
+    documentationLink: t('info_with_link', {
+      url: '/documentation',
+      linkText: t('documentation'),
+    }),
+    contactLink: t('info_with_link', {
+      url: '/contact',
+      linkText: t('contact'),
+    }),
+  });
 });
 </script>
 

@@ -4,7 +4,7 @@ import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
 
 export interface Unit {
-  id: number;
+  id: string;
   name: string;
   principal_user_id: string;
   principal_user_function: string;
@@ -22,10 +22,15 @@ interface YearResult {
 }
 
 interface UnitResults {
-  id: number;
+  id: string;
   name: string;
   updated_at: number;
   years: YearResult[];
+}
+
+interface SelectedParams {
+  year: number;
+  unit: string; // unit id-name string
 }
 
 export const useWorkspaceStore = defineStore(
@@ -33,6 +38,7 @@ export const useWorkspaceStore = defineStore(
   () => {
     const units = ref<Unit[]>([]);
     const selectedUnit = ref<Unit | null>(null);
+    const selectedParams = ref<SelectedParams | null>(null);
     const selectedYear = ref<number | null>(null);
     const unitResults = ref<UnitResults | null>(null);
     const unitsLoading = ref(false);
@@ -50,6 +56,9 @@ export const useWorkspaceStore = defineStore(
       selectedYear.value = year;
     }
 
+    function setSelectedParams(params: SelectedParams) {
+      selectedParams.value = params;
+    }
     const availableYears = computed(() => {
       return unitResults.value?.years.map((y) => y.year) || [];
     });
@@ -59,7 +68,7 @@ export const useWorkspaceStore = defineStore(
       return unitResults.value.years.find((y) => y.year === selectedYear.value);
     });
 
-    function getLatestYear(unitId: number): number | null {
+    function getLatestYear(unitId: string): number | null {
       if (
         !unitResults.value ||
         unitResults.value.id !== unitId ||
@@ -89,7 +98,7 @@ export const useWorkspaceStore = defineStore(
       }
     }
 
-    async function getUnit(id: number) {
+    async function getUnit(id: string) {
       try {
         unitLoading.value = true;
         unitErrors.value = [];
@@ -106,7 +115,7 @@ export const useWorkspaceStore = defineStore(
     }
 
     async function getUnitResults(
-      id: number,
+      id: string,
       options?: {
         offset?: number;
         limit?: number;
@@ -137,12 +146,14 @@ export const useWorkspaceStore = defineStore(
       selectedUnit.value = null;
       selectedYear.value = null;
       unitResults.value = null;
+      selectedParams.value = null;
     }
 
     return {
       units,
       selectedUnit,
       selectedYear,
+      selectedParams,
       unitResults,
       unitsLoading,
       unitLoading,
@@ -158,13 +169,14 @@ export const useWorkspaceStore = defineStore(
       getUnitResults,
       setUnit,
       setYear,
+      setSelectedParams,
       reset,
     };
   },
   {
     persist: {
       key: 'workspaceLocalStorage',
-      pick: ['selectedUnit', 'selectedYear'],
+      pick: ['selectedParams'],
       storage: localStorage,
     } as PersistenceOptions,
   },
