@@ -434,4 +434,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # run script on /app/api/v1/synth_data.csv
     asyncio.run(main())

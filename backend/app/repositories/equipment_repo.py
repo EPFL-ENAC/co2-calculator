@@ -123,6 +123,8 @@ async def get_equipment_with_emissions(
     submodule: Optional[str] = None,
     limit: Optional[int] = None,
     offset: int = 0,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
 ) -> Tuple[List[Tuple[Equipment, EquipmentEmission]], int]:
     """
     Get equipment with their current emissions.
@@ -134,10 +136,30 @@ async def get_equipment_with_emissions(
         submodule: Filter by submodule
         limit: Maximum number of results
         offset: Number of results to skip
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
 
     Returns:
         Tuple of (list of (Equipment, EquipmentEmission) tuples, total_count)
     """
+    # Field mapping for sortable columns
+    field_mapping: Dict[str, Any] = {
+        "id": col(Equipment.id),
+        "name": col(Equipment.name),
+        "equipment_class": col(Equipment.equipment_class),
+        "submodule": col(Equipment.submodule),
+        "category": col(Equipment.category),
+        "status": col(Equipment.status),
+        "unit_id": col(Equipment.unit_id),
+        "cost_center": col(Equipment.cost_center),
+        "service_date": col(Equipment.service_date),
+        "created_at": col(Equipment.created_at),
+        "updated_at": col(Equipment.updated_at),
+        "kg_co2eq": col(EquipmentEmission.kg_co2eq),
+        "annual_kwh": col(EquipmentEmission.annual_kwh),
+        "computed_at": col(EquipmentEmission.computed_at),
+    }
+
     # Build base query with join
     query = (
         select(Equipment, EquipmentEmission, PowerFactor)
@@ -165,11 +187,20 @@ async def get_equipment_with_emissions(
     count_result = await session.execute(count_query)
     total_count = count_result.scalar() or 0
 
+    # Apply sorting
+    if sort_by and sort_by in field_mapping:
+        sort_column = field_mapping[sort_by]
+        if sort_order and sort_order.lower() == "desc":
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+    else:
+        # Default order by equipment class for predictable grouping
+        query = query.order_by(col(Equipment.equipment_class))
+
     # Apply pagination
     if limit:
         query = query.limit(limit)
-    # Order by equipment class for predictable grouping
-    query = query.order_by(col(Equipment.equipment_class))
     query = query.offset(offset)
 
     # Execute query

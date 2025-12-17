@@ -1,11 +1,12 @@
 """Equipment service for business logic and data transformation."""
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.repositories import equipment_repo
 from app.repositories.power_factor_repo import PowerFactorRepository
@@ -64,40 +65,6 @@ async def get_module_data(
 
     # Process each submodule
     for submodule_key in ["scientific", "it", "other"]:
-        # Get equipment for this submodule
-        (
-            equipment_emissions,
-            total_count,
-        ) = await equipment_repo.get_equipment_with_emissions(
-            session,
-            unit_id=unit_id,
-            status="In service",
-            submodule=submodule_key,
-            limit=preview_limit,
-            offset=0,
-        )
-
-        # Transform to response items
-        items = []
-        for equipment, emission in equipment_emissions:
-            assert equipment.id is not None
-            item = EquipmentItemResponse(
-                id=equipment.id,
-                name=equipment.name,
-                category=equipment.category,
-                submodule=equipment.submodule,
-                **{"class": equipment.equipment_class},
-                sub_class=equipment.sub_class,
-                act_usage=equipment.active_usage_pct or 0,
-                pas_usage=equipment.passive_usage_pct or 0,
-                act_power=equipment.active_power_w or 0,
-                pas_power=equipment.standby_power_w or 0,
-                status=equipment.status,
-                kg_co2eq=emission.kg_co2eq,
-                annual_kwh=emission.annual_kwh,
-            )
-            items.append(item)
-
         # Get summary for this submodule
         submodule_summary_data = summary_by_submodule.get(
             submodule_key,
@@ -109,9 +76,49 @@ async def get_module_data(
         )
 
         summary = SubmoduleSummary(**submodule_summary_data)
+        total_count = submodule_summary_data["total_items"]
 
-        # Determine if there are more items
-        has_more = preview_limit is not None and total_count > preview_limit
+        # When preview_limit=0, skip item fetching and return empty items array
+        if preview_limit == 0:
+            items: List[EquipmentItemResponse] = []
+            has_more = False
+        else:
+            # Get equipment for this submodule
+            (
+                equipment_emissions,
+                total_count,
+            ) = await equipment_repo.get_equipment_with_emissions(
+                session,
+                unit_id=unit_id,
+                status="In service",
+                submodule=submodule_key,
+                limit=preview_limit,
+                offset=0,
+            )
+
+            # Transform to response items
+            items = []
+            for equipment, emission in equipment_emissions:
+                assert equipment.id is not None
+                item = EquipmentItemResponse(
+                    id=equipment.id,
+                    name=equipment.name,
+                    category=equipment.category,
+                    submodule=equipment.submodule,
+                    **{"class": equipment.equipment_class},
+                    sub_class=equipment.sub_class,
+                    act_usage=equipment.active_usage_pct or 0,
+                    pas_usage=equipment.passive_usage_pct or 0,
+                    act_power=equipment.active_power_w or 0,
+                    pas_power=equipment.standby_power_w or 0,
+                    status=equipment.status,
+                    kg_co2eq=emission.kg_co2eq,
+                    annual_kwh=emission.annual_kwh,
+                )
+                items.append(item)
+
+            # Determine if there are more items
+            has_more = preview_limit is not None and total_count > preview_limit
 
         # Create submodule response
         submodule_id = f"sub_{submodule_key}"
@@ -172,6 +179,8 @@ async def get_submodule_data(
     submodule_key: str,
     limit: int = 100,
     offset: int = 0,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
 ) -> SubmoduleResponse:
     """
     Get paginated data for a single submodule.
@@ -182,13 +191,16 @@ async def get_submodule_data(
         submodule_key: Submodule identifier (e.g., 'scientific', 'it', 'other')
         limit: Maximum number of items to return
         offset: Number of items to skip
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
 
     Returns:
         SubmoduleResponse with paginated equipment items
     """
     logger.info(
         f"Fetching submodule data: unit={unit_id}, "
-        f"submodule={submodule_key}, limit={limit}, offset={offset}"
+        f"submodule={submodule_key}, limit={limit}, offset={offset}, "
+        f"sort_by={sort_by}, sort_order={sort_order}"
     )
 
     # Get equipment for this submodule
@@ -202,6 +214,8 @@ async def get_submodule_data(
         submodule=submodule_key,
         limit=limit,
         offset=offset,
+        sort_by=sanitize(sort_by),
+        sort_order=sanitize(sort_order),
     )
 
     # Transform to response items

@@ -64,6 +64,7 @@
     no-data-label="No items"
     :pagination="pagination"
     :filter="filterTerm"
+    @request="onRequest"
   >
     <template #header="scope">
       <q-tr :props="scope">
@@ -328,6 +329,14 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;
+  submoduleId: string;
+  paginationData: {
+    page: number;
+    limit: number;
+    total: number;
+    sortedBy?: string;
+    sortOrder?: string;
+  };
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -336,9 +345,33 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
 
-const pagination = ref({
+const emit = defineEmits<{
+  'page-change': [page: number];
+  'sort-change': [sortBy: string, sortOrder: string];
+}>();
+
+// Server-side pagination: use props.paginationData if available, otherwise fallback to local state
+const localPagination = ref({
   page: 1,
   rowsPerPage: 20,
+});
+
+const pagination = computed(() => {
+  if (props.paginationData) {
+    // Server-side pagination
+    return {
+      page: props.paginationData.page,
+      rowsPerPage: props.paginationData.limit,
+      rowsNumber: props.paginationData.total,
+      sortBy: props.paginationData.sortedBy,
+      descending: props.paginationData.sortOrder === 'desc',
+    };
+  }
+  // Client-side pagination (fallback)
+  return {
+    page: localPagination.value.page,
+    rowsPerPage: localPagination.value.rowsPerPage,
+  };
 });
 
 const filterTerm = ref('');
@@ -654,6 +687,49 @@ function onConfirmDelete() {
     confirmDelete.value = false;
     deleteRowId.value = null;
   });
+}
+
+function onRequest(request: {
+  pagination: {
+    page: number;
+    rowsPerPage: number;
+    rowsNumber?: number;
+    sortBy?: string;
+    descending?: boolean;
+  };
+  filter?: string;
+}) {
+  // Only handle server-side pagination if paginationData prop is provided
+  if (!props.paginationData) {
+    // Client-side pagination: update local state
+    localPagination.value = {
+      page: request.pagination.page,
+      rowsPerPage: request.pagination.rowsPerPage,
+    };
+    return;
+  }
+
+  // Server-side pagination: check what changed
+  const currentPage = props.paginationData.page;
+  const currentSortBy = props.paginationData.sortedBy;
+  const currentSortOrder = props.paginationData.sortOrder;
+
+  const newPage = request.pagination.page;
+  const newSortBy = request.pagination.sortBy;
+  const newSortOrder = request.pagination.descending ? 'desc' : 'asc';
+
+  // Check if sort changed (sort changes take priority and typically reset to page 1)
+  const sortChanged =
+    newSortBy &&
+    (newSortBy !== currentSortBy || newSortOrder !== currentSortOrder);
+
+  if (sortChanged) {
+    // When sort changes, emit sort-change (parent will reset to page 1)
+    emit('sort-change', newSortBy, newSortOrder);
+  } else if (newPage !== currentPage) {
+    // Only emit page-change if sort didn't change
+    emit('page-change', newPage);
+  }
 }
 </script>
 

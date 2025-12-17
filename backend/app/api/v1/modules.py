@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.equipment import (
@@ -24,7 +25,9 @@ async def get_module(
     unit_id: str,
     year: int,
     module_id: str,
-    preview_limit: int = Query(default=20, le=100, description="Items per submodule"),
+    preview_limit: int = Query(
+        default=20, ge=0, le=100, description="Items per submodule"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -48,8 +51,8 @@ async def get_module(
     """
     unit_id = str("C1348")  # Temporary hardcode for demo purposes
     logger.info(
-        f"GET module: module_id={module_id}, unit_id={unit_id}, "
-        f"year={year}, preview_limit={preview_limit}"
+        f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
 
     # Fetch real data from database
@@ -79,6 +82,8 @@ async def get_submodule(
     submodule_id: str,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=100, description="Items per page"),
+    sort_by: str = Query(default="id", description="Field to sort by"),
+    sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -92,6 +97,8 @@ async def get_submodule(
         submodule_id: Submodule ID (e.g., 'sub_scientific')
         page: Page number (1-indexed)
         limit: Items per page (max 100)
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
         db: Database session
         current_user: Authenticated user
 
@@ -99,9 +106,11 @@ async def get_submodule(
         SubmoduleResponse with paginated items and summary
     """
     logger.info(
-        f"GET submodule: module_id={module_id}, unit_id={unit_id}, "
-        f"year={year}, submodule_id={submodule_id}, "
-        f"page={page}, limit={limit}"
+        f"GET submodule: module_id={sanitize(module_id)}, "
+        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"submodule_id={sanitize(submodule_id)}, page={sanitize(page)}, "
+        f"limit={sanitize(limit)}, sort_by={sanitize(sort_by)}, "
+        f"sort_order={sanitize(sort_order)}"
     )
 
     unit_id = str("C1348")  # Temporary hardcode for demo purposes
@@ -131,11 +140,13 @@ async def get_submodule(
         submodule_key=submodule_key,
         limit=limit,
         offset=offset,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
 
     logger.info(
         f"Submodule data returned: {len(submodule_data.items)} items "
-        f"(total: {submodule_data.count}, page: {page})"
+        f"(total: {submodule_data.count}, page: {sanitize(page)})"
     )
 
     return submodule_data
@@ -169,8 +180,8 @@ async def create_equipment(
         EquipmentDetailResponse with created equipment
     """
     logger.info(
-        f"POST equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, user={current_user.id}"
+        f"POST equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
 
     # Validate unit_id matches the one in request body
@@ -188,7 +199,7 @@ async def create_equipment(
         user_id=current_user.id,
     )
 
-    logger.info(f"Created equipment {equipment.id} for unit {unit_id}")
+    logger.info(f"Created equipment {equipment.id} for unit {sanitize(unit_id)}")
 
     return equipment
 
@@ -220,8 +231,8 @@ async def get_equipment(
         EquipmentDetailResponse
     """
     logger.info(
-        f"GET equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}"
+        f"GET equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"module_id={sanitize(module_id)}, equipment_id={sanitize(equipment_id)}"
     )
 
     equipment = await equipment_service.get_equipment_by_id(
@@ -261,8 +272,10 @@ async def update_equipment(
         EquipmentDetailResponse with updated equipment
     """
     logger.info(
-        f"PATCH equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}, user={current_user.id}"
+        f"PATCH equipment: unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"equipment_id={sanitize(equipment_id)}, "
+        f"user={sanitize(current_user.id)}"
     )
 
     equipment = await equipment_service.update_equipment(
@@ -272,7 +285,7 @@ async def update_equipment(
         user_id=current_user.id,
     )
 
-    logger.info(f"Updated equipment {equipment_id}")
+    logger.info(f"Updated equipment {sanitize(equipment_id)}")
 
     return equipment
 
@@ -304,8 +317,10 @@ async def delete_equipment(
         No content (204)
     """
     logger.info(
-        f"DELETE equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}, user={current_user.id}"
+        f"DELETE equipment: unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"equipment_id={sanitize(equipment_id)}, "
+        f"user={sanitize(current_user.id)}"
     )
 
     await equipment_service.delete_equipment(
@@ -314,4 +329,4 @@ async def delete_equipment(
         user_id=current_user.id,
     )
 
-    logger.info(f"Deleted equipment {equipment_id}")
+    logger.info(f"Deleted equipment {sanitize(equipment_id)}")

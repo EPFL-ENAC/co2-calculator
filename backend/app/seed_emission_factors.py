@@ -152,4 +152,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # run script on /app/api/v1/table_power.csv
     asyncio.run(main())
