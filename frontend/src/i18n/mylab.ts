@@ -47,8 +47,8 @@ export default {
     fr: 'En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.',
   },
   [`${MODULES.MyLab}-charts-title`]: {
-    en: 'Charts',
-    fr: 'Graphiques',
+    en: 'FTE per position',
+    fr: 'EPT par poste',
   },
   [`${MODULES.MyLab}-member-form-title`]: {
     // en: 'Add Full-Time Equivalent member',

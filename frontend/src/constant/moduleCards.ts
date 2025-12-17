@@ -21,7 +21,7 @@ export const MODULE_CARDS: ModuleCard[] = [
       label: 'Validated',
       color: 'accent',
     },
-    value: '100',
+    value: '5',
 
     active: true,
   },
