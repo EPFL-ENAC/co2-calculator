@@ -53,6 +53,7 @@
     </q-input>
   </div>
   <q-table
+    v-model:pagination="pagination"
     class="co2-table border"
     :columns="qCols"
     :rows="localRows"
@@ -62,7 +63,6 @@
     dense
     flat
     no-data-label="No items"
-    :pagination="pagination"
     :filter="filterTerm"
     @request="onRequest"
   >

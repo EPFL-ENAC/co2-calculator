@@ -44,7 +44,7 @@
           :loading="submoduleLoading"
           :error="submoduleError"
           :module-type="moduleType"
-          :submodule-type="submoduleType as any"
+          :submodule-type="submodule.type"
           :unit-id="unitId"
           :year="year"
           :threshold="threshold"
@@ -117,25 +117,16 @@ type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<SubModuleSectionProps>();
 
-// Normalize submodule ID (remove 'sub_' prefix for store keys)
-const normalizedSubmoduleId = computed(() => {
-  return props.submodule.id.startsWith('sub_')
-    ? props.submodule.id.replace('sub_', '')
-    : props.submodule.id;
-});
-
 const submoduleData = computed(() => {
-  return moduleStore.state.dataSubmodule[normalizedSubmoduleId.value] ?? null;
+  return moduleStore.state.dataSubmodule[props.submodule.type] ?? null;
 });
 
 const submoduleLoading = computed(() => {
-  return (
-    moduleStore.state.loadingSubmodule[normalizedSubmoduleId.value] ?? false
-  );
+  return moduleStore.state.loadingSubmodule[props.submodule.type] ?? false;
 });
 
 const submoduleError = computed(() => {
-  return moduleStore.state.errorSubmodule[normalizedSubmoduleId.value] ?? null;
+  return moduleStore.state.errorSubmodule[props.submodule.type] ?? null;
 });
 
 const submoduleCount = computed(() => {
@@ -147,9 +138,7 @@ const submoduleCount = computed(() => {
 });
 
 const paginationData = computed(() => {
-  return (
-    moduleStore.state.paginationSubmodule[normalizedSubmoduleId.value] ?? null
-  );
+  return moduleStore.state.paginationSubmodule[props.submodule.type] ?? null;
 });
 
 const rows = computed(() => {
@@ -188,8 +177,7 @@ const hasTableTooltip = computed(() => {
 });
 
 function onExpand() {
-  const isLoaded =
-    moduleStore.state.loadedSubmodules[normalizedSubmoduleId.value];
+  const isLoaded = moduleStore.state.loadedSubmodules[props.submodule.type];
 
   if (!isLoaded) {
     // Fetch submodule data with default pagination
@@ -197,7 +185,7 @@ function onExpand() {
       props.moduleType,
       props.unitId,
       String(props.year),
-      normalizedSubmoduleId.value,
+      props.submodule.type,
       1, // page
       50, // limit
     );
@@ -211,7 +199,7 @@ function onPageChange(page: number) {
     props.moduleType,
     props.unitId,
     String(props.year),
-    normalizedSubmoduleId.value,
+    props.submodule.type,
     page,
     pagination?.limit ?? 50,
     pagination?.sortedBy,
@@ -227,7 +215,7 @@ function onSortChange(sortBy: string, sortOrder: string) {
     props.moduleType,
     props.unitId,
     String(props.year),
-    normalizedSubmoduleId.value,
+    props.submodule.type,
     1, // Reset to page 1
     pagination?.limit ?? 50,
     sortBy,

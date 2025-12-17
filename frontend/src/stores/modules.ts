@@ -136,7 +136,7 @@ export const useModuleStore = defineStore('modules', () => {
       }
       const response = await api
         .get(
-          `${modulePath(moduleType, unit, year)}/sub_${encodeURIComponent(
+          `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
             submoduleId,
           )}?${queryParams.toString()}`,
         )
