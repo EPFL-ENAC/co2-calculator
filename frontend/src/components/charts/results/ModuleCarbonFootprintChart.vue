@@ -526,16 +526,6 @@ const chartOption = computed((): EChartsOption => {
   <q-card flat class="container container--pa-none">
     <q-card-section class="flex justify-between items-center">
       <div>
-        <q-icon name="o_info" size="xs" color="primary">
-          <q-tooltip
-            v-if="$slots.tooltip"
-            anchor="center right"
-            self="top right"
-            class="u-tooltip"
-          >
-            <slot name="tooltip"></slot>
-          </q-tooltip>
-        </q-icon>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ $t('results_module_carbon_footprint') }}
         </span>
