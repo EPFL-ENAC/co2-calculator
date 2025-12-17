@@ -123,6 +123,7 @@ async def get_submodule(
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
+    submodule_data = None
     if module_id == "equipment-electric-consumption":
         submodule_data = await equipment_service.get_submodule_data(
             session=db,
