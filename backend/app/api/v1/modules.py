@@ -114,21 +114,6 @@ async def get_submodule(
     )
 
     unit_id = str("C1348")  # Temporary hardcode for demo purposes
-    # Extract submodule key from ID
-    if not submodule_id.startswith("sub_"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid submodule_id format. Expected 'sub_<key>'",
-        )
-
-    submodule_key = submodule_id.replace("sub_", "")
-
-    # Validate submodule key
-    if submodule_key not in ["scientific", "it", "other"]:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Submodule '{submodule_key}' not found",
-        )
 
     # Calculate offset from page number
     offset = (page - 1) * limit
@@ -137,7 +122,7 @@ async def get_submodule(
     submodule_data = await equipment_service.get_submodule_data(
         session=db,
         unit_id=unit_id,
-        submodule_key=submodule_key,
+        submodule_key=submodule_id,
         limit=limit,
         offset=offset,
         sort_by=sort_by,

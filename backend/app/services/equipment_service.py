@@ -121,7 +121,7 @@ async def get_module_data(
             has_more = preview_limit is not None and total_count > preview_limit
 
         # Create submodule response
-        submodule_id = f"sub_{submodule_key}"
+        submodule_id = f"{submodule_key}"
         submodule_response = SubmoduleResponse(
             id=submodule_id,
             name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),
@@ -259,7 +259,7 @@ async def get_submodule_data(
     has_more = (offset + len(items)) < total_count
 
     # Create submodule response
-    submodule_id = f"sub_{submodule_key}"
+    submodule_id = f"{submodule_key}"
     submodule_response = SubmoduleResponse(
         id=submodule_id,
         name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),

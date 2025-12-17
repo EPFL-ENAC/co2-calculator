@@ -61,6 +61,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 - **Linting**: [ESLint](https://eslint.org/) + [Prettier](https://prettier.io/)
 - **Type Checking**: [TypeScript](https://www.typescriptlang.org/) (gradual adoption)
 - **Styles**: [CSS/SCSS](https://sass-lang.com/) (Stylelint configuration present)
+
 ### Deployment
 
 - **Build Output**: Static SPA assets (`/dist/spa`)

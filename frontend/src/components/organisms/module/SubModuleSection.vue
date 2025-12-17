@@ -1,10 +1,10 @@
 <template>
   <q-expansion-item
     v-if="submodule.tableNameKey"
+    v-model="moduleStore.state.expandedSubmodules[submodule.id]"
     flat
     header-class="text-h5 text-weight-medium"
     class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
-    @before-show="onExpand"
   >
     <template #header>
       <div class="row flex items-center full-width">
@@ -40,19 +40,12 @@
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
-          :rows="rows"
-          :loading="submoduleLoading"
-          :error="submoduleError"
-          :module-type="moduleType"
-          :submodule-type="submoduleType as any"
           :unit-id="unitId"
           :year="year"
           :threshold="threshold"
           :has-top-bar="submodule.hasTableTopBar"
-          :pagination-data="paginationData"
-          :submodule-id="submodule.id"
-          @page-change="onPageChange"
-          @sort-change="onSortChange"
+          :module-type="moduleType"
+          :submodule-type="submodule.type"
         />
       </div>
       <q-separator />
@@ -90,10 +83,8 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import type {
   ModuleResponse,
-  ModuleItem,
   Threshold,
   ConditionalSubmoduleProps,
-  AllSubmoduleTypes,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
@@ -117,121 +108,17 @@ type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<SubModuleSectionProps>();
 
-// Normalize submodule ID (remove 'sub_' prefix for store keys)
-const normalizedSubmoduleId = computed(() => {
-  return props.submodule.id.startsWith('sub_')
-    ? props.submodule.id.replace('sub_', '')
-    : props.submodule.id;
-});
-
-const submoduleData = computed(() => {
-  return moduleStore.state.dataSubmodule[normalizedSubmoduleId.value] ?? null;
-});
-
-const submoduleLoading = computed(() => {
-  return (
-    moduleStore.state.loadingSubmodule[normalizedSubmoduleId.value] ?? false
-  );
-});
-
-const submoduleError = computed(() => {
-  return moduleStore.state.errorSubmodule[normalizedSubmoduleId.value] ?? null;
-});
-
-const submoduleCount = computed(() => {
-  return (
-    submoduleData.value?.count ??
-    props.data?.submodules?.[props.submodule.id]?.count ??
-    0
-  );
-});
-
-const paginationData = computed(() => {
-  return (
-    moduleStore.state.paginationSubmodule[normalizedSubmoduleId.value] ?? null
-  );
-});
-
-const rows = computed(() => {
-  const items = submoduleData.value?.items ?? [];
-  // ensure stable id for q-table row-key
-  return (items as ModuleItem[]).map((it, i) => ({
-    id: it.id ?? `${props.submodule.id}_${i}`,
-    ...it,
-  }));
-});
-
-const submoduleType = computed(() => {
-  // Use submodule.type if available (already set correctly in config)
-  if (props.submodule.type) {
-    return props.submodule.type;
-  }
-  // Fallback to ID-based mapping for equipment submodules
-  switch (props.submodule.id) {
-    case 'sub_scientific':
-      return 'scientific';
-    case 'sub_it':
-      return 'it';
-    case 'sub_other':
-      return 'other';
-    default:
-      return undefined as unknown as AllSubmoduleTypes | undefined;
-  }
-});
+const submoduleCount = computed(
+  () =>
+    moduleStore.state.data?.submodules?.[props.submodule.type]?.summary
+      ?.total_items || 0,
+);
 
 const { te } = useI18n();
 
 const hasTableTooltip = computed(() => {
-  if (!submoduleType.value) return false;
-  const tooltipKey = `${props.moduleType}-${submoduleType.value}-table-title-info-tooltip`;
+  if (!props.submodule.type) return false;
+  const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
   return te(tooltipKey);
 });
-
-function onExpand() {
-  const isLoaded =
-    moduleStore.state.loadedSubmodules[normalizedSubmoduleId.value];
-
-  if (!isLoaded) {
-    // Fetch submodule data with default pagination
-    moduleStore.getSubmoduleData(
-      props.moduleType,
-      props.unitId,
-      String(props.year),
-      normalizedSubmoduleId.value,
-      1, // page
-      50, // limit
-    );
-  }
-}
-
-function onPageChange(page: number) {
-  const pagination = paginationData.value;
-
-  moduleStore.getSubmoduleData(
-    props.moduleType,
-    props.unitId,
-    String(props.year),
-    normalizedSubmoduleId.value,
-    page,
-    pagination?.limit ?? 50,
-    pagination?.sortedBy,
-    pagination?.sortOrder,
-  );
-}
-
-function onSortChange(sortBy: string, sortOrder: string) {
-  const pagination = paginationData.value;
-
-  // Reset to page 1 when sorting changes
-  moduleStore.getSubmoduleData(
-    props.moduleType,
-    props.unitId,
-    String(props.year),
-    normalizedSubmoduleId.value,
-    1, // Reset to page 1
-    pagination?.limit ?? 50,
-    sortBy,
-    sortOrder,
-  );
-}
 </script>
