@@ -123,9 +123,20 @@ export const chartColorScale: ColorColumn[] = [
   },
 ];
 
+// Helper function to convert hex color to rgba with opacity
+const hexToRgba = (hex: string, opacity: number): string => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return hex;
+  const r = parseInt(result[1], 16);
+  const g = parseInt(result[2], 16);
+  const b = parseInt(result[3], 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
 export const getElement = (
   name: string,
   shade: number = 2,
+  opacity?: number,
   colorblind?: boolean,
 ): string => {
   // Find color by name directly in chartColorScale
@@ -133,7 +144,10 @@ export const getElement = (
 
   // If not found, fallback to column 0
   if (!colorColumn) {
-    return chartColorScale[0].colors[2];
+    const fallbackColor = chartColorScale[0].colors[2];
+    return opacity !== undefined
+      ? hexToRgba(fallbackColor, opacity)
+      : fallbackColor;
   }
 
   const useColorblindMode =
@@ -142,6 +156,13 @@ export const getElement = (
     ? colorColumn.colorblindColors
     : colorColumn.colors;
 
-  // Return color at specified row, or default to middle row (2) if invalid
-  return colors[shade] ? colors[shade] : colors[2];
+  // Get the color at specified shade, or default to middle row (2) if invalid
+  const selectedColor = colors[shade] ? colors[shade] : colors[2];
+
+  // Apply opacity if provided (opacity is independent of colorblind mode)
+  if (opacity !== undefined) {
+    return hexToRgba(selectedColor, opacity);
+  }
+
+  return selectedColor;
 };

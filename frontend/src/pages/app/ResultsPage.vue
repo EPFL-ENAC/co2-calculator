@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
@@ -13,7 +13,13 @@ import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.v
 import { formatNumber } from 'src/utils/number';
 
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
 const { t } = useI18n();
+
+const workspaceStore = useWorkspaceStore();
+const currentYear = computed(() => {
+  return workspaceStore.selectedYear ?? new Date().getFullYear();
+});
 
 // Use global colorblindMode directly as single source of truth
 // No local ref, no watcher, no initialization override
@@ -99,8 +105,8 @@ const downloadPDF = () => {
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
           number="37'250"
-          :comparison="$t('results_equivalent_to_car', { km: '0.34 kg' })"
-          comparison-highlight="0.34 kg CO₂-eq/km"
+          :comparison="$t('results_equivalent_to_car', { km: '0.34t' })"
+          comparison-highlight="0.34t CO₂-eq/km"
           color="negative"
         >
           <template #tooltip>{{
@@ -137,7 +143,7 @@ const downloadPDF = () => {
         </BigNumber>
       </q-card>
       <q-card flat class="grid-2-col">
-        <ModuleCarbonFootprintChart />
+        <ModuleCarbonFootprintChart :view-uncertainties="viewUncertainties" />
 
         <ChartContainer :title="$t('results_carbon_footprint_per_person')">
           <template #tooltip>tooltip</template>
@@ -153,7 +159,9 @@ const downloadPDF = () => {
                 {{ $t('results_by_category_title') }}
               </h2>
               <span class="text-body1 text-secondary">{{
-                $t('results_by_category_subtitle', { year: '2024' })
+                $t('results_by_category_subtitle', {
+                  year: currentYear,
+                })
               }}</span>
             </div>
           </div>
@@ -195,15 +203,21 @@ const downloadPDF = () => {
                   class="grid-3-col q-mb-lg"
                 >
                   <BigNumber
-                    :title="$t('results_total_unit_carbon_footprint')"
+                    :title="
+                      $t('results_total_module_carbon_footprint', {
+                        module: $t(module),
+                      })
+                    "
                     number="37'250"
                     :comparison="
-                      $t('results_equivalent_to_car', { km: '0.34 kg' })
+                      $t('results_equivalent_to_car', { km: '0.34t' })
                     "
-                    comparison-highlight="0.34 kg CO₂-eq/km"
+                    comparison-highlight="0.34t CO₂-eq/km"
                     color="negative"
                   >
-                    <template #tooltip>tip</template>
+                    <template #tooltip>{{
+                      $t('results_total_unit_carbon_footprint_tooltip')
+                    }}</template>
                   </BigNumber>
                   <BigNumber
                     :title="$t('results_carbon_footprint_per_fte')"
@@ -221,7 +235,11 @@ const downloadPDF = () => {
                     }}</template>
                   </BigNumber>
                   <BigNumber
-                    :title="$t('results_unit_carbon_footprint')"
+                    :title="
+                      $t('results_module_carbon_footprint', {
+                        module: $t(module),
+                      })
+                    "
                     number="-11.3%"
                     :unit="$t('results_compared_to', { year: '2023' })"
                     color="positive"
@@ -232,7 +250,6 @@ const downloadPDF = () => {
                     "
                     :comparison-highlight="`${formatNumber(48)}t CO₂-eq`"
                   >
-                    <template #tooltip>tooltip</template>
                   </BigNumber>
                 </q-card>
                 <q-card flat bordered>

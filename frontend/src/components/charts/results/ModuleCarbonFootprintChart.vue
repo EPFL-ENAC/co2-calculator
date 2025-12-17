@@ -34,6 +34,10 @@ use([
   GraphicComponent,
 ]);
 
+const props = defineProps<{
+  viewUncertainties?: boolean;
+}>();
+
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
@@ -70,7 +74,23 @@ const getDataArray = (baseData: number[]): number[] => {
   return baseData;
 };
 
+const getUncertaintyDataArray = (baseData: number[]): number[] => {
+  const showUncertainties = props.viewUncertainties ?? false;
+  if (!showUncertainties) {
+    // Return all zeros when uncertainty is disabled
+    const length = toggleAdditionalData.value
+      ? baseData.length + 4
+      : baseData.length;
+    return new Array(length).fill(0);
+  }
+  // Return actual uncertainty values when enabled
+  return getDataArray(baseData);
+};
+
 const chartOption = computed((): EChartsOption => {
+  // Explicitly reference props.viewUncertainties to ensure reactivity
+  const showUncertainties = props.viewUncertainties ?? false;
+
   return {
     tooltip: {
       trigger: 'axis',
@@ -84,10 +104,35 @@ const chartOption = computed((): EChartsOption => {
 
         params.reverse().forEach((param: AxisTooltipParams) => {
           if (param.value > 0) {
-            tooltip += `${param.marker} ${param.seriesName}: <strong>${param.value} </strong><br/>`;
+            const isUncertainty = param.seriesName
+              .toLowerCase()
+              .includes('uncertainty');
+
+            // Skip uncertainty series - we'll combine them with main series
+            if (isUncertainty) {
+              total += param.value;
+              return;
+            }
+
+            // Find matching uncertainty series
+            let displayValue = param.value.toString();
+            if (showUncertainties) {
+              const uncertaintyParam = params.find(
+                (p) =>
+                  p.seriesName.toLowerCase().includes('uncertainty') &&
+                  p.seriesName.toLowerCase().replace(/\s+uncertainty$/, '') ===
+                    param.seriesName.toLowerCase(),
+              );
+              if (uncertaintyParam && uncertaintyParam.value > 0) {
+                displayValue = `${param.value} ± ${uncertaintyParam.value}`;
+              }
+            }
+
+            tooltip += `${param.marker} ${param.seriesName}: <strong>${displayValue} </strong><br/>`;
             total += param.value;
           }
         });
+
         tooltip += `<hr style="margin: 4px 0"/>Total: <strong>${total.toFixed(1)}</strong>`;
         return tooltip;
       },
@@ -303,12 +348,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'Unit Gas Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0.5, 0, 0, 0, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('notDefined', 0, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: 'Infrastructure Gas',
         type: 'bar',
         stack: 'total',
         data: getDataArray([0, 2, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('notDefined'),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
+        name: 'Infrastructure Gas Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0.4, 0, 0, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('notDefined', 0, 0.5),
         },
         label: {
           show: false,
@@ -327,12 +396,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'Cooling Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('blueGrey', 0, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: 'Ventilation',
         type: 'bar',
         stack: 'total',
         data: getDataArray([0, 0, 3, 0, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('blueGrey', 1),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
+        name: 'Ventilation Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 1, 0, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('blueGrey', 1, 0.5),
         },
         label: {
           show: false,
@@ -351,12 +444,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'Lighting Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('blueGrey', 2, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: 'Scientific',
         type: 'bar',
         stack: 'total',
         data: getDataArray([0, 0, 0, 10, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('purple', 0),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
+        name: 'Scientific Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 2, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('purple', 0, 0.5),
         },
         label: {
           show: false,
@@ -375,12 +492,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'IT Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0.6, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('purple', 1, 0.1),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: 'Other',
         type: 'bar',
         stack: 'total',
         data: getDataArray([0, 0, 0, 0.2, 0, 0, 0, 0]),
         itemStyle: {
           color: getElement('purple', 2),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
+        name: 'Other Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0.04, 0, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('purple', 2, 0.5),
         },
         label: {
           show: false,
@@ -399,12 +540,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'Train Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0.3, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('blue', 0, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: 'Plane',
         type: 'bar',
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 3, 0, 0, 0]),
         itemStyle: {
           color: getElement('blue', 1),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
+        name: 'Plane Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0.6, 0, 0, 0]),
+        itemStyle: {
+          color: getElement('blue', 1, 0.5),
         },
         label: {
           show: false,
@@ -420,12 +585,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: 'IT Infrastructure Uncertainty',
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0.2, 0, 0]),
+        itemStyle: {
+          color: getElement('notDefined', 0, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: t('charts-bio-chemicals-subcategory'),
         type: 'bar' as const,
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
         itemStyle: {
           color: getElement('green', 0),
+        },
+      },
+      {
+        name: `${t('charts-bio-chemicals-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 0, 0.5),
+        },
+        label: {
+          show: false,
         },
       },
       {
@@ -438,12 +627,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: `${t('charts-consumables-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.6, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 1, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: t('charts-equipment-subcategory'),
         type: 'bar' as const,
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 1, 0]) as number[],
         itemStyle: {
           color: getElement('green', 2),
+        },
+      },
+      {
+        name: `${t('charts-equipment-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.2, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 2, 0.5),
+        },
+        label: {
+          show: false,
         },
       },
       {
@@ -456,12 +669,36 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       {
+        name: `${t('charts-services-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
+        itemStyle: {
+          color: getElement('green', 3, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
+      {
         name: t('charts-scitas-subcategory'),
         type: 'bar' as const,
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1]) as number[],
         itemStyle: {
           color: getElement('purpleGrey', 0),
+        },
+      },
+      {
+        name: `${t('charts-scitas-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.2]) as number[],
+        itemStyle: {
+          color: getElement('purpleGrey', 0, 0.5),
+        },
+        label: {
+          show: false,
         },
       },
       {
@@ -473,9 +710,31 @@ const chartOption = computed((): EChartsOption => {
           color: getElement('purpleGrey', 1),
         },
       },
+      {
+        name: `${t('charts-rcp-subcategory')} Uncertainty`,
+        type: 'bar' as const,
+        stack: 'total',
+        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.3]) as number[],
+        itemStyle: {
+          color: getElement('purpleGrey', 1, 0.5),
+        },
+        label: {
+          show: false,
+        },
+      },
 
       ...(() => {
         if (toggleAdditionalData.value) {
+          const getAdditionalUncertaintyData = (
+            baseData: number[],
+          ): number[] => {
+            const showUncertainties = props.viewUncertainties ?? false;
+            if (!showUncertainties) {
+              return new Array(12).fill(0);
+            }
+            return baseData;
+          };
+
           return [
             {
               name: 'Commuting',
@@ -484,6 +743,20 @@ const chartOption = computed((): EChartsOption => {
               data: [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0] as number[],
               itemStyle: {
                 color: getElement('tealBlue'),
+              },
+            },
+            {
+              name: 'Commuting Uncertainty',
+              type: 'bar' as const,
+              stack: 'total',
+              data: getAdditionalUncertaintyData([
+                0, 0, 0, 0, 0, 0, 0, 0, 1.6, 0, 0, 0,
+              ]) as number[],
+              itemStyle: {
+                color: getElement('tealBlue', 0, 0.5),
+              },
+              label: {
+                show: false,
               },
             },
             {
@@ -496,6 +769,20 @@ const chartOption = computed((): EChartsOption => {
               },
             },
             {
+              name: 'Food Uncertainty',
+              type: 'bar' as const,
+              stack: 'total',
+              data: getAdditionalUncertaintyData([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0,
+              ]) as number[],
+              itemStyle: {
+                color: getElement('forestGreen', 0, 0.5),
+              },
+              label: {
+                show: false,
+              },
+            },
+            {
               name: t('charts-waste-category'),
               type: 'bar' as const,
               stack: 'total',
@@ -505,12 +792,40 @@ const chartOption = computed((): EChartsOption => {
               },
             },
             {
+              name: `${t('charts-waste-category')} Uncertainty`,
+              type: 'bar' as const,
+              stack: 'total',
+              data: getAdditionalUncertaintyData([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+              ]) as number[],
+              itemStyle: {
+                color: getElement('limeGreen', 0, 0.5),
+              },
+              label: {
+                show: false,
+              },
+            },
+            {
               name: t('charts-grey-energy-category'),
               type: 'bar' as const,
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] as number[],
               itemStyle: {
                 color: getElement('neutralGrey'),
+              },
+            },
+            {
+              name: `${t('charts-grey-energy-category')} Uncertainty`,
+              type: 'bar' as const,
+              stack: 'total',
+              data: getAdditionalUncertaintyData([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8,
+              ]) as number[],
+              itemStyle: {
+                color: getElement('neutralGrey', 0, 0.5),
+              },
+              label: {
+                show: false,
               },
             },
           ];
@@ -527,7 +842,7 @@ const chartOption = computed((): EChartsOption => {
     <q-card-section class="flex justify-between items-center">
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ $t('results_module_carbon_footprint') }}
+          {{ $t('unit_carbon_footprint_title') }}
         </span>
       </div>
       <q-checkbox
