@@ -315,8 +315,8 @@ export default {
     fr: "Empreinte carbone de l'unité",
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Total carbon footprint of the unit including all modules',
-    fr: "Empreinte carbone totale de l'unité incluant tous les modules",
+    en: 'Calculated with the value of 0.34 kg CO₂-eq / km',
+    fr: 'Calculé avec la valeur de 0.34 kg CO₂-eq / km',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',

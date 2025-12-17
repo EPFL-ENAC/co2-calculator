@@ -44,25 +44,8 @@ const getUncertainty = (
 };
 
 const downloadPDF = () => {
-  // Get the HTML content of the current page
-  const htmlContent = document.documentElement.outerHTML;
-
-  // Create a blob with the HTML content
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-
-  // Create a download link
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'results-page.html';
-
-  // Trigger the download
-  document.body.appendChild(link);
-  link.click();
-
-  // Clean up
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Open browser print dialog where user can save as PDF
+  window.print();
 };
 </script>
 
@@ -120,7 +103,9 @@ const downloadPDF = () => {
           comparison-highlight="0.34 kg CO₂-eq/km"
           color="negative"
         >
-          <template #tooltip>tip</template>
+          <template #tooltip>{{
+            $t('results_total_unit_carbon_footprint_tooltip')
+          }}</template>
         </BigNumber>
         <BigNumber
           :title="$t('results_carbon_footprint_per_fte')"
@@ -149,14 +134,11 @@ const downloadPDF = () => {
           "
           :comparison-highlight="`${formatNumber(48)}t CO₂-eq`"
         >
-          <template #tooltip>tooltip</template>
         </BigNumber>
       </q-card>
       <q-card flat class="grid-2-col">
-        <ChartContainer :title="$t('results_module_carbon_footprint')">
-          <template #tooltip>tooltip</template>
-          <ModuleCarbonFootprintChart />
-        </ChartContainer>
+        <ModuleCarbonFootprintChart />
+
         <ChartContainer :title="$t('results_carbon_footprint_per_person')">
           <template #tooltip>tooltip</template>
           <CarbonFootPrintPerPersonChart />
