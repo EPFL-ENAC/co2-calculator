@@ -21,8 +21,8 @@
         :data="data"
         :loading="loading"
         :error="error"
-        :unit-id="unit"
-        :year="year"
+        :unit-id="workspaceStore.selectedUnit?.id"
+        :year="workspaceStore.selectedYear"
       />
       <!-- module summary -->
       <module-total-result
@@ -50,6 +50,7 @@ import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult
 import ModuleNavigation from 'src/components/organisms/module/ModuleNavigation.vue';
 import { Module, MODULES } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
@@ -62,10 +63,11 @@ const currentModuleConfig: Ref<ModuleConfig> = computed(
 );
 
 // compute unit and year from route params
-const unit = computed(() => String($route.params.unit ?? 'default'));
-const year = computed(() =>
-  String($route.params.year ?? new Date().getFullYear()),
-);
+// const unit = computed(() => String($route.params.unit ?? 'default'));
+// const year = computed(() =>
+//   String($route.params.year ?? new Date().getFullYear()),
+// );
+const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
@@ -85,12 +87,20 @@ const getData = () => {
     moduleStore.state.error = null;
     return;
   }
-  moduleStore.getModuleTotals(currentModuleType.value, unit.value, year.value);
+  moduleStore.getModuleTotals(
+    currentModuleType.value,
+    String(workspaceStore.selectedUnit?.id),
+    String(workspaceStore.selectedYear),
+  );
 };
 
 onMounted(getData);
 watch(
-  [() => currentModuleType.value, () => unit.value, () => year.value],
+  [
+    () => currentModuleType.value,
+    () => workspaceStore.selectedUnit,
+    () => workspaceStore.selectedYear,
+  ],
   getData,
 );
 </script>
