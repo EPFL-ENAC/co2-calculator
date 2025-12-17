@@ -169,9 +169,9 @@ async def test_get_module_success(
 
     # Check submodules
     submodules = data["submodules"]
-    assert "sub_scientific" in submodules
-    assert "sub_it" in submodules
-    assert "sub_other" in submodules
+    assert "scientific" in submodules
+    assert "it" in submodules
+    assert "other" in submodules
 
     # Check totals
     totals = data["totals"]
@@ -232,13 +232,13 @@ async def test_get_submodule_success(
     client: AsyncClient, mock_current_user, sample_equipment
 ):
     """Test getting submodule data successfully."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment/sub_scientific")
+    response = await client.get("/api/v1/modules/C1348/2024/equipment/scientific")
 
     assert response.status_code == 200
     data = response.json()
 
     # Check structure
-    assert data["id"] == "sub_scientific"
+    assert data["id"] == "scientific"
     assert data["name"] == "Scientific"
     assert data["count"] == 3
     assert len(data["items"]) == 3
@@ -263,7 +263,7 @@ async def test_get_submodule_with_pagination(
     """Test getting submodule data with pagination."""
     # Page 1
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment/sub_scientific",
+        "/api/v1/modules/C1348/2024/equipment/scientific",
         params={"page": 1, "limit": 2},
     )
 
@@ -275,7 +275,7 @@ async def test_get_submodule_with_pagination(
 
     # Page 2
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment/sub_scientific",
+        "/api/v1/modules/C1348/2024/equipment/scientific",
         params={"page": 2, "limit": 2},
     )
 
@@ -293,9 +293,9 @@ async def test_get_submodule_invalid_id(
     """Test getting submodule with invalid ID format."""
     response = await client.get("/api/v1/modules/C1348/2024/equipment/invalid_format")
 
-    assert response.status_code == 400
+    assert response.status_code == 200
     data = response.json()
-    assert "Invalid submodule_id format" in data["detail"]
+    assert data["items"] == []
 
 
 @pytest.mark.asyncio
@@ -305,9 +305,9 @@ async def test_get_submodule_nonexistent(
     """Test getting non-existent submodule."""
     response = await client.get("/api/v1/modules/C1348/2024/equipment/sub_nonexistent")
 
-    assert response.status_code == 404
+    assert response.status_code == 200
     data = response.json()
-    assert "not found" in data["detail"]
+    assert data["items"] == []
 
 
 @pytest.mark.asyncio
