@@ -164,7 +164,10 @@ export const useModuleStore = defineStore('modules', () => {
         queryParams.append('sort_by', pagination.sortBy);
       }
       if (pagination.descending) {
-        queryParams.append('sort_order', pagination.descending ? 'desc' : 'asc');
+        queryParams.append(
+          'sort_order',
+          pagination.descending ? 'desc' : 'asc',
+        );
       }
       const filterTerm = state.filterTermSubmodule[submoduleType];
       if (filterTerm && filterTerm.trim().length > 0) {
@@ -287,8 +290,7 @@ export const useModuleStore = defineStore('modules', () => {
           unit: unitId,
           year,
           submoduleType: normalizedSubmoduleId,
-        }
-        );
+        });
       }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -326,8 +328,7 @@ export const useModuleStore = defineStore('modules', () => {
             moduleType,
             unit,
             year,
-          }
-          );
+          });
         }
       }
     } catch (err: unknown) {
@@ -360,14 +361,12 @@ export const useModuleStore = defineStore('modules', () => {
       if (affectedSubmoduleId) {
         const pagination = state.paginationSubmodule[affectedSubmoduleId];
         if (pagination) {
-          await getSubmoduleData(
-            {
-              moduleType,
-              submoduleType: affectedSubmoduleId,
-              unit,
-              year,
-            }
-          );
+          await getSubmoduleData({
+            moduleType,
+            submoduleType: affectedSubmoduleId,
+            unit,
+            year,
+          });
         }
       }
     } catch (err: unknown) {
