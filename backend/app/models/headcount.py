@@ -54,16 +54,27 @@ class HeadCountBase(SQLModel):
 
     cf: str = Field(max_length=50, description="Cost factor code")
     cf_name: str = Field(max_length=255, description="Cost factor name")
-    cf_user_id: str = Field(max_length=50, description="Cost factor user ID")
 
-    display_name: str = Field(max_length=255, description="Display name of the person")
-    status: str = Field(
+    # Optional depending on submodule
+    cf_user_id: Optional[str] = Field(max_length=50, description="Cost factor user ID")
+    display_name: Optional[str] = Field(
+        max_length=255, description="Display name of the person"
+    )
+    status: Optional[str] = Field(
         max_length=100, description="Status (e.g., 'Employé(e) / 13 NSS')"
     )
-    function: str = Field(max_length=255, description="Function or role")
+    function: Optional[str] = Field(max_length=255, description="Function or role")
 
-    sciper: str = Field(max_length=20, index=True, description="Sciper number")
+    sciper: Optional[str] = Field(
+        max_length=20, index=True, description="Sciper number"
+    )
     ept: float = Field(description="Full-time equivalent percentage (0.0 to 1.0)")
+
+    # Literal["member", "student"]
+    submodule: str = Field(
+        index=True,
+        description="Equipment submodule grouping (e.g., 'member', 'student')",
+    )
 
 
 # ==========================================
@@ -83,8 +94,9 @@ class HeadCount(HeadCountBase, AuditMixin, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # Provider: Set by system/logic, not by user input directly
+    # Literal["api", "csv", "manual"]
     provider: Optional[str] = Field(
-        default=None, max_length=50, description="Source: 'api', 'csv', 'manual'"
+        default=None, max_length=50, description="api | csv | manual"
     )
 
     def __repr__(self) -> str:

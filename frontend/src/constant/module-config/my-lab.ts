@@ -6,6 +6,7 @@ import {
   outlinedAssignmentInd,
   outlinedTimer,
 } from '@quasar/extras/material-icons-outlined';
+import { MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 
 export const iconMap: Record<string, string> = {
   o_filter_drama: outlinedFilterDrama,
@@ -72,6 +73,10 @@ export const myLab: ModuleConfig = {
     'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
+  threshold: {
+    type: MODULES_THRESHOLD_TYPES[0],
+    value: 1000000, // FTE; implicit coloring only
+  },
   submodules: [
     {
       id: 'member',

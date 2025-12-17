@@ -1,6 +1,6 @@
 """Equipment service for business logic and data transformation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -36,7 +36,7 @@ SUBMODULE_NAMES = {
 async def get_module_data(
     session: AsyncSession,
     unit_id: str,
-    year: str,
+    year: int,
     preview_limit: Optional[int] = None,
 ) -> ModuleResponse:
     """
@@ -153,6 +153,7 @@ async def get_module_data(
         total_items=total_items,
         total_annual_consumption_kwh=round(total_kwh, 2),
         total_kg_co2eq=round(total_co2, 2),
+        total_annual_fte=None,  # FTE not applicable for equipment
     )
 
     # Create module response
@@ -160,7 +161,7 @@ async def get_module_data(
         module_type="equipment-electric-consumption",
         unit="kWh",
         year=year,
-        retrieved_at=datetime.utcnow().isoformat() + "Z",
+        retrieved_at=datetime.now(timezone.utc),
         submodules=submodules,
         totals=totals,
     )

@@ -15,6 +15,7 @@ from app.schemas.equipment import (
     SubmoduleResponse,
 )
 from app.services import equipment_service
+from app.services.headcount_service import HeadcountService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -49,20 +50,25 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
-    unit_id = str("C1348")  # Temporary hardcode for demo purposes
     logger.info(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
 
-    # Fetch real data from database
-    module_data = await equipment_service.get_module_data(
-        session=db,
-        unit_id=unit_id,
-        year=str(year),
-        preview_limit=preview_limit,
-    )
-
+    if module_id == "equipment-electric-consumption":
+        # Fetch real data from database
+        module_data = await equipment_service.get_module_data(
+            session=db,
+            unit_id=unit_id,
+            year=year,
+            preview_limit=preview_limit,
+        )
+    if module_id == "my-lab":
+        # Fetch real data from database
+        module_data = await HeadcountService(db).get_module_data(
+            unit_id=unit_id,
+            year=year,
+        )
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "
         f"across {module_data.totals.total_submodules} submodules"
@@ -113,22 +119,35 @@ async def get_submodule(
         f"sort_order={sanitize(sort_order)}"
     )
 
-    unit_id = str("C1348")  # Temporary hardcode for demo purposes
-
     # Calculate offset from page number
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
-    submodule_data = await equipment_service.get_submodule_data(
-        session=db,
-        unit_id=unit_id,
-        submodule_key=submodule_id,
-        limit=limit,
-        offset=offset,
-        sort_by=sort_by,
-        sort_order=sort_order,
-    )
-
+    if module_id == "equipment-electric-consumption":
+        submodule_data = await equipment_service.get_submodule_data(
+            session=db,
+            unit_id=unit_id,
+            submodule_key=submodule_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+    if module_id == "my-lab":
+        submodule_data = await HeadcountService(db).get_submodule_data(
+            unit_id=unit_id,
+            year=year,
+            submodule_key=submodule_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+    if not submodule_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodule not found",
+        )
     logger.info(
         f"Submodule data returned: {len(submodule_data.items)} items "
         f"(total: {submodule_data.count}, page: {sanitize(page)})"
@@ -176,7 +195,6 @@ async def create_equipment(
             detail=f"unit_id in path ({unit_id}) must match "
             f"unit_id in request body ({equipment_data.unit_id})",
         )
-    equipment_data.unit_id = "C1348"  # Temporary hardcode for demo purposes
 
     equipment = await equipment_service.create_equipment(
         session=db,

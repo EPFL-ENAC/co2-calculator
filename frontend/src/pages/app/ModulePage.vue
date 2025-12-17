@@ -75,10 +75,17 @@ const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);
 
+const AuthorizedModules: Module[] = [
+  MODULES.EquipmentElectricConsumption,
+  MODULES.MyLab,
+];
 // get data on mount and when route params change
 const getData = () => {
   if (!currentModuleType.value) return;
-  if (currentModuleType.value != MODULES.EquipmentElectricConsumption) {
+  if (
+    currentModuleType.value &&
+    !AuthorizedModules.includes(currentModuleType.value)
+  ) {
     console.warn(
       `ModulePage: No data fetching implemented for module type ${currentModuleType.value}`,
     );
