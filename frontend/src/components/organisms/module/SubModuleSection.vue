@@ -1,16 +1,40 @@
 <template>
   <q-expansion-item
     v-if="submodule.tableNameKey"
-    :label="
-      $t(submodule.tableNameKey, {
-        count: submoduleCount || 0,
-      })
-    "
     flat
     header-class="text-h5 text-weight-medium"
     class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
     @before-show="onExpand"
   >
+    <template #header>
+      <div class="row flex items-center full-width">
+        <div class="col">
+          {{
+            $t(submodule.tableNameKey, {
+              count: submoduleCount || 0,
+            })
+          }}
+        </div>
+        <q-icon
+          v-if="hasTableTooltip"
+          :name="outlinedInfo"
+          size="sm"
+          class="cursor-pointer q-mr-sm"
+          :aria-label="
+            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
+          "
+        >
+          <q-tooltip
+            v-if="hasTableTooltip"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip"
+          >
+            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+          </q-tooltip>
+        </q-icon>
+      </div>
+    </template>
     <q-separator />
     <q-card-section class="q-pa-none">
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
@@ -62,11 +86,14 @@ import { Submodule as ConfigSubmodule } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import type {
   ModuleResponse,
   ModuleItem,
   Threshold,
   ConditionalSubmoduleProps,
+  AllSubmoduleTypes,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
@@ -135,6 +162,11 @@ const rows = computed(() => {
 });
 
 const submoduleType = computed(() => {
+  // Use submodule.type if available (already set correctly in config)
+  if (props.submodule.type) {
+    return props.submodule.type;
+  }
+  // Fallback to ID-based mapping for equipment submodules
   switch (props.submodule.id) {
     case 'sub_scientific':
       return 'scientific';
@@ -143,8 +175,16 @@ const submoduleType = computed(() => {
     case 'sub_other':
       return 'other';
     default:
-      return undefined as unknown as 'scientific' | 'it' | 'other' | undefined;
+      return undefined as unknown as AllSubmoduleTypes | undefined;
   }
+});
+
+const { te } = useI18n();
+
+const hasTableTooltip = computed(() => {
+  if (!submoduleType.value) return false;
+  const tooltipKey = `${props.moduleType}-${submoduleType.value}-table-title-info-tooltip`;
+  return te(tooltipKey);
 });
 
 function onExpand() {

@@ -15,15 +15,32 @@
     <q-card-subtitle v-if="hasSubtitle" class="q-mx-lg q-my-xl">
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-subtitle>
-    <q-expansion-item
-      v-if="hasStudentHelper"
-      flat
-      :label="$t(`${moduleType}-${submoduleType}-student-helper-title`)"
-      header-class="text-h5 text-weight-medium"
-      class="q-mx-lg q-my-xl"
-    >
-      student helper placeholder
-    </q-expansion-item>
+    <q-card-section>
+      <q-card flat bordered class="q-pa-none">
+        <q-expansion-item
+          v-if="hasStudentHelper"
+          flat
+          bordered
+          header-class="text-h5 text-weight-medium"
+        >
+          <template #header>
+            <div class="row flex items-center full-width">
+              <q-icon
+                name="o_calculate"
+                size="sm"
+                class="q-mr-sm"
+                color="accent"
+              />
+              <div class="col">
+                {{ $t(`student_helper_title`) }}
+              </div>
+            </div>
+          </template>
+          <q-separator />
+          <StudentFTECalculator @use-value="onUseCalculatedFTE" />
+        </q-expansion-item>
+      </q-card>
+    </q-card-section>
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -153,13 +170,14 @@
 
 <script setup lang="ts">
 import { reactive, watch, computed, toRef } from 'vue';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { QInput, QSelect, QCheckbox } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import StudentFTECalculator from './StudentFTECalculator.vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 
 const { t: $t } = useI18n();
 
@@ -345,6 +363,10 @@ function getGridClass(ratio?: string): string {
   if (!numerator || !denominator) return 'form-field--full';
   const span = Math.round((numerator / denominator) * 12);
   return `form-field--span-${span}`;
+}
+
+function onUseCalculatedFTE(value: number) {
+  form['fte'] = value;
 }
 </script>
 <style scoped lang="scss">

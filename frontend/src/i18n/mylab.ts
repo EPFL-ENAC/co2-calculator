@@ -26,9 +26,18 @@ export default {
     en: 'Students',
     fr: 'Étudiants',
   },
+
   [`${MODULES.MyLab}-member-table-title-info-tooltip`]: {
     en: 'You can add data one at a time using the Add FTE below, or upload several entries at once using a file that follows the template.',
     fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter un EPT » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
+  },
+  [`${MODULES.MyLab}-student-table-title-info-label`]: {
+    en: 'Students table information',
+    fr: 'Informations sur le tableau des étudiants',
+  },
+  [`${MODULES.MyLab}-student-table-title-info-tooltip`]: {
+    en: 'Due to data-protection rules, students names and individual FTE are not shown automatically.',
+    fr: 'En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.',
   },
   [`${MODULES.MyLab}-charts-title`]: {
     en: 'Charts',
@@ -66,15 +75,18 @@ export default {
     fr: 'EPT étudiants total',
   },
   [`${MODULES.MyLab}-student-form-title`]: {
-    en: 'Student FTE',
-    fr: 'EPT étudiants',
+    en: 'Add FTE',
+    fr: 'Ajouter un EPT',
   },
 
+  [`${MODULES.MyLab}-student-form-title-info-tooltip`]: {
+    en: `Due to data-protection rules, students’ names and individual FTE are not shown automatically.`,
+    fr: `En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.te`,
+  },
   [`${MODULES.MyLab}-student-form-subtitle`]: {
-    en: `Please use the
-      Student FTE Calculator Helper below, then enter the aggregated usage time.
+    en: ` Please use the Student FTE Calculator Helper below, then enter the aggregated usage time.
     `,
-    fr: `Veuillez utiliser l'outil Calculateur d’EPT étudiants ci-dessous, puis saisir le temps d'utilisation agrégé.`,
+    fr: `Veuillez utiliser l’outil d’aide « Calculateur d’EPT Étudiants » ci-dessous, puis entrer le temps d’utilisation agrégé.`,
   },
   [`${MODULES.MyLab}-student-student-helper-title`]: {
     en: 'Student FTE Calculator Helper',
@@ -87,5 +99,31 @@ export default {
   [`${MODULES.MyLab}-member-form-title-info-tooltip`]: {
     en: 'lorem ipsum',
     fr: '',
+  },
+
+  student_helper_title: {
+    en: 'Student FTE Calculator Helper',
+    fr: 'FTE étudiants - Outil d’aide au calcul',
+  },
+
+  student_helper_students_label: {
+    en: 'Number of students',
+    fr: "Nombre d'étudiant·es",
+  },
+  student_helper_duration_label: {
+    en: 'Average duration (months)',
+    fr: 'Durée moyenne (mois)',
+  },
+  student_helper_avg_fte_label: {
+    en: 'Average FTE per student',
+    fr: 'EPT moyen par étudiant·e',
+  },
+  student_helper_calculated_label: {
+    en: 'Calculated Annual FTE',
+    fr: 'EPT annuel calculé',
+  },
+  student_helper_use_button: {
+    en: 'Use This Value',
+    fr: 'Utiliser cette valeur',
   },
 } as const;
