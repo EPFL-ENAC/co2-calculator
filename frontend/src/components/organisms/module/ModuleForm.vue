@@ -1,9 +1,12 @@
 <template>
   <q-card flat>
-    <q-card-title class="row flex justify-between items-center q-mx-lg q-my-xl">
-      <h3 class="text-h3 text-weight-medium q-mb-none">
+    <q-card-section
+      class="row flex justify-between items-center q-mx-lg q-my-xl"
+    >
+      <div class="text-h3 text-weight-medium q-mb-none">
         {{ $t(`${moduleType}-${submoduleType}-form-title`) }}
-      </h3>
+      </div>
+
       <q-icon
         v-if="hasTooltip"
         :name="outlinedInfo"
@@ -11,14 +14,14 @@
         class="cursor-pointer"
         :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
       />
-    </q-card-title>
-    <q-card-subtitle v-if="hasSubtitle" class="q-mx-lg q-my-xl">
+    </q-card-section>
+
+    <q-card-section v-if="hasSubtitle" class="q-mx-lg q-my-xl text-subtitle1">
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
-    </q-card-subtitle>
-    <q-card-section>
+    </q-card-section>
+    <q-card-section v-if="hasStudentHelper">
       <q-card flat bordered class="q-pa-none">
         <q-expansion-item
-          v-if="hasStudentHelper"
           flat
           bordered
           header-class="text-h5 text-weight-medium"
@@ -41,6 +44,7 @@
         </q-expansion-item>
       </q-card>
     </q-card-section>
+
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -71,7 +75,7 @@
                 v-model="form[inp.id]"
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
-                    moduleTitle: $t(`${moduleType}-${submoduleType}`),
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
                   })
                 "
                 :placeholder="inp.placeholder"
@@ -192,7 +196,7 @@ const props = withDefaults(
   defineProps<{
     fields?: ModuleField[] | null;
     rowData?: Record<string, FieldValue> | null;
-    submoduleType?: AllSubmoduleTypes;
+    submoduleType: AllSubmoduleTypes;
     moduleType: Module | string;
     hasTooltip?: boolean;
     hasSubtitle?: boolean;
@@ -203,7 +207,6 @@ const props = withDefaults(
   {
     fields: null,
     rowData: null,
-    submoduleType: undefined,
     hasTooltip: true,
     hasSubtitle: false,
     hasStudentHelper: false,

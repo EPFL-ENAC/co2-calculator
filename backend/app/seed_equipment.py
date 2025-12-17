@@ -258,7 +258,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 active_power_w=active_power_w,
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
-                unit_id="C1348",  # All equipment in synth_data is from C1348
+                unit_id="10208",  # All equipment in synth_data is from 10208 (enac-it)
                 equipment_metadata={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),

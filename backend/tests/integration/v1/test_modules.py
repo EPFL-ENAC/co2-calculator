@@ -154,7 +154,9 @@ async def test_get_module_success(
     client: AsyncClient, mock_current_user, sample_equipment
 ):
     """Test getting module data successfully."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -162,7 +164,7 @@ async def test_get_module_success(
     # Check structure
     assert data["module_type"] == "equipment-electric-consumption"
     assert data["unit"] == "kWh"
-    assert data["year"] == "2024"
+    assert data["year"] == 2024
     assert "retrieved_at" in data
     assert "submodules" in data
     assert "totals" in data
@@ -187,7 +189,8 @@ async def test_get_module_with_preview_limit(
 ):
     """Test getting module data with preview limit."""
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment", params={"preview_limit": 2}
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption",
+        params={"preview_limit": 2},
     )
 
     assert response.status_code == 200
@@ -206,7 +209,8 @@ async def test_get_module_invalid_preview_limit(
 ):
     """Test getting module data with invalid preview limit (> 100)."""
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment", params={"preview_limit": 150}
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption",
+        params={"preview_limit": 150},
     )
 
     assert response.status_code == 422  # Validation error
@@ -215,7 +219,9 @@ async def test_get_module_invalid_preview_limit(
 @pytest.mark.asyncio
 async def test_get_module_no_data(client: AsyncClient, mock_current_user):
     """Test getting module data when no equipment exists."""
-    response = await client.get("/api/v1/modules/NONEXISTENT/2024/equipment")
+    response = await client.get(
+        "/api/v1/modules/NONEXISTENT/2024/equipment-electric-consumption"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -232,7 +238,9 @@ async def test_get_submodule_success(
     client: AsyncClient, mock_current_user, sample_equipment
 ):
     """Test getting submodule data successfully."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment/scientific")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -263,7 +271,7 @@ async def test_get_submodule_with_pagination(
     """Test getting submodule data with pagination."""
     # Page 1
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment/scientific",
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific",
         params={"page": 1, "limit": 2},
     )
 
@@ -275,7 +283,7 @@ async def test_get_submodule_with_pagination(
 
     # Page 2
     response = await client.get(
-        "/api/v1/modules/C1348/2024/equipment/scientific",
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific",
         params={"page": 2, "limit": 2},
     )
 
@@ -291,7 +299,9 @@ async def test_get_submodule_invalid_id(
     client: AsyncClient, mock_current_user, sample_equipment
 ):
     """Test getting submodule with invalid ID format."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment/invalid_format")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/invalid_format"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -303,7 +313,9 @@ async def test_get_submodule_nonexistent(
     client: AsyncClient, mock_current_user, sample_equipment
 ):
     """Test getting non-existent submodule."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment/sub_nonexistent")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/sub_nonexistent"
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -331,7 +343,8 @@ async def test_create_equipment_success(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 201
@@ -370,7 +383,8 @@ async def test_create_equipment_unit_id_mismatch(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 400
@@ -392,7 +406,8 @@ async def test_create_equipment_invalid_submodule(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 422  # Validation error
@@ -410,7 +425,8 @@ async def test_create_equipment_missing_required_fields(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 422  # Validation error
@@ -431,7 +447,8 @@ async def test_create_equipment_invalid_usage_percentage(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 422  # Validation error
@@ -445,7 +462,7 @@ async def test_get_equipment_success(
     equipment = sample_equipment[0]
 
     response = await client.get(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}"
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}"
     )
 
     assert response.status_code == 200
@@ -461,7 +478,9 @@ async def test_get_equipment_success(
 @pytest.mark.asyncio
 async def test_get_equipment_not_found(client: AsyncClient, mock_current_user):
     """Test getting non-existent equipment."""
-    response = await client.get("/api/v1/modules/C1348/2024/equipment/equipment/999999")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/999999"
+    )
 
     assert response.status_code == 404
     data = response.json()
@@ -483,7 +502,7 @@ async def test_update_equipment_success(
     }
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
         json=update_data,
     )
 
@@ -511,7 +530,7 @@ async def test_update_equipment_partial(
     update_data = {"name": "Partially Updated Name"}
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
         json=update_data,
     )
 
@@ -530,7 +549,7 @@ async def test_update_equipment_not_found(client: AsyncClient, mock_current_user
     update_data = {"name": "Updated Name"}
 
     response = await client.patch(
-        "/api/v1/modules/C1348/2024/equipment/equipment/999999",
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/999999",
         json=update_data,
     )
 
@@ -549,7 +568,7 @@ async def test_update_equipment_invalid_submodule(
     update_data = {"submodule": "invalid_submodule"}
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
         json=update_data,
     )
 
@@ -564,14 +583,14 @@ async def test_delete_equipment_success(
     equipment = sample_equipment[0]
 
     response = await client.delete(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}"
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}"
     )
 
     assert response.status_code == 204
 
     # Verify equipment is deleted
     get_response = await client.get(
-        f"/api/v1/modules/C1348/2024/equipment/equipment/{equipment.id}"
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}"
     )
     assert get_response.status_code == 404
 
@@ -580,7 +599,7 @@ async def test_delete_equipment_success(
 async def test_delete_equipment_not_found(client: AsyncClient, mock_current_user):
     """Test deleting non-existent equipment."""
     response = await client.delete(
-        "/api/v1/modules/C1348/2024/equipment/equipment/999999"
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/999999"
     )
 
     assert response.status_code == 404
@@ -612,7 +631,8 @@ async def test_create_equipment_with_optional_fields(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment/equipment", json=equipment_data
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        json=equipment_data,
     )
 
     assert response.status_code == 201
@@ -635,7 +655,9 @@ async def test_unauthorized_access(client: AsyncClient):
 
     # This will fail because we don't have a real OAuth setup in tests
     # But we're testing that authentication is required
-    response = await client.get("/api/v1/modules/C1348/2024/equipment")
+    response = await client.get(
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption"
+    )
 
     # Should require authentication (401) or redirect to login
     assert response.status_code in [401, 403, 307]

@@ -28,7 +28,7 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     fr: 'Graphiques',
   },
   [`${MODULES.EquipmentElectricConsumption}.inputs.name`]: {
-    en: 'Name',
+    en: '{submoduleTitle} - Name',
     fr: '',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific`]: {

@@ -52,7 +52,7 @@
       <div v-if="submodule.moduleFields">
         <module-form
           :fields="submodule.moduleFields"
-          :submodule-type="submoduleType"
+          :submodule-type="submodule.type"
           :module-type="moduleType"
           :has-subtitle="submodule.hasFormSubtitle"
           :has-student-helper="submodule.hasStudentHelper"
@@ -101,7 +101,7 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: string;
   year: string | number;
-  threshold?: Threshold;
+  threshold: Threshold;
 };
 
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;

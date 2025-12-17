@@ -72,6 +72,56 @@ async def create_headcount(
 
 
 @router.get(
+    "/units/{unit_id}/years/{year}/headcounts",
+    response_model=list[HeadCount],
+)
+async def get_headcounts(
+    unit_id: str,
+    year: int,
+    limit: int = 100,
+    offset: int = 0,
+    sort_by: str = "id",
+    sort_order: str = "asc",
+    module_id: str = "not_defined",
+    service: HeadcountService = Depends(get_headcount_service),
+    current_user: User = Depends(get_current_active_user),
+) -> list[HeadCount]:
+    """
+    Get a list of headcount records for a specific unit and year.
+
+    Args:
+        unit_id: The unit identifier
+        year: The year for the headcounts
+        limit: Maximum number of records to return
+        offset: Number of records to skip
+        sort_by: Field to sort by
+        sort_order: Sort order ("asc" or "desc")
+        module_id: Optional module identifier (default: "not_defined")
+        service: Headcount service instance
+        current_user: Current authenticated user
+    """
+    logger.info(
+        f"Fetching headcounts for unit={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
+    )
+
+    headcounts = await service.get_headcounts(
+        unit_id=unit_id,
+        year=year,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+
+    logger.info(
+        f"Fetched {sanitize(len(headcounts))} headcounts for unit={sanitize(unit_id)}, "
+        f"year={sanitize(year)}"
+    )
+    return headcounts
+
+
+@router.get(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     response_model=HeadCount,
 )

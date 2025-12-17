@@ -28,7 +28,7 @@ import { formatNumber } from 'src/utils/number';
 
 defineProps<{
   type: Module;
-  data: number;
+  data?: number;
 }>();
 </script>
 <style scoped lang="scss">

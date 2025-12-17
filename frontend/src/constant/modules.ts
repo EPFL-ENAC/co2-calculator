@@ -185,8 +185,9 @@ export interface Submodule {
 export interface Totals {
   total_submodules: number;
   total_items: number;
-  total_annual_consumption_kwh: number;
-  total_kg_co2eq: number;
+  total_annual_consumption_kwh?: number;
+  total_kg_co2eq?: number;
+  total_annual_fte?: number;
 }
 
 export interface ModuleResponse {
