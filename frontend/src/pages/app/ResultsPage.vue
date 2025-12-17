@@ -105,12 +105,18 @@ const downloadPDF = () => {
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
           number="37'250"
-          :comparison="$t('results_equivalent_to_car', { km: '0.34t' })"
-          comparison-highlight="0.34t CO₂-eq/km"
+          :comparison="
+            $t('results_equivalent_to_car', {
+              value: `${formatNumber(0.34)}t`,
+            })
+          "
+          :comparison-highlight="`${formatNumber(0.34)}t CO₂-eq/km`"
           color="negative"
         >
           <template #tooltip>{{
-            $t('results_total_unit_carbon_footprint_tooltip')
+            $t('results_total_unit_carbon_footprint_tooltip', {
+              value: `${formatNumber(0.34)}t CO₂-eq/km`,
+            })
           }}</template>
         </BigNumber>
         <BigNumber
@@ -210,13 +216,17 @@ const downloadPDF = () => {
                     "
                     number="37'250"
                     :comparison="
-                      $t('results_equivalent_to_car', { km: '0.34t' })
+                      $t('results_equivalent_to_car', {
+                        value: `${formatNumber(0.34)}t`,
+                      })
                     "
-                    comparison-highlight="0.34t CO₂-eq/km"
+                    :comparison-highlight="`${formatNumber(0.34)}t CO₂-eq/km`"
                     color="negative"
                   >
                     <template #tooltip>{{
-                      $t('results_total_unit_carbon_footprint_tooltip')
+                      $t('results_total_unit_carbon_footprint_tooltip', {
+                        value: `${formatNumber(0.34)}t CO₂-eq/km`,
+                      })
                     }}</template>
                   </BigNumber>
                   <BigNumber

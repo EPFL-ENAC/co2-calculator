@@ -276,6 +276,18 @@ export const colors = computed(() => {
 // Helper function to add 0.5 opacity to hex color for uncertainty visualization using hex8 format
 export const uncertaintyColor = (hex: string): string => {
   const alphaHex = '80';
+
+  if (!hex) {
+    return hex;
+  }
   const cleanHex = hex.replace('#', '');
-  return `#${cleanHex}${alphaHex}`;
+  if (cleanHex.length === 6) {
+    return `#${cleanHex}${alphaHex}`;
+  }
+
+  if (cleanHex.length === 8) {
+    const rgb = cleanHex.slice(0, 6);
+    return `#${rgb}${alphaHex}`;
+  }
+  return hex;
 };

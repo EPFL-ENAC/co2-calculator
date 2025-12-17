@@ -327,8 +327,8 @@ export default {
     fr: "Mon Empreinte Carbone de l'unité",
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Calculated with the value of 0.34 t CO₂-eq / km',
-    fr: 'Calculé avec la valeur de 0.34 t CO₂-eq / km',
+    en: 'Calculated with the value of {value}g CO₂-eq / km',
+    fr: 'Calculé avec la valeur de {value}g CO₂-eq / km',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -339,8 +339,8 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'is equivalent to driven by car, calculated with {km} CO₂-eq/km',
-    fr: 'équivaut à parcouru en voiture, calculé avec {km} CO₂-eq/km',
+    en: 'is equivalent to driven by car, calculated with {value} CO₂-eq/km',
+    fr: 'équivaut à parcouru en voiture, calculé avec {value} CO₂-eq/km',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
