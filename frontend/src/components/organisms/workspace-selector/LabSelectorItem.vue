@@ -7,7 +7,7 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 const props = defineProps<{
   selected?: boolean;
   unit: {
-    id: number;
+    id: string;
     name: string;
     principal_user_id: string;
     principal_user_function: string;

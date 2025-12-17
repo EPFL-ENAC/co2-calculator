@@ -73,7 +73,9 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
-          :to="{ name: 'home', params: route.params }"
+          :to="{
+            name: 'root',
+          }"
           class="toolbar-home-link row items-center no-wrap"
         >
           <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />

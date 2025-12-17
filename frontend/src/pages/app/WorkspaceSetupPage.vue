@@ -1,114 +1,98 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import type { Unit } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
 
-const selectedLab = ref<number | null>(null);
-const selectedYear = ref<number | null>(null);
 const workspaceStore = useWorkspaceStore();
 const router = useRouter();
 const route = useRoute();
 
+// --- COMPUTED ---
 const unitsWithRoles = computed(() => workspaceStore.units);
 
-const workspaceNotSelected = computed(
-  () => !workspaceStore.selectedUnit || !workspaceStore.selectedYear,
-);
-
-const selectedUnitAffiliations = computed(() => {
-  return workspaceStore.selectedUnit?.affiliations.join(' / ') || '';
+const workspaceNotSelected = computed(() => {
+  return (
+    workspaceStore.selectedUnit === null || workspaceStore.selectedYear === null
+  );
 });
 
-const hasMultipleYears = computed(() => {
-  return (workspaceStore.unitResults?.years.length ?? 0) > 1;
+const showYearSelection = computed(() => {
+  return (
+    workspaceStore.selectedUnit !== null &&
+    (workspaceStore.unitResults?.years.length ?? 0) > 1
+  );
 });
 
 const yearsCount = computed(() => {
   return workspaceStore.unitResults?.years.length ?? 0;
 });
 
-const showYearSelection = computed(() => {
-  return (
-    selectedLab.value !== null &&
-    workspaceStore.unitResults !== null &&
-    hasMultipleYears.value
-  );
+const hasMultipleYears = computed(() => {
+  return (workspaceStore.unitResults?.years.length ?? 0) > 1;
 });
 
-const homeRoute = computed(() => {
-  if (!workspaceStore.selectedUnit || !selectedYear.value) return null;
-  return {
-    name: 'home',
-    params: {
-      language: route.params.language || 'en',
-      unit: encodeURIComponent(workspaceStore.selectedUnit.name),
-      year: selectedYear.value,
-    },
-  };
+const selectedUnitAffiliations = computed(() => {
+  const unit = workspaceStore.selectedUnit;
+  if (!unit) return '';
+  return unit.affiliations.join(', ');
 });
 
-// Updates the URL query parameters to reflect the current unit and year selections.
-const updateUrlFromSelections = () => {
-  const query: Record<string, string> = {};
-  if (workspaceStore.selectedUnit) {
-    query.unit = encodeURIComponent(workspaceStore.selectedUnit.name);
-  }
-  if (selectedYear.value !== null) {
-    query.year = String(selectedYear.value);
-  }
-  router.replace({
-    name: route.name || 'workspace-setup',
-    params: route.params,
-    query,
-  });
-};
+const workspaceSelected = computed(() => {
+  return routeUnitParam.value !== null && workspaceStore.selectedYear !== null;
+});
+
+const routeUnitParam = computed(
+  () =>
+    `${workspaceStore.selectedUnit?.id}-${workspaceStore.selectedUnit?.name.replace(/\s+/g, '-').toLowerCase()}`,
+);
+
+// --- ACTIONS ---
 
 const handleUnitSelect = async (unit: Unit) => {
-  selectedLab.value = unit.id;
+  // 1. Set the unit in Pinia
   workspaceStore.setUnit(unit);
-  selectedYear.value = null; // Clear year selection when unit changes
+  workspaceStore.setYear(null); // Reset year in store
+
+  // 2. Fetch years available for this specific unit
   await workspaceStore.getUnitResults(unit.id);
-  updateUrlFromSelections();
+
+  // 3. Auto-select year if only one exists
+  if (workspaceStore.unitResults?.years.length === 1) {
+    workspaceStore.setYear(workspaceStore.unitResults.years[0].year);
+  }
 };
 
 const handleYearSelect = (year: number) => {
-  selectedYear.value = year;
-  updateUrlFromSelections();
+  workspaceStore.setYear(year);
 };
 
 const handleConfirm = () => {
-  if (selectedYear.value) {
-    workspaceStore.setYear(selectedYear.value);
+  const unit = workspaceStore.selectedUnit;
+  const year = workspaceStore.selectedYear;
+
+  if (unit && year) {
+    // Navigate to the dashboard with the clean URL structure
+    // We slugify the name for the URL: ID-NAME
+    router.push({
+      name: 'workspace-dashboard',
+      params: {
+        ...route.params,
+        unit: `${unit.id}-${unit.name.replace(/\s+/g, '-').toLowerCase()}`,
+        year: year,
+      },
+    });
   }
 };
 
-// Expose refs for route guard
-defineExpose({
-  selectedLab,
-  selectedYear,
-});
-
 const reset = () => {
-  selectedLab.value = null;
-  selectedYear.value = null;
   workspaceStore.reset();
-  router.replace({
-    name: route.name || 'workspace-setup',
-    params: route.params,
-    query: {},
-  });
 };
 
-/**
- * Initializes selections from URL query parameters on mount.
- * This allows the page to restore state from the URL (e.g., on page refresh).
- * Uses unit name from URL to find and select the corresponding unit.
- */
 onMounted(async () => {
-  const workspaceStore = useWorkspaceStore();
+  // Clear any old selection leftovers when entering setup
   workspaceStore.reset();
   await workspaceStore.getUnits();
 });
@@ -149,7 +133,7 @@ onMounted(async () => {
         <LabSelectorItem
           v-for="unit in unitsWithRoles"
           :key="unit.id"
-          :selected="selectedLab === unit.id"
+          :selected="workspaceStore.selectedUnit?.id === unit.id"
           :unit="unit"
           @click="handleUnitSelect(unit)"
         />
@@ -180,7 +164,7 @@ onMounted(async () => {
       <YearSelector
         v-else-if="workspaceStore.unitResults"
         class="q-mt-md"
-        :selected-year="selectedYear"
+        :selected-year="workspaceStore.selectedYear"
         :years="
           workspaceStore.unitResults.years.map((y) => ({
             year: y.year,
@@ -196,15 +180,7 @@ onMounted(async () => {
     </q-card>
 
     <!-- Confirmation -->
-    <q-card
-      v-if="
-        selectedLab !== null &&
-        workspaceStore.selectedUnit !== null &&
-        selectedYear !== null
-      "
-      flat
-      class="container q-gutter-lg"
-    >
+    <q-card v-if="!workspaceNotSelected" flat class="container q-gutter-lg">
       <h2 class="text-h3 q-ml-none q-mb-lg">
         {{ $t('workspace_setup_confirm_selection') }}
       </h2>
@@ -230,7 +206,7 @@ onMounted(async () => {
             {{ $t('workspace_setup_confirm_year') }}
           </h6>
           <h3 class="text-h3 text-weight-medium q-pt-sm">
-            {{ selectedYear }}
+            {{ workspaceStore.selectedYear }}
           </h3>
         </q-card>
       </div>
@@ -247,13 +223,21 @@ onMounted(async () => {
           @click="reset"
         />
         <q-btn
+          v-if="workspaceSelected"
           color="accent"
           :label="$t('workspace_setup_confirm_selection')"
           unelevated
           no-caps
           size="md"
           class="text-weight-medium"
-          :to="homeRoute"
+          :to="{
+            name: 'home',
+            params: {
+              ...route.params,
+              unit: routeUnitParam,
+              year: workspaceStore.selectedYear,
+            },
+          }"
           @click="handleConfirm"
         />
       </div>
