@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { getElement } from 'src/constant/charts';
+import { colors, uncertaintyColor } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -341,7 +341,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([2.5, 0, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined'),
+          color: colors.value.notDefined.default,
         },
         label: {
           show: false,
@@ -353,7 +353,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0.5, 0, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined', 0, 0.5),
+          color: uncertaintyColor(colors.value.notDefined.darker),
         },
         label: {
           show: false,
@@ -365,7 +365,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 2, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined'),
+          color: colors.value.notDefined.default,
         },
         label: {
           show: false,
@@ -377,7 +377,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0.4, 0, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined', 0, 0.5),
+          color: uncertaintyColor(colors.value.notDefined.darker),
         },
         label: {
           show: false,
@@ -389,7 +389,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 0),
+          color: colors.value.blueGrey.darker,
         },
         label: {
           show: false,
@@ -401,7 +401,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 0, 0.5),
+          color: uncertaintyColor(colors.value.blueGrey.darker),
         },
         label: {
           show: false,
@@ -413,7 +413,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 3, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 1),
+          color: colors.value.blueGrey.dark,
         },
         label: {
           show: false,
@@ -425,7 +425,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 1, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 1, 0.5),
+          color: uncertaintyColor(colors.value.blueGrey.dark),
         },
         label: {
           show: false,
@@ -437,7 +437,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 2),
+          color: colors.value.blueGrey.default,
         },
         label: {
           show: false,
@@ -449,7 +449,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blueGrey', 2, 0.5),
+          color: uncertaintyColor(colors.value.blueGrey.default),
         },
         label: {
           show: false,
@@ -461,7 +461,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 10, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 0),
+          color: colors.value.purple.darker,
         },
         label: {
           show: false,
@@ -473,7 +473,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 2, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 0, 0.5),
+          color: uncertaintyColor(colors.value.purple.darker),
         },
         label: {
           show: false,
@@ -485,7 +485,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 3, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 1),
+          color: colors.value.purple.dark,
         },
         label: {
           show: false,
@@ -497,7 +497,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0.6, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 1, 0.1),
+          color: uncertaintyColor(colors.value.purple.dark),
         },
         label: {
           show: false,
@@ -509,7 +509,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0.2, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 2),
+          color: colors.value.purple.default,
         },
         label: {
           show: false,
@@ -521,7 +521,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0.04, 0, 0, 0, 0]),
         itemStyle: {
-          color: getElement('purple', 2, 0.5),
+          color: uncertaintyColor(colors.value.purple.default),
         },
         label: {
           show: false,
@@ -533,7 +533,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 1.5, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blue', 0),
+          color: colors.value.blue.darker,
         },
         label: {
           show: false,
@@ -545,7 +545,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0.3, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blue', 0, 0.5),
+          color: uncertaintyColor(colors.value.blue.darker),
         },
         label: {
           show: false,
@@ -557,7 +557,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 3, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blue', 1),
+          color: colors.value.blue.dark,
         },
         label: {
           show: false,
@@ -569,7 +569,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0.6, 0, 0, 0]),
         itemStyle: {
-          color: getElement('blue', 1, 0.5),
+          color: uncertaintyColor(colors.value.blue.dark),
         },
         label: {
           show: false,
@@ -581,7 +581,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 25, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined'),
+          color: colors.value.notDefined.default,
         },
       },
       {
@@ -590,7 +590,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0.2, 0, 0]),
         itemStyle: {
-          color: getElement('notDefined', 0, 0.5),
+          color: uncertaintyColor(colors.value.notDefined.darker),
         },
         label: {
           show: false,
@@ -602,7 +602,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 0),
+          color: colors.value.green.darker,
         },
       },
       {
@@ -611,7 +611,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 0, 0.5),
+          color: uncertaintyColor(colors.value.green.darker),
         },
         label: {
           show: false,
@@ -623,7 +623,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 3, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 1),
+          color: colors.value.green.dark,
         },
       },
       {
@@ -632,7 +632,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.6, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 1, 0.5),
+          color: uncertaintyColor(colors.value.green.dark),
         },
         label: {
           show: false,
@@ -644,7 +644,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 1, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 2),
+          color: colors.value.green.default,
         },
       },
       {
@@ -653,7 +653,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.2, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 2, 0.5),
+          color: uncertaintyColor(colors.value.green.default),
         },
         label: {
           show: false,
@@ -665,7 +665,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 3),
+          color: colors.value.green.light,
         },
       },
       {
@@ -674,7 +674,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
         itemStyle: {
-          color: getElement('green', 3, 0.5),
+          color: uncertaintyColor(colors.value.green.light),
         },
         label: {
           show: false,
@@ -686,7 +686,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1]) as number[],
         itemStyle: {
-          color: getElement('purpleGrey', 0),
+          color: colors.value.purpleGrey.darker,
         },
       },
       {
@@ -695,7 +695,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.2]) as number[],
         itemStyle: {
-          color: getElement('purpleGrey', 0, 0.5),
+          color: uncertaintyColor(colors.value.purpleGrey.darker),
         },
         label: {
           show: false,
@@ -707,7 +707,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1.5]) as number[],
         itemStyle: {
-          color: getElement('purpleGrey', 1),
+          color: colors.value.purpleGrey.dark,
         },
       },
       {
@@ -716,7 +716,7 @@ const chartOption = computed((): EChartsOption => {
         stack: 'total',
         data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.3]) as number[],
         itemStyle: {
-          color: getElement('purpleGrey', 1, 0.5),
+          color: uncertaintyColor(colors.value.purpleGrey.dark),
         },
         label: {
           show: false,
@@ -742,7 +742,7 @@ const chartOption = computed((): EChartsOption => {
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0] as number[],
               itemStyle: {
-                color: getElement('tealBlue'),
+                color: colors.value.tealBlue.default,
               },
             },
             {
@@ -753,7 +753,7 @@ const chartOption = computed((): EChartsOption => {
                 0, 0, 0, 0, 0, 0, 0, 0, 1.6, 0, 0, 0,
               ]) as number[],
               itemStyle: {
-                color: getElement('tealBlue', 0, 0.5),
+                color: uncertaintyColor(colors.value.tealBlue.darker),
               },
               label: {
                 show: false,
@@ -765,7 +765,7 @@ const chartOption = computed((): EChartsOption => {
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0] as number[],
               itemStyle: {
-                color: getElement('forestGreen'),
+                color: colors.value.forestGreen.default,
               },
             },
             {
@@ -776,7 +776,7 @@ const chartOption = computed((): EChartsOption => {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0,
               ]) as number[],
               itemStyle: {
-                color: getElement('forestGreen', 0, 0.5),
+                color: uncertaintyColor(colors.value.forestGreen.darker),
               },
               label: {
                 show: false,
@@ -788,7 +788,7 @@ const chartOption = computed((): EChartsOption => {
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0] as number[],
               itemStyle: {
-                color: getElement('limeGreen'),
+                color: colors.value.limeGreen.default,
               },
             },
             {
@@ -799,7 +799,7 @@ const chartOption = computed((): EChartsOption => {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
               ]) as number[],
               itemStyle: {
-                color: getElement('limeGreen', 0, 0.5),
+                color: uncertaintyColor(colors.value.limeGreen.darker),
               },
               label: {
                 show: false,
@@ -811,7 +811,7 @@ const chartOption = computed((): EChartsOption => {
               stack: 'total',
               data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] as number[],
               itemStyle: {
-                color: getElement('neutralGrey'),
+                color: colors.value.neutralGrey.default,
               },
             },
             {
@@ -822,7 +822,7 @@ const chartOption = computed((): EChartsOption => {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8,
               ]) as number[],
               itemStyle: {
-                color: getElement('neutralGrey', 0, 0.5),
+                color: uncertaintyColor(colors.value.neutralGrey.darker),
               },
               label: {
                 show: false,

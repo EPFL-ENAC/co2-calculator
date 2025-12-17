@@ -1,168 +1,281 @@
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { useColorblindStore } from 'src/stores/colorblind';
+import { storeToRefs } from 'pinia';
 
-export interface ColorColumn {
-  name: string;
-  colors: string[];
-  colorblindColors: string[];
-}
+// Get the store instance and export colorblindMode for backward compatibility
+const colorblindStore = useColorblindStore();
+const { enabled: colorblindMode } = storeToRefs(colorblindStore);
+export { colorblindMode };
 
-export const colorblindMode = ref(false);
-
-export const chartColorScale: ColorColumn[] = [
-  // Column 1 - Olive Green/Brown tones
-
-  {
-    name: 'oliveGreen',
-    colors: ['#807F3A', '#BFBA5C', '#FFF381', '#FFFA9C', '#FFFEBA'],
-    colorblindColors: ['#6B5B1A', '#9B8B2D', '#D4C340', '#E6D966', '#F2E68C'],
+// Color definitions with default and colorblind variants
+const colorDefinitions = {
+  oliveGreen: {
+    default: {
+      darker: '#807F3A',
+      dark: '#BFBA5C',
+      default: '#FFF381',
+      light: '#FFFA9C',
+      lighter: '#FFFEBA',
+    },
+    colorblind: {
+      darker: '#6B5B1A',
+      dark: '#9B8B2D',
+      default: '#D4C340',
+      light: '#E6D966',
+      lighter: '#F2E68C',
+    },
   },
-
-  // Column 2 - Brown/Ochre tones
-  {
-    name: 'brownOchre',
-    colors: ['#806B36', '#BF9F56', '#FDD279', '#FFDF96', '#FFEBB5'],
-    colorblindColors: ['#6B4B1A', '#9B6B2D', '#CC9440', '#E6B366', '#F2CC8C'],
+  brownOchre: {
+    default: {
+      darker: '#806B36',
+      dark: '#BF9F56',
+      default: '#FDD279',
+      light: '#FFDF96',
+      lighter: '#FFEBB5',
+    },
+    colorblind: {
+      darker: '#6B4B1A',
+      dark: '#9B6B2D',
+      default: '#CC9440',
+      light: '#E6B366',
+      lighter: '#F2CC8C',
+    },
   },
-
-  // Column 3 - Orange/Ochre tones
-  {
-    name: 'orangeOchre',
-    colors: ['#806034', '#BF9053', '#FABF75', '#FFD093', '#FFE0B3'],
-    colorblindColors: ['#8B3A1A', '#B8552D', '#E67040', '#FF9466', '#FFB38C'],
+  orangeOchre: {
+    default: {
+      darker: '#806034',
+      dark: '#BF9053',
+      default: '#FABF75',
+      light: '#FFD093',
+      lighter: '#FFE0B3',
+    },
+    colorblind: {
+      darker: '#8B3A1A',
+      dark: '#B8552D',
+      default: '#E67040',
+      light: '#FF9466',
+      lighter: '#FFB38C',
+    },
   },
-
-  // Column 4 - Purple tones
-  {
-    name: 'purple',
-    colors: ['#524C68', '#7B739B', '#A69CCC', '#BBB3DB', '#D1CBE8'],
-    colorblindColors: ['#3A4A6B', '#556B9B', '#7094CC', '#94B3E6', '#B8CCF2'],
+  purple: {
+    default: {
+      darker: '#524C68',
+      dark: '#7B739B',
+      default: '#A69CCC',
+      light: '#BBB3DB',
+      lighter: '#D1CBE8',
+    },
+    colorblind: {
+      darker: '#3A4A6B',
+      dark: '#556B9B',
+      default: '#7094CC',
+      light: '#94B3E6',
+      lighter: '#B8CCF2',
+    },
   },
-
-  // Column 5 - Blue-Grey tones
-  {
-    name: 'blueGrey',
-    colors: ['#4A5A7D', '#5A6A8D', '#6A7A9D', '#7A8AAD', '#8A9ABD'],
-    colorblindColors: ['#2D4A6B', '#40669B', '#5582CC', '#6B9BE6', '#8CB3F2'],
+  blueGrey: {
+    default: {
+      darker: '#4A5A7D',
+      dark: '#5A6A8D',
+      default: '#6A7A9D',
+      light: '#7A8AAD',
+      lighter: '#8A9ABD',
+    },
+    colorblind: {
+      darker: '#2D4A6B',
+      dark: '#40669B',
+      default: '#5582CC',
+      light: '#6B9BE6',
+      lighter: '#8CB3F2',
+    },
   },
-
-  // Column 6 - Purple-Grey tones
-  {
-    name: 'purpleGrey',
-    colors: ['#50556F', '#7A80A4', '#A5ADD8', '#BAC0E4', '#CFD4EE'],
-    colorblindColors: ['#3A4A5B', '#556B8B', '#7094BB', '#94B3D4', '#B8CCEB'],
+  purpleGrey: {
+    default: {
+      darker: '#50556F',
+      dark: '#7A80A4',
+      default: '#A5ADD8',
+      light: '#BAC0E4',
+      lighter: '#CFD4EE',
+    },
+    colorblind: {
+      darker: '#3A4A5B',
+      dark: '#556B8B',
+      default: '#7094BB',
+      light: '#94B3D4',
+      lighter: '#B8CCEB',
+    },
   },
-
-  // Column 7 - Blue tones
-  {
-    name: 'blue',
-    colors: ['#4F5D75', '#798CAD', '#A4BCE3', '#B8CCEC', '#CEDDF4'],
-    colorblindColors: ['#2D4A6B', '#4066A3', '#5582D4', '#6B9BE6', '#8CB3F2'],
+  blue: {
+    default: {
+      darker: '#4F5D75',
+      dark: '#798CAD',
+      default: '#A4BCE3',
+      light: '#B8CCEC',
+      lighter: '#CEDDF4',
+    },
+    colorblind: {
+      darker: '#2D4A6B',
+      dark: '#4066A3',
+      default: '#5582D4',
+      light: '#6B9BE6',
+      lighter: '#8CB3F2',
+    },
   },
-
-  // Column 8 - Teal/Blue tones
-  {
-    name: 'tealBlue',
-    colors: ['#2E7A8B', '#3E8A9B', '#4E9AAB', '#5EAABB', '#6EBACB'],
-    colorblindColors: ['#1A5B6B', '#2D7A9B', '#4099CC', '#66B3E6', '#8CCCF2'],
+  tealBlue: {
+    default: {
+      darker: '#2E7A8B',
+      dark: '#3E8A9B',
+      default: '#4E9AAB',
+      light: '#5EAABB',
+      lighter: '#6EBACB',
+    },
+    colorblind: {
+      darker: '#1A5B6B',
+      dark: '#2D7A9B',
+      default: '#4099CC',
+      light: '#66B3E6',
+      lighter: '#8CCCF2',
+    },
   },
-
-  // Column 9 - Light Blue tones
-  {
-    name: 'lightBlue',
-    colors: ['#4C6E80', '#76A4BD', '#A1D9F7', '#B5E4FC', '#CCEDFF'],
-    colorblindColors: ['#2D5B6B', '#407A9B', '#5599CC', '#6BB3E6', '#8CCCF2'],
+  lightBlue: {
+    default: {
+      darker: '#4C6E80',
+      dark: '#76A4BD',
+      default: '#A1D9F7',
+      light: '#B5E4FC',
+      lighter: '#CCEDFF',
+    },
+    colorblind: {
+      darker: '#2D5B6B',
+      dark: '#407A9B',
+      default: '#5599CC',
+      light: '#6BB3E6',
+      lighter: '#8CCCF2',
+    },
   },
-
-  // Column 10 - Forest Green tones
-  {
-    name: 'forestGreen',
-    colors: ['#506E6D', '#79A2A2', '#A4D6D5', '#B9E2E1', '#CFEDEC'],
-    colorblindColors: ['#3A5B5B', '#557A8B', '#7099BB', '#94B3D4', '#B8CCEB'],
+  forestGreen: {
+    default: {
+      darker: '#506E6D',
+      dark: '#79A2A2',
+      default: '#A4D6D5',
+      light: '#B9E2E1',
+      lighter: '#CFEDEC',
+    },
+    colorblind: {
+      darker: '#3A5B5B',
+      dark: '#557A8B',
+      default: '#7099BB',
+      light: '#94B3D4',
+      lighter: '#B8CCEB',
+    },
   },
-
-  // Column 11 - Green tones
-  {
-    name: 'green',
-    colors: ['#526C56', '#7CA081', '#A8D3AE', '#BCE0C1', '#D1EBD5'],
-    colorblindColors: ['#4A6B55', '#669B70', '#85CC94', '#A3E6B3', '#C2F2CC'],
+  green: {
+    default: {
+      darker: '#526C56',
+      dark: '#7CA081',
+      default: '#A8D3AE',
+      light: '#BCE0C1',
+      lighter: '#D1EBD5',
+    },
+    colorblind: {
+      darker: '#4A6B55',
+      dark: '#669B70',
+      default: '#85CC94',
+      light: '#A3E6B3',
+      lighter: '#C2F2CC',
+    },
   },
-
-  // Column 12 - Lime Green tones
-  {
-    name: 'limeGreen',
-    colors: ['#566B3E', '#809E60', '#ABCF84', '#C0DEA0', '#D5EBBE'],
-    colorblindColors: ['#5B6B3A', '#7A9B55', '#99CC70', '#B3E694', '#CCF2B8'],
+  limeGreen: {
+    default: {
+      darker: '#566B3E',
+      dark: '#809E60',
+      default: '#ABCF84',
+      light: '#C0DEA0',
+      lighter: '#D5EBBE',
+    },
+    colorblind: {
+      darker: '#5B6B3A',
+      dark: '#7A9B55',
+      default: '#99CC70',
+      light: '#B3E694',
+      lighter: '#CCF2B8',
+    },
   },
-
-  // Column 13 - Purple-Grey tones
-  {
-    name: 'purpleGrey',
-    colors: ['#5A5D72', '#888DAA', '#B7BDE0', '#C8CCE9', '#D9DDF2'],
-    colorblindColors: ['#3A4A5B', '#55668B', '#7082BB', '#949ED4', '#B8BAEB'],
+  neutralGrey: {
+    default: {
+      darker: '#636576',
+      dark: '#9699B0',
+      default: '#C9CDE9',
+      light: '#D5D9F0',
+      lighter: '#E2E5F6',
+    },
+    colorblind: {
+      darker: '#4A4A4A',
+      dark: '#6B6B6B',
+      default: '#999999',
+      light: '#B8B8B8',
+      lighter: '#D6D6D6',
+    },
   },
-
-  // Column 14 - Neutral Grey tones
-  {
-    name: 'neutralGrey',
-    colors: ['#636576', '#9699B0', '#C9CDE9', '#D5D9F0', '#E2E5F6'],
-    colorblindColors: ['#4A4A4A', '#6B6B6B', '#999999', '#B8B8B8', '#D6D6D6'],
+  lightGrey: {
+    default: {
+      darker: '#6D6E79',
+      dark: '#A4A5B5',
+      default: '#DBDDF0',
+      light: '#E3E5F5',
+      lighter: '#ECEDF9',
+    },
+    colorblind: {
+      darker: '#555555',
+      dark: '#7A7A7A',
+      default: '#A3A3A3',
+      light: '#C2C2C2',
+      lighter: '#E0E0E0',
+    },
   },
-
-  // Column 15 - Light Grey tones
-  {
-    name: 'lightGrey',
-    colors: ['#6D6E79', '#A4A5B5', '#DBDDF0', '#E3E5F5', '#ECEDF9'],
-    colorblindColors: ['#555555', '#7A7A7A', '#A3A3A3', '#C2C2C2', '#E0E0E0'],
+  notDefined: {
+    default: {
+      darker: '#000000',
+      dark: '#000000',
+      default: '#000000',
+      light: '#000000',
+      lighter: '#000000',
+    },
+    colorblind: {
+      darker: '#000000',
+      dark: '#000000',
+      default: '#000000',
+      light: '#000000',
+      lighter: '#000000',
+    },
   },
-
-  // Column 16 - Not Defined
-  {
-    name: 'notDefined',
-    colors: ['#000000', '#000000', '#000000', '#000000', '#000000'],
-    colorblindColors: ['#000000', '#000000', '#000000', '#000000', '#000000'],
-  },
-];
-
-// Helper function to convert hex color to rgba with opacity
-const hexToRgba = (hex: string, opacity: number): string => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return hex;
-  const r = parseInt(result[1], 16);
-  const g = parseInt(result[2], 16);
-  const b = parseInt(result[3], 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
-export const getElement = (
-  name: string,
-  shade: number = 2,
-  opacity?: number,
-  colorblind?: boolean,
-): string => {
-  // Find color by name directly in chartColorScale
-  const colorColumn = chartColorScale.find((col) => col.name === name);
+// Single computed that returns colors based on colorblind mode
+export const colors = computed(() => {
+  const mode = colorblindMode.value ? 'colorblind' : 'default';
+  return {
+    oliveGreen: colorDefinitions.oliveGreen[mode],
+    brownOchre: colorDefinitions.brownOchre[mode],
+    orangeOchre: colorDefinitions.orangeOchre[mode],
+    purple: colorDefinitions.purple[mode],
+    blueGrey: colorDefinitions.blueGrey[mode],
+    purpleGrey: colorDefinitions.purpleGrey[mode],
+    blue: colorDefinitions.blue[mode],
+    tealBlue: colorDefinitions.tealBlue[mode],
+    lightBlue: colorDefinitions.lightBlue[mode],
+    forestGreen: colorDefinitions.forestGreen[mode],
+    green: colorDefinitions.green[mode],
+    limeGreen: colorDefinitions.limeGreen[mode],
+    neutralGrey: colorDefinitions.neutralGrey[mode],
+    lightGrey: colorDefinitions.lightGrey[mode],
+    notDefined: colorDefinitions.notDefined[mode],
+  };
+});
 
-  // If not found, fallback to column 0
-  if (!colorColumn) {
-    const fallbackColor = chartColorScale[0].colors[2];
-    return opacity !== undefined
-      ? hexToRgba(fallbackColor, opacity)
-      : fallbackColor;
-  }
-
-  const useColorblindMode =
-    colorblind !== undefined ? colorblind : colorblindMode.value;
-  const colors = useColorblindMode
-    ? colorColumn.colorblindColors
-    : colorColumn.colors;
-
-  // Get the color at specified shade, or default to middle row (2) if invalid
-  const selectedColor = colors[shade] ? colors[shade] : colors[2];
-
-  // Apply opacity if provided (opacity is independent of colorblind mode)
-  if (opacity !== undefined) {
-    return hexToRgba(selectedColor, opacity);
-  }
-
-  return selectedColor;
+// Helper function to add 0.5 opacity to hex color for uncertainty visualization using hex8 format
+export const uncertaintyColor = (hex: string): string => {
+  const alphaHex = '80';
+  const cleanHex = hex.replace('#', '');
+  return `#${cleanHex}${alphaHex}`;
 };
