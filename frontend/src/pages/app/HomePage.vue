@@ -4,8 +4,14 @@ import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 const { t } = useI18n();
+const workspaceStore = useWorkspaceStore();
+
+const currentYear = computed(() => {
+  return workspaceStore.selectedYear ?? new Date().getFullYear();
+});
 
 const modulesCounterText = computed(() =>
   t('home_modules_counter', {
@@ -58,7 +64,7 @@ const homeIntroWithLinks = computed(() => {
           {{ $t('home_results_title') }}
         </h3>
         <h3 class="text-h5 text-weight-medium text-secondary">
-          {{ $t('home_results_subtitle') }}
+          {{ $t('home_results_subtitle', { year: currentYear }) }}
         </h3>
         <div class="flex justify-between items-end q-mt-xl">
           <q-btn

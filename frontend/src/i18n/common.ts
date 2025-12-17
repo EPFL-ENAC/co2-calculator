@@ -255,8 +255,8 @@ export default {
     fr: 'Visualisation Voire',
   },
   home_results_subtitle: {
-    en: 'Annual CO₂ Assessment 2024',
-    fr: 'Bilan CO₂ Annuel 2024',
+    en: 'Annual CO₂ Assessment {year}',
+    fr: 'Bilan CO₂ Annuel {year}',
   },
   home_results_btn: {
     en: 'View Full Results',
@@ -306,6 +306,10 @@ export default {
     en: 'Total unit carbon footprint',
     fr: "Empreinte carbone totale de l'unité",
   },
+  results_total_module_carbon_footprint: {
+    en: 'Total {module} carbon footprint',
+    fr: 'Empreinte carbone totale de {module}',
+  },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE',
     fr: 'Empreinte carbone par ETP',
@@ -314,9 +318,17 @@ export default {
     en: 'Unit carbon footprint',
     fr: "Empreinte carbone de l'unité",
   },
+  results_module_carbon_footprint: {
+    en: '{module} carbon footprint',
+    fr: 'Empreinte carbone de {module}',
+  },
+  unit_carbon_footprint_title: {
+    en: 'My Unit Carbon Footprint',
+    fr: "Mon Empreinte Carbone de l'unité",
+  },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Calculated with the value of 0.34 kg CO₂-eq / km',
-    fr: 'Calculé avec la valeur de 0.34 kg CO₂-eq / km',
+    en: 'Calculated with the value of {value}g CO₂-eq / km',
+    fr: 'Calculé avec la valeur de {value}g CO₂-eq / km',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -327,8 +339,8 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'is equivalent to driven by car, calculated with {km} CO₂-eq/km',
-    fr: 'équivaut à parcouru en voiture, calculé avec {km} CO₂-eq/km',
+    en: 'is equivalent to driven by car, calculated with {value} CO₂-eq/km',
+    fr: 'équivaut à parcouru en voiture, calculé avec {value} CO₂-eq/km',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
@@ -353,10 +365,6 @@ export default {
   results_value_of: {
     en: 'value of {value} t CO₂-eq',
     fr: 'valeur de {value} t CO₂-éq',
-  },
-  results_module_carbon_footprint: {
-    en: 'My Unit Carbon Footprint ',
-    fr: "Empreinte carbone de l'unité",
   },
   results_module_carbon_toggle_additional_data: {
     en: 'Show additional estimated categories',
