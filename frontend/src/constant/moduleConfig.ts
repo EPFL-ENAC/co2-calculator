@@ -18,6 +18,7 @@ export interface ModuleField {
   placeholder?: string;
   min?: number;
   max?: number;
+  step?: number;
   options?: Array<{ value: string; label: string }>;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;

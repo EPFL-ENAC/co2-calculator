@@ -19,7 +19,7 @@ export const iconMap: Record<string, string> = {
 // FR : Nom | Position | Équivalent plein-temps (EPT)
 const memberFields: ModuleField[] = [
   {
-    id: 'name',
+    id: 'display_name',
     labelKey: 'my-lab-member-form-field-name-label',
     type: 'text',
     sortable: true,
@@ -28,19 +28,23 @@ const memberFields: ModuleField[] = [
     icon: 'o_filter_drama',
   },
   {
-    id: 'position',
+    id: 'function',
     labelKey: 'my-lab-member-form-field-position-label',
     type: 'text',
     sortable: true,
     ratio: '4/12',
+    editableInline: true,
     icon: 'o_assignment_ind',
   },
   {
-    id: 'fte',
+    id: 'ept',
     labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
     min: 0,
+    max: 1,
+    step: 0.1,
+    editableInline: true,
     ratio: '4/12',
     icon: 'o_timer',
   },
@@ -53,7 +57,7 @@ const memberFieldDynamicIcons = memberFields.map((field) => ({
 
 const studentFields: ModuleField[] = [
   {
-    id: 'fte',
+    id: 'ept',
     labelKey: 'my-lab-student_form_field_fte_label',
     type: 'number',
     required: true,

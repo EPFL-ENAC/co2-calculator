@@ -154,6 +154,18 @@ class HeadCountRead(HeadCountBase, AuditMixin):
     provider: Optional[str]
 
 
+class HeadcountItemResponse(SQLModel):
+    """
+    Response schema for Headcount items in Equipment submodule.
+    """
+
+    id: int = Field(..., description="Headcount record identifier")
+    display_name: Optional[str] = Field(None, description="Display name of the person")
+    function: Optional[str] = Field(None, description="Function or role")
+    sciper: Optional[str] = Field(None, description="Sciper number")
+    ept: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
+
+
 class HeadCountList(SQLModel):
     """
     Response schema for Paginated Lists.

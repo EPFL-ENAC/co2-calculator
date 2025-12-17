@@ -431,8 +431,12 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
       maximumFractionDigits: 0,
     });
   }
-  // Check if the value is a number and format it
-  return formatNumber(val as number);
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') {
+    return formatNumber(val);
+  }
+  console.warn('Unexpected cell value type', val);
+  return String(val);
 }
 
 function getItemName(row: ModuleRow): string {

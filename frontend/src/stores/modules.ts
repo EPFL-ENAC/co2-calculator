@@ -87,7 +87,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
     // always initialize pagination with defaults
     state.paginationSubmodule[submoduleId] = {
-      sortBy: 'name',
+      sortBy: undefined,
       descending: false,
       page: 1,
       rowsPerPage: 20,

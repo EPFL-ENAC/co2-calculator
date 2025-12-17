@@ -19,7 +19,7 @@
     <q-card-section v-if="hasSubtitle" class="q-mx-lg q-my-xl text-subtitle1">
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-section>
-    <q-card-section>
+    <q-card-section v-if="hasStudentHelper">
       <q-card flat bordered class="q-pa-none">
         <q-expansion-item
           flat

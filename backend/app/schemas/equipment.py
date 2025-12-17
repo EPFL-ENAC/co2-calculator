@@ -1,11 +1,12 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Sequence
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import get_settings
+from app.models.headcount import HeadcountItemResponse
 
 settings = get_settings()
 
@@ -54,7 +55,9 @@ class SubmoduleResponse(BaseModel):
     id: str = Field(..., description="Submodule identifier")
     name: str = Field(..., description="Submodule display name")
     count: int = Field(..., description="Total number of items")
-    items: List[EquipmentItemResponse] = Field(..., description="Equipment items")
+    items: Sequence[EquipmentItemResponse | HeadcountItemResponse] = Field(
+        ..., description="Equipment items"
+    )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
 
