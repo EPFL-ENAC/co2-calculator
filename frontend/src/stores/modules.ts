@@ -204,21 +204,6 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  function findSubmoduleForEquipment(equipmentId: number): string | null {
-    for (const [submoduleId, submodule] of Object.entries(
-      state.dataSubmodule,
-    )) {
-      if (!submodule) continue;
-      const found = submodule.items.find(
-        (item) => item.id !== undefined && Number(item.id) === equipmentId,
-      );
-      if (found) {
-        return submoduleId;
-      }
-    }
-    return null;
-  }
-
   interface Option {
     label: string;
     value: string;

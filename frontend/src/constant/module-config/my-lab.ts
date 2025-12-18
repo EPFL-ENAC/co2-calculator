@@ -37,7 +37,7 @@ const memberFields: ModuleField[] = [
     icon: 'o_assignment_ind',
   },
   {
-    id: 'ept',
+    id: 'fte',
     labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
@@ -57,7 +57,7 @@ const memberFieldDynamicIcons = memberFields.map((field) => ({
 
 const studentFields: ModuleField[] = [
   {
-    id: 'ept',
+    id: 'fte',
     labelKey: 'my-lab-student_form_field_fte_label',
     type: 'number',
     required: true,

@@ -69,7 +69,7 @@ class HeadCountBase(SQLModel):
     sciper: Optional[str] = Field(
         max_length=20, index=True, description="Sciper number"
     )
-    ept: float = Field(description="Full-time equivalent percentage (0.0 to 1.0)")
+    fte: float = Field(description="Full-time equivalent percentage (0.0 to 1.0)")
 
     # Literal["member", "student"]
     submodule: str = Field(
@@ -126,7 +126,7 @@ class HeadCountCreateRequest(BaseModel):
 
     display_name: str | None = None
     function: str | None = None
-    ept: int | None = None
+    fte: float | None = None
 
 
 class HeadCountUpdate(SQLModel):
@@ -146,7 +146,7 @@ class HeadCountUpdate(SQLModel):
     status: Optional[str] = None
     function: Optional[str] = None
     sciper: Optional[str] = None
-    ept: Optional[float] = None
+    fte: Optional[float] = None
     # We might allow updating the provider manually, or handle it in code
     provider: Optional[str] = None
 
@@ -160,7 +160,7 @@ class HeadCountUpdateRequest(BaseModel):
 
     display_name: Optional[str] = None
     function: Optional[str] = None
-    ept: Optional[float] = None
+    fte: Optional[float] = None
 
 
 # ==========================================
@@ -187,7 +187,7 @@ class HeadcountItemResponse(SQLModel):
     display_name: Optional[str] = Field(None, description="Display name of the person")
     function: Optional[str] = Field(None, description="Function or role")
     sciper: Optional[str] = Field(None, description="Sciper number")
-    ept: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
+    fte: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
 
 
 class HeadCountList(SQLModel):

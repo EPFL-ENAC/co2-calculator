@@ -452,7 +452,9 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
 }
 
 function getItemName(row: ModuleRow): string {
-  return row.name ? String(row.name) : String(row.id || 'this item');
+  return String(
+    row?.name ?? row?.display_name ?? row?.id ?? $t('common_this_item'),
+  );
 }
 
 function getRowId(row: ModuleRow): number | null {
