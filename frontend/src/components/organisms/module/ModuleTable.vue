@@ -62,6 +62,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
+    :hide-pagination="moduleconfig?.hasTablePagination === false"
     no-data-label="No items"
     :filter="filterTerm"
     @request="onRequest"
@@ -150,7 +151,12 @@
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template v-else-if="col.name === 'action'">
+          <template
+            v-else-if="
+              col.name === 'action' &&
+              props.moduleconfig.hasTableAction !== false
+            "
+          >
             <q-btn
               icon="o_delete"
               color="grey-4"
@@ -329,6 +335,11 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;
+  moduleconfig: {
+    hasTableAction?: boolean;
+    hasTopBar?: boolean;
+    hasTablePagination?: boolean;
+  };
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -416,21 +427,23 @@ const qCols = computed<TableViewColumn[]>(() => {
       };
     });
 
-  baseCols.push({
-    name: 'action',
-    label: $t('common_actions'),
-    field: 'action',
-    align: 'right',
-    sortable: false,
-    inputComponent: QInput,
-    min: undefined,
-    max: undefined,
-    step: undefined,
-    editableInline: false,
-    options: undefined,
-    tooltip: undefined,
-    type: 'text',
-  });
+  if (props.moduleconfig.hasTableAction !== false) {
+    baseCols.push({
+      name: 'action',
+      label: $t('common_actions'),
+      field: 'action',
+      align: 'right',
+      sortable: false,
+      inputComponent: QInput,
+      min: undefined,
+      max: undefined,
+      step: undefined,
+      editableInline: false,
+      options: undefined,
+      tooltip: undefined,
+      type: 'text',
+    });
+  }
   return baseCols;
 });
 
@@ -452,9 +465,7 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
 }
 
 function getItemName(row: ModuleRow): string {
-  return String(
-    row?.name ?? row?.display_name ?? row?.id ?? $t('common_this_item'),
-  );
+  return String(row?.name ?? row?.display_name ?? $t('common_this_item'));
 }
 
 function getRowId(row: ModuleRow): number | null {

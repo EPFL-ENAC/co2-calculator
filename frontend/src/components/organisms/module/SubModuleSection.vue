@@ -46,6 +46,7 @@
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
           :submodule-type="submodule.type"
+          :moduleconfig="submodule"
         />
       </div>
       <q-separator />
