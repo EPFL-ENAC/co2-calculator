@@ -87,6 +87,7 @@ async function onChange() {
 
   await store.patchItem(
     props.moduleType as Module,
+    props.submoduleType,
     props.unitId,
     String(props.year),
     idNum,

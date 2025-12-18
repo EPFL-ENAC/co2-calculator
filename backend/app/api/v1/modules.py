@@ -12,6 +12,8 @@ from app.models.headcount import (
     HeadCountCreate,
     HeadCountCreateRequest,
     HeadcountItemResponse,
+    HeadCountUpdate,
+    HeadCountUpdateRequest,
 )
 from app.models.user import User
 from app.schemas.equipment import (
@@ -304,7 +306,7 @@ async def update_equipment(
     module_id: str,
     submodule_id: str,
     item_id: int,
-    item_data: EquipmentUpdateRequest,
+    item_data: Union[EquipmentUpdateRequest, HeadCountUpdateRequest],
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -337,9 +339,12 @@ async def update_equipment(
             user_id=current_user.id,
         )
     elif module_id == "my-lab":
+        updateItem = HeadCountUpdate(
+            **item_data.model_dump(exclude_unset=True),
+        )
         item = await HeadcountService(db).update_headcount(
             headcount_id=item_id,
-            data=item_data,
+            data=updateItem,
             user_id=current_user.id,
         )
     else:

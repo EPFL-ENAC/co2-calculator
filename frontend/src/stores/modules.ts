@@ -285,36 +285,29 @@ export const useModuleStore = defineStore('modules', () => {
 
   async function patchItem(
     moduleType: Module,
+    submoduleType: AllSubmoduleTypes,
     unit: string,
     year: string,
-    equipmentId: number,
+    itemId: number,
     payload: Record<string, FieldValue>,
   ) {
     state.error = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}/equipment/${encodeURIComponent(
-        String(equipmentId),
+      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+        String(itemId),
       )}`;
       await api.patch(path, { json: payload }).json();
-
-      // Find affected submodule
-      const affectedSubmoduleId = findSubmoduleForEquipment(equipmentId);
 
       // Refresh module totals
       await getModuleTotals(moduleType, unit, year);
 
       // Refetch the affected submodule with current pagination/sort state
-      if (affectedSubmoduleId) {
-        const pagination = state.paginationSubmodule[affectedSubmoduleId];
-        if (pagination) {
-          await getSubmoduleData({
-            submoduleType: affectedSubmoduleId,
+      await getSubmoduleData({
+            submoduleType,
             moduleType,
             unit,
             year,
           });
-        }
-      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';

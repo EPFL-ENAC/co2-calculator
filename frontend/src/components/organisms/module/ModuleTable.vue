@@ -423,6 +423,9 @@ const qCols = computed<TableViewColumn[]>(() => {
     align: 'right',
     sortable: false,
     inputComponent: QInput,
+    min: undefined,
+    max: undefined,
+    step: undefined,
     editableInline: false,
     options: undefined,
     tooltip: undefined,
@@ -509,9 +512,16 @@ async function commitInline(
   const id = getRowId(row);
   if (id == null) return;
   try {
-    await store.patchItem(moduleType, props.unitId, String(props.year), id, {
-      [col.field]: valueToSave,
-    });
+    await store.patchItem(
+      moduleType,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      {
+        [col.field]: valueToSave,
+      },
+    );
   } catch (err) {
     setError(row, col, err instanceof Error ? err.message : 'Save failed');
   }
@@ -565,7 +575,6 @@ function onFormSubmit(
   const idRaw = editRowData.value?.id;
   const equipmentId = Number(idRaw);
   const isEdit = Number.isFinite(equipmentId);
-  const submoduleId = '';
 
   // Normalize class value
   const classValRaw = payload.class as string | { value?: string } | null;
@@ -587,8 +596,21 @@ function onFormSubmit(
     basePayload.pas_usage = Number(payload.pas_usage);
 
     const p = isEdit
-      ? store.patchItem(moduleType, unit, year, equipmentId, basePayload)
-      : store.postItem(moduleType, unit, year, submoduleId, basePayload);
+      ? store.patchItem(
+          moduleType,
+          props.submoduleType,
+          unit,
+          year,
+          equipmentId,
+          basePayload,
+        )
+      : store.postItem(
+          moduleType,
+          unit,
+          year,
+          props.submoduleType,
+          basePayload,
+        );
 
     await p.finally(() => {
       editDialogOpen.value = false;

@@ -151,6 +151,18 @@ class HeadCountUpdate(SQLModel):
     provider: Optional[str] = None
 
 
+class HeadCountUpdateRequest(BaseModel):
+    """
+    Body payload for PATCH requests.
+    All fields are Optional. We do NOT inherit from Base to avoid
+    required field conflicts.
+    """
+
+    display_name: Optional[str] = None
+    function: Optional[str] = None
+    ept: Optional[float] = None
+
+
 # ==========================================
 # 5. API OUTPUT MODELS (DTOs)
 # ==========================================
