@@ -547,7 +547,10 @@ async def update_equipment(
         session, equipment, update_dict
     )
 
-    logger.info(f"Updated equipment {item_id} by user {user_id}")
+    logger.info(
+        "Updated equipment",
+        extra={"equipment_id": sanitize(item_id), "user_id": sanitize(user_id)},
+    )
 
     # Map database fields to response schema
     response_data = {
@@ -635,4 +638,7 @@ async def delete_equipment(
 
     await equipment_repo.delete_equipment(session, equipment)
 
-    logger.info(f"Deleted equipment {equipment_id} by user {user_id}")
+    logger.info(
+        "Deleted equipment",
+        extra={"equipment_id": sanitize(equipment_id), "user_id": sanitize(user_id)},
+    )

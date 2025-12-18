@@ -30,7 +30,6 @@ def pytest_configure():
     """Configure pytest settings if needed."""
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
-    pass
 
 
 @pytest_asyncio.fixture(scope="function")
