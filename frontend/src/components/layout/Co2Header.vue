@@ -74,7 +74,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
           :to="{
-            name: 'root',
+            name: 'home',
           }"
           class="toolbar-home-link row items-center no-wrap"
         >
