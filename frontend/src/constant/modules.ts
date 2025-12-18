@@ -167,7 +167,7 @@ export interface ModuleItem {
   kg_co2eq?: number;
   fte?: number;
   note?: string;
-  display_name?:string;
+  display_name?: string;
   position?: string;
   status?: string;
   is_new?: boolean;

@@ -1,4 +1,5 @@
 Generating Mermaid ERD...
+
 ```mermaid
 erDiagram
   emission_factors {
@@ -145,4 +146,5 @@ erDiagram
   units ||--}o unit_users : unit_id
   users ||--}o unit_users : user_id
 ```
+
 Mermaid ERD generation complete.

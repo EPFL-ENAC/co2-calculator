@@ -8,7 +8,11 @@ import {
   ModuleStates,
 } from 'src/constant/moduleStates';
 
-import type { AllSubmoduleTypes, ModuleResponse, Submodule } from 'src/constant/modules';
+import type {
+  AllSubmoduleTypes,
+  ModuleResponse,
+  Submodule,
+} from 'src/constant/modules';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
@@ -223,8 +227,7 @@ export const useModuleStore = defineStore('modules', () => {
       }
 
       const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}`;
-      const normalized: Record<string, string | number | boolean | null> = {
-      };
+      const normalized: Record<string, string | number | boolean | null> = {};
 
       Object.entries(payload).forEach(([key, raw]) => {
         let value: unknown = raw;
@@ -242,9 +245,7 @@ export const useModuleStore = defineStore('modules', () => {
             : (value as string | number | boolean | null);
       });
 
-
-
-      // Fallback category if not provided by the form // for equipemnt 
+      // Fallback category if not provided by the form // for equipemnt
       normalized.category = (normalized.class as string) || 'Uncategorized';
 
       const body = normalized;
@@ -288,11 +289,11 @@ export const useModuleStore = defineStore('modules', () => {
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
-            submoduleType,
-            moduleType,
-            unit,
-            year,
-          });
+        submoduleType,
+        moduleType,
+        unit,
+        year,
+      });
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -320,11 +321,11 @@ export const useModuleStore = defineStore('modules', () => {
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
-          moduleType,
-          submoduleType,
-          unit,
-          year,
-        });
+        moduleType,
+        submoduleType,
+        unit,
+        year,
+      });
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';

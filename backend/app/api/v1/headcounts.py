@@ -217,7 +217,7 @@ async def update_headcount(
     headcount = await service.update_headcount(
         headcount_id=headcount_id,
         data=headcount_data,
-        user_id=current_user.id,
+        user=current_user,
     )
 
     if not headcount:
@@ -294,7 +294,7 @@ async def delete_headcount(
             detail="Headcount not found for this unit",
         )
 
-    success = await service.delete_headcount(headcount_id)
+    success = await service.delete_headcount(headcount_id, current_user)
 
     if not success:
         logger.error(f"Failed to delete headcount id={sanitize(headcount_id)}")

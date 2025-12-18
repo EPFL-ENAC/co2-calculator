@@ -280,7 +280,7 @@ async def get_submodule_data(
 
 async def get_equipment_by_id(
     session: AsyncSession,
-    equipment_id: int,
+    item_id: int,
 ) -> EquipmentDetailResponse:
     """
     Get equipment by ID.
@@ -295,12 +295,12 @@ async def get_equipment_by_id(
     Raises:
         HTTPException: If equipment not found
     """
-    equipment = await equipment_repo.get_by_id(session, equipment_id)
+    equipment = await equipment_repo.get_by_id(session, item_id)
 
     if not equipment:
         raise HTTPException(
             status_code=404,
-            detail=f"Equipment with id {equipment_id} not found",
+            detail=f"Equipment with id {item_id} not found",
         )
 
     # Map database fields to response schema
@@ -463,8 +463,8 @@ async def create_equipment(
 
 async def update_equipment(
     session: AsyncSession,
-    equipment_id: int,
-    equipment_data: EquipmentUpdateRequest,
+    item_id: int,
+    item_data: EquipmentUpdateRequest,
     user_id: str,
 ) -> EquipmentDetailResponse:
     """
@@ -483,17 +483,16 @@ async def update_equipment(
         HTTPException: If equipment not found
     """
     # Get existing equipment
-    equipment = await equipment_repo.get_by_id(session, equipment_id)
+    equipment = await equipment_repo.get_by_id(session, item_id)
 
     if not equipment:
         raise HTTPException(
             status_code=404,
-            detail=f"Equipment with id {equipment_id} not found",
+            detail=f"Equipment with id {item_id} not found",
         )
 
     # Convert request to dict, excluding unset fields
-    update_dict = equipment_data.model_dump(by_alias=False, exclude_unset=True)
-
+    update_dict = item_data.model_dump(by_alias=False, exclude_unset=True)
     # Map class_ to equipment_class for database
     if "class_" in update_dict:
         update_dict["equipment_class"] = update_dict.pop("class_")
@@ -548,7 +547,7 @@ async def update_equipment(
         session, equipment, update_dict
     )
 
-    logger.info(f"Updated equipment {equipment_id} by user {user_id}")
+    logger.info(f"Updated equipment {item_id} by user {user_id}")
 
     # Map database fields to response schema
     response_data = {

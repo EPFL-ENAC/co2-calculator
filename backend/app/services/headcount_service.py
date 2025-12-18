@@ -44,13 +44,13 @@ class HeadcountService:
         self,
         headcount_id: int,
         data: HeadCountUpdate,
-        user_id: str,
+        user: User,
     ) -> Optional[HeadCount]:
         """Update an existing headcount record."""
         return await self.repo.update_headcount(
             headcount_id=headcount_id,
             data=data,
-            user_id=user_id,
+            user_id=user.id,
         )
 
     async def delete_headcount(self, headcount_id: int, current_user: User) -> bool:
@@ -67,9 +67,9 @@ class HeadcountService:
             return False
         return await self.repo.delete_headcount(headcount_id)
 
-    async def get_by_id(self, headcount_id: int) -> Optional[HeadCount]:
+    async def get_by_id(self, item_id: int) -> Optional[HeadCount]:
         """Get headcount record by ID."""
-        return await self.repo.get_by_id(headcount_id)
+        return await self.repo.get_by_id(item_id)
 
     async def get_headcounts(
         self,

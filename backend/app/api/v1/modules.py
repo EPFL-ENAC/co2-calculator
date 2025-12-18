@@ -199,14 +199,13 @@ async def create_item(
         f"POST equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
-    item = None
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
     # Validate unit_id matches the one in request body
     if module_id == "equipment-electric-consumption":
-        if item_data.unit_id != unit_id:
+        if isinstance(item_data, HeadCountCreateRequest):
             raise HTTPException(
                 status_code=400,
-                detail=f"unit_id in path ({unit_id}) must match "
-                f"unit_id in request body ({item_data.unit_id})",
+                detail="Invalid item_data type for equipment creation",
             )
 
         item = await equipment_service.create_equipment(
@@ -227,17 +226,35 @@ async def create_item(
             status="unknown",
             sciper="unknown",
         )
-        item = await HeadcountService(db).create_headcount(
+        headcount = await HeadcountService(db).create_headcount(
             data=headcount_create,
             provider_source="manual",
             user_id=current_user.id,
         )
+        if headcount is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create headcount item",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
     else:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported module_id: {sanitize(module_id)}",
         )
-
+    if item is None:
+        logger.error(
+            "Failed to create item in module",
+            extra={
+                "module_id": sanitize(module_id),
+                "unit_id": sanitize(unit_id),
+                "user_id": sanitize(current_user.id),
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create equipment item",
+        )
     logger.info(
         f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
     )
@@ -276,16 +293,32 @@ async def get_item(
         f"GET equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
-    item = None
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
     if module_id == "equipment-electric-consumption":
+        if not isinstance(item_id, int):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_id type for equipment retrieval",
+            )
         item = await equipment_service.get_equipment_by_id(
             session=db,
-            equipment_id=item_id,
+            item_id=item_id,
         )
     elif module_id == "my-lab":
-        item = await HeadcountService(db).get_by_id(
-            headcount_id=item_id,
+        if not isinstance(item_id, int):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_id type for headcount retrieval",
+            )
+        headcount = await HeadcountService(db).get_by_id(
+            item_id=item_id,
         )
+        if headcount is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Headcount item not found",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -331,7 +364,13 @@ async def update_equipment(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
     if module_id == "equipment-electric-consumption":
+        if not isinstance(item_data, EquipmentUpdateRequest):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_data type for equipment update",
+            )
         item = await equipment_service.update_equipment(
             session=db,
             item_id=item_id,
@@ -339,14 +378,25 @@ async def update_equipment(
             user_id=current_user.id,
         )
     elif module_id == "my-lab":
+        if not isinstance(item_data, HeadCountUpdateRequest):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_data type for equipment update",
+            )
         updateItem = HeadCountUpdate(
             **item_data.model_dump(exclude_unset=True),
         )
-        item = await HeadcountService(db).update_headcount(
+        headcount = await HeadcountService(db).update_headcount(
             headcount_id=item_id,
             data=updateItem,
-            user_id=current_user.id,
+            user=current_user,
         )
+        if headcount is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Headcount item not found",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
