@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
+from app.models.user import User
 from app.repositories.headcount_repo import HeadCountRepository
 from app.schemas.equipment import (
     ModuleResponse,
@@ -43,22 +44,32 @@ class HeadcountService:
         self,
         headcount_id: int,
         data: HeadCountUpdate,
-        user_id: str,
+        user: User,
     ) -> Optional[HeadCount]:
         """Update an existing headcount record."""
         return await self.repo.update_headcount(
             headcount_id=headcount_id,
             data=data,
-            user_id=user_id,
+            user_id=user.id,
         )
 
-    async def delete_headcount(self, headcount_id: int) -> bool:
+    async def delete_headcount(self, headcount_id: int, current_user: User) -> bool:
         """Delete a headcount record."""
+        if (
+            current_user.has_role("co2.backoffice.admin") is False
+            and current_user.has_role("co2.user.principal") is False
+            and current_user.has_role("co2.user.secondary") is False
+        ):
+            logger.warning(
+                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
+                f"for headcount_id={sanitize(headcount_id)}"
+            )
+            return False
         return await self.repo.delete_headcount(headcount_id)
 
-    async def get_by_id(self, headcount_id: int) -> Optional[HeadCount]:
+    async def get_by_id(self, item_id: int) -> Optional[HeadCount]:
         """Get headcount record by ID."""
-        return await self.repo.get_by_id(headcount_id)
+        return await self.repo.get_by_id(item_id)
 
     async def get_headcounts(
         self,

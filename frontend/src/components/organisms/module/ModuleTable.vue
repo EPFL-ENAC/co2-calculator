@@ -62,6 +62,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
+    :hide-pagination="moduleconfig?.hasTablePagination === false"
     no-data-label="No items"
     :filter="filterTerm"
     @request="onRequest"
@@ -141,13 +142,21 @@
               :dense="true"
               hide-bottom-space
               outlined
+              :min="col.min"
+              :max="col.max"
+              :step="col.step"
               class="inline-input"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template v-else-if="col.name === 'action'">
+          <template
+            v-else-if="
+              col.name === 'action' &&
+              props.moduleconfig.hasTableAction !== false
+            "
+          >
             <q-btn
               icon="o_delete"
               color="grey-4"
@@ -326,6 +335,11 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;
+  moduleconfig: {
+    hasTableAction?: boolean;
+    hasTopBar?: boolean;
+    hasTablePagination?: boolean;
+  };
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -359,6 +373,9 @@ type TableViewColumn = {
   field: string;
   sortable: boolean;
   align: 'left' | 'right' | 'center';
+  min?: number;
+  max?: number;
+  step?: number;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
@@ -398,6 +415,9 @@ const qCols = computed<TableViewColumn[]>(() => {
         label: labelText,
         field: f.id,
         sortable,
+        min: f.min,
+        max: f.max,
+        step: f.step,
         align,
         inputComponent,
         editableInline,
@@ -407,18 +427,23 @@ const qCols = computed<TableViewColumn[]>(() => {
       };
     });
 
-  baseCols.push({
-    name: 'action',
-    label: $t('common_actions'),
-    field: 'action',
-    align: 'right',
-    sortable: false,
-    inputComponent: QInput,
-    editableInline: false,
-    options: undefined,
-    tooltip: undefined,
-    type: 'text',
-  });
+  if (props.moduleconfig.hasTableAction !== false) {
+    baseCols.push({
+      name: 'action',
+      label: $t('common_actions'),
+      field: 'action',
+      align: 'right',
+      sortable: false,
+      inputComponent: QInput,
+      min: undefined,
+      max: undefined,
+      step: undefined,
+      editableInline: false,
+      options: undefined,
+      tooltip: undefined,
+      type: 'text',
+    });
+  }
   return baseCols;
 });
 
@@ -440,7 +465,7 @@ function renderCell(row: ModuleRow, col: { field: string; name: string }) {
 }
 
 function getItemName(row: ModuleRow): string {
-  return row.name ? String(row.name) : String(row.id || 'this item');
+  return String(row?.name ?? row?.display_name ?? $t('common_this_item'));
 }
 
 function getRowId(row: ModuleRow): number | null {
@@ -500,9 +525,16 @@ async function commitInline(
   const id = getRowId(row);
   if (id == null) return;
   try {
-    await store.patchItem(moduleType, props.unitId, String(props.year), id, {
-      [col.field]: valueToSave,
-    });
+    await store.patchItem(
+      moduleType,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      {
+        [col.field]: valueToSave,
+      },
+    );
   } catch (err) {
     setError(row, col, err instanceof Error ? err.message : 'Save failed');
   }
@@ -556,7 +588,6 @@ function onFormSubmit(
   const idRaw = editRowData.value?.id;
   const equipmentId = Number(idRaw);
   const isEdit = Number.isFinite(equipmentId);
-  const submoduleId = '';
 
   // Normalize class value
   const classValRaw = payload.class as string | { value?: string } | null;
@@ -578,8 +609,21 @@ function onFormSubmit(
     basePayload.pas_usage = Number(payload.pas_usage);
 
     const p = isEdit
-      ? store.patchItem(moduleType, unit, year, equipmentId, basePayload)
-      : store.postItem(moduleType, unit, year, submoduleId, basePayload);
+      ? store.patchItem(
+          moduleType,
+          props.submoduleType,
+          unit,
+          year,
+          equipmentId,
+          basePayload,
+        )
+      : store.postItem(
+          moduleType,
+          unit,
+          year,
+          props.submoduleType,
+          basePayload,
+        );
 
     await p.finally(() => {
       editDialogOpen.value = false;
@@ -638,12 +682,15 @@ function onConfirmDelete() {
     return;
   }
   const moduleType = props.moduleType as Module;
+  const submoduleType = props.submoduleType;
   const unit = props.unitId;
   const year = String(props.year);
-  store.deleteItem(moduleType, unit, year, deleteRowId.value).finally(() => {
-    confirmDelete.value = false;
-    deleteRowId.value = null;
-  });
+  store
+    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .finally(() => {
+      confirmDelete.value = false;
+      deleteRowId.value = null;
+    });
 }
 
 async function onRequest(request: {

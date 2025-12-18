@@ -37,7 +37,7 @@ const memberFields: ModuleField[] = [
     icon: 'o_assignment_ind',
   },
   {
-    id: 'ept',
+    id: 'fte',
     labelKey: 'my-lab-member-form-field-fte-label',
     type: 'number',
     required: true,
@@ -57,12 +57,14 @@ const memberFieldDynamicIcons = memberFields.map((field) => ({
 
 const studentFields: ModuleField[] = [
   {
-    id: 'ept',
+    id: 'fte',
     labelKey: 'my-lab-student_form_field_fte_label',
     type: 'number',
     required: true,
     min: 0,
-    hideIn: { table: false },
+    step: 0.1,
+    ratio: '12/12',
+    icon: iconMap['o_timer'],
   },
 ];
 
@@ -96,6 +98,8 @@ export const myLab: ModuleConfig = {
       hasFormSubtitle: true,
       hasStudentHelper: true,
       hasFormAddWithNote: false,
+      hasTablePagination: false,
+      hasTableAction: false,
       addButtonLabelKey: 'common_update_button',
       moduleFields: studentFields,
     },

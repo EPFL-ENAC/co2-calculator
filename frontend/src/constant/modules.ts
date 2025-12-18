@@ -165,9 +165,13 @@ export interface ModuleItem {
   act_power?: number;
   pas_power?: number;
   kg_co2eq?: number;
+  fte?: number;
+  note?: string;
+  display_name?: string;
+  position?: string;
   status?: string;
   is_new?: boolean;
-  id?: string;
+  id?: number;
 }
 
 export interface Submodule {

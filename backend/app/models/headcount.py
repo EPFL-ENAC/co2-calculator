@@ -2,6 +2,7 @@ from datetime import date as dt_date
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Field, SQLModel
 
@@ -68,7 +69,7 @@ class HeadCountBase(SQLModel):
     sciper: Optional[str] = Field(
         max_length=20, index=True, description="Sciper number"
     )
-    ept: float = Field(description="Full-time equivalent percentage (0.0 to 1.0)")
+    fte: float = Field(description="Full-time equivalent percentage (0.0 to 1.0)")
 
     # Literal["member", "student"]
     submodule: str = Field(
@@ -117,6 +118,17 @@ class HeadCountCreate(HeadCountBase):
     pass
 
 
+class HeadCountCreateRequest(BaseModel):
+    """
+    Body payload for POST requests.
+    Exact copy of Base (all fields required), but no ID/Audit/Provider allowed.
+    """
+
+    display_name: str | None = None
+    function: str | None = None
+    fte: float | None = None
+
+
 class HeadCountUpdate(SQLModel):
     """
     Body payload for PATCH requests.
@@ -134,9 +146,21 @@ class HeadCountUpdate(SQLModel):
     status: Optional[str] = None
     function: Optional[str] = None
     sciper: Optional[str] = None
-    ept: Optional[float] = None
+    fte: Optional[float] = None
     # We might allow updating the provider manually, or handle it in code
     provider: Optional[str] = None
+
+
+class HeadCountUpdateRequest(BaseModel):
+    """
+    Body payload for PATCH requests.
+    All fields are Optional. We do NOT inherit from Base to avoid
+    required field conflicts.
+    """
+
+    display_name: Optional[str] = None
+    function: Optional[str] = None
+    fte: Optional[float] = None
 
 
 # ==========================================
@@ -163,7 +187,7 @@ class HeadcountItemResponse(SQLModel):
     display_name: Optional[str] = Field(None, description="Display name of the person")
     function: Optional[str] = Field(None, description="Function or role")
     sciper: Optional[str] = Field(None, description="Sciper number")
-    ept: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
+    fte: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
 
 
 class HeadCountList(SQLModel):

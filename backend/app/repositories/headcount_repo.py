@@ -122,7 +122,7 @@ class HeadCountRepository:
         query = select(
             HeadCount.submodule,
             func.count(col(HeadCount.id)).label("total_items"),
-            func.sum(HeadCount.ept).label("annual_fte"),
+            func.sum(HeadCount.fte).label("annual_fte"),
         ).group_by(HeadCount.submodule)
 
         # Apply filters

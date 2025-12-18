@@ -96,6 +96,7 @@
                 :error-message="errors[inp.id]"
                 :min="inp.min"
                 :max="inp.max"
+                :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :readonly="inp.id === 'act_power' || inp.id === 'pas_power'"

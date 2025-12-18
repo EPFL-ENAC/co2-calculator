@@ -46,6 +46,7 @@
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
           :submodule-type="submodule.type"
+          :moduleconfig="submodule"
         />
       </div>
       <q-separator />
@@ -54,20 +55,12 @@
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
           :module-type="moduleType"
+          :item="item"
           :has-subtitle="submodule.hasFormSubtitle"
           :has-student-helper="submodule.hasStudentHelper"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
-          @submit="
-            (payload: Record<string, FieldValue>) =>
-              moduleStore.postItem(
-                moduleType,
-                unitId,
-                year,
-                submodule.id,
-                payload,
-              )
-          "
+          @submit="submitForm"
         />
       </div>
     </q-card-section>
@@ -114,6 +107,12 @@ const submoduleCount = computed(
       ?.total_items || 0,
 );
 
+const item = computed(() => {
+  if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
+    return moduleStore.state.dataSubmodule?.[props.submodule.type]?.items[0];
+  }
+  return null;
+});
 const { te } = useI18n();
 
 const hasTableTooltip = computed(() => {
@@ -121,4 +120,28 @@ const hasTableTooltip = computed(() => {
   const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
   return te(tooltipKey);
 });
+
+// actions
+
+function submitForm(payload: Record<string, FieldValue>) {
+  // if update! (for my-lab student for instance)
+  if (item.value && item.value.id) {
+    return moduleStore.patchItem(
+      props.moduleType,
+      props.submoduleType,
+      String(props.unitId),
+      String(props.year),
+      item.value.id,
+      payload,
+    );
+  } else {
+    moduleStore.postItem(
+      props.moduleType,
+      props.unitId,
+      props.year,
+      props.submoduleType,
+      payload,
+    );
+  }
+}
 </script>

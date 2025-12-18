@@ -97,7 +97,7 @@ export default {
   },
   [`${MODULES.MyLab}-student-student-helper-title`]: {
     en: 'Student FTE Calculator Helper',
-    fr: 'FTE étudiants - Outil d’aide au calcul',
+    fr: 'EPT étudiants - Outil d’aide au calcul',
   },
   [`${MODULES.MyLab}-member-form-title-info-label`]: {
     en: 'fte member tooltip',
@@ -110,7 +110,7 @@ export default {
 
   student_helper_title: {
     en: 'Student FTE Calculator Helper',
-    fr: 'FTE étudiants - Outil d’aide au calcul',
+    fr: 'EPT étudiants - Outil d’aide au calcul',
   },
 
   student_helper_students_label: {

@@ -39,6 +39,7 @@ env = [
     "OAUTH_CLIENT_SECRET=fake-secret",
     "OAUTH_SCOPE=openid profile email",
     "FRONTEND_URL=http://test-frontend",
+    "DEBUG=False",
 ]
 
 filterwarnings = ["ignore::DeprecationWarning"]

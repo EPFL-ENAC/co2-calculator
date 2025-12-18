@@ -46,8 +46,10 @@ export interface Submodule {
   moduleFields: ModuleField[];
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
+  hasTablePagination?: boolean;
   hasStudentHelper?: boolean;
   hasFormAddWithNote?: boolean;
+  hasTableAction?: boolean;
   addButtonLabelKey?: string;
 }
 
