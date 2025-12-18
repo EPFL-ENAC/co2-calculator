@@ -2,6 +2,7 @@ from datetime import date as dt_date
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import Field, SQLModel
 
@@ -115,6 +116,17 @@ class HeadCountCreate(HeadCountBase):
     """
 
     pass
+
+
+class HeadCountCreateRequest(BaseModel):
+    """
+    Body payload for POST requests.
+    Exact copy of Base (all fields required), but no ID/Audit/Provider allowed.
+    """
+
+    display_name: str | None = None
+    function: str | None = None
+    ept: int | None = None
 
 
 class HeadCountUpdate(SQLModel):

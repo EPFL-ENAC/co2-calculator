@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
+from app.models.user import User
 from app.repositories.headcount_repo import HeadCountRepository
 from app.schemas.equipment import (
     ModuleResponse,
@@ -52,8 +53,18 @@ class HeadcountService:
             user_id=user_id,
         )
 
-    async def delete_headcount(self, headcount_id: int) -> bool:
+    async def delete_headcount(self, headcount_id: int, current_user: User) -> bool:
         """Delete a headcount record."""
+        if (
+            current_user.has_role("co2.backoffice.admin") is False
+            and current_user.has_role("co2.user.principal") is False
+            and current_user.has_role("co2.user.secondary") is False
+        ):
+            logger.warning(
+                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
+                f"for headcount_id={sanitize(headcount_id)}"
+            )
+            return False
         return await self.repo.delete_headcount(headcount_id)
 
     async def get_by_id(self, headcount_id: int) -> Optional[HeadCount]:

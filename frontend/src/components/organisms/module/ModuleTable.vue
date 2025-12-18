@@ -141,6 +141,9 @@
               :dense="true"
               hide-bottom-space
               outlined
+              :min="col.min"
+              :max="col.max"
+              :step="col.step"
               class="inline-input"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
@@ -359,6 +362,9 @@ type TableViewColumn = {
   field: string;
   sortable: boolean;
   align: 'left' | 'right' | 'center';
+  min?: number;
+  max?: number;
+  step?: number;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
@@ -398,6 +404,9 @@ const qCols = computed<TableViewColumn[]>(() => {
         label: labelText,
         field: f.id,
         sortable,
+        min: f.min,
+        max: f.max,
+        step: f.step,
         align,
         inputComponent,
         editableInline,
@@ -638,12 +647,15 @@ function onConfirmDelete() {
     return;
   }
   const moduleType = props.moduleType as Module;
+  const submoduleType = props.submoduleType;
   const unit = props.unitId;
   const year = String(props.year);
-  store.deleteItem(moduleType, unit, year, deleteRowId.value).finally(() => {
-    confirmDelete.value = false;
-    deleteRowId.value = null;
-  });
+  store
+    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .finally(() => {
+      confirmDelete.value = false;
+      deleteRowId.value = null;
+    });
 }
 
 async function onRequest(request: {

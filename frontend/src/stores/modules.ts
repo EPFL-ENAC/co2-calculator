@@ -8,7 +8,7 @@ import {
   ModuleStates,
 } from 'src/constant/moduleStates';
 
-import type { ModuleResponse, Submodule } from 'src/constant/modules';
+import type { AllSubmoduleTypes, ModuleResponse, Submodule } from 'src/constant/modules';
 
 export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
@@ -228,7 +228,7 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unitId: string,
     year: string | number,
-    submoduleId: string,
+    submoduleType: string,
     payload: Record<string, FieldValue>,
   ) {
     state.error = null;
@@ -237,9 +237,8 @@ export const useModuleStore = defineStore('modules', () => {
         year = year.toString();
       }
 
-      const path = `${modulePath(moduleType, unitId, year)}/equipment`;
+      const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}`;
       const normalized: Record<string, string | number | boolean | null> = {
-        unit_id: unitId,
       };
 
       Object.entries(payload).forEach(([key, raw]) => {
@@ -258,40 +257,25 @@ export const useModuleStore = defineStore('modules', () => {
             : (value as string | number | boolean | null);
       });
 
-      // Backend expects `submodule` (scientific|it|other), not `submodule_id`
-      if (submoduleId) {
-        const cleaned = submoduleId.startsWith('sub_')
-          ? submoduleId.replace('sub_', '')
-          : submoduleId;
-        normalized.submodule = cleaned as string;
-      }
 
-      // Fallback category if not provided by the form
-      if (!('category' in normalized) || !normalized.category) {
-        normalized.category = (normalized.class as string) || 'Uncategorized';
-      }
+
+      // Fallback category if not provided by the form // for equipemnt 
+      normalized.category = (normalized.class as string) || 'Uncategorized';
 
       const body = normalized;
       await api.post(path, { json: body }).json();
-
-      // Normalize submoduleId for store key (remove 'sub_' prefix if present)
-      const normalizedSubmoduleId = submoduleId.startsWith('sub_')
-        ? submoduleId.replace('sub_', '')
-        : submoduleId;
 
       // Refresh module totals
       await getModuleTotals(moduleType, unitId, year);
 
       // Refetch the affected submodule with current pagination/sort state
-      const pagination = state.paginationSubmodule[normalizedSubmoduleId];
-      if (pagination) {
-        await getSubmoduleData({
-          moduleType,
-          unit: unitId,
-          year,
-          submoduleType: normalizedSubmoduleId,
-        });
-      }
+
+      await getSubmoduleData({
+        moduleType,
+        unit: unitId,
+        year,
+        submoduleType: submoduleType,
+      });
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -340,17 +324,16 @@ export const useModuleStore = defineStore('modules', () => {
 
   async function deleteItem(
     moduleType: Module,
+    submoduleType: AllSubmoduleTypes,
     unit: string,
     year: string,
-    equipmentId: number,
+    itemId: number,
   ) {
     state.error = null;
     try {
       // Find affected submodule BEFORE deleting (item won't be in data after deletion)
-      const affectedSubmoduleId = findSubmoduleForEquipment(equipmentId);
-
-      const path = `${modulePath(moduleType, unit, year)}/equipment/${encodeURIComponent(
-        String(equipmentId),
+      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+        String(itemId),
       )}`;
       await api.delete(path);
 
@@ -358,17 +341,12 @@ export const useModuleStore = defineStore('modules', () => {
       await getModuleTotals(moduleType, unit, year);
 
       // Refetch the affected submodule with current pagination/sort state
-      if (affectedSubmoduleId) {
-        const pagination = state.paginationSubmodule[affectedSubmoduleId];
-        if (pagination) {
-          await getSubmoduleData({
-            moduleType,
-            submoduleType: affectedSubmoduleId,
-            unit,
-            year,
-          });
-        }
-      }
+      await getSubmoduleData({
+          moduleType,
+          submoduleType,
+          unit,
+          year,
+        });
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';

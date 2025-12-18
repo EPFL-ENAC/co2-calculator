@@ -1,11 +1,18 @@
 """Unit Results API endpoints."""
 
+from typing import Union
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.headcount import (
+    HeadCountCreate,
+    HeadCountCreateRequest,
+    HeadcountItemResponse,
+)
 from app.models.user import User
 from app.schemas.equipment import (
     EquipmentCreateRequest,
@@ -158,15 +165,16 @@ async def get_submodule(
 
 
 @router.post(
-    "/{unit_id}/{year}/{module_id}/equipment",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
     status_code=status.HTTP_201_CREATED,
 )
-async def create_equipment(
+async def create_item(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_data: EquipmentCreateRequest,
+    submodule_id: str,
+    item_data: EquipmentCreateRequest | HeadCountCreateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -177,7 +185,8 @@ async def create_equipment(
         unit_id: Unit ID for the equipment
         year: Year (informational)
         module_id: Module identifier
-        equipment_data: Equipment creation data
+        submodule_id: Submodule identifier
+        item_data: Equipment creation data
         db: Database session
         current_user: Authenticated user
 
@@ -188,35 +197,62 @@ async def create_equipment(
         f"POST equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
-
+    item = None
     # Validate unit_id matches the one in request body
-    if equipment_data.unit_id != unit_id:
+    if module_id == "equipment-electric-consumption":
+        if item_data.unit_id != unit_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unit_id in path ({unit_id}) must match "
+                f"unit_id in request body ({item_data.unit_id})",
+            )
+
+        item = await equipment_service.create_equipment(
+            session=db,
+            equipment_data=item_data,
+            user_id=current_user.id,
+        )
+    elif module_id == "my-lab":
+        headcount_create = HeadCountCreate(
+            **item_data.dict(),
+            unit_id=unit_id,
+            date="2024-12-31",
+            submodule=submodule_id,
+            unit_name=str(unit_id),
+            cf="unknown",
+            cf_name="unknown",
+            cf_user_id="unknown",
+            status="unknown",
+            sciper="unknown",
+        )
+        item = await HeadcountService(db).create_headcount(
+            data=headcount_create,
+            provider_source="manual",
+            user_id=current_user.id,
+        )
+    else:
         raise HTTPException(
             status_code=400,
-            detail=f"unit_id in path ({unit_id}) must match "
-            f"unit_id in request body ({equipment_data.unit_id})",
+            detail=f"Unsupported module_id: {sanitize(module_id)}",
         )
 
-    equipment = await equipment_service.create_equipment(
-        session=db,
-        equipment_data=equipment_data,
-        user_id=current_user.id,
+    logger.info(
+        f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
     )
 
-    logger.info(f"Created equipment {equipment.id} for unit {sanitize(unit_id)}")
-
-    return equipment
+    return item
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
-async def get_equipment(
+async def get_item(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
+    submodule_id: str,
+    item_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -236,27 +272,39 @@ async def get_equipment(
     """
     logger.info(
         f"GET equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
-        f"module_id={sanitize(module_id)}, equipment_id={sanitize(equipment_id)}"
+        f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
+    item = None
+    if module_id == "equipment-electric-consumption":
+        item = await equipment_service.get_equipment_by_id(
+            session=db,
+            equipment_id=item_id,
+        )
+    elif module_id == "my-lab":
+        item = await HeadcountService(db).get_by_id(
+            headcount_id=item_id,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Equipment item not found",
+        )
+    logger.info(f"Retrieved equipment {sanitize(item_id)}")
 
-    equipment = await equipment_service.get_equipment_by_id(
-        session=db,
-        equipment_id=equipment_id,
-    )
-
-    return equipment
+    return item
 
 
 @router.patch(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
 async def update_equipment(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
-    equipment_data: EquipmentUpdateRequest,
+    submodule_id: str,
+    item_id: int,
+    item_data: EquipmentUpdateRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -278,31 +326,41 @@ async def update_equipment(
     logger.info(
         f"PATCH equipment: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
-        f"equipment_id={sanitize(equipment_id)}, "
+        f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-
-    equipment = await equipment_service.update_equipment(
-        session=db,
-        equipment_id=equipment_id,
-        equipment_data=equipment_data,
-        user_id=current_user.id,
-    )
-
-    logger.info(f"Updated equipment {sanitize(equipment_id)}")
-
-    return equipment
+    if module_id == "equipment-electric-consumption":
+        item = await equipment_service.update_equipment(
+            session=db,
+            item_id=item_id,
+            item_data=item_data,
+            user_id=current_user.id,
+        )
+    elif module_id == "my-lab":
+        item = await HeadcountService(db).update_headcount(
+            headcount_id=item_id,
+            data=item_data,
+            user_id=current_user.id,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="module not supported for update",
+        )
+    logger.info(f"Updated equipment {sanitize(item_id)}")
+    return item
 
 
 @router.delete(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_equipment(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
+    submodule_id: str,
+    item_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -323,14 +381,24 @@ async def delete_equipment(
     logger.info(
         f"DELETE equipment: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
-        f"equipment_id={sanitize(equipment_id)}, "
+        f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
+    if module_id == "equipment-electric-consumption":
+        await equipment_service.delete_equipment(
+            session=db,
+            equipment_id=item_id,
+            user_id=current_user.id,
+        )
+    elif module_id == "my-lab":
+        await HeadcountService(db).delete_headcount(
+            headcount_id=item_id,
+            current_user=current_user,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="module not supported for deletion",
+        )
 
-    await equipment_service.delete_equipment(
-        session=db,
-        equipment_id=equipment_id,
-        user_id=current_user.id,
-    )
-
-    logger.info(f"Deleted equipment {sanitize(equipment_id)}")
+    logger.info(f"Deleted equipment {sanitize(item_id)}")
