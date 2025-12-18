@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors, uncertaintyColor } from 'src/constant/charts';
+import { colors } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -15,14 +15,6 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import type { CallbackDataParams } from 'echarts/types/dist/shared';
-
-interface AxisTooltipParams extends CallbackDataParams {
-  axisValue: string;
-  value: number;
-  marker: string;
-  seriesName: string;
-}
 
 use([
   CanvasRenderer,
@@ -67,29 +59,488 @@ const additionalDataConfig = computed(() => {
   };
 });
 
-const getDataArray = (baseData: number[]): number[] => {
-  if (toggleAdditionalData.value) {
-    return [...baseData, 0, 0, 0, 0];
-  }
-  return baseData;
-};
-
-const getUncertaintyDataArray = (baseData: number[]): number[] => {
-  const showUncertainties = props.viewUncertainties ?? false;
-  if (!showUncertainties) {
-    // Return all zeros when uncertainty is disabled
-    const length = toggleAdditionalData.value
-      ? baseData.length + 4
-      : baseData.length;
-    return new Array(length).fill(0);
-  }
-  // Return actual uncertainty values when enabled
-  return getDataArray(baseData);
-};
-
 const chartOption = computed((): EChartsOption => {
-  // Explicitly reference props.viewUncertainties to ensure reactivity
   const showUncertainties = props.viewUncertainties ?? false;
+
+  const datasetSource = (() => {
+    const baseData = [
+      {
+        category: t('charts-unit-gas-category'),
+        unitGas: 2.5,
+        unitGasStdDev: 0.5,
+      },
+      {
+        category: t('charts-infrastructure-gas-category'),
+        infrastructureGas: 2,
+        infrastructureGasStdDev: 0.5,
+      },
+      {
+        category: t('charts-infrastructure-category'),
+        cooling: 9,
+        coolingStdDev: 1.8,
+        ventilation: 3,
+        ventilationStdDev: 1,
+        lighting: 9,
+        lightingStdDev: 1.8,
+      },
+      {
+        category: t('charts-equipment-category'),
+        scientific: 10,
+        scientificStdDev: 2,
+        it: 3,
+        itStdDev: 0.6,
+        other: 0.2,
+        otherStdDev: 0.04,
+      },
+      {
+        category: t('charts-professional-travel-category'),
+        train: 1.5,
+        trainStdDev: 0.3,
+        plane: 3,
+        planeStdDev: 0.6,
+      },
+      {
+        category: t('charts-it-category'),
+        itInfrastructure: 25,
+        itInfrastructureStdDev: 0.2,
+      },
+      {
+        category: t('charts-purchases-category'),
+        bioChemicals: 2,
+        bioChemicalsStdDev: 0.4,
+        consumables: 3,
+        consumablesStdDev: 0.6,
+        equipment: 1,
+        equipmentStdDev: 0.2,
+        services: 2,
+        servicesStdDev: 0.4,
+      },
+      {
+        category: t('charts-research-core-facilities-category'),
+        scitas: 1,
+        scitasStdDev: 0.2,
+        rcp: 1.5,
+        rcpStdDev: 0.3,
+      },
+    ];
+
+    if (toggleAdditionalData.value) {
+      return [
+        ...baseData,
+        {
+          category: t('charts-commuting-category'),
+          commuting: 8,
+          commutingStdDev: 1.6,
+        },
+        {
+          category: t('charts-food-category'),
+          food: 2.5,
+          foodStdDev: 0.5,
+        },
+        {
+          category: t('charts-waste-category'),
+          waste: 10,
+          wasteStdDev: 2,
+        },
+        {
+          category: t('charts-grey-energy-category'),
+          greyEnergy: 4,
+          greyEnergyStdDev: 2,
+        },
+      ];
+    }
+    return baseData;
+  })();
+
+  // Define series order for total error bar calculation
+  const allValueKeys = [
+    'unitGas',
+    'infrastructureGas',
+    'cooling',
+    'ventilation',
+    'lighting',
+    'scientific',
+    'it',
+    'other',
+    'train',
+    'plane',
+    'itInfrastructure',
+    'bioChemicals',
+    'consumables',
+    'equipment',
+    'services',
+    'scitas',
+    'rcp',
+  ];
+
+  const allStdDevKeys = [
+    'unitGasStdDev',
+    'infrastructureGasStdDev',
+    'coolingStdDev',
+    'ventilationStdDev',
+    'lightingStdDev',
+    'scientificStdDev',
+    'itStdDev',
+    'otherStdDev',
+    'trainStdDev',
+    'planeStdDev',
+    'itInfrastructureStdDev',
+    'bioChemicalsStdDev',
+    'consumablesStdDev',
+    'equipmentStdDev',
+    'servicesStdDev',
+    'scitasStdDev',
+    'rcpStdDev',
+  ];
+
+  if (toggleAdditionalData.value) {
+    allValueKeys.push('commuting', 'food', 'waste', 'greyEnergy');
+    allStdDevKeys.push(
+      'commutingStdDev',
+      'foodStdDev',
+      'wasteStdDev',
+      'greyEnergyStdDev',
+    );
+  }
+
+  // Build series array first (will be used to extract mapping)
+  const seriesArray = [
+    {
+      name: t('charts-unit-gas-category'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'unitGas',
+      },
+      markLine: {
+        silent: true,
+        symbol: ['none', 'none'],
+        lineStyle: {
+          color: '#333',
+          width: 1.5,
+          type: 'solid' as const,
+        },
+        data: showUncertainties
+          ? (datasetSource
+              .map((item, i) => {
+                const total = allValueKeys.reduce(
+                  (sum, k) => sum + (item[k] || 0),
+                  0,
+                );
+                if (total <= 0) return null;
+                const stdDev = Math.sqrt(
+                  allStdDevKeys.reduce(
+                    (sum, k) => sum + Math.pow(item[k] || 0, 2),
+                    0,
+                  ),
+                );
+                return [
+                  { xAxis: i, yAxis: total + stdDev },
+                  { xAxis: i, yAxis: Math.max(0, total - stdDev) },
+                ] as const;
+              })
+              .filter(
+                (
+                  item,
+                ): item is [
+                  { xAxis: number; yAxis: number },
+                  { xAxis: number; yAxis: number },
+                ] => item !== null,
+              ) as Array<
+              [
+                { xAxis: number; yAxis: number },
+                { xAxis: number; yAxis: number },
+              ]
+            >)
+          : [],
+      },
+      itemStyle: {
+        color: colors.value.notDefined.default,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-infrastructure-gas-category'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'infrastructureGas',
+      },
+      itemStyle: {
+        color: colors.value.notDefined.default,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-cooling-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'cooling',
+      },
+      itemStyle: {
+        color: colors.value.blueGrey.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-ventilation-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'ventilation',
+      },
+      itemStyle: {
+        color: colors.value.blueGrey.dark,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-lighting-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'lighting',
+      },
+      itemStyle: {
+        color: colors.value.blueGrey.default,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-scientific-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'scientific',
+      },
+      itemStyle: {
+        color: colors.value.purple.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-it-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'it',
+      },
+      itemStyle: {
+        color: colors.value.purple.dark,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-other-purchases-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'other',
+      },
+      itemStyle: {
+        color: colors.value.purple.default,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-train-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'train',
+      },
+      itemStyle: {
+        color: colors.value.blue.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-plane-subcategory'),
+      type: 'bar',
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'plane',
+      },
+      itemStyle: {
+        color: colors.value.blue.dark,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-it-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'itInfrastructure',
+      },
+      itemStyle: {
+        color: colors.value.notDefined.default,
+      },
+    },
+    {
+      name: t('charts-bio-chemicals-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'bioChemicals',
+      },
+      itemStyle: {
+        color: colors.value.green.darker,
+      },
+    },
+    {
+      name: t('charts-consumables-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'consumables',
+      },
+      itemStyle: {
+        color: colors.value.green.dark,
+      },
+    },
+    {
+      name: t('charts-equipment-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'equipment',
+      },
+      itemStyle: {
+        color: colors.value.green.default,
+      },
+    },
+    {
+      name: t('charts-services-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'services',
+      },
+      itemStyle: {
+        color: colors.value.green.light,
+      },
+    },
+    {
+      name: t('charts-scitas-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'scitas',
+      },
+      itemStyle: {
+        color: colors.value.purpleGrey.darker,
+      },
+    },
+    {
+      name: t('charts-rcp-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'rcp',
+      },
+      itemStyle: {
+        color: colors.value.purpleGrey.dark,
+      },
+    },
+    ...(() => {
+      if (toggleAdditionalData.value) {
+        return [
+          {
+            name: t('charts-commuting-category'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'commuting',
+            },
+            itemStyle: {
+              color: colors.value.tealBlue.default,
+            },
+          },
+          {
+            name: t('charts-food-category'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'food',
+            },
+            itemStyle: {
+              color: colors.value.forestGreen.default,
+            },
+          },
+          {
+            name: t('charts-waste-category'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'waste',
+            },
+            itemStyle: {
+              color: colors.value.limeGreen.default,
+            },
+          },
+          {
+            name: t('charts-grey-energy-category'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'greyEnergy',
+            },
+            itemStyle: {
+              color: colors.value.neutralGrey.default,
+            },
+          },
+        ];
+      }
+      return [];
+    })(),
+  ];
+
+  const seriesNameToKey = Object.fromEntries(
+    seriesArray.map((s) => [s.name, s.encode.y]),
+  ) as Record<string, string>;
 
   return {
     tooltip: {
@@ -98,43 +549,55 @@ const chartOption = computed((): EChartsOption => {
         type: 'shadow',
       },
 
-      formatter: function (params: AxisTooltipParams[]) {
+      formatter: (params: unknown) => {
+        const arr = Array.isArray(params) ? params : params ? [params] : [];
+        if (!arr.length) return '';
+        const p = arr[0] as {
+          data?: Record<string, unknown>;
+          axisValue?: string;
+          name?: string;
+          seriesName?: string;
+          marker?: string;
+          value?: number | number[];
+        };
+        const data = p.data;
+        const name = p.axisValue || p.name || '';
         let total = 0;
-        let tooltip = `<strong>${params[0].axisValue}</strong><br/>`;
+        let tooltip = `<strong>${name}</strong><br/>`;
 
-        params.reverse().forEach((param: AxisTooltipParams) => {
-          if (param.value > 0) {
-            const isUncertainty = param.seriesName
-              .toLowerCase()
-              .includes('uncertainty');
-
-            // Skip uncertainty series - we'll combine them with main series
-            if (isUncertainty) {
-              total += param.value;
-              return;
-            }
-
-            // Find matching uncertainty series
-            let displayValue = param.value.toString();
-            if (showUncertainties) {
-              const uncertaintyParam = params.find(
-                (p) =>
-                  p.seriesName.toLowerCase().includes('uncertainty') &&
-                  p.seriesName.toLowerCase().replace(/\s+uncertainty$/, '') ===
-                    param.seriesName.toLowerCase(),
-              );
-              if (uncertaintyParam && uncertaintyParam.value > 0) {
-                displayValue = `${param.value} ± ${uncertaintyParam.value}`;
-              }
-            }
-
-            tooltip += `${param.marker} ${param.seriesName}: <strong>${displayValue} </strong><br/>`;
-            total += param.value;
+        arr.reverse().forEach((param: unknown) => {
+          const p = param as {
+            seriesName?: string;
+            marker?: string;
+            value?: number | number[];
+            data?: Record<string, unknown>;
+          };
+          const key = seriesNameToKey[p.seriesName || ''];
+          const val =
+            (data && key
+              ? Number(data[key])
+              : Array.isArray(p.value)
+                ? p.value[1]
+                : p.value) || 0;
+          if (val > 0) {
+            tooltip += `${p.marker || ''} ${p.seriesName}: <strong>${val.toFixed(1)} </strong><br/>`;
+            total += val;
           }
         });
 
-        tooltip += `<hr style="margin: 4px 0"/>Total: <strong>${total.toFixed(1)}</strong>`;
-        return tooltip;
+        let totalDisplay = total.toFixed(1);
+        if (showUncertainties && data) {
+          const stdDev = Math.sqrt(
+            allStdDevKeys.reduce(
+              (sum, k) => sum + Math.pow(Number(data[k]) || 0, 2),
+              0,
+            ),
+          );
+          if (stdDev > 0)
+            totalDisplay = `${total.toFixed(1)} ± ${stdDev.toFixed(1)}`;
+        }
+
+        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
       },
     },
 
@@ -147,28 +610,6 @@ const chartOption = computed((): EChartsOption => {
     },
     xAxis: {
       type: 'category',
-      data: (() => {
-        const baseCategories = [
-          t('charts-unit-gas-category'),
-          t('charts-infrastructure-gas-category'),
-          t('charts-infrastructure-category'),
-          t('charts-equipment-category'),
-          t('charts-professional-travel-category'),
-          t('charts-it-category'),
-          t('charts-purchases-category'),
-          t('charts-research-core-facilities-category'),
-        ];
-        if (toggleAdditionalData.value) {
-          return [
-            ...baseCategories,
-            t('charts-commuting-category'),
-            t('charts-food-category'),
-            t('charts-waste-category'),
-            t('charts-grey-energy-category'),
-          ];
-        }
-        return baseCategories;
-      })(),
       axisLabel: {
         interval: 0,
         rotate: 45,
@@ -334,505 +775,55 @@ const chartOption = computed((): EChartsOption => {
         return [];
       })(),
     ],
-    series: [
-      {
-        name: 'Unit Gas',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([2.5, 0, 0, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.notDefined.default,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Unit Gas Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0.5, 0, 0, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.notDefined.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Infrastructure Gas',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 2, 0, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.notDefined.default,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Infrastructure Gas Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0.4, 0, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.notDefined.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Cooling',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.blueGrey.darker,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Cooling Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.blueGrey.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Ventilation',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 3, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.blueGrey.dark,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Ventilation Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 1, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.blueGrey.dark),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Lighting',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 9, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.blueGrey.default,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Lighting Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 1.8, 0, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.blueGrey.default),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Scientific',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 10, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.purple.darker,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Scientific Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 2, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.purple.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'IT',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 3, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.purple.dark,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'IT Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0.6, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.purple.dark),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Other',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0.2, 0, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.purple.default,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Other Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0.04, 0, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.purple.default),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Train',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 1.5, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.blue.darker,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Train Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0.3, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.blue.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Plane',
-        type: 'bar',
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 3, 0, 0, 0]),
-        itemStyle: {
-          color: colors.value.blue.dark,
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'Plane Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0.6, 0, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.blue.dark),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: 'IT Infrastructure',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 25, 0, 0]),
-        itemStyle: {
-          color: colors.value.notDefined.default,
-        },
-      },
-      {
-        name: 'IT Infrastructure Uncertainty',
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0.2, 0, 0]),
-        itemStyle: {
-          color: uncertaintyColor(colors.value.notDefined.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-bio-chemicals-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
-        itemStyle: {
-          color: colors.value.green.darker,
-        },
-      },
-      {
-        name: `${t('charts-bio-chemicals-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.green.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-consumables-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 3, 0]) as number[],
-        itemStyle: {
-          color: colors.value.green.dark,
-        },
-      },
-      {
-        name: `${t('charts-consumables-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.6, 0]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.green.dark),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-equipment-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 1, 0]) as number[],
-        itemStyle: {
-          color: colors.value.green.default,
-        },
-      },
-      {
-        name: `${t('charts-equipment-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.2, 0]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.green.default),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-services-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 2, 0]) as number[],
-        itemStyle: {
-          color: colors.value.green.light,
-        },
-      },
-      {
-        name: `${t('charts-services-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0.4, 0]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.green.light),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-scitas-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1]) as number[],
-        itemStyle: {
-          color: colors.value.purpleGrey.darker,
-        },
-      },
-      {
-        name: `${t('charts-scitas-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.2]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.purpleGrey.darker),
-        },
-        label: {
-          show: false,
-        },
-      },
-      {
-        name: t('charts-rcp-subcategory'),
-        type: 'bar' as const,
-        stack: 'total',
-        data: getDataArray([0, 0, 0, 0, 0, 0, 0, 1.5]) as number[],
-        itemStyle: {
-          color: colors.value.purpleGrey.dark,
-        },
-      },
-      {
-        name: `${t('charts-rcp-subcategory')} Uncertainty`,
-        type: 'bar' as const,
-        stack: 'total',
-        data: getUncertaintyDataArray([0, 0, 0, 0, 0, 0, 0, 0.3]) as number[],
-        itemStyle: {
-          color: uncertaintyColor(colors.value.purpleGrey.dark),
-        },
-        label: {
-          show: false,
-        },
-      },
-
-      ...(() => {
-        if (toggleAdditionalData.value) {
-          const getAdditionalUncertaintyData = (
-            baseData: number[],
-          ): number[] => {
-            const showUncertainties = props.viewUncertainties ?? false;
-            if (!showUncertainties) {
-              return new Array(12).fill(0);
-            }
-            return baseData;
-          };
-
-          return [
-            {
-              name: 'Commuting',
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0] as number[],
-              itemStyle: {
-                color: colors.value.tealBlue.default,
-              },
-            },
-            {
-              name: 'Commuting Uncertainty',
-              type: 'bar' as const,
-              stack: 'total',
-              data: getAdditionalUncertaintyData([
-                0, 0, 0, 0, 0, 0, 0, 0, 1.6, 0, 0, 0,
-              ]) as number[],
-              itemStyle: {
-                color: uncertaintyColor(colors.value.tealBlue.darker),
-              },
-              label: {
-                show: false,
-              },
-            },
-            {
-              name: 'Food',
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 2.5, 0, 0] as number[],
-              itemStyle: {
-                color: colors.value.forestGreen.default,
-              },
-            },
-            {
-              name: 'Food Uncertainty',
-              type: 'bar' as const,
-              stack: 'total',
-              data: getAdditionalUncertaintyData([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0,
-              ]) as number[],
-              itemStyle: {
-                color: uncertaintyColor(colors.value.forestGreen.darker),
-              },
-              label: {
-                show: false,
-              },
-            },
-            {
-              name: t('charts-waste-category'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0] as number[],
-              itemStyle: {
-                color: colors.value.limeGreen.default,
-              },
-            },
-            {
-              name: `${t('charts-waste-category')} Uncertainty`,
-              type: 'bar' as const,
-              stack: 'total',
-              data: getAdditionalUncertaintyData([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-              ]) as number[],
-              itemStyle: {
-                color: uncertaintyColor(colors.value.limeGreen.darker),
-              },
-              label: {
-                show: false,
-              },
-            },
-            {
-              name: t('charts-grey-energy-category'),
-              type: 'bar' as const,
-              stack: 'total',
-              data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] as number[],
-              itemStyle: {
-                color: colors.value.neutralGrey.default,
-              },
-            },
-            {
-              name: `${t('charts-grey-energy-category')} Uncertainty`,
-              type: 'bar' as const,
-              stack: 'total',
-              data: getAdditionalUncertaintyData([
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8,
-              ]) as number[],
-              itemStyle: {
-                color: uncertaintyColor(colors.value.neutralGrey.darker),
-              },
-              label: {
-                show: false,
-              },
-            },
-          ];
-        }
-        return [];
-      })(),
-    ],
+    dataset: {
+      dimensions: [
+        'category',
+        'unitGas',
+        'unitGasStdDev',
+        'infrastructureGas',
+        'infrastructureGasStdDev',
+        'cooling',
+        'coolingStdDev',
+        'ventilation',
+        'ventilationStdDev',
+        'lighting',
+        'lightingStdDev',
+        'scientific',
+        'scientificStdDev',
+        'it',
+        'itStdDev',
+        'other',
+        'otherStdDev',
+        'train',
+        'trainStdDev',
+        'plane',
+        'planeStdDev',
+        'itInfrastructure',
+        'itInfrastructureStdDev',
+        'bioChemicals',
+        'bioChemicalsStdDev',
+        'consumables',
+        'consumablesStdDev',
+        'equipment',
+        'equipmentStdDev',
+        'services',
+        'servicesStdDev',
+        'scitas',
+        'scitasStdDev',
+        'rcp',
+        'rcpStdDev',
+        'commuting',
+        'commutingStdDev',
+        'food',
+        'foodStdDev',
+        'waste',
+        'wasteStdDev',
+        'greyEnergy',
+        'greyEnergyStdDev',
+      ],
+      source: datasetSource as Array<Record<string, unknown>>,
+    },
+    series: seriesArray as echarts.SeriesOption[],
   };
 });
 </script>
