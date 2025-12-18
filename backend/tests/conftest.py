@@ -1,5 +1,7 @@
 """Test configuration for pytest."""
 
+import logging
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -22,6 +24,13 @@ engine = create_async_engine(
 TestingSessionLocal = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
 )
+
+
+def pytest_configure():
+    """Configure pytest settings if needed."""
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    pass
 
 
 @pytest_asyncio.fixture(scope="function")

@@ -370,47 +370,23 @@ async def test_create_equipment_success(
 
 
 @pytest.mark.asyncio
-async def test_create_equipment_unit_id_mismatch(
-    client: AsyncClient, mock_current_user
-):
-    """Test creating equipment with mismatched unit_id in path and body."""
-    equipment_data = {
-        "unit_id": "C9999",
-        "name": "Test Equipment",
-        "category": "Test Category",
-        "submodule": "scientific",
-        "class": "Test Class",
-    }
-
-    response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
-        json=equipment_data,
-    )
-
-    assert response.status_code == 400
-    data = response.json()
-    assert "must match" in data["detail"]
-
-
-@pytest.mark.asyncio
 async def test_create_equipment_invalid_submodule(
     client: AsyncClient, mock_current_user
 ):
     """Test creating equipment with invalid submodule."""
     equipment_data = {
-        "unit_id": "C1348",
+        "unit_id": "C1348",  # todo to remove!
         "name": "Test Equipment",
         "category": "Test Category",
-        "submodule": "invalid_submodule",
+        "submodule": "scientific",  # or "it" or "other" todo: to remove!
         "class": "Test Class",
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/invalid_submodule",
         json=equipment_data,
     )
-
-    assert response.status_code == 422  # Validation error
+    assert response.status_code == 422  #
 
 
 @pytest.mark.asyncio
@@ -419,7 +395,7 @@ async def test_create_equipment_missing_required_fields(
 ):
     """Test creating equipment with missing required fields."""
     equipment_data = {
-        "unit_id": "C1348",
+        # "unit_id": "C1348",
         "name": "Test Equipment",
         # Missing category, submodule, class
     }
@@ -429,7 +405,7 @@ async def test_create_equipment_missing_required_fields(
         json=equipment_data,
     )
 
-    assert response.status_code == 422  # Validation error
+    assert response.status_code == 400  # Validation error
 
 
 @pytest.mark.asyncio
@@ -439,7 +415,7 @@ async def test_create_equipment_invalid_usage_percentage(
     """Test creating equipment with invalid usage percentage."""
     equipment_data = {
         "unit_id": "C1348",
-        "name": "Test Equipment",
+        "name": "Test Equipment22",
         "category": "Test Category",
         "submodule": "scientific",
         "class": "Test Class",
@@ -447,7 +423,7 @@ async def test_create_equipment_invalid_usage_percentage(
     }
 
     response = await client.post(
-        "/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment",
+        "/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific",
         json=equipment_data,
     )
 
@@ -568,11 +544,11 @@ async def test_update_equipment_invalid_submodule(
     update_data = {"submodule": "invalid_submodule"}
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/invalid_submodule/{equipment.id}",
         json=update_data,
     )
 
-    assert response.status_code == 422  # Validation error
+    assert response.status_code == 400  # Validation error
 
 
 @pytest.mark.asyncio

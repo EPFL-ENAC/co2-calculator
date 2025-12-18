@@ -176,7 +176,7 @@ async def create_item(
     year: int,
     module_id: str,
     submodule_id: str,
-    item_data: EquipmentCreateRequest | HeadCountCreateRequest,
+    item_data: Union[EquipmentCreateRequest, HeadCountCreateRequest],
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -202,10 +202,10 @@ async def create_item(
     item: Union[EquipmentDetailResponse, HeadcountItemResponse]
     # Validate unit_id matches the one in request body
     if module_id == "equipment-electric-consumption":
-        if isinstance(item_data, HeadCountCreateRequest):
+        if not isinstance(item_data, EquipmentCreateRequest):
             raise HTTPException(
                 status_code=400,
-                detail="Invalid item_data type for equipment creation",
+                detail="Invalid item_data for equipment creation at api/v1/modules",
             )
 
         item = await equipment_service.create_equipment(
