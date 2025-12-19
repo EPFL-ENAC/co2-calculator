@@ -47,8 +47,8 @@ async def load_power_factors_map(session: AsyncSession) -> Dict[str, PowerFactor
     """Load power factors from database into a lookup dictionary."""
     logger.info("Loading power factors from database...")
 
-    result = await session.execute(select(PowerFactor))
-    power_factors_list = result.scalars().all()
+    result = await session.exec(select(PowerFactor))
+    power_factors_list = result.all()
 
     # Create lookup dictionary with multiple key strategies
     power_factors_map = {}
@@ -128,8 +128,8 @@ async def seed_equipment(session: AsyncSession) -> None:
     logger.info("Seeding equipment from CSV...")
 
     # Delete existing equipment emissions first (to avoid FK constraint violation)
-    result = await session.execute(select(EquipmentEmission))
-    existing_emissions = result.scalars().all()
+    result = await session.exec(select(EquipmentEmission))
+    existing_emissions = result.all()
 
     if existing_emissions:
         logger.info(f"Deleting {len(existing_emissions)} existing emission records...")
@@ -138,8 +138,8 @@ async def seed_equipment(session: AsyncSession) -> None:
         await session.commit()
 
     # Now delete existing equipment
-    result = await session.execute(select(Equipment))
-    existing_equipment = result.scalars().all()
+    result = await session.exec(select(Equipment))
+    existing_equipment = result.all()
 
     if existing_equipment:
         logger.info(f"Deleting {len(existing_equipment)} existing equipment records...")
@@ -265,7 +265,8 @@ async def seed_equipment(session: AsyncSession) -> None:
                 },
             )
             equipment_list.append(equipment)
-
+            equipment.unit_id = "12345"
+            equipment_list.append(equipment)
     # Bulk insert
     session.add_all(equipment_list)
     await session.commit()
@@ -303,8 +304,8 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     logger.info("Calculating and seeding equipment emissions...")
 
     # Delete existing emissions
-    result = await session.execute(select(EquipmentEmission))
-    existing_emissions = result.scalars().all()
+    result = await session.exec(select(EquipmentEmission))
+    existing_emissions = result.all()
 
     if existing_emissions:
         logger.info(f"Deleting {len(existing_emissions)} existing emission records...")
@@ -313,27 +314,27 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         await session.commit()
 
     # Get emission factor
-    result = await session.execute(
+    result = await session.exec(
         select(EmissionFactor)
         .where(col(EmissionFactor.factor_name) == "swiss_electricity_mix")
         .where(col(EmissionFactor.valid_to).is_(None))  # Current version
     )
-    emission_factor = result.scalar_one_or_none()
+    emission_factor = result.one_or_none()
 
     if not emission_factor:
         logger.error("No emission factor found! Run seed_emission_factors first.")
         return
 
     # Get all equipment
-    result = await session.execute(select(Equipment))
-    equipment_list = result.scalars().all()
+    result = await session.exec(select(Equipment))
+    equipment_list = result.all()
 
     logger.info(f"Calculating emissions for {len(equipment_list)} equipment items...")
 
     # Get power factors map for lookup
     power_factors_map = {}
-    result = await session.execute(select(PowerFactor))
-    for pf in result.scalars().all():
+    result = await session.exec(select(PowerFactor))
+    for pf in result.all():
         power_factors_map[pf.id] = pf
 
     # Calculate emissions for each equipment
