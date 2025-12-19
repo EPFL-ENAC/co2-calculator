@@ -1,0 +1,58 @@
+{{- if .Values.routes.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-frontend
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    {{- with .Values.routes.frontend.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.routes.frontend.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  to:
+    name: {{ include "co2-calculator.fullname" $ }}-frontend
+    weight: {{ .Values.routes.frontend.weight }}
+    kind: Service
+  host: {{ .Values.routes.host | quote }}
+  path: '/'
+  {{- with .Values.routes.frontend.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  port:
+    targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-backend
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    {{- with .Values.routes.backend.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.routes.backend.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if not (hasKey .Values.routes.backend.annotations "haproxy.router.openshift.io/rewrite-target") }}
+    haproxy.router.openshift.io/rewrite-target: /
+    {{- end }}
+spec:
+  to:
+    name: {{ include "co2-calculator.fullname" $ }}-backend
+    weight: {{ .Values.routes.backend.weight }}
+    kind: Service
+  host: {{ .Values.routes.host | quote }}
+  path: '/api'
+  {{- with .Values.routes.backend.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  port:
+    targetPort: http
+{{- end }}
