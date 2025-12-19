@@ -59,6 +59,229 @@ const additionalDataConfig = computed(() => {
   };
 });
 
+const markLineData = computed(() => {
+  const showUncertainties = props.viewUncertainties ?? false;
+  if (!showUncertainties) return [];
+
+  const datasetSource = (() => {
+    const baseData = [
+      {
+        category: t('charts-unit-gas-category'),
+        unitGas: 2.5,
+        unitGasStdDev: 0.5,
+      },
+      {
+        category: t('charts-infrastructure-gas-category'),
+        infrastructureGas: 2,
+        infrastructureGasStdDev: 0.5,
+      },
+      {
+        category: t('charts-infrastructure-category'),
+        cooling: 9,
+        coolingStdDev: 1.8,
+        ventilation: 3,
+        ventilationStdDev: 1,
+        lighting: 9,
+        lightingStdDev: 1.8,
+      },
+      {
+        category: t('charts-equipment-category'),
+        scientific: 10,
+        scientificStdDev: 2,
+        it: 3,
+        itStdDev: 0.6,
+        other: 0.2,
+        otherStdDev: 0.04,
+      },
+      {
+        category: t('charts-professional-travel-category'),
+        train: 1.5,
+        trainStdDev: 0.3,
+        plane: 3,
+        planeStdDev: 0.6,
+      },
+      {
+        category: t('charts-it-category'),
+        itInfrastructure: 25,
+        itInfrastructureStdDev: 0.2,
+      },
+      {
+        category: t('charts-purchases-category'),
+        bioChemicals: 2,
+        bioChemicalsStdDev: 0.4,
+        consumables: 3,
+        consumablesStdDev: 0.6,
+        equipment: 1,
+        equipmentStdDev: 0.2,
+        services: 2,
+        servicesStdDev: 0.4,
+      },
+      {
+        category: t('charts-research-core-facilities-category'),
+        scitas: 1,
+        scitasStdDev: 0.2,
+        rcp: 1.5,
+        rcpStdDev: 0.3,
+      },
+    ];
+
+    if (toggleAdditionalData.value) {
+      return [
+        ...baseData,
+        {
+          category: t('charts-commuting-category'),
+          commuting: 8,
+          commutingStdDev: 1.6,
+        },
+        {
+          category: t('charts-food-category'),
+          food: 2.5,
+          foodStdDev: 0.5,
+        },
+        {
+          category: t('charts-waste-category'),
+          waste: 10,
+          wasteStdDev: 2,
+        },
+        {
+          category: t('charts-grey-energy-category'),
+          greyEnergy: 4,
+          greyEnergyStdDev: 2,
+        },
+      ];
+    }
+    return baseData;
+  })();
+
+  const allValueKeys = [
+    'unitGas',
+    'infrastructureGas',
+    'cooling',
+    'ventilation',
+    'lighting',
+    'scientific',
+    'it',
+    'other',
+    'train',
+    'plane',
+    'itInfrastructure',
+    'bioChemicals',
+    'consumables',
+    'equipment',
+    'services',
+    'scitas',
+    'rcp',
+  ];
+
+  const allStdDevKeys = [
+    'unitGasStdDev',
+    'infrastructureGasStdDev',
+    'coolingStdDev',
+    'ventilationStdDev',
+    'lightingStdDev',
+    'scientificStdDev',
+    'itStdDev',
+    'otherStdDev',
+    'trainStdDev',
+    'planeStdDev',
+    'itInfrastructureStdDev',
+    'bioChemicalsStdDev',
+    'consumablesStdDev',
+    'equipmentStdDev',
+    'servicesStdDev',
+    'scitasStdDev',
+    'rcpStdDev',
+  ];
+
+  if (toggleAdditionalData.value) {
+    allValueKeys.push('commuting', 'food', 'waste', 'greyEnergy');
+    allStdDevKeys.push(
+      'commutingStdDev',
+      'foodStdDev',
+      'wasteStdDev',
+      'greyEnergyStdDev',
+    );
+  }
+
+  return datasetSource
+    .map((item, i) => {
+      const total = allValueKeys.reduce((sum, k) => sum + (item[k] || 0), 0);
+      if (total <= 0) return null;
+      const stdDev = Math.sqrt(
+        allStdDevKeys.reduce((sum, k) => sum + Math.pow(item[k] || 0, 2), 0),
+      );
+      return [
+        { xAxis: i, yAxis: total + stdDev },
+        { xAxis: i, yAxis: Math.max(0, total - stdDev) },
+      ] as const;
+    })
+    .filter(
+      (
+        item,
+      ): item is [
+        { xAxis: number; yAxis: number },
+        { xAxis: number; yAxis: number },
+      ] => item !== null,
+    ) as Array<
+    [{ xAxis: number; yAxis: number }, { xAxis: number; yAxis: number }]
+  >;
+});
+
+const additionalSeriesData = computed(() => {
+  if (!toggleAdditionalData.value) return [];
+
+  return [
+    {
+      name: t('charts-commuting-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'commuting',
+      },
+      itemStyle: {
+        color: colors.value.tealBlue.default,
+      },
+    },
+    {
+      name: t('charts-food-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'food',
+      },
+      itemStyle: {
+        color: colors.value.forestGreen.default,
+      },
+    },
+    {
+      name: t('charts-waste-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'waste',
+      },
+      itemStyle: {
+        color: colors.value.limeGreen.default,
+      },
+    },
+    {
+      name: t('charts-grey-energy-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'greyEnergy',
+      },
+      itemStyle: {
+        color: colors.value.neutralGrey.default,
+      },
+    },
+  ];
+});
+
 const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
 
@@ -221,39 +444,7 @@ const chartOption = computed((): EChartsOption => {
           width: 1.5,
           type: 'solid' as const,
         },
-        data: showUncertainties
-          ? (datasetSource
-              .map((item, i) => {
-                const total = allValueKeys.reduce(
-                  (sum, k) => sum + (item[k] || 0),
-                  0,
-                );
-                if (total <= 0) return null;
-                const stdDev = Math.sqrt(
-                  allStdDevKeys.reduce(
-                    (sum, k) => sum + Math.pow(item[k] || 0, 2),
-                    0,
-                  ),
-                );
-                return [
-                  { xAxis: i, yAxis: total + stdDev },
-                  { xAxis: i, yAxis: Math.max(0, total - stdDev) },
-                ] as const;
-              })
-              .filter(
-                (
-                  item,
-                ): item is [
-                  { xAxis: number; yAxis: number },
-                  { xAxis: number; yAxis: number },
-                ] => item !== null,
-              ) as Array<
-              [
-                { xAxis: number; yAxis: number },
-                { xAxis: number; yAxis: number },
-              ]
-            >)
-          : [],
+        data: markLineData.value,
       },
       itemStyle: {
         color: colors.value.notDefined.default,
@@ -481,61 +672,7 @@ const chartOption = computed((): EChartsOption => {
         color: colors.value.purpleGrey.dark,
       },
     },
-    ...(() => {
-      if (toggleAdditionalData.value) {
-        return [
-          {
-            name: t('charts-commuting-category'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'commuting',
-            },
-            itemStyle: {
-              color: colors.value.tealBlue.default,
-            },
-          },
-          {
-            name: t('charts-food-category'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'food',
-            },
-            itemStyle: {
-              color: colors.value.forestGreen.default,
-            },
-          },
-          {
-            name: t('charts-waste-category'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'waste',
-            },
-            itemStyle: {
-              color: colors.value.limeGreen.default,
-            },
-          },
-          {
-            name: t('charts-grey-energy-category'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'greyEnergy',
-            },
-            itemStyle: {
-              color: colors.value.neutralGrey.default,
-            },
-          },
-        ];
-      }
-      return [];
-    })(),
+    ...additionalSeriesData.value,
   ];
 
   const seriesNameToKey = Object.fromEntries(

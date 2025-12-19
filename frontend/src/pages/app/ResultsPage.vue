@@ -36,7 +36,7 @@ const calculateEquivalentKm = (
   totalCo2Kg: number,
   co2PerKmKg: number,
 ): number => {
-  return totalCo2Kg / 1000 / (co2PerKmKg * 1000);
+  return totalCo2Kg / co2PerKmKg;
 };
 
 const getUncertainty = (
@@ -121,7 +121,7 @@ const downloadPDF = () => {
         >
           <template #tooltip>{{
             $t('results_total_unit_carbon_footprint_tooltip', {
-              value: `${formatNumber(0.34)}`,
+              value: `${formatNumber(0.34)} ${$t('results_kg_co2eq_per_km')}`,
             })
           }}</template>
         </BigNumber>
@@ -130,10 +130,10 @@ const downloadPDF = () => {
           number="8.2"
           :comparison="
             $t('results_paris_agreement_value', {
-              value: `${formatNumber(2)}t CO₂-eq`,
+              value: `${formatNumber(2)} ${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(2)}t CO₂-eq`"
+          :comparison-highlight="`${formatNumber(2)} ${$t('results_units_tonnes')}`"
           color="negative"
         >
           <template #tooltip>{{
@@ -147,10 +147,10 @@ const downloadPDF = () => {
           color="positive"
           :comparison="
             $t('results_compared_to_value_of', {
-              value: `${formatNumber(48)}t CO₂-eq`,
+              value: `${formatNumber(48)} ${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(48)}t CO₂-eq`"
+          :comparison-highlight="`${formatNumber(48)} ${$t('results_units_tonnes')}`"
         >
         </BigNumber>
       </q-card>
@@ -227,12 +227,12 @@ const downloadPDF = () => {
                         value: `${formatNumber(0.34)}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(0.34)} kg CO₂-eq/km`"
+                    :comparison-highlight="`${formatNumber(0.34)} ${$t('results_kg_co2eq_per_km')}`"
                     color="negative"
                   >
                     <template #tooltip>{{
                       $t('results_total_unit_carbon_footprint_tooltip', {
-                        value: `${formatNumber(0.34)}t CO₂-eq/km`,
+                        value: `${formatNumber(0.34)} ${$t('results_t_co2eq_per_km')}`,
                       })
                     }}</template>
                   </BigNumber>
@@ -241,10 +241,10 @@ const downloadPDF = () => {
                     number="8.2"
                     :comparison="
                       $t('results_paris_agreement_value', {
-                        value: `${formatNumber(2)}t CO₂-eq`,
+                        value: `${formatNumber(2)} ${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(2)}t CO₂-eq`"
+                    :comparison-highlight="`${formatNumber(2)} ${$t('results_units_tonnes')}`"
                     color="negative"
                   >
                     <template #tooltip>{{
@@ -262,10 +262,10 @@ const downloadPDF = () => {
                     color="positive"
                     :comparison="
                       $t('results_compared_to_value_of', {
-                        value: `${formatNumber(48)}t CO₂-eq`,
+                        value: `${formatNumber(48)} ${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(48)}t CO₂-eq`"
+                    :comparison-highlight="`${formatNumber(48)} ${$t('results_units_tonnes')}`"
                   >
                   </BigNumber>
                 </q-card>

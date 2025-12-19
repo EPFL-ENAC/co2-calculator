@@ -294,6 +294,14 @@ export default {
     en: 't CO₂-eq',
     fr: 't CO₂-eq',
   },
+  results_kg_co2eq_per_km: {
+    en: 'kg CO₂-eq/km',
+    fr: 'kg CO₂-eq/km',
+  },
+  results_t_co2eq_per_km: {
+    en: 't CO₂-eq/km',
+    fr: 't CO₂-eq/km',
+  },
   kgco2eq: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
@@ -331,8 +339,8 @@ export default {
     fr: "Mon Empreinte Carbone de l'unité",
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Calculated with the value of {value}g CO₂-eq / km',
-    fr: 'Calculé avec la valeur de {value}g CO₂-eq / km',
+    en: 'Calculated with the value of {value} {unit}',
+    fr: 'Calculé avec la valeur de {value} {unit}',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
