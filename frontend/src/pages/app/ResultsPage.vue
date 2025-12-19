@@ -121,7 +121,8 @@ const downloadPDF = () => {
         >
           <template #tooltip>{{
             $t('results_total_unit_carbon_footprint_tooltip', {
-              value: `${formatNumber(0.34)} ${$t('results_kg_co2eq_per_km')}`,
+              value: formatNumber(0.34),
+              unit: $t('results_kg_co2eq_per_km'),
             })
           }}</template>
         </BigNumber>

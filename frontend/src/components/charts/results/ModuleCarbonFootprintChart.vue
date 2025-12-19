@@ -59,101 +59,98 @@ const additionalDataConfig = computed(() => {
   };
 });
 
-const markLineData = computed(() => {
-  const showUncertainties = props.viewUncertainties ?? false;
-  if (!showUncertainties) return [];
+const datasetSource = computed(() => {
+  const baseData = [
+    {
+      category: t('charts-unit-gas-category'),
+      unitGas: 2.5,
+      unitGasStdDev: 0.5,
+    },
+    {
+      category: t('charts-infrastructure-gas-category'),
+      infrastructureGas: 2,
+      infrastructureGasStdDev: 0.5,
+    },
+    {
+      category: t('charts-infrastructure-category'),
+      cooling: 9,
+      coolingStdDev: 1.8,
+      ventilation: 3,
+      ventilationStdDev: 1,
+      lighting: 9,
+      lightingStdDev: 1.8,
+    },
+    {
+      category: t('charts-equipment-category'),
+      scientific: 10,
+      scientificStdDev: 2,
+      it: 3,
+      itStdDev: 0.6,
+      other: 0.2,
+      otherStdDev: 0.04,
+    },
+    {
+      category: t('charts-professional-travel-category'),
+      train: 1.5,
+      trainStdDev: 0.3,
+      plane: 3,
+      planeStdDev: 0.6,
+    },
+    {
+      category: t('charts-it-category'),
+      itInfrastructure: 25,
+      itInfrastructureStdDev: 0.2,
+    },
+    {
+      category: t('charts-purchases-category'),
+      bioChemicals: 2,
+      bioChemicalsStdDev: 0.4,
+      consumables: 3,
+      consumablesStdDev: 0.6,
+      equipment: 1,
+      equipmentStdDev: 0.2,
+      services: 2,
+      servicesStdDev: 0.4,
+    },
+    {
+      category: t('charts-research-core-facilities-category'),
+      scitas: 1,
+      scitasStdDev: 0.2,
+      rcp: 1.5,
+      rcpStdDev: 0.3,
+    },
+  ];
 
-  const datasetSource = (() => {
-    const baseData = [
+  if (toggleAdditionalData.value) {
+    return [
+      ...baseData,
       {
-        category: t('charts-unit-gas-category'),
-        unitGas: 2.5,
-        unitGasStdDev: 0.5,
+        category: t('charts-commuting-category'),
+        commuting: 8,
+        commutingStdDev: 1.6,
       },
       {
-        category: t('charts-infrastructure-gas-category'),
-        infrastructureGas: 2,
-        infrastructureGasStdDev: 0.5,
+        category: t('charts-food-category'),
+        food: 2.5,
+        foodStdDev: 0.5,
       },
       {
-        category: t('charts-infrastructure-category'),
-        cooling: 9,
-        coolingStdDev: 1.8,
-        ventilation: 3,
-        ventilationStdDev: 1,
-        lighting: 9,
-        lightingStdDev: 1.8,
+        category: t('charts-waste-category'),
+        waste: 10,
+        wasteStdDev: 2,
       },
       {
-        category: t('charts-equipment-category'),
-        scientific: 10,
-        scientificStdDev: 2,
-        it: 3,
-        itStdDev: 0.6,
-        other: 0.2,
-        otherStdDev: 0.04,
-      },
-      {
-        category: t('charts-professional-travel-category'),
-        train: 1.5,
-        trainStdDev: 0.3,
-        plane: 3,
-        planeStdDev: 0.6,
-      },
-      {
-        category: t('charts-it-category'),
-        itInfrastructure: 25,
-        itInfrastructureStdDev: 0.2,
-      },
-      {
-        category: t('charts-purchases-category'),
-        bioChemicals: 2,
-        bioChemicalsStdDev: 0.4,
-        consumables: 3,
-        consumablesStdDev: 0.6,
-        equipment: 1,
-        equipmentStdDev: 0.2,
-        services: 2,
-        servicesStdDev: 0.4,
-      },
-      {
-        category: t('charts-research-core-facilities-category'),
-        scitas: 1,
-        scitasStdDev: 0.2,
-        rcp: 1.5,
-        rcpStdDev: 0.3,
+        category: t('charts-grey-energy-category'),
+        greyEnergy: 4,
+        greyEnergyStdDev: 2,
       },
     ];
+  }
+  return baseData;
+});
 
-    if (toggleAdditionalData.value) {
-      return [
-        ...baseData,
-        {
-          category: t('charts-commuting-category'),
-          commuting: 8,
-          commutingStdDev: 1.6,
-        },
-        {
-          category: t('charts-food-category'),
-          food: 2.5,
-          foodStdDev: 0.5,
-        },
-        {
-          category: t('charts-waste-category'),
-          waste: 10,
-          wasteStdDev: 2,
-        },
-        {
-          category: t('charts-grey-energy-category'),
-          greyEnergy: 4,
-          greyEnergyStdDev: 2,
-        },
-      ];
-    }
-    return baseData;
-  })();
-
-  const allValueKeys = [
+const allValueKeys = computed(() => {
+  const baseKeys = [
     'unitGas',
     'infrastructureGas',
     'cooling',
@@ -173,7 +170,14 @@ const markLineData = computed(() => {
     'rcp',
   ];
 
-  const allStdDevKeys = [
+  if (toggleAdditionalData.value) {
+    return [...baseKeys, 'commuting', 'food', 'waste', 'greyEnergy'];
+  }
+  return baseKeys;
+});
+
+const allStdDevKeys = computed(() => {
+  const baseKeys = [
     'unitGasStdDev',
     'infrastructureGasStdDev',
     'coolingStdDev',
@@ -194,21 +198,33 @@ const markLineData = computed(() => {
   ];
 
   if (toggleAdditionalData.value) {
-    allValueKeys.push('commuting', 'food', 'waste', 'greyEnergy');
-    allStdDevKeys.push(
+    return [
+      ...baseKeys,
       'commutingStdDev',
       'foodStdDev',
       'wasteStdDev',
       'greyEnergyStdDev',
-    );
+    ];
   }
+  return baseKeys;
+});
 
-  return datasetSource
+const markLineData = computed(() => {
+  const showUncertainties = props.viewUncertainties ?? false;
+  if (!showUncertainties) return [];
+
+  return datasetSource.value
     .map((item, i) => {
-      const total = allValueKeys.reduce((sum, k) => sum + (item[k] || 0), 0);
+      const total = allValueKeys.value.reduce(
+        (sum, k) => sum + (item[k] || 0),
+        0,
+      );
       if (total <= 0) return null;
       const stdDev = Math.sqrt(
-        allStdDevKeys.reduce((sum, k) => sum + Math.pow(item[k] || 0, 2), 0),
+        allStdDevKeys.value.reduce(
+          (sum, k) => sum + Math.pow(item[k] || 0, 2),
+          0,
+        ),
       );
       return [
         { xAxis: i, yAxis: total + stdDev },
@@ -242,6 +258,9 @@ const additionalSeriesData = computed(() => {
       itemStyle: {
         color: colors.value.tealBlue.default,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-food-category'),
@@ -253,6 +272,9 @@ const additionalSeriesData = computed(() => {
       },
       itemStyle: {
         color: colors.value.forestGreen.default,
+      },
+      label: {
+        show: false,
       },
     },
     {
@@ -266,6 +288,9 @@ const additionalSeriesData = computed(() => {
       itemStyle: {
         color: colors.value.limeGreen.default,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-grey-energy-category'),
@@ -278,6 +303,9 @@ const additionalSeriesData = computed(() => {
       itemStyle: {
         color: colors.value.neutralGrey.default,
       },
+      label: {
+        show: false,
+      },
     },
   ];
 });
@@ -285,152 +313,11 @@ const additionalSeriesData = computed(() => {
 const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
 
-  const datasetSource = (() => {
-    const baseData = [
-      {
-        category: t('charts-unit-gas-category'),
-        unitGas: 2.5,
-        unitGasStdDev: 0.5,
-      },
-      {
-        category: t('charts-infrastructure-gas-category'),
-        infrastructureGas: 2,
-        infrastructureGasStdDev: 0.5,
-      },
-      {
-        category: t('charts-infrastructure-category'),
-        cooling: 9,
-        coolingStdDev: 1.8,
-        ventilation: 3,
-        ventilationStdDev: 1,
-        lighting: 9,
-        lightingStdDev: 1.8,
-      },
-      {
-        category: t('charts-equipment-category'),
-        scientific: 10,
-        scientificStdDev: 2,
-        it: 3,
-        itStdDev: 0.6,
-        other: 0.2,
-        otherStdDev: 0.04,
-      },
-      {
-        category: t('charts-professional-travel-category'),
-        train: 1.5,
-        trainStdDev: 0.3,
-        plane: 3,
-        planeStdDev: 0.6,
-      },
-      {
-        category: t('charts-it-category'),
-        itInfrastructure: 25,
-        itInfrastructureStdDev: 0.2,
-      },
-      {
-        category: t('charts-purchases-category'),
-        bioChemicals: 2,
-        bioChemicalsStdDev: 0.4,
-        consumables: 3,
-        consumablesStdDev: 0.6,
-        equipment: 1,
-        equipmentStdDev: 0.2,
-        services: 2,
-        servicesStdDev: 0.4,
-      },
-      {
-        category: t('charts-research-core-facilities-category'),
-        scitas: 1,
-        scitasStdDev: 0.2,
-        rcp: 1.5,
-        rcpStdDev: 0.3,
-      },
-    ];
-
-    if (toggleAdditionalData.value) {
-      return [
-        ...baseData,
-        {
-          category: t('charts-commuting-category'),
-          commuting: 8,
-          commutingStdDev: 1.6,
-        },
-        {
-          category: t('charts-food-category'),
-          food: 2.5,
-          foodStdDev: 0.5,
-        },
-        {
-          category: t('charts-waste-category'),
-          waste: 10,
-          wasteStdDev: 2,
-        },
-        {
-          category: t('charts-grey-energy-category'),
-          greyEnergy: 4,
-          greyEnergyStdDev: 2,
-        },
-      ];
-    }
-    return baseData;
-  })();
-
-  // Define series order for total error bar calculation
-  const allValueKeys = [
-    'unitGas',
-    'infrastructureGas',
-    'cooling',
-    'ventilation',
-    'lighting',
-    'scientific',
-    'it',
-    'other',
-    'train',
-    'plane',
-    'itInfrastructure',
-    'bioChemicals',
-    'consumables',
-    'equipment',
-    'services',
-    'scitas',
-    'rcp',
-  ];
-
-  const allStdDevKeys = [
-    'unitGasStdDev',
-    'infrastructureGasStdDev',
-    'coolingStdDev',
-    'ventilationStdDev',
-    'lightingStdDev',
-    'scientificStdDev',
-    'itStdDev',
-    'otherStdDev',
-    'trainStdDev',
-    'planeStdDev',
-    'itInfrastructureStdDev',
-    'bioChemicalsStdDev',
-    'consumablesStdDev',
-    'equipmentStdDev',
-    'servicesStdDev',
-    'scitasStdDev',
-    'rcpStdDev',
-  ];
-
-  if (toggleAdditionalData.value) {
-    allValueKeys.push('commuting', 'food', 'waste', 'greyEnergy');
-    allStdDevKeys.push(
-      'commutingStdDev',
-      'foodStdDev',
-      'wasteStdDev',
-      'greyEnergyStdDev',
-    );
-  }
-
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
     {
       name: t('charts-unit-gas-category'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -455,7 +342,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-infrastructure-gas-category'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -470,7 +357,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-cooling-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -485,7 +372,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-ventilation-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -500,7 +387,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-lighting-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -515,7 +402,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-scientific-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -530,7 +417,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-it-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -545,7 +432,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-other-purchases-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -560,7 +447,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-train-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -575,7 +462,7 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-plane-subcategory'),
-      type: 'bar',
+      type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
@@ -599,6 +486,9 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: colors.value.notDefined.default,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-bio-chemicals-subcategory'),
@@ -610,6 +500,9 @@ const chartOption = computed((): EChartsOption => {
       },
       itemStyle: {
         color: colors.value.green.darker,
+      },
+      label: {
+        show: false,
       },
     },
     {
@@ -623,6 +516,9 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: colors.value.green.dark,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-equipment-subcategory'),
@@ -634,6 +530,9 @@ const chartOption = computed((): EChartsOption => {
       },
       itemStyle: {
         color: colors.value.green.default,
+      },
+      label: {
+        show: false,
       },
     },
     {
@@ -647,6 +546,9 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: colors.value.green.light,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-scitas-subcategory'),
@@ -659,6 +561,9 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: colors.value.purpleGrey.darker,
       },
+      label: {
+        show: false,
+      },
     },
     {
       name: t('charts-rcp-subcategory'),
@@ -670,6 +575,9 @@ const chartOption = computed((): EChartsOption => {
       },
       itemStyle: {
         color: colors.value.purpleGrey.dark,
+      },
+      label: {
+        show: false,
       },
     },
     ...additionalSeriesData.value,
@@ -725,7 +633,7 @@ const chartOption = computed((): EChartsOption => {
         let totalDisplay = total.toFixed(1);
         if (showUncertainties && data) {
           const stdDev = Math.sqrt(
-            allStdDevKeys.reduce(
+            allStdDevKeys.value.reduce(
               (sum, k) => sum + Math.pow(Number(data[k]) || 0, 2),
               0,
             ),
@@ -958,7 +866,7 @@ const chartOption = computed((): EChartsOption => {
         'greyEnergy',
         'greyEnergyStdDev',
       ],
-      source: datasetSource as Array<Record<string, unknown>>,
+      source: datasetSource.value as Array<Record<string, unknown>>,
     },
     series: seriesArray as echarts.SeriesOption[],
   };
