@@ -74,8 +74,10 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
           :to="{
-            name: 'home',
+            name: 'workspace-setup',
           }"
+          :aria-label="$t('home')"
+          :title="$t('home')"
           class="toolbar-home-link row items-center no-wrap"
         >
           <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
@@ -186,7 +188,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             :label="$t('home')"
-            :to="{ name: 'home', params: route.params }"
+            :to="{ name: 'workspace-setup', params: route.params }"
           />
           <q-breadcrumbs-el
             class="text-capitalize"

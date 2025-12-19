@@ -6,6 +6,10 @@ export default {
     en: 'Logo EPFL',
     fr: 'EPFL Logo',
   },
+  login_logo_alt: {
+    en: 'CO₂ Calculator Logo',
+    fr: 'Logo Calculateur de CO₂',
+  },
   login_title: {
     en: 'CO₂ Calculator',
     fr: 'Calculateur de CO₂',
