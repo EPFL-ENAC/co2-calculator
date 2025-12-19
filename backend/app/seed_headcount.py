@@ -61,30 +61,30 @@ async def seed_headcount(session: AsyncSession) -> None:
 
             if existing:
                 # Update all fields
-                existing.unit_name = unit_name
-                existing.cf_name = cf_name
-                existing.cf_user_id = cf_user_id
-                existing.display_name = display_name
-                existing.status = status
-                existing.function = function
+                existing.unit_name = unit_name or ""
+                existing.cf_name = cf_name or ""
+                existing.cf_user_id = cf_user_id or ""
+                existing.display_name = display_name or ""
+                existing.status = status or ""
+                existing.function = function or ""
                 existing.fte = fte
-                existing.submodule = submodule
+                existing.submodule = submodule or ""
                 existing.provider = provider
             else:
                 # Insert new record
                 headcount = HeadCount(
                     date=date,
-                    unit_id=unit_id,
-                    unit_name=unit_name,
-                    cf=cf,
-                    cf_name=cf_name,
-                    cf_user_id=cf_user_id,
-                    display_name=display_name,
-                    status=status,
-                    function=function,
-                    sciper=sciper,
+                    unit_id=unit_id or "",
+                    unit_name=unit_name or "",
+                    cf=cf or "",
+                    cf_name=cf_name or "",
+                    cf_user_id=cf_user_id or "",
+                    display_name=display_name or "",
+                    status=status or "",
+                    function=function or "",
+                    sciper=sciper or "",
                     fte=fte,
-                    submodule=submodule,
+                    submodule=submodule or "",
                     provider=provider,
                 )
                 session.add(headcount)

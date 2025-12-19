@@ -138,8 +138,8 @@ async def seed_equipment(session: AsyncSession) -> None:
         await session.commit()
 
     # Now delete existing equipment
-    result = await session.exec(select(Equipment))
-    existing_equipment = result.all()
+    eq_result = await session.exec(select(Equipment))
+    existing_equipment: List[Equipment] = list(eq_result.all())
 
     if existing_equipment:
         logger.info(f"Deleting {len(existing_equipment)} existing equipment records...")
@@ -243,7 +243,7 @@ async def seed_equipment(session: AsyncSession) -> None:
             # Parse service date
             service_date = parse_date(service_date_str)
 
-            equipment = Equipment(
+            equipment_local = Equipment(
                 cost_center=cost_center,
                 cost_center_description=cost_center_desc or None,
                 name=name,
@@ -264,9 +264,9 @@ async def seed_equipment(session: AsyncSession) -> None:
                     "imported_at": datetime.utcnow().isoformat(),
                 },
             )
-            equipment_list.append(equipment)
-            equipment.unit_id = "12345"
-            equipment_list.append(equipment)
+            equipment_list.append(equipment_local)
+            equipment_local.unit_id = "12345"
+            equipment_list.append(equipment_local)
     # Bulk insert
     session.add_all(equipment_list)
     await session.commit()
@@ -314,34 +314,38 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         await session.commit()
 
     # Get emission factor
-    result = await session.exec(
+    ef_result = await session.exec(
         select(EmissionFactor)
         .where(col(EmissionFactor.factor_name) == "swiss_electricity_mix")
         .where(col(EmissionFactor.valid_to).is_(None))  # Current version
     )
-    emission_factor = result.one_or_none()
-
+    emission_factor = ef_result.one_or_none()
     if not emission_factor:
         logger.error("No emission factor found! Run seed_emission_factors first.")
         return
-
+    if not isinstance(emission_factor, EmissionFactor):
+        logger.error("No valid emission factor found! Run seed_emission_factors first.")
+        return
     # Get all equipment
-    result = await session.exec(select(Equipment))
-    equipment_list = result.all()
+    eq_result = await session.exec(select(Equipment))
+    equipment_list: List[Equipment] = list(eq_result.all())
 
     logger.info(f"Calculating emissions for {len(equipment_list)} equipment items...")
 
     # Get power factors map for lookup
     power_factors_map = {}
-    result = await session.exec(select(PowerFactor))
-    for pf in result.all():
-        power_factors_map[pf.id] = pf
+    pf_result = await session.exec(select(PowerFactor))
+    for pf_ in pf_result.all():
+        power_factors_map[pf_.id] = pf_
 
     # Calculate emissions for each equipment
     emissions_list: List[EquipmentEmission] = []
 
     for equipment in equipment_list:
         # Get power values - either from equipment or from power factor
+        if not isinstance(equipment, Equipment):
+            logger.error(f"Invalid equipment record: {equipment}")
+            continue
         if (
             equipment.active_power_w is not None
             and equipment.standby_power_w is not None
@@ -352,7 +356,13 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             power_factor_id = equipment.power_factor_id  # May be None
         elif equipment.power_factor_id:
             # Lookup from power factor
-            pf = power_factors_map.get(equipment.power_factor_id)
+            pf: PowerFactor | None = power_factors_map.get(equipment.power_factor_id)
+            if not isinstance(pf, PowerFactor):
+                logger.error(
+                    f"Invalid power factor record for ID "
+                    f"{equipment.power_factor_id} on equipment {equipment.id}"
+                )
+                continue
             if pf:
                 active_power_w = pf.active_power_w
                 standby_power_w = pf.standby_power_w
@@ -381,6 +391,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             "status": equipment.status,
         }
 
+        if (emission_factor.value is None) or (emission_factor.id is None):
+            logger.error(
+                "Emission factor is missing value or ID! Cannot calculate emissions."
+            )
+            continue
         # Calculate emissions using the versioned calculation service
         emission_result = calculation_service.calculate_equipment_emission_versioned(
             equipment_data=equipment_data,
