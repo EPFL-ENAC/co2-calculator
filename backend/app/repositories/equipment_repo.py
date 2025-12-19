@@ -14,6 +14,13 @@ from app.models.equipment import Equipment, EquipmentEmission
 logger = get_logger(__name__)
 
 
+async def get_module_stats(
+    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+) -> Dict[str, int]:
+    """Aggregate equipment data by submodule or category."""
+    return {"scientific": 42, "office": 15}  # Placeholder implementation
+
+
 async def get_by_id(
     session: AsyncSession,
     equipment_id: int,

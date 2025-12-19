@@ -33,6 +33,19 @@ SUBMODULE_NAMES = {
 }
 
 
+async def get_module_stats(
+    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+) -> dict[str, int]:
+    """Get module statistics such as total items and submodules."""
+    # GOAL return total items and submodules for equipment module
+    # data should be aggregated by aggregate_by param
+    # {"scientific": 10, "it": 5, ...}
+    # or {"laptop": 15, "server": 20, ...}
+    return await equipment_repo.get_module_stats(
+        session=session, unit_id=unit_id, aggregate_by=aggregate_by
+    )
+
+
 async def get_module_data(
     session: AsyncSession,
     unit_id: str,
