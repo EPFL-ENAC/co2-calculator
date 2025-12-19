@@ -1,5 +1,9 @@
 import type { StorybookConfig } from '@storybook/vue3-vite';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const config: StorybookConfig = {
   stories: [
