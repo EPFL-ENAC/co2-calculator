@@ -174,6 +174,7 @@ class HeadcountService:
             module_type="my-lab",
             unit=unit_id,
             year=year,
+            stats=None,
             retrieved_at=datetime.now(timezone.utc),
             submodules=submodules,
             totals=totals,

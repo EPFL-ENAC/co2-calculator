@@ -173,6 +173,7 @@ async def get_module_data(
     module_response = ModuleResponse(
         module_type="equipment-electric-consumption",
         unit="kWh",
+        stats=None,
         year=year,
         retrieved_at=datetime.now(timezone.utc),
         submodules=submodules,

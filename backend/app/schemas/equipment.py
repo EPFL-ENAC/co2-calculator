@@ -88,6 +88,7 @@ class ModuleResponse(BaseModel):
     submodules: Dict[str, SubmoduleResponse] = Field(
         ..., description="Submodule data keyed by submodule ID"
     )
+    stats: Optional[dict[str, int]] = Field(None, description="Module statistics")
     totals: ModuleTotals = Field(..., description="Module totals")
 
 

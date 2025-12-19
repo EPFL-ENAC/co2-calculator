@@ -122,6 +122,14 @@ async def get_module(
             unit_id=unit_id,
             year=year,
         )
+        stats = await HeadcountService(db).get_module_stats(
+            unit_id=unit_id,
+            year=year,
+            aggregate_by="function_role",
+        )
+        module_data.totals.total_items = stats.get("total_items", 0)
+        module_data.totals.total_submodules = stats.get("total_submodules", 0)
+        module_data.stats = stats
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "
         f"across {module_data.totals.total_submodules} submodules"

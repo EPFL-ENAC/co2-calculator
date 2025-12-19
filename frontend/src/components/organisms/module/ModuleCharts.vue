@@ -5,7 +5,7 @@
         <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
           {{ $t('my-lab-charts-title') }}
         </h2>
-        <headCountBarChart />
+        <headCountBarChart :stats="moduleStore?.state?.data?.stats" />
       </template>
       <h2 v-else class="text-h3 q-mb-none text-bold text-uppercase">
         {{ $t(`${type}-charts-title`) }}
@@ -17,9 +17,13 @@
 <script setup lang="ts">
 import { Module } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
+import { useModuleStore } from 'src/stores/modules';
+
 defineProps<{
   type: Module;
 }>();
+
+const moduleStore = useModuleStore();
 </script>
 
 <style scoped lang="scss">
