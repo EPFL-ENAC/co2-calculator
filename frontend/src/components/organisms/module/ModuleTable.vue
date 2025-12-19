@@ -564,7 +564,7 @@ function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
 }
 
-function isComplete(row: ModuleRow) {
+function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'class',
@@ -576,6 +576,24 @@ function isComplete(row: ModuleRow) {
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );
+}
+
+function isCompleteHeadcount(row: ModuleRow) {
+  const required = ['display_name', 'fte'];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isComplete(row: ModuleRow) {
+  if (props.moduleType === MODULES.MyLab) {
+    // For MyLab (headcount), consider complete if name and status are set
+    return isCompleteHeadcount(row);
+  }
+  if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+    return isCompleteEquipement(row);
+  }
+  throw new Error(`Unknown module type: ${props.moduleType}`);
 }
 
 function onFormSubmit(
