@@ -18,9 +18,9 @@
     "preview": "npx vite preview --outDir dist/spa",
     "build": "quasar build",
     "mock:auth": "node src/mock/mockauth.js",
-    "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build",
-    "storybook:test": "test-storybook",
+    "storybook": "storybook dev -p 6006 --config-dir storybook/.storybook",
+    "storybook:build": "storybook build --config-dir storybook/.storybook",
+    "storybook:test": "test-storybook --config-dir storybook/.storybook",
     "storybook:test-ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"npm run storybook -- --no-open --quiet --ci\" \"wait-on tcp:127.0.0.1:6006 && npm run storybook:test\""
   },
   "dependencies": {
