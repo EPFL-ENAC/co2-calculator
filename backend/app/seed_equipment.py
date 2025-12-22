@@ -243,14 +243,14 @@ async def seed_equipment(session: AsyncSession) -> None:
             # Parse service date
             service_date = parse_date(service_date_str)
 
-            equipment_local = Equipment(
+            equipment_local_10208 = Equipment(
                 cost_center=cost_center,
                 cost_center_description=cost_center_desc or None,
                 name=name,
-                category=category,  # Original category from synth_data
-                submodule=submodule,  # Mapped submodule for grouping
+                category=category,
+                submodule=submodule,
                 equipment_class=equipment_class,
-                sub_class=equipment_subclass,  # Not in synth_data.csv
+                sub_class=equipment_subclass,
                 service_date=service_date,
                 status=status,
                 active_usage_pct=active_usage_pct,
@@ -258,15 +258,35 @@ async def seed_equipment(session: AsyncSession) -> None:
                 active_power_w=active_power_w,
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
-                unit_id="10208",  # All equipment in synth_data is from 10208 (enac-it)
+                unit_id="10208",
                 equipment_metadata={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),
                 },
             )
-            equipment_list.append(equipment_local)
-            # equipment_local.unit_id = "12345"
-            # equipment_list.append(equipment_local)
+            equipment_local_12345 = Equipment(
+                cost_center=cost_center,
+                cost_center_description=cost_center_desc or None,
+                name=name,
+                category=category,
+                submodule=submodule,
+                equipment_class=equipment_class,
+                sub_class=equipment_subclass,
+                service_date=service_date,
+                status=status,
+                active_usage_pct=active_usage_pct,
+                passive_usage_pct=passive_usage_pct,
+                active_power_w=active_power_w,
+                standby_power_w=standby_power_w,
+                power_factor_id=power_factor_id,
+                unit_id="12345",
+                equipment_metadata={
+                    "source": "synth_data.csv",
+                    "imported_at": datetime.utcnow().isoformat(),
+                },
+            )
+            equipment_list.append(equipment_local_10208)
+            equipment_list.append(equipment_local_12345)
     # Bulk insert
     session.add_all(equipment_list)
     await session.commit()
