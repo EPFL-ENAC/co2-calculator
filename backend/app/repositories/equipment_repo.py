@@ -164,6 +164,8 @@ async def get_equipment_with_emissions(
         "unit_id": col(Equipment.unit_id),
         "cost_center": col(Equipment.cost_center),
         "service_date": col(Equipment.service_date),
+        "active_power_w": col(PowerFactor.active_power_w),
+        "standby_power_w": col(PowerFactor.standby_power_w),
         "created_at": col(Equipment.created_at),
         "updated_at": col(Equipment.updated_at),
         "kg_co2eq": col(EquipmentEmission.kg_co2eq),
