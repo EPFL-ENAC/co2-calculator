@@ -589,12 +589,13 @@ function isNew(row: ModuleRow) {
 function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
-    'class',
+    'equipment_class',
     'act_usage',
     'pas_usage',
-    'act_power',
-    'pas_power',
+    'active_power_w',
+    'standby_power_w',
   ];
+
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );

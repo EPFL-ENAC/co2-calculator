@@ -28,7 +28,7 @@ const baseModuleFields: ModuleField[] = [
     ratio: '1/1',
   },
   {
-    id: 'class',
+    id: 'equipment_class',
     label: 'Class',
     type: 'select',
     required: true,
@@ -84,7 +84,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_donut_large',
   },
   {
-    id: 'act_power',
+    id: 'active_power_w',
     label: 'Active power',
     type: 'number',
     required: true,
@@ -99,7 +99,7 @@ const baseModuleFields: ModuleField[] = [
     maxColumnWidth: 150,
   },
   {
-    id: 'pas_power',
+    id: 'standby_power_w',
     label: 'Standby Power',
     type: 'number',
     required: true,
