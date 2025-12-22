@@ -76,11 +76,7 @@
           :align="col.align"
           class="q-pa-xs"
           :class="{ 'column-max-width': col.maxColumnWidth }"
-          :style="
-            col.maxColumnWidth
-              ? { '--max-column-width': `${col.maxColumnWidth}px` }
-              : {}
-          "
+          :style="getColumnStyle(col)"
         >
           <span>{{ col.label }}</span>
           <q-icon
@@ -824,9 +820,6 @@ onMounted(() => {
 .column-max-width {
   max-width: var(--max-column-width, 100%);
   white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  word-break: break-word;
 }
 
 .table-search {
