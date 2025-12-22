@@ -366,15 +366,8 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         if not isinstance(equipment, Equipment):
             logger.error(f"Invalid equipment record: {equipment}")
             continue
-        if (
-            equipment.active_power_w is not None
-            and equipment.standby_power_w is not None
-        ):
-            # Use measured values
-            active_power_w = equipment.active_power_w
-            standby_power_w = equipment.standby_power_w
-            power_factor_id = equipment.power_factor_id  # May be None
-        elif equipment.power_factor_id:
+
+        if equipment.power_factor_id:
             # Lookup from power factor
             pf: PowerFactor | None = power_factors_map.get(equipment.power_factor_id)
             if not isinstance(pf, PowerFactor):

@@ -35,7 +35,7 @@ SUBMODULE_NAMES = {
 
 async def get_module_stats(
     session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
-) -> dict[str, int]:
+) -> dict[str, float]:
     """Get module statistics such as total items and submodules."""
     # GOAL return total items and submodules for equipment module
     # data should be aggregated by aggregate_by param
@@ -111,19 +111,23 @@ async def get_module_data(
 
             # Transform to response items
             items = []
-            for equipment, emission in equipment_emissions:
+            for equipment, emission, power_factor in equipment_emissions:
                 assert equipment.id is not None
                 item = EquipmentItemResponse(
                     id=equipment.id,
                     name=equipment.name,
                     category=equipment.category,
                     submodule=equipment.submodule,
-                    **{"class": equipment.equipment_class},
+                    equipment_class=equipment.equipment_class,
                     sub_class=equipment.sub_class,
                     act_usage=equipment.active_usage_pct or 0,
                     pas_usage=equipment.passive_usage_pct or 0,
-                    act_power=equipment.active_power_w or 0,
-                    pas_power=equipment.standby_power_w or 0,
+                    standby_power_w=power_factor.standby_power_w
+                    if power_factor
+                    else None,
+                    active_power_w=power_factor.active_power_w
+                    if power_factor
+                    else None,
                     status=equipment.status,
                     kg_co2eq=emission.kg_co2eq,
                     annual_kwh=emission.annual_kwh,
@@ -219,8 +223,6 @@ async def get_submodule_data(
         f"sort_by={sort_by}, sort_order={sort_order}"
     )
 
-    if sort_by == "class":
-        sort_by = "equipment_class"
     if sort_order not in ("asc", "desc"):
         sort_order = "asc"
 
@@ -242,19 +244,19 @@ async def get_submodule_data(
 
     # Transform to response items
     items = []
-    for equipment, emission in equipment_emissions:
+    for equipment, emission, power_factor in equipment_emissions:
         assert equipment.id is not None
         item = EquipmentItemResponse(
             id=equipment.id,
             name=equipment.name,
             category=equipment.category,
             submodule=equipment.submodule,
-            **{"class": equipment.equipment_class},
+            equipment_class=equipment.equipment_class,
             sub_class=equipment.sub_class,
             act_usage=equipment.active_usage_pct or 0,
             pas_usage=equipment.passive_usage_pct or 0,
-            act_power=equipment.active_power_w or 0,
-            pas_power=equipment.standby_power_w or 0,
+            standby_power_w=power_factor.standby_power_w if power_factor else None,
+            active_power_w=power_factor.active_power_w if power_factor else None,
             status=equipment.status,
             kg_co2eq=emission.kg_co2eq,
             annual_kwh=emission.annual_kwh,
@@ -332,12 +334,10 @@ async def get_equipment_by_id(
         "name": equipment.name,
         "category": equipment.category,
         "submodule": equipment.submodule,
-        "class_": equipment.equipment_class,
+        "equipment_class": equipment.equipment_class,
         "sub_class": equipment.sub_class,
         "act_usage": equipment.active_usage_pct,
         "pas_usage": equipment.passive_usage_pct,
-        "act_power": equipment.active_power_w,
-        "pas_power": equipment.standby_power_w,
         "power_factor_id": equipment.power_factor_id,
         "status": equipment.status,
         "service_date": equipment.service_date,
@@ -374,10 +374,6 @@ async def create_equipment(
     # Set cost_center to unit_id if not provided
     if "cost_center" not in data_dict or not data_dict["cost_center"]:
         data_dict["cost_center"] = data_dict["unit_id"]
-
-    # Map class_ to equipment_class for database
-    if "class_" in data_dict:
-        data_dict["equipment_class"] = data_dict.pop("class_")
 
     # Map fields to database column names
     field_mapping = {
@@ -435,12 +431,10 @@ async def create_equipment(
         "name": equipment.name,
         "category": equipment.category,
         "submodule": equipment.submodule,
-        "class_": equipment.equipment_class,
+        "equipment_class": equipment.equipment_class,
         "sub_class": equipment.sub_class,
         "act_usage": equipment.active_usage_pct,
         "pas_usage": equipment.passive_usage_pct,
-        "act_power": equipment.active_power_w,
-        "pas_power": equipment.standby_power_w,
         "power_factor_id": equipment.power_factor_id,
         "status": equipment.status,
         "service_date": equipment.service_date,
@@ -465,12 +459,28 @@ async def create_equipment(
                 status_code=500,
                 detail="Equipment ID missing after create",
             )
+        if equipment.power_factor_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Power factor ID missing for emission calculation",
+            )
+        power_factor = await PowerFactorRepository().get_by_version_id(
+            session, equipment.power_factor_id
+        )
+        if not power_factor:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Power factor with id {equipment.power_factor_id} "
+                    "not found for emission calculation"
+                ),
+            )
         calc_payload = calculate_equipment_emission_versioned(
             {
                 "act_usage": equipment.active_usage_pct or 0,
                 "pas_usage": equipment.passive_usage_pct or 0,
-                "act_power_w": equipment.active_power_w or 0,
-                "pas_power_w": equipment.standby_power_w or 0,
+                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
+                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
                 "status": equipment.status,
             },
             emission_factor=ef_value,
@@ -514,16 +524,11 @@ async def update_equipment(
 
     # Convert request to dict, excluding unset fields
     update_dict = item_data.model_dump(by_alias=False, exclude_unset=True)
-    # Map class_ to equipment_class for database
-    if "class_" in update_dict:
-        update_dict["equipment_class"] = update_dict.pop("class_")
 
     # Map fields to database column names
     field_mapping = {
         "act_usage": "active_usage_pct",
         "pas_usage": "passive_usage_pct",
-        "act_power": "active_power_w",
-        "pas_power": "standby_power_w",
         "metadata": "equipment_metadata",
     }
 
@@ -581,12 +586,10 @@ async def update_equipment(
         "name": updated_equipment.name,
         "category": updated_equipment.category,
         "submodule": updated_equipment.submodule,
-        "class_": updated_equipment.equipment_class,
+        "equipment_class": updated_equipment.equipment_class,
         "sub_class": updated_equipment.sub_class,
         "act_usage": updated_equipment.active_usage_pct,
         "pas_usage": updated_equipment.passive_usage_pct,
-        "act_power": updated_equipment.active_power_w,
-        "pas_power": updated_equipment.standby_power_w,
         "power_factor_id": updated_equipment.power_factor_id,
         "status": updated_equipment.status,
         "service_date": updated_equipment.service_date,
@@ -611,12 +614,28 @@ async def update_equipment(
                 detail="Equipment ID missing after update",
             )
         await equipment_repo.retire_current_emission(session, updated_equipment.id)
+        if equipment.power_factor_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Power factor ID missing for emission calculation",
+            )
+        power_factor = await PowerFactorRepository().get_by_version_id(
+            session, equipment.power_factor_id
+        )
+        if not power_factor:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Power factor with id {equipment.power_factor_id} "
+                    "not found for emission calculation"
+                ),
+            )
         calc_payload = calculate_equipment_emission_versioned(
             {
                 "act_usage": updated_equipment.active_usage_pct or 0,
                 "pas_usage": updated_equipment.passive_usage_pct or 0,
-                "act_power_w": updated_equipment.active_power_w or 0,
-                "pas_power_w": updated_equipment.standby_power_w or 0,
+                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
+                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
                 "status": updated_equipment.status,
             },
             emission_factor=ef_value,

@@ -74,6 +74,9 @@ dev = [
     "faker>=38.2.0",
 ]
 
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
 
 [tool.alembic]
 

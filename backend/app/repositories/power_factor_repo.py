@@ -17,6 +17,19 @@ class PowerFactorRepository:
         result = await session.execute(stmt)
         return [row for row in result.scalars().all() if row is not None]
 
+    async def get_by_version_id(
+        self, session: AsyncSession, version_id: int
+    ) -> PowerFactor | None:
+        stmt = select(PowerFactor).where(col(PowerFactor.id) == version_id)
+        result = await session.exec(stmt)
+        query_response = result.one_or_none()
+        power_factor: PowerFactor | None = (
+            PowerFactor(**query_response.dict()) if query_response else None
+        )
+        if power_factor:
+            return power_factor
+        return None
+
     async def get_power_factor(
         self,
         session: AsyncSession,

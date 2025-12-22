@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 async def get_module_stats(
     session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
-) -> Dict[str, int]:
+) -> Dict[str, float]:
     """Aggregate equipment data by submodule or category."""
     return {"scientific": 42, "office": 15}  # Placeholder implementation
 
@@ -133,7 +133,7 @@ async def get_equipment_with_emissions(
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
     filter: Optional[str] = None,
-) -> Tuple[List[Tuple[Equipment, EquipmentEmission]], int]:
+) -> Tuple[List[Tuple[Equipment, EquipmentEmission, PowerFactor]], int]:
     """
     Get equipment with their current emissions.
 
@@ -232,9 +232,9 @@ async def get_equipment_with_emissions(
     result = await session.execute(query)
     rows = result.all()
 
-    equipment_emissions: List[Tuple[Equipment, EquipmentEmission]] = []
+    equipment_emissions: List[Tuple[Equipment, EquipmentEmission, PowerFactor]] = []
     for equipment, emission, power_factor in rows:
-        equipment_emissions.append((equipment, emission))
+        equipment_emissions.append((equipment, emission, power_factor))
 
     logger.debug(
         f"Retrieved {len(equipment_emissions)} equipment items "
@@ -281,6 +281,7 @@ async def get_equipment_summary_by_submodule(
             col(Equipment.id) == col(EquipmentEmission.equipment_id),
         )
         .where(col(EquipmentEmission.is_current) == True)  # noqa: E712
+        # not always true! group_by could be by other fields
         .group_by(Equipment.submodule)
     )
 

@@ -29,7 +29,7 @@ class HeadcountService:
 
     async def get_module_stats(
         self, unit_id: str, year: int, aggregate_by: str = "submodule"
-    ) -> dict[str, int]:
+    ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
         # GOAL return total items and submodules for headcount module
         # data should be aggregated by aggregate_by param

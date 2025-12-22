@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, int])
+@router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
 async def get_module_stats(
     unit_id: str,
     year: int,
@@ -38,7 +38,7 @@ async def get_module_stats(
     aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> dict[str, int]:
+) -> dict[str, float]:
     """
     Get module statistics such as total items and submodules.
 
@@ -56,7 +56,7 @@ async def get_module_stats(
         f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
     )
 
-    stats: dict[str, int] = {}
+    stats: dict[str, float] = {}
     if module_id == "equipment-electric-consumption":
         stats = await equipment_service.get_module_stats(
             session=db,
@@ -127,8 +127,9 @@ async def get_module(
             year=year,
             aggregate_by="function_role",
         )
-        module_data.totals.total_items = stats.get("total_items", 0)
-        module_data.totals.total_submodules = stats.get("total_submodules", 0)
+        module_data.totals.total_items = int(stats.get("total_items", 0))
+        # Handle case where total_submodules is used in stats
+        module_data.totals.total_submodules = 0
         module_data.stats = stats
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "

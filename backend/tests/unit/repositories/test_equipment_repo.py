@@ -163,7 +163,7 @@ class TestGetEquipmentWithEmissions:
 
         assert total == 3  # 3 in service items
         assert len(result) == 3
-        for equip, emission in result:
+        for equip, emission, *_ in result:
             assert isinstance(equip, Equipment)
             assert isinstance(emission, EquipmentEmission)
             assert emission.is_current is True
@@ -179,7 +179,7 @@ class TestGetEquipmentWithEmissions:
 
         assert total == 2  # 2 items in TEST-UNIT-1
         assert len(result) == 2
-        for equip, emission in result:
+        for equip, emission, *_ in result:
             assert equip.unit_id == "TEST-UNIT-1"
 
     @pytest.mark.asyncio
@@ -193,7 +193,7 @@ class TestGetEquipmentWithEmissions:
 
         assert total == 2  # 2 scientific items
         assert len(result) == 2
-        for equip, emission in result:
+        for equip, emission, *_ in result:
             assert equip.submodule == "scientific"
 
     @pytest.mark.asyncio
@@ -247,7 +247,7 @@ class TestGetEquipmentWithEmissions:
 
         assert total == 2
         assert len(result) == 2
-        for equip, emission in result:
+        for equip, emission, *_ in result:
             assert equip.unit_id == "TEST-UNIT-1"
             assert equip.submodule == "scientific"
             assert equip.status == "In service"
@@ -274,7 +274,7 @@ class TestGetEquipmentWithEmissions:
         )
 
         # Check ordering
-        classes = [equip.equipment_class for equip, _ in result]
+        classes = [equip.equipment_class for equip, *_ in result]
         assert classes == sorted(classes)
 
 
@@ -570,7 +570,7 @@ class TestInsertEmission:
         )
 
         current_emissions_for_equipment = [
-            e for eq, e in result if eq.id == equipment.id
+            e for eq, e, *_ in result if eq.id == equipment.id
         ]
         assert len(current_emissions_for_equipment) == 1
         assert current_emissions_for_equipment[0].id == emission2.id

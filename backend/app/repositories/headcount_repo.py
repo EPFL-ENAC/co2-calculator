@@ -110,12 +110,15 @@ class HeadCountRepository:
 
     async def get_module_stats(
         self, unit_id: str, year: int, aggregate_by: str = "submodule"
-    ) -> Dict[str, int]:
+    ) -> Dict[str, float]:
         """Aggregate headcount data by submodule or function."""
         group_field = getattr(HeadCount, aggregate_by)
 
         query = (
-            select(group_field, func.count().label("total_count"))
+            select(
+                group_field,
+                func.sum(HeadCount.fte).label("annual_fte"),
+            )
             .where(
                 HeadCount.unit_id == unit_id,
                 # HeadCount.year == year,
@@ -126,12 +129,12 @@ class HeadCountRepository:
         result = await self.session.exec(query)
         rows = list(result.all())
 
-        aggregation: Dict[str, int] = {}
+        aggregation: Dict[str, float] = {}
         for key, total_count in rows:
             if key is None:
-                aggregation["unknown"] = int(total_count)
+                aggregation["unknown"] = float(total_count)
             else:
-                aggregation[key] = int(total_count)
+                aggregation[key] = float(total_count)
 
         logger.debug(f"Aggregated headcount by {aggregate_by}: {aggregation}")
 
