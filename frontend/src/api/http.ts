@@ -37,6 +37,10 @@ export const api = ky.create({
             location.replace(API_LOGIN_URL);
           }
         }
+        if (res.status === 403) {
+          // For 403 Forbidden, redirect to a dedicated page
+          location.replace('/unauthorized');
+        }
       },
     ],
   },

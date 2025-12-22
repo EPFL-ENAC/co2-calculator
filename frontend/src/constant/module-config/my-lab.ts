@@ -44,6 +44,7 @@ const memberFields: ModuleField[] = [
     min: 0,
     max: 1,
     step: 0.1,
+    sortable: true,
     editableInline: true,
     ratio: '4/12',
     icon: 'o_timer',

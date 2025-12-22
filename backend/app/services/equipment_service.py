@@ -196,6 +196,7 @@ async def get_submodule_data(
     offset: int = 0,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
+    filter: Optional[str] = None,
 ) -> SubmoduleResponse:
     """
     Get paginated data for a single submodule.
@@ -218,6 +219,11 @@ async def get_submodule_data(
         f"sort_by={sort_by}, sort_order={sort_order}"
     )
 
+    if sort_by == "class":
+        sort_by = "equipment_class"
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
+
     # Get equipment for this submodule
     (
         equipment_emissions,
@@ -231,6 +237,7 @@ async def get_submodule_data(
         offset=offset,
         sort_by=sanitize(sort_by),
         sort_order=sanitize(sort_order),
+        filter=filter,
     )
 
     # Transform to response items
@@ -262,7 +269,7 @@ async def get_submodule_data(
     submodule_summary_data = summary_by_submodule.get(
         submodule_key,
         {
-            "total_items": 0,
+            "total_items": total_count,
             "annual_consumption_kwh": 0.0,
             "total_kg_co2eq": 0.0,
         },

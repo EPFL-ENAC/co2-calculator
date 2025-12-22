@@ -1,8 +1,8 @@
 """Unit Results API endpoints."""
 
-from typing import Union
+from typing import Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -151,6 +151,9 @@ async def get_submodule(
     limit: int = Query(default=50, le=100, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
+    filter: Optional[str] = Query(
+        default=None, description="Filter string to search in name or display_name"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -194,6 +197,7 @@ async def get_submodule(
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            filter=filter,
         )
     if module_id == "my-lab":
         submodule_data = await HeadcountService(db).get_submodule_data(
@@ -204,6 +208,7 @@ async def get_submodule(
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            filter=filter,
         )
     if not submodule_data:
         raise HTTPException(
@@ -462,7 +467,7 @@ async def update_equipment(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_equipment(
+async def delete_item(
     unit_id: str,
     year: int,
     module_id: str,
@@ -491,21 +496,32 @@ async def delete_equipment(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-    if module_id == "equipment-electric-consumption":
-        await equipment_service.delete_equipment(
-            session=db,
-            equipment_id=item_id,
-            user_id=current_user.id,
+    try:
+        if module_id == "equipment-electric-consumption":
+            await equipment_service.delete_equipment(
+                session=db,
+                equipment_id=item_id,
+                user_id=current_user.id,
+            )
+
+        elif module_id == "my-lab":
+            await HeadcountService(db).delete_headcount(
+                headcount_id=item_id,
+                current_user=current_user,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="module not supported for deletion",
+            )
+    except PermissionError as e:
+        logger.warning(
+            f"Permission error during deletion of item_id={sanitize(item_id)}: {str(e)}"
         )
-    elif module_id == "my-lab":
-        await HeadcountService(db).delete_headcount(
-            headcount_id=item_id,
-            current_user=current_user,
-        )
-    else:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="module not supported for deletion",
-        )
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     logger.info(f"Deleted equipment {sanitize(item_id)}")

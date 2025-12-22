@@ -132,6 +132,7 @@ async def get_equipment_with_emissions(
     offset: int = 0,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
+    filter: Optional[str] = None,
 ) -> Tuple[List[Tuple[Equipment, EquipmentEmission]], int]:
     """
     Get equipment with their current emissions.
@@ -154,6 +155,9 @@ async def get_equipment_with_emissions(
         "id": col(Equipment.id),
         "name": col(Equipment.name),
         "equipment_class": col(Equipment.equipment_class),
+        "sub_class": col(Equipment.sub_class),
+        "act_usage": col(Equipment.active_usage_pct),
+        "pas_usage": col(Equipment.passive_usage_pct),
         "submodule": col(Equipment.submodule),
         "category": col(Equipment.category),
         "status": col(Equipment.status),
@@ -181,6 +185,18 @@ async def get_equipment_with_emissions(
         .where(col(EquipmentEmission.is_current) == True)  # noqa: E712
     )
 
+    if filter:
+        filter.strip()
+        # max filter for security
+        if len(filter) > 100:
+            filter = filter[:100]
+        # check for empty or only-wildcard filters and handle accordingly.
+        if filter == "" or filter == "%" or filter == "*":
+            filter = None
+    if filter:
+        filter_pattern = f"%{filter}%"
+        query = query.where((col(Equipment.name).ilike(filter_pattern)))
+
     # Apply filters
     if unit_id:
         query = query.where(col(Equipment.unit_id) == unit_id)
@@ -191,6 +207,8 @@ async def get_equipment_with_emissions(
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
+    if filter:
+        count_query = count_query.where((col(Equipment.name).ilike(filter_pattern)))
     count_result = await session.execute(count_query)
     total_count = count_result.scalar() or 0
 

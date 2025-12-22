@@ -212,7 +212,14 @@ class HeadCountRepository:
         return True
 
     async def get_headcounts(
-        self, unit_id, year, limit, offset, sort_by, sort_order
+        self,
+        unit_id,
+        year,
+        limit,
+        offset,
+        sort_by,
+        sort_order,
+        filter: Optional[str] = None,
     ) -> list[HeadCount]:
         """Get headcount record by unit_id and year."""
         statement = select(HeadCount).where(
@@ -287,6 +294,7 @@ class HeadCountRepository:
         offset: int,
         sort_by: str,
         sort_order: str,
+        filter: Optional[str] = None,
     ) -> SubmoduleResponse:
         """Get headcount record by unit_id, year, and submodule."""
         statement = select(HeadCount).where(
@@ -294,25 +302,53 @@ class HeadCountRepository:
             HeadCount.submodule == submodule_key,
             # HeadCount.year == year,
         )
+
+        if filter:
+            filter.strip()
+            # max filter for security
+            if len(filter) > 100:
+                filter = filter[:100]
+            # check for empty or only-wildcard filters and handle accordingly.
+            if filter == "" or filter == "%" or filter == "*":
+                filter = None
+
+        if filter:
+            filter_pattern = f"%{filter}%"
+            statement = statement.where(
+                (col(HeadCount.display_name).ilike(filter_pattern))
+            )
         if sort_order.lower() == "asc":
             statement = statement.order_by(getattr(HeadCount, sort_by).asc())
         else:
             statement = statement.order_by(getattr(HeadCount, sort_by).desc())
         statement = statement.offset(offset).limit(limit)
         result = await self.session.execute(statement)
-        # TODO: complete summary fields
+
+        # Query for total count (for pagination)
+        count_stmt = select(func.count()).where(
+            HeadCount.unit_id == unit_id,
+            HeadCount.submodule == submodule_key,
+            # HeadCount.year == year,
+        )
+        if filter:
+            count_stmt = count_stmt.where(
+                (col(HeadCount.display_name).ilike(filter_pattern))
+            )
+        total_items = (await self.session.execute(count_stmt)).scalar_one()
+        items = list(result.scalars().all())
+        count = len(items)
         response = SubmoduleResponse(
             id=submodule_key,
             name=submodule_key,
-            count=0,
-            items=list(result.scalars().all()),
+            count=count,
+            items=items,
             summary=SubmoduleSummary(
-                total_items=0,
+                total_items=total_items,
                 annual_consumption_kwh=0.0,
                 total_kg_co2eq=0.0,
                 annual_fte=0.0,
             ),
-            has_more=False,
+            has_more=total_items > offset + count,
         )
         return response
 
