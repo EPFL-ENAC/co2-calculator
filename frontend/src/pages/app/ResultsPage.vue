@@ -181,7 +181,7 @@ const downloadPDF = () => {
         </q-card>
         <template v-for="module in MODULES_LIST" :key="module">
           <q-card flat bordered class="q-pa-none q-mt-xl">
-            <q-expansion-item expand-separator default-opened>
+            <q-expansion-item expand-separator>
               <template #header>
                 <div class="flex justify-between items-center">
                   <module-icon
