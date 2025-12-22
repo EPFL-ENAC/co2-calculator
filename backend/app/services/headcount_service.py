@@ -76,7 +76,7 @@ class HeadcountService:
                 f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
                 f"for headcount_id={sanitize(headcount_id)}"
             )
-            return False
+            raise PermissionError("User not authorized to delete headcount records.")
         return await self.repo.delete_headcount(headcount_id)
 
     async def get_by_id(self, item_id: int) -> Optional[HeadCount]:

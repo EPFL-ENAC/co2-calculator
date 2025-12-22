@@ -265,8 +265,8 @@ async def seed_equipment(session: AsyncSession) -> None:
                 },
             )
             equipment_list.append(equipment_local)
-            equipment_local.unit_id = "12345"
-            equipment_list.append(equipment_local)
+            # equipment_local.unit_id = "12345"
+            # equipment_list.append(equipment_local)
     # Bulk insert
     session.add_all(equipment_list)
     await session.commit()
