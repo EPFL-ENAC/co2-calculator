@@ -564,7 +564,7 @@ function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
 }
 
-function isComplete(row: ModuleRow) {
+function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'class',
@@ -576,6 +576,33 @@ function isComplete(row: ModuleRow) {
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );
+}
+
+function isCompleteHeadcount(row: ModuleRow) {
+  const requiredMember = ['display_name', 'fte', 'function'];
+  const requiredStudent = ['fte'];
+  // implicit behavior: if sciper is set, it's a member
+  // todo: sciper field should not exist: maybe user_id to be agnostic
+  if (row.sciper !== '') {
+    return requiredMember.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+  }
+
+  return requiredStudent.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isComplete(row: ModuleRow) {
+  if (props.moduleType === MODULES.MyLab) {
+    // For MyLab (headcount), consider complete if name and status are set
+    return isCompleteHeadcount(row);
+  }
+  if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+    return isCompleteEquipement(row);
+  }
+  throw new Error(`Unknown module type: ${props.moduleType}`);
 }
 
 function onFormSubmit(

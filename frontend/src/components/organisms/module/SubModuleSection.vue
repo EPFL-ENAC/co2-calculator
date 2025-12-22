@@ -60,6 +60,7 @@
           :has-student-helper="submodule.hasStudentHelper"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
+          :has-tooltip="submodule.hasFormTooltip"
           @submit="submitForm"
         />
       </div>

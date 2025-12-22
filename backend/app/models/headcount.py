@@ -99,6 +99,15 @@ class HeadCount(HeadCountBase, AuditMixin, table=True):
     provider: Optional[str] = Field(
         default=None, max_length=50, description="api | csv | manual"
     )
+    # valid function_role: "doctoral_assistant",
+    # "other", "postdoctoral_researcher", "professor",
+    # "scientific_collaborator", "student", "technical_administrative_staff",
+    # "trainee",
+    function_role: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Function role category (e.g., 'professor', 'student')",
+    )
 
     def __repr__(self) -> str:
         return f"<HeadCount id={self.id} sciper={self.sciper} date={self.date}>"
@@ -149,6 +158,7 @@ class HeadCountUpdate(SQLModel):
     fte: Optional[float] = None
     # We might allow updating the provider manually, or handle it in code
     provider: Optional[str] = None
+    function_role: Optional[str] = None
 
 
 class HeadCountUpdateRequest(BaseModel):

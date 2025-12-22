@@ -48,6 +48,7 @@ export interface Submodule {
   hasFormSubtitle?: boolean;
   hasTablePagination?: boolean;
   hasStudentHelper?: boolean;
+  hasFormTooltip?: boolean;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;
   addButtonLabelKey?: string;

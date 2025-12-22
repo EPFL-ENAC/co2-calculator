@@ -30,6 +30,50 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+@router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, int])
+async def get_module_stats(
+    unit_id: str,
+    year: int,
+    module_id: str,
+    aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, int]:
+    """
+    Get module statistics such as total items and submodules.
+
+    Args:
+        module_id: Module identifier
+        unit_id: Unit ID to filter equipment
+        year: Year for the data
+        db: Database session
+        current_user: Authenticated user
+    Returns:
+        List of integers with statistics (e.g., total items, total submodules)
+    """
+    logger.info(
+        f"GET module stats: module_id={sanitize(module_id)}, "
+        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
+    )
+
+    stats: dict[str, int] = {}
+    if module_id == "equipment-electric-consumption":
+        stats = await equipment_service.get_module_stats(
+            session=db,
+            unit_id=unit_id,
+            aggregate_by=aggregate_by,
+        )
+    if module_id == "my-lab":
+        stats = await HeadcountService(db).get_module_stats(
+            unit_id=unit_id,
+            year=year,
+            aggregate_by=aggregate_by,
+        )
+    logger.info(f"Module stats returned: {stats}")
+
+    return stats
+
+
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
 async def get_module(
     unit_id: str,
@@ -78,6 +122,14 @@ async def get_module(
             unit_id=unit_id,
             year=year,
         )
+        stats = await HeadcountService(db).get_module_stats(
+            unit_id=unit_id,
+            year=year,
+            aggregate_by="function_role",
+        )
+        module_data.totals.total_items = stats.get("total_items", 0)
+        module_data.totals.total_submodules = stats.get("total_submodules", 0)
+        module_data.stats = stats
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "
         f"across {module_data.totals.total_submodules} submodules"

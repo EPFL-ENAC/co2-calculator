@@ -1,8 +1,10 @@
 <script lang="ts" setup>
+import { computed } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
+import { useI18n } from 'vue-i18n';
 import {
   TooltipComponent,
   LegendComponent,
@@ -11,6 +13,8 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+
+import { colors } from 'src/constant/charts';
 
 use([
   CanvasRenderer,
@@ -21,46 +25,75 @@ use([
   DatasetComponent,
   GraphicComponent,
 ]);
-const chartOptions: EChartsOption = {
-  tooltip: {
-    trigger: 'axis',
-    axisPointer: {
-      type: 'shadow',
+
+const { t } = useI18n();
+
+const props = withDefaults(
+  defineProps<{
+    stats?: Record<string, number>;
+  }>(),
+  {
+    stats: () => ({}),
+  },
+);
+const OVERRIDE = false;
+// Define colors for each key
+const colorMap: Record<string, string> = {
+  professor: colors.value.oliveGreen.dark,
+  scientific_collaborator: colors.value.oliveGreen.light,
+  postdoctoral_researcher: colors.value.oliveGreen.darker,
+  doctoral_assistant: colors.value.oliveGreen.default,
+  trainee: colors.value.oliveGreen.lighter,
+  student: colors.value.limeGreen.default,
+  technical_administrative_staff: colors.value.limeGreen.light,
+  other: colors.value.limeGreen.darker,
+};
+
+const chartOptions = computed<EChartsOption>(() => {
+  const keys = Object.keys(props.stats ?? {});
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
     },
-  },
-  legend: {
-    bottom: 10,
-    left: 10,
-  },
-  grid: {
-    left: '3%',
-    right: '4%',
-    bottom: '50px',
-    containLabel: true,
-  },
-  yAxis: {
-    type: 'value',
-    boundaryGap: [0, 0.01],
-  },
-  xAxis: {
-    type: 'category',
-    data: ['Team Leader', 'RSE', 'Student'],
-  },
-  series: [
-    {
-      name: 'EPT',
-      type: 'bar',
-      data: [1, 1, 4],
-      itemStyle: {
-        color: '#00a79f',
-        // color: new graphic.LinearGradient(0, 0, 1, 0, [
-        //   { offset: 0, color: colors.value.oliveGreen.dark },
-        //   { offset: 1, color: colors.value.oliveGreen.light },
-        // ]),
+    legend: { show: false },
+    grid: { left: '3%', right: '4%', bottom: '50px', containLabel: true },
+    dataset: {
+      dimensions: ['category', 'value'],
+      source: keys.map((key) => ({
+        category: t(`app_headcount_${key}`),
+        value: props.stats?.[key] ?? 0,
+      })),
+    },
+    xAxis: {
+      type: 'category',
+      axisLabel: {
+        interval: 0, // Force showing all labels
+        rotate: 45, // Rotate labels if needed
+        fontSize: 12,
       },
     },
-  ],
-};
+    yAxis: { type: 'value', boundaryGap: [0, 0.01] },
+    series: [
+      {
+        type: 'bar',
+        encode: { x: 'category', y: 'value' },
+        itemStyle: {
+          color: (params) => {
+            // const key = keys[params.dataIndex];
+            // return colorMap[key] || '#00a79f';
+            if (OVERRIDE) {
+              const key = keys[params.dataIndex];
+              return colorMap[key] || '#00a79f';
+            }
+            return '#00a79f';
+          },
+        },
+      },
+    ],
+  };
+});
 </script>
 
 <template>

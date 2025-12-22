@@ -198,6 +198,7 @@ export interface ModuleResponse {
   module_type: string;
   unit: string;
   year: string;
+  stats?: Record<string, number>;
   retrieved_at: string;
   submodules: Record<string, Submodule>;
   totals: Totals;

@@ -27,6 +27,18 @@ class HeadcountService:
         self.session = session
         self.repo = HeadCountRepository(session)
 
+    async def get_module_stats(
+        self, unit_id: str, year: int, aggregate_by: str = "submodule"
+    ) -> dict[str, int]:
+        """Get module statistics such as total items and submodules."""
+        # GOAL return total items and submodules for headcount module
+        # data should be aggregated by aggregate_by param
+        # {"professor": 10, "researcher": 5, ...}
+        # or {"member": 15, "student": 20, ...}
+        return await self.repo.get_module_stats(
+            unit_id=unit_id, year=year, aggregate_by=aggregate_by
+        )
+
     async def create_headcount(
         self,
         data: HeadCountCreate,
@@ -162,6 +174,7 @@ class HeadcountService:
             module_type="my-lab",
             unit=unit_id,
             year=year,
+            stats=None,
             retrieved_at=datetime.now(timezone.utc),
             submodules=submodules,
             totals=totals,
