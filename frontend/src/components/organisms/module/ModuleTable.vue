@@ -75,6 +75,12 @@
           :props="scope"
           :align="col.align"
           class="q-pa-xs"
+          :class="{ 'column-max-width': col.maxColumnWidth }"
+          :style="
+            col.maxColumnWidth
+              ? { '--max-column-width': `${col.maxColumnWidth}px` }
+              : {}
+          "
         >
           <span>{{ col.label }}</span>
           <q-icon
@@ -121,7 +127,8 @@
           :key="col.name"
           :props="slotProps"
           :align="col.align"
-          :class="cellClasses(slotProps.row, col)"
+          :class="getColumnClasses(slotProps.row, col)"
+          :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
             <module-inline-select
@@ -381,6 +388,7 @@ type TableViewColumn = {
   options?: Array<{ value: string; label: string }>;
   tooltip?: string;
   type: ModuleField['type'];
+  maxColumnWidth?: number;
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -424,6 +432,7 @@ const qCols = computed<TableViewColumn[]>(() => {
         options,
         tooltip,
         type: f.type,
+        maxColumnWidth: f.maxColumnWidth,
       };
     });
 
@@ -442,12 +451,16 @@ const qCols = computed<TableViewColumn[]>(() => {
       options: undefined,
       tooltip: undefined,
       type: 'text',
+      maxColumnWidth: undefined,
     });
   }
   return baseCols;
 });
 
-function renderCell(row: ModuleRow, col: { field: string; name: string }) {
+function renderCell(
+  row: ModuleRow,
+  col: { field: string; name: string; maxColumnWidth?: number },
+) {
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq') {
@@ -558,6 +571,19 @@ function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
     }
   }
   return '';
+}
+
+function getColumnStyle(col: TableViewColumn) {
+  if (!col.maxColumnWidth) return {};
+  return { '--max-column-width': `${col.maxColumnWidth}px` };
+}
+
+function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
+  return [
+    cellClasses(row, col),
+    'table-cell',
+    { 'column-max-width': col.maxColumnWidth },
+  ];
 }
 
 function isNew(row: ModuleRow) {
@@ -790,6 +816,19 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.table-cell {
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.column-max-width {
+  max-width: var(--max-column-width, 100%);
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 .table-search {
   min-width: 240px;
 }

@@ -30,6 +30,7 @@ export interface ModuleField {
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
+  maxColumnWidth?: number;
   hideIn?: {
     table?: boolean;
     form?: boolean;
