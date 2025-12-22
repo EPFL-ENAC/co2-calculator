@@ -91,10 +91,11 @@ class HeadcountService:
         offset: int = 0,
         sort_by: str = "id",
         sort_order: str = "asc",
+        filter: Optional[str] = None,
     ) -> list[HeadCount]:
         """Get headcount record by unit_id and year."""
         return await self.repo.get_headcounts(
-            unit_id, year, limit, offset, sort_by, sort_order
+            unit_id, year, limit, offset, sort_by, sort_order, filter
         )
 
     async def get_module_data(
@@ -196,6 +197,7 @@ class HeadcountService:
         offset: int = 0,
         sort_by: str = "date",
         sort_order: str = "asc",
+        filter: Optional[str] = None,
     ) -> SubmoduleResponse:
         """Get headcount module data for a unit and year."""
         return await self.repo.get_submodule_data(
@@ -206,6 +208,7 @@ class HeadcountService:
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            filter=filter,
         )
 
     async def get_by_unit_and_date(

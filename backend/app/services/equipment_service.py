@@ -196,6 +196,7 @@ async def get_submodule_data(
     offset: int = 0,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
+    filter: Optional[str] = None,
 ) -> SubmoduleResponse:
     """
     Get paginated data for a single submodule.
@@ -231,6 +232,7 @@ async def get_submodule_data(
         offset=offset,
         sort_by=sanitize(sort_by),
         sort_order=sanitize(sort_order),
+        filter=filter,
     )
 
     # Transform to response items

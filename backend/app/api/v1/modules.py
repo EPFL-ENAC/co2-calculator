@@ -1,6 +1,6 @@
 """Unit Results API endpoints."""
 
-from typing import Union
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -151,6 +151,9 @@ async def get_submodule(
     limit: int = Query(default=50, le=100, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
+    filter: Optional[str] = Query(
+        default=None, description="Filter string to search in name or display_name"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -194,6 +197,7 @@ async def get_submodule(
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            filter=filter,
         )
     if module_id == "my-lab":
         submodule_data = await HeadcountService(db).get_submodule_data(
@@ -204,6 +208,7 @@ async def get_submodule(
             offset=offset,
             sort_by=sort_by,
             sort_order=sort_order,
+            filter=filter,
         )
     if not submodule_data:
         raise HTTPException(
