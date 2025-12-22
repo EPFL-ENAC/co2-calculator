@@ -23,7 +23,6 @@ const currentYear = computed(() => {
 
 const viewUncertainties = ref(false);
 const compareYears = ref(false);
-const compareYear = ref<number | null>(2024);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
 
@@ -40,10 +39,6 @@ const calculateEquivalentKm = (
 ): number => {
   return totalCo2Kg / co2PerKmKg;
 };
-
-const availableYears = computed(() => {
-  return workspaceStore.availableYears;
-});
 
 const getUncertainty = (
   uncertainty?: string,
@@ -108,50 +103,19 @@ const downloadPDF = () => {
                 class="text-weight-medium"
                 size="xs"
               />
+              <q-separator class="q-my-sm" />
+              <q-checkbox
+                v-model="compareYears"
+                :label="$t('results_compare_years')"
+                color="accent"
+                class="text-weight-medium"
+                size="xs"
+              />
             </div>
           </div>
         </div>
       </q-card>
-      <q-card flat bordered class="q-pa-xl">
-        <div class="flex justify-between items-center">
-          <div class="flex" style="flex: 1; align-items: center">
-            <q-select
-              v-model="workspaceStore.selectedYear"
-              :options="availableYears"
-              outlined
-              dense
-              class="q-my-md q-mr-lg"
-              style="flex: 1"
-            >
-              <template #prepend>
-                <q-icon name="event" color="accent" size="xs" />
-              </template>
-            </q-select>
 
-            <q-select
-              v-if="compareYears"
-              v-model="compareYear"
-              :options="availableYears"
-              outlined
-              dense
-              class="q-my-md q-mr-lg"
-              style="flex: 1"
-            >
-              <template #prepend>
-                <q-icon name="event" color="accent" size="xs" />
-              </template>
-            </q-select>
-          </div>
-
-          <q-checkbox
-            v-model="compareYears"
-            :label="$t('results_compare_years')"
-            color="accent"
-            class="text-weight-medium"
-            size="xs"
-          />
-        </div>
-      </q-card>
       <q-card flat class="grid-3-col">
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
