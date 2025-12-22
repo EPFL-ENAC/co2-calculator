@@ -96,6 +96,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    maxColumnWidth: 150,
   },
   {
     id: 'pas_power',
@@ -110,6 +111,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    maxColumnWidth: 150,
   },
   {
     id: 'kg_co2eq',

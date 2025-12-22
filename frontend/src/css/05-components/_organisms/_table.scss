@@ -5,16 +5,30 @@
   border-radius: tokens.$table-border-radius;
   font-size: tokens.$text-size-sm;
 
+  /* height or max-height is important for sticky header */
+  max-height: 600px;
+  overflow-y: auto;
+
+  th {
+    font-size: tokens.$text-size-sm;
+  }
+
+  thead tr th {
+    position: sticky;
+    z-index: 1;
+    background-color: tokens.$table-bg-odd;
+  }
+
+  thead tr:first-child th {
+    top: 0;
+  }
+
   .q-table td {
     border: none;
   }
 
   tbody .q-tr:nth-child(even) {
     background-color: tokens.$table-bg-even;
-  }
-
-  th {
-    font-size: tokens.$text-size-sm;
   }
 
   tr {
