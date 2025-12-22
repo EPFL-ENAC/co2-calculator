@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -13,6 +13,7 @@ import {
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  TitleComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -24,6 +25,7 @@ use([
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  TitleComponent,
 ]);
 
 const props = defineProps<{
@@ -871,6 +873,128 @@ const chartOption = computed((): EChartsOption => {
     series: seriesArray as echarts.SeriesOption[],
   };
 });
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+
+const downloadPNG = async () => {
+  await nextTick();
+
+  const chart = chartRef.value?.chart;
+  if (!chart) {
+    console.error('Chart instance not found');
+    return;
+  }
+
+  try {
+    const currentOption = chart.getOption() as EChartsOption;
+    const hadAnimation =
+      (currentOption as { animation?: boolean }).animation !== false;
+
+    if (hadAnimation) {
+      chart.setOption({ animation: false }, { notMerge: false });
+      // Wait for chart to update without animations
+      await nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    const chartUrl = chart.getDataURL({
+      type: 'png',
+      pixelRatio: 4,
+      backgroundColor: '#fff',
+    });
+
+    if (hadAnimation) {
+      chart.setOption({ animation: true }, { notMerge: false });
+    }
+
+    // Create a canvas to combine title and chart
+    const chartImage = new Image();
+    chartImage.src = chartUrl;
+
+    await new Promise<void>((resolve, reject) => {
+      chartImage.onload = () => {
+        try {
+          const titleHeight = 250; // Space for title
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+
+          canvas.width = chartImage.width;
+          canvas.height = chartImage.height + titleHeight;
+
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Draw title
+          ctx.fillStyle = '#000';
+          ctx.font = '72px SuisseIntl, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          const titleText = t('unit_carbon_footprint_title');
+          ctx.fillText(titleText, 40, 30);
+
+          // Draw chart below title
+          ctx.drawImage(chartImage, 0, titleHeight);
+
+          // Convert to data URL and download
+          const url = canvas.toDataURL('image/png');
+
+          const link = document.createElement('a');
+          link.href = url;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `module-carbon-footprint-${timestamp}.png`;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+      chartImage.onerror = () =>
+        reject(new Error('Failed to load chart image'));
+    });
+  } catch (error) {
+    console.error('Error downloading chart:', error);
+
+    const chart = chartRef.value?.chart;
+    if (chart) {
+      chart.setOption({ animation: true }, { notMerge: false });
+    }
+  }
+};
+
+const downloadCSV = () => {
+  const escape = (v: unknown) => {
+    const s = String(v ?? '');
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const headers = [
+    ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
+  ].sort((a, b) =>
+    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+  );
+
+  const csv = [
+    headers.map(escape).join(','),
+    ...datasetSource.value.map((item) =>
+      headers.map((key) => escape(item[key])).join(','),
+    ),
+  ].join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 </script>
 
 <template>
@@ -880,6 +1004,29 @@ const chartOption = computed((): EChartsOption => {
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ $t('unit_carbon_footprint_title') }}
         </span>
+      </div>
+
+      <div>
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="sm"
+          class="text-weight-medium q-mr-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="sm"
+          class="text-weight-medium"
+          @click="downloadCSV"
+        />
       </div>
       <q-checkbox
         v-model="toggleAdditionalData"

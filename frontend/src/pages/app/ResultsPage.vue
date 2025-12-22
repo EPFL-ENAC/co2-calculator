@@ -126,7 +126,7 @@ const downloadPDF = () => {
               value: `${formatNumber(0.34)}`,
             })
           "
-          :comparison-highlight="`${formatNumber(calculateEquivalentKm(37250, 0.34))} km`"
+          :comparison-highlight="`${formatNumber(calculateEquivalentKm(37250, 0.34))}km`"
           color="negative"
         >
           <template #tooltip>{{
@@ -141,10 +141,10 @@ const downloadPDF = () => {
           number="8.2"
           :comparison="
             $t('results_paris_agreement_value', {
-              value: `${formatNumber(2)} ${$t('results_units_tonnes')}`,
+              value: `${formatNumber(2)}${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(2)} ${$t('results_units_tonnes')}`"
+          :comparison-highlight="`${formatNumber(2)}${$t('results_units_tonnes')}`"
           color="negative"
         >
           <template #tooltip>{{
@@ -158,10 +158,10 @@ const downloadPDF = () => {
           color="positive"
           :comparison="
             $t('results_compared_to_value_of', {
-              value: `${formatNumber(48)} ${$t('results_units_tonnes')}`,
+              value: `${formatNumber(48)}${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(48)} ${$t('results_units_tonnes')}`"
+          :comparison-highlight="`${formatNumber(48)}${$t('results_units_tonnes')}`"
         >
         </BigNumber>
       </q-card>
@@ -243,7 +243,7 @@ const downloadPDF = () => {
                   >
                     <template #tooltip>{{
                       $t('results_total_unit_carbon_footprint_tooltip', {
-                        value: `${formatNumber(0.34)} ${$t('results_t_co2eq_per_km')}`,
+                        value: `${formatNumber(0.34)}${$t('results_t_co2eq_per_km')}`,
                       })
                     }}</template>
                   </BigNumber>
@@ -252,10 +252,10 @@ const downloadPDF = () => {
                     number="8.2"
                     :comparison="
                       $t('results_paris_agreement_value', {
-                        value: `${formatNumber(2)} ${$t('results_units_tonnes')}`,
+                        value: `${formatNumber(2)}${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(2)} ${$t('results_units_tonnes')}`"
+                    :comparison-highlight="`${formatNumber(2)}${$t('results_units_tonnes')}`"
                     color="negative"
                   >
                     <template #tooltip>{{
@@ -273,10 +273,10 @@ const downloadPDF = () => {
                     color="positive"
                     :comparison="
                       $t('results_compared_to_value_of', {
-                        value: `${formatNumber(48)} ${$t('results_units_tonnes')}`,
+                        value: `${formatNumber(48)}${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(48)} ${$t('results_units_tonnes')}`"
+                    :comparison-highlight="`${formatNumber(48)}${$t('results_units_tonnes')}`"
                   >
                   </BigNumber>
                 </q-card>
