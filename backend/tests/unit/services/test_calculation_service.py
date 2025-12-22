@@ -659,8 +659,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "In service",
         }
 
@@ -683,8 +683,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "In service",
         }
 
@@ -698,19 +698,19 @@ class TestCalculateEquipmentEmissionVersioned:
         inputs = result["calculation_inputs"]
         assert inputs["act_usage_hrs_wk"] == 42
         assert inputs["pas_usage_hrs_wk"] == 126
-        assert inputs["act_power_w"] == 100
-        assert inputs["pas_power_w"] == 5
+        assert inputs["active_power_w"] == 100
+        assert inputs["standby_power_w"] == 5
         assert inputs["emission_factor"] == 0.125
         assert inputs["status"] == "In service"
 
     def test_versioned_calculation_alternative_keys(self):
         """Test versioned calculation handles alternative key names."""
-        # Using 'act_usage' instead of 'act_usage_pct'
+        # Using 'active_power_w' and 'standby_power_w' as required
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power": 100,
-            "pas_power": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "In service",
         }
 
@@ -728,8 +728,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "Decommissioned",
         }
 
@@ -748,8 +748,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
         }
 
         result = calculate_equipment_emission_versioned(
@@ -766,8 +766,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
         }
 
         result = calculate_equipment_emission_versioned(
@@ -784,8 +784,8 @@ class TestCalculateEquipmentEmissionVersioned:
         equipment_data = {
             "act_usage": 40,
             "pas_usage": 128,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
         }
 
         result = calculate_equipment_emission_versioned(

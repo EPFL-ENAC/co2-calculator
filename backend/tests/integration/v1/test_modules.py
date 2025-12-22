@@ -56,56 +56,6 @@ async def emission_factor(db_session: AsyncSession):
 
 
 @pytest.fixture
-async def sample_equipment(db_session: AsyncSession, emission_factor: EmissionFactor):
-    """Create sample equipment and emissions for testing."""
-    equipment_data = []
-
-    # Create equipment for different submodules
-    for i, submodule in enumerate(["scientific", "it", "other"]):
-        for j in range(3):
-            equipment = Equipment(
-                cost_center="C1348",
-                unit_id="C1348",
-                name=f"Test Equipment {submodule} {j + 1}",
-                category=f"Category {submodule}",
-                submodule=submodule,
-                equipment_class=f"Class {submodule}",
-                sub_class=f"SubClass {j}",
-                active_usage_pct=50.0,
-                passive_usage_pct=10.0,
-                active_power_w=100.0,
-                standby_power_w=10.0,
-                status="In service",
-                service_date=datetime(2024, 1, 1),
-            )
-            db_session.add(equipment)
-            equipment_data.append(equipment)
-
-    await db_session.commit()
-
-    # Refresh to get IDs
-    for equipment in equipment_data:
-        await db_session.refresh(equipment)
-
-    # Create emissions for each equipment
-    for equipment in equipment_data:
-        emission = EquipmentEmission(
-            equipment_id=equipment.id,
-            annual_kwh=876.0,  # (100W * 50% * 8760h + 10W * 10% * 8760h) / 1000
-            kg_co2eq=109.5,  # 876 kWh * 0.125 kg CO2/kWh
-            emission_factor_id=emission_factor.id,
-            formula_version="v1_linear",
-            is_current=True,
-            calculation_inputs={},
-        )
-        db_session.add(emission)
-
-    await db_session.commit()
-
-    return equipment_data
-
-
-@pytest.fixture
 async def power_factors(db_session: AsyncSession):
     """Create power factors for testing."""
     from app.models.emission_factor import PowerFactor
@@ -147,6 +97,57 @@ async def power_factors(db_session: AsyncSession):
         await db_session.refresh(factor)
 
     return factors
+
+
+@pytest.fixture
+async def sample_equipment(
+    db_session: AsyncSession, emission_factor: EmissionFactor, power_factors
+):
+    """Create sample equipment and emissions for testing."""
+    equipment_data = []
+
+    # Create equipment for different submodules
+    for i, submodule in enumerate(["scientific", "it", "other"]):
+        for j in range(3):
+            equipment = Equipment(
+                cost_center="C1348",
+                unit_id="C1348",
+                name=f"Test Equipment {submodule} {j + 1}",
+                category=f"Category {submodule}",
+                submodule=submodule,
+                equipment_class=f"Class {submodule}",
+                sub_class=f"SubClass {j}",
+                active_usage_pct=50.0,
+                passive_usage_pct=10.0,
+                power_factor_id=power_factors[0].id,
+                status="In service",
+                service_date=datetime(2024, 1, 1),
+            )
+            db_session.add(equipment)
+            equipment_data.append(equipment)
+
+    await db_session.commit()
+
+    # Refresh to get IDs
+    for equipment in equipment_data:
+        await db_session.refresh(equipment)
+
+    # Create emissions for each equipment
+    for equipment in equipment_data:
+        emission = EquipmentEmission(
+            equipment_id=equipment.id,
+            annual_kwh=876.0,  # (100W * 50% * 8760h + 10W * 10% * 8760h) / 1000
+            kg_co2eq=109.5,  # 876 kWh * 0.125 kg CO2/kWh
+            emission_factor_id=emission_factor.id,
+            formula_version="v1_linear",
+            is_current=True,
+            calculation_inputs={},
+        )
+        db_session.add(emission)
+
+    await db_session.commit()
+
+    return equipment_data
 
 
 @pytest.mark.asyncio
@@ -259,7 +260,7 @@ async def test_get_submodule_success(
         assert "category" in item
         assert "submodule" in item
         assert item["submodule"] == "scientific"
-        assert "class" in item
+        assert "equipment_class" in item
         assert "kg_co2eq" in item
         assert "annual_kwh" in item
 
@@ -333,12 +334,11 @@ async def test_create_equipment_success(
         "name": "New Test Equipment",
         "category": "Scientific Equipment",
         "submodule": "scientific",
-        "class": "Laboratory",
+        "equipment_class": "Laboratory",
         "sub_class": "Microscope",
         "act_usage": 75.0,
         "pas_usage": 25.0,
-        "act_power": 200.0,
-        "pas_power": 20.0,
+        "power_factor_id": power_factors[0].id,
         "status": "In service",
     }
 
@@ -355,12 +355,10 @@ async def test_create_equipment_success(
     assert data["unit_id"] == "C1348"
     assert data["category"] == "Scientific Equipment"
     assert data["submodule"] == "scientific"
-    assert data["class"] == "Laboratory"
+    assert data["equipment_class"] == "Laboratory"
     assert data["sub_class"] == "Microscope"
     assert data["act_usage"] == 75.0
     assert data["pas_usage"] == 25.0
-    assert data["act_power"] == 200.0
-    assert data["pas_power"] == 20.0
     assert data["status"] == "In service"
     assert data["created_by"] == "test-user-123"
     assert data["updated_by"] == "test-user-123"
@@ -375,11 +373,11 @@ async def test_create_equipment_invalid_submodule(
 ):
     """Test creating equipment with invalid submodule."""
     equipment_data = {
-        "unit_id": "C1348",  # todo to remove!
+        "unit_id": "C1348",
         "name": "Test Equipment",
         "category": "Test Category",
-        "submodule": "scientific",  # or "it" or "other" todo: to remove!
-        "class": "Test Class",
+        "submodule": "scientific",
+        "equipment_class": "Test Class",
     }
 
     response = await client.post(
@@ -397,7 +395,7 @@ async def test_create_equipment_missing_required_fields(
     equipment_data = {
         # "unit_id": "C1348",
         "name": "Test Equipment",
-        # Missing category, submodule, class
+        # Missing category, submodule, equipment_class
     }
 
     response = await client.post(
@@ -418,7 +416,7 @@ async def test_create_equipment_invalid_usage_percentage(
         "name": "Test Equipment22",
         "category": "Test Category",
         "submodule": "scientific",
-        "class": "Test Class",
+        "equipment_class": "Test Class",
         "act_usage": 150.0,  # Invalid: > 100
     }
 
@@ -478,7 +476,7 @@ async def test_update_equipment_success(
     }
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific/{equipment.id}",
         json=update_data,
     )
 
@@ -506,7 +504,7 @@ async def test_update_equipment_partial(
     update_data = {"name": "Partially Updated Name"}
 
     response = await client.patch(
-        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/equipment/{equipment.id}",
+        f"/api/v1/modules/C1348/2024/equipment-electric-consumption/scientific/{equipment.id}",
         json=update_data,
     )
 
@@ -594,12 +592,11 @@ async def test_create_equipment_with_optional_fields(
         "name": "Comprehensive Test Equipment",
         "category": "Scientific Equipment",
         "submodule": "scientific",
-        "class": "Laboratory",
+        "equipment_class": "Laboratory",
         "sub_class": "Advanced Microscope",
         "act_usage": 60.0,
         "pas_usage": 15.0,
-        "act_power": 250.0,
-        "pas_power": 30.0,
+        "power_factor_id": power_factors[1].id,
         "status": "In service",
         "service_date": "2024-01-15T10:00:00",
         "cost_center_description": "Équipement de test",

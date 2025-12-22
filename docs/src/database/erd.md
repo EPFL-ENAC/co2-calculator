@@ -1,5 +1,4 @@
 Generating Mermaid ERD...
-
 ```mermaid
 erDiagram
   emission_factors {
@@ -43,8 +42,6 @@ erDiagram
     VARCHAR status
     FLOAT active_usage_pct
     FLOAT passive_usage_pct
-    FLOAT active_power_w
-    FLOAT standby_power_w
     INTEGER power_factor_id
     VARCHAR unit_id
     JSON equipment_metadata
@@ -136,16 +133,15 @@ erDiagram
   }
   users ||--}o emission_factors : created_by
   users ||--}o power_factors : created_by
+  power_factors ||--}o equipment : power_factor_id
   users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
-  power_factors ||--}o equipment : power_factor_id
-  equipment ||--}o equipment_emissions : equipment_id
   emission_factors ||--}o equipment_emissions : emission_factor_id
   power_factors ||--}o equipment_emissions : power_factor_id
+  equipment ||--}o equipment_emissions : equipment_id
   users ||--}o resources : created_by
   users ||--}o resources : updated_by
   users ||--}o unit_users : user_id
   units ||--}o unit_users : unit_id
 ```
-
 Mermaid ERD generation complete.

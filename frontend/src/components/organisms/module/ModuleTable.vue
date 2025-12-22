@@ -693,12 +693,12 @@ function onUploadCsv() {
 
 function onDownloadTemplate() {
   // Mocked download
-  const csvEquipmentContent =
-    'Name,Class,SubClass,Active power (W),Standby power (W),Active usage (hrs/week),Passive usage (hrs/week)\n' +
-    'Example Equipment,Example Class,Example Subclass,100,10,40,128';
+  const csvEquipmentContent = `Cost Center,Cost Center FR Description,Name 1,Category,Class,Service Date,Status
+C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,Cameras,12/7/2024,In service`;
 
-  const csvHeadcountContent =
-    'Position,Full-Time Equivalent (FTE)\n' + 'Researcher,5\n' + 'Technician,3';
+  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule
+2025-12-10,20001,SV-DEC,F1380,SV-DO,00000,UserName,Employé(e) / 13 NSS,Assistant-e administratif-ve,000000,1.00,member
+2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
 
   const csvContent =
     props.moduleType === MODULES.MyLab
