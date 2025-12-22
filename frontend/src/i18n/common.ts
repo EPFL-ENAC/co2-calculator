@@ -645,8 +645,8 @@ export default {
     fr: 'Services',
   },
   'charts-other-purchases-subcategory': {
-    en: 'Other Purchases',
-    fr: 'Autres achats',
+    en: 'Other Equipment',
+    fr: 'Autre équipement',
   },
   'charts-gc-subcategory': {
     en: 'GC',
@@ -681,12 +681,17 @@ export default {
     fr: 'Éclairage',
   },
   'charts-scientific-subcategory': {
-    en: 'Scientific',
-    fr: 'Scientifique',
+    en: 'Scientific Equipment',
+    fr: 'Équipement scientifique',
   },
-  'charts-it-subcategory': {
+
+  'charts-equipment-it': {
+    en: 'IT Equipment',
+    fr: 'IT Équipement',
+  },
+  'charts-infrastructure-it': {
     en: 'IT',
-    fr: 'Informatique',
+    fr: 'IT',
   },
   'charts-scitas-subcategory': {
     en: 'SCITAS',
