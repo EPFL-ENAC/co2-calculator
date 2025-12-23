@@ -19,7 +19,7 @@ function navigateToRoute(routeName: string) {
 
 const hasBackOfficeStandardOnly = computed(() => {
   if (!authStore.user) return false;
-  const userRoles = authStore.user.roles.map((r) => r.role);
+  const userRoles = authStore.user.roles_raw.map((r) => r.role);
   const hasStandard = userRoles.includes(ROLES.BackOfficeStandard);
   const hasAdmin = userRoles.includes(ROLES.BackOfficeAdmin);
   // User has BackOfficeStandard but NOT BackOfficeAdmin

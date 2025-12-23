@@ -1,12 +1,11 @@
 """User schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import EmailStr
 
 from app.models import UserBase
-from app.models.user import Role
 
 
 class UserRead(UserBase):
@@ -16,9 +15,9 @@ class UserRead(UserBase):
     """
 
     id: str
-    sciper: Optional[str] = None
+    display_name: Optional[str] = None
     email: EmailStr
-    roles: List[Role] = []
+    # roles_raw: List[Role] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -1,25 +1,178 @@
-"""User service for internal user operations.
+"""Unit service for business logic with Policy integration.
 
-NOTE: This service is for internal use only (OAuth flow, system operations).
-Public user management has been removed - users are managed via OAuth/OIDC only.
+This service contains both:
+1. User-facing operations (WITH policy checks):
+   - get_user_units(): List units with authorization
+   - get_by_id(): Get specific unit with authorization
+
+2. Internal operations (NO policy checks):
+   - upsert_unit(): System sync from OAuth/providers
+
+Policy authorization is only applied to user-initiated API requests,
+not internal system operations like OAuth callbacks or provider synchronization.
 """
 
-from typing import Optional
+from typing import List, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.user import User
-from app.repositories import user_repo
+from app.core.role_priority import pick_role_for_unit
+from app.models.user import Role, RoleScope, User
+from app.providers.role_provider import get_role_provider
+from app.providers.unit_provider import get_unit_provider
+from app.repositories.user_repo import UserRepository
+from app.services.unit_service import UnitService
+from app.services.unit_user_service import UnitUserService
 
 logger = get_logger(__name__)
 
 
-async def get_user(db: AsyncSession, user_id: str) -> Optional[User]:
-    """Get user by ID (internal use)."""
-    return await user_repo.get_user_by_id(db, user_id)
+class UserService:
+    """Service for user business logic and orchestration."""
 
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.user_repo = UserRepository(session)
+        self.unit_user_service = UnitUserService(session)
+        self.unit_service = UnitService(session)
 
-async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Get user by email (internal use)."""
-    return await user_repo.get_user_by_email(db, email)
+    def get_user_unit_ids(self, roles: Optional[List[Role]]) -> list[str]:
+        """Get list of unit IDs associated with a user."""
+        if not roles:
+            return []
+
+        unit_ids: set[str] = set()
+        for role in roles:
+            if isinstance(role.on, RoleScope) and role.on.unit:
+                unit_ids.add(role.on.unit)
+
+        return list(unit_ids)
+
+    async def upsert_user(
+        self,
+        email: str,
+        display_name: Optional[str] = None,
+        user_id: Optional[str] = None,
+        roles: Optional[List[Role]] = None,
+        stop_recursion: bool = False,
+        provider: Optional[str] = None,
+    ) -> User:
+        """
+        Create or update a user with all related entities.
+
+        This orchestrates:
+        1. User creation/update
+        2. Unit synchronization from provider
+        3. UnitUser association management
+        """
+        # step 1. Get or create user
+        existing_user = await self.user_repo.get_by_id(user_id) if user_id else None
+        if not existing_user:
+            existing_user = await self.user_repo.get_by_email(email)
+        if existing_user and existing_user.provider != provider:
+            logger.warning(
+                "User provider mismatch during upsert",
+                extra={
+                    "user_id": existing_user.id,
+                    "existing_provider": existing_user.provider,
+                    "new_provider": provider,
+                },
+            )
+            raise ValueError("User provider mismatch during upsert")
+        if existing_user:
+            user = await self.user_repo.update(
+                user_id=existing_user.id,
+                display_name=display_name,
+                roles=roles,
+                provider=provider,
+            )
+        else:
+            user = await self.user_repo.create(
+                email=email,
+                display_name=display_name,
+                user_id=user_id,
+                roles=roles,
+                provider=provider,
+            )
+
+        if stop_recursion:
+            return user
+        # step 2. Extract unit IDs from roles
+        unit_ids = self.get_user_unit_ids(roles)
+
+        if not unit_ids:
+            return user
+
+        if not user.provider:
+            raise ValueError("User provider is required for unit synchronization")
+        # step 3. Fetch full unit details from provider
+        unit_provider = get_unit_provider(provider_type=user.provider)
+        units = await unit_provider.get_units(unit_ids=unit_ids)
+
+        # 4. Upsert units with full metadata
+        role_provider = get_role_provider(provider_type=user.provider)
+        for unit in units:
+            if not unit.principal_user_id:
+                raise ValueError(
+                    f"Unit {unit.id} missing principal_user_id from provider"
+                )
+            # Upsert principal user recursively
+            principal_roles = await role_provider.get_roles_by_user_id(
+                unit.principal_user_id
+            )
+            if (unit.principal_user_id != user.id) and principal_roles:
+                if not unit.principal_user_email:
+                    raise ValueError(
+                        f"Unit {unit.id} principal user missing email from provider"
+                    )
+                await self.upsert_user(
+                    email=unit.principal_user_email,
+                    display_name=unit.principal_user_name,
+                    user_id=unit.principal_user_id,
+                    roles=principal_roles,
+                    stop_recursion=True,
+                    provider=user.provider,
+                )
+            await self.unit_service.upsert_unit(unit, user, provider=user.provider)
+
+        # step 5. Create/update UnitUser associations
+        for unit_id in unit_ids:
+            chosen_role = pick_role_for_unit(roles, unit_id)
+            if not chosen_role:
+                logger.warning(
+                    "No valid role found for user-unit association",
+                    extra={
+                        "user_id": user.id,
+                        "unit_id": unit_id,
+                    },
+                )
+                continue
+            await self.unit_user_service.upsert(
+                unit_id=unit_id,
+                user_id=user.id,
+                role=chosen_role,
+            )
+
+        logger.info(
+            "User upserted with units",
+            extra={
+                "user_id": user.id,
+                "unit_count": len(unit_ids),
+                "provider": user.provider,
+            },
+        )
+
+        return user
+
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        return await self.user_repo.get_by_id(user_id)
+
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        return await self.user_repo.get_by_email(email)
+
+    async def count(self, filters: Optional[dict] = None) -> int:
+        """Count users with optional filters."""
+        return await self.user_repo.count(filters)

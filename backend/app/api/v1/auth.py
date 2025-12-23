@@ -7,7 +7,7 @@ from typing import Optional
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
 from app.core.config import get_settings
@@ -18,13 +18,8 @@ from app.core.security import (
     decode_jwt,
 )
 from app.providers.role_provider import get_role_provider
-from app.repositories.user_repo import (
-    get_user_by_id,
-    get_user_by_sciper,
-    update_user_roles,
-    upsert_user,
-)
 from app.schemas.user import UserRead
+from app.services.user_service import UserService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -45,9 +40,9 @@ oauth.register(
 
 def _set_auth_cookies(
     response: Response,
-    user_id: str,
+    sub: str,
     email: str,
-    sciper: Optional[str] = None,
+    user_id: str,
 ) -> None:
     """
     Helper function to create and set authentication cookies.
@@ -58,9 +53,9 @@ def _set_auth_cookies(
     refresh_token_expires = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
 
     token_data = {
-        "sub": user_id,
+        "sub": sub,
         "email": email,
-        "sciper": sciper,
+        "user_id": user_id,
     }
 
     access_token = create_access_token(
@@ -119,23 +114,25 @@ async def login_test(
     sanitized_role = role.replace("\r\n", "").replace("\n", "")
 
     # Fetch roles using configured role provider
-    role_provider = get_role_provider("test")
-    userinfo = {
+    provider = "test"
+    role_provider = get_role_provider(provider)
+    user_info = {
         "requested_role": sanitized_role,
         "email": f"testuser_{sanitized_role}@example.org",
+        "sub": f"testuser_{sanitized_role}_sub",
     }
-    sciper = role_provider.get_sciper(userinfo)
-    roles = await role_provider.get_roles(userinfo)
+    user_id = role_provider.get_user_id(user_info)
+    roles = await role_provider.get_roles(user_info)
 
     logger.info(
         "Test User info",
         extra={
-            "email": userinfo.get("email"),
-            "has_sciper": bool(sciper),
+            "email": user_info.get("email"),
+            "has_user_id": bool(user_id),
             "role": sanitized_role,
         },
     )
-    email = userinfo.get("email")
+    email = user_info.get("email")
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -143,11 +140,12 @@ async def login_test(
         )
 
     # Get or create user
-    user = await upsert_user(
-        db=db,
+    user = await UserService(db).upsert_user(
         email=email,
-        sciper=sciper,
+        user_id=user_id,
+        display_name=f"Test User: {sanitized_role}",
         roles=roles,
+        provider=provider,
     )
 
     # Create response
@@ -158,9 +156,9 @@ async def login_test(
 
     _set_auth_cookies(
         response=response,
+        sub=user_info.get("sub", ""),
         user_id=user.id,
         email=user.email,
-        sciper=user.sciper,
     )
 
     return response
@@ -218,27 +216,36 @@ async def auth_callback(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="No email found in OAuth2 response",
             )
+        display_name = user_info.get("name")
+        if user_info.get("given_name") and user_info.get("family_name"):
+            display_name = (
+                f"{user_info.get('given_name')} {user_info.get('family_name')}"
+            )
+        if not display_name:
+            display_name = email.split("@")[0]
 
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        sciper = role_provider.get_sciper(user_info)
+        user_id = role_provider.get_user_id(user_info)
         roles = await role_provider.get_roles(user_info)
 
         logger.info(
             "User info retrieved from OAuth2",
             extra={
                 "email": email,
-                "has_sciper": bool(user_info.get("uniqueid")),
+                "display_name": display_name,
+                "has_user_id": bool(user_id),
                 "roles_count": len(roles),
             },
         )
 
         # Get or create user
-        user = await upsert_user(
-            db=db,
+        user = await UserService(db).upsert_user(
             email=email,
-            sciper=sciper,
+            display_name=display_name,
+            user_id=user_id,
             roles=roles,
+            provider=role_provider.type,
         )
 
         # Redirect to frontend with httpOnly cookies
@@ -249,9 +256,9 @@ async def auth_callback(
 
         _set_auth_cookies(
             response=response,
+            sub=user_info.get("sub", ""),
             user_id=user.id,
             email=user.email,
-            sciper=user.sciper,
         )
 
         logger.info(
@@ -293,7 +300,7 @@ async def get_me(
     """
     Get current authenticated user information.
 
-    Returns user details including sciper, email, roles.
+    Returns user details including id, email, roles.
     Requires valid auth_token cookie.
     Refreshes roles from provider on each call.
     """
@@ -306,10 +313,10 @@ async def get_me(
     try:
         # Decode and validate token
         payload = decode_jwt(auth_token)
-        user_id = payload.get("sub")
-        user_sciper = payload.get("sciper")
+        user_id = payload.get("user_id")
+        sub = payload.get("sub")
 
-        if not user_sciper:
+        if not sub:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
@@ -321,7 +328,7 @@ async def get_me(
             )
 
         # Get user from database
-        user = await get_user_by_sciper(db, user_sciper)
+        user = await UserService(db).get_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -338,30 +345,29 @@ async def get_me(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User email missing",
             )
-        if not user.sciper:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User sciper missing",
-            )
 
         # Refresh roles from provider
-        role_provider = get_role_provider()
+        role_provider = get_role_provider(user.provider)
         # Check it is a test user in DEBUG mode
-        if settings.DEBUG and user_id.startswith("testuser_"):
+        if settings.DEBUG and user.email.startswith("testuser_"):
             role_provider = get_role_provider("test")
 
-        fresh_roles = await role_provider.get_roles_by_sciper(user.sciper)
+        fresh_roles = await role_provider.get_roles_by_user_id(user.id)
 
-        # Update user roles if changed
         if fresh_roles != user.roles:
-            await update_user_roles(db, user.id, fresh_roles)
+            await UserService(db).upsert_user(
+                email=user.email,
+                display_name=user.display_name,
+                user_id=user.id,
+                roles=fresh_roles,
+                stop_recursion=False,
+                provider=role_provider.type,
+            )
             logger.info(
                 "Refreshed user roles",
                 extra={"user_id": user.id, "roles_count": len(fresh_roles)},
             )
-        # not sure why sciper is set to int here
-        if user and user.sciper is not None and not isinstance(user.sciper, str):
-            user.sciper = str(user.sciper)
+
         return user
 
     except HTTPException:
@@ -402,14 +408,20 @@ async def refresh_token(
                 detail="Invalid token type",
             )
 
-        user_id = payload.get("sub")
+        sub = payload.get("sub")
+        if not sub:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+            )
+        user_id = payload.get("user_id")
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload",
             )
 
-        user = await get_user_by_id(db, user_id)
+        user = await UserService(db).get_by_id(user_id)
 
         # Verify user still exists and is active
         if not user or not user.is_active:
@@ -423,17 +435,12 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User email missing",
             )
-        if not user.sciper:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User sciper missing",
-            )
         # Set new tokens
         _set_auth_cookies(
             response=response,
-            user_id=str(user.id),
-            email=str(user.email),
-            sciper=user.sciper,
+            sub=sub,
+            user_id=user.id,
+            email=user.email,
         )
 
         logger.info("Token refreshed successfully", extra={"user_id": user_id})

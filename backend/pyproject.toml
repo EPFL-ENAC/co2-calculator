@@ -5,7 +5,7 @@ description = ""
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "itsdangerous==2.2.0",
-    "aiosqlite>=0.21.0", # fall back for when no external db is provided
+    "aiosqlite>=0.21.0",                # fall back for when no external db is provided
     "fastapi[standard]==0.121.2",
     "starlette==0.49.3",
     "uvicorn[standard]==0.38.0",
@@ -38,19 +38,18 @@ env = [
     "OAUTH_CLIENT_ID=fake-client-id",
     "OAUTH_CLIENT_SECRET=fake-secret",
     "OAUTH_SCOPE=openid profile email",
-    "FRONTEND_URL=http://test-frontend"
+    "FRONTEND_URL=http://test-frontend",
+    "DEBUG=False",
 ]
 
-filterwarnings = [
-    "ignore::DeprecationWarning",
-]
+filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
 line-length = 88
 indent-width = 4
 target-version = "py312"
 fix = true
-lint.select = ["E", "F", "I"]  # errors, flake8, imports
+lint.select = ["E", "F", "I"] # errors, flake8, imports
 exclude = ["migrations"]
 
 [tool.ruff.format]
@@ -61,19 +60,22 @@ docstring-code-format = true
 
 [dependency-groups]
 dev = [
-  "pytest>=8.4",
-  "pytest-asyncio>=1.2.0",
-  "pytest-cov>=7.0",
-  "pytest-benchmark>=5.1",
-  "pytest-mock>=3.15",
-  "mypy>=1.18",
-  "ruff>=0.14",
-  "httpx>=0.28",
-  "mypy>=1.18.2",
-  "locust>=2.42.2",
-  "pytest-env>=1.2.0",
-  "faker>=38.2.0",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0",
+    "pytest-benchmark>=5.1",
+    "pytest-mock>=3.15",
+    "mypy>=1.18",
+    "ruff>=0.14",
+    "httpx>=0.28",
+    "mypy>=1.18.2",
+    "locust>=2.42.2",
+    "pytest-env>=1.2.0",
+    "faker>=38.2.0",
 ]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
 
 
 [tool.alembic]
@@ -91,9 +93,7 @@ script_location = "%(here)s/alembic"
 # file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
 
 # additional paths to be prepended to sys.path. defaults to the current working directory.
-prepend_sys_path = [
-    "."
-]
+prepend_sys_path = ["."]
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
@@ -157,4 +157,3 @@ prepend_sys_path = [
 # type = "exec"
 # executable = "ruff"
 # options = "check --fix REVISION_SCRIPT_FILENAME"
-

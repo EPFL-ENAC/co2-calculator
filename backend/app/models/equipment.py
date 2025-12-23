@@ -65,18 +65,6 @@ class EquipmentBase(SQLModel):
         description="Passive/standby usage as percentage of time (0-100)",
     )
 
-    # Power consumption (can be actual measured values or NULL to use power factors)
-    active_power_w: Optional[float] = Field(
-        default=None,
-        description="""Measured active power consumption (Watts)
-        , NULL to use power factors""",
-    )
-    standby_power_w: Optional[float] = Field(
-        default=None,
-        description="""Measured standby power consumption (Watts)
-        , NULL to use power factors""",
-    )
-
     # Link to power factor used (if power values are derived from lookup)
     power_factor_id: Optional[int] = Field(
         default=None,

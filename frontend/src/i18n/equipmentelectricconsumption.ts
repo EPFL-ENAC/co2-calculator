@@ -28,21 +28,35 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     fr: 'Graphiques',
   },
   [`${MODULES.EquipmentElectricConsumption}.inputs.name`]: {
-    en: '{moduleTitle} - Name',
-    fr: '',
+    en: 'Name',
+    fr: 'Nom',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific`]: {
     en: 'Scientific Equipment',
-    fr: '',
+    fr: 'Équipement scientifique',
   },
   [`${MODULES.EquipmentElectricConsumption}-it`]: {
     en: 'IT Equipment',
-    fr: '',
+    fr: 'Équipement informatique',
   },
   [`${MODULES.EquipmentElectricConsumption}-other`]: {
     en: 'Other Equipment',
-    fr: '',
+    fr: 'Autre équipement',
   },
+  [`${MODULES.EquipmentElectricConsumption}-scientific-equipment-table-title`]:
+    {
+      en: 'Scientific Equipment ({count}) | Scientific Equipments ({count})',
+      fr: 'Équipement scientifique ({count}) | Équipements scientifiques ({count})',
+    },
+  [`${MODULES.EquipmentElectricConsumption}-it-equipment-table-title`]: {
+    en: 'IT Equipment ({count}) | IT Equipments ({count})',
+    fr: 'Équipement informatique ({count}) | Équipements informatiques ({count})',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-other-equipment-table-title`]: {
+    en: 'Other Equipment ({count}) | Other Equipments ({count})',
+    fr: 'Autre équipement ({count}) | Autres équipements ({count})',
+  },
+
   [`${MODULES.EquipmentElectricConsumption}.tooltips.power`]: {
     en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
     fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",

@@ -14,6 +14,13 @@ from app.models.equipment import Equipment, EquipmentEmission
 logger = get_logger(__name__)
 
 
+async def get_module_stats(
+    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+) -> Dict[str, float]:
+    """Aggregate equipment data by submodule or category."""
+    return {"scientific": 42, "office": 15}  # Placeholder implementation
+
+
 async def get_by_id(
     session: AsyncSession,
     equipment_id: int,
@@ -123,7 +130,10 @@ async def get_equipment_with_emissions(
     submodule: Optional[str] = None,
     limit: Optional[int] = None,
     offset: int = 0,
-) -> Tuple[List[Tuple[Equipment, EquipmentEmission]], int]:
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    filter: Optional[str] = None,
+) -> Tuple[List[Tuple[Equipment, EquipmentEmission, PowerFactor]], int]:
     """
     Get equipment with their current emissions.
 
@@ -134,10 +144,35 @@ async def get_equipment_with_emissions(
         submodule: Filter by submodule
         limit: Maximum number of results
         offset: Number of results to skip
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
 
     Returns:
         Tuple of (list of (Equipment, EquipmentEmission) tuples, total_count)
     """
+    # Field mapping for sortable columns
+    field_mapping: Dict[str, Any] = {
+        "id": col(Equipment.id),
+        "name": col(Equipment.name),
+        "equipment_class": col(Equipment.equipment_class),
+        "sub_class": col(Equipment.sub_class),
+        "act_usage": col(Equipment.active_usage_pct),
+        "pas_usage": col(Equipment.passive_usage_pct),
+        "submodule": col(Equipment.submodule),
+        "category": col(Equipment.category),
+        "status": col(Equipment.status),
+        "unit_id": col(Equipment.unit_id),
+        "cost_center": col(Equipment.cost_center),
+        "service_date": col(Equipment.service_date),
+        "active_power_w": col(PowerFactor.active_power_w),
+        "standby_power_w": col(PowerFactor.standby_power_w),
+        "created_at": col(Equipment.created_at),
+        "updated_at": col(Equipment.updated_at),
+        "kg_co2eq": col(EquipmentEmission.kg_co2eq),
+        "annual_kwh": col(EquipmentEmission.annual_kwh),
+        "computed_at": col(EquipmentEmission.computed_at),
+    }
+
     # Build base query with join
     query = (
         select(Equipment, EquipmentEmission, PowerFactor)
@@ -152,6 +187,18 @@ async def get_equipment_with_emissions(
         .where(col(EquipmentEmission.is_current) == True)  # noqa: E712
     )
 
+    if filter:
+        filter.strip()
+        # max filter for security
+        if len(filter) > 100:
+            filter = filter[:100]
+        # check for empty or only-wildcard filters and handle accordingly.
+        if filter == "" or filter == "%" or filter == "*":
+            filter = None
+    if filter:
+        filter_pattern = f"%{filter}%"
+        query = query.where((col(Equipment.name).ilike(filter_pattern)))
+
     # Apply filters
     if unit_id:
         query = query.where(col(Equipment.unit_id) == unit_id)
@@ -162,23 +209,34 @@ async def get_equipment_with_emissions(
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
+    if filter:
+        count_query = count_query.where((col(Equipment.name).ilike(filter_pattern)))
     count_result = await session.execute(count_query)
     total_count = count_result.scalar() or 0
+
+    # Apply sorting
+    if sort_by and sort_by in field_mapping:
+        sort_column = field_mapping[sort_by]
+        if sort_order and sort_order.lower() == "desc":
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+    else:
+        # Default order by equipment class for predictable grouping
+        query = query.order_by(col(Equipment.equipment_class))
 
     # Apply pagination
     if limit:
         query = query.limit(limit)
-    # Order by equipment class for predictable grouping
-    query = query.order_by(col(Equipment.equipment_class))
     query = query.offset(offset)
 
     # Execute query
     result = await session.execute(query)
     rows = result.all()
 
-    equipment_emissions: List[Tuple[Equipment, EquipmentEmission]] = []
+    equipment_emissions: List[Tuple[Equipment, EquipmentEmission, PowerFactor]] = []
     for equipment, emission, power_factor in rows:
-        equipment_emissions.append((equipment, emission))
+        equipment_emissions.append((equipment, emission, power_factor))
 
     logger.debug(
         f"Retrieved {len(equipment_emissions)} equipment items "
@@ -225,6 +283,7 @@ async def get_equipment_summary_by_submodule(
             col(Equipment.id) == col(EquipmentEmission.equipment_id),
         )
         .where(col(EquipmentEmission.is_current) == True)  # noqa: E712
+        # not always true! group_by could be by other fields
         .group_by(Equipment.submodule)
     )
 

@@ -269,14 +269,16 @@ def calculate_equipment_emission_versioned(
     # Extract values - usage is in hours/week
     act_hrs = equipment_data.get("act_usage", 0)
     pas_hrs = equipment_data.get("pas_usage", 0)
-    act_power = equipment_data.get("act_power_w", equipment_data.get("act_power", 0))
-    pas_power = equipment_data.get("pas_power_w", equipment_data.get("pas_power", 0))
+    # we pass the data with "_w" suffix to be explicit about units
+    active_power_w = equipment_data.get("active_power_w", 0)
+    standby_power_w = equipment_data.get("standby_power_w", 0)
+
     status = equipment_data.get("status", "In service")
 
     # Calculate
-    annual_kwh = calculate_annual_kwh(act_hrs, pas_hrs, act_power, pas_power)
+    annual_kwh = calculate_annual_kwh(act_hrs, pas_hrs, active_power_w, standby_power_w)
     kg_co2eq = calculate_equipment_co2(
-        act_hrs, pas_hrs, act_power, pas_power, emission_factor, status
+        act_hrs, pas_hrs, active_power_w, standby_power_w, emission_factor, status
     )
 
     # Return with metadata
@@ -289,8 +291,8 @@ def calculate_equipment_emission_versioned(
         "calculation_inputs": {
             "act_usage_hrs_wk": act_hrs,
             "pas_usage_hrs_wk": pas_hrs,
-            "act_power_w": act_power,
-            "pas_power_w": pas_power,
+            "active_power_w": active_power_w,
+            "standby_power_w": standby_power_w,
             "emission_factor": emission_factor,
             "status": status,
         },

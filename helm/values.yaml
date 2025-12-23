@@ -33,18 +33,18 @@ backend:
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "30"
     REFRESH_TOKEN_EXPIRE_HOURS: "12"
-    ROLE_PROVIDER_PLUGIN: "default"  # Could be 'default' or 'accred'
+    PROVIDER_PLUGIN: "default" # Could be 'default' or 'accred' or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
-    FRONTEND_URL: "http://localhost:3000"  # Change to frontend URL in production
+    FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
     # Generate a secure key using: openssl rand -hex 32
     # Use backend.existingSecret.enabled=true for production environments
-    SECRET_KEY: ""  # REQUIRED: Must be set via --set flag or existing secret
-    
+    SECRET_KEY: "" # REQUIRED: Must be set via --set flag or existing secret
+
     # OAuth/OIDC Configuration (optional, for future OAuth implementation)
     # OAUTH_CLIENT_ID: ""  # OAuth2 client ID from your identity provider
     # OAUTH_CLIENT_SECRET: ""  # OAuth2 client secret (keep secure!)
@@ -70,7 +70,6 @@ backend:
 
   resources:
     limits:
-      cpu: 500m
       memory: 512Mi
     requests:
       cpu: 100m
@@ -102,42 +101,39 @@ backend:
   affinity: {}
   existingSecret:
     enabled: false
-    name: ""  # Name of the existing secret containing backend secrets
+    name: "" # Name of the existing secret containing backend secrets
     keys:
-      secretKeyKey: SECRET_KEY  # Key in the existing secret for SECRET_KEY
-      oauthClientIdKey: OAUTH_CLIENT_ID  # Key in the existing secret for OAuth client ID
-      oauthClientSecretKey: OAUTH_CLIENT_SECRET  # Key in the existing secret for OAuth client secret
-      oauthIssuerUrlKey: OAUTH_ISSUER_URL  # Key in the existing secret for OAuth issuer URL
-      oauthTenantIdKey: OAUTH_TENANT_ID  # Key in the existing secret for OAuth tenant ID
-      accredApiKeyKey: ACCRED_API_KEY  # Key in the existing secret for Accred API key
+      secretKeyKey: SECRET_KEY # Key in the existing secret for SECRET_KEY
+      oauthClientIdKey: OAUTH_CLIENT_ID # Key in the existing secret for OAuth client ID
+      oauthClientSecretKey: OAUTH_CLIENT_SECRET # Key in the existing secret for OAuth client secret
+      oauthIssuerUrlKey: OAUTH_ISSUER_URL # Key in the existing secret for OAuth issuer URL
+      oauthTenantIdKey: OAUTH_TENANT_ID # Key in the existing secret for OAuth tenant ID
+      accredApiKeyKey: ACCRED_API_KEY # Key in the existing secret for Accred API key
       accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
-      accredApiUrlKey: ACCRED_API_URL  # Key in the existing secret for Accred API URL
+      accredApiUrlKey: ACCRED_API_URL # Key in the existing secret for Accred API URL
 
   initContainers:
     waitForPostgres:
       resources: # Resources for the wait-for-postgres init container
         limits:
-          cpu: 100m
           memory: 128Mi
         requests:
           cpu: 50m
           memory: 64Mi
 
   migrations:
-    enabled: true  # Run database migrations via init container
+    enabled: true # Run database migrations via init container
 
     resources: # Resources for the migration job container
       limits:
-        cpu: 300m
         memory: 512Mi
       requests:
         cpu: 100m
         memory: 128Mi
-    
+
     waitForPostgres:
       resources: # Resources for the wait-for-postgres init container
         limits:
-          cpu: 100m
           memory: 128Mi
         requests:
           cpu: 50m
@@ -177,7 +173,6 @@ frontend:
 
   resources:
     limits:
-      cpu: 200m
       memory: 256Mi
     requests:
       cpu: 50m
@@ -186,14 +181,14 @@ frontend:
   livenessProbe:
     httpGet:
       path: /health
-      port: 8080      # ✅ Match the targetPort
+      port: 8080 # ✅ Match the targetPort
     initialDelaySeconds: 10
     periodSeconds: 10
 
   readinessProbe:
     httpGet:
       path: /health
-      port: 8080      # ✅ Match the targetPort
+      port: 8080 # ✅ Match the targetPort
     initialDelaySeconds: 5
     periodSeconds: 5
 
@@ -252,7 +247,7 @@ ingress:
     # Or use multiple hosts:
     # - co2-calculator.local
     # - co2-calculator.example.com
-    
+
     # Advanced mode - full control over paths (optional)
     # - host: co2-calculator.local
     #   paths:
@@ -263,6 +258,24 @@ ingress:
     #       pathType: Prefix
     #       backend: frontend
   tls: []
+
+# OpenShift Routes configuration
+routes:
+  enabled: false
+  host: "co2-calculator.local"
+  frontend:
+    extraLabels: {}
+    annotations: {}
+    weight: 100
+    tls:
+      termination: edge
+
+  backend:
+    extraLabels: {}
+    annotations: {}
+    weight: 100
+    tls:
+      termination: edge
 
 serviceAccount:
   create: true
@@ -277,4 +290,3 @@ podDisruptionBudget:
 networkPolicy:
   enabled: false
   ingress: []
-

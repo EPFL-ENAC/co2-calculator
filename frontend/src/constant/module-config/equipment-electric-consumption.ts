@@ -1,5 +1,14 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { MODULES, MODULES_THRESHOLD_TYPES } from '../modules';
+import type {
+  Module,
+  EquipmentElectricConsumptionSubType,
+} from 'src/constant/modules';
+
+import {
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+  SUBMODULE_EQUIPMENT_TYPES,
+} from 'src/constant/modules';
 
 const powerTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.power`;
 
@@ -19,7 +28,7 @@ const baseModuleFields: ModuleField[] = [
     ratio: '1/1',
   },
   {
-    id: 'class',
+    id: 'equipment_class',
     label: 'Class',
     type: 'select',
     required: true,
@@ -75,7 +84,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_donut_large',
   },
   {
-    id: 'act_power',
+    id: 'active_power_w',
     label: 'Active power',
     type: 'number',
     required: true,
@@ -87,9 +96,10 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    maxColumnWidth: 150,
   },
   {
-    id: 'pas_power',
+    id: 'standby_power_w',
     label: 'Standby Power',
     type: 'number',
     required: true,
@@ -101,6 +111,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    maxColumnWidth: 150,
   },
   {
     id: 'kg_co2eq',
@@ -122,7 +133,7 @@ const itmodulefields: ModuleField[] = baseModuleFields.filter(
 
 export const equipmentElectricConsumption: ModuleConfig = {
   id: 'module_elec_001',
-  type: 'equipment-electric-consumption',
+  type: MODULES.EquipmentElectricConsumption as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: false,
@@ -136,22 +147,31 @@ export const equipmentElectricConsumption: ModuleConfig = {
   uncertainty: 'high',
 
   formStructure: 'perSubmodule',
+
   submodules: [
     {
-      id: 'sub_scientific',
-      name: 'Scientific Equipment',
+      id: 'scientific',
+      type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
+      // name: 'Scientific Equipment',
+      tableNameKey:
+        'equipment-electric-consumption-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
     },
     {
-      id: 'sub_it',
-      name: 'IT Equipment',
+      id: 'it',
+      type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
+      // name: 'IT Equipment',
+      tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,
     },
     {
-      id: 'sub_other',
-      name: 'Other',
+      id: 'other',
+      type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
+      // name: 'Other',
+      tableNameKey:
+        'equipment-electric-consumption-other-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
     },

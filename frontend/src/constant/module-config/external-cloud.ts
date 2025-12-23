@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-
+import { SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
+import type { ExternalCloudSubType } from 'src/constant/modules';
 const cloudFields: ModuleField[] = [
   {
     id: 'service',
@@ -44,6 +45,7 @@ export const externalCloud: ModuleConfig = {
   submodules: [
     {
       id: 'sub_cloud_services',
+      type: SUBMODULE_EXTERNAL_CLOUD_TYPES.IaaS as ExternalCloudSubType,
       name: 'Cloud Services',
       moduleFields: cloudFields,
     },

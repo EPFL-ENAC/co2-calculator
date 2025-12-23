@@ -7,7 +7,7 @@ export async function authGuard(to: RouteLocationNormalized) {
   const auth = useAuthStore();
 
   // Load user if needed
-  if (!auth.user && !auth.loading) {
+  if (!auth.hasChecked && !auth.loading) {
     try {
       await auth.getUser();
     } catch (e) {
@@ -26,7 +26,7 @@ export async function authGuard(to: RouteLocationNormalized) {
   if (to.meta.roles && auth.isAuthenticated) {
     const roles = Array.from(to.meta.roles as string[]);
     const allowed = roles.some((r) =>
-      auth.user.roles.map((x) => x.role).includes(r),
+      auth.user.roles_raw.map((x) => x.role).includes(r),
     );
     if (!allowed) {
       return { name: 'unauthorized', ...redirectTo };

@@ -1,11 +1,12 @@
 """Equipment service for business logic and data transformation."""
 
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.repositories import equipment_repo
 from app.repositories.power_factor_repo import PowerFactorRepository
@@ -32,10 +33,23 @@ SUBMODULE_NAMES = {
 }
 
 
+async def get_module_stats(
+    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+) -> dict[str, float]:
+    """Get module statistics such as total items and submodules."""
+    # GOAL return total items and submodules for equipment module
+    # data should be aggregated by aggregate_by param
+    # {"scientific": 10, "it": 5, ...}
+    # or {"laptop": 15, "server": 20, ...}
+    return await equipment_repo.get_module_stats(
+        session=session, unit_id=unit_id, aggregate_by=aggregate_by
+    )
+
+
 async def get_module_data(
     session: AsyncSession,
     unit_id: str,
-    year: str,
+    year: int,
     preview_limit: Optional[int] = None,
 ) -> ModuleResponse:
     """
@@ -64,40 +78,6 @@ async def get_module_data(
 
     # Process each submodule
     for submodule_key in ["scientific", "it", "other"]:
-        # Get equipment for this submodule
-        (
-            equipment_emissions,
-            total_count,
-        ) = await equipment_repo.get_equipment_with_emissions(
-            session,
-            unit_id=unit_id,
-            status="In service",
-            submodule=submodule_key,
-            limit=preview_limit,
-            offset=0,
-        )
-
-        # Transform to response items
-        items = []
-        for equipment, emission in equipment_emissions:
-            assert equipment.id is not None
-            item = EquipmentItemResponse(
-                id=equipment.id,
-                name=equipment.name,
-                category=equipment.category,
-                submodule=equipment.submodule,
-                **{"class": equipment.equipment_class},
-                sub_class=equipment.sub_class,
-                act_usage=equipment.active_usage_pct or 0,
-                pas_usage=equipment.passive_usage_pct or 0,
-                act_power=equipment.active_power_w or 0,
-                pas_power=equipment.standby_power_w or 0,
-                status=equipment.status,
-                kg_co2eq=emission.kg_co2eq,
-                annual_kwh=emission.annual_kwh,
-            )
-            items.append(item)
-
         # Get summary for this submodule
         submodule_summary_data = summary_by_submodule.get(
             submodule_key,
@@ -109,12 +89,56 @@ async def get_module_data(
         )
 
         summary = SubmoduleSummary(**submodule_summary_data)
+        total_count = submodule_summary_data["total_items"]
 
-        # Determine if there are more items
-        has_more = preview_limit is not None and total_count > preview_limit
+        # When preview_limit=0, skip item fetching and return empty items array
+        if preview_limit == 0:
+            items: List[EquipmentItemResponse] = []
+            has_more = False
+        else:
+            # Get equipment for this submodule
+            (
+                equipment_emissions,
+                total_count,
+            ) = await equipment_repo.get_equipment_with_emissions(
+                session,
+                unit_id=unit_id,
+                status="In service",
+                submodule=submodule_key,
+                limit=preview_limit,
+                offset=0,
+            )
+
+            # Transform to response items
+            items = []
+            for equipment, emission, power_factor in equipment_emissions:
+                assert equipment.id is not None
+                item = EquipmentItemResponse(
+                    id=equipment.id,
+                    name=equipment.name,
+                    category=equipment.category,
+                    submodule=equipment.submodule,
+                    equipment_class=equipment.equipment_class,
+                    sub_class=equipment.sub_class,
+                    act_usage=equipment.active_usage_pct or 0,
+                    pas_usage=equipment.passive_usage_pct or 0,
+                    standby_power_w=power_factor.standby_power_w
+                    if power_factor
+                    else None,
+                    active_power_w=power_factor.active_power_w
+                    if power_factor
+                    else None,
+                    status=equipment.status,
+                    kg_co2eq=emission.kg_co2eq,
+                    annual_kwh=emission.annual_kwh,
+                )
+                items.append(item)
+
+            # Determine if there are more items
+            has_more = preview_limit is not None and total_count > preview_limit
 
         # Create submodule response
-        submodule_id = f"sub_{submodule_key}"
+        submodule_id = f"{submodule_key}"
         submodule_response = SubmoduleResponse(
             id=submodule_id,
             name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),
@@ -146,14 +170,16 @@ async def get_module_data(
         total_items=total_items,
         total_annual_consumption_kwh=round(total_kwh, 2),
         total_kg_co2eq=round(total_co2, 2),
+        total_annual_fte=None,  # FTE not applicable for equipment
     )
 
     # Create module response
     module_response = ModuleResponse(
         module_type="equipment-electric-consumption",
         unit="kWh",
+        stats=None,
         year=year,
-        retrieved_at=datetime.utcnow().isoformat() + "Z",
+        retrieved_at=datetime.now(timezone.utc),
         submodules=submodules,
         totals=totals,
     )
@@ -172,6 +198,9 @@ async def get_submodule_data(
     submodule_key: str,
     limit: int = 100,
     offset: int = 0,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    filter: Optional[str] = None,
 ) -> SubmoduleResponse:
     """
     Get paginated data for a single submodule.
@@ -182,14 +211,20 @@ async def get_submodule_data(
         submodule_key: Submodule identifier (e.g., 'scientific', 'it', 'other')
         limit: Maximum number of items to return
         offset: Number of items to skip
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
 
     Returns:
         SubmoduleResponse with paginated equipment items
     """
     logger.info(
         f"Fetching submodule data: unit={unit_id}, "
-        f"submodule={submodule_key}, limit={limit}, offset={offset}"
+        f"submodule={submodule_key}, limit={limit}, offset={offset}, "
+        f"sort_by={sort_by}, sort_order={sort_order}"
     )
+
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
 
     # Get equipment for this submodule
     (
@@ -202,23 +237,26 @@ async def get_submodule_data(
         submodule=submodule_key,
         limit=limit,
         offset=offset,
+        sort_by=sanitize(sort_by),
+        sort_order=sanitize(sort_order),
+        filter=filter,
     )
 
     # Transform to response items
     items = []
-    for equipment, emission in equipment_emissions:
+    for equipment, emission, power_factor in equipment_emissions:
         assert equipment.id is not None
         item = EquipmentItemResponse(
             id=equipment.id,
             name=equipment.name,
             category=equipment.category,
             submodule=equipment.submodule,
-            **{"class": equipment.equipment_class},
+            equipment_class=equipment.equipment_class,
             sub_class=equipment.sub_class,
             act_usage=equipment.active_usage_pct or 0,
             pas_usage=equipment.passive_usage_pct or 0,
-            act_power=equipment.active_power_w or 0,
-            pas_power=equipment.standby_power_w or 0,
+            standby_power_w=power_factor.standby_power_w if power_factor else None,
+            active_power_w=power_factor.active_power_w if power_factor else None,
             status=equipment.status,
             kg_co2eq=emission.kg_co2eq,
             annual_kwh=emission.annual_kwh,
@@ -233,7 +271,7 @@ async def get_submodule_data(
     submodule_summary_data = summary_by_submodule.get(
         submodule_key,
         {
-            "total_items": 0,
+            "total_items": total_count,
             "annual_consumption_kwh": 0.0,
             "total_kg_co2eq": 0.0,
         },
@@ -245,7 +283,7 @@ async def get_submodule_data(
     has_more = (offset + len(items)) < total_count
 
     # Create submodule response
-    submodule_id = f"sub_{submodule_key}"
+    submodule_id = f"{submodule_key}"
     submodule_response = SubmoduleResponse(
         id=submodule_id,
         name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),
@@ -265,7 +303,7 @@ async def get_submodule_data(
 
 async def get_equipment_by_id(
     session: AsyncSession,
-    equipment_id: int,
+    item_id: int,
 ) -> EquipmentDetailResponse:
     """
     Get equipment by ID.
@@ -280,12 +318,12 @@ async def get_equipment_by_id(
     Raises:
         HTTPException: If equipment not found
     """
-    equipment = await equipment_repo.get_by_id(session, equipment_id)
+    equipment = await equipment_repo.get_by_id(session, item_id)
 
     if not equipment:
         raise HTTPException(
             status_code=404,
-            detail=f"Equipment with id {equipment_id} not found",
+            detail=f"Equipment with id {item_id} not found",
         )
 
     # Map database fields to response schema
@@ -296,12 +334,10 @@ async def get_equipment_by_id(
         "name": equipment.name,
         "category": equipment.category,
         "submodule": equipment.submodule,
-        "class_": equipment.equipment_class,
+        "equipment_class": equipment.equipment_class,
         "sub_class": equipment.sub_class,
         "act_usage": equipment.active_usage_pct,
         "pas_usage": equipment.passive_usage_pct,
-        "act_power": equipment.active_power_w,
-        "pas_power": equipment.standby_power_w,
         "power_factor_id": equipment.power_factor_id,
         "status": equipment.status,
         "service_date": equipment.service_date,
@@ -338,10 +374,6 @@ async def create_equipment(
     # Set cost_center to unit_id if not provided
     if "cost_center" not in data_dict or not data_dict["cost_center"]:
         data_dict["cost_center"] = data_dict["unit_id"]
-
-    # Map class_ to equipment_class for database
-    if "class_" in data_dict:
-        data_dict["equipment_class"] = data_dict.pop("class_")
 
     # Map fields to database column names
     field_mapping = {
@@ -399,12 +431,10 @@ async def create_equipment(
         "name": equipment.name,
         "category": equipment.category,
         "submodule": equipment.submodule,
-        "class_": equipment.equipment_class,
+        "equipment_class": equipment.equipment_class,
         "sub_class": equipment.sub_class,
         "act_usage": equipment.active_usage_pct,
         "pas_usage": equipment.passive_usage_pct,
-        "act_power": equipment.active_power_w,
-        "pas_power": equipment.standby_power_w,
         "power_factor_id": equipment.power_factor_id,
         "status": equipment.status,
         "service_date": equipment.service_date,
@@ -429,12 +459,28 @@ async def create_equipment(
                 status_code=500,
                 detail="Equipment ID missing after create",
             )
+        if equipment.power_factor_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Power factor ID missing for emission calculation",
+            )
+        power_factor = await PowerFactorRepository().get_by_version_id(
+            session, equipment.power_factor_id
+        )
+        if not power_factor:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Power factor with id {equipment.power_factor_id} "
+                    "not found for emission calculation"
+                ),
+            )
         calc_payload = calculate_equipment_emission_versioned(
             {
                 "act_usage": equipment.active_usage_pct or 0,
                 "pas_usage": equipment.passive_usage_pct or 0,
-                "act_power_w": equipment.active_power_w or 0,
-                "pas_power_w": equipment.standby_power_w or 0,
+                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
+                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
                 "status": equipment.status,
             },
             emission_factor=ef_value,
@@ -448,8 +494,8 @@ async def create_equipment(
 
 async def update_equipment(
     session: AsyncSession,
-    equipment_id: int,
-    equipment_data: EquipmentUpdateRequest,
+    item_id: int,
+    item_data: EquipmentUpdateRequest,
     user_id: str,
 ) -> EquipmentDetailResponse:
     """
@@ -468,27 +514,21 @@ async def update_equipment(
         HTTPException: If equipment not found
     """
     # Get existing equipment
-    equipment = await equipment_repo.get_by_id(session, equipment_id)
+    equipment = await equipment_repo.get_by_id(session, item_id)
 
     if not equipment:
         raise HTTPException(
             status_code=404,
-            detail=f"Equipment with id {equipment_id} not found",
+            detail=f"Equipment with id {item_id} not found",
         )
 
     # Convert request to dict, excluding unset fields
-    update_dict = equipment_data.model_dump(by_alias=False, exclude_unset=True)
-
-    # Map class_ to equipment_class for database
-    if "class_" in update_dict:
-        update_dict["equipment_class"] = update_dict.pop("class_")
+    update_dict = item_data.model_dump(by_alias=False, exclude_unset=True)
 
     # Map fields to database column names
     field_mapping = {
         "act_usage": "active_usage_pct",
         "pas_usage": "passive_usage_pct",
-        "act_power": "active_power_w",
-        "pas_power": "standby_power_w",
         "metadata": "equipment_metadata",
     }
 
@@ -533,7 +573,10 @@ async def update_equipment(
         session, equipment, update_dict
     )
 
-    logger.info(f"Updated equipment {equipment_id} by user {user_id}")
+    logger.info(
+        "Updated equipment",
+        extra={"equipment_id": sanitize(item_id), "user_id": sanitize(user_id)},
+    )
 
     # Map database fields to response schema
     response_data = {
@@ -543,12 +586,10 @@ async def update_equipment(
         "name": updated_equipment.name,
         "category": updated_equipment.category,
         "submodule": updated_equipment.submodule,
-        "class_": updated_equipment.equipment_class,
+        "equipment_class": updated_equipment.equipment_class,
         "sub_class": updated_equipment.sub_class,
         "act_usage": updated_equipment.active_usage_pct,
         "pas_usage": updated_equipment.passive_usage_pct,
-        "act_power": updated_equipment.active_power_w,
-        "pas_power": updated_equipment.standby_power_w,
         "power_factor_id": updated_equipment.power_factor_id,
         "status": updated_equipment.status,
         "service_date": updated_equipment.service_date,
@@ -573,12 +614,28 @@ async def update_equipment(
                 detail="Equipment ID missing after update",
             )
         await equipment_repo.retire_current_emission(session, updated_equipment.id)
+        if equipment.power_factor_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Power factor ID missing for emission calculation",
+            )
+        power_factor = await PowerFactorRepository().get_by_version_id(
+            session, equipment.power_factor_id
+        )
+        if not power_factor:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"Power factor with id {equipment.power_factor_id} "
+                    "not found for emission calculation"
+                ),
+            )
         calc_payload = calculate_equipment_emission_versioned(
             {
                 "act_usage": updated_equipment.active_usage_pct or 0,
                 "pas_usage": updated_equipment.passive_usage_pct or 0,
-                "act_power_w": updated_equipment.active_power_w or 0,
-                "pas_power_w": updated_equipment.standby_power_w or 0,
+                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
+                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
                 "status": updated_equipment.status,
             },
             emission_factor=ef_value,
@@ -621,4 +678,7 @@ async def delete_equipment(
 
     await equipment_repo.delete_equipment(session, equipment)
 
-    logger.info(f"Deleted equipment {equipment_id} by user {user_id}")
+    logger.info(
+        "Deleted equipment",
+        extra={"equipment_id": sanitize(equipment_id), "user_id": sanitize(user_id)},
+    )

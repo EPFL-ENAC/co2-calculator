@@ -1,10 +1,20 @@
 """Unit Results API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Optional, Union
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.headcount import (
+    HeadCountCreate,
+    HeadCountCreateRequest,
+    HeadcountItemResponse,
+    HeadCountUpdate,
+    HeadCountUpdateRequest,
+)
 from app.models.user import User
 from app.schemas.equipment import (
     EquipmentCreateRequest,
@@ -14,9 +24,54 @@ from app.schemas.equipment import (
     SubmoduleResponse,
 )
 from app.services import equipment_service
+from app.services.headcount_service import HeadcountService
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+@router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
+async def get_module_stats(
+    unit_id: str,
+    year: int,
+    module_id: str,
+    aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, float]:
+    """
+    Get module statistics such as total items and submodules.
+
+    Args:
+        module_id: Module identifier
+        unit_id: Unit ID to filter equipment
+        year: Year for the data
+        db: Database session
+        current_user: Authenticated user
+    Returns:
+        List of integers with statistics (e.g., total items, total submodules)
+    """
+    logger.info(
+        f"GET module stats: module_id={sanitize(module_id)}, "
+        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
+    )
+
+    stats: dict[str, float] = {}
+    if module_id == "equipment-electric-consumption":
+        stats = await equipment_service.get_module_stats(
+            session=db,
+            unit_id=unit_id,
+            aggregate_by=aggregate_by,
+        )
+    if module_id == "my-lab":
+        stats = await HeadcountService(db).get_module_stats(
+            unit_id=unit_id,
+            year=year,
+            aggregate_by=aggregate_by,
+        )
+    logger.info(f"Module stats returned: {stats}")
+
+    return stats
 
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
@@ -24,7 +79,9 @@ async def get_module(
     unit_id: str,
     year: int,
     module_id: str,
-    preview_limit: int = Query(default=20, le=100, description="Items per submodule"),
+    preview_limit: int = Query(
+        default=20, ge=0, le=100, description="Items per submodule"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -46,20 +103,34 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
-    unit_id = str("C1348")  # Temporary hardcode for demo purposes
     logger.info(
-        f"GET module: module_id={module_id}, unit_id={unit_id}, "
-        f"year={year}, preview_limit={preview_limit}"
+        f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
 
-    # Fetch real data from database
-    module_data = await equipment_service.get_module_data(
-        session=db,
-        unit_id=unit_id,
-        year=str(year),
-        preview_limit=preview_limit,
-    )
-
+    if module_id == "equipment-electric-consumption":
+        # Fetch real data from database
+        module_data = await equipment_service.get_module_data(
+            session=db,
+            unit_id=unit_id,
+            year=year,
+            preview_limit=preview_limit,
+        )
+    if module_id == "my-lab":
+        # Fetch real data from database
+        module_data = await HeadcountService(db).get_module_data(
+            unit_id=unit_id,
+            year=year,
+        )
+        stats = await HeadcountService(db).get_module_stats(
+            unit_id=unit_id,
+            year=year,
+            aggregate_by="function_role",
+        )
+        module_data.totals.total_items = int(stats.get("total_items", 0))
+        # Handle case where total_submodules is used in stats
+        module_data.totals.total_submodules = 0
+        module_data.stats = stats
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "
         f"across {module_data.totals.total_submodules} submodules"
@@ -79,6 +150,11 @@ async def get_submodule(
     submodule_id: str,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=100, description="Items per page"),
+    sort_by: str = Query(default="id", description="Field to sort by"),
+    sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
+    filter: Optional[str] = Query(
+        default=None, description="Filter string to search in name or display_name"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -92,6 +168,8 @@ async def get_submodule(
         submodule_id: Submodule ID (e.g., 'sub_scientific')
         page: Page number (1-indexed)
         limit: Items per page (max 100)
+        sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
+        sort_order: Sort order ('asc' or 'desc'), defaults to 'asc'
         db: Database session
         current_user: Authenticated user
 
@@ -99,58 +177,64 @@ async def get_submodule(
         SubmoduleResponse with paginated items and summary
     """
     logger.info(
-        f"GET submodule: module_id={module_id}, unit_id={unit_id}, "
-        f"year={year}, submodule_id={submodule_id}, "
-        f"page={page}, limit={limit}"
+        f"GET submodule: module_id={sanitize(module_id)}, "
+        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"submodule_id={sanitize(submodule_id)}, page={sanitize(page)}, "
+        f"limit={sanitize(limit)}, sort_by={sanitize(sort_by)}, "
+        f"sort_order={sanitize(sort_order)}"
     )
-
-    unit_id = str("C1348")  # Temporary hardcode for demo purposes
-    # Extract submodule key from ID
-    if not submodule_id.startswith("sub_"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid submodule_id format. Expected 'sub_<key>'",
-        )
-
-    submodule_key = submodule_id.replace("sub_", "")
-
-    # Validate submodule key
-    if submodule_key not in ["scientific", "it", "other"]:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Submodule '{submodule_key}' not found",
-        )
 
     # Calculate offset from page number
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
-    submodule_data = await equipment_service.get_submodule_data(
-        session=db,
-        unit_id=unit_id,
-        submodule_key=submodule_key,
-        limit=limit,
-        offset=offset,
-    )
-
+    submodule_data = None
+    if module_id == "equipment-electric-consumption":
+        submodule_data = await equipment_service.get_submodule_data(
+            session=db,
+            unit_id=unit_id,
+            submodule_key=submodule_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter=filter,
+        )
+    if module_id == "my-lab":
+        submodule_data = await HeadcountService(db).get_submodule_data(
+            unit_id=unit_id,
+            year=year,
+            submodule_key=submodule_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter=filter,
+        )
+    if not submodule_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodule not found",
+        )
     logger.info(
         f"Submodule data returned: {len(submodule_data.items)} items "
-        f"(total: {submodule_data.count}, page: {page})"
+        f"(total: {submodule_data.count}, page: {sanitize(page)})"
     )
 
     return submodule_data
 
 
 @router.post(
-    "/{unit_id}/{year}/{module_id}/equipment",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
     status_code=status.HTTP_201_CREATED,
 )
-async def create_equipment(
+async def create_item(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_data: EquipmentCreateRequest,
+    submodule_id: str,
+    item_data: Union[EquipmentCreateRequest, HeadCountCreateRequest],
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -161,7 +245,8 @@ async def create_equipment(
         unit_id: Unit ID for the equipment
         year: Year (informational)
         module_id: Module identifier
-        equipment_data: Equipment creation data
+        submodule_id: Submodule identifier
+        item_data: Equipment creation data
         db: Database session
         current_user: Authenticated user
 
@@ -169,39 +254,82 @@ async def create_equipment(
         EquipmentDetailResponse with created equipment
     """
     logger.info(
-        f"POST equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, user={current_user.id}"
+        f"POST equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
-
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
     # Validate unit_id matches the one in request body
-    if equipment_data.unit_id != unit_id:
+    if module_id == "equipment-electric-consumption":
+        if not isinstance(item_data, EquipmentCreateRequest):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid item_data for equipment creation at api/v1/modules",
+            )
+
+        item = await equipment_service.create_equipment(
+            session=db,
+            equipment_data=item_data,
+            user_id=current_user.id,
+        )
+    elif module_id == "my-lab":
+        headcount_create = HeadCountCreate(
+            **item_data.dict(),
+            unit_id=unit_id,
+            date="2024-12-31",
+            submodule=submodule_id,
+            unit_name=str(unit_id),
+            cf="unknown",
+            cf_name="unknown",
+            cf_user_id="unknown",
+            status="unknown",
+            sciper="unknown",
+        )
+        headcount = await HeadcountService(db).create_headcount(
+            data=headcount_create,
+            provider_source="manual",
+            user_id=current_user.id,
+        )
+        if headcount is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create headcount item",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
+    else:
         raise HTTPException(
             status_code=400,
-            detail=f"unit_id in path ({unit_id}) must match "
-            f"unit_id in request body ({equipment_data.unit_id})",
+            detail=f"Unsupported module_id: {sanitize(module_id)}",
         )
-    equipment_data.unit_id = "C1348"  # Temporary hardcode for demo purposes
-
-    equipment = await equipment_service.create_equipment(
-        session=db,
-        equipment_data=equipment_data,
-        user_id=current_user.id,
+    if item is None:
+        logger.error(
+            "Failed to create item in module",
+            extra={
+                "module_id": sanitize(module_id),
+                "unit_id": sanitize(unit_id),
+                "user_id": sanitize(current_user.id),
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create equipment item",
+        )
+    logger.info(
+        f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
     )
 
-    logger.info(f"Created equipment {equipment.id} for unit {unit_id}")
-
-    return equipment
+    return item
 
 
 @router.get(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
-async def get_equipment(
+async def get_item(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
+    submodule_id: str,
+    item_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -220,28 +348,56 @@ async def get_equipment(
         EquipmentDetailResponse
     """
     logger.info(
-        f"GET equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}"
+        f"GET equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
+    if module_id == "equipment-electric-consumption":
+        if not isinstance(item_id, int):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_id type for equipment retrieval",
+            )
+        item = await equipment_service.get_equipment_by_id(
+            session=db,
+            item_id=item_id,
+        )
+    elif module_id == "my-lab":
+        if not isinstance(item_id, int):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_id type for headcount retrieval",
+            )
+        headcount = await HeadcountService(db).get_by_id(
+            item_id=item_id,
+        )
+        if headcount is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Headcount item not found",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Equipment item not found",
+        )
+    logger.info(f"Retrieved equipment {sanitize(item_id)}")
 
-    equipment = await equipment_service.get_equipment_by_id(
-        session=db,
-        equipment_id=equipment_id,
-    )
-
-    return equipment
+    return item
 
 
 @router.patch(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
-    response_model=EquipmentDetailResponse,
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
+    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
 async def update_equipment(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
-    equipment_data: EquipmentUpdateRequest,
+    submodule_id: str,
+    item_id: int,
+    item_data: Union[EquipmentUpdateRequest, HeadCountUpdateRequest],
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -261,31 +417,63 @@ async def update_equipment(
         EquipmentDetailResponse with updated equipment
     """
     logger.info(
-        f"PATCH equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}, user={current_user.id}"
+        f"PATCH equipment: unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"item_id={sanitize(item_id)}, "
+        f"user={sanitize(current_user.id)}"
     )
-
-    equipment = await equipment_service.update_equipment(
-        session=db,
-        equipment_id=equipment_id,
-        equipment_data=equipment_data,
-        user_id=current_user.id,
-    )
-
-    logger.info(f"Updated equipment {equipment_id}")
-
-    return equipment
+    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
+    if module_id == "equipment-electric-consumption":
+        if not isinstance(item_data, EquipmentUpdateRequest):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_data type for equipment update",
+            )
+        item = await equipment_service.update_equipment(
+            session=db,
+            item_id=item_id,
+            item_data=item_data,
+            user_id=current_user.id,
+        )
+    elif module_id == "my-lab":
+        if not isinstance(item_data, HeadCountUpdateRequest):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_data type for equipment update",
+            )
+        updateItem = HeadCountUpdate(
+            **item_data.model_dump(exclude_unset=True),
+        )
+        headcount = await HeadcountService(db).update_headcount(
+            headcount_id=item_id,
+            data=updateItem,
+            user=current_user,
+        )
+        if headcount is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Headcount item not found",
+            )
+        item = HeadcountItemResponse.model_validate(headcount)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="module not supported for update",
+        )
+    logger.info(f"Updated equipment {sanitize(item_id)}")
+    return item
 
 
 @router.delete(
-    "/{unit_id}/{year}/{module_id}/equipment/{equipment_id}",
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_equipment(
+async def delete_item(
     unit_id: str,
     year: int,
     module_id: str,
-    equipment_id: int,
+    submodule_id: str,
+    item_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -304,14 +492,37 @@ async def delete_equipment(
         No content (204)
     """
     logger.info(
-        f"DELETE equipment: unit_id={unit_id}, year={year}, "
-        f"module_id={module_id}, equipment_id={equipment_id}, user={current_user.id}"
+        f"DELETE equipment: unit_id={sanitize(unit_id)}, "
+        f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
+        f"item_id={sanitize(item_id)}, "
+        f"user={sanitize(current_user.id)}"
     )
+    try:
+        if module_id == "equipment-electric-consumption":
+            await equipment_service.delete_equipment(
+                session=db,
+                equipment_id=item_id,
+                user_id=current_user.id,
+            )
 
-    await equipment_service.delete_equipment(
-        session=db,
-        equipment_id=equipment_id,
-        user_id=current_user.id,
-    )
+        elif module_id == "my-lab":
+            await HeadcountService(db).delete_headcount(
+                headcount_id=item_id,
+                current_user=current_user,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="module not supported for deletion",
+            )
+    except PermissionError as e:
+        logger.warning(
+            f"Permission error during deletion of item_id={sanitize(item_id)}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    logger.info(f"Deleted equipment {equipment_id}")
+    logger.info(f"Deleted equipment {sanitize(item_id)}")

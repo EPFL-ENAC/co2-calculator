@@ -2,6 +2,7 @@ from typing import Dict, List
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.emission_factor import PowerFactor
 from app.repositories.power_factor_repo import PowerFactorRepository
 
 
@@ -17,13 +18,18 @@ class PowerFactorService:
     ) -> List[str]:
         return await self.repo.list_subclasses(session, submodule, equipment_class)
 
+    async def get_by_version_id(
+        self, session: AsyncSession, version_id: int
+    ) -> PowerFactor | None:
+        return await self.repo.get_by_version_id(session, version_id)
+
     async def get_power_factor(
         self,
         session: AsyncSession,
         submodule: str,
         equipment_class: str,
         sub_class: str | None,
-    ):
+    ) -> PowerFactor | None:
         return await self.repo.get_power_factor(
             session, submodule, equipment_class, sub_class
         )

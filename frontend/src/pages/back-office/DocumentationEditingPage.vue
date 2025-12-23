@@ -232,7 +232,7 @@ const columns: QTableColumn[] = [
 
 <style scoped lang="scss">
 .page {
-  max-width: 1200px;
+  max-width: 1320px;
 }
 </style>
 

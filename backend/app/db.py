@@ -3,9 +3,10 @@
 from typing import AsyncGenerator
 
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import models  # noqa: F401 to register models with Base
 from app.core.config import get_settings

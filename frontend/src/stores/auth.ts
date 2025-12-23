@@ -11,9 +11,9 @@ import { computed } from 'vue';
 
 interface User {
   id: string;
-  sciper: number;
   email: string;
-  roles: Array<{
+  display_name?: string;
+  roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
   }>;
@@ -25,19 +25,37 @@ export const useAuthStore = defineStore('auth', () => {
 
   const displayName = computed(() => {
     if (!user.value) return '';
-    const name = user.value.email.split('@')[0] || user.value.id || '?';
+    const name =
+      user.value.display_name ||
+      user.value.email.split('@')[0] ||
+      user.value.id ||
+      '?';
     return name;
   });
 
-  async function getUser() {
-    try {
-      loading.value = true;
-      user.value = await api.get(`auth/me`).json<User>();
-    } catch {
-      user.value = null;
-    } finally {
-      loading.value = false;
-    }
+  const hasChecked = ref(false);
+  let inflight: Promise<User | null> | null = null;
+
+  async function getUser(): Promise<User | null> {
+    if (inflight) return inflight;
+
+    inflight = (async () => {
+      try {
+        loading.value = true;
+        const u = await api.get('auth/me').json<User>();
+        user.value = u;
+        return u;
+      } catch {
+        user.value = null;
+        return null;
+      } finally {
+        loading.value = false;
+        hasChecked.value = true;
+        inflight = null;
+      }
+    })();
+
+    return inflight;
   }
 
   function login_test(role: string) {
@@ -68,6 +86,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     loading,
+    hasChecked,
     displayName,
     getUser,
     login,

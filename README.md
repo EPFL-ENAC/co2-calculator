@@ -1,11 +1,13 @@
 # CO₂ Calculator
 
+The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), the international standard for calculating greenhouse gas emissions. Originally developed as a tool for EPFL, the calculator is an open-source project intended for broad adoption. It enables users to assess their environmental impact by entering relevant data across multiple sections.
+
 **Project Status:** Under active development (v0.x.x internal/non-public releases)
 
 **Access the platform:**
 
 - **dev:** [https://co2-calculator-dev.epfl.ch/](https://co2-calculator-dev.epfl.ch/)
-- **stage:** [https://co2-calculator-stage.epfl.ch/](https://co2-calculator-stage.epfl.ch/)]
+- **stage:** [https://co2-calculator-stage.epfl.ch/](https://co2-calculator-stage.epfl.ch/)
 - **pre-production:** [https://co2-calculator.epfl.ch/](https://co2-calculator.epfl.ch/)
 
 > **Note:** Pre-production serves internal releases (v0.x.x) until final v1.0.0 public release. Production environment will activate with v1.0.0.

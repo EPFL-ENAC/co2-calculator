@@ -2,9 +2,9 @@ import { defineStore } from 'pinia';
 import {
   getSubclassMap,
   getPowerFactor,
-  SubmoduleKey,
   PowerFactorResponse,
 } from 'src/api/powerFactors';
+import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
@@ -12,12 +12,12 @@ export const usePowerFactorsStore = defineStore('power-factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
   const subclassOptionMapBySubmodule: Partial<
-    Record<SubmoduleKey, Record<string, Option[]>>
+    Record<AllSubmoduleTypes, Record<string, Option[]>>
   > = {};
-  const subclassMapFetchedAt: Partial<Record<SubmoduleKey, number>> = {};
+  const subclassMapFetchedAt: Partial<Record<AllSubmoduleTypes, number>> = {};
 
   async function ensureSubclassOptionMap(
-    submodule: SubmoduleKey,
+    submodule: AllSubmoduleTypes,
   ): Promise<Record<string, Option[]>> {
     const now = Date.now();
     const existing = subclassOptionMapBySubmodule[submodule];
@@ -39,14 +39,16 @@ export const usePowerFactorsStore = defineStore('power-factors', () => {
     return optionMap;
   }
 
-  async function fetchClassOptions(submodule: SubmoduleKey): Promise<Option[]> {
+  async function fetchClassOptions(
+    submodule: AllSubmoduleTypes,
+  ): Promise<Option[]> {
     const optionMap = await ensureSubclassOptionMap(submodule);
     const classes = Object.keys(optionMap).sort();
     return classes.map((c) => ({ label: c, value: c }));
   }
 
   async function fetchSubclassOptions(
-    submodule: SubmoduleKey,
+    submodule: AllSubmoduleTypes,
     equipmentClass: string,
   ): Promise<Option[]> {
     const optionMap = await ensureSubclassOptionMap(submodule);
@@ -54,7 +56,7 @@ export const usePowerFactorsStore = defineStore('power-factors', () => {
   }
 
   async function fetchPowerFactor(
-    submodule: SubmoduleKey,
+    submodule: AllSubmoduleTypes,
     equipmentClass: string,
     subClass?: string | null,
   ): Promise<PowerFactorResponse | null> {

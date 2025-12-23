@@ -3,17 +3,19 @@
     <q-card-section class="module-total-result__container items-center">
       <!-- left side total lab carbon footprint  text i18n-->
       <div class="text-body1 text-weight-medium">
-        {{ $t('module_total_result_title', { type: $t(type) }) }}
+        {{
+          $t('module_total_result_title', { type: type, typeI18n: $t(type) })
+        }}
       </div>
       <!-- right side total lab carbon footprint value  on two lines
            first line:  value in i18n number format 
            second line: kg CO₂-eq -->
       <div class="text-h3 module-total-result__value">
         <h1 class="text-h1 text-weight-bold q-mb-none">
-          {{ new Intl.NumberFormat().format(data) }}
+          {{ $nOrDash(data, { options: moduleConfig?.numberFormatOptions }) }}
         </h1>
         <p class="text-body2 text-secondary q-mb-none">
-          {{ $t('results_units') }}
+          {{ $t('module_total_result_title_unit', { type: type }) }}
         </p>
       </div>
     </q-card-section>
@@ -22,10 +24,12 @@
 
 <script setup lang="ts">
 import { Module } from 'src/constant/modules';
+import { ModuleConfig } from 'src/constant/moduleConfig';
 
 defineProps<{
   type: Module;
-  data: number;
+  data?: number;
+  moduleConfig: ModuleConfig;
 }>();
 </script>
 <style scoped lang="scss">

@@ -337,11 +337,12 @@ class TestVersionedCalculationIntegration:
         self, emission_factor_swiss: EmissionFactor
     ):
         """Test versioned calculation using emission factor from database."""
+
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "In service",
         }
 
@@ -366,8 +367,8 @@ class TestVersionedCalculationIntegration:
         equipment_data = {
             "act_usage": 42,
             "pas_usage": 126,
-            "act_power_w": 100,
-            "pas_power_w": 5,
+            "active_power_w": 100,
+            "standby_power_w": 5,
             "status": "In service",
         }
 

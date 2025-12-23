@@ -1,9 +1,9 @@
 import { api } from 'src/api/http';
 
-export type SubmoduleKey = 'scientific' | 'it' | 'other';
+import type { AllSubmoduleTypes } from 'src/constant/modules';
 
 export async function getSubclassMap(
-  submodule: SubmoduleKey,
+  submodule: AllSubmoduleTypes,
 ): Promise<Record<string, string[]>> {
   const res = await api
     .get(`power-factors/${encodeURIComponent(submodule)}/class-subclass-map`)
@@ -20,7 +20,7 @@ export interface PowerFactorResponse {
 }
 
 export async function getPowerFactor(
-  submodule: SubmoduleKey,
+  submodule: AllSubmoduleTypes,
   equipmentClass: string,
   subClass?: string | null,
 ): Promise<PowerFactorResponse | null> {

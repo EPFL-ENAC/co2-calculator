@@ -17,7 +17,7 @@ class TestRoleProviderIntegration:
     async def test_default_provider_full_workflow(self):
         """Test complete workflow with DefaultRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "default"
+            mock_settings.PROVIDER_PLUGIN = "default"
 
             provider = get_role_provider()
             userinfo = {
@@ -38,7 +38,7 @@ class TestRoleProviderIntegration:
     async def test_accred_provider_full_workflow(self):
         """Test complete workflow with AccredRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "accred"
+            mock_settings.PROVIDER_PLUGIN = "accred"
             mock_settings.ACCRED_API_URL = "https://api-test.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
