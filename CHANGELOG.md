@@ -1,7 +1,6 @@
 # Changelog
 
 ## [0.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.2.0...v0.3.0)(2025-12-23)
-Looking at this changelog, I can see it's a raw git commit history that's difficult to parse. Let me create a more meaningful summary organized by feature area:
 
 ## CO2 Calculator - Recent Development Summary
 
