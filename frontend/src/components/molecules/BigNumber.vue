@@ -70,7 +70,7 @@ const comparisonParts = computed(() => {
       <div
         v-if="comparisonParts.length > 0"
         class="text-caption q-mb-none text-right"
-        style="width: 60%"
+        style="width: 50%"
       >
         <span
           v-for="(part, index) in comparisonParts"

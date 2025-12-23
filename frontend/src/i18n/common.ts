@@ -78,6 +78,10 @@ export default {
     en: 'View Uncertainties',
     fr: 'Voir les incertitudes',
   },
+  results_compare_years: {
+    en: 'Compare years',
+    fr: 'Comparer les années',
+  },
   workspace_change_btn: {
     en: 'Change',
     fr: 'Changer',
@@ -351,8 +355,8 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'is equivalent to {km} km driven by car.',
-    fr: 'équivaut à {km} km parcouru en voiture.',
+    en: 'is equivalent to {km}km driven by car.',
+    fr: 'équivaut à {km}km parcouru en voiture.',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
@@ -483,6 +487,14 @@ export default {
   common_upload_csv: {
     en: 'Upload CSV',
     fr: 'Importer CSV',
+  },
+  common_download_as_png: {
+    en: 'PNG',
+    fr: 'PNG',
+  },
+  common_download_as_csv: {
+    en: 'CSV',
+    fr: 'CSV',
   },
   common_download_csv_template: {
     en: 'Download CSV Template',

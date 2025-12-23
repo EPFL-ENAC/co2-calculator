@@ -643,7 +643,7 @@ const chartOption = computed((): EChartsOption => {
     grid: {
       left: '5%',
       right: '4%',
-      top: '3%',
+      top: 80,
       bottom: '0%',
       containLabel: true,
     },
@@ -865,6 +865,59 @@ const chartOption = computed((): EChartsOption => {
     series: seriesArray as echarts.SeriesOption[],
   };
 });
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+
+const downloadPNG = async () => {
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+
+  try {
+    // Wait a bit to ensure no animation in the image
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const url = chart.getDataURL({
+      type: 'png',
+      pixelRatio: 2,
+      backgroundColor: '#fff',
+    });
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Error downloading chart:', error);
+  }
+};
+
+const downloadCSV = () => {
+  const escape = (v: unknown) => {
+    const s = String(v ?? '');
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const headers = [
+    ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
+  ].sort((a, b) =>
+    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+  );
+
+  const csv = [
+    headers.map(escape).join(','),
+    ...datasetSource.value.map((item) =>
+      headers.map((key) => escape(item[key])).join(','),
+    ),
+  ].join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `module-carbon-footprint-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 </script>
 
 <template>
@@ -874,6 +927,29 @@ const chartOption = computed((): EChartsOption => {
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ $t('unit_carbon_footprint_title') }}
         </span>
+      </div>
+
+      <div>
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="sm"
+          class="text-weight-medium q-mr-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="sm"
+          class="text-weight-medium"
+          @click="downloadCSV"
+        />
       </div>
       <q-checkbox
         v-model="toggleAdditionalData"
