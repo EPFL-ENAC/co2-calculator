@@ -1,9 +1,14 @@
 import { ROLES } from 'src/constant/roles';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'EPFL Logo',
+  },
+  login_logo_alt: {
+    en: 'CO₂ Calculator Logo',
+    fr: 'Logo Calculateur de CO₂',
   },
   login_title: {
     en: 'CO₂ Calculator',
@@ -73,6 +78,10 @@ export default {
     en: 'View Uncertainties',
     fr: 'Voir les incertitudes',
   },
+  results_compare_years: {
+    en: 'Compare years',
+    fr: 'Comparer les années',
+  },
   workspace_change_btn: {
     en: 'Change',
     fr: 'Changer',
@@ -80,6 +89,10 @@ export default {
   logout: {
     en: 'Logout',
     fr: 'Se déconnecter',
+  },
+  tco2eq: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-eq',
   },
   workspace_setup_title: {
     en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL!',
@@ -98,8 +111,8 @@ export default {
     fr: "Choisissez l’unité dont vous souhaitez évaluer l'empreinte carbone.",
   },
   workspace_setup_unit_counter: {
-    en: 'Your units ({count})',
-    fr: 'Vos unités ({count})',
+    en: 'Your unit | Your units ({count}) ',
+    fr: 'Ton unité | Vos unités ({count})',
   },
   workspace_setup_unit_role: {
     en: 'Your role:',
@@ -202,28 +215,28 @@ export default {
     fr: 'Bienvenue dans le Calculateur de CO₂',
   },
   home_intro_1: {
-    en: "The Calculator CO₂ allows you to assess your laboratory's carbon footprint following the Greenhouse Gas (GHG) Protocol, the international standard for calculating greenhouse gas emissions.",
-    fr: "Le Calculateur CO₂ vous permet d'évaluer l'empreinte carbone de votre laboratoire selon le Protocole des gaz à effet de serre (GES), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
+    en: 'The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), the international standard for calculating greenhouse gas emissions.',
+    fr: "Le Calculateur CO₂ permet d'évaluer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre ([GHG Protocol](https://ghgprotocol.org/corporate-standard)), la norme internationale pour le calcul des émissions de gaz à effet de serre.",
   },
   home_intro_2: {
-    en: "Complete the various data entry modules to obtain a comprehensive estimate of your laboratory's CO₂ equivalent emissions. Data can be entered manually or imported via CSV file.",
-    fr: 'Complétez les différents modules de saisie de données pour obtenir une estimation complète des émissions équivalentes CO₂ de votre laboratoire. Les données peuvent être saisies manuellement ou importées via un fichier CSV.',
+    en: "Fill in the various data entry modules according to your authorization level to obtain a complete estimate of your unit's CO₂ equivalent emissions CO₂-equivalent emissions for your unit (Staff, Professional Travel, Infrastructure, Equipment, Purchases, Internal Services, External Cloud), view and analyze your results, simulate the footprint of research projects, and export your data!",
+    fr: 'Remplissez les différents modules de saisie de données en fonction de votre niveau d’autorisation pour obtenir une estimation complète des émissions de CO₂-équivalent de votre unité (Personnel, Déplacements professionnels, Infrastructure, Consommation électrique des équipements, Achats, Services internes, Impact du cloud externe), consultez et analysez vos résultats, simulez l’empreinte de projets de recherche et exportez vos données !',
   },
   home_intro_3: {
-    en: 'As a Principal User, you have full access to all calculator functionalities. You can delegate access to other team members by granting them Principal User or Standard User roles.',
-    fr: "En tant qu'Utilisateur principal, vous avez un accès complet à toutes les fonctionnalités du calculateur. Vous pouvez déléguer l'accès à d'autres membres de l'équipe en leur attribuant les rôles d'Utilisateur principal ou d'Utilisateur standard.",
+    en: 'Data can be entered manually or imported via a CSV file.',
+    fr: 'Les données peuvent être saisies manuellement ou importées via un fichier CSV.',
   },
   home_intro_4: {
-    en: 'You can complete all data entry modules (My Laboratory, Professional Travel, Infrastructure, Equipment Electrical Consumption, Purchases, Internal Services, External Cloud Impact), view and analyze your results, simulate research projects, and export your data.',
-    fr: 'Vous pouvez compléter tous les modules de saisie de données (Mon laboratoire, Déplacements professionnels, Infrastructure, Consommation électrique des équipements, Achats, Services internes, Impact du cloud externe), consulter et analyser vos résultats, simuler des projets de recherche et exporter vos données.',
+    en: 'Only the main user has full access to all the features of the calculator but can delegate access to other team members by assigning them the role of main user or standard user via Accred.',
+    fr: "Seul l’utilisateur principal a un accès complet à toutes les fonctionnalités du calculateur mais peut déléguer l'accès à d'autres membres de l'équipe en leur attribuant le rôle d'utilisateur principal ou d'utilisateur standard via Accred.",
   },
   home_intro_5: {
-    en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, visit our {documentationLink} page. If you need assistance, please visit our {contactLink} page.",
-    fr: "Pour plus d'informations sur la méthodologie et la stratégie Climat et Durabilité de l'EPFL, visitez notre page {documentationLink}. Si vous avez besoin d'aide, veuillez consulter notre page {contactLink}.",
+    en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, see our [page](https://www.epfl.ch/about/sustainability/strategy/). If you need help, please contact us.",
+    fr: "Pour plus d'informations sur la méthodologie et la Stratégie Climat et Durabilité de l'EPFL, consultez notre [page](https://www.epfl.ch/about/sustainability/fr/strategie/). Si vous avez besoin d'aide, veuillez nous contacter.",
   },
   home_intro_6: {
-    en: 'Click the Start button below to begin completing the modules sequentially, or access individual modules directly in the section below. Once validated, your results will be available for visualization with detailed breakdowns and multi-year comparisons.',
-    fr: 'Cliquez sur le bouton Démarrer ci-dessous pour commencer à compléter les modules séquentiellement, ou accédez directement aux modules individuels dans la section ci-dessous. Une fois validés, vos résultats seront disponibles pour visualisation avec des analyses détaillées et des comparaisons pluriannuelles.',
+    en: 'Click on the “Start” button below to begin filling in the modules in order or go directly to the individual modules in the section below. Once validated, your results will be available in the “view results” area.',
+    fr: "Cliquez sur le bouton « Démarrer » ci-dessous pour commencer à remplir les modules dans l'ordre, ou accédez directement aux modules individuels dans la section ci-dessous. Une fois validés, vos résultats seront disponibles dans l’espace « visualisation résultats ».",
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
@@ -250,8 +263,8 @@ export default {
     fr: 'Visualisation Voire',
   },
   home_results_subtitle: {
-    en: 'Annual CO₂ Assessment 2024',
-    fr: 'Bilan CO₂ Annuel 2024',
+    en: 'Annual CO₂ Assessment {year}',
+    fr: 'Bilan CO₂ Annuel {year}',
   },
   home_results_btn: {
     en: 'View Full Results',
@@ -281,6 +294,18 @@ export default {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
+  results_units_tonnes: {
+    en: 't CO₂-eq',
+    fr: 't CO₂-eq',
+  },
+  results_kg_co2eq_per_km: {
+    en: 'kg CO₂-eq/km',
+    fr: 'kg CO₂-eq/km',
+  },
+  results_t_co2eq_per_km: {
+    en: 't CO₂-eq/km',
+    fr: 't CO₂-eq/km',
+  },
   kgco2eq: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
@@ -290,12 +315,16 @@ export default {
     fr: 'Résultats',
   },
   results_subtitle: {
-    en: 'Overview of your carbon footprint calculations',
-    fr: "Aperçu de vos calculs d'empreinte carbone",
+    en: 'Annual carbon footprint {year}',
+    fr: 'Empreinte carbone annuelle {year}',
   },
   results_total_unit_carbon_footprint: {
     en: 'Total unit carbon footprint',
     fr: "Empreinte carbone totale de l'unité",
+  },
+  results_total_module_carbon_footprint: {
+    en: 'Total {module} carbon footprint',
+    fr: 'Empreinte carbone totale de {module}',
   },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE',
@@ -305,9 +334,17 @@ export default {
     en: 'Unit carbon footprint',
     fr: "Empreinte carbone de l'unité",
   },
+  results_module_carbon_footprint: {
+    en: '{module} carbon footprint',
+    fr: 'Empreinte carbone de {module}',
+  },
+  unit_carbon_footprint_title: {
+    en: 'My Unit Carbon Footprint',
+    fr: "Mon Empreinte Carbone de l'unité",
+  },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Total carbon footprint of the unit including all modules',
-    fr: "Empreinte carbone totale de l'unité incluant tous les modules",
+    en: 'Calculated with the value of {value} {unit}',
+    fr: 'Calculé avec la valeur de {value} {unit}',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -318,24 +355,36 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'is equivalent to ~{km} km driven with car',
-    fr: 'équivaut à ~{km} km parcourus en voiture',
+    en: 'is equivalent to {km}km driven by car.',
+    fr: 'équivaut à {km}km parcouru en voiture.',
   },
-  results_paris_agreement_budget: {
-    en: 'The total carbon budget per person according to Paris agreement is 2t CO₂-eq',
-    fr: "Le budget carbone total par personne selon l'accord de Paris est de 2t CO₂-éq",
+  results_paris_agreement_value: {
+    en: 'The total carbon budget per person according to the Paris Agreement is {value}',
+    fr: "Le budget carbone total par personne selon l'accord de Paris est de {value}",
+  },
+  results_paris_agreement_tooltip: {
+    en: 'Following the Paris Agreement.',
+    fr: "Conformément à l'accord de Paris.",
   },
   results_compared_to: {
     en: 'compared to {year}',
     fr: 'par rapport à {year}',
   },
+  results_compared_to_value_of: {
+    en: 'Compared to value of {value}',
+    fr: 'Par rapport à la valeur de {value}',
+  },
+  results_no_comparison_year_available: {
+    en: 'No comparison year available',
+    fr: 'Aucune année de comparaison disponible',
+  },
   results_value_of: {
     en: 'value of {value} t CO₂-eq',
     fr: 'valeur de {value} t CO₂-éq',
   },
-  results_module_carbon_footprint: {
-    en: 'Module Carbon Footprint',
-    fr: 'Empreinte carbone du module',
+  results_module_carbon_toggle_additional_data: {
+    en: 'Show additional estimated categories',
+    fr: 'Afficher les catégories supplémentaires',
   },
   results_carbon_footprint_per_person: {
     en: 'Carbon Footprint Per Person',
@@ -366,8 +415,38 @@ export default {
     fr: 'Simulations',
   },
   module_total_result_title: {
-    en: 'Total {type} Carbon Footprint',
-    fr: '',
+    en: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'Total FTE';
+      }
+      if (named('typeI18n')) {
+        return `Total ${named('typeI18n')} Carbon Footprint`;
+      }
+      return 'Total Carbon Footprint';
+    },
+    fr: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'Total ETP';
+      }
+      if (named('typeI18n')) {
+        return `Empreinte Carbone ${named('typeI18n')}`;
+      }
+      return 'Empreinte Carbone Totale';
+    },
+  },
+  module_total_result_title_unit: {
+    en: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'FTE';
+      }
+      return 'kg CO₂-eq';
+    },
+    fr: ({ named }) => {
+      if (named('type') === MODULES.MyLab) {
+        return 'ETP';
+      }
+      return 'kg CO₂-eq';
+    },
   },
   common_filter_all: {
     en: 'All',
@@ -409,6 +488,14 @@ export default {
     en: 'Upload CSV',
     fr: 'Importer CSV',
   },
+  common_download_as_png: {
+    en: 'PNG',
+    fr: 'PNG',
+  },
+  common_download_as_csv: {
+    en: 'CSV',
+    fr: 'CSV',
+  },
   common_download_csv_template: {
     en: 'Download CSV Template',
     fr: 'Télécharger le modèle CSV',
@@ -432,6 +519,10 @@ export default {
   common_add_button: {
     en: 'Add',
     fr: 'Ajouter',
+  },
+  common_update_button: {
+    en: 'Update',
+    fr: 'Mettre à jour',
   },
   common_add_with_note_button: {
     en: 'Add with note',
@@ -484,5 +575,158 @@ export default {
   uncertainty_high: {
     en: 'High Uncertainty',
     fr: 'Forte incertitude',
+  },
+  'charts-unit-gas-category': {
+    en: 'Unit-gas',
+    fr: 'Gaz unitaire',
+  },
+  'charts-infrastructure-gas-category': {
+    en: 'Infrastructure-gas',
+    fr: 'Gaz infrastructure',
+  },
+  'charts-infrastructure-category': {
+    en: 'Infrastructure',
+    fr: 'Infrastructure',
+  },
+  'charts-equipment-category': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-commuting-category': {
+    en: 'Commuting',
+    fr: 'Déplacements domicile-travail',
+  },
+  'charts-food-category': {
+    en: 'Food',
+    fr: 'Alimentation',
+  },
+  'charts-professional-travel-category': {
+    en: 'Professional Travel',
+    fr: 'Voyages professionnels',
+  },
+  'charts-it-category': {
+    en: 'IT',
+    fr: 'Informatique',
+  },
+  'charts-research-core-facilities-category': {
+    en: 'Research Core Facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  'charts-purchases-category': {
+    en: 'Purchases',
+    fr: 'Achats',
+  },
+  'charts-waste-category': {
+    en: 'Waste',
+    fr: 'Déchets',
+  },
+  'charts-grey-energy-category': {
+    en: 'Grey Energy',
+    fr: 'Énergie grise',
+  },
+  'charts-equipment-electric-consumption-category': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-internal-services-category': {
+    en: 'Internal Services',
+    fr: 'Services internes',
+  },
+  'charts-external-cloud-category': {
+    en: 'External Cloud',
+    fr: 'Cloud externe',
+  },
+  'charts-purchase-category': {
+    en: 'Purchase',
+    fr: 'Achat',
+  },
+  'charts-bio-chemicals-subcategory': {
+    en: 'Bio-chemicals',
+    fr: 'Bio-chimiques',
+  },
+  'charts-consumables-subcategory': {
+    en: 'Consumables',
+    fr: 'Consommables',
+  },
+  'charts-equipment-subcategory': {
+    en: 'Equipment',
+    fr: 'Équipement',
+  },
+  'charts-services-subcategory': {
+    en: 'Services',
+    fr: 'Services',
+  },
+  'charts-other-purchases-subcategory': {
+    en: 'Other Equipment',
+    fr: 'Autre équipement',
+  },
+  'charts-gc-subcategory': {
+    en: 'GC',
+    fr: 'GC',
+  },
+  'charts-ph-subcategory': {
+    en: 'PH',
+    fr: 'PH',
+  },
+  'charts-train-subcategory': {
+    en: 'Train',
+    fr: 'Train',
+  },
+  'charts-plane-subcategory': {
+    en: 'Plane',
+    fr: 'Avion',
+  },
+  'charts-heating-subcategory': {
+    en: 'Heating',
+    fr: 'Chauffage',
+  },
+  'charts-cooling-subcategory': {
+    en: 'Cooling',
+    fr: 'Refroidissement',
+  },
+  'charts-ventilation-subcategory': {
+    en: 'Ventilation',
+    fr: 'Ventilation',
+  },
+  'charts-lighting-subcategory': {
+    en: 'Lighting',
+    fr: 'Éclairage',
+  },
+  'charts-scientific-subcategory': {
+    en: 'Scientific Equipment',
+    fr: 'Équipement scientifique',
+  },
+
+  'charts-equipment-it': {
+    en: 'IT Equipment',
+    fr: 'IT Équipement',
+  },
+  'charts-infrastructure-it': {
+    en: 'IT',
+    fr: 'IT',
+  },
+  'charts-scitas-subcategory': {
+    en: 'SCITAS',
+    fr: 'SCITAS',
+  },
+  'charts-rcp-subcategory': {
+    en: 'RCP',
+    fr: 'RCP',
+  },
+  'charts-main-category': {
+    en: 'Main Categories',
+    fr: 'Catégories principales',
+  },
+  'charts-additional-category': {
+    en: 'Additional Categories',
+    fr: 'Catégorie supplémentaire',
+  },
+  'charts-scope': {
+    en: 'Scope',
+    fr: 'Scope',
+  },
+  header_documentation_link: {
+    en: 'https://epfl-enac.github.io/co2-calculator/',
+    fr: 'https://epfl-enac.github.io/co2-calculator/',
   },
 };

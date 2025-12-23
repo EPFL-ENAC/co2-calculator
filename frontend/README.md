@@ -1,4 +1,4 @@
-# EPFL CO2 Calculator (co2-calculator)
+# EPFL CO₂ Calculator (co2-calculator)
 
 co2-calculator
 

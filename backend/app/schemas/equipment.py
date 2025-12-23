@@ -1,11 +1,12 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Sequence
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import get_settings
+from app.models.headcount import HeadcountItemResponse
 
 settings = get_settings()
 
@@ -17,12 +18,12 @@ class EquipmentItemResponse(BaseModel):
     name: str = Field(..., description="Equipment name")
     category: str = Field(..., description="Source category")
     submodule: str = Field(..., description="Submodule grouping")
-    class_: str = Field(..., alias="class", description="Equipment class")
+    equipment_class: str = Field(..., description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: float = Field(..., description="Active usage hours per week")
     pas_usage: float = Field(..., description="Passive usage hours per week")
-    act_power: float = Field(..., description="Active power in Watts")
-    pas_power: float = Field(..., description="Standby power in Watts")
+    standby_power_w: Optional[float] = Field(None, description="Standby power in Watts")
+    active_power_w: Optional[float] = Field(None, description="Active power in Watts")
     status: str = Field(..., description="Equipment status")
     kg_co2eq: float = Field(..., description="Annual CO2 emissions in kg CO2-eq")
     annual_kwh: float = Field(..., description="Annual energy consumption in kWh")
@@ -37,10 +38,15 @@ class SubmoduleSummary(BaseModel):
     """Summary statistics for a submodule."""
 
     total_items: int = Field(..., description="Number of equipment items")
-    annual_consumption_kwh: float = Field(
-        ..., description="Total annual energy consumption"
+    annual_fte: Optional[float] = Field(
+        None, description="Annual full-time equivalent (FTE) associated"
     )
-    total_kg_co2eq: float = Field(..., description="Total annual CO2 emissions")
+    annual_consumption_kwh: Optional[float] = Field(
+        None, description="Total annual energy consumption"
+    )
+    total_kg_co2eq: Optional[float] = Field(
+        None, description="Total annual CO2 emissions"
+    )
 
 
 class SubmoduleResponse(BaseModel):
@@ -49,7 +55,9 @@ class SubmoduleResponse(BaseModel):
     id: str = Field(..., description="Submodule identifier")
     name: str = Field(..., description="Submodule display name")
     count: int = Field(..., description="Total number of items")
-    items: List[EquipmentItemResponse] = Field(..., description="Equipment items")
+    items: Sequence[EquipmentItemResponse | HeadcountItemResponse] = Field(
+        ..., description="Equipment items"
+    )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
 
@@ -59,10 +67,15 @@ class ModuleTotals(BaseModel):
 
     total_submodules: int = Field(..., description="Number of submodules")
     total_items: int = Field(..., description="Total equipment count")
-    total_annual_consumption_kwh: float = Field(
-        ..., description="Total annual energy consumption"
+    total_annual_consumption_kwh: Optional[float] = Field(
+        None, description="Total annual energy consumption"
     )
-    total_kg_co2eq: float = Field(..., description="Total annual CO2 emissions")
+    total_kg_co2eq: Optional[float] = Field(
+        None, description="Total annual CO2 emissions"
+    )
+    total_annual_fte: Optional[float] = Field(
+        None, description="Total full-time equivalent (FTE) associated"
+    )
 
 
 class ModuleResponse(BaseModel):
@@ -70,11 +83,12 @@ class ModuleResponse(BaseModel):
 
     module_type: str = Field(..., description="Module type identifier")
     unit: str = Field(..., description="Unit of measurement")
-    year: str = Field(..., description="Data year")
-    retrieved_at: str = Field(..., description="Retrieval timestamp")
+    year: int = Field(..., description="Data year")
+    retrieved_at: datetime = Field(..., description="Retrieval timestamp")
     submodules: Dict[str, SubmoduleResponse] = Field(
         ..., description="Submodule data keyed by submodule ID"
     )
+    stats: Optional[dict[str, float]] = Field(None, description="Module statistics")
     totals: ModuleTotals = Field(..., description="Module totals")
 
 
@@ -95,7 +109,7 @@ class EquipmentFilters(BaseModel):
 class EquipmentCreateRequest(BaseModel):
     """Request schema for creating new equipment."""
 
-    unit_id: str = Field(..., description="Unit ID (e.g., 'C1348')")
+    unit_id: str = Field(..., description="Unit ID (e.g., '10208')")
     cost_center: Optional[str] = Field(
         None, description="Cost center code (defaults to unit_id if not provided)"
     )
@@ -104,7 +118,7 @@ class EquipmentCreateRequest(BaseModel):
     submodule: str = Field(
         ..., description="Submodule grouping: 'scientific', 'it', or 'other'"
     )
-    class_: str = Field(..., alias="class", description="Equipment class")
+    equipment_class: str = Field(..., description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: Optional[float] = Field(
         None,
@@ -118,8 +132,7 @@ class EquipmentCreateRequest(BaseModel):
         le=settings.HOURS_PER_WEEK,
         description=f"Passive usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
-    act_power: Optional[float] = Field(None, ge=0, description="Active power in Watts")
-    pas_power: Optional[float] = Field(None, ge=0, description="Standby power in Watts")
+
     power_factor_id: Optional[int] = Field(
         None, description="Reference to power factor lookup"
     )
@@ -171,7 +184,7 @@ class EquipmentUpdateRequest(BaseModel):
     submodule: Optional[str] = Field(
         None, description="Submodule grouping: 'scientific', 'it', or 'other'"
     )
-    class_: Optional[str] = Field(None, alias="class", description="Equipment class")
+    equipment_class: Optional[str] = Field(None, description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: Optional[float] = Field(
         None,
@@ -185,8 +198,6 @@ class EquipmentUpdateRequest(BaseModel):
         le=settings.HOURS_PER_WEEK,
         description=f"Passive usage hours per week (0-{settings.HOURS_PER_WEEK})",
     )
-    act_power: Optional[float] = Field(None, ge=0, description="Active power in Watts")
-    pas_power: Optional[float] = Field(None, ge=0, description="Standby power in Watts")
     power_factor_id: Optional[int] = Field(
         None, description="Reference to power factor lookup"
     )
@@ -235,12 +246,11 @@ class EquipmentDetailResponse(BaseModel):
     name: str = Field(..., description="Equipment name")
     category: str = Field(..., description="Equipment category")
     submodule: str = Field(..., description="Submodule grouping")
-    class_: str = Field(..., alias="class", description="Equipment class")
+    equipment_class: str = Field(..., description="Equipment class")
     sub_class: Optional[str] = Field(None, description="Equipment sub-class")
     act_usage: Optional[float] = Field(None, description="Active usage hours per week")
     pas_usage: Optional[float] = Field(None, description="Passive usage hours per week")
-    act_power: Optional[float] = Field(None, description="Active power in Watts")
-    pas_power: Optional[float] = Field(None, description="Standby power in Watts")
+
     power_factor_id: Optional[int] = Field(None, description="Power factor reference")
     status: str = Field(..., description="Equipment status")
     service_date: Optional[datetime] = Field(None, description="Date put into service")

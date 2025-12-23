@@ -42,7 +42,9 @@
         <div class="text-h5 text-weight-medium q-mb-sm">
           {{ $t(`${type}-title-tooltip-title`) }}
         </div>
-        {{ $t(`${type}-title-subtext`) }}
+        <p v-if="hasTooltipSubText">
+          {{ $t(`${type}-title-tooltip-subtext`) }}
+        </p>
       </q-tooltip>
     </q-card-section>
   </q-card>
@@ -63,12 +65,21 @@ i18n keys used in this component:
 - {module-type}-title-subtext
 */
 
-defineProps<{
-  type: Module;
-  hasTooltip: boolean;
-  hasDescription: boolean;
-  hasDescriptionSubtext?: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    type: Module;
+    hasTooltip?: boolean;
+    hasDescription?: boolean;
+    hasDescriptionSubtext?: boolean;
+    hasTooltipSubText?: boolean;
+  }>(),
+  {
+    hasTooltip: true,
+    hasDescription: false,
+    hasDescriptionSubtext: false,
+    hasTooltipSubText: false,
+  },
+);
 </script>
 <style scoped lang="scss">
 .module-title-card {

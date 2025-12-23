@@ -39,7 +39,7 @@ const comparisonParts = computed(() => {
 <template>
   <q-card class="container container--pa-none">
     <q-card-section class="flex items-center q-mb-xs">
-      <q-icon name="o_info" size="xs" color="primary">
+      <q-icon v-if="$slots.tooltip" name="o_info" size="xs" color="primary">
         <q-tooltip
           v-if="$slots.tooltip"
           anchor="center right"
@@ -63,14 +63,14 @@ const comparisonParts = computed(() => {
           {{ number }}
         </div>
         <div class="text-secondary text-body2 q-mb-none">
-          {{ unit ? unit : $t('results_units') }}
+          {{ unit ? unit : $t('results_units_tonnes') }}
         </div>
       </div>
 
       <div
         v-if="comparisonParts.length > 0"
         class="text-caption q-mb-none text-right"
-        style="width: 60%"
+        style="width: 50%"
       >
         <span
           v-for="(part, index) in comparisonParts"

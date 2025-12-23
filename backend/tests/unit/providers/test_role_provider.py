@@ -28,7 +28,7 @@ def mock_settings():
     settings.ACCRED_API_URL = "https://api.epfl.ch"
     settings.ACCRED_API_USERNAME = "test_user"
     settings.ACCRED_API_KEY = "test_key"
-    settings.ROLE_PROVIDER_PLUGIN = "default"
+    settings.PROVIDER_PLUGIN = "default"
     return settings
 
 
@@ -43,7 +43,7 @@ def sample_userinfo() -> Dict[str, Any]:
     """Fixture providing sample userinfo dict."""
     return {
         "email": "user@epfl.ch",
-        "sciper": 352707,
+        "user_id": 352707,
         "roles": [
             "co2.user.std@unit:12345",
             "co2.user.principal@unit:12345",
@@ -53,8 +53,8 @@ def sample_userinfo() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_sciper() -> int:
-    """Fixture providing sample SCIPER number."""
+def sample_user_id() -> int:
+    """Fixture providing sample user ID."""
     return 352707
 
 
@@ -67,7 +67,7 @@ class TestDefaultRoleProvider:
     """Test suite for DefaultRoleProvider."""
 
     @pytest.mark.asyncio
-    async def test_parse_roles_with_unit_scope(self, sample_userinfo, sample_sciper):
+    async def test_parse_roles_with_unit_scope(self, sample_userinfo, sample_user_id):
         """Test parsing roles with unit scope."""
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(sample_userinfo)
@@ -211,7 +211,7 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_fetch_roles_with_unit_authorizations(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test fetching roles from Accred API with unit authorizations."""
         mock_response = {
@@ -235,13 +235,13 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 2
         assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
@@ -251,7 +251,7 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_fetch_roles_with_global_admin(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test fetching global admin role from Accred API."""
         mock_response = {
@@ -270,20 +270,20 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
         assert roles[0] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
     async def test_accred_fetch_roles_with_backoffice_std(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test fetching backoffice.std role with affiliation scope."""
         mock_response = {
@@ -303,13 +303,13 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
         assert roles[0] == Role(
@@ -318,7 +318,9 @@ class TestAccredRoleProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_accred_no_authorizations_found(self, accred_provider, sample_sciper):
+    async def test_accred_no_authorizations_found(
+        self, accred_provider, sample_user_id
+    ):
         """Test handling of empty authorizations list."""
         mock_response = {"authorizations": []}
 
@@ -328,19 +330,19 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert roles == []
 
     @pytest.mark.asyncio
     async def test_accred_skip_non_co2_authorization(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test that non-co2 authorizations are skipped."""
         mock_response = {
@@ -364,20 +366,20 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
         assert roles[0].role == RoleName.CO2_USER_STD
 
     @pytest.mark.asyncio
     async def test_accred_skip_inactive_authorization(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test that inactive authorizations are skipped."""
         mock_response = {
@@ -401,20 +403,20 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
         assert roles[0].role == RoleName.CO2_USER_STD
 
     @pytest.mark.asyncio
     async def test_accred_skip_authorization_without_accredunitid(
-        self, accred_provider, sample_sciper
+        self, accred_provider, sample_user_id
     ):
         """Test that authorizations without accredunitid are skipped."""
         mock_response = {
@@ -437,19 +439,19 @@ class TestAccredRoleProvider:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
             mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = AsyncMock()
+            mock_response_obj.raise_for_status = Mock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.get.return_value = mock_response_obj
 
             mock_client_class.return_value = mock_client
 
-            roles = await accred_provider.get_roles_by_sciper(sample_sciper)
+            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
         assert roles[0].role == RoleName.CO2_USER_STD
 
     @pytest.mark.asyncio
-    async def test_accred_http_status_error(self, accred_provider, sample_sciper):
+    async def test_accred_http_status_error(self, accred_provider, sample_user_id):
         """Test handling of HTTP status errors from Accred API."""
         with patch(
             "app.providers.role_provider.httpx.AsyncClient"
@@ -470,10 +472,10 @@ class TestAccredRoleProvider:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(httpx.HTTPStatusError):
-                await accred_provider.get_roles_by_sciper(sample_sciper)
+                await accred_provider.get_roles_by_user_id(sample_user_id)
 
     @pytest.mark.asyncio
-    async def test_accred_request_error(self, accred_provider, sample_sciper):
+    async def test_accred_request_error(self, accred_provider, sample_user_id):
         """Test handling of request errors from Accred API."""
         with patch(
             "app.providers.role_provider.httpx.AsyncClient"
@@ -485,10 +487,10 @@ class TestAccredRoleProvider:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(httpx.RequestError):
-                await accred_provider.get_roles_by_sciper(sample_sciper)
+                await accred_provider.get_roles_by_user_id(sample_user_id)
 
     @pytest.mark.asyncio
-    async def test_accred_unexpected_error(self, accred_provider, sample_sciper):
+    async def test_accred_unexpected_error(self, accred_provider, sample_user_id):
         """Test handling of unexpected errors from Accred API."""
         with patch(
             "app.providers.role_provider.httpx.AsyncClient"
@@ -502,7 +504,7 @@ class TestAccredRoleProvider:
             mock_client_class.return_value = mock_client
 
             with pytest.raises(ValueError):
-                await accred_provider.get_roles_by_sciper(sample_sciper)
+                await accred_provider.get_roles_by_user_id(sample_user_id)
 
     def test_accred_missing_credentials(self):
         """Test AccredRoleProvider initialization with missing credentials."""
@@ -539,7 +541,7 @@ class TestGetRoleProvider:
     def test_get_default_role_provider(self):
         """Test that DefaultRoleProvider is returned for 'default' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "default"
+            mock_settings.PROVIDER_PLUGIN = "default"
 
             provider = get_role_provider()
 
@@ -548,7 +550,7 @@ class TestGetRoleProvider:
     def test_get_accred_role_provider(self):
         """Test that AccredRoleProvider is returned for 'accred' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "accred"
+            mock_settings.PROVIDER_PLUGIN = "accred"
             mock_settings.ACCRED_API_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
@@ -560,7 +562,7 @@ class TestGetRoleProvider:
     def test_get_unknown_role_provider_fallback_to_default(self):
         """Test that unknown provider type falls back to DefaultRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ROLE_PROVIDER_PLUGIN = "unknown"
+            mock_settings.PROVIDER_PLUGIN = "unknown"
 
             provider = get_role_provider()
 

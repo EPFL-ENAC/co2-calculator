@@ -1,11 +1,11 @@
 # Tech Stack Overview
 
 This document provides a concise reference to the core technologies
-used in the CO2 Calculator project. It focuses on essential facts to
+used in the CO₂ Calculator project. It focuses on essential facts to
 minimize maintenance burden. For detailed rationale and alternatives
 considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
-**Last Updated:** 2025-11-11
+**Last Updated:** 2025-12-11
 
 ---
 
@@ -13,8 +13,8 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 - **Open Source**: GPL-3.0 license, EPFL owns the code
 - **Architecture**: Stateless web application (SPA + API), horizontally scalable
-- **Deployment**: docker-compose (local/dev), Kubernetes/Helm (production)
-- **Database**: PostgreSQL (production), SQLite (development fallback)
+- **Deployment**: [docker-compose](https://docs.docker.com/compose/) (local/dev), [Kubernetes](https://kubernetes.io/) / [Helm](https://helm.sh/) (production)
+- **Database**: [PostgreSQL](https://www.postgresql.org/) (production), [SQLite](https://www.sqlite.org/index.html) (development fallback)
 - **Authentication**: JWT-based RBAC, pluggable for OIDC/OAuth2
 
 ---
@@ -23,15 +23,19 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Backend
 
-- **Python**: 3.12 (target: 3.13 when stable in Alpine)
-- **Package Manager**: [uv](https://github.com/astral-sh/uv)
+- **Language**: [Python 3.12](https://www.python.org/) (target: 3.13 when stable in Alpine)
+- **Package Manager**: [uv](https://docs.astral.sh/uv/)
 - **Dependency File**: `backend/pyproject.toml`
+- **Lockfile**: `uv.lock`
 
 ### Frontend
 
-- **Node**: 24.x LTS
-- **Package Manager**: npm (v10+)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Runtime**: [Node.js 24.x](https://nodejs.org/)
+- **Package Manager**: [npm (v10+)](https://www.npmjs.com/)
+- **Type Checking**: [vue-tsc](https://deepwiki.com/vuejs/language-tools)
 - **Dependency File**: `frontend/package.json`
+- **Lockfile**: `package-lock.json`
 
 ---
 
@@ -39,19 +43,24 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Core Technologies
 
-- **Framework**: Vue 3 (Composition API)
-- **UI Library**: Quasar 2.x (Material Design components)
-- **Build Tool**: Vite (via Quasar CLI)
-- **State Management**: Pinia
-- **Routing**: vue-router
-- **Internationalization**: vue-i18n
-- **HTTP Client**: ky
+- **Framework**: [Vue 3](https://vuejs.org/) (Composition API)
+- **UI Library**: [Quasar 2.x](https://quasar.dev/) (Material Design components)
+- **Build Tool**: [Vite](https://vitejs.dev/) (via Quasar CLI)
+- **State Management**: [Pinia](https://pinia.vuejs.org/)
+- **Routing**: [vue-router](https://router.vuejs.org/)
+- **Internationalization**: [vue-i18n](https://vue-i18n.intlify.dev/)
+- **HTTP Client**: [ky](https://github.com/sindresorhus/ky)
+
+### Internationalization resources
+
+- Build integrates `@intlify/unplugin-vue-i18n` to load messages from `src/i18n/**/*.json` and `src/assets/i18n/**/*.json|md`, with `runtimeOnly: false` to support named tokens.
 
 ### Development
 
-- **Testing**: Playwright (E2E + component tests)
-- **Linting**: ESLint + Prettier
-- **Type Checking**: TypeScript (gradual adoption)
+- **Testing**: [Playwright](https://playwright.dev/) (E2E + component tests)
+- **Linting**: [ESLint](https://eslint.org/) + [Prettier](https://prettier.io/)
+- **Type Checking**: [TypeScript](https://www.typescriptlang.org/) (gradual adoption)
+- **Styles**: [CSS/SCSS](https://sass-lang.com/) (Stylelint configuration present)
 
 ### Deployment
 
@@ -65,22 +74,22 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Core Technologies
 
-- **Web Framework**: FastAPI
-- **ASGI Server**: Uvicorn
-- **ORM**: SQLAlchemy 2.0 (async)
-- **Migrations**: Alembic
-- **Database Drivers**: psycopg (PostgreSQL), aiosqlite (SQLite)
-- **Config Management**: pydantic-settings
-- **JWT Handling**: joserfc
-- **Password Hashing**: passlib (bcrypt)
-- **HTTP Client**: httpx
+- **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/)
+- **ASGI Server**: [Uvicorn](https://www.uvicorn.org/)
+- **ORM**: [SQLAlchemy 2.0 (async)](https://docs.sqlalchemy.org/en/20/)
+- **Migrations**: [Alembic](https://alembic.sqlalchemy.org/)
+- **Database Drivers**: [psycopg](https://www.psycopg.org/) (PostgreSQL), [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) (SQLite)
+- **Config Management**: [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
+- **JWT Handling**: [joserfc](https://jose.authlib.org/en/#)
+- **Password Hashing**: [passlib](https://passlib.readthedocs.io/en/stable/) (bcrypt)
+- **HTTP Client**: [httpx](https://www.python-httpx.org/)
 
 ### Development
 
-- **Testing**: pytest + pytest-asyncio + pytest-cov
-- **Linting**: ruff
-- **Type Checking**: mypy
-- **Load Testing**: locust
+- **Testing**: [pytest](https://docs.pytest.org/en/stable/) + [pytest-asyncio](https://pytest-asyncio.readthedocs.io/en/latest/) + [pytest-cov](https://pytest-cov.readthedocs.io/en/latest/)
+- **Linting**: [ruff](https://docs.astral.sh/ruff/)
+- **Type Checking**: [mypy](https://mypy-lang.org/)
+- **Load Testing**: [locust](https://locust.io/)
 
 ### Deployment
 
@@ -122,7 +131,7 @@ docker-compose with services:
 
 - `backend` (FastAPI on port 8000)
 - `frontend` (Nginx on port 8080)
-- `postgres` (PostgreSQL 15-alpine)
+- `postgres` (PostgreSQL 18-alpine)
 - `pgadmin` (database UI)
 - `reverse-proxy` (Traefik — routes `/api/*` to backend, `/*` to frontend)
 

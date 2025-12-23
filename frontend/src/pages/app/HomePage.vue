@@ -4,8 +4,14 @@ import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 const { t } = useI18n();
+const workspaceStore = useWorkspaceStore();
+
+const currentYear = computed(() => {
+  return workspaceStore.selectedYear ?? new Date().getFullYear();
+});
 
 const modulesCounterText = computed(() =>
   t('home_modules_counter', {
@@ -14,21 +20,16 @@ const modulesCounterText = computed(() =>
 );
 
 const homeIntroWithLinks = computed(() => {
-  return t('home_intro_5')
-    .replace(
-      '{documentationLink}',
-      t('info_with_link', {
-        url: '/documentation',
-        linkText: t('documentation'),
-      }),
-    )
-    .replace(
-      '{contactLink}',
-      t('info_with_link', {
-        url: '/contact',
-        linkText: t('contact'),
-      }),
-    );
+  return t('home_intro_5', {
+    documentationLink: t('info_with_link', {
+      url: '/documentation',
+      linkText: t('documentation'),
+    }),
+    contactLink: t('info_with_link', {
+      url: '/contact',
+      linkText: t('contact'),
+    }),
+  });
 });
 </script>
 
@@ -63,7 +64,7 @@ const homeIntroWithLinks = computed(() => {
           {{ $t('home_results_title') }}
         </h3>
         <h3 class="text-h5 text-weight-medium text-secondary">
-          {{ $t('home_results_subtitle') }}
+          {{ $t('home_results_subtitle', { year: currentYear }) }}
         </h3>
         <div class="flex justify-between items-end q-mt-xl">
           <q-btn
@@ -161,7 +162,11 @@ const homeIntroWithLinks = computed(() => {
             >
               <p class="text-weight-medium q-mb-none">{{ moduleCard.value }}</p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{ $t('results_units') }}
+                {{
+                  $t('module_total_result_title_unit', {
+                    type: moduleCard.module,
+                  })
+                }}
               </p>
             </div>
           </div>

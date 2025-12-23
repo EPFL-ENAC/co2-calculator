@@ -47,8 +47,8 @@ async def load_power_factors_map(session: AsyncSession) -> Dict[str, PowerFactor
     """Load power factors from database into a lookup dictionary."""
     logger.info("Loading power factors from database...")
 
-    result = await session.execute(select(PowerFactor))
-    power_factors_list = result.scalars().all()
+    result = await session.exec(select(PowerFactor))
+    power_factors_list = result.all()
 
     # Create lookup dictionary with multiple key strategies
     power_factors_map = {}
@@ -128,8 +128,8 @@ async def seed_equipment(session: AsyncSession) -> None:
     logger.info("Seeding equipment from CSV...")
 
     # Delete existing equipment emissions first (to avoid FK constraint violation)
-    result = await session.execute(select(EquipmentEmission))
-    existing_emissions = result.scalars().all()
+    result = await session.exec(select(EquipmentEmission))
+    existing_emissions = result.all()
 
     if existing_emissions:
         logger.info(f"Deleting {len(existing_emissions)} existing emission records...")
@@ -138,8 +138,8 @@ async def seed_equipment(session: AsyncSession) -> None:
         await session.commit()
 
     # Now delete existing equipment
-    result = await session.execute(select(Equipment))
-    existing_equipment = result.scalars().all()
+    eq_result = await session.exec(select(Equipment))
+    existing_equipment: List[Equipment] = list(eq_result.all())
 
     if existing_equipment:
         logger.info(f"Deleting {len(existing_equipment)} existing equipment records...")
@@ -243,14 +243,14 @@ async def seed_equipment(session: AsyncSession) -> None:
             # Parse service date
             service_date = parse_date(service_date_str)
 
-            equipment = Equipment(
+            equipment_local_10208 = Equipment(
                 cost_center=cost_center,
                 cost_center_description=cost_center_desc or None,
                 name=name,
-                category=category,  # Original category from synth_data
-                submodule=submodule,  # Mapped submodule for grouping
+                category=category,
+                submodule=submodule,
                 equipment_class=equipment_class,
-                sub_class=equipment_subclass,  # Not in synth_data.csv
+                sub_class=equipment_subclass,
                 service_date=service_date,
                 status=status,
                 active_usage_pct=active_usage_pct,
@@ -258,14 +258,35 @@ async def seed_equipment(session: AsyncSession) -> None:
                 active_power_w=active_power_w,
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
-                unit_id="C1348",  # All equipment in synth_data is from C1348
+                unit_id="10208",
                 equipment_metadata={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),
                 },
             )
-            equipment_list.append(equipment)
-
+            equipment_local_12345 = Equipment(
+                cost_center=cost_center,
+                cost_center_description=cost_center_desc or None,
+                name=name,
+                category=category,
+                submodule=submodule,
+                equipment_class=equipment_class,
+                sub_class=equipment_subclass,
+                service_date=service_date,
+                status=status,
+                active_usage_pct=active_usage_pct,
+                passive_usage_pct=passive_usage_pct,
+                active_power_w=active_power_w,
+                standby_power_w=standby_power_w,
+                power_factor_id=power_factor_id,
+                unit_id="12345",
+                equipment_metadata={
+                    "source": "synth_data.csv",
+                    "imported_at": datetime.utcnow().isoformat(),
+                },
+            )
+            equipment_list.append(equipment_local_10208)
+            equipment_list.append(equipment_local_12345)
     # Bulk insert
     session.add_all(equipment_list)
     await session.commit()
@@ -303,8 +324,8 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     logger.info("Calculating and seeding equipment emissions...")
 
     # Delete existing emissions
-    result = await session.execute(select(EquipmentEmission))
-    existing_emissions = result.scalars().all()
+    result = await session.exec(select(EquipmentEmission))
+    existing_emissions = result.all()
 
     if existing_emissions:
         logger.info(f"Deleting {len(existing_emissions)} existing emission records...")
@@ -313,45 +334,48 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         await session.commit()
 
     # Get emission factor
-    result = await session.execute(
+    ef_result = await session.exec(
         select(EmissionFactor)
         .where(col(EmissionFactor.factor_name) == "swiss_electricity_mix")
         .where(col(EmissionFactor.valid_to).is_(None))  # Current version
     )
-    emission_factor = result.scalar_one_or_none()
-
+    emission_factor = ef_result.one_or_none()
     if not emission_factor:
         logger.error("No emission factor found! Run seed_emission_factors first.")
         return
-
+    if not isinstance(emission_factor, EmissionFactor):
+        logger.error("No valid emission factor found! Run seed_emission_factors first.")
+        return
     # Get all equipment
-    result = await session.execute(select(Equipment))
-    equipment_list = result.scalars().all()
+    eq_result = await session.exec(select(Equipment))
+    equipment_list: List[Equipment] = list(eq_result.all())
 
     logger.info(f"Calculating emissions for {len(equipment_list)} equipment items...")
 
     # Get power factors map for lookup
     power_factors_map = {}
-    result = await session.execute(select(PowerFactor))
-    for pf in result.scalars().all():
-        power_factors_map[pf.id] = pf
+    pf_result = await session.exec(select(PowerFactor))
+    for pf_ in pf_result.all():
+        power_factors_map[pf_.id] = pf_
 
     # Calculate emissions for each equipment
     emissions_list: List[EquipmentEmission] = []
 
     for equipment in equipment_list:
         # Get power values - either from equipment or from power factor
-        if (
-            equipment.active_power_w is not None
-            and equipment.standby_power_w is not None
-        ):
-            # Use measured values
-            active_power_w = equipment.active_power_w
-            standby_power_w = equipment.standby_power_w
-            power_factor_id = equipment.power_factor_id  # May be None
-        elif equipment.power_factor_id:
+        if not isinstance(equipment, Equipment):
+            logger.error(f"Invalid equipment record: {equipment}")
+            continue
+
+        if equipment.power_factor_id:
             # Lookup from power factor
-            pf = power_factors_map.get(equipment.power_factor_id)
+            pf: PowerFactor | None = power_factors_map.get(equipment.power_factor_id)
+            if not isinstance(pf, PowerFactor):
+                logger.error(
+                    f"Invalid power factor record for ID "
+                    f"{equipment.power_factor_id} on equipment {equipment.id}"
+                )
+                continue
             if pf:
                 active_power_w = pf.active_power_w
                 standby_power_w = pf.standby_power_w
@@ -380,6 +404,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             "status": equipment.status,
         }
 
+        if (emission_factor.value is None) or (emission_factor.id is None):
+            logger.error(
+                "Emission factor is missing value or ID! Cannot calculate emissions."
+            )
+            continue
         # Calculate emissions using the versioned calculation service
         emission_result = calculation_service.calculate_equipment_emission_versioned(
             equipment_data=equipment_data,
@@ -434,4 +463,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # run script on /app/api/v1/synth_data.csv
     asyncio.run(main())

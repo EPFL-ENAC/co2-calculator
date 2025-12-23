@@ -19,14 +19,14 @@ New contributors follow this workflow:
 
 ## Development Setup
 
+**Prerequisites:** [Node.js 24+](https://nodejs.org/), [Python 3.12+](https://www.python.org/), [Docker](https://www.docker.com/), [GNU Make](https://www.gnu.org/software/make/)
+
 Install dependencies and start coding:
 
 ```bash
 make install  # Install all dependencies
 make ci       # Run all checks before pushing
 ```
-
-**Prerequisites:** Node.js 24+, Python 3.12+, Docker, GNU Make
 
 Run services for local development:
 
@@ -35,7 +35,7 @@ cd backend && make dev   # Backend on :8000
 cd frontend && make dev  # Frontend on :9000
 ```
 
-See detailed setup in backend and frontend README files.
+See detailed setup in [backend](backend/README.md) and [frontend](frontend/README.md) README files.
 
 ## Commit Convention
 
@@ -55,24 +55,24 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `style`, `chore`
 Before requesting review, ensure:
 
 - [ ] Code follows our standards (linter passes)
-- [ ] Tests added/updated with 60% coverage minimum
+- [ ] Codecov tests added/updated with 60% coverage minimum
 - [ ] Documentation updated for new features
 - [ ] `make ci` passes locally
 - [ ] Commit messages follow convention
 - [ ] PR describes what/why of changes
 - [ ] No secrets or hardcoded credentials
 
-See PR template for full checklist.
+See [PR template](.github/pull_request_template.md) for full checklist.
 
 ## Code Standards Summary
 
 - **Never commit secrets** - Use environment variables
-- **Test coverage**: 60% minimum
+- **Test coverage**: 60% minimum (following Codecov reports)
 - **Naming**: snake_case (Python), camelCase (JS/TS), kebab-case (files)
 - **Accessibility**: WCAG Level AA for UI components
 - **Dependencies**: Pin exact versions, security updates only
 
-Full standards in [docs/src/architecture/code-standards.md](docs/src/architecture/code-standards.md)
+Full standards in [code standards](docs/src/architecture/code-standards.md)
 
 ## Need Help?
 

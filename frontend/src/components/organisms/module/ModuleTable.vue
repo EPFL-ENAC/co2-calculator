@@ -1,5 +1,5 @@
 <template>
-  <div class="q-mb-md flex justify-between items-center wrap">
+  <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
     <div class="q-gutter-sm">
       <q-btn
         outline
@@ -40,17 +40,19 @@
     </q-input>
   </div>
   <q-table
+    v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
     :columns="qCols"
-    :rows="localRows"
+    :rows="moduleStore.state.dataSubmodule[submoduleType]?.items || []"
     row-key="id"
-    :loading="loading"
-    :error="error"
+    :loading="moduleStore.state.loadingSubmodule[submoduleType]"
+    :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
+    :hide-pagination="submoduleConfig?.hasTablePagination === false"
     no-data-label="No items"
-    :pagination="pagination"
     :filter="filterTerm"
+    @request="onRequest"
   >
     <template #header="scope">
       <q-tr :props="scope">
@@ -59,7 +61,9 @@
           :key="col.name"
           :props="scope"
           :align="col.align"
-          class="q-pa-md"
+          class="q-pa-xs"
+          :class="{ 'column-max-width': col.maxColumnWidth }"
+          :style="getColumnStyle(col)"
         >
           <span>{{ col.label }}</span>
           <q-icon
@@ -106,7 +110,8 @@
           :key="col.name"
           :props="slotProps"
           :align="col.align"
-          :class="cellClasses(slotProps.row, col)"
+          :class="getColumnClasses(slotProps.row, col)"
+          :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
             <module-inline-select
@@ -114,7 +119,7 @@
               :row="slotProps.row"
               :field-id="col.field"
               :module-type="moduleType"
-              :submodule-type="submoduleType"
+              :submodule-type="submoduleType as any"
               :unit-id="unitId"
               :year="year"
             />
@@ -127,13 +132,21 @@
               :dense="true"
               hide-bottom-space
               outlined
+              :min="col.min"
+              :max="col.max"
+              :step="col.step"
               class="inline-input"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template v-else-if="col.name === 'action'">
+          <template
+            v-else-if="
+              col.name === 'action' &&
+              props.submoduleConfig?.hasTableAction !== false
+            "
+          >
             <q-btn
               icon="o_delete"
               color="grey-4"
@@ -172,12 +185,12 @@
     </template>
 
     <template #no-data>
-      <div class="text-center q-pa-md">No data available</div>
+      <div class="text-center q-pa-sm">No data available</div>
     </template>
   </q-table>
 
   <q-dialog v-model="editDialogOpen" persistent>
-    <q-card style="width: 1200px; max-width: 90vw">
+    <q-card style="width: 1320px; max-width: 90vw">
       <q-card-section class="flex justify-between items-center">
         <div class="text-h4 text-weight-medium">
           {{
@@ -272,16 +285,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick, onMounted } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
+import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
-import type { Module, Threshold } from 'src/constant/modules';
+import type {
+  Module,
+  ConditionalSubmoduleProps,
+  Threshold,
+} from 'src/constant/modules';
+
+import { MODULES } from 'src/constant/modules';
+
+import { nOrDash } from 'src/utils/number';
 
 const { t: $t } = useI18n();
+
 const $q = useQuasar();
 
 const editDialogOpen = ref(false);
@@ -296,23 +319,23 @@ type ModuleRow = Record<string, RowValue> & {
   status?: string;
 };
 
-type ModuleSubType = 'scientific' | 'it' | 'other';
-const props = defineProps<{
-  moduleFields?: ModuleField[] | null;
-  rows?: ModuleRow[];
-  loading?: boolean;
-  error?: string | null;
-  moduleType: Module | string;
-  submoduleType?: ModuleSubType;
+type CommonProps = {
+  moduleFields: ModuleField[] | null;
   unitId: string;
   year: string | number;
-  threshold?: Threshold;
-}>();
+  threshold: Threshold;
+  hasTopBar?: boolean;
+  moduleConfig: ModuleConfig;
+  submoduleConfig: Submodule;
+};
 
-const pagination = ref({
-  page: 1,
-  rowsPerPage: 20,
+type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
+
+const props = withDefaults(defineProps<ModuleTableProps>(), {
+  hasTopBar: true,
 });
+
+const moduleStore = useModuleStore();
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
@@ -331,26 +354,21 @@ watch(editDialogOpen, (isOpen) => {
 const deleteItemName = ref<string>('');
 const deleteRowId = ref<number | null>(null);
 
-const localRows = ref<ModuleRow[]>(props.rows ?? []);
-watch(
-  () => props.rows,
-  (val) => {
-    localRows.value = Array.isArray(val) ? val.map((r) => ({ ...r })) : [];
-  },
-  { immediate: true, deep: true },
-);
-
 type TableViewColumn = {
   name: string;
   label: string;
   field: string;
   sortable: boolean;
   align: 'left' | 'right' | 'center';
+  min?: number;
+  max?: number;
+  step?: number;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
   tooltip?: string;
   type: ModuleField['type'];
+  maxColumnWidth?: number;
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -358,7 +376,16 @@ const qCols = computed<TableViewColumn[]>(() => {
     .filter((f) => !f.hideIn?.table)
     .map((f) => {
       const unit = f.unit;
-      const labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+      const i18nLabelKey = f.labelKey ?? '';
+      if (i18nLabelKey) {
+        // Use i18n label if available
+        const translated = $t(i18nLabelKey);
+        if (translated && translated !== i18nLabelKey) {
+          // Only use if translation exists
+          labelText = translated;
+        }
+      }
       const sortable = f.sortable ?? false;
       const align = f.align ?? 'left';
       const tooltip = f.tooltip;
@@ -376,43 +403,64 @@ const qCols = computed<TableViewColumn[]>(() => {
         label: labelText,
         field: f.id,
         sortable,
+        min: f.min,
+        max: f.max,
+        step: f.step,
         align,
         inputComponent,
         editableInline,
         options,
         tooltip,
         type: f.type,
+        maxColumnWidth: f.maxColumnWidth,
       };
     });
 
-  baseCols.push({
-    name: 'action',
-    label: $t('common_actions'),
-    field: 'action',
-    align: 'right',
-    sortable: false,
-    inputComponent: QInput,
-    editableInline: false,
-    options: undefined,
-    tooltip: undefined,
-    type: 'text',
-  });
+  if (props.submoduleConfig.hasTableAction !== false) {
+    baseCols.push({
+      name: 'action',
+      label: $t('common_actions'),
+      field: 'action',
+      align: 'right',
+      sortable: false,
+      inputComponent: QInput,
+      min: undefined,
+      max: undefined,
+      step: undefined,
+      editableInline: false,
+      options: undefined,
+      tooltip: undefined,
+      type: 'text',
+      maxColumnWidth: undefined,
+    });
+  }
   return baseCols;
 });
 
-function renderCell(row: ModuleRow, col: { field: string; name: string }) {
+function renderCell(
+  row: ModuleRow,
+  col: { field: string; name: string; maxColumnWidth?: number },
+) {
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq') {
-    const n = Number(val);
-    if (!Number.isFinite(n)) return '-';
-    return n.toFixed(0);
+    return nOrDash(val as number, {
+      options: {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      },
+    });
   }
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') {
+    return nOrDash(val, { options: props.moduleConfig?.numberFormatOptions });
+  }
+  console.warn('Unexpected cell value type', val);
   return String(val);
 }
 
 function getItemName(row: ModuleRow): string {
-  return row.name ? String(row.name) : String(row.id || 'this item');
+  return String(row?.name ?? row?.display_name ?? $t('common_this_item'));
 }
 
 function getRowId(row: ModuleRow): number | null {
@@ -472,9 +520,16 @@ async function commitInline(
   const id = getRowId(row);
   if (id == null) return;
   try {
-    await store.patchItem(moduleType, props.unitId, String(props.year), id, {
-      [col.field]: valueToSave,
-    });
+    await store.patchItem(
+      moduleType,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      {
+        [col.field]: valueToSave,
+      },
+    );
   } catch (err) {
     setError(row, col, err instanceof Error ? err.message : 'Save failed');
   }
@@ -500,22 +555,63 @@ function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
   return '';
 }
 
+function getColumnStyle(col: TableViewColumn) {
+  if (!col.maxColumnWidth) return {};
+  return { '--max-column-width': `${col.maxColumnWidth}px` };
+}
+
+function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
+  return [
+    cellClasses(row, col),
+    'table-cell',
+    { 'column-max-width': col.maxColumnWidth },
+  ];
+}
+
 function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
 }
 
-function isComplete(row: ModuleRow) {
+function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
-    'class',
+    'equipment_class',
     'act_usage',
     'pas_usage',
-    'act_power',
-    'pas_power',
+    'active_power_w',
+    'standby_power_w',
   ];
+
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );
+}
+
+function isCompleteHeadcount(row: ModuleRow) {
+  const requiredMember = ['display_name', 'fte', 'function'];
+  const requiredStudent = ['fte'];
+  // implicit behavior: if sciper is set, it's a member
+  // todo: sciper field should not exist: maybe user_id to be agnostic
+  if (row.sciper !== '') {
+    return requiredMember.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+  }
+
+  return requiredStudent.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isComplete(row: ModuleRow) {
+  if (props.moduleType === MODULES.MyLab) {
+    // For MyLab (headcount), consider complete if name and status are set
+    return isCompleteHeadcount(row);
+  }
+  if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+    return isCompleteEquipement(row);
+  }
+  throw new Error(`Unknown module type: ${props.moduleType}`);
 }
 
 function onFormSubmit(
@@ -528,7 +624,6 @@ function onFormSubmit(
   const idRaw = editRowData.value?.id;
   const equipmentId = Number(idRaw);
   const isEdit = Number.isFinite(equipmentId);
-  const submoduleId = '';
 
   // Normalize class value
   const classValRaw = payload.class as string | { value?: string } | null;
@@ -550,8 +645,21 @@ function onFormSubmit(
     basePayload.pas_usage = Number(payload.pas_usage);
 
     const p = isEdit
-      ? store.patchItem(moduleType, unit, year, equipmentId, basePayload)
-      : store.postItem(moduleType, unit, year, submoduleId, basePayload);
+      ? store.patchItem(
+          moduleType,
+          props.submoduleType,
+          unit,
+          year,
+          equipmentId,
+          basePayload,
+        )
+      : store.postItem(
+          moduleType,
+          unit,
+          year,
+          props.submoduleType,
+          basePayload,
+        );
 
     await p.finally(() => {
       editDialogOpen.value = false;
@@ -572,16 +680,24 @@ function onUploadCsv() {
 
 function onDownloadTemplate() {
   // Mocked download
+  const csvEquipmentContent = `Cost Center,Cost Center FR Description,Name 1,Category,Class,Service Date,Status
+C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,Cameras,12/7/2024,In service`;
+
+  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule
+2025-12-10,20001,SV-DEC,F1380,SV-DO,00000,UserName,Employé(e) / 13 NSS,Assistant-e administratif-ve,000000,1.00,member
+2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
+
   const csvContent =
-    'Name,Class,SubClass,Active power (W),Standby power (W),Active usage (hrs/week),Passive usage (hrs/week)\n' +
-    'Example Equipment,Example Class,Example Subclass,100,10,40,128';
+    props.moduleType === MODULES.MyLab
+      ? csvHeadcountContent
+      : csvEquipmentContent;
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const csvUrl = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = csvUrl;
-  a.download = 'equipment-template.csv'; // filename for the user
+  a.download = `${props.moduleType}-template.csv`; // filename for the user
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -602,16 +718,97 @@ function onConfirmDelete() {
     return;
   }
   const moduleType = props.moduleType as Module;
+  const submoduleType = props.submoduleType;
   const unit = props.unitId;
   const year = String(props.year);
-  store.deleteItem(moduleType, unit, year, deleteRowId.value).finally(() => {
-    confirmDelete.value = false;
-    deleteRowId.value = null;
-  });
+  store
+    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .finally(() => {
+      confirmDelete.value = false;
+      deleteRowId.value = null;
+    });
 }
+
+async function onRequest(request: {
+  pagination: {
+    page: number;
+    rowsPerPage: number;
+    rowsNumber?: number;
+    sortBy?: string;
+    descending?: boolean;
+  };
+  filter?: string;
+}) {
+  // Server-side pagination: check what changed
+  const pagination = moduleStore.state.paginationSubmodule[props.submoduleType];
+  const currentSortBy = pagination.sortBy;
+  const currentSortOrder = pagination.descending;
+  const newSortBy = request.pagination.sortBy;
+  const newSortOrder = request.pagination.descending;
+  // Check if sort changed (sort changes take priority and typically reset to page 1)
+  const sortChanged =
+    newSortBy &&
+    (newSortBy !== currentSortBy || newSortOrder !== currentSortOrder);
+  moduleStore.state.paginationSubmodule[props.submoduleType] =
+    request.pagination;
+
+  moduleStore.state.filterTermSubmodule[props.submoduleType] =
+    request.filter || '';
+  if (sortChanged) {
+    // When sort changes, reset to page 1
+    await moduleStore.getSubmoduleData({
+      submoduleType: props.submoduleType,
+      moduleType: props.moduleType,
+      unit: props.unitId,
+      year: String(props.year),
+    });
+  } else {
+    // Only change page if sort didn't change
+    await moduleStore.getSubmoduleData({
+      submoduleType: props.submoduleType,
+      moduleType: props.moduleType,
+      unit: props.unitId,
+      year: String(props.year),
+    });
+  }
+}
+
+watch(
+  () => moduleStore.state.expandedSubmodules[props.submoduleType],
+  (isExpanded) => {
+    if (isExpanded) {
+      moduleStore.initializeSubmoduleState(props.submoduleType);
+
+      // table-specific work
+      moduleStore.getSubmoduleData({
+        submoduleType: props.submoduleType,
+        moduleType: props.moduleType,
+        unit: props.unitId,
+        year: String(props.year),
+      });
+      // or recompute columns, resize, etc.
+    }
+  },
+);
+
+onMounted(() => {
+  moduleStore.initializeSubmoduleState(props.submoduleType);
+  // Clear inline errors on mount
+  inlineErrors.value = {};
+});
 </script>
 
 <style scoped lang="scss">
+.table-cell {
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.column-max-width {
+  max-width: var(--max-column-width, 100%);
+  white-space: normal;
+}
+
 .table-search {
   min-width: 240px;
 }

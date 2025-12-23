@@ -38,6 +38,7 @@ async def test_auth_callback_success(monkeypatch):
     mock_token = {
         "userinfo": {
             "email": "test@example.com",
+            "sub": "1",
             "uniqueid": "123456",
         }
     }
@@ -52,10 +53,10 @@ async def test_auth_callback_success(monkeypatch):
     monkeypatch.setattr(auth_module, "get_role_provider", lambda: mock_role_provider)
     mock_upsert_user = AsyncMock(
         return_value=MagicMock(
-            id="1", email="test@example.com", sciper=123456, roles=["user"]
+            id="1", email="test@example.com", user_id="123456", roles=["user"]
         )
     )
-    monkeypatch.setattr(auth_module, "upsert_user", mock_upsert_user)
+    monkeypatch.setattr(auth_module.UserService, "upsert_user", mock_upsert_user)
     db = MagicMock()
     request = MagicMock()
     request.url_for = lambda x: "http://test/callback"
@@ -117,7 +118,7 @@ async def test_auth_callback_exception(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_me_success(monkeypatch):
     # Mock decode_jwt (sync function)
-    mock_decode_jwt = MagicMock(return_value={"sub": "1", "sciper": "123456"})
+    mock_decode_jwt = MagicMock(return_value={"sub": "1", "user_id": "123456"})
     monkeypatch.setattr(auth_module, "decode_jwt", mock_decode_jwt)
 
     # Mock user object
@@ -125,25 +126,25 @@ async def test_get_me_success(monkeypatch):
         id="1",
         is_active=True,
         email="test@example.com",
-        sciper="123456",
+        user_id="123456",
         roles=["user"],
     )
 
-    # Mock get_user_by_sciper (async function)
-    mock_get_user_by_sciper = AsyncMock(return_value=mock_user)
-    monkeypatch.setattr(auth_module, "get_user_by_sciper", mock_get_user_by_sciper)
-
+    # Mock get_user_by_user_id (async function)
+    mock_get_user_by_user_id = AsyncMock(return_value=mock_user)
+    monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     # Mock role provider with async get_roles - return different roles to trigger update
     mock_role_provider = MagicMock()
-    mock_role_provider.get_roles_by_sciper = AsyncMock(return_value=["admin", "user"])
+    mock_role_provider.get_roles_by_user_id = AsyncMock(return_value=["admin", "user"])
 
     # Mock get_role_provider (sync function that returns the provider)
     mock_get_role_provider = MagicMock(return_value=mock_role_provider)
     monkeypatch.setattr(auth_module, "get_role_provider", mock_get_role_provider)
 
-    # Mock update_user_roles as ASYNC (this was the missing piece!)
-    mock_update_user_roles = AsyncMock()
-    monkeypatch.setattr(auth_module, "update_user_roles", mock_update_user_roles)
+    # # Mock update_user_roles as ASYNC (this was the missing piece!)
+    monkeypatch.setattr(
+        auth_module.UserService, "upsert_user", AsyncMock(return_value=mock_user)
+    )
 
     # Mock db
     mock_db = AsyncMock()
@@ -154,8 +155,8 @@ async def test_get_me_success(monkeypatch):
 
     # Verify the calls
     mock_decode_jwt.assert_called_once_with("token")
-    mock_get_user_by_sciper.assert_called_once()
-    mock_role_provider.get_roles_by_sciper.assert_called_once()
+    mock_get_user_by_user_id.assert_called_once()
+    mock_role_provider.get_roles_by_user_id.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -169,15 +170,20 @@ async def test_get_me_invalid_token(monkeypatch, payload):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("user_attr", ["is_active", "email", "sciper"])
+@pytest.mark.parametrize("user_attr", ["is_active", "email", "user_id"])
 async def test_get_me_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "1"}))
     mock_user = MagicMock(
-        id="1", is_active=True, email="test@example.com", sciper=123456, roles=["user"]
+        id="1",
+        is_active=True,
+        email="test@example.com",
+        user_id="123456",
+        roles=["user"],
     )
     setattr(mock_user, user_attr, False if user_attr == "is_active" else None)
-    mock_get_user_by_id = AsyncMock(return_value=mock_user)
-    monkeypatch.setattr(auth_module, "get_user_by_id", mock_get_user_by_id)
+
+    mock_get_user_by_user_id = AsyncMock(return_value=mock_user)
+    monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.get_me(auth_token="token", db=db)
@@ -211,13 +217,20 @@ async def test_refresh_token_success(monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "decode_jwt",
-        MagicMock(return_value={"type": "refresh", "sub": "1"}),
+        MagicMock(
+            return_value={
+                "type": "refresh",
+                "sub": "1",
+                "user_id": "123456",
+                "email": "test@example.com",
+            }
+        ),
     )
     mock_user = MagicMock(
-        id="1", is_active=True, email="test@example.com", sciper=123456
+        id="1", is_active=True, email="test@example.com", user_id="123456"
     )
     monkeypatch.setattr(
-        auth_module, "get_user_by_id", AsyncMock(return_value=mock_user)
+        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
     )
     monkeypatch.setattr(auth_module, "_set_auth_cookies", MagicMock())
     db = MagicMock()
@@ -246,7 +259,6 @@ async def test_refresh_token_user_missing(monkeypatch):
         "decode_jwt",
         MagicMock(return_value={"type": "refresh", "sub": "1"}),
     )
-    monkeypatch.setattr(auth_module, "get_user_by_id", AsyncMock(return_value=None))
     db = MagicMock()
     response = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:

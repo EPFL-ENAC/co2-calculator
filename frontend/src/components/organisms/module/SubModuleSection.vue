@@ -1,43 +1,69 @@
 <template>
   <q-expansion-item
-    :label="
-      submodule.name + ` (${data?.submodules?.[submodule.id]?.count || 0})`
-    "
+    v-if="submodule.tableNameKey"
+    v-model="moduleStore.state.expandedSubmodules[submodule.id]"
     flat
     header-class="text-h5 text-weight-medium"
     class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
   >
+    <template #header>
+      <div class="row flex items-center full-width">
+        <div class="col">
+          {{
+            $t(submodule.tableNameKey, {
+              count: submoduleCount || 0,
+            })
+          }}
+        </div>
+        <q-icon
+          v-if="hasTableTooltip"
+          :name="outlinedInfo"
+          size="sm"
+          class="cursor-pointer q-mr-sm"
+          :aria-label="
+            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
+          "
+        >
+          <q-tooltip
+            v-if="hasTableTooltip"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip"
+          >
+            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+          </q-tooltip>
+        </q-icon>
+      </div>
+    </template>
     <q-separator />
     <q-card-section class="q-pa-none">
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
-          :rows="rows"
-          :loading="loading"
-          :error="error"
-          :module-type="moduleType"
-          :submodule-type="submoduleType"
           :unit-id="unitId"
           :year="year"
           :threshold="threshold"
+          :has-top-bar="submodule.hasTableTopBar"
+          :module-type="moduleType"
+          :submodule-type="submodule.type"
+          :moduleconfig="submodule"
+          :module-config="moduleConfig"
+          :submodule-config="submodule"
         />
       </div>
       <q-separator />
       <div v-if="submodule.moduleFields">
         <module-form
           :fields="submodule.moduleFields"
-          :submodule-type="submoduleType"
+          :submodule-type="submodule.type"
           :module-type="moduleType"
-          @submit="
-            (payload: Record<string, FieldValue>) =>
-              moduleStore.postItem(
-                moduleType,
-                unitId,
-                year,
-                submodule.id,
-                payload,
-              )
-          "
+          :item="item"
+          :has-subtitle="submodule.hasFormSubtitle"
+          :has-student-helper="submodule.hasStudentHelper"
+          :has-add-with-note="submodule.hasFormAddWithNote"
+          :add-button-label-key="submodule.addButtonLabelKey"
+          :has-tooltip="submodule.hasFormTooltip"
+          @submit="submitForm"
         />
       </div>
     </q-card-section>
@@ -45,11 +71,20 @@
 </template>
 
 <script setup lang="ts">
-import { Submodule as ConfigSubmodule } from 'src/constant/moduleConfig';
+import {
+  Submodule as ConfigSubmodule,
+  ModuleConfig,
+} from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
-import type { ModuleResponse, ModuleItem, Module } from 'src/constant/modules';
+import { useI18n } from 'vue-i18n';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import type {
+  ModuleResponse,
+  Threshold,
+  ConditionalSubmoduleProps,
+} from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
   label: string;
@@ -58,37 +93,62 @@ interface Option {
 type FieldValue = string | number | boolean | null | Option;
 const moduleStore = useModuleStore();
 
-const props = defineProps<{
+type CommonProps = {
   submodule: ConfigSubmodule;
+  moduleConfig: ModuleConfig;
   loading?: boolean;
   error?: string | null;
   data?: ModuleResponse | null;
-  moduleType: Module;
-  submoduleType: string; // for now use string to allow dynamic submodule types
   unitId: string;
   year: string | number;
-  threshold?: import('src/constant/modules').Threshold;
-}>();
+  threshold: Threshold;
+};
 
-const rows = computed(() => {
-  const items = props.data?.submodules?.[props.submodule.id]?.items ?? [];
-  // ensure stable id for q-table row-key
-  return (items as ModuleItem[]).map((it, i) => ({
-    id: it.id ?? `${props.submodule.id}_${i}`,
-    ...it,
-  }));
-});
+type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
-const submoduleType = computed(() => {
-  switch (props.submodule.id) {
-    case 'sub_scientific':
-      return 'scientific';
-    case 'sub_it':
-      return 'it';
-    case 'sub_other':
-      return 'other';
-    default:
-      return undefined as unknown as 'scientific' | 'it' | 'other' | undefined;
+const props = defineProps<SubModuleSectionProps>();
+
+const submoduleCount = computed(
+  () =>
+    moduleStore.state.data?.submodules?.[props.submodule.type]?.summary
+      ?.total_items || 0,
+);
+
+const item = computed(() => {
+  if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
+    return moduleStore.state.dataSubmodule?.[props.submodule.type]?.items[0];
   }
+  return null;
 });
+const { te } = useI18n();
+
+const hasTableTooltip = computed(() => {
+  if (!props.submodule.type) return false;
+  const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
+  return te(tooltipKey);
+});
+
+// actions
+
+function submitForm(payload: Record<string, FieldValue>) {
+  // if update! (for my-lab student for instance)
+  if (item.value && item.value.id) {
+    return moduleStore.patchItem(
+      props.moduleType,
+      props.submoduleType,
+      String(props.unitId),
+      String(props.year),
+      item.value.id,
+      payload,
+    );
+  } else {
+    moduleStore.postItem(
+      props.moduleType,
+      props.unitId,
+      props.year,
+      props.submoduleType,
+      payload,
+    );
+  }
+}
 </script>

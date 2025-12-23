@@ -78,12 +78,11 @@ async def main():
             for _ in range(count):
                 role = random.choice(USER_ROLES)
                 email = fake.unique.email()
-                sciper = fake.unique.random_int(100000, 999999)
+                user_id = fake.unique.random_int(100000, 999999)
                 users.append(
                     {
-                        "id": email,  # Use email as id for now
+                        "id": user_id,
                         "email": email,
-                        "sciper": sciper,
                         "roles": [{"role": role, "on": {"unit": str(unit_id)}}],
                         "is_active": True,
                         "created_at": fake.date_time_this_decade(),
@@ -95,13 +94,12 @@ async def main():
         # Add admin users
         for role in ADMIN_ROLES:
             email = fake.unique.email()
-            sciper = fake.unique.random_int(100000, 999999)
+            user_id = fake.unique.random_int(100000, 999999)
             scope = "global" if role != "co2.backoffice.std" else {"unit": "1"}
             users.append(
                 {
-                    "id": email,
+                    "id": user_id,
                     "email": email,
-                    "sciper": sciper,
                     "roles": [{"role": role, "on": scope}],
                     "is_active": True,
                     "created_at": fake.date_time_this_decade(),

@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger

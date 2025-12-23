@@ -8,12 +8,12 @@ from fastapi.security import HTTPBearer
 from joserfc import jwt
 from joserfc.errors import BadSignatureError
 from joserfc.jwk import OctKey
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.db import get_db
 from app.models.user import User
-from app.repositories.user_repo import get_user_by_id
+from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
 security = HTTPBearer()
@@ -75,20 +75,21 @@ async def get_current_user(
 ) -> User:
     payload = decode_jwt(token)
 
-    user_id = payload.get("sub")
+    user_id = payload.get("user_id")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
 
-    user = await get_user_by_id(db, user_id)
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_id(user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-
+    # Re-validate to trigger deserialize_roles validator
     return user
 
 

@@ -3,6 +3,7 @@ import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
+import validateUnitGuard from './guards/validateUnitGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -85,6 +86,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
+            beforeEnter: validateUnitGuard,
+            component: () => import('pages/app/WorkspacePage.vue'),
             children: [
               {
                 name: 'home-redirect',

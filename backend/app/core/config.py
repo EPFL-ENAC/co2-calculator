@@ -77,11 +77,14 @@ class Settings(BaseSettings):
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
     # Role Provider Plugin Configuration
-    ROLE_PROVIDER_PLUGIN: str = Field(
+    PROVIDER_PLUGIN: str = Field(
         default="default",
         description=(
             "Role provider plugin to use for fetching user roles. "
-            "Options: 'default' (parse from JWT claims) or 'accred' (EPFL Accred API)."
+            "Options:"
+            "   'default' (parse from JWT claims)"
+            "   'accred' (EPFL Accred API)."
+            "   'test' (for testing/development)."
             "The 'default' provider expects roles in JWT claims as flat strings like "
             "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API"
             "to fetch authorizations and maps them to roles based on accredunitid."

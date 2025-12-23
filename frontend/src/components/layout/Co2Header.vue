@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
-import Co2Timeline from '../organisms/layout/Co2Timeline.vue';
 import { useRoute } from 'vue-router';
 import { useTimelineStore } from 'src/stores/modules';
 import { Module } from 'src/constant/modules';
@@ -58,7 +57,7 @@ const handleLogout = async () => {
 
 const hasBackOfficeAccess = computed(() => {
   if (!authStore.user) return false;
-  const userRoles = authStore.user.roles.map((r) => r.role);
+  const userRoles = authStore.user?.roles_raw?.map((r) => r.role) ?? [];
   return (
     userRoles.includes(ROLES.BackOfficeAdmin) ||
     userRoles.includes(ROLES.BackOfficeStandard)
@@ -73,10 +72,19 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <!-- Top toolbar: Logo, Title, Language Selector -->
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
-        <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
-        <span class="q-ml-md text-h3 text-weight-medium">{{
-          $t('calculator_title')
-        }}</span>
+        <router-link
+          :to="{
+            name: 'workspace-setup',
+          }"
+          :aria-label="$t('home')"
+          :title="$t('home')"
+          class="toolbar-home-link row items-center no-wrap"
+        >
+          <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
+          <span class="q-ml-md text-h3 text-weight-medium">{{
+            $t('calculator_title')
+          }}</span>
+        </router-link>
       </q-toolbar-title>
 
       <q-space />
@@ -93,7 +101,8 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         outline
         size="sm"
         class="text-weight-medium q-ml-xl"
-        :to="{ name: 'back-office-documentation' }"
+        :href="$t('header_documentation_link')"
+        target="_blank"
       />
 
       <q-btn
@@ -179,7 +188,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             :label="$t('home')"
-            :to="{ name: 'home', params: route.params }"
+            :to="{ name: 'workspace-setup', params: route.params }"
           />
           <q-breadcrumbs-el
             class="text-capitalize"
@@ -207,9 +216,11 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       </q-toolbar>
       <q-separator />
     </template>
-    <template v-if="route.name === 'module'">
-      <Co2Timeline />
-      <q-separator />
-    </template>
   </q-header>
 </template>
+<style scoped>
+.toolbar-home-link {
+  text-decoration: none;
+  color: inherit;
+}
+</style>

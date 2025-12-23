@@ -1,5 +1,5 @@
-import { Threshold } from './modules';
-
+import { Threshold } from 'src/constant/modules';
+import type { AllSubmoduleTypes } from 'src/constant/modules';
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
 export type FieldType =
   | 'text'
@@ -18,6 +18,7 @@ export interface ModuleField {
   placeholder?: string;
   min?: number;
   max?: number;
+  step?: number;
   options?: Array<{ value: string; label: string }>;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
@@ -29,6 +30,7 @@ export interface ModuleField {
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
+  maxColumnWidth?: number;
   hideIn?: {
     table?: boolean;
     form?: boolean;
@@ -37,9 +39,20 @@ export interface ModuleField {
 
 export interface Submodule {
   id: string;
-  name: string;
+  type: AllSubmoduleTypes;
+  name?: string; // deprecated, use nameKey instead
+  nameKey?: string; // i18n key for submodule name
+  tableNameKey?: string; // i18n key for table name
   count?: number;
   moduleFields: ModuleField[];
+  hasTableTopBar?: boolean;
+  hasFormSubtitle?: boolean;
+  hasTablePagination?: boolean;
+  hasStudentHelper?: boolean;
+  hasFormTooltip?: boolean;
+  hasFormAddWithNote?: boolean;
+  hasTableAction?: boolean;
+  addButtonLabelKey?: string;
 }
 
 export interface ResultBigNumberConfig {
@@ -59,6 +72,7 @@ export interface ModuleConfig {
   id: string;
   type: string;
   name?: string;
+  numberFormatOptions?: Intl.NumberFormatOptions;
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;

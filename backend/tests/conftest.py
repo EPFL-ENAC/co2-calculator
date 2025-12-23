@@ -1,10 +1,13 @@
 """Test configuration for pytest."""
 
+import logging
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import get_db
 from app.main import app
@@ -22,6 +25,12 @@ engine = create_async_engine(
 TestingSessionLocal = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
 )
+
+
+def pytest_configure():
+    """Configure pytest settings if needed."""
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -68,7 +77,7 @@ def mock_policy_allow(monkeypatch):
 
     async def mock_query_policy(*args, **kwargs):
         """Async mock for OPA query."""
-        return {"allow": True, "filters": {}}
+        return {"allow": True, "filters": {"unit_ids": ["12345"]}}
 
     # Patch it in the resource_service module where it's being called
     monkeypatch.setattr("app.services.resource_service.query_policy", mock_query_policy)

@@ -27,7 +27,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
     logger.info("Seeding emission factors...")
 
     # Check if Swiss mix factor already exists
-    result = await session.execute(
+    result = await session.exec(
         select(EmissionFactor).where(
             EmissionFactor.factor_name == "swiss_electricity_mix"
         )
@@ -66,7 +66,7 @@ async def seed_power_factors(session: AsyncSession) -> None:
     logger.info("Seeding power factors from CSV...")
 
     # Check if power factors already exist
-    result = await session.execute(select(PowerFactor))
+    result = await session.exec(select(PowerFactor))
     existing = result.first()
 
     if existing:
@@ -152,4 +152,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # run script on /app/api/v1/table_power.csv
     asyncio.run(main())
