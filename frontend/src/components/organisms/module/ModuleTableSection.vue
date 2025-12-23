@@ -4,6 +4,7 @@
       <template v-for="sub in currentModuleConfig.submodules" :key="sub.id">
         <sub-module-section
           :submodule="sub"
+          :module-config="currentModuleConfig"
           :module-type="type"
           :submodule-type="sub.type as any"
           :data="data"

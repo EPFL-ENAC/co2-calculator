@@ -3,6 +3,7 @@ import { createI18n } from 'vue-i18n';
 import { Cookies } from 'quasar';
 import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
+import { nOrDash } from 'src/utils/number';
 
 const LOCALE_COOKIE_KEY = 'locale';
 
@@ -24,11 +25,42 @@ declare module 'vue-i18n' {
     long: Intl.DateTimeFormatOptions;
   }
 
-  // define the number format schema
+  // // define the number format schema
   export interface DefineNumberFormat {
-    currency: Intl.NumberFormatOptions;
+    currency: Intl.NumberFormat;
+    decimal: Intl.NumberFormat;
+    percent: Intl.NumberFormat;
   }
 }
+
+const defaultFormat = {
+  currency: {
+    style: 'currency' as const,
+    currency: 'CHF',
+    notation: 'standard' as const,
+    useGrouping: true,
+    currencyDisplay: 'symbol' as const,
+  },
+  decimal: {
+    style: 'decimal' as const,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: true,
+  },
+  percent: {
+    style: 'percent' as const,
+    useGrouping: false,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  },
+};
+
+const numberFormats = {
+  'en-US': defaultFormat,
+  'de-CH': defaultFormat,
+  'fr-CH': defaultFormat,
+  // Add other locales as needed, all using the same config
+};
 
 // Detect browser language and find matching locale
 const getBrowserLocale = (): MessageLanguages => {
@@ -44,8 +76,10 @@ export const i18n = createI18n({
     (Cookies.get(LOCALE_COOKIE_KEY) as MessageLanguages) || DEFAULT_LOCALE,
   legacy: false,
   messages,
+  numberFormats,
 });
 
 export default boot(({ app }) => {
   app.use(i18n);
+  app.config.globalProperties.$nOrDash = nOrDash;
 });

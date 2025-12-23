@@ -84,6 +84,10 @@ export const myLab: ModuleConfig = {
     type: MODULES_THRESHOLD_TYPES[0],
     value: 1000000, // FTE; implicit coloring only
   },
+  numberFormatOptions: {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  },
   submodules: [
     {
       id: 'member',

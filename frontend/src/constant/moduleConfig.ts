@@ -72,6 +72,7 @@ export interface ModuleConfig {
   id: string;
   type: string;
   name?: string;
+  numberFormatOptions?: Intl.NumberFormatOptions;
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;

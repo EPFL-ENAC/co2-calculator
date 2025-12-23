@@ -12,7 +12,7 @@
            second line: kg CO₂-eq -->
       <div class="text-h3 module-total-result__value">
         <h1 class="text-h1 text-weight-bold q-mb-none">
-          {{ formatNumber(data) }}
+          {{ $nOrDash(data, { options: moduleConfig?.numberFormatOptions }) }}
         </h1>
         <p class="text-body2 text-secondary q-mb-none">
           {{ $t('module_total_result_title_unit', { type: type }) }}
@@ -24,11 +24,12 @@
 
 <script setup lang="ts">
 import { Module } from 'src/constant/modules';
-import { formatNumber } from 'src/utils/number';
+import { ModuleConfig } from 'src/constant/moduleConfig';
 
 defineProps<{
   type: Module;
   data?: number;
+  moduleConfig: ModuleConfig;
 }>();
 </script>
 <style scoped lang="scss">

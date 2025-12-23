@@ -47,6 +47,8 @@
           :module-type="moduleType"
           :submodule-type="submodule.type"
           :moduleconfig="submodule"
+          :module-config="moduleConfig"
+          :submodule-config="submodule"
         />
       </div>
       <q-separator />
@@ -69,7 +71,10 @@
 </template>
 
 <script setup lang="ts">
-import { Submodule as ConfigSubmodule } from 'src/constant/moduleConfig';
+import {
+  Submodule as ConfigSubmodule,
+  ModuleConfig,
+} from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
@@ -90,6 +95,7 @@ const moduleStore = useModuleStore();
 
 type CommonProps = {
   submodule: ConfigSubmodule;
+  moduleConfig: ModuleConfig;
   loading?: boolean;
   error?: string | null;
   data?: ModuleResponse | null;
