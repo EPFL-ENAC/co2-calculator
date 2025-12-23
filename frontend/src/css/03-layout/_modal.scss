@@ -1,0 +1,13 @@
+@use '../02-tokens/decisions' as dec;
+
+.modal {
+  width: dec.$modal-width-md;
+
+  &--lg {
+    width: dec.$modal-width-lg;
+  }
+
+  &--sm {
+    width: dec.$modal-width-sm;
+  }
+}

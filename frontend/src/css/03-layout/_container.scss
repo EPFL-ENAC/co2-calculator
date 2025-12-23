@@ -20,4 +20,9 @@
   &.full-width {
     max-width: 100%;
   }
+
+  &--selected {
+    border-color: var(--q-accent);
+    background-color: tokens.$container-selected-hover-bg;
+  }
 }

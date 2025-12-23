@@ -6,9 +6,11 @@ import {
   type ModuleThreshold,
 } from 'src/constant/modules';
 import ModuleThresholdInput from 'src/components/organisms/data-management/ModuleThresholdInput.vue';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const props = defineProps<{
   modelValue: ModuleThreshold;
+  year: number;
 }>();
 
 const emit = defineEmits<{
@@ -32,7 +34,7 @@ const expanded = ref(false);
     <q-expansion-item v-model="expanded" expand-separator>
       <template #header>
         <q-item-section avatar>
-          <q-icon :name="card.icon" color="accent" />
+          <module-icon :name="card.module" size="md" color="accent" />
         </q-item-section>
         <q-item-section class="text-h4 text-weight-medium">
           {{ $t(card.module) }}

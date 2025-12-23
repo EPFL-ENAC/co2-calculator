@@ -23,7 +23,8 @@ dependencies = [
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.4.0",
-    "types-passlib>=1.7.7.20250602"
+    "types-passlib>=1.7.7.20250602",
+    "sqlmodel>=0.0.27",
 ]
 
 [tool.pytest.ini_options]
@@ -38,6 +39,10 @@ env = [
     "OAUTH_CLIENT_SECRET=fake-secret",
     "OAUTH_SCOPE=openid profile email",
     "FRONTEND_URL=http://test-frontend"
+]
+
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
 
 [tool.ruff]
@@ -67,6 +72,7 @@ dev = [
   "mypy>=1.18.2",
   "locust>=2.42.2",
   "pytest-env>=1.2.0",
+  "faker>=38.2.0",
 ]
 
 

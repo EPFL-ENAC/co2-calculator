@@ -25,16 +25,20 @@
   @import './03-layout/body';
   @import './03-layout/grid';
   @import './03-layout/container';
+  @import './03-layout/modal';
 }
 
 @layer quasar-overrides {
   @import './05-components/quasar-overrides/q-badge';
   @import './05-components/quasar-overrides/q-btn-timeline-button';
   @import './05-components/quasar-overrides/q-btn';
+  @import './05-components/quasar-overrides/q-tooltip';
+  @import './05-components/quasar-overrides/q-dialog';
 }
 
 @layer components {
   // example component imports
+  @import './05-components/_atoms/icon';
   @import './05-components/_organisms/navigation';
   @import './05-components/_organisms/login-card';
   @import './05-components/_organisms/timeline';

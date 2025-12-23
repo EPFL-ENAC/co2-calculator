@@ -1,11 +1,41 @@
 """Resource model for CO2 calculation resources."""
 
-from sqlalchemy import JSON, Column, Integer, String
+# from sqlalchemy import JSON, Column, Integer, String, Relationship
 
-from app.db import Base
+from datetime import datetime
+from typing import Optional
+
+from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 
 
-class Unit(Base):
+class UnitBase(SQLModel):
+    """Base model for Units representing EPFL departments or organizational units."""
+
+    name: str = Field(nullable=False, index=True)
+    principal_user_id: str | None = Field(
+        foreign_key="users.id", nullable=True, index=True
+    )
+    affiliations: list = Field(
+        default=list,
+        sa_column=Column(JSON),
+        description="List of affiliations associated with the unit",
+    )
+    visibility: str = Field(
+        default="private",
+        nullable=False,
+        description="Visibility level: public, private, or unit",
+    )
+    created_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True))
+    )
+    created_by: Optional[str] = Field(default=None, index=True)
+    updated_by: Optional[str] = Field(default=None, index=True)
+
+
+class Unit(UnitBase, table=True):
     """
     Unit model representing CO2 calculation resources.
 
@@ -15,20 +45,7 @@ class Unit(Base):
     """
 
     __tablename__ = "units"
-    id = Column(Integer, primary_key=True, index=True)
-
-    name = Column(String, nullable=False, index=True)
-    role = Column(String, nullable=False, index=True)
-    principal_user_id = Column(Integer, nullable=False, index=True)
-    principal_user_name = Column(String, nullable=False)
-    principal_user_function = Column(String, nullable=False)
-    affiliations = Column(JSON, default=list)
-    visibility = Column(
-        String,
-        default="private",
-        nullable=False,
-        comment="Visibility level: public, private, or unit",
-    )
+    id: str | None = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
-        return f"<Resource {self.id}: {self.name}>"
+        return f"<Unit {self.id}: {self.name}>"

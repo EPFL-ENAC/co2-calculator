@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import { SYSTEM_NAV } from 'src/constant/navigation';
-import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
+import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 </script>
 
 <template>
@@ -46,11 +47,11 @@ import NavigationHeader from 'src/components/organisms/NavigationHeader.vue';
           <div class="flex row justify-between items-center">
             <div>
               <div class="flex items-center q-mb-xs">
-                <q-icon
-                  :name="moduleCard.icon"
-                  size="xs"
-                  class="q-mr-sm"
+                <module-icon
+                  :name="moduleCard.module"
+                  size="md"
                   color="accent"
+                  class="q-mr-xs"
                 />
                 <span class="text-h4 text-weight-medium q-mb-none">
                   {{ $t(moduleCard.module) }}

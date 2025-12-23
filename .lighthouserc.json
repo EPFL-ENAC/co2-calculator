@@ -4,7 +4,8 @@
       "staticDistDir": "./frontend/dist/spa",
       "numberOfRuns": 3,
       "settings": {
-        "preset": "desktop"
+        "preset": "desktop",
+        "plugins": ["lighthouse-plugin-ecoindex-core"]
       }
     },
     "assert": {

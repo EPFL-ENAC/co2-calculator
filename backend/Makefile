@@ -96,6 +96,12 @@ test-cov: ## Run tests with coverage
 test-cov-xml: ## Run tests with coverage and output XML report
 	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=60
 
+.PHONY: seed-data
+seed-data: ## Seed the database with initial data
+	$(UV) run -m app.seed_emission_factors
+	$(UV) run -m app.seed_equipment
+# 	$(UV) run -m app.populate_fake_data
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \
@@ -129,6 +135,14 @@ db-migrate: ## Run database migrations (upgrade to head)
 .PHONY: db-revision
 db-revision: ## Create new migration (usage: make db-revision message="description")
 	uv run alembic revision --autogenerate -m "$(message)"
+
+.PHONY: db-drop
+db-drop: ## Drop the database (use with caution!)
+	uv run -m scripts.manage_db --action drop || true
+.PHONY: db-create
+db-create: ## Create the database
+	uv run -m scripts.manage_db --action create  || true
+
 
 
 .PHONY: erd

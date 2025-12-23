@@ -176,6 +176,7 @@ const routes: RouteRecordRaw[] = [
           // Back Office routes
           {
             path: 'back-office',
+            name: 'back-office',
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },

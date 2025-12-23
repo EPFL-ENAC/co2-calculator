@@ -27,6 +27,11 @@ help: ## Show available targets
 	@echo "  make install          Install all dependencies and git hooks"
 	@echo "  make clean            Clean all build artifacts"
 	@echo ""
+	@echo "🗄️  Database Services:"
+	@echo "  make run-db           Start PostgreSQL database (docker compose)"
+	@echo "  make stop-db          Stop database services"
+	@echo "  make clean-db         Clean database (remove volumes)"
+	@echo ""
 	@echo "🔍 CI Validation (use before pushing to dev/stage/main):"
 	@echo "  make ci               Run all CI checks (lint + type-check + test + build)"
 	@echo "  make lint             Run all linters"
@@ -66,6 +71,8 @@ install: ## Install all dependencies and set up git hooks
 	cd frontend && $(MAKE) install
 	@echo "Installing docs dependencies..."
 	cd docs && $(MAKE) install
+	@echo "Install env files if missing..."
+	@if [ ! -f .database.env ]; then cp .database.env.example .database.env; fi
 	@echo "✅ Setup complete!"
 
 .PHONY: clean
@@ -89,6 +96,10 @@ run-db:
 .PHONY: stop-db
 stop-db:
 	docker compose down
+.PHONY: clean-db
+clean-db:
+	docker compose down -v
+	docker volume rm co2-calculator_postgres-data-18 || true
 
 # =============================================================================
 # CI/CD - Validation Commands

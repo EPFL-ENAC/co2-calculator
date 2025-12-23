@@ -60,6 +60,5 @@ identical application code.
 - Operational overhead managing PostgreSQL (mitigated by using
   EPFL-managed service or AWS RDS)
 
-**Configuration** uses Pydantic settings with `DB_URL` or
-individual `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_NAME` fields.
+**Configuration** uses Pydantic settings with `DB_URL`
 Falls back to `sqlite+aiosqlite:///./co2_calculator.db`.

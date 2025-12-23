@@ -31,6 +31,11 @@ $tokens-typography-font-size-sm: 0.875rem !default;
 $tokens-typography-font-size-xs: 0.75rem !default;
 $tokens-typography-font-size-2xs: 0.625rem !default;
 
+// Icon Sizes
+$tokens-icon-size-sm: 18px !default;
+$tokens-icon-size-md: 32px !default;
+$tokens-icon-size-lg: 48px !default;
+
 // Line Height
 $tokens-typography-line-height-4xl: 2.25rem !default;
 $tokens-typography-line-height-3xl: 2rem !default;
@@ -68,8 +73,9 @@ $tokens-colors-red-highlight-200: #f4c6c2 !default;
 
 // Layout
 $tokens-layout-page-width: 75rem !default;
+$tokens-layout-lg-modal-width: 75rem !default;
 $tokens-layout-md-modal-width: 30rem !default;
-$tokens-layout-sm-modal-width: 30rem !default;
+$tokens-layout-sm-modal-width: 20rem !default;
 $tokens-layout-full-width: 100% !default;
 $tokens-layout-full-height: 100% !default;
 

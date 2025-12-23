@@ -8,6 +8,10 @@
     border: none;
   }
 
+  tbody .q-tr:nth-child(even) {
+    background-color: tokens.$table-bg-even;
+  }
+
   th {
     font-size: tokens.$text-size-sm;
   }
@@ -37,5 +41,9 @@
         border-bottom: none !important;
       }
     }
+  }
+
+  .square-button {
+    padding: tokens.$spacing-sm tokens.$spacing-sm;
   }
 }

@@ -3,11 +3,12 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const { t } = useI18n();
 
 const modulesCounterText = computed(() =>
-  t('workspace_setup_unit_counter', {
+  t('home_modules_counter', {
     count: Object.keys(MODULES).length + 1,
   }),
 );
@@ -77,7 +78,7 @@ const homeIntroWithLinks = computed(() => {
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">42'000</p>
             <p class="text-secondary text-body2 q-mb-none">
-              {{ $t('home_results_units') }}
+              {{ $t('results_units') }}
             </p>
           </div>
         </div>
@@ -110,9 +111,9 @@ const homeIntroWithLinks = computed(() => {
     </div>
 
     <div>
-      <span class="text-h5 text-weight-medium q-mb-md">{{
-        modulesCounterText
-      }}</span>
+      <div class="text-h5 text-weight-medium q-mb-sm">
+        {{ modulesCounterText }}
+      </div>
       <div class="grid-3-col">
         <q-card
           v-for="moduleCard in MODULE_CARDS"
@@ -122,7 +123,7 @@ const homeIntroWithLinks = computed(() => {
         >
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
-              <q-icon :name="moduleCard.icon" color="accent" size="sm" />
+              <module-icon :name="moduleCard.module" size="md" color="accent" />
               <h3 class="text-h5 text-weight-medium">
                 {{ $t(moduleCard.module) }}
               </h3>
@@ -160,7 +161,7 @@ const homeIntroWithLinks = computed(() => {
             >
               <p class="text-weight-medium q-mb-none">{{ moduleCard.value }}</p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{ $t('home_results_units') }}
+                {{ $t('results_units') }}
               </p>
             </div>
           </div>

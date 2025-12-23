@@ -6,7 +6,9 @@
     "@commitlint/cli": "^17.1.2",
     "@commitlint/config-conventional": "^17.1.0",
     "@evilmartians/lefthook": "^1.5.0",
-    "prettier": "^3.5.3"
+    "lighthouse-plugin-ecoindex-core": "^6.0.6",
+    "prettier": "^3.5.3",
+    "puppeteer": "^24.31.0"
   },
   "version": "0.1.1"
 }
