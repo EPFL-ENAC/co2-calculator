@@ -12,7 +12,7 @@ const config: StorybookConfig = {
     '../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
 
-  addons: ['@storybook/addon-a11y'],
+  addons: ['@storybook/addon-a11y', '@storybook/addon-docs'],
 
   framework: {
     name: '@storybook/vue3-vite',
@@ -23,6 +23,7 @@ const config: StorybookConfig = {
     return mergeConfig(config, {
       plugins: [vue()],
       publicDir: path.resolve(__dirname, '../../public'),
+      root: path.resolve(__dirname, '../..'),
       resolve: {
         alias: {
           src: path.resolve(__dirname, '../../src'),

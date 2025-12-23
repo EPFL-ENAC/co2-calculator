@@ -5,3 +5,4 @@ site
 *.local.*
 .database.env
 *.csv
+storybook-static

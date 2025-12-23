@@ -41,6 +41,16 @@ setup((app) => {
       },
       { path: '/en', name: 'en', component: { template: '<div>EN</div>' } },
       { path: '/fr', name: 'fr', component: { template: '<div>FR</div>' } },
+      {
+        path: '/:language/:unit/:year/module/:module',
+        name: 'module',
+        component: { template: '<div>Module</div>' },
+      },
+      {
+        path: '/:language/:unit/:year/results',
+        name: 'results',
+        component: { template: '<div>Results</div>' },
+      },
     ],
   });
   app.use(router);
