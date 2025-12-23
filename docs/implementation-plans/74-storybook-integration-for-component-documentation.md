@@ -49,13 +49,13 @@ Add to [package.json](frontend/package.json):
 
 ```bash
 npm install --save-dev \
-  @storybook/vue3-vite@^10.1.8 \
-  @storybook/addon-a11y@^10.1.8 \
-  @storybook/test@^10.1.8 \
-  @storybook/test-runner@^0.24.2 \
-  storybook@^10.1.8 \
-  concurrently@^9.2.1 \
-  wait-on@^9.0.1
+  @storybook/vue3-vite@=10.1.8 \
+  @storybook/addon-a11y@=10.1.8 \
+  @storybook/test@=10.1.8 \
+  @storybook/test-runner@=0.24.2 \
+  storybook@=10.1.8 \
+  concurrently@=9.2.1 \
+  wait-on@=9.0.1
 ```
 
 **Note:** In Storybook 10.x, `@storybook/addon-essentials`, `@storybook/addon-interactions`, and `@storybook/addon-links` have been deprecated and integrated into Storybook's core. They should not be installed as separate packages.
@@ -64,14 +64,14 @@ npm install --save-dev \
 
 ```json
 {
-  "storybook": "storybook dev -p 6006",
-  "storybook:build": "storybook build",
-  "storybook:test": "test-storybook",
+  "storybook": "storybook dev -p 6006 --config-dir storybook/.storybook",
+  "storybook:build": "storybook build --config-dir storybook/.storybook",
+  "storybook:test": "test-storybook --config-dir storybook/.storybook",
   "storybook:test-ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"npm run storybook -- --no-open --quiet --ci\" \"wait-on tcp:127.0.0.1:6006 && npm run storybook:test\""
 }
 ```
 
-**Note:** All Storybook commands are run from the `frontend/` directory. Storybook will automatically detect the configuration in `storybook/.storybook/` directory.
+**Note:** All Storybook commands are run from the `frontend/` directory. The `--config-dir` flag is required since the Storybook configuration is located in the non-standard `storybook/.storybook/` directory.
 
 #### 2. Storybook Main Configuration
 
