@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.2.0...v0.3.0) (2025-12-23)
+
+
+### Features
+
+* **release:** add changelog and version 0.3.0 ([762f78b](https://github.com/EPFL-ENAC/co2-calculator/commit/762f78b58688ec27f2a30914cda4413eeda4116d))
+
 ## [0.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.2.0...v0.3.0)(2025-12-23)
 
 ## CO2 Calculator - Recent Development Summary
