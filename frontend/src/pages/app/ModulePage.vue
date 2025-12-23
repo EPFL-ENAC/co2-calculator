@@ -33,6 +33,7 @@
         "
         :data="totalResult"
         :type="currentModuleType"
+        :module-config="currentModuleConfig"
       />
       <module-navigation :current-module="currentModuleType" />
     </div>

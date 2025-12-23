@@ -10,7 +10,7 @@ import ChartContainer from 'src/components/molecules/ChartContainer.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.vue';
-import { formatNumber } from 'src/utils/number';
+import { nOrDash } from 'src/utils/number';
 
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -30,7 +30,7 @@ const getModuleConfig = (module: string) => MODULES_CONFIG[module];
 // This function will get the number value from backend response using numberKey
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getNumberValue = (_module: string, _numberKey: string): string => {
-  return formatNumber(37250);
+  return nOrDash(37250);
 };
 
 const calculateEquivalentKm = (
@@ -122,16 +122,16 @@ const downloadPDF = () => {
           number="37'250"
           :comparison="
             $t('results_equivalent_to_car', {
-              km: formatNumber(calculateEquivalentKm(37250, 0.34)),
-              value: `${formatNumber(0.34)}`,
+              km: nOrDash(calculateEquivalentKm(37250, 0.34)),
+              value: `${nOrDash(0.34)}`,
             })
           "
-          :comparison-highlight="`${formatNumber(calculateEquivalentKm(37250, 0.34))}km`"
+          :comparison-highlight="`${nOrDash(calculateEquivalentKm(37250, 0.34))}km`"
           color="negative"
         >
           <template #tooltip>{{
             $t('results_total_unit_carbon_footprint_tooltip', {
-              value: formatNumber(0.34),
+              value: nOrDash(0.34),
               unit: $t('results_kg_co2eq_per_km'),
             })
           }}</template>
@@ -141,10 +141,10 @@ const downloadPDF = () => {
           number="8.2"
           :comparison="
             $t('results_paris_agreement_value', {
-              value: `${formatNumber(2)}${$t('results_units_tonnes')}`,
+              value: `${nOrDash(2)}${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(2)}${$t('results_units_tonnes')}`"
+          :comparison-highlight="`${nOrDash(2)}${$t('results_units_tonnes')}`"
           color="negative"
         >
           <template #tooltip>{{
@@ -158,10 +158,10 @@ const downloadPDF = () => {
           color="positive"
           :comparison="
             $t('results_compared_to_value_of', {
-              value: `${formatNumber(48)}${$t('results_units_tonnes')}`,
+              value: `${nOrDash(48)}${$t('results_units_tonnes')}`,
             })
           "
-          :comparison-highlight="`${formatNumber(48)}${$t('results_units_tonnes')}`"
+          :comparison-highlight="`${nOrDash(48)}${$t('results_units_tonnes')}`"
         >
         </BigNumber>
       </q-card>
@@ -234,16 +234,16 @@ const downloadPDF = () => {
                     number="37'250"
                     :comparison="
                       $t('results_equivalent_to_car', {
-                        km: formatNumber(calculateEquivalentKm(37250, 0.34)),
-                        value: `${formatNumber(0.34)}`,
+                        km: nOrDash(calculateEquivalentKm(37250, 0.34)),
+                        value: `${nOrDash(0.34)}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(0.34)} ${$t('results_kg_co2eq_per_km')}`"
+                    :comparison-highlight="`${nOrDash(0.34)} ${$t('results_kg_co2eq_per_km')}`"
                     color="negative"
                   >
                     <template #tooltip>{{
                       $t('results_total_unit_carbon_footprint_tooltip', {
-                        value: `${formatNumber(0.34)}${$t('results_t_co2eq_per_km')}`,
+                        value: `${nOrDash(0.34)}${$t('results_t_co2eq_per_km')}`,
                       })
                     }}</template>
                   </BigNumber>
@@ -252,10 +252,10 @@ const downloadPDF = () => {
                     number="8.2"
                     :comparison="
                       $t('results_paris_agreement_value', {
-                        value: `${formatNumber(2)}${$t('results_units_tonnes')}`,
+                        value: `${nOrDash(2)}${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(2)}${$t('results_units_tonnes')}`"
+                    :comparison-highlight="`${nOrDash(2)}${$t('results_units_tonnes')}`"
                     color="negative"
                   >
                     <template #tooltip>{{
@@ -273,10 +273,10 @@ const downloadPDF = () => {
                     color="positive"
                     :comparison="
                       $t('results_compared_to_value_of', {
-                        value: `${formatNumber(48)}${$t('results_units_tonnes')}`,
+                        value: `${nOrDash(48)}${$t('results_units_tonnes')}`,
                       })
                     "
-                    :comparison-highlight="`${formatNumber(48)}${$t('results_units_tonnes')}`"
+                    :comparison-highlight="`${nOrDash(48)}${$t('results_units_tonnes')}`"
                   >
                   </BigNumber>
                 </q-card>

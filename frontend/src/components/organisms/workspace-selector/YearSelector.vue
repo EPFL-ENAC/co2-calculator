@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import { formatNumber } from 'src/utils/number';
+import { nOrDash } from 'src/utils/number';
 
 const ROWS_PER_PAGE = 20;
 
@@ -78,7 +78,7 @@ const columns = computed<QTableColumn[]>(() => [
         <!-- kg CO2 -->
         <q-td key="kgco2" :props="props" class="text-center">
           <span class="text-weight-medium"
-            >{{ formatNumber(props.row.kgco2) }}kg</span
+            >{{ nOrDash(props.row.kgco2) }}kg</span
           >
         </q-td>
       </q-tr>

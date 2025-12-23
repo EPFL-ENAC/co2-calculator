@@ -22,19 +22,6 @@
         class="text-weight-medium"
         @click="onDownloadTemplate"
       />
-      <q-icon
-        :name="outlinedInfo"
-        size="sm"
-        class="cursor-pointer"
-        :aria-label="
-          $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`)
-        "
-      />
-      <q-tooltip anchor="center left" self="top right" class="u-tooltip">
-        <p>
-          {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
-        </p>
-      </q-tooltip>
     </div>
     <q-input
       v-model="filterTerm"
@@ -62,7 +49,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
-    :hide-pagination="moduleconfig?.hasTablePagination === false"
+    :hide-pagination="submoduleConfig?.hasTablePagination === false"
     no-data-label="No items"
     :filter="filterTerm"
     @request="onRequest"
@@ -157,7 +144,7 @@
           <template
             v-else-if="
               col.name === 'action' &&
-              props.moduleconfig.hasTableAction !== false
+              props.submoduleConfig?.hasTableAction !== false
             "
           >
             <q-btn
@@ -300,12 +287,12 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
+import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -314,7 +301,7 @@ import type {
 
 import { MODULES } from 'src/constant/modules';
 
-import { formatNumber } from 'src/utils/number';
+import { nOrDash } from 'src/utils/number';
 
 const { t: $t } = useI18n();
 
@@ -338,11 +325,8 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;
-  moduleconfig: {
-    hasTableAction?: boolean;
-    hasTopBar?: boolean;
-    hasTablePagination?: boolean;
-  };
+  moduleConfig: ModuleConfig;
+  submoduleConfig: Submodule;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -432,7 +416,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       };
     });
 
-  if (props.moduleconfig.hasTableAction !== false) {
+  if (props.submoduleConfig.hasTableAction !== false) {
     baseCols.push({
       name: 'action',
       label: $t('common_actions'),
@@ -460,14 +444,16 @@ function renderCell(
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq') {
-    return formatNumber(val as number, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+    return nOrDash(val as number, {
+      options: {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      },
     });
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
-    return formatNumber(val);
+    return nOrDash(val, { options: props.moduleConfig?.numberFormatOptions });
   }
   console.warn('Unexpected cell value type', val);
   return String(val);

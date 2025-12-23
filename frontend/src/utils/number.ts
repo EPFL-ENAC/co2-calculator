@@ -12,19 +12,33 @@
  *   - For specific decimals: { minimumFractionDigits: 2, maximumFractionDigits: 2 }
  * @returns Formatted number string
  */
-export function formatNumber(
+import { i18n } from 'src/boot/i18n';
+
+const defaultNumberValue = '–';
+export function nOrDash(
   value: number | string | null | undefined,
-  options?: Intl.NumberFormatOptions,
+  config?: {
+    key?: string;
+    locale?: string;
+    options?: Intl.NumberFormatOptions;
+  },
 ): string {
   if (value === null || value === undefined || value === '') {
-    return '-';
+    return defaultNumberValue;
   }
-
   const numValue = typeof value === 'string' ? Number(value) : value;
-
   if (!Number.isFinite(numValue)) {
-    return '-';
+    return defaultNumberValue;
   }
-
-  return new Intl.NumberFormat('de-CH', options).format(numValue);
+  const {
+    key = 'decimal',
+    locale = 'de-CH', // i18n.global.locale.value,
+    options,
+  } = config || {};
+  if (options) {
+    // @ts-expect-error -- vue-i18n types issue
+    return i18n.global.n(numValue, key, locale, options) || defaultNumberValue;
+  }
+  // @ts-expect-error -- vue-i18n types issue
+  return i18n.global.n(numValue, key, locale) || defaultNumberValue;
 }
