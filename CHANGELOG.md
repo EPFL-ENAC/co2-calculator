@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.2.0...v0.3.0)(2025-12-23)
+Looking at this changelog, I can see it's a raw git commit history that's difficult to parse. Let me create a more meaningful summary organized by feature area:
+
+## CO2 Calculator - Recent Development Summary
+
+### Major Features
+
+**Headcount Module (#75)**
+- Implemented complete CRUD operations for personnel management
+- Added member and student tracking with FTE calculations
+- Created student FTE helper tool for simplified data entry
+- Improved role mapping and statistics display
+- Enhanced validation and error handling
+
+**Results & Visualization (#213, #236)**
+- Added carbon footprint stacked bar charts with standard deviation
+- Implemented year-over-year comparison functionality
+- Added PNG chart export capability
+- Created uncertainty visualization toggles
+- Improved number formatting and unit display across all views
+
+**Table Improvements (#228, #235)**
+- Refactored pagination, filtering, and search functionality
+- Added sticky headers with fixed max height
+- Increased table density and optimized column widths
+- Implemented better sorting for equipment lists
+- Expanded page width from 1200px to 1320px for better data display
+
+### User Experience Enhancements
+- Made logo clickable with home page navigation
+- Moved timeline from header to module content for better space utilization
+- Improved module navigation with prev/next links
+- Collapsed modules by default in results view
+- Enhanced i18n support with French translations
+
+### Technical Improvements
+- Modernized user/unit management architecture
+- Added comprehensive test coverage (60% minimum)
+- Improved error handling and logging
+- Deployed to both enack8s and OpenShift platforms
+- Updated documentation structure with user guides
+
+### Bug Fixes
+- Corrected equipment sorting and filtering logic
+- Fixed unit retrieval and URL parameter handling
+- Resolved Safari layout centering issues
+- Improved form validation for incomplete entries
+- Various tooltip and UI corrections
+
+
 ## [0.2.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.1.1...v0.2.0) (2025-12-23)
 
 
