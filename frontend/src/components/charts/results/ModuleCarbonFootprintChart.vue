@@ -416,7 +416,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-it-subcategory'),
+      name: t('charts-equipment-it'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -476,7 +476,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-it-category'),
+      name: t('charts-infrastructure-it'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -583,10 +583,6 @@ const chartOption = computed((): EChartsOption => {
     ...additionalSeriesData.value,
   ];
 
-  const seriesNameToKey = Object.fromEntries(
-    seriesArray.map((s) => [s.name, s.encode.y]),
-  ) as Record<string, string>;
-
   return {
     tooltip: {
       trigger: 'axis',
@@ -617,16 +613,14 @@ const chartOption = computed((): EChartsOption => {
             value?: number | number[];
             data?: Record<string, unknown>;
           };
-          const key = seriesNameToKey[p.seriesName || ''];
-          const val =
-            (data && key
-              ? Number(data[key])
-              : Array.isArray(p.value)
-                ? p.value[1]
-                : p.value) || 0;
-          if (val > 0) {
-            tooltip += `${p.marker || ''} ${p.seriesName}: <strong>${val.toFixed(1)} </strong><br/>`;
-            total += val;
+          // Find series by name to get its key
+          const series = seriesArray.find((s) => s.name === p.seriesName);
+          const key = series?.encode.y;
+
+          const dataValue = Number(data[key]) || 0;
+          if (dataValue > 0) {
+            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${dataValue.toFixed(1)} </strong><br/>`;
+            total += dataValue;
           }
         });
 
