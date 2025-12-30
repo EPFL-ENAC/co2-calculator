@@ -27,7 +27,7 @@ export const Default: Story = {
     components: { CO2Container },
     template: `
       <CO2Container>
-        <p>This is content inside the CO2Container.</p>
+        <span>This is content inside the CO2Container.</span>
       </CO2Container>
     `,
   }),
@@ -42,7 +42,7 @@ export const WithMultipleElements: Story = {
     template: `
       <CO2Container>
         <h2>Container Title</h2>
-        <p>This container can hold multiple elements.</p>
+        <span>This container can hold multiple elements.</span>
       </CO2Container>
     `,
   }),
