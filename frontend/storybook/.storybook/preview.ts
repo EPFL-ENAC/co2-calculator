@@ -4,6 +4,26 @@ import { createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { Quasar, Dialog, Loading, Notify } from 'quasar';
+import {
+  QHeader,
+  QToolbar,
+  QToolbarTitle,
+  QImg,
+  QSpace,
+  QBtn,
+  QBtnDropdown,
+  QList,
+  QItem,
+  QItemSection,
+  QItemLabel,
+  QIcon,
+  QSeparator,
+  QBreadcrumbs,
+  QBreadcrumbsEl,
+  QLayout,
+  QPageContainer,
+  QPage,
+} from 'quasar';
 import messages from '../../src/i18n';
 import { icons } from '../../src/plugin/module-icon';
 
@@ -39,12 +59,66 @@ setup((app) => {
         name: 'language-home',
         component: { template: '<div>Home</div>' },
       },
+      {
+        path: '/:language/workspace-setup',
+        name: 'workspace-setup',
+        component: { template: '<div>Workspace Setup</div>' },
+      },
+      {
+        path: '/:language/back-office',
+        name: 'back-office',
+        component: { template: '<div>Back Office</div>' },
+        meta: { isBackOffice: true },
+      },
+      {
+        path: '/:language/back-office/reporting',
+        name: 'backoffice-reporting',
+        component: { template: '<div>Backoffice Reporting</div>' },
+        meta: { isBackOffice: true },
+      },
+      {
+        path: '/:language/back-office/user-management',
+        name: 'backoffice-user-management',
+        component: { template: '<div>Backoffice User Management</div>' },
+        meta: { isBackOffice: true },
+      },
+      {
+        path: '/:language/back-office/data-management',
+        name: 'backoffice-data-management',
+        component: { template: '<div>Backoffice Data Management</div>' },
+        meta: { isBackOffice: true },
+      },
+      {
+        path: '/:language/back-office/documentation-editing',
+        name: 'backoffice-documentation-editing',
+        component: { template: '<div>Backoffice Documentation Editing</div>' },
+        meta: { isBackOffice: true },
+      },
+      {
+        path: '/:language/system/user-management',
+        name: 'system-user-management',
+        component: { template: '<div>System User Management</div>' },
+        meta: { isSystem: true },
+      },
+      {
+        path: '/:language/system/module-management',
+        name: 'system-module-management',
+        component: { template: '<div>System Module Management</div>' },
+        meta: { isSystem: true },
+      },
+      {
+        path: '/:language/system/logs',
+        name: 'system-logs',
+        component: { template: '<div>System Logs</div>' },
+        meta: { isSystem: true },
+      },
       { path: '/en', name: 'en', component: { template: '<div>EN</div>' } },
       { path: '/fr', name: 'fr', component: { template: '<div>FR</div>' } },
       {
         path: '/:language/:unit/:year/module/:module',
         name: 'module',
         component: { template: '<div>Module</div>' },
+        meta: { breadcrumb: true },
       },
       {
         path: '/:language/:unit/:year/results',
@@ -63,6 +137,26 @@ setup((app) => {
       Notify,
     },
   });
+
+  // Register Quasar components globally
+  app.component('QHeader', QHeader);
+  app.component('QToolbar', QToolbar);
+  app.component('QToolbarTitle', QToolbarTitle);
+  app.component('QImg', QImg);
+  app.component('QSpace', QSpace);
+  app.component('QBtn', QBtn);
+  app.component('QBtnDropdown', QBtnDropdown);
+  app.component('QList', QList);
+  app.component('QItem', QItem);
+  app.component('QItemSection', QItemSection);
+  app.component('QItemLabel', QItemLabel);
+  app.component('QIcon', QIcon);
+  app.component('QSeparator', QSeparator);
+  app.component('QBreadcrumbs', QBreadcrumbs);
+  app.component('QBreadcrumbsEl', QBreadcrumbsEl);
+  app.component('QLayout', QLayout);
+  app.component('QPageContainer', QPageContainer);
+  app.component('QPage', QPage);
 
   // Register custom SVG icons
   app.config.globalProperties.$moduleIcons = icons;
@@ -96,6 +190,10 @@ const preview: Preview = {
         desktop: {
           name: 'Desktop',
           styles: { width: '1440px', height: '900px' },
+        },
+        'xl-desktop': {
+          name: 'XL Desktop',
+          styles: { width: '2560px', height: '1440px' },
         },
       },
     },
