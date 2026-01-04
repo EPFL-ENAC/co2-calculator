@@ -241,4 +241,3 @@ export const System: Story = {
     template: '<Co2Sidebar :items="args.items" />',
   }),
 };
-

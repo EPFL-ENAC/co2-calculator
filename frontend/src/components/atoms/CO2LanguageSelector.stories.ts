@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/vue3';
 import type { Decorator } from '@storybook/vue3';
 import { useRouter } from 'vue-router';
-import CO2LanguageSelector from './CO2LanguageSelector.vue';
+import CO2LanguageSelector from './Co2LanguageSelector.vue';
 
 /**
  * CO2LanguageSelector is a component that displays language selection links.

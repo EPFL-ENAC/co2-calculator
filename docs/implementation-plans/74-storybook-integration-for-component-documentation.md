@@ -145,9 +145,9 @@ npm install --save-dev \
 - **Description:** Simple slot wrapper with container styling
 - **Features:** Single slot, layout styles
 
-#### 8. Co2LanguageSelector Stories
+#### 8. CO2LanguageSelector Stories
 
-**File:** [src/components/atoms/Co2LanguageSelector.stories.ts](frontend/src/components/atoms/Co2LanguageSelector.stories.ts) _(create new)_
+**File:** [src/components/atoms/CO2LanguageSelector.stories.ts](frontend/src/components/atoms/CO2LanguageSelector.stories.ts) _(create new)_
 
 - **Stories:** Default, WithMockRoute
 - **Description:** Language switcher using Vue Router
@@ -387,7 +387,7 @@ CI/CD Pipeline → Build frontend Dockerfile (main app)
 5. [storybook/.storybook/fixtures/timeline.ts](frontend/storybook/.storybook/fixtures/timeline.ts) - Mock data
 6. [storybook/.storybook/fixtures/timelineItems.ts](frontend/storybook/.storybook/fixtures/timelineItems.ts) - Mock data
 
-**Atom Stories:** 7. [src/components/atoms/ModuleIcon.stories.ts](frontend/src/components/atoms/ModuleIcon.stories.ts) 8. [src/components/atoms/CO2Container.stories.ts](frontend/src/components/atoms/CO2Container.stories.ts) 9. [src/components/atoms/Co2LanguageSelector.stories.ts](frontend/src/components/atoms/Co2LanguageSelector.stories.ts)
+**Atom Stories:** 7. [src/components/atoms/ModuleIcon.stories.ts](frontend/src/components/atoms/ModuleIcon.stories.ts) 8. [src/components/atoms/CO2Container.stories.ts](frontend/src/components/atoms/CO2Container.stories.ts) 9. [src/components/atoms/CO2LanguageSelector.stories.ts](frontend/src/components/atoms/CO2LanguageSelector.stories.ts)
 
 **Molecule Stories:** 10. [src/components/molecules/BigNumber.stories.ts](frontend/src/components/molecules/BigNumber.stories.ts) 11. [src/components/molecules/ChartContainer.stories.ts](frontend/src/components/molecules/ChartContainer.stories.ts) 12. [src/components/molecules/Co2TimelineItem.stories.ts](frontend/src/components/molecules/Co2TimelineItem.stories.ts)
 
@@ -507,7 +507,7 @@ CI/CD Pipeline → Build frontend Dockerfile (main app)
 
 1. **Phase 1:** Install dependencies and create configuration files
 2. **Phase 2:** Create decorators and fixtures
-3. **Phase 3:** Create atom stories (ModuleIcon → CO2Container → Co2LanguageSelector)
+3. **Phase 3:** Create atom stories (ModuleIcon → CO2Container → CO2LanguageSelector)
 4. **Phase 4:** Create molecule stories (BigNumber → ChartContainer → Co2TimelineItem)
 5. **Phase 4b:** Create chart stories (ModuleCarbonFootprintChart, others as needed)
    - **Decision point:** Determine if charts category should remain separate or be consolidated into molecules

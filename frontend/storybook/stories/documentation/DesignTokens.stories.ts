@@ -1322,6 +1322,7 @@ const OptionsReference = defineComponent({
               fontSize: '0.875rem',
               color: '#8e8e8e',
               borderBottom: '1px solid #e6e6e6',
+              textAlign: 'right',
             },
           },
           value,
@@ -1360,7 +1361,7 @@ const OptionsReference = defineComponent({
                 {
                   style: {
                     padding: '0.75rem',
-                    textAlign: 'left',
+                    textAlign: 'right',
                     fontWeight: '600',
                     borderBottom: '2px solid #e6e6e6',
                     backgroundColor: '#f5f5f5',
@@ -1407,6 +1408,7 @@ const OptionsReference = defineComponent({
                 padding: '0.75rem',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'flex-end',
                 gap: '0.75rem',
               },
             },
@@ -1668,6 +1670,7 @@ const DecisionsReference = defineComponent({
               fontSize: '0.875rem',
               color: '#8e8e8e',
               borderBottom: '1px solid #e6e6e6',
+              textAlign: 'right',
             },
           },
           value,
@@ -1706,7 +1709,7 @@ const DecisionsReference = defineComponent({
                 {
                   style: {
                     padding: '0.75rem',
-                    textAlign: 'left',
+                    textAlign: 'right',
                     fontWeight: '600',
                     borderBottom: '2px solid #e6e6e6',
                     backgroundColor: '#f5f5f5',
@@ -1753,6 +1756,7 @@ const DecisionsReference = defineComponent({
                 padding: '0.75rem',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'flex-end',
                 gap: '0.75rem',
               },
             },
@@ -1967,6 +1971,7 @@ const ComponentsReference = defineComponent({
               fontSize: '0.875rem',
               color: '#8e8e8e',
               borderBottom: '1px solid #e6e6e6',
+              textAlign: 'right',
             },
           },
           value,
@@ -2005,7 +2010,7 @@ const ComponentsReference = defineComponent({
                 {
                   style: {
                     padding: '0.75rem',
-                    textAlign: 'left',
+                    textAlign: 'right',
                     fontWeight: '600',
                     borderBottom: '2px solid #e6e6e6',
                     backgroundColor: '#f5f5f5',

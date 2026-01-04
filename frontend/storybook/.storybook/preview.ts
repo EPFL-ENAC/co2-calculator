@@ -1,6 +1,6 @@
 import type { Preview } from '@storybook/vue3';
 import { setup } from '@storybook/vue3';
-import { createPinia } from 'pinia';
+import { createPinia, setActivePinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { Quasar, Dialog, Loading, Notify } from 'quasar';
@@ -23,9 +23,13 @@ import {
   QLayout,
   QPageContainer,
   QPage,
+  QCard,
+  QCardSection,
+  QCheckbox,
 } from 'quasar';
 import messages from '../../src/i18n';
 import { icons } from '../../src/plugin/module-icon';
+import { useColorblindStore } from '../../src/stores/colorblind';
 
 // Import Quasar styles
 import '@quasar/extras/material-icons/material-icons.css';
@@ -38,8 +42,14 @@ import '../../src/css/app.scss';
 setup((app) => {
   // Create fresh Pinia instance
   const pinia = createPinia();
+  setActivePinia(pinia);
 
   app.use(pinia);
+
+  // Initialize stores that are used at module level
+  // This ensures stores are available when modules are imported
+  // The colorblind store is used in src/constant/charts.ts at module level
+  useColorblindStore(pinia);
 
   // Create i18n instance
   const i18n = createI18n({
@@ -157,6 +167,9 @@ setup((app) => {
   app.component('QLayout', QLayout);
   app.component('QPageContainer', QPageContainer);
   app.component('QPage', QPage);
+  app.component('QCard', QCard);
+  app.component('QCardSection', QCardSection);
+  app.component('QCheckbox', QCheckbox);
 
   // Register custom SVG icons
   app.config.globalProperties.$moduleIcons = icons;
@@ -164,6 +177,18 @@ setup((app) => {
 
 const preview: Preview = {
   parameters: {
+    options: {
+      storySort: {
+        order: [
+          'Documentation',
+          'Atoms',
+          'Molecules',
+          'Charts',
+          'Organisms',
+          'Layout',
+        ],
+      },
+    },
     controls: {
       matchers: {
         color: /(background|color)$/i,
