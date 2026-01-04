@@ -37,7 +37,7 @@ const comparisonParts = computed(() => {
 </script>
 
 <template>
-  <q-card class="container container--pa-none">
+  <q-card flat class="container container--pa-none">
     <q-card-section class="flex items-center q-mb-xs">
       <q-icon v-if="$slots.tooltip" name="o_info" size="xs" color="primary">
         <q-tooltip
