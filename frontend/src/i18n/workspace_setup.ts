@@ -13,7 +13,7 @@ export default {
   },
   workspace_setup_unit_title: {
     en: 'Select your lab',
-    fr: 'Select Your Laboratory',
+    fr: 'Sélectionnez votre laboratoire',
   },
   workspace_setup_unit_description: {
     en: 'Choose the unit you want to assess for its carbon footprint.',
