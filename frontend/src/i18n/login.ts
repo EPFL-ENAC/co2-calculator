@@ -9,7 +9,7 @@ export default {
   },
   login_button_submit: {
     en: 'Login',
-    fr: 'Log in',
+    fr: 'Se connecter',
   },
   login_button_loading: {
     en: 'Connecting...',
