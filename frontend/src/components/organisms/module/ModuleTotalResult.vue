@@ -20,7 +20,6 @@
               $nOrDash(data, {
                 options: {
                   ...moduleConfig?.numberFormatOptions,
-                  maximumFractionDigits: 0,
                 },
               })
             }}
