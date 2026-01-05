@@ -1,0 +1,30 @@
+# Dependencies - these are installed fresh in Docker
+node_modules
+
+# Build outputs
+dist
+storybook-static
+
+# Test outputs
+test-results
+playwright-report
+coverage
+
+# IDE and OS files
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local env files
+.env.local
+.env.*.local

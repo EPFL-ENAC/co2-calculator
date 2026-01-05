@@ -5,6 +5,7 @@ import { mergeConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, '../..');
 
 const config: StorybookConfig = {
   stories: [
@@ -22,30 +23,66 @@ const config: StorybookConfig = {
   },
 
   async viteFinal(config) {
-    return mergeConfig(config, {
-      plugins: [vue()],
-      publicDir: path.resolve(__dirname, '../../public'),
-      root: path.resolve(__dirname, '../..'),
-      resolve: {
-        alias: {
-          src: path.resolve(__dirname, '../../src'),
-          components: path.resolve(__dirname, '../../src/components'),
-          layouts: path.resolve(__dirname, '../../src/layouts'),
-          pages: path.resolve(__dirname, '../../src/pages'),
-          assets: path.resolve(__dirname, '../../src/assets'),
-          boot: path.resolve(__dirname, '../../src/boot'),
-          stores: path.resolve(__dirname, '../../src/stores'),
+    // Remove any existing vue plugins
+    const filteredPlugins = (config.plugins || []).filter((plugin) => {
+      if (!plugin) return false;
+      const pluginName =
+        typeof plugin === 'object' && 'name' in plugin ? plugin.name : '';
+      return pluginName !== 'vite:vue';
+    });
+
+    return mergeConfig(
+      { ...config, plugins: filteredPlugins },
+      {
+        plugins: [
+          vue({
+            template: {
+              compilerOptions: {
+                isCustomElement: (tag) => tag.startsWith('q-'),
+              },
+            },
+          }),
+        ],
+        resolve: {
+          alias: {
+            src: path.resolve(projectRoot, 'src'),
+            components: path.resolve(projectRoot, 'src/components'),
+            layouts: path.resolve(projectRoot, 'src/layouts'),
+            pages: path.resolve(projectRoot, 'src/pages'),
+            assets: path.resolve(projectRoot, 'src/assets'),
+            boot: path.resolve(projectRoot, 'src/boot'),
+            stores: path.resolve(projectRoot, 'src/stores'),
+          },
         },
-      },
-      css: {
-        preprocessorOptions: {
-          scss: {
-            api: 'modern-compiler',
-            additionalData: `@use "sass:math"; @import "${path.resolve(__dirname, '../../src/css/02-tokens/quasar-bridge.scss')}";`,
+        css: {
+          preprocessorOptions: {
+            scss: {
+              api: 'modern-compiler',
+              silenceDeprecations: ['import'],
+            },
+          },
+        },
+        build: {
+          assetsInlineLimit: 0,
+          rollupOptions: {
+            external: [
+              // Exclude page components from the build
+              /src\/pages\/.*/,
+            ],
+            onwarn: (warning, warn) => {
+              // Ignore unresolved import warnings for fonts in public folder
+              if (
+                warning.code === 'UNRESOLVED_IMPORT' &&
+                warning.message.includes('/fonts/')
+              ) {
+                return;
+              }
+              warn(warning);
+            },
           },
         },
       },
-    });
+    );
   },
 };
 

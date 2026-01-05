@@ -11,8 +11,14 @@ COPY package.json package-lock.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy source code
-COPY . .
+# Copy source code (be selective to avoid copying node_modules)
+COPY src/ ./src/
+COPY public/ ./public/
+COPY storybook/ ./storybook/
+COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
+
+# Prepare Quasar (generates .quasar/)
+RUN npx quasar prepare
 
 # Build Storybook static site (creates ./storybook-static)
 RUN npm run storybook:build
