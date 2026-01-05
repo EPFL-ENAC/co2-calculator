@@ -9,6 +9,17 @@
         :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
         :has-tooltip="currentModuleConfig.hasTooltip"
       />
+      <!-- module summary -->
+      <module-total-result
+        v-if="
+          (
+            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+          ).includes(currentModuleType)
+        "
+        :data="totalResult"
+        :type="currentModuleType"
+        :module-config="currentModuleConfig"
+      />
       <module-charts :type="currentModuleType" />
       <!-- module tables iteration -->
       <module-table-section
@@ -23,17 +34,6 @@
         :error="error"
         :unit-id="workspaceStore.selectedUnit?.id"
         :year="workspaceStore.selectedYear"
-      />
-      <!-- module summary -->
-      <module-total-result
-        v-if="
-          (
-            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
-          ).includes(currentModuleType)
-        "
-        :data="totalResult"
-        :type="currentModuleType"
-        :module-config="currentModuleConfig"
       />
       <module-navigation :current-module="currentModuleType" />
     </div>
