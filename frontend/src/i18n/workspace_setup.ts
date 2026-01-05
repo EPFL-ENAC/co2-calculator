@@ -25,7 +25,7 @@ export default {
   },
   workspace_setup_unit_role: {
     en: 'Your role:',
-    fr: 'Your Role:',
+    fr: 'Votre rôle :',
   },
   workspace_setup_year_title: {
     en: 'Assessment years',
