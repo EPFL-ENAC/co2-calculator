@@ -126,12 +126,12 @@ export default {
     fr: 'EPT moyen par étudiant·e',
   },
   student_helper_calculated_label: {
-    en: 'Calculated Annual FTE',
+    en: 'Total Student FTE',
     fr: 'EPT annuel calculé',
   },
   student_helper_use_button: {
-    en: 'Use This Value',
-    fr: 'Utiliser cette valeur',
+    en: 'Update',
+    fr: 'Mettre à jour',
   },
   [`${MODULES.MyLab}-student-form-title-info-label`]: {
     en: 'fte student tooltip',
