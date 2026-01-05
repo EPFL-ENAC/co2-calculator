@@ -124,6 +124,10 @@ export default {
       return 't CO₂-eq';
     },
   },
+  module_total_result_placeholder: {
+    en: 'Work in progress, validate to see the results.',
+    fr: "En cours jusqu'à validation.",
+  },
   common_filter_all: {
     en: 'All',
     fr: 'Tous',

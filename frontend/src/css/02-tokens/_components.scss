@@ -253,6 +253,8 @@ $graph-line-height: opt.$tokens-typography-line-height-sm !default;
 
 // Module Result Summary
 $module-result-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
+$module-result-bg-validated: opt.$tokens-colors-validated-highlight !default;
+$module-result-border-validated: opt.$tokens-colors-leman !default;
 $module-result-border-color: opt.$tokens-colors-grey-scale-grey-300 !default;
 $module-result-border-weight: opt.$tokens-spacing-1 !default;
 $module-result-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
