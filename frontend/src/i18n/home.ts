@@ -37,7 +37,7 @@ export default {
   },
   home_results_title: {
     en: 'Results Visualization',
-    fr: 'Visualisation Voire',
+    fr: 'Visualisation des Résultats',
   },
   home_results_subtitle: {
     en: 'Annual CO₂ Assessment {year}',
