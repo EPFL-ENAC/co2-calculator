@@ -112,8 +112,10 @@ export default defineConfig(function (/* ctx */) {
         );
 
         viteConf.css = viteConf.css || {};
-        viteConf.css.preprocessorOptions = viteConf.css.preprocessorOptions || {};
-        viteConf.css.preprocessorOptions.scss = viteConf.css.preprocessorOptions.scss || {};
+        viteConf.css.preprocessorOptions =
+          viteConf.css.preprocessorOptions || {};
+        viteConf.css.preprocessorOptions.scss =
+          viteConf.css.preprocessorOptions.scss || {};
         viteConf.css.preprocessorOptions.scss.silenceDeprecations = ['import'];
       },
     },
