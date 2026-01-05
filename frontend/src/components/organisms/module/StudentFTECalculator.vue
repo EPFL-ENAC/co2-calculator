@@ -3,7 +3,6 @@
     <q-form
       ref="formRef"
       class="student-fte-calculator q-mx-md"
-      @submit="onSubmit"
       @reset="onReset"
     >
       <q-input
@@ -40,32 +39,20 @@
         dense
       />
 
-      <div class="calculated-result flex justify-between items-center">
-        <div>
-          <span class="text-body2 text-secondary"
-            >{{ $t('student_helper_calculated_label') }}:</span
-          >
-          <div class="text-body1 text-weight-bold text-primary">
-            {{ formattedCalculatedFTE }}
-          </div>
+      <div class="calculated-result">
+        <span class="text-body2 text-secondary"
+          >{{ $t('student_helper_calculated_label') }}:</span
+        >
+        <div class="text-body1 text-weight-bold text-primary">
+          {{ formattedCalculatedFTE }}
         </div>
-
-        <q-btn
-          color="accent"
-          :label="$t('student_helper_use_button')"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium"
-          type="submit"
-        />
       </div>
     </q-form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QForm } from 'quasar';
 
@@ -95,6 +82,18 @@ const formattedCalculatedFTE = computed(() => {
   return calculatedFTE.value.toFixed(1);
 });
 
+// Automatically update the parent form when calculation is valid and all fields are filled
+watch(calculatedFTE, (newValue) => {
+  if (
+    newValue > 0 &&
+    students.value !== null &&
+    duration.value !== null &&
+    avgFTE.value !== null
+  ) {
+    emit('use-value', Number(newValue.toFixed(1)));
+  }
+});
+
 // Validation rules
 const studentsRules = computed(() => [
   (val: number | null) =>
@@ -120,13 +119,6 @@ function onReset() {
     formRef.value?.resetValidation();
   });
 }
-
-async function onSubmit() {
-  const valid = await formRef.value?.validate();
-  if (!valid) return;
-  emit('use-value', Number(calculatedFTE.value.toFixed(1)));
-  onReset();
-}
 </script>
 
 <style scoped lang="scss">
@@ -141,8 +133,8 @@ async function onSubmit() {
 
 .calculated-result {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
   padding: 1rem;
   background-color: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
