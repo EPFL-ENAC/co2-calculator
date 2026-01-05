@@ -77,6 +77,9 @@ export const i18n = createI18n({
   legacy: false,
   messages,
   numberFormats,
+  // Show i18n warnings only in dev
+  missingWarn: import.meta.env.DEV,
+  fallbackWarn: import.meta.env.DEV,
 });
 
 export default boot(({ app }) => {
