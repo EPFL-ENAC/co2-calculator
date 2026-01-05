@@ -38,15 +38,6 @@
         outlined
         dense
       />
-
-      <div class="calculated-result">
-        <span class="text-body2 text-secondary"
-          >{{ $t('student_helper_calculated_label') }}:</span
-        >
-        <div class="text-body1 text-weight-bold text-primary">
-          {{ formattedCalculatedFTE }}
-        </div>
-      </div>
     </q-form>
   </div>
 </template>
@@ -73,13 +64,6 @@ const calculatedFTE = computed(() => {
     return 0;
   }
   return (students.value * duration.value * avgFTE.value) / 12;
-});
-
-const formattedCalculatedFTE = computed(() => {
-  if (calculatedFTE.value === 0) {
-    return '-';
-  }
-  return calculatedFTE.value.toFixed(1);
 });
 
 // Automatically update the parent form when calculation is valid and all fields are filled
