@@ -44,3 +44,7 @@ yarn-error.log*
 /playwright/.auth/
 
 *local.json
+
+
+# Storybook related directories and files
+/storybook-static/

@@ -110,6 +110,13 @@ export default defineConfig(function (/* ctx */) {
           __dirname,
           './src/css/empty.scss',
         );
+
+        viteConf.css = viteConf.css || {};
+        viteConf.css.preprocessorOptions =
+          viteConf.css.preprocessorOptions || {};
+        viteConf.css.preprocessorOptions.scss =
+          viteConf.css.preprocessorOptions.scss || {};
+        viteConf.css.preprocessorOptions.scss.silenceDeprecations = ['import'];
       },
     },
 

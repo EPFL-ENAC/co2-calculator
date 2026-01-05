@@ -1,6 +1,7 @@
 // Import all icons as raw SVG strings
 const moduleIcons = import.meta.glob('/src/assets/icons/modules/*.svg', {
-  as: 'raw',
+  query: '?raw',
+  import: 'default',
   eager: true,
 });
 
