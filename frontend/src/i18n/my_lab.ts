@@ -62,6 +62,11 @@ export default {
     en: 'Add FTE',
     fr: 'Ajouter un EPT',
   },
+
+  [`${MODULES.MyLab}-student-form-add-button`]: {
+    en: 'Add Student FTE',
+    fr: 'Ajouter un EPT étudiant',
+  },
   // module member
 
   [`${MODULES.MyLab}-member-form-field-fte-label`]: {
@@ -82,8 +87,8 @@ export default {
     fr: 'EPT étudiants total',
   },
   [`${MODULES.MyLab}-student-form-title`]: {
-    en: 'Add FTE',
-    fr: 'Ajouter un EPT',
+    en: 'Add Student FTE',
+    fr: 'Ajouter un EPT étudiant',
   },
 
   [`${MODULES.MyLab}-student-form-title-info-tooltip`]: {
