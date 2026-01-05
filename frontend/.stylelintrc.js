@@ -20,8 +20,12 @@ export default {
   ignoreFiles: [
     '**/*.min.css',
     '**/dist/**',
+    '**/.quasar/**',
     '**/build/**',
     '**/node_modules/**',
+    '**/storybook-static/**',
+    '**/test-results/**',
+    '**/playwright-report/**',
     // Ignore auto-generated token files if needed
   ],
 };

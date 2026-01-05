@@ -26,13 +26,15 @@ export default defineConfigWithVueTs([
   // 👇 Ignore generated and build folders
   {
     ignores: [
-      'node_modules/',
-      'dist/',
-      '.quasar/',
-      'tests/',
-      'playwright/',
-      'tests-results/',
-      'playwright-report/',
+      '**/node_modules/',
+      '**/dist/',
+      '**/.quasar/',
+      '**/tests/',
+      '**/playwright/',
+      '**/test-results/',
+      '**/playwright-report/',
+      '**/storybook-static/',
+      '**/quasar.config.*.temporary.compiled*',
     ],
   },
 ]);
