@@ -13,7 +13,7 @@ export default {
   },
   login_button_loading: {
     en: 'Connecting...',
-    fr: 'Logging in...',
+    fr: 'Connexion en cours...',
   },
   login_test_role_label: {
     en: 'Test Role',
