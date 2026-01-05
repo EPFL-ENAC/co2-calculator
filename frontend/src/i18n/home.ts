@@ -29,7 +29,7 @@ export default {
   },
   home_start_button: {
     en: 'Start',
-    fr: 'Start',
+    fr: 'Démarrer',
   },
   home_in_progress: {
     en: 'In Progress',
