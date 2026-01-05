@@ -115,13 +115,13 @@ export default {
       if (named('type') === MODULES.MyLab) {
         return 'FTE';
       }
-      return 'kg CO₂-eq';
+      return 't CO₂-eq';
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.MyLab) {
         return 'ETP';
       }
-      return 'kg CO₂-eq';
+      return 't CO₂-eq';
     },
   },
   common_filter_all: {
