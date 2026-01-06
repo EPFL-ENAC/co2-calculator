@@ -74,7 +74,10 @@ class ModuleTotals(BaseModel):
         None, description="Total annual energy consumption"
     )
     total_kg_co2eq: Optional[float] = Field(
-        None, description="Total annual CO2 emissions"
+        None, description="Total annual CO2 emissions in kg CO2-eq"
+    )
+    total_tonnes_co2eq: Optional[float] = Field(
+        None, description="Total annual CO2 emissions in tonnes CO2-eq"
     )
     total_annual_fte: Optional[float] = Field(
         None, description="Total full-time equivalent (FTE) associated"

@@ -130,6 +130,7 @@ const baseModuleFields: ModuleField[] = [
     type: 'number',
     hideIn: {
       form: true,
+      table: true,
     },
     sortable: true,
     align: 'left',

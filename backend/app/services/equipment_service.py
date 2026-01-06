@@ -171,6 +171,7 @@ async def get_module_data(
         total_items=total_items,
         total_annual_consumption_kwh=round(total_kwh, 2),
         total_kg_co2eq=round(total_co2, 2),
+        total_tonnes_co2eq=round(total_co2 / 1000, 2) if total_co2 else None,
         total_annual_fte=None,  # FTE not applicable for equipment
     )
 
