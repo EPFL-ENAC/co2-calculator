@@ -3,12 +3,15 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Module, MODULES_LIST } from 'src/constant/modules';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import { useTimelineStore } from 'src/stores/modules';
+import { MODULE_STATES } from 'src/constant/moduleStates';
 
 const props = defineProps<{
   currentModule: Module;
 }>();
 
 const $route = useRoute();
+const timelineStore = useTimelineStore();
 
 const currentIndex = computed(() => {
   return MODULES_LIST.indexOf(props.currentModule);
@@ -69,6 +72,11 @@ const resultsRoute = computed(() => {
     },
   };
 });
+
+// Validate current module when navigating away
+function validateCurrentModule() {
+  timelineStore.setState(props.currentModule, MODULE_STATES.Validated);
+}
 </script>
 
 <template>
@@ -77,6 +85,7 @@ const resultsRoute = computed(() => {
       v-if="previousModule"
       :to="previousModuleRoute"
       class="module-navigation__link module-navigation__link--previous"
+      @click="validateCurrentModule"
     >
       <q-icon name="chevron_left" class="chevron-left" size="sm" />
 
@@ -89,6 +98,7 @@ const resultsRoute = computed(() => {
       v-if="nextModule"
       :to="nextModuleRoute"
       class="module-navigation__link module-navigation__link--next"
+      @click="validateCurrentModule"
     >
       <module-icon :name="nextModule" />
       <span class="text-body2 text-weight-medium">{{ $t(nextModule!) }}</span>
@@ -104,6 +114,7 @@ const resultsRoute = computed(() => {
       unelevated
       no-caps
       size="md"
+      @click="validateCurrentModule"
     >
     </q-btn>
   </div>

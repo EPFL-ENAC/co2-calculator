@@ -124,6 +124,17 @@ const baseModuleFields: ModuleField[] = [
     align: 'left',
     tooltip: emissionTooltip,
   },
+  {
+    id: 't_co2eq',
+    label: 't CO₂-eq',
+    type: 'number',
+    hideIn: {
+      form: true,
+    },
+    sortable: true,
+    align: 'left',
+    tooltip: emissionTooltip,
+  },
 ];
 
 // remove subclass field for equipment-electric-consumption module

@@ -443,7 +443,7 @@ function renderCell(
 ) {
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
-  if (col.name === 'kg_co2eq') {
+  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
     return nOrDash(val as number, {
       options: {
         minimumFractionDigits: 0,

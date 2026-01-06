@@ -130,6 +130,7 @@ async def get_module_data(
                     else None,
                     status=equipment.status,
                     kg_co2eq=emission.kg_co2eq,
+                    t_co2eq=round(emission.kg_co2eq / 1000.0),
                     annual_kwh=emission.annual_kwh,
                 )
                 items.append(item)
@@ -259,6 +260,7 @@ async def get_submodule_data(
             active_power_w=power_factor.active_power_w if power_factor else None,
             status=equipment.status,
             kg_co2eq=emission.kg_co2eq,
+            t_co2eq=round(emission.kg_co2eq / 1000.0),
             annual_kwh=emission.annual_kwh,
         )
         items.append(item)

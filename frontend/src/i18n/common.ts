@@ -115,14 +115,18 @@ export default {
       if (named('type') === MODULES.MyLab) {
         return 'FTE';
       }
-      return 'kg CO₂-eq';
+      return 't CO₂-eq';
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.MyLab) {
         return 'ETP';
       }
-      return 'kg CO₂-eq';
+      return 't CO₂-eq';
     },
+  },
+  module_total_result_placeholder: {
+    en: 'Work in progress, validate to see the results.',
+    fr: "En cours jusqu'à validation.",
   },
   common_filter_all: {
     en: 'All',

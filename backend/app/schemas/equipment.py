@@ -26,6 +26,9 @@ class EquipmentItemResponse(BaseModel):
     active_power_w: Optional[float] = Field(None, description="Active power in Watts")
     status: str = Field(..., description="Equipment status")
     kg_co2eq: float = Field(..., description="Annual CO2 emissions in kg CO2-eq")
+    t_co2eq: float = Field(
+        ..., description="Annual CO2 emissions in tonnes CO2-eq (rounded up)"
+    )
     annual_kwh: float = Field(..., description="Annual energy consumption in kWh")
 
     class Config:
