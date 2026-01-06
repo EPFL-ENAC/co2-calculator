@@ -50,8 +50,8 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         loading.value = true;
         const u = await api.get('auth/me').json<User>();
-        console.log('🔐 /auth/me response:', u);
-        console.log('📋 User permissions:', u.permissions);
+        console.log('/auth/me response:', u);
+        console.log('User permissions:', u.permissions);
         user.value = u;
         return u;
       } catch {
