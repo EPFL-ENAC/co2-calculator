@@ -58,6 +58,14 @@ class UserBase(SQLModel):
         description="Raw roles data for DB storage",
     )
 
+    # Permission-based access control (calculated from roles)
+    # Format: {"backoffice": {"users": {"view": true, "edit": false}}, "modules": {...}}
+    permissions: Optional[dict] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON),
+        description="Calculated permissions based on user roles",
+    )
+
     @property
     def roles(self) -> List[Role]:
         if self.roles_raw:

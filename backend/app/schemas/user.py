@@ -11,7 +11,7 @@ from app.models import UserBase
 class UserRead(UserBase):
     """Schema for reading user data (OAuth-only users).
 
-    Matches the /auth/me response format with hierarchical roles.
+    Matches the /auth/me response format with hierarchical roles and permissions.
     """
 
     id: str
@@ -22,3 +22,4 @@ class UserRead(UserBase):
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None
+    permissions: Optional[dict] = {}
