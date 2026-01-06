@@ -1,4 +1,5 @@
 Generating Mermaid ERD...
+
 ```mermaid
 erDiagram
   emission_factors {
@@ -120,7 +121,6 @@ erDiagram
   }
   users {
     JSON roles_raw
-    JSON permissions
     BOOLEAN is_active
     DATETIME last_login
     TIMESTAMP created_at
@@ -137,12 +137,13 @@ erDiagram
   power_factors ||--}o equipment : power_factor_id
   users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
+  equipment ||--}o equipment_emissions : equipment_id
   emission_factors ||--}o equipment_emissions : emission_factor_id
   power_factors ||--}o equipment_emissions : power_factor_id
-  equipment ||--}o equipment_emissions : equipment_id
   users ||--}o resources : updated_by
   users ||--}o resources : created_by
-  users ||--}o unit_users : user_id
   units ||--}o unit_users : unit_id
+  users ||--}o unit_users : user_id
 ```
+
 Mermaid ERD generation complete.

@@ -58,14 +58,6 @@ class UserBase(SQLModel):
         description="Raw roles data for DB storage",
     )
 
-    # Permission-based access control (calculated from roles)
-    # Format: {"backoffice": {"users": {"view": true, "edit": false}}, "modules": {...}}
-    permissions: Optional[dict] = Field(
-        default_factory=dict,
-        sa_column=Column(JSON),
-        description="Calculated permissions based on user roles",
-    )
-
     @property
     def roles(self) -> List[Role]:
         if self.roles_raw:
@@ -94,6 +86,20 @@ class UserBase(SQLModel):
     )
     created_by: Optional[str] = Field(default=None, index=True)
     updated_by: Optional[str] = Field(default=None, index=True)
+
+    def calculate_permissions(self) -> dict:
+        """Calculate permissions dynamically based on current user roles.
+
+        This method calculates permissions on-the-fly from the user's roles
+        using the calculate_user_permissions utility function.
+        Permissions are NOT stored in the database.
+
+        Returns:
+            dict: Calculated permissions structure
+        """
+        from app.utils.permissions import calculate_user_permissions
+
+        return calculate_user_permissions(self.roles)
 
 
 class User(UserBase, table=True):
@@ -173,24 +179,3 @@ class User(UserBase, table=True):
         if not self.roles:
             return False
         return any(r.role == role and isinstance(r.on, GlobalScope) for r in self.roles)
-
-    def calculate_permissions(self) -> dict:
-        """Calculate permissions based on current user roles.
-
-        This method dynamically calculates permissions from the user's roles
-        using the calculate_user_permissions utility function.
-
-        Returns:
-            dict: Calculated permissions structure
-        """
-        from app.utils.permissions import calculate_user_permissions
-
-        return calculate_user_permissions(self.roles)
-
-    def refresh_permissions(self) -> None:
-        """Recalculate and update the permissions field.
-
-        This method updates the user's stored permissions based on their current roles.
-        Call this after modifying user roles to keep permissions in sync.
-        """
-        self.permissions = self.calculate_permissions()

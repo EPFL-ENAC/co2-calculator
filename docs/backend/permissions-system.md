@@ -2,9 +2,13 @@
 
 ## Overview
 
-The CO2 Calculator uses a **permission-based access control system** that calculates permissions dynamically from user roles. The backend returns a `permissions` object in the `/auth/me` endpoint response, which the frontend uses exclusively for access control decisions.
+The CO2 Calculator uses a **permission-based access control system** that calculates permissions **dynamically on every request** from user roles. The backend returns a `permissions` object in the `/auth/me` endpoint response, which the frontend uses exclusively for access control decisions.
 
-**Key Principle:** Frontend checks permissions, NOT roles. The backend calculates permissions from roles and provides them ready-to-use.
+**Key Principles:**
+
+- **Permissions are NEVER stored in the database** - they are calculated on-the-fly from roles
+- **Frontend checks permissions, NOT roles** - The backend calculates permissions and provides them ready-to-use
+- **Recalculated on every `/auth/me` call** - Always reflects the latest role state
 
 ---
 
@@ -41,6 +45,35 @@ The system has three independent permission domains:
 3. **`system.*`** - System-level routes (reserved for future use)
 
 **Important:** These domains are completely independent. Having a backoffice role does NOT grant module access, and vice versa.
+
+---
+
+## How It Works
+
+### Permission Calculation Flow
+
+```
+User makes request to /auth/me
+         ↓
+Backend reads user from DB (with roles_raw field)
+         ↓
+User.roles property converts roles_raw to Role objects
+         ↓
+UserRead schema's @computed_field calls calculate_permissions()
+         ↓
+calculate_user_permissions() maps roles → permissions
+         ↓
+Response includes computed permissions (never touches DB)
+         ↓
+Frontend receives permissions ready to use
+```
+
+**Key Points:**
+
+- Permissions are **never read from** or **written to** the database
+- Calculation happens in-memory during response serialization
+- No additional database queries needed
+- Always reflects current role state
 
 ---
 
@@ -250,7 +283,8 @@ The system has three independent permission domains:
 
 - `roles`: Still included for display purposes only
 - `permissions`: **This is what the frontend should use for access control**
-- Permissions are calculated fresh on every `/auth/me` call
+- Permissions are **calculated fresh on every `/auth/me` call**
+- Permissions are **NOT stored in the database** - they are computed on-the-fly from roles
 
 ---
 
@@ -262,9 +296,9 @@ The system has three independent permission domains:
 backend/
 ├── app/
 │   ├── models/
-│   │   └── user.py              # User model with permissions field
+│   │   └── user.py              # User model with calculate_permissions method
 │   ├── schemas/
-│   │   └── user.py              # UserRead schema includes permissions
+│   │   └── user.py              # UserRead schema with computed permissions field
 │   ├── utils/
 │   │   └── permissions.py       # Permission calculation logic
 │   └── api/
@@ -279,16 +313,24 @@ backend/
 ```python
 class UserBase(SQLModel):
     roles_raw: Optional[List[dict]] = Field(...)
-    permissions: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
 
     def calculate_permissions(self) -> dict:
-        """Calculate permissions from roles."""
+        """Calculate permissions dynamically from roles."""
         from app.utils.permissions import calculate_user_permissions
         return calculate_user_permissions(self.roles)
+```
 
-    def refresh_permissions(self) -> None:
-        """Recalculate and update stored permissions."""
-        self.permissions = self.calculate_permissions()
+### User Schema
+
+**Location:** `backend/app/schemas/user.py`
+
+```python
+class UserRead(UserBase):
+    @computed_field
+    @property
+    def permissions(self) -> dict:
+        """Calculate permissions dynamically from roles on every /auth/me call."""
+        return self.calculate_permissions()
 ```
 
 ### Permission Calculation
@@ -321,48 +363,6 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
 ---
 
-## Adding New Permissions
-
-### Step 1: Update Permission Structure
-
-Edit `backend/app/utils/permissions.py`:
-
-```python
-permissions = {
-    "backoffice.users": {"view": False, "edit": False, "export": False},
-    "modules.headcount": {"view": False, "edit": False},
-    "modules.equipment": {"view": False, "edit": False},
-    "modules.travel": {"view": False, "edit": False},  # NEW MODULE
-}
-```
-
-### Step 2: Map Roles to New Permission
-
-Add role-to-permission mapping logic:
-
-```python
-# USER ROLES - Only affect modules.* permissions
-elif role_name == RoleName.CO2_USER_STD:
-    if isinstance(scope, RoleScope):
-        permissions["modules.headcount"] = {"view": True, "edit": True}
-        permissions["modules.equipment"] = {"view": True, "edit": True}
-        permissions["modules.travel"] = {"view": True, "edit": True}  # NEW
-```
-
-### Step 3: Document the Permission
-
-Update this document with:
-
-- New permission path and actions
-- Which roles grant the permission
-- Usage examples
-
-### Step 4: Update Frontend
-
-The frontend will automatically receive the new permission in the `/auth/me` response and can start checking it immediately.
-
----
-
 ## Permission Checking (Backend)
 
 While permissions are primarily for frontend use, the backend can also check them:
@@ -370,15 +370,17 @@ While permissions are primarily for frontend use, the backend can also check the
 ```python
 from app.utils.permissions import has_permission
 
-# Check if user has permission
-if has_permission(user.permissions, "modules.headcount", "edit"):
+# Check if user has permission - calculate on demand
+permissions = user.calculate_permissions()
+if has_permission(permissions, "modules.headcount", "edit"):
     # Allow editing
     pass
 
 # Or use full path
 from app.utils.permissions import get_permission_value
 
-can_edit = get_permission_value(user.permissions, "modules.headcount.edit")
+permissions = user.calculate_permissions()
+can_edit = get_permission_value(permissions, "modules.headcount.edit")
 if can_edit:
     # Allow editing
     pass
@@ -394,6 +396,7 @@ if can_edit:
 4. ✅ **Permissions combine** - Users can have multiple roles across domains
 5. ✅ **Backend provides ready-to-use** - Frontend just checks boolean flags
 6. ✅ **Fresh on every request** - Permissions recalculated when `/auth/me` is called
+7. ✅ **Never stored in DB** - Permissions are computed on-the-fly, not persisted
 
 ---
 
@@ -417,13 +420,15 @@ if user.permissions['modules.headcount'].view:
     showHeadcountModule()
 ```
 
-### Why This Change?
+### Why Use Computed Permissions?
 
-1. **Flexibility**: Can change role-to-permission mapping without frontend changes
-2. **Granularity**: Fine-grained control (view vs edit vs export)
-3. **Simplicity**: Frontend doesn't need to know role hierarchy
-4. **Security**: Single source of truth for access control
-5. **Extensibility**: Easy to add new modules and permissions
+1. **Always Up-to-Date**: Permissions instantly reflect role changes without syncing DB
+2. **No DB Overhead**: No extra columns, indexes, or update queries needed
+3. **Flexibility**: Can change role-to-permission mapping without data migration
+4. **Granularity**: Fine-grained control (view vs edit vs export)
+5. **Simplicity**: Frontend doesn't need to know role hierarchy
+6. **Security**: Single source of truth - permissions can't be out of sync with roles
+7. **Extensibility**: Easy to add new modules and permissions without touching DB
 
 ---
 
@@ -433,26 +438,48 @@ if user.permissions['modules.headcount'].view:
 
 **Check:**
 
-1. Role is correctly assigned to user in database
-2. Role-to-permission mapping exists in `calculate_user_permissions()`
+1. Role is correctly assigned to user in database (check `roles_raw` field)
+2. Role-to-permission mapping exists in `calculate_user_permissions()` function
 3. Permission is initialized in the default permissions dict
-4. User called `/auth/me` to get fresh permissions
+4. The `@computed_field` decorator is present on the `permissions` property
 
 ### User has role but no permission
 
 **Check:**
 
 1. Role scope matches (Global vs RoleScope)
-2. Permission calculation logic handles the role type
+2. Permission calculation logic in `calculate_user_permissions()` handles the role type
 3. Role name matches exactly (case-sensitive)
+4. The role is being parsed correctly from `roles_raw` to Role objects
 
 ### Permission always false
 
 **Check:**
 
-1. User has the correct role
+1. User has the correct role in `roles_raw` field
 2. Role has correct scope (global for backoffice, unit for modules)
-3. Permission calculation sets the flag to `True` for that role
+3. Permission calculation in `calculate_user_permissions()` sets the flag to `True` for that role
+4. No typos in role name or permission path
+
+### Debugging Tips
+
+**Test permission calculation directly:**
+
+```python
+from app.models.user import User
+
+user = User.query.get(user_id)
+permissions = user.calculate_permissions()
+print(permissions)  # Should show all calculated permissions
+```
+
+**Check raw roles:**
+
+```python
+user = User.query.get(user_id)
+print(user.roles_raw)  # Raw JSON from DB
+print(user.roles)      # Parsed Role objects
+```
 
 ---
 
