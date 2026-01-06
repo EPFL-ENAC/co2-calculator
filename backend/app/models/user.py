@@ -173,3 +173,24 @@ class User(UserBase, table=True):
         if not self.roles:
             return False
         return any(r.role == role and isinstance(r.on, GlobalScope) for r in self.roles)
+
+    def calculate_permissions(self) -> dict:
+        """Calculate permissions based on current user roles.
+
+        This method dynamically calculates permissions from the user's roles
+        using the calculate_user_permissions utility function.
+
+        Returns:
+            dict: Calculated permissions structure
+        """
+        from app.utils.permissions import calculate_user_permissions
+
+        return calculate_user_permissions(self.roles)
+
+    def refresh_permissions(self) -> None:
+        """Recalculate and update the permissions field.
+
+        This method updates the user's stored permissions based on their current roles.
+        Call this after modifying user roles to keep permissions in sync.
+        """
+        self.permissions = self.calculate_permissions()
