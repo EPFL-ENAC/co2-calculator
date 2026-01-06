@@ -4,8 +4,11 @@ import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { ROLES } from 'src/constant/roles';
+import { useTimelineStore } from 'src/stores/modules';
+import { Module } from 'src/constant/modules';
+import { useI18n } from 'vue-i18n';
 import { isBackOfficeRoute } from 'src/router/routes';
+import { hasPermission } from 'src/utils/permission';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -30,12 +33,7 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  if (!authStore.user) return false;
-  const userRoles = authStore.user?.roles_raw?.map((r) => r.role) ?? [];
-  return (
-    userRoles.includes(ROLES.BackOfficeAdmin) ||
-    userRoles.includes(ROLES.BackOfficeStandard)
-  );
+  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'view');
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
