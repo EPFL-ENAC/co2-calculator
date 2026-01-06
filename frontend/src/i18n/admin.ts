@@ -65,4 +65,8 @@ export default {
     en: 'Go to User management system documentation',
     fr: 'Documentation de la gestion des utilisateurs',
   },
+  user_management_system_button_label: {
+    en: 'Go to System User Management',
+    fr: 'Accéder à la gestion des utilisateurs du système',
+  },
 } as const;

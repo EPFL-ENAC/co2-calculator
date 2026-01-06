@@ -33,7 +33,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     User Roles (affect modules.* ONLY):
     - CO2_USER_PRINCIPAL: Full module access (view + edit)
-    - CO2_USER_STD: Full module access (view + edit)
+    - CO2_USER_STD: No module access (reserved for future use)
     - CO2_USER_SECONDARY: View-only module access
 
     System Roles (affect system.* ONLY):
@@ -52,6 +52,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     # Initialize with all permissions set to False
     permissions = {
         "backoffice.users": {"view": False, "edit": False, "export": False},
+        "system.users": {"edit": False},
         "modules.headcount": {"view": False, "edit": False},
         "modules.equipment": {"view": False, "edit": False},
     }
@@ -99,9 +100,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 permissions["modules.equipment"] = {"view": True, "edit": True}
 
         elif role_name == RoleName.CO2_USER_STD.value:
-            if is_role_scope(scope):
-                permissions["modules.headcount"] = {"view": True, "edit": True}
-                permissions["modules.equipment"] = {"view": True, "edit": True}
+            # CO2_USER_STD does not grant module access
+            # This role is reserved for future use
+            pass
 
         elif role_name == RoleName.CO2_USER_SECONDARY.value:
             if is_role_scope(scope):
@@ -111,9 +112,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # SYSTEM ROLE - Only affects system.* permissions
         elif role_name == RoleName.CO2_SERVICE_MGR.value:
             if is_global_scope(scope):
-                # Service manager gets system route access only
-                # (System routes would be added here when they exist)
-                pass
+                permissions["system.users"]["edit"] = True
 
     return permissions
 

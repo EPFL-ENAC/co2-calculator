@@ -42,7 +42,8 @@ export enum PermissionAction {
 export type PermissionPath =
   | 'backoffice.users'
   | 'modules.headcount'
-  | 'modules.equipment';
+  | 'modules.equipment'
+  | 'system.users';
 
 /**
  * Permission set for a single resource.
@@ -188,5 +189,6 @@ export interface FlatUserPermissions {
   'backoffice.users'?: ModulePermissions;
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;
+  'system.users'?: ModulePermissions;
   [key: string]: ModulePermissions | undefined;
 }

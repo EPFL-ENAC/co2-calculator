@@ -5,9 +5,44 @@ import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission } from 'src/utils/permission';
+import type { Module } from 'src/constant/modules';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
+
+/**
+ * Maps frontend module names to backend permission paths.
+ * Only modules with defined permissions are included.
+ */
+function getModulePermissionPath(module: Module): string | null {
+  const modulePermissionMap: Record<Module, string | null> = {
+    [MODULES.MyLab]: 'modules.headcount',
+    [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
+    [MODULES.ProfessionalTravel]: null,
+    [MODULES.Infrastructure]: null,
+    [MODULES.Purchase]: null,
+    [MODULES.InternalServices]: null,
+    [MODULES.ExternalCloud]: null,
+  };
+  return modulePermissionMap[module] || null;
+}
+
+/**
+ * TEMPORARY: Allow access to modules without permissions for now.
+ * Check if user has access permission for a module.
+ * Returns true if module doesn't have a permission path (not yet protected).
+ * Uses view permission to allow both principal (edit) and secondary (view-only) access.
+ */
+function hasModuleAccess(module: Module): boolean {
+  const permissionPath = getModulePermissionPath(module);
+  if (!permissionPath) {
+    return true;
+  }
+  return hasPermission(authStore.user?.permissions, permissionPath, 'view');
+}
 
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
@@ -154,8 +189,14 @@ const homeIntroWithLinks = computed(() => {
               no-caps
               size="sm"
               class="text-weight-medium btn-secondary"
-              :to="{ name: 'module', params: { module: moduleCard.module } }"
+              :disable="!hasModuleAccess(moduleCard.module)"
+              :to="
+                hasModuleAccess(moduleCard.module)
+                  ? { name: 'module', params: { module: moduleCard.module } }
+                  : undefined
+              "
             />
+
             <div
               v-if="moduleCard.value"
               class="row q-gutter-xs text-body1 items-baseline"

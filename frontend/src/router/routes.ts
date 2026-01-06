@@ -253,11 +253,13 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
             },
+            beforeEnter: requirePermission('system.users', 'edit'),
           },
           {
             path: 'system/user-management',
             name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
             component: () => import('pages/system/UserManagementPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - User and role administration',
@@ -269,6 +271,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/module-management',
             name: SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName,
             component: () => import('pages/system/ModuleManagementPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - Global module enable/disable',
@@ -280,6 +283,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/logs',
             name: SYSTEM_NAV.SYSTEM_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - System logs viewer',
@@ -291,6 +295,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/documentation',
             name: 'system-documentation',
             component: () => import('pages/system/DocumentationPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',
