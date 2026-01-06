@@ -4,6 +4,7 @@ import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
+import { requirePermission } from './guards/permissionGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -183,11 +184,13 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
+            beforeEnter: requirePermission('backoffice.users', 'view'),
           },
           {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (view only)',
@@ -199,6 +202,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Data management',
@@ -211,6 +215,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
@@ -222,6 +227,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
 
@@ -234,6 +240,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',
