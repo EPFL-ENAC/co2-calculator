@@ -99,9 +99,7 @@ A feature is complete when:
 - ✅ Code implemented with all planned functionality
 - 📘 Documentation updated (code comments, README, guides)
 - 🧪 Code reviewed and tests passing
-- 🧩 Acceptance criteria met (validated by PM)
-- 🧼 No critical bugs in staging environment
-- 🚀 Deployed to production
+- 🧩 Acceptance criteria met (validated by IT4R PM)
 
 ## Definition of Ready
 
@@ -109,11 +107,11 @@ Issues are ready for development when:
 
 ### Functional Specs (by PM/Stakeholder)
 
-- 🎯 Feature purpose and business value clear
+- 🎯 Feature purpose clear
 - 🧩 Solution approach validated
-- 🎨 Design mockups approved (if UI work)
+- 🎨 Design mockups approved (if UI)
 - 💾 Sample data available
-- ✅ Acceptance criteria defined with test strategy
+- ✅ Acceptance/success criteria defined
 
 ### Technical Specs (by Developer)
 
