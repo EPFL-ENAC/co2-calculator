@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { ROLES } from 'src/constant/roles';
+import { hasPermission } from 'src/utils/permission';
 
 interface Props {
   items: Record<string, NavItem>;
@@ -17,17 +17,14 @@ function navigateToRoute(routeName: string) {
   router.push({ name: routeName });
 }
 
-const hasBackOfficeStandardOnly = computed(() => {
-  if (!authStore.user) return false;
-  const userRoles = authStore.user.roles_raw.map((r) => r.role);
-  const hasStandard = userRoles.includes(ROLES.BackOfficeStandard);
-  const hasAdmin = userRoles.includes(ROLES.BackOfficeAdmin);
-  // User has BackOfficeStandard but NOT BackOfficeAdmin
-  return hasStandard && !hasAdmin;
+const hasBackOfficeEditPermission = computed(() => {
+  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'edit');
 });
 
 function isItemDisabled(item: NavItem): boolean {
-  return item.limitedAccess === true && hasBackOfficeStandardOnly.value;
+  // Items with limitedAccess require edit permission
+  // If user doesn't have edit permission, disable limitedAccess items
+  return item.limitedAccess === true && !hasBackOfficeEditPermission.value;
 }
 </script>
 
