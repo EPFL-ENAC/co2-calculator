@@ -64,6 +64,8 @@ const studentFields: ModuleField[] = [
     required: true,
     min: 0,
     step: 0.1,
+    sortable: true,
+    editableInline: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],
   },

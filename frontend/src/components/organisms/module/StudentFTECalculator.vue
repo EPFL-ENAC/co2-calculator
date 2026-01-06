@@ -1,11 +1,6 @@
 <template>
   <div>
-    <q-form
-      ref="formRef"
-      class="student-fte-calculator q-mx-md"
-      @submit="onSubmit"
-      @reset="onReset"
-    >
+    <q-form ref="formRef" class="student-fte-calculator q-mx-md">
       <q-input
         ref="studentsRef"
         v-model.number="students"
@@ -39,33 +34,12 @@
         outlined
         dense
       />
-
-      <div class="calculated-result flex justify-between items-center">
-        <div>
-          <span class="text-body2 text-secondary"
-            >{{ $t('student_helper_calculated_label') }}:</span
-          >
-          <div class="text-body1 text-weight-bold text-primary">
-            {{ formattedCalculatedFTE }}
-          </div>
-        </div>
-
-        <q-btn
-          color="accent"
-          :label="$t('student_helper_use_button')"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium"
-          type="submit"
-        />
-      </div>
     </q-form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QForm } from 'quasar';
 
@@ -74,7 +48,6 @@ const { t: $t } = useI18n();
 const students = ref<number | null>(null);
 const duration = ref<number | null>(null);
 const avgFTE = ref<number | null>(null);
-
 const formRef = ref<QForm | null>(null);
 
 const emit = defineEmits<{
@@ -88,12 +61,40 @@ const calculatedFTE = computed(() => {
   return (students.value * duration.value * avgFTE.value) / 12;
 });
 
-const formattedCalculatedFTE = computed(() => {
-  if (calculatedFTE.value === 0) {
-    return '-';
-  }
-  return calculatedFTE.value.toFixed(1);
-});
+// Use Quasar form validation instead of hardcoded checks
+const isFormValid = ref(false);
+
+// Watch form values and validate using Quasar's validation
+watch(
+  [students, duration, avgFTE],
+  async () => {
+    if (!formRef.value) {
+      isFormValid.value = false;
+      return;
+    }
+    const result = await formRef.value.validate();
+    isFormValid.value = result;
+  },
+  { flush: 'post' },
+);
+
+let lastEmitted: number | null = null;
+
+// Watch transition to valid + value change
+watch(
+  [isFormValid, calculatedFTE],
+  ([valid, fte]) => {
+    if (!valid) return;
+
+    const rounded = Number(fte.toFixed(1));
+
+    if (rounded !== lastEmitted) {
+      lastEmitted = rounded;
+      emit('use-value', rounded);
+    }
+  },
+  { flush: 'post' },
+);
 
 // Validation rules
 const studentsRules = computed(() => [
@@ -111,22 +112,6 @@ const avgFTERules = computed(() => [
     (val !== null && val > 0 && val <= 1) ||
     $t('app_headcount_student_helper_avg_fte_error'),
 ]);
-
-function onReset() {
-  students.value = null;
-  duration.value = null;
-  avgFTE.value = null;
-  nextTick(() => {
-    formRef.value?.resetValidation();
-  });
-}
-
-async function onSubmit() {
-  const valid = await formRef.value?.validate();
-  if (!valid) return;
-  emit('use-value', Number(calculatedFTE.value.toFixed(1)));
-  onReset();
-}
 </script>
 
 <style scoped lang="scss">
@@ -137,14 +122,5 @@ async function onSubmit() {
   flex-direction: column;
   gap: tokens.$spacing-md;
   padding: 1rem 0;
-}
-
-.calculated-result {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
 }
 </style>
