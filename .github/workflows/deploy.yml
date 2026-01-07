@@ -22,7 +22,6 @@ jobs:
       ORG: epfl
       REPO: co2-calculator
       build_context: '[ "./frontend", "./backend" ]' # context paths to build
-      argo_repository: "['EPFL-ENAC/enack8s-app-config', 'EPFL-ENAC/openshift-app-config']"
   publish-chart:
     uses: ./.github/workflows/publish_chart.yaml
     needs:
