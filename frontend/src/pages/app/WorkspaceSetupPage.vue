@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useTimelineStore } from 'src/stores/modules';
 import type { Unit } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
-
+import type { YearData } from 'src/components/organisms/workspace-selector/YearSelector.vue';
+import type { Inventory } from 'src/stores/workspace';
 const workspaceStore = useWorkspaceStore();
+const timelineStore = useTimelineStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -19,20 +22,12 @@ const workspaceNotSelected = computed(() => {
   );
 });
 
-const showYearSelection = computed(() => {
-  return (
-    workspaceStore.selectedUnit !== null &&
-    (workspaceStore.unitResults?.years.length ?? 0) > 1
-  );
-});
-
-const yearsCount = computed(() => {
-  return workspaceStore.unitResults?.years.length ?? 0;
-});
-
-const hasMultipleYears = computed(() => {
-  return (workspaceStore.unitResults?.years.length ?? 0) > 1;
-});
+const yearsCount = computed(
+  () => workspaceStore.availableInventoryYears.length,
+);
+const hasMultipleYears = computed(
+  () => workspaceStore.availableInventoryYears.length > 1,
+);
 
 const selectedUnitAffiliations = computed(() => {
   const unit = workspaceStore.selectedUnit;
@@ -52,21 +47,24 @@ const routeUnitParam = computed(
 // --- ACTIONS ---
 
 const handleUnitSelect = async (unit: Unit) => {
-  // 1. Set the unit in Pinia
   workspaceStore.setUnit(unit);
-  workspaceStore.setYear(null); // Reset year in store
-
-  // 2. Fetch years available for this specific unit
-  await workspaceStore.getUnitResults(unit.id);
-
-  // 3. Auto-select year if only one exists
-  if (workspaceStore.unitResults?.years.length === 1) {
-    workspaceStore.setYear(workspaceStore.unitResults.years[0].year);
-  }
+  workspaceStore.setYear(null);
+  await workspaceStore.fetchInventoriesForUnit(unit.id);
 };
 
-const handleYearSelect = (year: number) => {
+const handleYearSelect = async (year: number) => {
   workspaceStore.setYear(year);
+  if (workspaceStore.selectedUnit) {
+    const inv: Inventory =
+      await workspaceStore.selectWithoutFetchingInventoryForYear(
+        workspaceStore.selectedUnit.id,
+        year,
+      );
+    // Fetch module statuses for the selected inventory
+    if (inv?.id) {
+      await timelineStore.fetchModuleStates(inv.id);
+    }
+  }
 };
 
 const handleConfirm = () => {
@@ -89,11 +87,13 @@ const handleConfirm = () => {
 
 const reset = () => {
   workspaceStore.reset();
+  timelineStore.reset();
 };
 
 onMounted(async () => {
   // Clear any old selection leftovers when entering setup
   workspaceStore.reset();
+  timelineStore.reset();
   await workspaceStore.getUnits();
 });
 </script>
@@ -141,7 +141,7 @@ onMounted(async () => {
     </q-card>
 
     <!-- Year Selection -->
-    <q-card v-if="showYearSelection" flat class="container">
+    <q-card v-if="workspaceStore.selectedUnit" flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_year_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_year_description') }}
@@ -151,29 +151,30 @@ onMounted(async () => {
           count: yearsCount,
         })
       }}</span>
-      <div v-if="workspaceStore.unitResultsErrors.length > 0" class="q-mt-sm">
+      <div v-if="workspaceStore.inventoriesError" class="q-mt-sm">
         <q-banner class="container text-negative border-negative q-pa-lg">
           <template #avatar>
             <q-icon name="o_warning" color="grey-3" size="md" />
           </template>
           <p class="text-body2 text-weight-bold q-mt-sm">
-            {{ workspaceStore.unitResultsErrors[0]?.message }}
+            {{ workspaceStore.inventoriesError.message }}
           </p>
         </q-banner>
       </div>
       <YearSelector
-        v-else-if="workspaceStore.unitResults"
+        v-else
         class="q-mt-md"
         :selected-year="workspaceStore.selectedYear"
         :years="
-          workspaceStore.unitResults.years.map((y) => ({
-            year: y.year,
-            progress: 100,
-            completed_modules: y.completed_modules,
-            comparison: y.last_year_comparison ?? null,
-            kgco2: y.kgco2,
-            status: 'complete',
-          }))
+          workspaceStore.availableInventoryYears.map(
+            (year) =>
+              ({
+                year,
+                status: workspaceStore.inventoryForYear(year)
+                  ? 'complete'
+                  : 'missing',
+              }) as YearData,
+          )
         "
         @select="handleYearSelect"
       />

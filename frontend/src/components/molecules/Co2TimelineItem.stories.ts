@@ -41,7 +41,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     item: timelineItems[0],
-    currentState: 'default',
+    currentState: MODULE_STATES.Default,
     selected: false,
     to: '/en/unit/2024/module/my-lab',
   },
@@ -53,7 +53,7 @@ export const Default: Story = {
 export const AllModuleIcons: Story = {
   args: {
     item: timelineItems[0],
-    currentState: 'default',
+    currentState: MODULE_STATES.Default,
     selected: false,
   },
   render: () => {
@@ -84,7 +84,7 @@ export const AllModuleIcons: Story = {
 export const StateVariants: Story = {
   args: {
     item: timelineItems[0],
-    currentState: 'default',
+    currentState: MODULE_STATES.Default,
     selected: false,
   },
   render: () => {
@@ -120,7 +120,7 @@ export const StateVariants: Story = {
 export const SelectedVariants: Story = {
   args: {
     item: timelineItems[0],
-    currentState: 'default',
+    currentState: MODULE_STATES.Default,
     selected: false,
   },
   render: () => {

@@ -34,6 +34,7 @@
         :error="error"
         :unit-id="workspaceStore.selectedUnit?.id"
         :year="workspaceStore.selectedYear"
+        :disable="timelineStore.canEdit === false"
       />
       <module-navigation :current-module="currentModuleType" />
     </div>
@@ -58,6 +59,8 @@ import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
+import { useTimelineStore } from 'src/stores/modules';
+const timelineStore = useTimelineStore();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,

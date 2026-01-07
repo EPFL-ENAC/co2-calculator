@@ -6,6 +6,7 @@ import { useAuthStore } from 'src/stores/auth';
 import { useTimelineStore } from 'src/stores/modules';
 import { ROLES } from 'src/constant/roles';
 import Co2Header from './Co2Header.vue';
+import { MODULE_STATES, ModuleState } from 'src/constant/moduleStates';
 
 /**
  * Co2Header is the main application header component that displays:
@@ -63,7 +64,7 @@ const withRouterAndStores = (config: {
       on: { unit?: string; affiliation?: string } | 'global';
     }>;
   } | null;
-  moduleState?: string;
+  moduleState?: ModuleState;
 }): Decorator => {
   return (story) => {
     return {
@@ -85,8 +86,7 @@ const withRouterAndStores = (config: {
         if (config.moduleState && config.route.params?.module) {
           timelineStore.itemStates[
             config.route.params.module as keyof typeof timelineStore.itemStates
-          ] =
-            config.moduleState as (typeof timelineStore.itemStates)[keyof typeof timelineStore.itemStates];
+          ] = config.moduleState;
         }
 
         // Ensure language param is always present
@@ -240,7 +240,7 @@ export const OnModuleAndResultsPage: Story = {
         display_name: 'Alice Johnson',
         roles_raw: [],
       },
-      moduleState: 'in-progress',
+      moduleState: MODULE_STATES.InProgress,
     }),
   ],
   render: () => ({

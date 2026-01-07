@@ -33,7 +33,7 @@ interface UnitFilters {
   completion?: string;
   outlier_values?: boolean | null;
   search?: string;
-  modules?: Array<{ module: string; state: string }>;
+  modules?: Array<{ module: string; state: ModuleState }>;
 }
 
 export const useBackofficeStore = defineStore('backoffice', () => {

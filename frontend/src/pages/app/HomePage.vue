@@ -3,12 +3,15 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
+import type { ModuleCard } from 'src/constant/moduleCards';
+import { getBadgeForStatus } from 'src/constant/moduleStates';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
+import { useTimelineStore } from 'src/stores/modules';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -24,6 +27,18 @@ function hasModulePermission(
     action,
   );
 }
+const timelineStore = useTimelineStore();
+
+// Merge static MODULE_CARDS with dynamic status badges from API
+const moduleCardsWithStatus = computed(() => {
+  return MODULE_CARDS.map(
+    (card): ModuleCard => ({
+      ...card,
+      badge:
+        getBadgeForStatus(timelineStore.itemStates[card.module]) ?? undefined,
+    }),
+  );
+});
 
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
@@ -133,7 +148,7 @@ const homeIntroWithLinks = computed(() => {
       </div>
       <div class="grid-3-col">
         <q-card
-          v-for="moduleCard in MODULE_CARDS"
+          v-for="moduleCard in moduleCardsWithStatus"
           :key="moduleCard.module"
           flat
           class="container"
@@ -151,11 +166,7 @@ const homeIntroWithLinks = computed(() => {
               :color="moduleCard.badge.color"
               :text-color="moduleCard.badge.textColor"
               :class="moduleCard.badge.color === 'accent' ? 'q-pa-sm' : ''"
-              :label="
-                moduleCard.badge.label.startsWith('home_')
-                  ? $t(moduleCard.badge.label)
-                  : moduleCard.badge.label
-              "
+              :label="$t(moduleCard.badge.label)"
             />
           </div>
           <p class="text-body2 text-secondary q-mt-md">
