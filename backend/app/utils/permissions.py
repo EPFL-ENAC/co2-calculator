@@ -24,7 +24,12 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     {
         "backoffice.users": {"view": bool, "edit": bool, "export": bool},
         "modules.headcount": {"view": bool, "edit": bool},
-        "modules.equipment": {"view": bool, "edit": bool}
+        "modules.equipment": {"view": bool, "edit": bool},
+        "modules.professional_travel": {"view": bool, "edit": bool},
+        "modules.infrastructure": {"view": bool, "edit": bool},
+        "modules.purchase": {"view": bool, "edit": bool},
+        "modules.internal_services": {"view": bool, "edit": bool},
+        "modules.external_cloud": {"view": bool, "edit": bool},
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
@@ -33,7 +38,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     User Roles (affect modules.* ONLY):
     - CO2_USER_PRINCIPAL: Full module access (view + edit)
-    - CO2_USER_STD: Full module access (view + edit)
+    - CO2_USER_STD: View-only access to professional_travel module
     - CO2_USER_SECONDARY: View-only module access
 
     System Roles (affect system.* ONLY):
@@ -52,8 +57,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     # Initialize with all permissions set to False
     permissions = {
         "backoffice.users": {"view": False, "edit": False, "export": False},
+        "system.users": {"edit": False},
         "modules.headcount": {"view": False, "edit": False},
         "modules.equipment": {"view": False, "edit": False},
+        "modules.professional_travel": {"view": False, "edit": False},
+        "modules.infrastructure": {"view": False, "edit": False},
+        "modules.purchase": {"view": False, "edit": False},
+        "modules.internal_services": {"view": False, "edit": False},
+        "modules.external_cloud": {"view": False, "edit": False},
     }
 
     # Helper to check if scope is global (handles both GlobalScope objects and dicts)
@@ -97,23 +108,36 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
             if is_role_scope(scope):
                 permissions["modules.headcount"] = {"view": True, "edit": True}
                 permissions["modules.equipment"] = {"view": True, "edit": True}
+                permissions["modules.professional_travel"] = {
+                    "view": True,
+                    "edit": True,
+                }
+                permissions["modules.infrastructure"] = {"view": True, "edit": True}
+                permissions["modules.purchase"] = {"view": True, "edit": True}
+                permissions["modules.internal_services"] = {"view": True, "edit": True}
+                permissions["modules.external_cloud"] = {"view": True, "edit": True}
 
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
-                permissions["modules.headcount"] = {"view": True, "edit": True}
-                permissions["modules.equipment"] = {"view": True, "edit": True}
+                permissions["modules.professional_travel"]["view"] = True
 
         elif role_name == RoleName.CO2_USER_SECONDARY.value:
             if is_role_scope(scope):
-                permissions["modules.headcount"]["view"] = True
-                permissions["modules.equipment"]["view"] = True
+                permissions["modules.headcount"] = {"view": True, "edit": True}
+                permissions["modules.equipment"] = {"view": True, "edit": True}
+                permissions["modules.professional_travel"] = {
+                    "view": True,
+                    "edit": True,
+                }
+                permissions["modules.infrastructure"] = {"view": True, "edit": True}
+                permissions["modules.purchase"] = {"view": True, "edit": True}
+                permissions["modules.internal_services"] = {"view": True, "edit": True}
+                permissions["modules.external_cloud"] = {"view": True, "edit": True}
 
         # SYSTEM ROLE - Only affects system.* permissions
         elif role_name == RoleName.CO2_SERVICE_MGR.value:
             if is_global_scope(scope):
-                # Service manager gets system route access only
-                # (System routes would be added here when they exist)
-                pass
+                permissions["system.users"]["edit"] = True
 
     return permissions
 

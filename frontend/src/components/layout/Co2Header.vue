@@ -4,8 +4,9 @@ import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { ROLES } from 'src/constant/roles';
-import { isBackOfficeRoute } from 'src/router/routes';
+
+import { isBackOfficeRoute, isSystemRoute } from 'src/router/routes';
+import { hasPermission } from 'src/utils/permission';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -30,15 +31,16 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  if (!authStore.user) return false;
-  const userRoles = authStore.user?.roles_raw?.map((r) => r.role) ?? [];
-  return (
-    userRoles.includes(ROLES.BackOfficeAdmin) ||
-    userRoles.includes(ROLES.BackOfficeStandard)
-  );
+  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'view');
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const hasSystemAccess = computed(() => {
+  return hasPermission(authStore.user?.permissions, 'system.users', 'edit');
+});
+
+const isInSystemRoute = computed(() => isSystemRoute(route));
 </script>
 
 <template>
@@ -93,6 +95,36 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       />
       <q-btn
         v-if="hasBackOfficeAccess && isInBackOfficeRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('back_to_calculator_button')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{
+          name: 'workspace-setup',
+          params: {
+            language: route.params.language || 'en',
+          },
+        }"
+      />
+
+      <q-btn
+        v-if="hasSystemAccess && !isInSystemRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('user_management_system_button_label')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{ name: 'system-user-management' }"
+      />
+      <q-btn
+        v-if="hasSystemAccess && isInSystemRoute"
         color="grey-4"
         text-color="primary"
         :label="$t('back_to_calculator_button')"

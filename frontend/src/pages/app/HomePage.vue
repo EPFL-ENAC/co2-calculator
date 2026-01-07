@@ -5,9 +5,25 @@ import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
+import type { Module } from 'src/constant/modules';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
+
+function hasModulePermission(
+  module: Module,
+  action: PermissionAction,
+): boolean {
+  return hasPermission(
+    authStore.user?.permissions,
+    getModulePermissionPath(module),
+    action,
+  );
+}
 
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
@@ -147,15 +163,41 @@ const homeIntroWithLinks = computed(() => {
           </p>
           <q-separator class="grey-6 q-my-lg" />
           <div class="flex justify-between items-center">
-            <q-btn
-              icon="o_edit"
-              :label="$t('home_edit_btn')"
-              unelevated
-              no-caps
-              size="sm"
-              class="text-weight-medium btn-secondary"
-              :to="{ name: 'module', params: { module: moduleCard.module } }"
-            />
+            <div class="flex items-center">
+              <q-btn
+                v-if="
+                  hasModulePermission(
+                    moduleCard.module,
+                    PermissionAction.VIEW,
+                  ) &&
+                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                "
+                icon="o_visibility"
+                :label="$t('home_view_btn')"
+                unelevated
+                no-caps
+                size="sm"
+                class="text-weight-medium btn-secondary q-mr-sm"
+                :to="{ name: 'module', params: { module: moduleCard.module } }"
+              />
+
+              <q-btn
+                icon="o_edit"
+                :label="$t('home_edit_btn')"
+                unelevated
+                no-caps
+                size="sm"
+                class="text-weight-medium btn-secondary"
+                :disable="
+                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                "
+                :to="
+                  hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                    ? { name: 'module', params: { module: moduleCard.module } }
+                    : undefined
+                "
+              />
+            </div>
             <div
               v-if="moduleCard.value"
               class="row q-gutter-xs text-body1 items-baseline"
