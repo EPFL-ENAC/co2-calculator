@@ -6,29 +6,12 @@ import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission } from 'src/utils/permission';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import type { Module } from 'src/constant/modules';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
-
-/**
- * Maps frontend module names to backend permission paths.
- * Only modules with defined permissions are included.
- */
-function getModulePermissionPath(module: Module): string | null {
-  const modulePermissionMap: Record<Module, string | null> = {
-    [MODULES.MyLab]: 'modules.headcount',
-    [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
-    [MODULES.ProfessionalTravel]: null,
-    [MODULES.Infrastructure]: null,
-    [MODULES.Purchase]: null,
-    [MODULES.InternalServices]: null,
-    [MODULES.ExternalCloud]: null,
-  };
-  return modulePermissionMap[module] || null;
-}
 
 /**
  * TEMPORARY: Allow access to modules without permissions for now.

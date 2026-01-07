@@ -4,7 +4,10 @@ import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
-import { requirePermission } from './guards/permissionGuard';
+import {
+  requirePermission,
+  requireModuleEditPermission,
+} from './guards/permissionGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -109,9 +112,10 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
+                beforeEnter: requireModuleEditPermission(),
                 meta: {
                   requiresAuth: true,
-                  note: 'Module - data entry',
+                  note: 'Module - data entry (edit permission required)',
                   breadcrumb: true,
                 },
               },
@@ -190,10 +194,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission('backoffice.users', 'edit'),
             meta: {
               requiresAuth: true,
-              note: 'Back Office - User roles and permissions (view only)',
+              note: 'Back Office - User roles and permissions (admin only)',
               breadcrumb: false,
               isBackOffice: true,
             },
@@ -202,10 +206,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission('backoffice.users', 'edit'),
             meta: {
               requiresAuth: true,
-              note: 'Back Office - Data management',
+              note: 'Back Office - Data management (admin only)',
               breadcrumb: false,
               isBackOffice: true,
             },

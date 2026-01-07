@@ -12,6 +12,7 @@ import type {
   PermissionPath,
 } from 'src/constant/permissions';
 import { PermissionAction } from 'src/constant/permissions';
+import { MODULES, type Module } from 'src/constant/modules';
 
 /**
  * Check if a user has a specific permission.
@@ -288,4 +289,36 @@ function getPermissionValueByParts(
     }
     return undefined;
   }
+}
+
+/**
+ * Maps frontend module names to backend permission paths.
+ * Only modules with defined permissions are included.
+ *
+ * @param module - The frontend module identifier (e.g., 'my-lab', 'equipment-electric-consumption')
+ * @returns The permission path (e.g., 'modules.headcount', 'modules.equipment') or null if not protected
+ *
+ * @example
+ * ```typescript
+ * const path = getModulePermissionPath('my-lab');
+ * // Returns: 'modules.headcount'
+ *
+ * const path = getModulePermissionPath('equipment-electric-consumption');
+ * // Returns: 'modules.equipment'
+ *
+ * const path = getModulePermissionPath('professional-travel');
+ * // Returns: null (not yet protected)
+ * ```
+ */
+export function getModulePermissionPath(module: Module): string | null {
+  const modulePermissionMap: Record<Module, string | null> = {
+    [MODULES.MyLab]: 'modules.headcount',
+    [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
+    [MODULES.ProfessionalTravel]: null,
+    [MODULES.Infrastructure]: null,
+    [MODULES.Purchase]: null,
+    [MODULES.InternalServices]: null,
+    [MODULES.ExternalCloud]: null,
+  };
+  return modulePermissionMap[module] || null;
 }
