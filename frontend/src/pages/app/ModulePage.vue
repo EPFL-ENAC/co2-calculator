@@ -75,7 +75,7 @@ const totalResult = computed(() => {
   if (currentModuleType.value === MODULES.MyLab) {
     return moduleStore.state.data?.totals?.total_annual_fte;
   }
-  return moduleStore.state.data?.totals?.total_kg_co2eq;
+  return moduleStore.state.data?.totals?.total_tonnes_co2eq;
 });
 
 const AuthorizedModules: Module[] = [

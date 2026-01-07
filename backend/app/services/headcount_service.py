@@ -167,6 +167,7 @@ class HeadcountService:
             total_items=total_items,
             total_annual_fte=round(total_annual_fte, 2),
             total_kg_co2eq=None,
+            total_tonnes_co2eq=None,
             total_annual_consumption_kwh=None,
         )
 
