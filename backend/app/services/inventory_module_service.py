@@ -5,6 +5,7 @@ from typing import List, Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ALL_MODULE_TYPE_IDS, ModuleStatus
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.inventory import InventoryModule
 from app.repositories.inventory_module_repo import InventoryModuleRepository
@@ -30,8 +31,8 @@ class InventoryModuleService:
         """
         module_type_ids = [int(mt) for mt in ALL_MODULE_TYPE_IDS]
         logger.info(
-            f"Creating {len(module_type_ids)} inventory modules "
-            f"for inventory {inventory_id}"
+            f"Creating {sanitize(len(module_type_ids))} inventory modules "
+            f"for inventory {sanitize(inventory_id)}"
         )
         return await self.repo.create_bulk(
             inventory_id=inventory_id,
@@ -73,8 +74,8 @@ class InventoryModuleService:
             )
 
         logger.info(
-            f"Updating inventory {inventory_id} module {module_type_id} "
-            f"status to {ModuleStatus(status).name}"
+            f"Updt inventory {sanitize(inventory_id)} module {sanitize(module_type_id)}"
+            f"status to {sanitize(ModuleStatus(status).name)}"
         )
         return await self.repo.update_status(inventory_id, module_type_id, status)
 

@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.inventory import Inventory
 from app.repositories.inventory_repo import InventoryRepository
@@ -29,7 +30,10 @@ class InventoryService:
         InventoryModule per module type (7 total) with status NOT_STARTED.
         """
         inventory = await self.repo.create_inventory(data)
-        logger.info(f"Created inventory {inventory.id} for unit {data.unit_id}")
+        logger.info(
+            f"Created inventory {sanitize(inventory.id)} for unit "
+            f"{sanitize(data.unit_id)} year {sanitize(data.year)}"
+        )
 
         # Auto-create all inventory modules with default status
         assert inventory.id is not None
