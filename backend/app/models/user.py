@@ -87,6 +87,20 @@ class UserBase(SQLModel):
     created_by: Optional[str] = Field(default=None, index=True)
     updated_by: Optional[str] = Field(default=None, index=True)
 
+    def calculate_permissions(self) -> dict:
+        """Calculate permissions dynamically based on current user roles.
+
+        This method calculates permissions on-the-fly from the user's roles
+        using the calculate_user_permissions utility function.
+        Permissions are NOT stored in the database.
+
+        Returns:
+            dict: Calculated permissions structure
+        """
+        from app.utils.permissions import calculate_user_permissions
+
+        return calculate_user_permissions(self.roles)
+
 
 class User(UserBase, table=True):
     """User model representing authenticated users in the system."""
