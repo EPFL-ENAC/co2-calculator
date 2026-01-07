@@ -55,7 +55,6 @@ export const useWorkspaceStore = defineStore(
     const unitErrors = ref<Error[]>([]);
     const unitResultsErrors = ref<Error[]>([]);
 
-
     // --- Inventory logic ---
     const inventories = ref<Inventory[]>([]); // backend inventory objects
     const inventoriesLoading = ref(false);
@@ -122,7 +121,10 @@ export const useWorkspaceStore = defineStore(
     }
 
     // Create inventory for a unit/year
-    async function createInventory(unitId: string, year: number): Promise<Inventory> {
+    async function createInventory(
+      unitId: string,
+      year: number,
+    ): Promise<Inventory> {
       try {
         inventoriesLoading.value = true;
         inventoriesError.value = null;

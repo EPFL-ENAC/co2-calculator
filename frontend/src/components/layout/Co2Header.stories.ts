@@ -86,8 +86,7 @@ const withRouterAndStores = (config: {
         if (config.moduleState && config.route.params?.module) {
           timelineStore.itemStates[
             config.route.params.module as keyof typeof timelineStore.itemStates
-          ] =
-            config.moduleState;
+          ] = config.moduleState;
         }
 
         // Ensure language param is always present
