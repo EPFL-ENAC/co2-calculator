@@ -68,6 +68,8 @@ $field-border-weight: opt.$tokens-spacing-1 !default;
 $field-border-default: opt.$tokens-colors-grey-scale-grey-400 !default;
 $field-border-focus: opt.$tokens-colors-grey-scale-grey-500 !default;
 $field-transition-duration: opt.$tokens-transitions-default !default;
+$destination-marker-size-outer: opt.$tokens-spacing-12 !default;
+$destination-marker-size-inner: opt.$tokens-spacing-6 !default;
 
 // Timeline
 $timeline-item-size: opt.$tokens-spacing-24 !default;

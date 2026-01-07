@@ -1,17 +1,101 @@
 import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
 
 export default {
-  [MODULES.ProfessionalTravel]: {
-    en: 'Professional Travel',
+  // Table (Chapter 5)
+  [`${MODULES.ProfessionalTravel}-table-title`]: {
+    en: 'Trips',
     fr: 'Voyages',
   },
+  [`${MODULES.ProfessionalTravel}-field-type`]: {
+    en: 'Type',
+    fr: 'Type',
+  },
+  [`${MODULES.ProfessionalTravel}-field-from`]: {
+    en: 'From',
+    fr: 'De',
+  },
+  [`${MODULES.ProfessionalTravel}-field-to`]: {
+    en: 'To',
+    fr: 'À',
+  },
+  [`${MODULES.ProfessionalTravel}-field-start-date`]: {
+    en: 'Date',
+    fr: 'Date ',
+  },
+  [`${MODULES.ProfessionalTravel}-field-number-trips`]: {
+    en: 'Number of trips',
+    fr: 'Nombre de trajets',
+  },
+  [`${MODULES.ProfessionalTravel}-field-distance`]: {
+    en: 'Distance (km)',
+    fr: 'Distance (km)',
+  },
+  [`${MODULES.ProfessionalTravel}-field-traveler`]: {
+    en: 'Traveler Name',
+    fr: 'Nom du voyageur',
+  },
+  [`${MODULES.ProfessionalTravel}-field-emissions`]: {
+    en: 'kg CO₂-eq',
+    fr: 'kg CO₂-eq',
+  },
+  // Form (Chapter 7)
+  [`${MODULES.ProfessionalTravel}-trips-form-title`]: {
+    en: 'Add a trip',
+    fr: 'Ajouter un voyage',
+  },
+  [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
+    en: 'Each leg of a journey must be entered as a separate trip.',
+    fr: 'Chaque étape du trajet doit être saisie comme un déplacement distinct.',
+  },
+  [`${MODULES.ProfessionalTravel}-other-form-title`]: {
+    en: 'Add a trip',
+    fr: 'Ajouter un voyage',
+  },
+  [`${MODULES.ProfessionalTravel}-field-return-date`]: {
+    en: 'Return Date',
+    fr: 'Date de retour',
+  },
+  [`${MODULES.ProfessionalTravel}-field-round-trip`]: {
+    en: 'Round trip',
+    fr: 'Aller-retour',
+  },
+  [`${MODULES.ProfessionalTravel}-field-class`]: {
+    en: 'Class',
+    fr: 'Classe',
+  },
+  [`${MODULES.ProfessionalTravel}-field-purpose`]: {
+    en: 'Purpose',
+    fr: 'Motif',
+  },
+  [`${MODULES.ProfessionalTravel}-field-notes`]: {
+    en: 'Notes',
+    fr: 'Notes',
+  },
+  // Submodule name (used in form labels)
+  [`${MODULES.ProfessionalTravel}-trips`]: {
+    en: 'trip',
+    fr: 'voyage',
+  },
+  // Legacy keys (keeping for backward compatibility)
+  [MODULES.ProfessionalTravel]: {
+    en: 'Professional Travel',
+    fr: 'Voyages professionnels ',
+  },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
-    en: 'Record team travel by plane and train with automatic CO₂ calculations',
-    fr: 'Voyges professionels en train et en avion',
+    en: 'Record travel by plane and train, along with their associated emissions. ',
+    fr: 'Enregistrez les déplacements en avion et en train, ainsi que les émissions associées.',
+  },
+  [`${MODULES.ProfessionalTravel}-title-subtext`]: {
+    en: 'Please manually complete all train trips. Plane trips are usually already listed in the table below.',
+    fr: 'Veuillez renseigner manuellement tous les trajets en train. Les trajets en avion sont généralement déjà renseignés dans le tableau ci-dessous.',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint`]: {
     en: 'Total Travel Carbon Footprint',
     fr: 'Empreinte CO₂ totale déplacements',
+  },
+  [`${MODULES.ProfessionalTravel}-title-tooltip-title`]: {
+    en: 'Information',
+    fr: 'Information',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {

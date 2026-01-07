@@ -1,11 +1,15 @@
 import { useAuthStore } from 'src/stores/auth';
-import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router';
+import type {
+  RouteLocationNormalized,
+  NavigationGuardReturn,
+} from 'vue-router';
 import {
   getPermissionValue,
   hasPermission,
   getModulePermissionPath,
 } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
+import { MODULES } from 'src/constant/modules';
 import type { Module } from 'src/constant/modules';
 
 /**
@@ -40,20 +44,16 @@ export function requirePermission(
   path: string,
   action: string = PermissionAction.VIEW,
 ) {
-  return (
-    to: RouteLocationNormalized,
-    from: RouteLocationNormalized,
-    next: NavigationGuardNext,
-  ) => {
+  return (): NavigationGuardReturn => {
     const authStore = useAuthStore();
     const hasRequiredPermission = getPermissionValue(
       authStore.user?.permissions,
       `${path}.${action}`,
     );
     if (hasRequiredPermission === true) {
-      next();
+      return true;
     } else {
-      next({ name: 'unauthorized' });
+      return { name: 'unauthorized' };
     }
   };
 }
@@ -63,16 +63,14 @@ export function requirePermission(
  * Standard users without view permission will be blocked entirely.
  * Standard users with view but not edit permission will be redirected to unauthorized.
  *
+ * Exception: professional-travel module allows view permission (read-only access for API data).
+ *
  * This guard checks the module parameter from the route and verifies:
  * 1. That the user has view permission (if module is protected)
- * 2. That the user has edit permission (required for data entry)
+ * 2. That the user has edit permission (required for data entry, except professional-travel)
  */
 export function requireModuleEditPermission() {
-  return (
-    to: RouteLocationNormalized,
-    from: RouteLocationNormalized,
-    next: NavigationGuardNext,
-  ) => {
+  return (to: RouteLocationNormalized): NavigationGuardReturn => {
     const authStore = useAuthStore();
     const module = to.params.module as Module;
 
@@ -81,8 +79,7 @@ export function requireModuleEditPermission() {
 
     // If module doesn't have a permission path, allow access (not yet protected)
     if (!permissionPath) {
-      next();
-      return;
+      return true;
     }
 
     // First check if user has view permission (standard users without view should be blocked)
@@ -94,11 +91,15 @@ export function requireModuleEditPermission() {
 
     if (!hasViewPermission) {
       // User doesn't have view permission - block access entirely
-      next({ name: 'unauthorized' });
-      return;
+      return { name: 'unauthorized' };
     }
 
-    // Check if user has edit permission (required for data entry)
+    // Professional-travel module allows view permission (read-only access for API data)
+    if (module === MODULES.ProfessionalTravel) {
+      return true;
+    }
+
+    // Check if user has edit permission (required for data entry for other modules)
     const hasEditPermission = hasPermission(
       authStore.user?.permissions,
       permissionPath,
@@ -106,10 +107,10 @@ export function requireModuleEditPermission() {
     );
 
     if (hasEditPermission) {
-      next();
+      return true;
     } else {
       // User has view but not edit - redirect to unauthorized
-      next({ name: 'unauthorized' });
+      return { name: 'unauthorized' };
     }
   };
 }

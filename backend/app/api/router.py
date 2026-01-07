@@ -8,6 +8,7 @@ from app.api.v1 import (
     files,
     headcounts,
     inventory,
+    locations,
     modules,
     power_factors,
     resources,
@@ -31,4 +32,5 @@ api_router.include_router(
 )
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(inventory.router, prefix="/inventories", tags=["inventories"])
+api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])

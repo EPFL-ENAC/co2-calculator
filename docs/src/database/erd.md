@@ -96,6 +96,19 @@ erDiagram
     INTEGER inventory_id FK "indexed"
     INTEGER id PK
   }
+  locations {
+    DATETIME created_at
+    DATETIME updated_at
+    VARCHAR created_by "indexed"
+    VARCHAR updated_by "indexed"
+    VARCHAR(50) transport_mode "indexed"
+    VARCHAR(255) name "indexed"
+    FLOAT latitude
+    FLOAT longitude
+    VARCHAR(10) iata_code "indexed"
+    VARCHAR(10) countrycode "indexed"
+    INTEGER id PK
+  }
   modules {
     INTEGER module_type_id FK "indexed"
     INTEGER variant_type_id FK "indexed"
@@ -106,6 +119,37 @@ erDiagram
   module_types {
     VARCHAR name UK "indexed"
     VARCHAR description
+    INTEGER id PK "indexed"
+  }
+  professional_travels {
+    DATETIME created_at
+    DATETIME updated_at
+    VARCHAR created_by "indexed"
+    VARCHAR updated_by "indexed"
+    VARCHAR(255) traveler_name
+    INTEGER origin_location_id FK "indexed"
+    INTEGER destination_location_id FK "indexed"
+    DATE departure_date
+    BOOLEAN is_round_trip
+    VARCHAR(50) transport_mode
+    VARCHAR(50) class
+    INTEGER number_of_trips
+    VARCHAR(50) unit_id "indexed"
+    INTEGER id PK
+    VARCHAR(50) traveler_id
+    VARCHAR(50) provider
+    INTEGER year "indexed"
+  }
+  professional_travel_emissions {
+    INTEGER professional_travel_id FK "indexed"
+    FLOAT distance_km
+    FLOAT kg_co2eq
+    INTEGER plane_impact_factor_id FK "indexed"
+    INTEGER train_impact_factor_id FK "indexed"
+    VARCHAR formula_version
+    TIMESTAMP computed_at "indexed"
+    JSON calculation_inputs
+    BOOLEAN is_current "indexed"
     INTEGER id PK "indexed"
   }
   resources {
@@ -120,6 +164,34 @@ erDiagram
     VARCHAR updated_by FK "indexed"
     VARCHAR unit_id "indexed"
     INTEGER id PK "indexed"
+  }
+  plane_impact_factors {
+    DATETIME created_at
+    DATETIME updated_at
+    VARCHAR created_by "indexed"
+    VARCHAR updated_by "indexed"
+    VARCHAR(50) factor_type "indexed"
+    VARCHAR(50) category "indexed"
+    FLOAT impact_score
+    FLOAT rfi_adjustment
+    FLOAT min_distance
+    FLOAT max_distance
+    TIMESTAMP valid_from
+    TIMESTAMP valid_to
+    VARCHAR source
+    INTEGER id PK
+  }
+  train_impact_factors {
+    DATETIME created_at
+    DATETIME updated_at
+    VARCHAR created_by "indexed"
+    VARCHAR updated_by "indexed"
+    VARCHAR(10) countrycode "indexed"
+    FLOAT impact_score
+    TIMESTAMP valid_from
+    TIMESTAMP valid_to
+    VARCHAR source
+    INTEGER id PK
   }
   units {
     VARCHAR code UK "indexed"
@@ -167,14 +239,19 @@ erDiagram
   power_factors ||--}o equipment : power_factor_id
   users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
-  equipment ||--}o equipment_emissions : equipment_id
   emission_factors ||--}o equipment_emissions : emission_factor_id
   power_factors ||--}o equipment_emissions : power_factor_id
+  equipment ||--}o equipment_emissions : equipment_id
   inventory ||--}o inventory_module : inventory_id
   module_types ||--}o inventory_module : module_type_id
-  inventory_module ||--}o modules : inventory_module_id
   module_types ||--}o modules : module_type_id
+  inventory_module ||--}o modules : inventory_module_id
   variant_types ||--}o modules : variant_type_id
+  locations ||--}o professional_travels : origin_location_id
+  locations ||--}o professional_travels : destination_location_id
+  professional_travels ||--}o professional_travel_emissions : professional_travel_id
+  train_impact_factors ||--}o professional_travel_emissions : train_impact_factor_id
+  plane_impact_factors ||--}o professional_travel_emissions : plane_impact_factor_id
   users ||--}o resources : created_by
   users ||--}o resources : updated_by
   units ||--}o unit_users : unit_id

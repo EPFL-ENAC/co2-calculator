@@ -189,7 +189,8 @@ export const useModuleStore = defineStore('modules', () => {
     const unitEncoded = encodeURIComponent(unit);
     const yearEncoded = encodeURIComponent(year);
     // Backend expects /{unit_id}/{year}/{module_id}
-    return `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
+    const path = `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
+    return path;
   }
 
   function initializeSubmoduleState(submoduleId: string) {
@@ -293,13 +294,12 @@ export const useModuleStore = defineStore('modules', () => {
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
       }
-      const response = await api
-        .get(
-          `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
-            submoduleType,
-          )}?${queryParams.toString()}`,
-        )
-        .json();
+      const url = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
+        submoduleType,
+      )}?${queryParams.toString()}`;
+
+      const response = await api.get(url).json();
+
       state.dataSubmodule[submoduleType] = response as Submodule;
       // update pagination state based on response
       state.paginationSubmodule[submoduleType] = {
@@ -312,10 +312,16 @@ export const useModuleStore = defineStore('modules', () => {
 
       state.loadedSubmodules[submoduleType] = true;
     } catch (err: unknown) {
+      console.error(
+        `[ModuleStore] API Error for ${moduleType}/${submoduleType}:`,
+        err,
+      );
       if (err instanceof Error) {
+        console.error(`[ModuleStore] Error message:`, err.message);
         state.errorSubmodule[submoduleType] = err.message ?? 'Unknown error';
         state.dataSubmodule[submoduleType] = null;
       } else {
+        console.error(`[ModuleStore] Unknown error:`, err);
         state.errorSubmodule[submoduleType] = 'Unknown error';
         state.dataSubmodule[submoduleType] = null;
       }
@@ -361,11 +367,33 @@ export const useModuleStore = defineStore('modules', () => {
             : (value as string | number | boolean | null);
       });
 
-      // Fallback category if not provided by the form // for equipemnt
-      normalized.category = (normalized.class as string) || 'Uncategorized';
+      // Module-specific payload adjustments
+      if (moduleType === MODULES.EquipmentElectricConsumption) {
+        // Fallback category if not provided by the form // for equipment
+        normalized.category = (normalized.class as string) || 'Uncategorized';
+      } else if (moduleType === MODULES.ProfessionalTravel) {
+        // Add unit_id for professional travel (required by backend)
+        normalized.unit_id = unitId;
+      }
 
       const body = normalized;
-      await api.post(path, { json: body }).json();
+      try {
+        await api.post(path, { json: body }).json();
+      } catch (error: unknown) {
+        if (
+          error &&
+          typeof error === 'object' &&
+          'response' in error &&
+          error.response &&
+          typeof error.response === 'object' &&
+          'json' in error.response &&
+          typeof error.response.json === 'function'
+        ) {
+          const errorBody = await error.response.json();
+          console.error('[ModuleStore] Backend error response:', errorBody);
+        }
+        throw error;
+      }
 
       // Refresh module totals
       await getModuleTotals(moduleType, unitId, year);
@@ -398,7 +426,53 @@ export const useModuleStore = defineStore('modules', () => {
       const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
       )}`;
-      await api.patch(path, { json: payload }).json();
+
+      // Normalize payload similar to postItem
+      const normalized: Record<string, string | number | boolean | null> = {};
+
+      Object.entries(payload).forEach(([key, raw]) => {
+        let value: unknown = raw;
+        if (
+          value &&
+          typeof value === 'object' &&
+          'value' in (value as Option) &&
+          typeof (value as Option).value === 'string'
+        ) {
+          value = (value as Option).value;
+        }
+        normalized[key] =
+          value === undefined
+            ? null
+            : (value as string | number | boolean | null);
+      });
+
+      // Module-specific payload adjustments
+      if (moduleType === MODULES.ProfessionalTravel) {
+        // Ensure number_of_trips is an integer if present and prevent negative values
+        if (
+          'number_of_trips' in normalized &&
+          normalized.number_of_trips !== null
+        ) {
+          const tripsValue = normalized.number_of_trips;
+          let parsed: number;
+          if (typeof tripsValue === 'string') {
+            parsed = parseInt(tripsValue, 10);
+            if (isNaN(parsed)) {
+              throw new Error('number_of_trips must be a valid integer');
+            }
+          } else if (typeof tripsValue === 'number') {
+            parsed = Math.floor(tripsValue);
+          } else {
+            throw new Error('number_of_trips must be a number');
+          }
+          if (parsed < 1) {
+            throw new Error('number_of_trips must be at least 1');
+          }
+          normalized.number_of_trips = parsed;
+        }
+      }
+
+      await api.patch(path, { json: normalized }).json();
 
       // Refresh module totals
       await getModuleTotals(moduleType, unit, year);
