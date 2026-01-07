@@ -49,10 +49,11 @@
           :moduleconfig="submodule"
           :module-config="moduleConfig"
           :submodule-config="submodule"
+          :disable="disable"
         />
       </div>
       <q-separator />
-      <div v-if="submodule.moduleFields">
+      <div v-if="submodule.moduleFields && !disable">
         <module-form
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
@@ -102,6 +103,7 @@ type CommonProps = {
   unitId: string;
   year: string | number;
   threshold: Threshold;
+  disable: boolean;
 };
 
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;

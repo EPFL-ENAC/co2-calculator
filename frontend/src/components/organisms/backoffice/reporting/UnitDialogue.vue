@@ -186,10 +186,10 @@ const completionCountsForYear = computed(() => {
 
   const counts = { validated: 0, in_progress: 0, default: 0 };
   Object.values(yearData).forEach((moduleData) => {
-    const status = moduleData?.status || 'default';
-    if (status === 'validated') {
+    const status = moduleData?.status || MODULE_STATES.Default;
+    if (status === MODULE_STATES.Validated) {
       counts.validated += 1;
-    } else if (status === 'in-progress') {
+    } else if (status === MODULE_STATES.InProgress) {
       counts.in_progress += 1;
     } else {
       counts.default += 1;
@@ -216,10 +216,10 @@ const moduleRows = computed<ModuleRow[]>(() => {
     let statusColor;
     const statusTextColor = 'white';
 
-    if (moduleStatus === 'validated') {
+    if (moduleStatus === MODULE_STATES.Validated) {
       status = t(MODULE_STATES.Validated);
       statusColor = 'green';
-    } else if (moduleStatus === 'in-progress') {
+    } else if (moduleStatus === MODULE_STATES.InProgress) {
       status = t(MODULE_STATES.InProgress);
       statusColor = 'orange';
     } else {

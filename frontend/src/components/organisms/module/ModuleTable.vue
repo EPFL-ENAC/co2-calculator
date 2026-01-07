@@ -122,11 +122,13 @@
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
               :year="year"
+              :disable="disable"
             />
             <component
               :is="col.inputComponent"
               v-else
               v-model="slotProps.row[col.field]"
+              :disable="disable"
               :type="col.type === 'number' ? 'number' : undefined"
               :options="col.options || []"
               :dense="true"
@@ -151,6 +153,7 @@
               icon="o_delete"
               color="grey-4"
               text-color="primary"
+              :disable="disable"
               unelevated
               no-caps
               dense
@@ -327,6 +330,7 @@ type CommonProps = {
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
+  disable: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;

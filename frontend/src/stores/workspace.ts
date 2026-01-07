@@ -3,6 +3,8 @@ import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
 
+export const WORKSPACE_DEFAULT_YEAR = 2025;
+
 export interface Unit {
   id: string;
   name: string;
@@ -32,6 +34,11 @@ interface SelectedParams {
   year: number;
   unit: string; // unit id-name string
 }
+export interface Inventory {
+  id: number;
+  unit_id: string;
+  year: number;
+}
 
 export const useWorkspaceStore = defineStore(
   'workspace',
@@ -47,6 +54,116 @@ export const useWorkspaceStore = defineStore(
     const unitsErrors = ref<Error[]>([]);
     const unitErrors = ref<Error[]>([]);
     const unitResultsErrors = ref<Error[]>([]);
+
+
+    // --- Inventory logic ---
+    const inventories = ref<Inventory[]>([]); // backend inventory objects
+    const inventoriesLoading = ref(false);
+    const inventoriesError = ref<Error | null>(null);
+    const selectedInventory = ref<Inventory | null>(null);
+
+    // Fetch all inventories for a unit
+    async function fetchInventoriesForUnit(unitId: string) {
+      try {
+        inventoriesLoading.value = true;
+        inventoriesError.value = null;
+        inventories.value = await api.get(`inventories/unit/${unitId}/`).json();
+      } catch (error) {
+        inventoriesError.value =
+          error instanceof Error
+            ? error
+            : new Error('Failed to fetch inventories');
+        inventories.value = [];
+      } finally {
+        inventoriesLoading.value = false;
+      }
+    }
+
+    // Fetch inventory for a unit of a given year
+    // /unit/{unit_id}/year/{year}/
+    async function fetchInventoryForUnitYear(unitId: string, year: number) {
+      try {
+        inventoriesLoading.value = true;
+        inventoriesError.value = null;
+        const inv: Inventory | null = await api
+          .get(`inventories/unit/${unitId}/year/${year}/`)
+          .json();
+        return inv;
+      } catch (error) {
+        inventoriesError.value =
+          error instanceof Error
+            ? error
+            : new Error('Failed to fetch inventory for year');
+        return null;
+      } finally {
+        inventoriesLoading.value = false;
+      }
+    }
+
+    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to N-1)
+    const availableInventoryYears = computed(() => {
+      const currentYear = new Date().getFullYear();
+      const yearsInDb = inventories.value.map((inv) => inv.year);
+      // Find the minimum year in DB, but never less than WORKSPACE_DEFAULT_YEAR
+      const minDbYear =
+        yearsInDb.length > 0 ? Math.min(...yearsInDb) : WORKSPACE_DEFAULT_YEAR;
+      // const minYear = Math.min(minDbYear, WORKSPACE_DEFAULT_YEAR); // unused
+      const startYear =
+        minDbYear < WORKSPACE_DEFAULT_YEAR ? minDbYear : WORKSPACE_DEFAULT_YEAR;
+      const maxYear = currentYear - 1;
+      const years: number[] = [];
+      for (let y = startYear; y <= maxYear; y++) years.push(y);
+      return years;
+    });
+
+    // Helper: does inventory exist for year?
+    function inventoryForYear(year: number) {
+      return inventories.value.find((inv) => inv.year === year) || null;
+    }
+
+    // Create inventory for a unit/year
+    async function createInventory(unitId: string, year: number): Promise<Inventory> {
+      try {
+        inventoriesLoading.value = true;
+        inventoriesError.value = null;
+        const inv: Inventory = await api
+          .post(`inventories/`, { json: { unit_id: unitId, year } })
+          .json();
+        inventories.value.push(inv);
+        return inv;
+      } catch (error) {
+        inventoriesError.value =
+          error instanceof Error
+            ? error
+            : new Error('Failed to create inventory');
+        throw inventoriesError.value;
+      } finally {
+        inventoriesLoading.value = false;
+      }
+    }
+
+    // Set selected inventory by year (create if needed)
+    async function selectInventoryForYear(unitId: string, year: number) {
+      let inv: Inventory | null = await fetchInventoryForUnitYear(unitId, year);
+      if (!inv) {
+        inv = await createInventory(unitId, year);
+      }
+      selectedInventory.value = inv;
+      return inv;
+    }
+
+    // Set selected inventory by year (create if needed)
+    async function selectWithoutFetchingInventoryForYear(
+      unitId: string,
+      year: number,
+    ) {
+      let inv = await inventoryForYear(year);
+      if (!inv) {
+        inv = await createInventory(unitId, year);
+      }
+      selectedInventory.value = inv;
+      return inv;
+    }
 
     function setUnit(unit: Unit) {
       selectedUnit.value = unit;
@@ -171,6 +288,17 @@ export const useWorkspaceStore = defineStore(
       setYear,
       setSelectedParams,
       reset,
+      // Inventory logic
+      inventories,
+      inventoriesLoading,
+      inventoriesError,
+      selectedInventory,
+      fetchInventoriesForUnit,
+      availableInventoryYears,
+      inventoryForYear,
+      createInventory,
+      selectInventoryForYear,
+      selectWithoutFetchingInventoryForYear,
     };
   },
   {

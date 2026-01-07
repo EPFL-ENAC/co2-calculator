@@ -1,3 +1,4 @@
+import { useTimelineStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 async function validateUnit() {
@@ -20,7 +21,8 @@ async function validateUnit() {
   return false;
 }
 
-export default async function redirectToWorkspaceIfSelectedGuard(to) {
+export default async function validateUnitGuard(to) {
+  // redirectToWorkspaceIfNotSelectedGuard
   useWorkspaceStore().setSelectedParams({
     year: parseInt(to.params.year as string, 10),
     unit: to.params.unit as string,
@@ -28,7 +30,21 @@ export default async function redirectToWorkspaceIfSelectedGuard(to) {
   const workspaceStore = useWorkspaceStore();
   await workspaceStore.getUnits();
   const response = await validateUnit();
-  if (!response) {
+  // if unit is valid retrieve inventory!
+  let inventoryId = null;
+  if (response) {
+    await workspaceStore.selectInventoryForYear(
+      workspaceStore.selectedUnit.id,
+      workspaceStore.selectedYear,
+    );
+    inventoryId = workspaceStore.selectedInventory?.id;
+    if (inventoryId) {
+      const timelineStore = useTimelineStore();
+      await timelineStore.fetchModuleStates(inventoryId);
+    }
+  }
+  // then we can retrieve modules
+  if (!response && !inventoryId) {
     return {
       name: 'workspace-setup',
       params: {

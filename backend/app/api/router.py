@@ -6,6 +6,7 @@ from app.api.v1 import (
     auth,
     backoffice,
     headcounts,
+    inventory,
     modules,
     power_factors,
     resources,
@@ -28,3 +29,4 @@ api_router.include_router(
     power_factors.router, prefix="/power-factors", tags=["power-factors"]
 )
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
+api_router.include_router(inventory.router, prefix="/inventories", tags=["inventories"])

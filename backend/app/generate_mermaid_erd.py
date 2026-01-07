@@ -6,7 +6,7 @@ from sqlalchemy.orm import DeclarativeMeta
 from sqlmodel import SQLModel
 
 # Import all model modules so tables are registered
-from app.models import resource, user  # noqa: F401
+from app.models import module, module_type, resource, user, variant_type  # noqa: F401
 
 
 def generate_mermaid(base: Optional[DeclarativeMeta] = None) -> str:
@@ -19,7 +19,33 @@ def generate_mermaid(base: Optional[DeclarativeMeta] = None) -> str:
         lines.append(f"  {table_name} {{")
         for column in table.columns:
             col_type = str(column.type)
-            lines.append(f"    {col_type} {column.name}")
+
+            # Determine primary metadata indicator
+            # (Mermaid supports only one key per column)
+            # Priority: PK > FK > UK (unique) > indexed (shown in comment)
+            metadata_key = ""
+            comment_parts = []
+
+            if column.primary_key:
+                metadata_key = " PK"
+                if len(column.foreign_keys) > 0:
+                    comment_parts.append("FK")
+                if column.index:
+                    comment_parts.append("indexed")
+            elif len(column.foreign_keys) > 0:
+                metadata_key = " FK"
+                if column.index:
+                    comment_parts.append("indexed")
+            elif getattr(column, "unique", False):
+                metadata_key = " UK"
+                if column.index:
+                    comment_parts.append("indexed")
+            elif column.index:
+                comment_parts.append("indexed")
+
+            # Build comment suffix if additional metadata exists
+            comment = f' "{", ".join(comment_parts)}"' if comment_parts else ""
+            lines.append(f"    {col_type} {column.name}{metadata_key}{comment}")
         lines.append("  }")
 
     # Relationships

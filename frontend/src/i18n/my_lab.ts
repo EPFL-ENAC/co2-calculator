@@ -50,6 +50,10 @@ export default {
     en: 'FTE per position',
     fr: 'EPT par poste',
   },
+  [`${MODULES.MyLab}-charts-no-data-message`]: {
+    en: 'No data available for FTE per position.',
+    fr: 'Aucune donnée disponible pour l’EPT par poste.',
+  },
   [`${MODULES.MyLab}-member-form-title`]: {
     // en: 'Add Full-Time Equivalent member',
     // fr: 'Ajouter un membre à équivalent plein-temps',

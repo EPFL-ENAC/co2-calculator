@@ -21,10 +21,14 @@ from .headcount import (
     HeadCountRead,
     HeadCountUpdate,
 )
+from .inventory import Inventory, InventoryModule
+from .module import Module, ModuleBase
+from .module_type import ModuleType, ModuleTypeBase
 from .resource import Resource, ResourceBase
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User, UserBase
+from .variant_type import VariantType, VariantTypeBase
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
 User.model_rebuild()
@@ -47,6 +51,22 @@ UnitUser.unit = Relationship(back_populates="unit_users")
 
 User.unit_users = Relationship(back_populates="user")
 UnitUser.user = Relationship(back_populates="unit_users")
+
+# Inventory <-> InventoryModule relationships
+Inventory.modules = Relationship(back_populates="inventory")
+InventoryModule.inventory = Relationship(back_populates="modules")
+
+# InventoryModule <-> Module relationships
+InventoryModule.module_rows = Relationship(back_populates="inventory_module")
+Module.inventory_module = Relationship(back_populates="module_rows")
+
+# ModuleType <-> VariantType relationships
+ModuleType.variant_types = Relationship(back_populates="module_type")
+VariantType.module_type = Relationship(back_populates="variant_types")
+
+# Module <-> ModuleType/VariantType relationships
+Module.module_type = Relationship()
+Module.variant_type = Relationship()
 
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed
@@ -71,4 +91,12 @@ __all__ = [
     "HeadCountCreate",
     "HeadCountRead",
     "HeadCountUpdate",
+    "Inventory",
+    "InventoryModule",
+    "Module",
+    "ModuleBase",
+    "ModuleType",
+    "ModuleTypeBase",
+    "VariantType",
+    "VariantTypeBase",
 ]

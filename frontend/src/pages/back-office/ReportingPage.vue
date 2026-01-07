@@ -29,7 +29,7 @@ const allStatesSelected = computed(() => {
 });
 
 const moduleFilters = computed(() => {
-  const filters: Array<{ module: string; state: string }> = [];
+  const filters: Array<{ module: string; state: ModuleState }> = [];
 
   // Only include modules that have states selected
   MODULE_CARDS.forEach((card) => {
@@ -106,7 +106,7 @@ async function fetchUnits() {
     completion?: string;
     outlier_values?: boolean | null;
     search?: string;
-    modules?: Array<{ module: string; state: string }> | null;
+    modules?: Array<{ module: string; state: ModuleState }> | null;
   } = {
     affiliation: filters.value.affiliation,
     units: filters.value.units,

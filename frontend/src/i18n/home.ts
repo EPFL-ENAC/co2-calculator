@@ -35,6 +35,10 @@ export default {
     en: 'In Progress',
     fr: 'En Cours',
   },
+  home_validated: {
+    en: 'Validated',
+    fr: 'Validé',
+  },
   home_results_title: {
     en: 'Results Visualization',
     fr: 'Visualisation des Résultats',

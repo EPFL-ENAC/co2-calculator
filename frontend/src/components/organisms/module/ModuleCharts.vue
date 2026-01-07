@@ -5,7 +5,13 @@
         <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
           {{ $t('my-lab-charts-title') }}
         </h2>
-        <headCountBarChart :stats="moduleStore?.state?.data?.stats" />
+        <headCountBarChart
+          v-if="hasStats"
+          :stats="moduleStore?.state?.data?.stats"
+        />
+        <span v-else class="text-body2 text-secondary">
+          {{ $t(`${type}-charts-no-data-message`) }}
+        </span>
       </template>
       <h2 v-else class="text-h3 q-mb-none text-bold text-uppercase">
         {{ $t(`${type}-charts-title`) }}
@@ -15,6 +21,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Module } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import { useModuleStore } from 'src/stores/modules';
@@ -24,6 +31,11 @@ defineProps<{
 }>();
 
 const moduleStore = useModuleStore();
+
+const hasStats = computed(() => {
+  const stats = moduleStore.state.data?.stats;
+  return !!stats && Object.keys(stats).length > 0;
+});
 </script>
 
 <style scoped lang="scss">

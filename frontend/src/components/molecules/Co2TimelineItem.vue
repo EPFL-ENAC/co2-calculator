@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { TimelineItem } from 'src/constant/timelineItems';
-import { ModuleState } from 'src/constant/moduleStates';
+import { ModuleState, MODULE_STATES } from 'src/constant/moduleStates';
 import { RouteLocationRaw } from 'vue-router';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
@@ -13,7 +13,7 @@ const props = withDefaults(
     selected?: boolean;
   }>(),
   {
-    currentState: 'default',
+    currentState: MODULE_STATES.Default,
     to: '/',
     selected: false,
   },
@@ -22,12 +22,23 @@ const props = withDefaults(
 // Computed property for state color
 const stateColor = computed(() => {
   switch (props.currentState) {
-    case 'in-progress':
+    case MODULE_STATES.InProgress:
       return 'grey-6';
-    case 'validated':
+    case MODULE_STATES.Validated:
       return 'info';
     default:
       return 'grey-5';
+  }
+});
+
+const stateColorString = computed(() => {
+  switch (props.currentState) {
+    case MODULE_STATES.InProgress:
+      return 'in-progress';
+    case MODULE_STATES.Validated:
+      return 'validated';
+    default:
+      return 'default';
   }
 });
 </script>
@@ -40,7 +51,7 @@ const stateColor = computed(() => {
       size="xs"
       :class="[
         'q-btn-timeline-item',
-        `q-btn-timeline-item--${currentState}`,
+        `q-btn-timeline-item--${stateColorString}`,
         {
           'q-btn-timeline-item__selected': selected,
         },
@@ -58,9 +69,12 @@ const stateColor = computed(() => {
       :class="[
         `text-${stateColor}`,
         {
-          'bg-info text-white': selected && currentState === 'validated',
-          'bg-grey-3 text-white': selected && currentState === 'in-progress',
-          'bg-grey-2 text-white': selected && currentState === 'default',
+          'bg-info text-white':
+            selected && currentState === MODULE_STATES.Validated,
+          'bg-grey-3 text-white':
+            selected && currentState === MODULE_STATES.InProgress,
+          'bg-grey-2 text-white':
+            selected && currentState === MODULE_STATES.Default,
         },
       ]"
       :label="$t(item.link)"

@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
 import {
   MODULE_STATES,
   ModuleState,
   ModuleStates,
+  getModuleTypeId,
+  getModuleFromTypeId,
 } from 'src/constant/moduleStates';
 
 import type {
@@ -13,11 +15,23 @@ import type {
   ModuleResponse,
   Submodule,
 } from 'src/constant/modules';
+import { useRoute } from 'vue-router';
+
+/**
+ * API response for inventory module
+ */
+interface InventoryModuleResponse {
+  id: number;
+  inventory_id: number;
+  module_type_id: number;
+  status: number;
+}
 
 export const useTimelineStore = defineStore('timeline', () => {
+  // Initialize all modules with default status
   const itemStates = reactive<ModuleStates>({
-    [MODULES.MyLab]: MODULE_STATES.Validated,
-    [MODULES.ProfessionalTravel]: MODULE_STATES.InProgress,
+    [MODULES.MyLab]: MODULE_STATES.Default,
+    [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
     [MODULES.Infrastructure]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
@@ -25,13 +39,115 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.ExternalCloud]: MODULE_STATES.Default,
   });
 
-  function setState(id: Module, state: ModuleState) {
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+  const currentInventoryId = ref<number | null>(null);
+  const $route = useRoute();
+  const currentModuleType = computed(() => $route.params.module as Module);
+
+  const currentInventoryModuleState = computed(() => {
+    return itemStates[currentModuleType.value];
+  });
+
+  const currentInventoryModuleEdit = computed(() => {
+    return (
+      currentInventoryModuleState.value === MODULE_STATES.Default ||
+      currentInventoryModuleState.value === MODULE_STATES.InProgress
+    );
+  });
+  /**
+   * Fetch module statuses from the API for a given inventory.
+   * This should be called when an inventory is selected.
+   */
+  async function fetchModuleStates(inventoryId: number) {
+    loading.value = true;
+    error.value = null;
+    currentInventoryId.value = inventoryId;
+
+    try {
+      const response = (await api
+        .get(`inventories/${inventoryId}/modules/`)
+        .json()) as InventoryModuleResponse[];
+
+      // Update itemStates from API response
+      for (const mod of response) {
+        const moduleKey = getModuleFromTypeId(mod.module_type_id);
+        if (moduleKey) {
+          itemStates[moduleKey] = mod.status as ModuleState;
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        error.value = err.message ?? 'Failed to fetch module states';
+      } else {
+        error.value = 'Failed to fetch module states';
+      }
+      // Keep current states on error
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Update the status of a module via API and update local state.
+   * Displays error to user on failure (no retry).
+   */
+  async function setState(id: Module, state: ModuleState) {
+    if (!currentInventoryId.value) {
+      error.value = 'No inventory selected';
+      return;
+    }
+
+    const moduleTypeId = getModuleTypeId(id);
+    const previousState = itemStates[id];
+
+    // Optimistic update
     itemStates[id] = state;
+    error.value = null;
+
+    try {
+      await api
+        .patch(
+          `inventories/${currentInventoryId.value}/modules/${moduleTypeId}/status`,
+          {
+            json: { status: state },
+          },
+        )
+        .json();
+      await fetchModuleStates(currentInventoryId.value);
+    } catch (err: unknown) {
+      // Revert on error
+      itemStates[id] = previousState;
+      if (err instanceof Error) {
+        error.value = err.message ?? 'Failed to update module status';
+      } else {
+        error.value = 'Failed to update module status';
+      }
+    }
+  }
+
+  /**
+   * Reset the store state (e.g., when changing inventory)
+   */
+  function reset() {
+    currentInventoryId.value = null;
+    error.value = null;
+    // Reset all states to default
+    for (const key of Object.keys(itemStates) as Module[]) {
+      itemStates[key] = MODULE_STATES.Default;
+    }
   }
 
   return {
     itemStates,
+    loading,
+    error,
+    currentInventoryId,
+    fetchModuleStates,
     setState,
+    reset,
+    currentState: currentInventoryModuleState,
+    canEdit: currentInventoryModuleEdit,
   };
 });
 
