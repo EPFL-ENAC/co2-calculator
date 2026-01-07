@@ -46,12 +46,11 @@ export function requirePermission(
     next: NavigationGuardNext,
   ) => {
     const authStore = useAuthStore();
-    const hasPermission = getPermissionValue(
+    const hasRequiredPermission = getPermissionValue(
       authStore.user?.permissions,
       `${path}.${action}`,
     );
-
-    if (hasPermission === true) {
+    if (hasRequiredPermission === true) {
       next();
     } else {
       next({ name: 'unauthorized' });

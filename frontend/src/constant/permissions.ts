@@ -43,6 +43,11 @@ export type PermissionPath =
   | 'backoffice.users'
   | 'modules.headcount'
   | 'modules.equipment'
+  | 'modules.professional_travel'
+  | 'modules.infrastructure'
+  | 'modules.purchase'
+  | 'modules.internal_services'
+  | 'modules.external_cloud'
   | 'system.users';
 
 /**
@@ -171,6 +176,12 @@ export interface UserPermissions {
  * @property {ModulePermissions} ['backoffice.users'] - User management permissions
  * @property {ModulePermissions} ['modules.headcount'] - Headcount module permissions
  * @property {ModulePermissions} ['modules.equipment'] - Equipment module permissions
+ * @property {ModulePermissions} ['modules.professional_travel'] - Professional travel module permissions
+ * @property {ModulePermissions} ['modules.infrastructure'] - Infrastructure module permissions
+ * @property {ModulePermissions} ['modules.purchase'] - Purchase module permissions
+ * @property {ModulePermissions} ['modules.internal_services'] - Internal services module permissions
+ * @property {ModulePermissions} ['modules.external_cloud'] - External cloud module permissions
+ * @property {ModulePermissions} ['system.users'] - System users module permissions
  * @property {ModulePermissions | undefined} [key: string] - Allow for future extensions
  *
  * @example
@@ -189,6 +200,11 @@ export interface FlatUserPermissions {
   'backoffice.users'?: ModulePermissions;
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;
+  'modules.professional_travel'?: ModulePermissions;
+  'modules.infrastructure'?: ModulePermissions;
+  'modules.purchase'?: ModulePermissions;
+  'modules.internal_services'?: ModulePermissions;
+  'modules.external_cloud'?: ModulePermissions;
   'system.users'?: ModulePermissions;
   [key: string]: ModulePermissions | undefined;
 }

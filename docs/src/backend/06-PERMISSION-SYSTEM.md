@@ -28,11 +28,34 @@ Permissions use flat dot-notation keys:
     "edit": false,
     "export": false
   },
+  "system.users": {
+    "edit": false
+  },
   "modules.headcount": {
     "view": true,
     "edit": true
   },
   "modules.equipment": {
+    "view": true,
+    "edit": true
+  },
+  "modules.professional_travel": {
+    "view": true,
+    "edit": false
+  },
+  "modules.infrastructure": {
+    "view": true,
+    "edit": false
+  },
+  "modules.purchase": {
+    "view": true,
+    "edit": false
+  },
+  "modules.internal_services": {
+    "view": true,
+    "edit": false
+  },
+  "modules.external_cloud": {
     "view": true,
     "edit": false
   }
@@ -49,13 +72,14 @@ Domains are independent. Backoffice roles do not grant module access.
 
 ## Role Mapping
 
-| Role                   | Scope  | Permissions                            |
-| ---------------------- | ------ | -------------------------------------- |
-| `co2.backoffice.admin` | Global | `backoffice.users`: view, edit, export |
-| `co2.backoffice.std`   | Global | `backoffice.users`: view only          |
-| `co2.user.principal`   | Unit   | `modules.*`: view, edit                |
-| `co2.user.std`         | Unit   | `modules.*`: view, edit                |
-| `co2.user.secondary`   | Unit   | `modules.*`: view only                 |
+| Role                   | Scope  | Permissions                                                 |
+| ---------------------- | ------ | ----------------------------------------------------------- |
+| `co2.backoffice.admin` | Global | `backoffice.users`: view, edit, export                      |
+| `co2.backoffice.std`   | Global | `backoffice.users`: view only                               |
+| `co2.user.principal`   | Unit   | `modules.*`: view, edit (all modules)                       |
+| `co2.user.std`         | Unit   | `modules.professional_travel`: view only (no other modules) |
+| `co2.user.secondary`   | Unit   | `modules.*`: view only (all modules)                        |
+| `co2.service.mgr`      | Global | `system.users`: edit (reserved for future)                  |
 
 Permissions from different domains combine when a user has multiple
 roles.
@@ -71,8 +95,14 @@ The `/auth/me` endpoint returns:
   "roles": [...],
   "permissions": {
     "backoffice.users": {"view": false, "edit": false, "export": false},
+    "system.users": {"edit": false},
     "modules.headcount": {"view": true, "edit": true},
-    "modules.equipment": {"view": true, "edit": true}
+    "modules.equipment": {"view": true, "edit": true},
+    "modules.professional_travel": {"view": true, "edit": true},
+    "modules.infrastructure": {"view": true, "edit": true},
+    "modules.purchase": {"view": true, "edit": true},
+    "modules.internal_services": {"view": true, "edit": true},
+    "modules.external_cloud": {"view": true, "edit": true}
   }
 }
 ```

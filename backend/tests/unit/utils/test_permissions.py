@@ -65,27 +65,58 @@ class TestCalculateUserPermissions:
         assert result["modules.headcount"]["edit"] is True
         assert result["modules.equipment"]["view"] is True
         assert result["modules.equipment"]["edit"] is True
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is True
+        assert result["modules.infrastructure"]["view"] is True
+        assert result["modules.infrastructure"]["edit"] is True
+        assert result["modules.purchase"]["view"] is True
+        assert result["modules.purchase"]["edit"] is True
+        assert result["modules.internal_services"]["view"] is True
+        assert result["modules.internal_services"]["edit"] is True
+        assert result["modules.external_cloud"]["view"] is True
+        assert result["modules.external_cloud"]["edit"] is True
         assert result["backoffice.users"]["view"] is False
 
     def test_user_std_unit_scope(self):
-        """Test user std with unit scope grants module permissions."""
+        """Test user std with unit scope grants only view for professional_travel."""
         roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208"))]
+        result = calculate_user_permissions(roles)
+
+        assert result["modules.headcount"]["view"] is False
+        assert result["modules.headcount"]["edit"] is False
+        assert result["modules.equipment"]["view"] is False
+        assert result["modules.equipment"]["edit"] is False
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is False
+        assert result["modules.infrastructure"]["view"] is False
+        assert result["modules.infrastructure"]["edit"] is False
+        assert result["modules.purchase"]["view"] is False
+        assert result["modules.purchase"]["edit"] is False
+        assert result["modules.internal_services"]["view"] is False
+        assert result["modules.internal_services"]["edit"] is False
+        assert result["modules.external_cloud"]["view"] is False
+        assert result["modules.external_cloud"]["edit"] is False
+
+    def test_user_secondary_unit_scope(self):
+        """Test user secondary with unit scope grants view and edit for all modules."""
+        roles = [Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="10208"))]
         result = calculate_user_permissions(roles)
 
         assert result["modules.headcount"]["view"] is True
         assert result["modules.headcount"]["edit"] is True
         assert result["modules.equipment"]["view"] is True
         assert result["modules.equipment"]["edit"] is True
-
-    def test_user_secondary_unit_scope(self):
-        """Test user secondary with unit scope grants view only."""
-        roles = [Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="10208"))]
-        result = calculate_user_permissions(roles)
-
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is False
-        assert result["modules.equipment"]["view"] is True
-        assert result["modules.equipment"]["edit"] is False
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is True
+        assert result["modules.infrastructure"]["view"] is True
+        assert result["modules.infrastructure"]["edit"] is True
+        assert result["modules.purchase"]["view"] is True
+        assert result["modules.purchase"]["edit"] is True
+        assert result["modules.internal_services"]["view"] is True
+        assert result["modules.internal_services"]["edit"] is True
+        assert result["modules.external_cloud"]["view"] is True
+        assert result["modules.external_cloud"]["edit"] is True
+        assert result["backoffice.users"]["view"] is False
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
@@ -116,11 +147,13 @@ class TestCalculateUserPermissions:
         assert result["backoffice.users"]["view"] is True
         assert result["backoffice.users"]["edit"] is False
 
-        # Module permissions
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is True
-        assert result["modules.equipment"]["view"] is True
-        assert result["modules.equipment"]["edit"] is True
+        # Module permissions - CO2_USER_STD only grants professional_travel.view
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is False
+        assert result["modules.headcount"]["view"] is False
+        assert result["modules.headcount"]["edit"] is False
+        assert result["modules.equipment"]["view"] is False
+        assert result["modules.equipment"]["edit"] is False
 
     def test_multiple_user_roles_same_unit(self):
         """Test multiple user roles for same unit combine correctly."""
@@ -130,9 +163,10 @@ class TestCalculateUserPermissions:
         ]
         result = calculate_user_permissions(roles)
 
-        # STD role grants edit, so edit should be True
         assert result["modules.headcount"]["view"] is True
         assert result["modules.headcount"]["edit"] is True
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is True
 
     def test_role_name_as_string(self):
         """Test that role name can be string or enum."""

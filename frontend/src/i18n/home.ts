@@ -59,6 +59,10 @@ export default {
     en: 'View Simulations',
     fr: 'Voir les Simulations',
   },
+  home_view_btn: {
+    en: 'View',
+    fr: 'Voir',
+  },
   home_edit_btn: {
     en: 'Edit',
     fr: 'Editer',

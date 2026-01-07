@@ -7,24 +7,22 @@ import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 
-/**
- * TEMPORARY: Allow access to modules without permissions for now.
- * Check if user has access permission for a module.
- * Returns true if module doesn't have a permission path (not yet protected).
- * Uses view permission to allow both principal (edit) and secondary (view-only) access.
- */
-function hasModuleAccess(module: Module): boolean {
-  const permissionPath = getModulePermissionPath(module);
-  if (!permissionPath) {
-    return true;
-  }
-  return hasPermission(authStore.user?.permissions, permissionPath, 'view');
+function hasModulePermission(
+  module: Module,
+  action: PermissionAction,
+): boolean {
+  return hasPermission(
+    authStore.user?.permissions,
+    getModulePermissionPath(module),
+    action,
+  );
 }
 
 const currentYear = computed(() => {
@@ -165,21 +163,41 @@ const homeIntroWithLinks = computed(() => {
           </p>
           <q-separator class="grey-6 q-my-lg" />
           <div class="flex justify-between items-center">
-            <q-btn
-              icon="o_edit"
-              :label="$t('home_edit_btn')"
-              unelevated
-              no-caps
-              size="sm"
-              class="text-weight-medium btn-secondary"
-              :disable="!hasModuleAccess(moduleCard.module)"
-              :to="
-                hasModuleAccess(moduleCard.module)
-                  ? { name: 'module', params: { module: moduleCard.module } }
-                  : undefined
-              "
-            />
+            <div class="flex items-center">
+              <q-btn
+                v-if="
+                  hasModulePermission(
+                    moduleCard.module,
+                    PermissionAction.VIEW,
+                  ) &&
+                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                "
+                icon="o_visibility"
+                :label="$t('home_view_btn')"
+                unelevated
+                no-caps
+                size="sm"
+                class="text-weight-medium btn-secondary q-mr-sm"
+                :to="{ name: 'module', params: { module: moduleCard.module } }"
+              />
 
+              <q-btn
+                icon="o_edit"
+                :label="$t('home_edit_btn')"
+                unelevated
+                no-caps
+                size="sm"
+                class="text-weight-medium btn-secondary"
+                :disable="
+                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                "
+                :to="
+                  hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                    ? { name: 'module', params: { module: moduleCard.module } }
+                    : undefined
+                "
+              />
+            </div>
             <div
               v-if="moduleCard.value"
               class="row q-gutter-xs text-body1 items-baseline"

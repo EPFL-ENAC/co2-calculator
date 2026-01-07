@@ -314,11 +314,11 @@ export function getModulePermissionPath(module: Module): string | null {
   const modulePermissionMap: Record<Module, string | null> = {
     [MODULES.MyLab]: 'modules.headcount',
     [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
-    [MODULES.ProfessionalTravel]: null,
-    [MODULES.Infrastructure]: null,
-    [MODULES.Purchase]: null,
-    [MODULES.InternalServices]: null,
-    [MODULES.ExternalCloud]: null,
+    [MODULES.ProfessionalTravel]: 'modules.professional_travel',
+    [MODULES.Infrastructure]: 'modules.infrastructure',
+    [MODULES.Purchase]: 'modules.purchase',
+    [MODULES.InternalServices]: 'modules.internal_services',
+    [MODULES.ExternalCloud]: 'modules.external_cloud',
   };
   return modulePermissionMap[module] || null;
 }
