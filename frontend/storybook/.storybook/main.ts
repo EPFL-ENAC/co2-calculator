@@ -34,15 +34,7 @@ const config: StorybookConfig = {
     return mergeConfig(
       { ...config, plugins: filteredPlugins },
       {
-        plugins: [
-          vue({
-            template: {
-              compilerOptions: {
-                isCustomElement: (tag) => tag.startsWith('q-'),
-              },
-            },
-          }),
-        ],
+        plugins: [vue()],
         resolve: {
           alias: {
             src: path.resolve(projectRoot, 'src'),

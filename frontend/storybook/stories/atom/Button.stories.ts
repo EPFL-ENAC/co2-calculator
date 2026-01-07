@@ -44,11 +44,71 @@ const meta = {
       control: 'select',
       options: ['xs', 'sm', 'md', 'lg'],
     },
+    label: {
+      control: 'text',
+      description: 'Button text label',
+    },
+    icon: {
+      control: 'text',
+      description:
+        'Icon name (Material Icons, use "o_" prefix for outlined icons)',
+    },
+    unelevated: {
+      control: 'boolean',
+      description: 'Removes elevation/shadow',
+    },
+    outline: {
+      control: 'boolean',
+      description: 'Outlined button style',
+    },
+    noCaps: {
+      control: 'boolean',
+      description: 'Prevents text transformation to uppercase',
+    },
+    disable: {
+      control: 'boolean',
+      description: 'Disabled state',
+    },
+  },
+  args: {
+    color: 'accent',
+    size: 'md',
+    label: 'Button',
+    unelevated: true,
+    noCaps: true,
   },
 } satisfies Meta<typeof QBtn>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+/**
+ * Interactive button that responds to controls.
+ * Use the controls panel to change color, size, label, and other properties.
+ */
+export const Interactive: Story = {
+  args: {
+    color: 'accent',
+    size: 'md',
+    label: 'Interactive Button',
+    unelevated: true,
+    noCaps: true,
+  },
+  render: (args) => ({
+    components: { QBtn },
+    setup() {
+      return { args };
+    },
+    template: `
+      <div class="q-pa-md q-gutter-md">
+        <q-btn
+          v-bind="args"
+          class="text-weight-medium"
+        />
+      </div>
+    `,
+  }),
+};
 
 export const Primary: Story = {
   render: () => ({
