@@ -74,25 +74,35 @@ const rows = computed(() => [
   },
   {
     topic: t('documentation_editing_rows_backoffice_data_management_topic'),
-    description: t('documentation_editing_rows_backoffice_data_management_description'),
+    description: t(
+      'documentation_editing_rows_backoffice_data_management_description',
+    ),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_data_management.ts',
   },
   {
-    topic: t('documentation_editing_rows_backoffice_documentation_editing_topic'),
-    description: t('documentation_editing_rows_backoffice_documentation_editing_description'),
+    topic: t(
+      'documentation_editing_rows_backoffice_documentation_editing_topic',
+    ),
+    description: t(
+      'documentation_editing_rows_backoffice_documentation_editing_description',
+    ),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_documentation_editing.ts',
   },
   {
     topic: t('documentation_editing_rows_backoffice_reporting_topic'),
-    description: t('documentation_editing_rows_backoffice_reporting_description'),
+    description: t(
+      'documentation_editing_rows_backoffice_reporting_description',
+    ),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_reporting.ts',
   },
   {
     topic: t('documentation_editing_rows_backoffice_user_management_topic'),
-    description: t('documentation_editing_rows_backoffice_user_management_description'),
+    description: t(
+      'documentation_editing_rows_backoffice_user_management_description',
+    ),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_user_management.ts',
   },

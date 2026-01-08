@@ -211,7 +211,7 @@ export default {
   },
   documentation_editing_rows_workspace_setup_topic: {
     en: 'Workspace Setup',
-    fr: "Changer de Laboratoire",
+    fr: 'Changer de Laboratoire',
   },
   documentation_editing_rows_workspace_setup_description: {
     en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
