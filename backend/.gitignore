@@ -64,3 +64,5 @@ dmypy.json
 
 # Ruff
 .ruff_cache/
+
+files_storage/

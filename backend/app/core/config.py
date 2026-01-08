@@ -34,6 +34,56 @@ class Settings(BaseSettings):
             """,
     )
 
+    # Files Storage Configuration
+    # S3 if configured, or local filesystem otherwise
+    FILES_STORAGE_PATH: str = Field(
+        default="./files_storage",
+        description="Path to local file storage directory",
+    )
+    # Optional encryption for files, both key and salt must be set to enable
+    FILES_ENCRYPTION_KEY: str = Field(
+        default="",
+        description="Encryption key for file storage (optional)",
+    )
+    FILES_ENCRYPTION_SALT: str = Field(
+        default="",
+        description="Salt for file encryption key derivation (required if key is set)",
+    )
+    # S3 Configuration (optional, for using S3-compatible storage)
+    S3_ENDPOINT_PROTOCOL: str = Field(
+        default="https",
+        description="S3 endpoint protocol (e.g., https)",
+    )
+    S3_ENDPOINT_HOSTNAME: str = Field(
+        default="",
+        description="S3 endpoint hostname (leave empty if not using S3)",
+    )
+    S3_ACCESS_KEY_ID: str = Field(
+        default="",
+        description="S3 access key ID (leave empty if not using S3)",
+    )
+    S3_SECRET_ACCESS_KEY: str = Field(
+        default="",
+        description="S3 secret access key (leave empty if not using S3)",
+    )
+    S3_REGION: str = Field(
+        default="",
+        description="S3 region (leave empty if not using S3)",
+    )
+    S3_BUCKET: str = Field(
+        default="",
+        description="S3 bucket name (leave empty if not using S3)",
+    )
+    S3_PATH_PREFIX: str = Field(
+        default="",
+        description="S3 path prefix (leave empty if not using S3)",
+    )
+    # Maximum file size for uploads (in megabytes)
+    FILES_MAX_SIZE_MB: int = Field(
+        default=100,
+        description="Maximum file size in megabytes for uploads",
+    )
+
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(
         default="CHANGE_ME_TO_A_SECURE_RANDOM_VALUE",
