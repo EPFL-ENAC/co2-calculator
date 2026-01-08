@@ -33,7 +33,7 @@ def make_files_store() -> FilesStore:
         FilesStore: An instance of FilesStore for the configured file storage.
     """
     encryption_key = None  # Set to None or provide your encryption key here
-    if settings.FILES_ENCRYPTION_KEY:
+    if settings.FILES_ENCRYPTION_KEY and settings.FILES_ENCRYPTION_SALT:
         # Derive a key from the provided encryption key and salt
         kdf = Scrypt(
             salt=settings.FILES_ENCRYPTION_SALT.encode(),
@@ -176,5 +176,5 @@ async def delete_temp_files(
             status_code=403, detail="Can only delete files in /tmp/ folder"
         )
     # delete file at path
-    await files_store.delete_file(file_path)
+    await files_store.delete_file(sanitized_path)
     return
