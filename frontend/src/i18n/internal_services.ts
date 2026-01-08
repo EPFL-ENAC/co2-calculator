@@ -7,6 +7,6 @@ export default {
   },
   [MODULES_DESCRIPTIONS.InternalServices]: {
     en: 'Track usage of  internal platforms and services (e.g., microscopy center, computing)',
-    fr: 'Plateformes et services',
+    fr: "Suivez l'utilisation des plateformes et services internes (p. ex., centre de microscopie, calcul)",
   },
 } as const;

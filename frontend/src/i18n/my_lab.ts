@@ -110,11 +110,11 @@ export default {
   },
   [`${MODULES.MyLab}-member-form-title-info-label`]: {
     en: 'fte member tooltip',
-    fr: '',
+    fr: 'info-bulle membre EPT',
   },
   [`${MODULES.MyLab}-member-form-title-info-tooltip`]: {
     en: 'lorem ipsum',
-    fr: '',
+    fr: 'Texte d’exemple',
   },
 
   student_helper_title: {
@@ -144,11 +144,11 @@ export default {
   },
   [`${MODULES.MyLab}-student-form-title-info-label`]: {
     en: 'fte student tooltip',
-    fr: '',
+    fr: 'info-bulle étudiant EPT',
   },
   [`${MODULES.MyLab}-student-form-title-info-tooltip`]: {
     en: 'lorem ipsum',
-    fr: '',
+    fr: 'Texte d’exemple',
   },
   app_headcount_student_helper_students_error: {
     en: 'Please enter a valid number of students (greater than 0).',

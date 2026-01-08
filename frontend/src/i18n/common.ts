@@ -4,7 +4,7 @@ import { MODULES } from 'src/constant/modules';
 export default {
   logo_alt: {
     en: 'Logo EPFL',
-    fr: 'EPFL Logo',
+    fr: 'Logo EPFL',
   },
   calculator_title: {
     en: 'CO₂ Calculator',
@@ -20,11 +20,11 @@ export default {
   },
   'module-results': {
     en: 'Module Results',
-    fr: 'Module Results',
+    fr: 'Résultats du Module',
   },
   results: {
     en: 'Results',
-    fr: 'Results',
+    fr: 'Résultats',
   },
   simulations: {
     en: 'Simulations',
@@ -32,11 +32,11 @@ export default {
   },
   'simulation-add': {
     en: 'Add Simulation',
-    fr: 'Add Simulation',
+    fr: 'Ajouter une Simulation',
   },
   'simulation-edit': {
     en: 'Edit Simulation',
-    fr: 'Edit Simulation',
+    fr: 'Modifier la Simulation',
   },
   documentation: {
     en: 'Documentation',
@@ -52,35 +52,35 @@ export default {
   },
   [ROLES.StandardUser]: {
     en: 'Standard User',
-    fr: 'Standard User',
+    fr: 'Utilisateur Standard',
   },
   [ROLES.PrincipalUser]: {
     en: 'Principal User',
-    fr: 'Principal User',
+    fr: 'Utilisateur Principal',
   },
   [ROLES.SecondaryUser]: {
     en: 'Secondary User',
-    fr: 'Secondary User',
+    fr: 'Utilisateur Secondaire',
   },
   [ROLES.BackOfficeAdmin]: {
     en: 'Backoffice Admin',
-    fr: 'Backoffice Administrator',
+    fr: 'Administrateur Back-office',
   },
   [ROLES.BackOfficeStandard]: {
     en: 'Backoffice Standard User',
-    fr: 'Backoffice Standard',
+    fr: 'Utilisateur Standard Back-office',
   },
   [ROLES.System]: {
     en: 'System Manager',
-    fr: 'Gestionnaire système',
+    fr: 'Gestionnaire Système',
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
-    fr: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
+    fr: '<span>Pour plus d\'informations, visitez <a href="{url}" target="_blank">{linkText}</a>.</span>',
   },
   documentation_link: {
     en: 'Documentation and Resources',
-    fr: 'Documentation and Resources',
+    fr: 'Documentation et Ressources',
   },
   contact: {
     en: 'Contact',
