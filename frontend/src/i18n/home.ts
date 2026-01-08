@@ -69,7 +69,7 @@ export default {
   },
   home_edit_btn: {
     en: 'Edit',
-    fr: 'Editer',
+    fr: 'Éditer',
   },
   home_modules_counter: {
     en: 'Modules ({count})',

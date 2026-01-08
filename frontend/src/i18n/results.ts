@@ -290,7 +290,7 @@ export default {
   },
   'charts-additional-category': {
     en: 'Additional Categories',
-    fr: 'Catégorie supplémentaire',
+    fr: 'Catégories supplémentaires',
   },
   'charts-scope': {
     en: 'Scope',

@@ -7,6 +7,6 @@ export default {
   },
   [MODULES_DESCRIPTIONS.Purchase]: {
     en: 'Input annual purchases to assess supply chain emissions footprint',
-    fr: 'traduction française manquante',
+    fr: "Saisissez vos achats annuels afin d'évaluer l'empreinte de la chaîne d'approvisionnement",
   },
 } as const;
