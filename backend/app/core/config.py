@@ -43,11 +43,24 @@ class Settings(BaseSettings):
     # Optional encryption for files, both key and salt must be set to enable
     FILES_ENCRYPTION_KEY: str = Field(
         default="",
-        description="Encryption key for file storage (optional)",
+        description=(
+            "Encryption key for file storage (optional). "
+            "This MUST be a strong, randomly generated secret and must never be "
+            "committed to source control. Provide it via environment variables or "
+            "a secret manager only. The key is expected to be a URL-safe base64 "
+            "encoded value representing at least 32 bytes of cryptographic key "
+            "material."
+        ),
     )
     FILES_ENCRYPTION_SALT: str = Field(
         default="",
-        description="Salt for file encryption key derivation (required if key is set)",
+        description=(
+            "Salt for file encryption key derivation (required if key is set). "
+            "This should also be a strong, randomly generated secret value, kept "
+            "out of source control and provided via environment variables or a "
+            "secret manager. Use a URL-safe base64 encoded string (at least 16 "
+            "bytes) and keep it stable for the lifetime of the encrypted data."
+        ),
     )
     # S3 Configuration (optional, for using S3-compatible storage)
     S3_ENDPOINT_PROTOCOL: str = Field(

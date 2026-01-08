@@ -2,6 +2,7 @@
 
 import base64
 import datetime
+import re
 from typing import List
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -15,10 +16,10 @@ from enacit4r_files.services import (
 from enacit4r_files.utils.files import FileChecker
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_active_user_with_any_role
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import User
+from app.models.user import RoleName, User
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -67,11 +68,32 @@ files_store = make_files_store()
 file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
 
 
+def _sanitize_path(path: str) -> str:
+    """Sanitize file paths to prevent directory traversal attacks.
+    The FilesStore implementation also performs its own sanitization,
+    but we add this extra layer here."""
+    # Remove leading slashes
+    path = path.lstrip("/")
+    # Remove \n and \r characters
+    path = path.replace("\n", "").replace("\r", "")
+    if ".." in path:
+        raise HTTPException(status_code=400, detail="Invalid path: '..' not allowed")
+    if not re.match(r"^[a-zA-Z0-9/ _.-]+$", path):
+        raise HTTPException(
+            status_code=400, detail="Invalid path: contains forbidden characters"
+        )
+    return path
+
+
 @router.get("/", response_model=List[FileNode], response_model_exclude_none=True)
 async def list_files(
     path: str = Query("", description="Path to list files from"),
     recursive: bool = Query(False, description="List files recursively"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(
+        get_current_active_user_with_any_role(
+            [RoleName.CO2_BACKOFFICE_STD, RoleName.CO2_BACKOFFICE_ADMIN]
+        )
+    ),
 ):
     """
     List files in the specified directory.
@@ -83,22 +105,30 @@ async def list_files(
         "File list requested",
         extra={"user_id": current_user.id, "path": path},
     )
+    path = _sanitize_path(path)
+
     files = await files_store.list_files(path, recursive=recursive)
     return files
 
 
 @router.get(
-    "/{file_path:path}", status_code=200, description="Download any assets from S3"
+    "/{file_path:path}",
+    status_code=200,
+    description="Download any assets from file storage",
 )
 async def get_file(
     file_path: str,
     download: bool = Query(
         False, alias="d", description="Download file instead of inline display"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(
+        get_current_active_user_with_any_role(
+            [RoleName.CO2_BACKOFFICE_STD, RoleName.CO2_BACKOFFICE_ADMIN]
+        )
+    ),
 ):
     """
-    Retrieve a file from the local file storage.
+    Retrieve a file from file storage.
     """
     logger.info(
         "File requested",
@@ -108,6 +138,8 @@ async def get_file(
             "download": download,
         },
     )
+    file_path = _sanitize_path(file_path)
+
     try:
         (body, content_type) = await files_store.get_file(file_path)
         if body:
@@ -131,7 +163,7 @@ async def get_file(
     status_code=200,
     response_model=List[FileNode],
     response_model_exclude_none=True,
-    description="Upload any assets to S3 in the /tmp folder",
+    description="Upload any assets to file storage in the /tmp folder",
     dependencies=[Depends(file_checker.check_size)],
 )
 async def upload_temp_files(
@@ -145,7 +177,11 @@ async def upload_temp_files(
         "File upload to /tmp requested",
         extra={"user_id": current_user.id, "file_count": len(files)},
     )
-    current_time = datetime.datetime.now()
+    if not files:
+        raise HTTPException(
+            status_code=400, detail="At least one file must be provided"
+        )
+    current_time = datetime.datetime.now(datetime.timezone.utc)
     # generate unique name for the files' base folder in S3
     folder_name = str(current_time.timestamp()).replace(".", "")
     folder_path = f"tmp/{folder_name}"
@@ -167,6 +203,8 @@ async def delete_temp_files(
         "File deletion from /tmp requested",
         extra={"user_id": current_user.id, "file_path": file_path},
     )
+    file_path = _sanitize_path(file_path)
+
     if not file_path.startswith("tmp/"):
         raise HTTPException(
             status_code=403, detail="Can only delete files in /tmp/ folder"

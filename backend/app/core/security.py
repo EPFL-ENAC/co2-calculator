@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.db import get_db
-from app.models.user import User
+from app.models.user import RoleName, User
 from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
@@ -102,3 +102,21 @@ async def get_current_active_user(
             detail="Inactive user",
         )
     return user
+
+
+def get_current_active_user_with_any_role(roles: list[RoleName]):
+    """Require that the user has at least one of the roles to perform an operation"""
+
+    async def get_current_active_user_with_any_role_impl(
+        user: User = Depends(get_current_active_user),
+    ) -> User:
+        if not any(
+            role in [user_role.role for user_role in user.roles] for role in roles
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorised to perform this operation",
+            )
+        return user
+
+    return get_current_active_user_with_any_role_impl
