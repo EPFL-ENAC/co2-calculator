@@ -1,10 +1,21 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
+import FilesUploadDialog from './FilesUploadDialog.vue';
+import { useFilesStore } from 'src/stores/files';
+
+const filesStore = useFilesStore();
 
 interface Props {
   year: number;
 }
 defineProps<Props>();
+const showUploadDialog = ref<boolean>(false);
+
+const onFilesUploaded = () => {
+  showUploadDialog.value = false;
+  console.log('Files uploaded:', filesStore.tempFiles);
+};
 </script>
 
 <template>
@@ -35,6 +46,7 @@ defineProps<Props>();
             size="sm"
             :label="$t('data_management_upload_csv_files')"
             class="text-weight-medium on-right"
+            @click="showUploadDialog = true"
           />
           <q-btn
             no-caps
@@ -140,5 +152,9 @@ defineProps<Props>();
         </tbody>
       </q-markup-table>
     </div>
+    <files-upload-dialog
+      v-model="showUploadDialog"
+      @files-uploaded="onFilesUploaded"
+    />
   </q-card>
 </template>
