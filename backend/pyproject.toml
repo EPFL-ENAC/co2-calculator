@@ -25,6 +25,7 @@ dependencies = [
     "joserfc>=1.4.0",
     "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.27",
+    "enacit4r-files",
 ]
 
 [tool.pytest.ini_options]
@@ -94,6 +95,9 @@ script_location = "%(here)s/alembic"
 
 # additional paths to be prepended to sys.path. defaults to the current working directory.
 prepend_sys_path = ["."]
+
+[tool.uv.sources]
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
