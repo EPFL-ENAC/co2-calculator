@@ -17,7 +17,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 
 from app.api.deps import get_current_active_user
 from app.core.config import get_settings
-from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
 
@@ -80,12 +79,11 @@ async def list_files(
     This endpoint lists files stored in the local file storage.
     User must be authenticated via JWT (handled by dependency).
     """
-    sanitized_path = sanitize(path)
     logger.info(
         "File list requested",
-        extra={"user_id": current_user.id, "path": sanitized_path},
+        extra={"user_id": current_user.id, "path": path},
     )
-    files = await files_store.list_files(sanitized_path, recursive=recursive)
+    files = await files_store.list_files(path, recursive=recursive)
     return files
 
 
@@ -102,17 +100,16 @@ async def get_file(
     """
     Retrieve a file from the local file storage.
     """
-    sanitized_path = sanitize(file_path)
     logger.info(
         "File requested",
         extra={
             "user_id": current_user.id,
-            "file_path": sanitized_path,
+            "file_path": file_path,
             "download": download,
         },
     )
     try:
-        (body, content_type) = await files_store.get_file(sanitized_path)
+        (body, content_type) = await files_store.get_file(file_path)
         if body:
             if download:
                 # download file
@@ -166,15 +163,14 @@ async def upload_temp_files(
 async def delete_temp_files(
     file_path: str, current_user: User = Depends(get_current_active_user)
 ):
-    sanitized_path = sanitize(file_path)
     logger.info(
         "File deletion from /tmp requested",
-        extra={"user_id": current_user.id, "file_path": sanitized_path},
+        extra={"user_id": current_user.id, "file_path": file_path},
     )
-    if not sanitized_path.startswith("tmp/"):
+    if not file_path.startswith("tmp/"):
         raise HTTPException(
             status_code=403, detail="Can only delete files in /tmp/ folder"
         )
     # delete file at path
-    await files_store.delete_file(sanitized_path)
+    await files_store.delete_file(file_path)
     return
