@@ -57,8 +57,7 @@ Implement fine-grained, permission-based access control using a **Hybrid Approac
 
 **Create service layer with context injection pattern**
 
-Option A: Add to `backend/app/services/authorization_service.py` (new file)
-<<<<<<< Updated upstream
+Add to `backend/app/services/authorization_service.py` (new file)
 Option B: Integrate directly into domain services (e.g., `headcount_service.py`)
 =======
 

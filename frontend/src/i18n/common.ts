@@ -256,6 +256,11 @@ export default {
     en: 'Save',
     fr: 'Enregistrer',
   },
+  common_view_only: {
+    en: 'View Only',
+    fr: 'Lecture seule',
+  },
+  header_documentation_link: {
   header_backoffice_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
     fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',

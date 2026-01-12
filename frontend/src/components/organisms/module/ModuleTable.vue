@@ -122,13 +122,13 @@
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
               :year="year"
-              :disable="disable"
+              :disable="isDisabled"
             />
             <component
               :is="col.inputComponent"
               v-else
               v-model="slotProps.row[col.field]"
-              :disable="disable"
+              :disable="isDisabled"
               :type="col.type === 'number' ? 'number' : undefined"
               :options="col.options || []"
               :dense="true"
@@ -150,10 +150,11 @@
             "
           >
             <q-btn
+              v-if="canEdit"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
-              :disable="disable"
+              :disable="isDisabled"
               unelevated
               no-caps
               dense
@@ -296,6 +297,9 @@ import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -309,6 +313,7 @@ import { nOrDash } from 'src/utils/number';
 const { t: $t } = useI18n();
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 
 const editDialogOpen = ref(false);
 const editInputs = ref<ModuleField[] | null>(null);
@@ -340,6 +345,23 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 
 const moduleStore = useModuleStore();
+
+// Permission check: can user edit this module?
+const canEdit = computed(() => {
+  const permissionPath = getModulePermissionPath(props.moduleType);
+  if (!permissionPath) {
+    // Module doesn't require permission, allow editing (backward compatibility)
+    return true;
+  }
+  return hasPermission(
+    authStore.user?.permissions,
+    permissionPath,
+    PermissionAction.EDIT,
+  );
+});
+
+// Combine prop disable with permission check
+const isDisabled = computed(() => props.disable || !canEdit.value);
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
