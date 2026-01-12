@@ -40,6 +40,7 @@ class ProfessionalTravelRepository:
         sort_by: str,
         sort_order: str,
         filter: Optional[str] = None,
+        filters: Optional[dict] = None,
     ) -> Tuple[List[ProfessionalTravel], int]:
         """
         Get professional travel records by unit_id and year.
@@ -53,6 +54,7 @@ class ProfessionalTravelRepository:
             sort_by: Column name to sort by
             sort_order: 'asc' or 'desc'
             filter: Optional text search filter
+            filters: Optional dict with additional filters (unit_id, user_id, etc.)
 
         Returns:
             Tuple of (list of ProfessionalTravel records, total count)
@@ -100,10 +102,27 @@ class ProfessionalTravelRepository:
                 ),
             )
             .where(
-                ProfessionalTravel.unit_id == unit_id,
                 ProfessionalTravel.year == year,
             )
         )
+
+        # Apply filters from filters dict
+        if filters:
+            # Apply unit_ids filter (list of unit IDs)
+            if "unit_ids" in filters:
+                statement = statement.where(
+                    col(ProfessionalTravel.unit_id).in_(filters["unit_ids"])
+                )
+            # Apply user_id filter (filter by creator)
+            if "user_id" in filters:
+                statement = statement.where(
+                    ProfessionalTravel.created_by == filters["user_id"]
+                )
+
+        # Legacy unit_id parameter (only apply if no filters provided)
+        if not filters or "unit_ids" not in filters:
+            if unit_id:
+                statement = statement.where(ProfessionalTravel.unit_id == unit_id)
 
         # Add emission fields to field mapping
         field_mapping["distance_km"] = col(ProfessionalTravelEmission.distance_km)
@@ -113,14 +132,9 @@ class ProfessionalTravelRepository:
         if self._is_standard_user(user):
             logger.info(
                 f"[professional_travel_repo] Filtering travels for standard user: "
-                f"user_id={user.id}, unit_id={unit_id}, year={year}"
+                f"user_id={user.id}, year={year}"
             )
             statement = statement.where(ProfessionalTravel.created_by == user.id)
-        else:
-            logger.info(
-                f"[professional_travel_repo] Loading all travels for admin user: "
-                f"user_id={user.id}, unit_id={unit_id}, year={year}"
-            )
 
         # Text search filter
         if filter:
@@ -178,12 +192,29 @@ class ProfessionalTravelRepository:
                 col(count_dest.c.id) == col(ProfessionalTravel.destination_location_id),
             )
             .where(
-                ProfessionalTravel.unit_id == unit_id,
                 ProfessionalTravel.year == year,
             )
         )
 
-        # Apply same user filter
+        # Apply filters from filters dict (same as main query)
+        if filters:
+            # Apply unit_ids filter (list of unit IDs)
+            if "unit_ids" in filters:
+                count_base = count_base.where(
+                    col(ProfessionalTravel.unit_id).in_(filters["unit_ids"])
+                )
+            # Apply user_id filter (filter by creator)
+            if "user_id" in filters:
+                count_base = count_base.where(
+                    ProfessionalTravel.created_by == filters["user_id"]
+                )
+
+        # Legacy unit_id parameter (only apply if no filters provided)
+        if not filters or "unit_ids" not in filters:
+            if unit_id:
+                count_base = count_base.where(ProfessionalTravel.unit_id == unit_id)
+
+        # Apply same user filter for standard users
         if self._is_standard_user(user):
             count_base = count_base.where(ProfessionalTravel.created_by == user.id)
 
