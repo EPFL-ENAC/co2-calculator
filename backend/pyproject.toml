@@ -97,7 +97,7 @@ script_location = "%(here)s/alembic"
 prepend_sys_path = ["."]
 
 [tool.uv.sources]
-enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files" }
+enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", branch = "main" }
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
