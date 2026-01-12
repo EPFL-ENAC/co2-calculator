@@ -47,7 +47,7 @@ const uploadFiles = async () => {
     <q-card class="column modal modal--lg">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
-          {{ $t('upload_files') }}
+          {{ $t('common_upload_csv') }}
         </div>
         <q-btn
           v-close-popup
@@ -61,19 +61,20 @@ const uploadFiles = async () => {
       <q-separator />
       <q-card-section>
         <div class="text-h5 q-mb-md">
-          {{ $t('upload_files') }}
+          {{ $t('data_management_upload_csv_files') }}
         </div>
         <q-file
           v-model="selectedFiles"
           dense
           outlined
           multiple
-          :hint="$t('supported_file_types')"
+          :hint="$t('data_management_supported_file_types')"
           counter
+          accept=".csv, text/csv"
           class="q-mb-md"
         />
         <q-btn
-          :label="$t('upload')"
+          :label="$t('data_management_upload')"
           size="sm"
           color="accent"
           :disabled="

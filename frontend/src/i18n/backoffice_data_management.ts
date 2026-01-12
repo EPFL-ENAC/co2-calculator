@@ -105,4 +105,12 @@ export default {
     en: 'No data available for this year.',
     fr: 'Aucune donnée disponible pour cette année.',
   },
+  data_management_upload: {
+    en: 'Upload',
+    fr: 'Téléverser',
+  },
+  data_management_supported_file_types: {
+    en: 'Supported file types: .csv',
+    fr: 'Types de fichiers pris en charge : .csv',
+  },
 } as const;
