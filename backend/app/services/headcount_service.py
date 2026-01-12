@@ -16,16 +16,18 @@ from app.schemas.equipment import (
     SubmoduleResponse,
     SubmoduleSummary,
 )
+from app.services.authorization_service import get_data_filters
 
 logger = get_logger(__name__)
 
 
 class HeadcountService:
-    """Service for headcount business logic."""
+    """Service for headcount business logic with context injection."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, user: Optional[User] = None):
         self.session = session
         self.repo = HeadCountRepository(session)
+        self.user = user
 
     async def get_module_stats(
         self, unit_id: str, year: int, aggregate_by: str = "submodule"
@@ -80,8 +82,23 @@ class HeadcountService:
         return await self.repo.delete_headcount(headcount_id)
 
     async def get_by_id(self, item_id: int) -> Optional[HeadCount]:
-        """Get headcount record by ID."""
-        return await self.repo.get_by_id(item_id)
+        """Get headcount record by ID with policy-based filtering."""
+        headcount = await self.repo.get_by_id(item_id)
+
+        # Apply policy-based access check if user context is available
+        if self.user and headcount:
+            from app.services.authorization_service import check_resource_access
+
+            resource_dict = {
+                "id": headcount.id,
+                "created_by": headcount.created_by,
+                "unit_id": headcount.unit_id,
+            }
+
+            if not await check_resource_access(self.user, "headcount", resource_dict):
+                return None
+
+        return headcount
 
     async def get_headcounts(
         self,
@@ -93,9 +110,14 @@ class HeadcountService:
         sort_order: str = "asc",
         filter: Optional[str] = None,
     ) -> list[HeadCount]:
-        """Get headcount record by unit_id and year."""
+        """Get headcount record by unit_id and year with policy-based filtering."""
+        # Get policy-based filters if user context is available
+        filters = None
+        if self.user:
+            filters = await get_data_filters(self.user, "headcount", "list")
+
         return await self.repo.get_headcounts(
-            unit_id, year, limit, offset, sort_by, sort_order, filter
+            unit_id, year, limit, offset, sort_by, sort_order, filter, filters=filters
         )
 
     async def get_module_data(

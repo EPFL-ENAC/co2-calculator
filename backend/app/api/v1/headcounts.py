@@ -3,22 +3,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.security import require_permission
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.models.user import User
 from app.services.headcount_service import HeadcountService
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-def get_headcount_service(
-    db: AsyncSession = Depends(get_db),
-) -> HeadcountService:
-    """Dependency to get headcount service instance."""
-    return HeadcountService(db)
 
 
 @router.post(
@@ -31,8 +25,8 @@ async def create_headcount(
     year: int,
     headcount_data: HeadCountCreate,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> HeadCount:
     """
     Create a new headcount record.
@@ -42,7 +36,7 @@ async def create_headcount(
         year: The year for the headcount
         headcount_data: The headcount data to create
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
@@ -54,6 +48,7 @@ async def create_headcount(
             f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
         )
 
+        service = HeadcountService(db, user=current_user)
         headcount = await service.create_headcount(
             data=headcount_data,
             provider_source="api",
@@ -83,8 +78,8 @@ async def get_headcounts(
     sort_by: str = "id",
     sort_order: str = "asc",
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "view")),
 ) -> list[HeadCount]:
     """
     Get a list of headcount records for a specific unit and year.
@@ -97,7 +92,7 @@ async def get_headcounts(
         sort_by: Field to sort by
         sort_order: Sort order ("asc" or "desc")
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
     """
     logger.info(
@@ -105,6 +100,7 @@ async def get_headcounts(
         f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcounts = await service.get_headcounts(
         unit_id=unit_id,
         year=year,
@@ -130,8 +126,8 @@ async def get_headcount(
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "view")),
 ) -> HeadCount:
     """
     Get a specific headcount record by ID.
@@ -141,7 +137,7 @@ async def get_headcount(
         year: The year for the headcount
         headcount_id: The headcount record ID
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
@@ -155,6 +151,7 @@ async def get_headcount(
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcount = await service.get_by_id(headcount_id)
 
     if not headcount:
@@ -188,8 +185,8 @@ async def update_headcount(
     headcount_id: int,
     headcount_data: HeadCountUpdate,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> HeadCount:
     """
     Update an existing headcount record.
@@ -200,7 +197,7 @@ async def update_headcount(
         headcount_id: The headcount record ID to update
         headcount_data: The headcount data to update
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
@@ -214,6 +211,7 @@ async def update_headcount(
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcount = await service.update_headcount(
         headcount_id=headcount_id,
         data=headcount_data,
@@ -251,8 +249,8 @@ async def delete_headcount(
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> None:
     """
     Delete a headcount record.
@@ -262,7 +260,7 @@ async def delete_headcount(
         year: The year for the headcount
         headcount_id: The headcount record ID to delete
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Raises:
@@ -273,6 +271,7 @@ async def delete_headcount(
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     # First verify the headcount exists and belongs to the unit
     headcount = await service.get_by_id(headcount_id)
 
