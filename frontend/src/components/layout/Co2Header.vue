@@ -76,11 +76,11 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
       <Co2LanguageSelector />
 
       <q-btn
-        v-if="hasBackOfficeAccess"
+        v-if="hasBackOfficeAccess && isInBackOfficeRoute"
         icon="o_article"
         color="grey-4"
         text-color="primary"
-        :label="$t('documentation_button_label')"
+        :label="$t('documentation_backoffice_button_label')"
         unelevated
         no-caps
         outline
@@ -91,11 +91,11 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
       />
 
       <q-btn
-        v-if="hasSystemAccess"
+        v-if="hasSystemAccess && isInSystemRoute"
         icon="o_article"
         color="grey-4"
         text-color="primary"
-        :label="$t('documentation_button_label')"
+        :label="$t('documentation_dev_button_label')"
         unelevated
         no-caps
         outline
@@ -106,7 +106,7 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
       />
 
       <q-btn
-        v-if="!hasSystemAccess && !hasBackOfficeAccess"
+        v-if="!isInBackOfficeRoute && !isInSystemRoute"
         icon="o_article"
         color="grey-4"
         text-color="primary"

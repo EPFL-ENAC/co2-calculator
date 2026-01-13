@@ -196,6 +196,14 @@ export default {
     en: 'Documentation',
     fr: 'Documentation',
   },
+  documentation_backoffice_button_label: {
+    en: 'Back-office Documentation',
+    fr: 'Documentation Back-office',
+  },
+  documentation_dev_button_label: {
+    en: 'Developer Documentation',
+    fr: 'Documentation Développeur',
+  },
   common_add_button: {
     en: 'Add',
     fr: 'Ajouter',

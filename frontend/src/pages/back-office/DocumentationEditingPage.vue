@@ -147,7 +147,7 @@ const docRows = computed(() => [
       'documentation_editing_calculator_backoffice_documentation_description',
     ),
     githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator-backoffice-doc/tree/main/docs',
+      'https://github.com/EPFL-ENAC/co2-calculator-back-office-doc/tree/main/docs',
   },
   {
     topic: t('documentation_editing_calculator_developer_documentation_title'),
