@@ -105,4 +105,24 @@ export default {
     en: 'No data available for this year.',
     fr: 'Aucune donnée disponible pour cette année.',
   },
+  data_management_upload: {
+    en: 'Upload',
+    fr: 'Téléverser',
+  },
+  data_management_supported_file_types: {
+    en: 'Supported file types: .csv',
+    fr: 'Types de fichiers pris en charge : .csv',
+  },
+  data_management_no_temp_files_uploaded: {
+    en: 'No temporary files uploaded.',
+    fr: "Aucun fichier temporaire n'a été téléversé.",
+  },
+  data_management_temp_files_uploaded: {
+    en: 'Temporary files uploaded: {count}',
+    fr: 'Fichiers temporaires téléversés : {count}',
+  },
+  data_management_delete_temp_files: {
+    en: 'Delete Temporary Files',
+    fr: 'Supprimer les fichiers temporaires',
+  },
 } as const;

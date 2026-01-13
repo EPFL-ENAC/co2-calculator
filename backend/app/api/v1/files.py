@@ -2,7 +2,6 @@
 
 import base64
 import datetime
-import re
 from typing import List
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -55,9 +54,9 @@ def make_files_store() -> FilesStore:
             s3_endpoint_url=f"{settings.S3_ENDPOINT_PROTOCOL}://{settings.S3_ENDPOINT_HOSTNAME}",
             s3_access_key_id=settings.S3_ACCESS_KEY_ID,
             s3_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
-            s3_region=settings.S3_REGION,
-            s3_bucket=settings.S3_BUCKET,
-            s3_path_prefix=settings.S3_PATH_PREFIX,
+            region=settings.S3_REGION,
+            bucket=settings.S3_BUCKET,
+            path_prefix=settings.S3_PATH_PREFIX,
         )
         return S3FilesStore(s3_service, key=encryption_key)
     # Default to local file storage
@@ -66,23 +65,6 @@ def make_files_store() -> FilesStore:
 
 files_store = make_files_store()
 file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
-
-
-def _sanitize_path(path: str) -> str:
-    """Sanitize file paths to prevent directory traversal attacks.
-    The FilesStore implementation also performs its own sanitization,
-    but we add this extra layer here."""
-    # Remove leading slashes
-    path = path.lstrip("/")
-    # Remove \n and \r characters
-    path = path.replace("\n", "").replace("\r", "")
-    if ".." in path:
-        raise HTTPException(status_code=400, detail="Invalid path: '..' not allowed")
-    if not re.match(r"^[a-zA-Z0-9/ _.-]+$", path):
-        raise HTTPException(
-            status_code=400, detail="Invalid path: contains forbidden characters"
-        )
-    return path
 
 
 @router.get("/", response_model=List[FileNode], response_model_exclude_none=True)
@@ -105,7 +87,11 @@ async def list_files(
         "File list requested",
         extra={"user_id": current_user.id, "path": path},
     )
-    path = _sanitize_path(path)
+    try:
+        path = files_store.sanitize_path(path)
+    except ValueError as e:
+        logger.error(f"Invalid file path for listing '{path}': {e}")
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     files = await files_store.list_files(path, recursive=recursive)
     return files
@@ -138,7 +124,11 @@ async def get_file(
             "download": download,
         },
     )
-    file_path = _sanitize_path(file_path)
+    try:
+        file_path = files_store.sanitize_path(file_path)
+    except ValueError as e:
+        logger.error(f"Invalid file path for retrieval '{file_path}': {e}")
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     try:
         (body, content_type) = await files_store.get_file(file_path)
@@ -203,7 +193,11 @@ async def delete_temp_files(
         "File deletion from /tmp requested",
         extra={"user_id": current_user.id, "file_path": file_path},
     )
-    file_path = _sanitize_path(file_path)
+    try:
+        file_path = files_store.sanitize_path(file_path)
+    except ValueError as e:
+        logger.error(f"Invalid file path for deletion '{file_path}': {e}")
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     if not file_path.startswith("tmp/"):
         raise HTTPException(
