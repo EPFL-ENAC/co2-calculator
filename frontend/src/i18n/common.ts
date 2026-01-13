@@ -244,8 +244,16 @@ export default {
     en: 'Save',
     fr: 'Enregistrer',
   },
-  header_documentation_link: {
+  header_backoffice_documentation_link: {
+    en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
+  },
+  header_dev_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator/',
     fr: 'https://epfl-enac.github.io/co2-calculator/',
+  },
+  header_user_documentation_link: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
   },
 };

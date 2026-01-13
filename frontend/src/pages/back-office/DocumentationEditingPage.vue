@@ -132,34 +132,29 @@ const rows = computed(() => [
   },
 ]);
 
-const documentationSections = [
+const docRows = computed(() => [
   {
-    title: 'documentation_editing_calculator_co2_documentation_title',
-    description:
-      'documentation_editing_calculator_co2_documentation_description',
+    topic: t('documentation_editing_calculator_user_documentation_title'),
+    description: t(
+      'documentation_editing_calculator_user_documentation_description',
+    ),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator-user-doc/tree/main/docs',
   },
   {
-    title: 'documentation_editing_calculator_backoffice_documentation_title',
-    description:
+    topic: t('documentation_editing_calculator_backoffice_documentation_title'),
+    description: t(
       'documentation_editing_calculator_backoffice_documentation_description',
+    ),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator-backoffice-doc/tree/main/docs',
   },
   {
-    title: 'documentation_editing_calculator_service_documentation_title',
-    description:
-      'documentation_editing_calculator_service_documentation_description',
-  },
-  {
-    title: 'documentation_editing_calculator_developer_documentation_title',
-    description:
+    topic: t('documentation_editing_calculator_developer_documentation_title'),
+    description: t(
       'documentation_editing_calculator_developer_documentation_description',
-  },
-];
-
-const loremRows = computed(() => [
-  {
-    topic: t('documentation_editing_lorem_rows_topic'),
-    description: t('documentation_editing_lorem_rows_description'),
-    githubUrl: '#',
+    ),
+    githubUrl: 'https://github.com/EPFL-ENAC/co2-calculator/tree/main/docs/src',
   },
 ]);
 
@@ -196,7 +191,16 @@ const columns: QTableColumn[] = [
           {{ $t('documentation_editing_translation_title') }}
         </h1>
         <div class="text-body1 q-mb-xl">
-          {{ $t('documentation_editing_translation_description') }}
+          {{ $t('documentation_editing_translation_description_part_1') }}
+          <a
+            :href="$t('documentation_editing_translation_description_link_url')"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{
+              $t('documentation_editing_translation_description_link_text')
+            }} </a
+          >{{ $t('documentation_editing_translation_description_part_2') }}
         </div>
         <q-table
           flat
@@ -233,56 +237,47 @@ const columns: QTableColumn[] = [
             </q-tr>
           </template>
         </q-table>
-        <div>
-          <h1 class="text-h2 q-mb-sm">
-            {{ $t('documentation_editing_documentation_title') }}
-          </h1>
-          <p class="text-body1 q-mb-xl">
-            {{ $t('documentation_editing_documentation_description') }}
-          </p>
-          <div v-for="section in documentationSections" :key="section.title">
-            <h2 class="text-h3 q-mt-lg q-mb-sm">
-              {{ $t(section.title) }}
-            </h2>
-            <p class="text-body1 q-mb-xl">
-              {{ $t(section.description) }}
-            </p>
-            <q-table
-              flat
-              class="co2-table border table-spacing"
-              :rows="loremRows"
-              :columns="columns"
-              hide-pagination
-            >
-              <template #body="props">
-                <q-tr :props="props">
-                  <q-td key="topic" :props="props">
-                    {{ props.row.topic }}
-                  </q-td>
-                  <q-td key="description" :props="props">
-                    {{ props.row.description }}
-                  </q-td>
-                  <q-td key="githubUrl" :props="props">
-                    <q-btn
-                      icon="o_article"
-                      color="grey-4"
-                      text-color="primary"
-                      :label="$t('documentation_editing_edit_on_github')"
-                      unelevated
-                      no-caps
-                      outline
-                      size="sm"
-                      class="text-weight-medium"
-                      :href="props.row.githubUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    />
-                  </q-td>
-                </q-tr>
-              </template>
-            </q-table>
-          </div>
+        <h1 class="text-h2 q-mb-sm">
+          {{ $t('documentation_editing_documentation_title') }}
+        </h1>
+        <div class="text-body1 q-mb-xl">
+          {{ $t('documentation_editing_documentation_description') }}
         </div>
+        <q-table
+          flat
+          class="co2-table border table-spacing"
+          :rows="docRows"
+          :columns="columns"
+          hide-pagination
+          :pagination="{ rowsPerPage: 0 }"
+        >
+          <template #body="props">
+            <q-tr :props="props" class="q-tr--no-hover">
+              <q-td key="topic" :props="props">
+                {{ props.row.topic }}
+              </q-td>
+              <q-td key="description" :props="props">
+                {{ props.row.description }}
+              </q-td>
+              <q-td key="githubUrl" :props="props">
+                <q-btn
+                  icon="o_article"
+                  color="grey-4"
+                  text-color="primary"
+                  :label="$t('documentation_editing_edit_on_github')"
+                  unelevated
+                  no-caps
+                  outline
+                  size="sm"
+                  class="text-weight-medium"
+                  :href="props.row.githubUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              </q-td>
+            </q-tr>
+          </template>
+        </q-table>
       </div>
     </div>
   </q-page>

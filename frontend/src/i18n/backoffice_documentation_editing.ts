@@ -4,24 +4,40 @@ export default {
     fr: 'Traduction',
   },
   documentation_editing_translation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    en: 'Link to the translation files in the repository of the CO₂ calculator application. Make your changes directly on GitHub and ask for a Pull Request. For more information see the backoffice documentation section; Changing texts.',
+    fr: 'Lien vers les fichiers de traduction dans le dépôt de l’application Calculateur CO₂. Effectuez vos modifications directement sur GitHub et demandez une Pull Request. Pour plus d’informations, consultez la section documentation du back-office ; Modifier les textes.',
+  },
+  documentation_editing_translation_description_part_1: {
+    en: 'Link to the translation files in the repository of the CO₂ calculator application. Make your changes directly on GitHub and ask for a Pull Request. For more information see the backoffice documentation section; ',
+    fr: 'Lien vers les fichiers de traduction dans le dépôt de l’application Calculateur CO₂. Effectuez vos modifications directement sur GitHub et demandez une Pull Request. Pour plus d’informations, consultez la section documentation du back-office ; ',
+  },
+  documentation_editing_translation_description_link_text: {
+    en: 'Changing texts',
+    fr: 'Modifier les textes',
+  },
+  documentation_editing_translation_description_link_url: {
+    en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/changetext/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/changetext/',
+  },
+  documentation_editing_translation_description_part_2: {
+    en: '.',
+    fr: '.',
   },
   documentation_editing_documentation_title: {
     en: 'Documentation',
     fr: 'Documentation',
   },
   documentation_editing_documentation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    en: 'Link to the different documentation repository of the CO₂ calculator application. Make your changes directly on GitHub and ask for a Pull Request. For more information see the backoffice documentation section; Change documentation.',
+    fr: 'Lien vers les différents repository de documentation de l’application Calculateur CO₂. Effectuez vos modifications directement sur GitHub et demandez une Pull Request. Pour plus d’informations, consultez la section documentation du back-office ; Modifier la documentation.',
   },
-  documentation_editing_calculator_co2_documentation_title: {
-    en: 'CO₂ Calculator Documentation',
-    fr: 'Documentation du Calculateur CO₂',
+  documentation_editing_calculator_user_documentation_title: {
+    en: 'User Documentation',
+    fr: 'Documentation utilisateur-ice',
   },
-  documentation_editing_calculator_co2_documentation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+  documentation_editing_calculator_user_documentation_description: {
+    en: 'Repository link to the user documentation of the CO₂ calculator application.',
+    fr: 'Lien vers le dépôt de la documentation utilisateur-ice de l’application Calculateur CO₂.',
   },
 
   documentation_editing_calculator_backoffice_documentation_title: {
@@ -29,24 +45,16 @@ export default {
     fr: 'Documentation du back-office',
   },
   documentation_editing_calculator_backoffice_documentation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-  },
-  documentation_editing_calculator_service_documentation_title: {
-    en: 'Service Documentation',
-    fr: 'Documentation du service',
-  },
-  documentation_editing_calculator_service_documentation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    en: 'Repository link to the backoffice documentation of the CO₂ calculator application.',
+    fr: 'Lien vers le repository de la documentation du back-office de l’application Calculateur CO₂.',
   },
   documentation_editing_calculator_developer_documentation_title: {
     en: 'Developer Documentation',
     fr: 'Documentation développeur',
   },
   documentation_editing_calculator_developer_documentation_description: {
-    en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque aliquet scelerisque arcu, ac semper tortor posuere vel.',
-    fr: "Texte d'exemple en français. Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    en: 'Repository link to the developer documentation of the CO₂ calculator application.',
+    fr: 'Lien vers le repository de la documentation développeur de l’application Calculateur CO₂.',
   },
   documentation_editing_table_label_topic: {
     en: 'Topic',
