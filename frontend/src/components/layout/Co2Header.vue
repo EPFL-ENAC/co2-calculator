@@ -14,7 +14,15 @@ const route = useRoute();
 
 const unitName = computed(() => {
   if (!route.params.unit) return '';
-  return decodeURIComponent(route.params.unit as string);
+  const unit = decodeURIComponent(route.params.unit as string);
+  // Extract name from format: {id}-{name}
+  // The name part is everything after the first dash
+  const parts = unit.split('-');
+  if (parts.length > 1) {
+    // Join all parts except the first (which is the ID) and replace dashes with spaces
+    return parts.slice(1).join('-').replace(/-/g, ' ');
+  }
+  return unit;
 });
 
 const year = computed(() => {

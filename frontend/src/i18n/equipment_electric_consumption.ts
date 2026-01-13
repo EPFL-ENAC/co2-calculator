@@ -56,7 +56,23 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     en: 'Other Equipment ({count}) | Other Equipments ({count})',
     fr: 'Autre équipement ({count}) | Autres équipements ({count})',
   },
-
+  [`${MODULES.EquipmentElectricConsumption}-scientific-form-title`]: {
+    en: 'Add Scientific Equipment',
+    fr: 'Ajouter un équipement scientifique',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-it-form-title`]: {
+    en: 'Add IT Equipment',
+    fr: 'Ajouter un équipement informatique',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-other-form-title`]: {
+    en: 'Add Other Equipment',
+    fr: 'Ajouter un autre équipement',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-scientific-form-title-info-label`]:
+    {
+      en: 'Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.',
+      fr: 'Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.',
+    },
   [`${MODULES.EquipmentElectricConsumption}.tooltips.power`]: {
     en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
     fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
