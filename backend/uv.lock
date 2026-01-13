@@ -365,7 +365,7 @@ requires-dist = [
     { name = "alembic", specifier = "==1.17.1" },
     { name = "authlib", specifier = "==1.6.5" },
     { name = "email-validator", specifier = "==2.3.0" },
-    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?branch=main" },
+    { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = "==0.121.2" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "itsdangerous", specifier = "==2.2.0" },
@@ -504,7 +504,7 @@ wheels = [
 [[package]]
 name = "enacit4r-files"
 version = "1.0.0"
-source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?branch=main#9273ffc0532147430da2c588c739b57856411bc2" }
+source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.0.0#c5380ed069112027f54fdce6736b5844a6b34c55" }
 dependencies = [
     { name = "aiobotocore" },
     { name = "cryptography" },
