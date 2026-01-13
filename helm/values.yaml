@@ -111,6 +111,16 @@ backend:
       accredApiKeyKey: ACCRED_API_KEY # Key in the existing secret for Accred API key
       accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
       accredApiUrlKey: ACCRED_API_URL # Key in the existing secret for Accred API URL
+      filesEncryptionKeyKey: FILES_ENCRYPTION_KEY # Key in the existing secret for files encryption key
+      filesEncryptionSaltKey: FILES_ENCRYPTION_SALT # Key in the existing secret for files encryption salt
+      filesMaxSizeMbKey: FILES_MAX_SIZE_MB # Key in the existing secret for maximum file size (MB)
+      s3EndpointProtocolKey: S3_ENDPOINT_PROTOCOL # Key in the existing secret for S3 endpoint protocol
+      s3EndpointHostnameKey: S3_ENDPOINT_HOSTNAME # Key in the existing secret for S3 endpoint hostname
+      s3AccessKeyIdKey: S3_ACCESS_KEY_ID # Key in the existing secret for S3 access key ID
+      s3SecretAccessKeyKey: S3_SECRET_ACCESS_KEY # Key in the existing secret for S3 secret access key
+      s3RegionKey: S3_REGION # Key in the existing secret for S3 region
+      s3BucketKey: S3_BUCKET # Key in the existing secret for S3 bucket
+      s3PathPrefixKey: S3_PATH_PREFIX # Key in the existing secret for S3 path prefix
 
   initContainers:
     waitForPostgres:
