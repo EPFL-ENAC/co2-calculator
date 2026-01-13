@@ -2,6 +2,7 @@
 
 from typing import AsyncGenerator
 
+import sqlalchemy as sa
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -81,4 +82,7 @@ async def init_db() -> None:
     # SQLModel.metadata.create_all(engine)
 
     async with engine.begin() as conn:
+        # Ensure audit schema exists for Postgres before creating tables
+        if not is_sqlite:
+            await conn.execute(sa.text("CREATE SCHEMA IF NOT EXISTS audit"))
         await conn.run_sync(SQLModel.metadata.create_all)

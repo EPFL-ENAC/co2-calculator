@@ -115,7 +115,7 @@ class EquipmentFilters(BaseModel):
 class EquipmentCreateRequest(BaseModel):
     """Request schema for creating new equipment."""
 
-    unit_id: str = Field(..., description="Unit ID (e.g., '10208')")
+    unit_id: int = Field(..., description="Unit ID (e.g., '10208')")
     cost_center: Optional[str] = Field(
         None, description="Cost center code (defaults to unit_id if not provided)"
     )
@@ -248,7 +248,7 @@ class EquipmentDetailResponse(BaseModel):
 
     id: int = Field(..., description="Equipment ID")
     cost_center: str = Field(..., description="Cost center code")
-    unit_id: str = Field(..., description="Unit ID")
+    unit_id: int = Field(..., description="Unit ID")
     name: str = Field(..., description="Equipment name")
     category: str = Field(..., description="Equipment category")
     submodule: str = Field(..., description="Submodule grouping")
@@ -263,7 +263,7 @@ class EquipmentDetailResponse(BaseModel):
     cost_center_description: Optional[str] = Field(
         None, description="French description"
     )
-    equipment_metadata: Optional[Dict] = Field(None, description="Additional metadata")
+    meta: Optional[Dict] = Field(None, description="Additional metadata")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     created_by: Optional[str] = Field(None, description="Creator user ID")

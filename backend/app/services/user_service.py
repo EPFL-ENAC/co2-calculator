@@ -16,8 +16,9 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.role_priority import pick_role_for_unit
+from app.core.role_priority import pick_role_for_provider_code
 from app.models.user import Role, RoleScope, User
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
@@ -38,37 +39,30 @@ class UserService:
         self.unit_service = UnitService(session)
 
     def get_user_unit_ids(self, roles: Optional[List[Role]]) -> list[str]:
-        """Get list of unit IDs associated with a user."""
+        """Get list of unit IDs associated with a user (from RoleScope.unit for now)."""
         if not roles:
             return []
 
         unit_ids: set[str] = set()
         for role in roles:
-            if isinstance(role.on, RoleScope) and role.on.unit:
-                unit_ids.add(role.on.unit)
+            if isinstance(role.on, RoleScope) and role.on.provider_code:
+                unit_ids.add(role.on.provider_code)
 
         return list(unit_ids)
 
-    async def upsert_user(
+    async def _upsert_user_identity(
         self,
+        id: Optional[int],
+        code: str,
         email: str,
+        function: Optional[str] = None,
         display_name: Optional[str] = None,
-        user_id: Optional[str] = None,
         roles: Optional[List[Role]] = None,
-        stop_recursion: bool = False,
         provider: Optional[str] = None,
     ) -> User:
-        """
-        Create or update a user with all related entities.
-
-        This orchestrates:
-        1. User creation/update
-        2. Unit synchronization from provider
-        3. UnitUser association management
-        """
-        # step 1. Get or create user
-        existing_user = await self.user_repo.get_by_id(user_id) if user_id else None
+        existing_user = await self.user_repo.get_by_id(id) if id else None
         if not existing_user:
+            # fallback to email lookup
             existing_user = await self.user_repo.get_by_email(email)
         if existing_user and existing_user.provider != provider:
             logger.warning(
@@ -81,70 +75,81 @@ class UserService:
             )
             raise ValueError("User provider mismatch during upsert")
         if existing_user:
-            user = await self.user_repo.update(
-                user_id=existing_user.id,
+            return await self.user_repo.update(
+                id=existing_user.id,
                 display_name=display_name,
                 roles=roles,
                 provider=provider,
+                function=function,
             )
-        else:
-            user = await self.user_repo.create(
-                email=email,
-                display_name=display_name,
-                user_id=user_id,
-                roles=roles,
-                provider=provider,
-            )
+        return await self.user_repo.create(
+            code=code,
+            email=email,
+            display_name=display_name,
+            roles=roles,
+            provider=provider,
+            function=function,
+        )
 
-        if stop_recursion:
-            return user
-        # step 2. Extract unit IDs from roles
-        unit_ids = self.get_user_unit_ids(roles)
-
-        if not unit_ids:
-            return user
-
-        if not user.provider:
-            raise ValueError("User provider is required for unit synchronization")
+    async def unit_sync_from_provider(
+        self, provider: str, provider_unit_codes: list[str], current_user: User
+    ) -> list[int]:
+        """Sync units and their principals from provider."""
         # step 3. Fetch full unit details from provider
-        unit_provider = get_unit_provider(provider_type=user.provider)
-        units = await unit_provider.get_units(unit_ids=unit_ids)
+        unit_provider = get_unit_provider(provider_type=provider)
+        units = await unit_provider.get_units(unit_ids=provider_unit_codes)
 
         # 4. Upsert units with full metadata
-        role_provider = get_role_provider(provider_type=user.provider)
+        role_provider = get_role_provider(provider_type=current_user.provider)
+        unit_ids = []
         for unit in units:
-            if not unit.principal_user_id:
-                raise ValueError(
-                    f"Unit {unit.id} missing principal_user_id from provider"
-                )
+            if not unit.principal_user_provider_code:
+                raise ValueError(f"Unit {unit.id} missing principal_user_provider_code")
             # Upsert principal user recursively
-            principal_roles = await role_provider.get_roles_by_user_id(
-                unit.principal_user_id
+            principal_user = await role_provider.get_user_by_user_id(
+                unit.principal_user_provider_code
             )
-            if (unit.principal_user_id != user.id) and principal_roles:
-                if not unit.principal_user_email:
-                    raise ValueError(
-                        f"Unit {unit.id} principal user missing email from provider"
-                    )
+            # // retriev display name and email from role provider if possible
+            if (
+                unit.principal_user_provider_code != current_user.code
+            ) and principal_user:
                 await self.upsert_user(
-                    email=unit.principal_user_email,
-                    display_name=unit.principal_user_name,
-                    user_id=unit.principal_user_id,
-                    roles=principal_roles,
+                    email=principal_user.get("email", ""),
+                    code=principal_user.get("code", ""),
+                    display_name=principal_user.get("display_name", None),
+                    id=None,
+                    roles=principal_user.get("roles", []),
                     stop_recursion=True,
-                    provider=user.provider,
+                    provider=principal_user.get("provider", None),
+                    function=principal_user.get("function", None),
                 )
-            await self.unit_service.upsert_unit(unit, user, provider=user.provider)
+            created_unit = await self.unit_service.upsert(
+                unit_data=unit,
+                provider=current_user.provider,
+            )
+            unit_ids.append(created_unit.id)
+        return unit_ids
 
+    async def unit_membership_sync_user(
+        self,
+        user: User,
+        roles: List[Role],
+        unit_ids: List[int],
+        unit_codes: List[str],
+    ) -> None:
         # step 5. Create/update UnitUser associations
-        for unit_id in unit_ids:
-            chosen_role = pick_role_for_unit(roles, unit_id)
+        if len(unit_codes) != len(unit_ids):
+            raise ValueError(
+                "Unit codes and IDs length mismatch during membership sync"
+            )
+        for unit_id, unit_code in zip(unit_ids, unit_codes):
+            chosen_role = pick_role_for_provider_code(roles, unit_code)
             if not chosen_role:
                 logger.warning(
                     "No valid role found for user-unit association",
                     extra={
-                        "user_id": user.id,
-                        "unit_id": unit_id,
+                        "user_id": sanitize(user.id),
+                        "unit_id": sanitize(unit_id),
                     },
                 )
                 continue
@@ -157,17 +162,81 @@ class UserService:
         logger.info(
             "User upserted with units",
             extra={
-                "user_id": user.id,
+                "user_id": sanitize(user.id),
                 "unit_count": len(unit_ids),
+                "provider": user.provider,
+            },
+        )
+
+    async def upsert_user(
+        self,
+        id: Optional[int],
+        email: str,
+        code: str,
+        display_name: Optional[str] = None,
+        function: Optional[str] = None,
+        roles: Optional[List[Role]] = None,
+        stop_recursion: bool = False,
+        provider: Optional[str] = None,
+    ) -> User:
+        """
+        Create or update a user with all related entities.
+
+        This orchestrates:
+        1. User creation/update
+        2. Unit synchronization from provider
+        3. UnitUser association management
+        """
+        user = await self._upsert_user_identity(
+            id, code, email, function, display_name, roles, provider
+        )
+
+        if stop_recursion:
+            return user
+
+        provider_codes = self.get_user_unit_ids(roles)
+        if not provider_codes:
+            return user
+
+        if not user.provider:
+            raise ValueError("User provider is required for unit synchronization")
+
+        # Pulls units from the provider,
+        # upserts missing principal users,
+        # then upserts units.”
+        unit_ids = await self.unit_sync_from_provider(
+            provider=user.provider,
+            provider_unit_codes=provider_codes,
+            current_user=user,
+        )
+
+        # Upserts UnitUser relationships by resolving
+        # the user’s role per unit (should be .id to .id mapping and not .code)
+        await self.unit_membership_sync_user(
+            user=user,
+            roles=roles,
+            unit_ids=unit_ids,
+            unit_codes=provider_codes,
+        )
+
+        logger.info(
+            "User upserted with units",
+            extra={
+                "user_id": user.id,
+                "unit_count": len(provider_codes),
                 "provider": user.provider,
             },
         )
 
         return user
 
-    async def get_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID."""
-        return await self.user_repo.get_by_id(user_id)
+    async def get_by_id(self, id: int) -> Optional[User]:
+        """Get user by id."""
+        return await self.user_repo.get_by_id(id)
+
+    async def get_by_code(self, code: str) -> Optional[User]:
+        """Get user by code."""
+        return await self.user_repo.get_by_code(code)
 
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email."""

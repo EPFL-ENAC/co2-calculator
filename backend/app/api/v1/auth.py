@@ -121,14 +121,14 @@ async def login_test(
         "email": f"testuser_{sanitized_role}@example.org",
         "sub": f"testuser_{sanitized_role}_sub",
     }
-    user_id = role_provider.get_user_id(user_info)
+    code = role_provider.get_user_id(user_info)
     roles = await role_provider.get_roles(user_info)
 
     logger.info(
         "Test User info",
         extra={
             "email": user_info.get("email"),
-            "has_user_id": bool(user_id),
+            "has_user_id": bool(code),
             "role": sanitized_role,
         },
     )
@@ -141,8 +141,9 @@ async def login_test(
 
     # Get or create user
     user = await UserService(db).upsert_user(
+        id=None,
         email=email,
-        user_id=user_id,
+        code=code,
         display_name=f"Test User: {sanitized_role}",
         roles=roles,
         provider=provider,
@@ -226,25 +227,29 @@ async def auth_callback(
 
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        user_id = role_provider.get_user_id(user_info)
-        roles = await role_provider.get_roles(user_info)
+        provider_code = role_provider.get_user_id(user_info)
+        # fetch user and roles?
+        provider_user = await role_provider.get_user_by_user_id(provider_code)
 
         logger.info(
             "User info retrieved from OAuth2",
             extra={
-                "email": email,
-                "display_name": display_name,
-                "has_user_id": bool(user_id),
-                "roles_count": len(roles),
+                "email": provider_user.get("email", email),
+                "function": provider_user.get("function", None),
+                "display_name": provider_user.get("display_name", display_name),
+                "has_user_id": bool(provider_code),
+                "roles_count": len(provider_user.get("roles", [])),
             },
         )
 
         # Get or create user
         user = await UserService(db).upsert_user(
-            email=email,
-            display_name=display_name,
-            user_id=user_id,
-            roles=roles,
+            id=None,
+            email=provider_user.get("email", email),
+            code=provider_user.get("code", provider_code),
+            display_name=provider_user.get("display_name", display_name),
+            roles=provider_user.get("roles", []),
+            function=provider_user.get("function", None),
             provider=role_provider.type,
         )
 
@@ -328,47 +333,48 @@ async def get_me(
             )
 
         # Get user from database
-        user = await UserService(db).get_by_id(user_id)
+        user = await UserService(db).get_by_id(id=user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
             )
 
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive",
-            )
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User email missing",
             )
 
-        # Refresh roles from provider
-        role_provider = get_role_provider(user.provider)
-        # Check it is a test user in DEBUG mode
-        if settings.DEBUG and user.email.startswith("testuser_"):
-            role_provider = get_role_provider("test")
+        # TODO: create an issue background for this
+        # // should be done in background task? HOW TO ?
+        # # Refresh roles from provider
+        # role_provider = get_role_provider(user.provider)
+        # # Check it is a test user in DEBUG mode
+        # if settings.DEBUG and user.email.startswith("testuser_"):
+        #     role_provider = get_role_provider("test")
 
-        fresh_roles = await role_provider.get_roles_by_user_id(user.id)
+        # fresh_user = await role_provider.get_user_by_user_id(user.code)
 
-        if fresh_roles != user.roles:
-            await UserService(db).upsert_user(
-                email=user.email,
-                display_name=user.display_name,
-                user_id=user.id,
-                roles=fresh_roles,
-                stop_recursion=False,
-                provider=role_provider.type,
-            )
-            logger.info(
-                "Refreshed user roles",
-                extra={"user_id": user.id, "roles_count": len(fresh_roles)},
-            )
+        #  IF role differnt! trigger SSE! create a different issue for that!?
+        # if fresh_user["roles"] != user.roles:
+        #     user = await UserService(db).upsert_user(
+        #         id=user.id,
+        #         email=fresh_user["email"],
+        #         code=fresh_user["code"],
+        #         display_name=fresh_user["display_name"],
+        #         function=fresh_user.get("function", user.function),
+        #         roles=fresh_user.get("roles", []),
+        #         stop_recursion=False,
+        #         provider=fresh_user["provider"],
+        #     )
+        #     logger.info(
+        #         "Refreshed user roles",
+        #         extra={"user_id": user.id, "roles_count": len(fresh_user.roles)},
+        #     )
 
-        return user
+        user_read = UserRead.from_orm(user)
+        return user_read
 
     except HTTPException:
         raise
@@ -422,13 +428,6 @@ async def refresh_token(
             )
 
         user = await UserService(db).get_by_id(user_id)
-
-        # Verify user still exists and is active
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
-            )
 
         if not user.email:
             raise HTTPException(

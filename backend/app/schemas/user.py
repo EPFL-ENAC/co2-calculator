@@ -15,13 +15,12 @@ class UserRead(UserBase):
     Permissions are calculated on-the-fly from roles, not stored in DB.
     """
 
-    id: str
+    id: int
+    code: str
     display_name: Optional[str] = None
     email: EmailStr
-    # roles_raw: List[Role] = []
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    function: Optional[str] = None
+    provider: Optional[str] = None
     last_login: Optional[datetime] = None
 
     @computed_field

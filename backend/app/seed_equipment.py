@@ -259,7 +259,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
                 unit_id="10208",
-                equipment_metadata={
+                meta={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),
                 },
@@ -280,7 +280,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
                 unit_id="12345",
-                equipment_metadata={
+                meta={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),
                 },

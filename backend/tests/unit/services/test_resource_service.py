@@ -63,7 +63,7 @@ async def test_resource(db_session, test_user, test_unit):
             unit_id=test_unit,
             visibility="private",
             data={"initial": "data"},
-            resource_metadata={"foo": "bar"},
+            meta={"foo": "bar"},
         ),
         user_id=test_user.id,
     )
@@ -121,7 +121,7 @@ def sample_resource_data():
         unit_id=TEST_UNIT_ID,
         visibility="private",
         data={"key": "value"},
-        resource_metadata={"test": True},
+        meta={"test": True},
     )
 
 
@@ -149,7 +149,7 @@ def sample_resource_denied_data(other_unit):
         "unit_id": other_unit,
         "visibility": "private",
         "data": {"key": "value"},
-        "resource_metadata": {"test": True},
+        "meta": {"test": True},
     }
 
 

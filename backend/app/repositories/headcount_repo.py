@@ -109,7 +109,7 @@ class HeadCountRepository:
         self.session = session
 
     async def get_module_stats(
-        self, unit_id: str, year: int, aggregate_by: str = "submodule"
+        self, unit_id: int, year: int, aggregate_by: str = "submodule"
     ) -> Dict[str, float]:
         """Aggregate headcount data by submodule or function."""
         group_field = getattr(HeadCount, aggregate_by)
@@ -238,7 +238,7 @@ class HeadCountRepository:
         return list(result.scalars().all())
 
     async def get_summary_by_submodule(
-        self, unit_id: str, year: int
+        self, unit_id: int, year: int
     ) -> Dict[str, Dict[str, Any]]:
         """
         Get aggregated summary statistics grouped by submodule.
@@ -290,7 +290,7 @@ class HeadCountRepository:
 
     async def get_submodule_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         submodule_key: str,
         limit: int,
@@ -362,7 +362,7 @@ class HeadCountRepository:
         return result.scalar_one_or_none()
 
     async def get_by_unit_and_date(
-        self, unit_id: str, date: str
+        self, unit_id: int, date: str
     ) -> Optional[HeadCount]:
         """Get headcount record by unit_id and date."""
         statement = select(HeadCount).where(

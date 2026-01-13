@@ -134,6 +134,10 @@ build: ## Build Docker image
 db-migrate: ## Run database migrations (upgrade to head)
 	uv run alembic upgrade head
 
+.PHONY: db-downgrade
+db-downgrade: ## Downgrade database to previous revision (usage: make db-downgrade revision="-1")
+	uv run alembic downgrade -1
+
 .PHONY: db-revision
 db-revision: ## Create new migration (usage: make db-revision message="description")
 	uv run alembic revision --autogenerate -m "$(message)"

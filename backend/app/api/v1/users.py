@@ -26,6 +26,7 @@ router = APIRouter()
 # Users are auto-created and updated during OAuth login flow
 
 
+# TODO: rename units to units
 @router.get("/units", response_model=List[UnitWithUserRole])
 async def list_user_units(
     skip: int = Query(0, ge=0, description="Number of records to skip"),

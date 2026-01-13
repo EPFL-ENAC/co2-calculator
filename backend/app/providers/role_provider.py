@@ -29,6 +29,15 @@ class RoleProvider(ABC):
     type: str = "abstract"
 
     @abstractmethod
+    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+        """Get user info from the role provider by user ID.
+
+        Args:
+            user_id: User ID of the user
+        """
+        pass
+
+    @abstractmethod
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
         """Get user ID for a user.
 
@@ -150,7 +159,7 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(unit=scope_id),
+                            on=RoleScope(provider_code=scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
@@ -225,21 +234,21 @@ class TestRoleProvider(RoleProvider):
             roles = [
                 Role(
                     role=RoleName.CO2_USER_STD,
-                    on=RoleScope(unit="12345", affiliation="testaffiliation"),
+                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
                 )
             ]
         elif requested_role == "co2.user.secondary":
             roles = [
                 Role(
                     role=RoleName.CO2_USER_SECONDARY,
-                    on=RoleScope(unit="12345", affiliation="testaffiliation"),
+                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
                 )
             ]
         elif requested_role == "co2.user.principal":
             roles = [
                 Role(
                     role=RoleName.CO2_USER_PRINCIPAL,
-                    on=RoleScope(unit="12345", affiliation="testaffiliation"),
+                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
                 )
             ]
         elif requested_role == "co2.backoffice.std":
@@ -261,6 +270,25 @@ class TestRoleProvider(RoleProvider):
             roles = []
 
         return roles
+
+    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+        """Return test user info by user ID.
+
+        Args:
+            user_id: User ID of the user
+        Returns:
+            User info dict for the test user
+        """
+        roles = await self.get_roles_by_user_id(user_id)
+        user_insert = {
+            "code": user_id,
+            "provider": self.type,
+            "email": f"{user_id}@testprovider.local",
+            "display_name": f"Test User {user_id}",
+            "function": "Tester",
+            "roles": roles,
+        }
+        return user_insert
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Return test roles for a user by their user ID.
@@ -319,6 +347,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User ID as a string
         """
+        # TODO: rename user_id is provider_code or persid/sciper in Accred
         user_id = userinfo.get("uniqueid")  # return user_id as str
         if not user_id:
             logger.warning(
@@ -344,6 +373,82 @@ class AccredRoleProvider(RoleProvider):
         except ValueError as e:
             logger.error(f"Error getting roles: {e}", extra={"userinfo": userinfo})
             return []
+
+    async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
+        """Fetch user info from EPFL Accred API.
+
+        Args:
+            user_id: User ID to query
+        Returns:
+            User info dict from Accred API
+        """
+        if not all([self.api_url, self.api_username, self.api_key]):
+            logger.error(
+                "Cannot fetch user: Accred API not configured",
+                extra={"user_id": user_id},
+            )
+            return {}
+
+        try:
+            # Call EPFL Accred user endpoint
+            # /v1/accreds?persid=352707&onlymainaccred=true
+            # /v1/persons/101116
+            url = f"{self.api_url}/persons/{user_id}"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    auth=(self.api_username, self.api_key),
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+            position = data.get("position", {})
+            if not position:
+                logger.info(
+                    "No position found in Accred API", extra={"user_id": user_id}
+                )
+                return {}
+            logger.info(
+                "Fetched user from Accred API",
+                extra={"user_id": user_id},
+            )
+            user_insert = {
+                "code": str(data.get("id")),  # provider user id
+                "provider": self.type,
+                "email": data.get("email"),
+                "display_name": data.get("display"),
+                "function": position.get("labelen"),
+            }
+
+            roles = await self.get_roles_by_user_id(user_id)
+
+            user_insert["roles"] = roles
+            return user_insert
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "Accred API HTTP error",
+                extra={
+                    "user_id": user_id,
+                    "status_code": e.response.status_code,
+                    "error": str(e),
+                },
+            )
+            raise
+        except httpx.RequestError as e:
+            logger.error(
+                "Accred API request error", extra={"user_id": user_id, "error": str(e)}
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Unexpected error fetching user from Accred API",
+                extra={"user_id": user_id, "error": str(e), "type": type(e).__name__},
+            )
+            logger.exception("Unexpected error fetching user from Accred API")
+            raise
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Fetch roles from EPFL Accred API.
@@ -435,7 +540,10 @@ class AccredRoleProvider(RoleProvider):
                 else:
                     # Map authorization to role with unit scope
                     roles.append(
-                        Role(role=auth_name, on=RoleScope(unit=str(accred_unit_id)))
+                        Role(
+                            role=auth_name,
+                            on=RoleScope(provider_code=str(accred_unit_id)),
+                        )
                     )
 
             logger.info(

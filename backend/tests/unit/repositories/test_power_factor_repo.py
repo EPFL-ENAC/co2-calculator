@@ -31,7 +31,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="scientific",
@@ -43,7 +43,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         # Scientific equipment - Centrifugation class-level fallback
         PowerFactor(
@@ -56,7 +56,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data - generic",
-            power_metadata={},
+            meta={},
         ),
         # Scientific equipment - Microscopy without subclasses
         PowerFactor(
@@ -69,7 +69,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         # IT equipment - Desktop computers
         PowerFactor(
@@ -82,7 +82,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="it",
@@ -94,7 +94,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data - generic",
-            power_metadata={},
+            meta={},
         ),
         # Multiple versions - newer one should be preferred
         PowerFactor(
@@ -107,7 +107,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=datetime(2024, 12, 31),
             source="Test data - old",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="it",
@@ -119,7 +119,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2025, 1, 1),
             valid_to=None,
             source="Test data - new",
-            power_metadata={},
+            meta={},
         ),
     ]
 
@@ -401,7 +401,7 @@ class TestListSubclasses:
                 valid_from=datetime(2024, 1, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
             PowerFactor(
                 submodule="test",
@@ -413,7 +413,7 @@ class TestListSubclasses:
                 valid_from=datetime(2024, 6, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
         ]
         for factor in factors:
@@ -508,7 +508,7 @@ class TestGetClassSubclassMap:
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test",
-            power_metadata={},
+            meta={},
         )
         db_session.add(factor)
         await db_session.commit()
@@ -537,7 +537,7 @@ class TestGetClassSubclassMap:
                 valid_from=datetime(2024, 1, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
             PowerFactor(
                 submodule="test",
@@ -549,7 +549,7 @@ class TestGetClassSubclassMap:
                 valid_from=datetime(2024, 6, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
             PowerFactor(
                 submodule="test",
@@ -561,7 +561,7 @@ class TestGetClassSubclassMap:
                 valid_from=datetime(2024, 1, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
         ]
         for factor in factors:
@@ -593,7 +593,7 @@ class TestGetClassSubclassMap:
                 valid_from=datetime(2024, 1, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
             PowerFactor(
                 submodule="test",
@@ -605,7 +605,7 @@ class TestGetClassSubclassMap:
                 valid_from=datetime(2024, 1, 1),
                 valid_to=None,
                 source="Test",
-                power_metadata={},
+                meta={},
             ),
         ]
         for factor in factors:

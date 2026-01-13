@@ -32,7 +32,7 @@ router = APIRouter()
 
 @router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
 async def get_module_stats(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
@@ -76,7 +76,7 @@ async def get_module_stats(
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
 async def get_module(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     preview_limit: int = Query(
@@ -144,7 +144,7 @@ async def get_module(
     response_model=SubmoduleResponse,
 )
 async def get_submodule(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -230,7 +230,7 @@ async def get_submodule(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -325,7 +325,7 @@ async def create_item(
     response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
 async def get_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -392,7 +392,7 @@ async def get_item(
     response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
 )
 async def update_equipment(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -469,7 +469,7 @@ async def update_equipment(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,

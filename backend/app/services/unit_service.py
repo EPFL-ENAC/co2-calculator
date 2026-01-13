@@ -15,7 +15,6 @@ from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import User
 from app.repositories.unit_repo import UnitRepository
-from app.repositories.unit_user_repo import UnitUserRepository
 
 logger = get_logger(__name__)
 
@@ -26,7 +25,6 @@ class UnitService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.unit_repo = UnitRepository(session)
-        self.unit_user_repo = UnitUserRepository(session)
 
     def _build_policy_input(
         self, user: User, action: str, unit: Optional[Unit] = None
@@ -46,6 +44,7 @@ class UnitService:
             "action": action,
             "resource_type": "unit",
             "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+            "filters": {},
         }
 
         if unit:
@@ -75,18 +74,15 @@ class UnitService:
                 "id": "12345",
                 "name": "ENAC-IT4R",
                 "current_user_role": "co2.user.principal",
-                "principal_user_id": "67890",
-                "principal_user_name": "Alice",
-                "principal_user_function": "Professor",
+                "principal_user_provider_code": "67890",
                 "affiliations": ["ENAC", "ENAC-IT"],
-                "visibility": "private"
             }
         """
         # 1. Build policy input
         input_data = self._build_policy_input(user, "read")
 
         # 2. Query policy for authorization decision
-        decision = await query_policy("authz/unit/list", input_data)
+        decision = await query_policy("unit:query", input_data)
         logger.info(
             "Policy decision requested",
             extra={
@@ -97,14 +93,6 @@ class UnitService:
             },
         )
 
-        # TBD: Implement deny logic
-        # if not decision.get("allow", False):
-        #     reason = decision.get("reason", "Access denied")
-        #     logger.warning(
-        #         "Policy denied list", extra={"user_id": user.id, "reason": reason}
-        #     )
-        #     raise HTTPException(status_code=403, detail=f"Access denied: {reason}")
-
         # 3. Extract filters from policy decision
         filters = decision.get("filters", {})
 
@@ -114,26 +102,21 @@ class UnitService:
                 Unit,
                 UnitUser.role,
                 col(User.display_name).label("principal_user_name"),
+                col(User.function).label("principal_user_function"),
             )
-            .select_from(Unit)  # explicitly start from Unit
-            .join(UnitUser, UnitUser.unit_id == Unit.id)  # type: ignore
-            .outerjoin(User, Unit.principal_user_id == User.id)  # type: ignore
+            .select_from(Unit)
+            .join(UnitUser, UnitUser.unit_id == Unit.id)
+            .outerjoin(User, Unit.principal_user_provider_code == User.code)
             .where(UnitUser.user_id == user.id)
         )
 
         # Apply filters from policy engine
-        if "unit_id" in filters:
+        if "unit_id" in filters:  # Keep as unit_id for policy compatibility
             unit_ids = filters["unit_id"]
             if isinstance(unit_ids, list):
                 query = query.where(col(Unit.id).in_(unit_ids))
             else:
                 query = query.where(Unit.id == unit_ids)
-        if "visibility" in filters:
-            visibilities = filters["visibility"]
-            if isinstance(visibilities, list):
-                query = query.where(col(Unit.visibility).in_(visibilities))
-            else:
-                query = query.where(Unit.visibility == visibilities)
 
         role_case = role_priority_case(UnitUser.role)
         query = query.order_by(role_case).offset(skip).limit(limit)
@@ -144,19 +127,18 @@ class UnitService:
         # Convert to dict format
         return [
             {
-                "id": unit.id,  # unit, pas row
+                "id": unit.id,
                 "name": unit.name,
-                "current_user_role": role,  # role, pas row.current_user_role
-                "principal_user_id": unit.principal_user_id,
+                "current_user_role": role,
+                "principal_user_provider_code": unit.principal_user_provider_code,
                 "principal_user_name": principal_user_name,
-                "principal_user_function": unit.principal_user_function,
+                "principal_user_function": principal_user_function,
                 "affiliations": unit.affiliations or [],
-                "visibility": unit.visibility,
             }
-            for unit, role, principal_user_name in rows
+            for unit, role, principal_user_name, principal_user_function in rows
         ]
 
-    async def get_by_id(self, unit_id: str, user: User) -> Unit:
+    async def get_by_id(self, id: int, user: User) -> Unit:
         """
         Get a unit by ID with authorization.
 
@@ -171,7 +153,7 @@ class UnitService:
             HTTPException: If resource not found or access denied
         """
         # Get unit from repository
-        unit = await self.unit_repo.get_by_id(unit_id)
+        unit = await self.unit_repo.get_by_id(id)
         if not unit:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found"
@@ -187,7 +169,7 @@ class UnitService:
             extra={
                 "user_id": user.id,
                 "action": "get_unit",
-                "unit_id": sanitize(unit_id),
+                "unit_id": sanitize(id),
             },
         )
 
@@ -197,7 +179,7 @@ class UnitService:
                 "OPA denied resource read",
                 extra={
                     "user_id": sanitize(user.id),
-                    "unit_id": sanitize(unit_id),
+                    "unit_id": sanitize(id),
                     "reason": sanitize(reason),
                 },
             )
@@ -208,9 +190,7 @@ class UnitService:
 
         return unit
 
-    async def upsert_unit(
-        self, unit_data: Unit, user: User, provider: Optional[str] = None
-    ) -> Unit:
+    async def upsert(self, unit_data: Unit, provider: Optional[str] = None) -> Unit:
         """
         Create or update a unit (internal operation).
 
@@ -222,15 +202,12 @@ class UnitService:
         NO policy checks - this is internal.
         """
         # Upsert unit
-        unit = await self.unit_repo.upsert(
-            unit_data, user_id=user.id, provider=user.provider
-        )
+        unit = await self.unit_repo.upsert(unit_data, provider=provider)
 
         logger.info(
             "Unit upserted (internal)",
             extra={
                 "unit_id": unit.id,
-                "user_id": user.id,
             },
         )
 

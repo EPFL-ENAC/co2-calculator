@@ -1,13 +1,16 @@
 """Seed emission factors and power factors from CSV data.
 
-This script populates the emission_factors and power_factors tables with initial data:
-- Swiss electricity mix emission factor (from config)
-- Power consumption factors from table_power.csv
+This script populates the factors table with initial data:
+- Swiss electricity mix emission factor (factor_family='emission')
+- Power consumption factors from table_power.csv (factor_family='power')
+
+Note: emission_factors table has been merged into factors table.
+See migration merge_emission_factors_to_factors for details.
 """
 
 import asyncio
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlmodel import select
@@ -16,20 +19,25 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.emission_factor import EmissionFactor, PowerFactor
+from app.models.factor import Factor
 
 logger = get_logger(__name__)
 settings = get_settings()
 
+# Constants for global reference data
+GLOBAL_MODULE_TYPE_ID = 99
+ENERGY_MIX_DATA_ENTRY_TYPE_ID = 100
+
 
 async def seed_emission_factors(session: AsyncSession) -> None:
-    """Seed initial emission factors."""
+    """Seed initial emission factors into the unified factors table."""
     logger.info("Seeding emission factors...")
 
-    # Check if Swiss mix factor already exists
+    # Check if Swiss mix factor already exists in factors table
     result = await session.exec(
-        select(EmissionFactor).where(
-            EmissionFactor.factor_name == "swiss_electricity_mix"
+        select(Factor).where(
+            Factor.is_conversion == True,  # noqa: E712
+            Factor.classification["region"].astext == "CH",
         )
     )
     existing = result.first()
@@ -38,31 +46,54 @@ async def seed_emission_factors(session: AsyncSession) -> None:
         logger.info("Swiss electricity mix emission factor already exists, skipping")
         return
 
-    # Create Swiss electricity mix emission factor
-    factor = EmissionFactor(
-        factor_name="swiss_electricity_mix",
-        value=settings.EMISSION_FACTOR_SWISS_MIX,
-        version=1,
-        valid_from=datetime(2024, 1, 1),
-        valid_to=None,  # Current version
-        region="CH",
-        source="Swiss Federal Office of Energy (SFOE)",
-        factor_metadata={
-            "unit": "kgCO2eq/kWh",
-            "description": "Swiss electricity consumption mix",
-            "methodology": "Life cycle analysis",
+    # Get the 'energy' emission_type
+    from app.models.emission_type import EmissionType
+
+    emission_type_result = await session.exec(
+        select(EmissionType).where(EmissionType.code == "energy")
+    )
+    energy_type = emission_type_result.first()
+    if not energy_type:
+        logger.error(
+            "Emission type 'energy' not found - run reference data migration first"
+        )
+        return
+
+    # Create Swiss electricity mix emission factor in unified factors table
+    factor = Factor(
+        is_conversion=True,  # This is a conversion factor
+        emission_type_id=energy_type.id,
+        data_entry_type_id=ENERGY_MIX_DATA_ENTRY_TYPE_ID,
+        classification={
+            "region": "CH",
+            "factor_name": "swiss_electricity_mix",
+        },
+        values={
+            "kg_co2eq_per_kwh": settings.EMISSION_FACTOR_SWISS_MIX,
         },
     )
 
     session.add(factor)
     await session.commit()
     logger.info(
-        f"Created emission factor: {factor.factor_name} = {factor.value} kgCO2eq/kWh"
+        f"Created emission factor: {factor.classification['factor_name']} = "
+        f"{factor.values['kg_co2eq_per_kwh']} kgCO2eq/kWh"
     )
 
 
 async def seed_power_factors(session: AsyncSession) -> None:
-    """Seed power factors from table_power.csv."""
+    """Seed power factors from table_power.csv.
+
+    Note: This function seeds into the legacy PowerFactor table for backward
+    compatibility. The migration migrate_power_factors_to_factors copies these
+    into the unified factors table.
+
+    TODO: Update to seed directly into factors table with factor_family='power'
+    once the PowerFactor model is fully deprecated.
+    """
+    # Import PowerFactor here to avoid circular imports and make the dependency clear
+    from app.models.emission_factor import PowerFactor
+
     logger.info("Seeding power factors from CSV...")
 
     # Check if power factors already exist
@@ -124,10 +155,10 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 active_power_w=active_power,
                 standby_power_w=standby_power,
                 version=1,
-                valid_from=datetime(2024, 1, 1),
+                valid_from=datetime(2024, 1, 1, tzinfo=timezone.utc),
                 valid_to=None,  # Current version
                 source="EPFL Facilities Management - Equipment Power Measurements",
-                power_metadata={
+                meta={
                     "unit": "W",
                     "measurement_type": "average",
                 },

@@ -41,20 +41,10 @@ class EmissionFactorBase(SQLModel):
         default=None,
         description="Data source or reference",
     )
-    factor_metadata: dict = Field(
+    meta: dict = Field(
         default_factory=dict,
         description="Additional metadata (units, methodology, etc.)",
         sa_column=Column(JSON),
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column=Column(TIMESTAMP(timezone=True)),
-    )
-    created_by: Optional[str] = Field(
-        default=None,
-        foreign_key="users.id",
-        index=True,
-        description="User who created this factor version",
     )
 
 
@@ -131,20 +121,10 @@ class PowerFactorBase(SQLModel):
         default=None,
         description="Data source or reference for power measurements",
     )
-    power_metadata: dict = Field(
+    meta: dict = Field(
         default_factory=dict,
         description="Additional metadata (measurement conditions, notes, etc.)",
         sa_column=Column(JSON),
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
-    )
-    created_by: Optional[str] = Field(
-        default=None,
-        foreign_key="users.id",
-        index=True,
-        description="User who created this power factor version",
     )
 
 

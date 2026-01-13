@@ -27,7 +27,7 @@ def get_headcount_service(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_data: HeadCountCreate,
     module_id: str = "not_defined",
@@ -76,7 +76,7 @@ async def create_headcount(
     response_model=list[HeadCount],
 )
 async def get_headcounts(
-    unit_id: str,
+    unit_id: int,
     year: int,
     limit: int = 100,
     offset: int = 0,
@@ -126,7 +126,7 @@ async def get_headcounts(
     response_model=HeadCount,
 )
 async def get_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
@@ -183,7 +183,7 @@ async def get_headcount(
     response_model=HeadCount,
 )
 async def update_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     headcount_data: HeadCountUpdate,
@@ -247,7 +247,7 @@ async def update_headcount(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",

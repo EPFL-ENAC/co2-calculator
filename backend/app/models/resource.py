@@ -22,7 +22,7 @@ class ResourceBase(SQLModel):
         description="Resource-specific data",
         sa_column=Column(JSON),
     )
-    resource_metadata: dict = Field(
+    meta: dict = Field(
         default_factory=dict,
         description="Additional metadata",
         sa_column=Column(JSON),
@@ -33,12 +33,10 @@ class ResourceBase(SQLModel):
     updated_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True))
     )
-    created_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
-    updated_by: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+    created_by: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    updated_by: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
     # Ownership and access control
-    unit_id: str = Field(
-        index=True, nullable=False, description="EPFL unit/department ID"
-    )
+    unit_id: int = Field(index=True, nullable=False, description="Unit ID (integer FK)")
 
 
 class Resource(ResourceBase, table=True):
@@ -46,7 +44,7 @@ class Resource(ResourceBase, table=True):
     Resource model representing CO2 calculation resources.
 
     Resources can be filtered based on:
-    - unit_id: EPFL unit/department
+    - unit_id: EPFL unit/unit
     - owner_id: Resource owner
     - visibility: public, private, unit
     """

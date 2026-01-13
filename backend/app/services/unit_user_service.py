@@ -36,12 +36,12 @@ class UnitUserService:
         if role not in VALID_ROLES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}",
+                detail=f"Invalid role. Must be one of: {', '.join(r.value for r in VALID_ROLES)}",
             )
 
     async def upsert(
         self,
-        unit_id: str,
+        unit_id: int,
         user_id: str,
         role: RoleName,
     ) -> UnitUser:
@@ -103,7 +103,7 @@ class UnitUserService:
         return unit_user
 
     async def get_by_unit_and_user(
-        self, unit_id: str, user_id: str
+        self, unit_id: int, user_id: str
     ) -> Optional[UnitUser]:
         """Get UnitUser association."""
         return await self.unit_user_repo.get_by_unit_and_user(unit_id, user_id)
@@ -112,11 +112,11 @@ class UnitUserService:
         """Get all units for a user."""
         return await self.unit_user_repo.get_by_user(user_id)
 
-    async def get_by_unit(self, unit_id: str) -> List[UnitUser]:
+    async def get_by_unit(self, unit_id: int) -> List[UnitUser]:
         """Get all users for a unit."""
         return await self.unit_user_repo.get_by_unit(unit_id)
 
-    async def delete(self, unit_id: str, user_id: str) -> bool:
+    async def delete(self, unit_id: int, user_id: str) -> bool:
         """Delete a UnitUser association."""
         result = await self.unit_user_repo.delete(unit_id, user_id)
         if not result:

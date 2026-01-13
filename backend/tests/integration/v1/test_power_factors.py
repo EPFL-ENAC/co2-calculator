@@ -25,7 +25,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="scientific",
@@ -37,7 +37,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         # Scientific equipment - Centrifugation class-level fallback
         PowerFactor(
@@ -50,7 +50,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data - generic",
-            power_metadata={},
+            meta={},
         ),
         # Scientific equipment - Microscopy
         PowerFactor(
@@ -63,7 +63,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         # Equipment class with slash in name
         PowerFactor(
@@ -76,7 +76,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         # IT equipment
         PowerFactor(
@@ -89,7 +89,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="it",
@@ -101,7 +101,7 @@ async def sample_power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data - generic",
-            power_metadata={},
+            meta={},
         ),
     ]
 

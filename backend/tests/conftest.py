@@ -1,6 +1,7 @@
 """Test configuration for pytest."""
 
 import logging
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import get_db
 from app.main import app
+from app.models.factor import Factor
 
 # Test database URL (use in-memory SQLite for tests)
 TEST_DB_URL = "sqlite+aiosqlite:///./test.db"
@@ -97,3 +99,72 @@ def mock_policy_deny(monkeypatch):
     monkeypatch.setattr("app.services.resource_service.query_policy", mock_query_policy)
 
     return mock_query_policy
+
+
+# Constants for global reference data (matches migration)
+GLOBAL_MODULE_TYPE_ID = 99
+ENERGY_MIX_DATA_ENTRY_TYPE_ID = 100
+
+
+@pytest_asyncio.fixture
+async def emission_factor_ch(db_session: AsyncSession) -> Factor:
+    """Create Swiss electricity emission factor in unified factors table.
+
+    Use this fixture for tests that need emission factors.
+    The factor is stored in the factors table with factor_family='emission'.
+    """
+    factor = Factor(
+        factor_family="emission",
+        data_entry_type_id=ENERGY_MIX_DATA_ENTRY_TYPE_ID,
+        classification={
+            "region": "CH",
+            "factor_name": "swiss_electricity_mix",
+        },
+        values={
+            "kg_co2eq_per_kwh": 0.128,
+        },
+        value_units={
+            "kg_co2eq_per_kwh": "kgCO2eq/kWh",
+        },
+        version=1,
+        valid_from=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        valid_to=None,
+        source="Swiss Federal Office of Energy (SFOE)",
+        meta={
+            "description": "Swiss electricity consumption mix",
+        },
+    )
+    db_session.add(factor)
+    await db_session.commit()
+    await db_session.refresh(factor)
+    return factor
+
+
+@pytest_asyncio.fixture
+async def emission_factor_eu(db_session: AsyncSession) -> Factor:
+    """Create EU electricity emission factor in unified factors table."""
+    factor = Factor(
+        factor_family="emission",
+        data_entry_type_id=ENERGY_MIX_DATA_ENTRY_TYPE_ID,
+        classification={
+            "region": "EU",
+            "factor_name": "eu_electricity_mix",
+        },
+        values={
+            "kg_co2eq_per_kwh": 0.275,
+        },
+        value_units={
+            "kg_co2eq_per_kwh": "kgCO2eq/kWh",
+        },
+        version=1,
+        valid_from=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        valid_to=None,
+        source="European Environment Agency",
+        meta={
+            "description": "EU average electricity consumption mix",
+        },
+    )
+    db_session.add(factor)
+    await db_session.commit()
+    await db_session.refresh(factor)
+    return factor

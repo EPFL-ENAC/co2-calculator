@@ -1,0 +1,91 @@
+"""Audit models for document versioning.
+
+Defines a generic append-only `document_versions` table under the `audit` schema
+for Postgres, with dialect-aware fallback for SQLite in tests/local dev.
+"""
+
+import os
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Column
+from sqlalchemy.engine.url import make_url
+from sqlmodel import JSON, Field, SQLModel
+
+
+def _get_table_args():
+    """Determine table args based on database dialect.
+
+    Uses environment variable directly to avoid circular import with settings,
+    and to ensure test configurations are properly detected.
+    """
+    db_url = os.environ.get("DB_URL", "sqlite+aiosqlite:///./co2_calculator.db")
+    try:
+        url = make_url(db_url)
+        is_sqlite = url.drivername.startswith("sqlite")
+    except Exception:
+        is_sqlite = True  # Default to SQLite behavior for safety
+    return {"schema": "audit"} if not is_sqlite else {}
+
+
+_TABLE_ARGS = _get_table_args()
+
+
+# RENAME: audit -> document_versions
+class DocumentVersionBase(SQLModel):
+    """Base fields for versioned documents.
+
+    This model is intentionally generic to support multiple entity types
+    (e.g., modules, resources) via `entity_type` + `entity_id`.
+    """
+
+    entity_type: str = Field(index=True, description="Target table/entity name")
+    entity_id: int = Field(index=True, description="Target entity primary key")
+
+    version: int = Field(index=True, description="Monotonic version number")
+    is_current: bool = Field(
+        default=False, description="Whether this row is the current version"
+    )
+
+    # Store full snapshot and optional diff (JSON Patch or similar)
+    data_snapshot: dict = Field(
+        sa_column=Column(JSON), description="Canonical full JSON document"
+    )
+    data_diff: Optional[dict] = Field(
+        default=None, sa_column=Column(JSON), description="Optional JSON diff"
+    )
+
+    # Audit metadata
+    change_type: str = Field(
+        description="CREATE/UPDATE/DELETE/ROLLBACK; enforced by DB check constraint"
+    )
+    change_reason: Optional[str] = Field(
+        default=None, description="Optional human-readable reason for change"
+    )
+    changed_by: str = Field(description="Actor identifier (username/email)")
+    changed_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Timestamp of change (UTC)"
+    )
+
+    # Integrity chain (hashes)
+    previous_hash: Optional[str] = Field(
+        default=None, description="Hash of previous version"
+    )
+    current_hash: str = Field(description="Hash of this version")
+
+
+class DocumentVersion(DocumentVersionBase, table=True):
+    """Audit table storing versioned documents.
+
+    Postgres placement: `audit`.
+    SQLite (tests/local): `audit` in default schema.
+    Indexes and constraints are created via Alembic migrations.
+    Store one row per versioned document. a document being any entity that requires
+    versioning (e.g., modules, resources). (CRUD operations are tracked via change_type
+    and the actual data is stored as JSON snapshots/diffs.
+    """
+
+    __tablename__ = "audit"
+    __table_args__ = _TABLE_ARGS
+
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)

@@ -120,6 +120,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
                 permissions["modules.professional_travel"]["view"] = True
+                # TODO: remove
+                permissions["modules.headcount"] = {"view": True, "edit": True}
+                permissions["modules.equipment"] = {"view": True, "edit": True}
 
         elif role_name == RoleName.CO2_USER_SECONDARY.value:
             if is_role_scope(scope):

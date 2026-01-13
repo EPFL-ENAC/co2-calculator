@@ -66,7 +66,7 @@ export const useWorkspaceStore = defineStore(
       try {
         inventoriesLoading.value = true;
         inventoriesError.value = null;
-        inventories.value = await api.get(`inventories/unit/${unitId}/`).json();
+        inventories.value = await api.get(`carbon-reports/unit/${unitId}/`).json();
       } catch (error) {
         inventoriesError.value =
           error instanceof Error
@@ -85,7 +85,7 @@ export const useWorkspaceStore = defineStore(
         inventoriesLoading.value = true;
         inventoriesError.value = null;
         const inv: Inventory | null = await api
-          .get(`inventories/unit/${unitId}/year/${year}/`)
+          .get(`carbon-reports/unit/${unitId}/year/${year}/`)
           .json();
         return inv;
       } catch (error) {
@@ -129,7 +129,7 @@ export const useWorkspaceStore = defineStore(
         inventoriesLoading.value = true;
         inventoriesError.value = null;
         const inv: Inventory = await api
-          .post(`inventories/`, { json: { unit_id: unitId, year } })
+          .post(`carbon-reports/`, { json: { unit_id: unitId, year } })
           .json();
         inventories.value.push(inv);
         return inv;

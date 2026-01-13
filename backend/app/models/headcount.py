@@ -1,42 +1,12 @@
 from datetime import date as dt_date
-from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlmodel import Field, SQLModel
 
-# ==========================================
-# 1. SHARED MIXINS
-# ==========================================
-
-
-class AuditMixin(SQLModel):
-    """
-    Reusable mixin for created/updated timestamps.
-    Included in Table and Read models, but excluded from Create/Update models.
-    """
-
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")},
-        nullable=False,
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column_kwargs={
-            "server_default": text("CURRENT_TIMESTAMP"),
-            "onupdate": text("CURRENT_TIMESTAMP"),
-        },
-        nullable=False,
-    )
-    # Assuming user IDs are strings (e.g., Keycloak ID or Sciper)
-    created_by: Optional[str] = Field(default=None, index=True)
-    updated_by: Optional[str] = Field(default=None, index=True)
-
 
 # ==========================================
-# 2. BASE MODEL
+# 1. BASE MODEL
 # ==========================================
 
 
@@ -48,9 +18,7 @@ class HeadCountBase(SQLModel):
 
     date: dt_date = Field(description="Date of headcount from HR files")
 
-    unit_id: str = Field(
-        index=True, max_length=50, description="EPFL unit/department ID"
-    )
+    unit_id: int = Field(index=True, description="Unit ID (integer FK)")
     unit_name: str = Field(max_length=255, description="Unit name")
 
     cf: str = Field(max_length=50, description="Cost factor code")
@@ -79,14 +47,14 @@ class HeadCountBase(SQLModel):
 
 
 # ==========================================
-# 3. TABLE MODEL (Database)
+# 2. TABLE MODEL (Database)
 # ==========================================
 
 
-class HeadCount(HeadCountBase, AuditMixin, table=True):
+class HeadCount(HeadCountBase, table=True):
     """
     The actual Database Table.
-    Inherits Base fields + Audit fields + Adds ID and Provider.
+    Inherits Base fields + Adds ID and Provider.
     """
 
     __tablename__ = "headcounts"
@@ -114,7 +82,7 @@ class HeadCount(HeadCountBase, AuditMixin, table=True):
 
 
 # ==========================================
-# 4. API INPUT MODELS (DTOs)
+# 3. API INPUT MODELS (DTOs)
 # ==========================================
 
 
@@ -146,7 +114,7 @@ class HeadCountUpdate(SQLModel):
     """
 
     date: Optional[dt_date] = None
-    unit_id: Optional[str] = None
+    unit_id: Optional[int] = None
     unit_name: Optional[str] = None
     cf: Optional[str] = None
     cf_name: Optional[str] = None
@@ -174,14 +142,14 @@ class HeadCountUpdateRequest(BaseModel):
 
 
 # ==========================================
-# 5. API OUTPUT MODELS (DTOs)
+# 4. API OUTPUT MODELS (DTOs)
 # ==========================================
 
 
-class HeadCountRead(HeadCountBase, AuditMixin):
+class HeadCountRead(HeadCountBase):
     """
     Response schema for GET requests.
-    Returns Data + ID + Provider + Audit timestamps.
+    Returns Data + ID + Provider.
     """
 
     id: int

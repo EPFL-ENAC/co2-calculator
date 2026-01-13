@@ -9,9 +9,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     pass
 
-# from sqlalchemy import JSON, Boolean, DateTime, Integer, String
-# from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel
 
 
 class RoleName(str, Enum):
@@ -30,7 +28,7 @@ class GlobalScope(BaseModel):
 
 
 class RoleScope(BaseModel):
-    unit: Optional[str] = None
+    provider_code: Optional[str] = None
     affiliation: Optional[str] = None
 
 
@@ -42,20 +40,10 @@ class Role(BaseModel):
 class UserBase(SQLModel):
     # Role-based access control (hierarchical structure)
     # Format: [{"role": "co2.user.std", "on": {"unit": "12345"}}]
-    # roles: List[Role] = Field(
-    #     default_factory=list,
-    #     description="User roles with hierarchical scopes",
-    # )
-    # roles: List[Role] = Field(
-    #     default_factory=list,
-    #     description="User roles with hierarchical scopes",
-    #     exclude=True,
-    # )
-
     roles_raw: Optional[List[dict]] = Field(
         default=None,
         sa_column=Column(JSON),
-        description="Raw roles data for DB storage",
+        description="Raw roles data for DB storage (from provider)",
     )
 
     @property
@@ -74,18 +62,7 @@ class UserBase(SQLModel):
             for r in value
         ]
 
-    # Status
-    is_active: bool = Field(default=True)
-
     last_login: Optional[datetime] = Field(default=None, nullable=True)
-    created_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(TIMESTAMP(timezone=True))
-    )
-    updated_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(TIMESTAMP(timezone=True))
-    )
-    created_by: Optional[str] = Field(default=None, index=True)
-    updated_by: Optional[str] = Field(default=None, index=True)
 
     def calculate_permissions(self) -> dict:
         """Calculate permissions dynamically based on current user roles.
@@ -107,26 +84,23 @@ class User(UserBase, table=True):
 
     __tablename__ = "users"
 
-    id: str = Field(primary_key=True, index=True, description="Sciper in EPFL context")
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    code: str = Field(
+        unique=True,
+        index=True,
+        description="Provider-assigned user code (SCIPER for EPFL)",
+    )
     provider: str = Field(
         nullable=False,
-        description="Authentication provider (e.g. default, test, accred, ...)",
+        description="Sync source provider (accred, default, test)",
     )
     email: str = Field(unique=True, index=True, nullable=False)
     display_name: Optional[str] = Field(default=None, nullable=True)
-
-    # # Relationship to UnitUser
-    # unit_users: list["UnitUser"] = Relationship(
-    #     back_populates="user",
-    #     sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    # )
-
-    # # Relationships
-    # units: list["Unit"] = Relationship(back_populates="users", link_model=UnitUser)
-
-    # resources: list["Resource"] = Relationship(
-    #     back_populates="user",
-    # )
+    function: Optional[str] = Field(
+        default=None,
+        nullable=True,
+        description="User function/title (e.g., 'Professor', 'PhD Student')",
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
@@ -143,29 +117,6 @@ class User(UserBase, table=True):
         if not self.roles:
             return False
         return any(r.role == role for r in self.roles)
-
-    def has_role_on(self, role: str, scope_type: str, scope_id: str) -> bool:
-        """Check if user has a specific role on a specific resource.
-
-        Args:
-            role: Role name (e.g., "co2.user.std")
-            scope_type: Scope type (e.g., "unit", "affiliation")
-            scope_id: Scope identifier (e.g., "12345")
-
-        Returns:
-            True if user has the role on the specified resource
-        """
-        if not self.roles:
-            return False
-        for r in self.roles:
-            if r.role == role:
-                on = r.on
-                if (
-                    isinstance(on, RoleScope)
-                    and getattr(on, scope_type, None) == scope_id
-                ):
-                    return True
-        return False
 
     def has_role_global(self, role: str) -> bool:
         """Check if user has a specific role with global scope.

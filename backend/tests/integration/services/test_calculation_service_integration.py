@@ -34,7 +34,7 @@ async def emission_factor_swiss(db_session: AsyncSession):
         valid_to=None,
         region="CH",
         source="Swiss Federal Office of Energy",
-        factor_metadata={
+        meta={
             "description": "Swiss electricity consumption mix",
             "unit": "kgCO2eq/kWh",
         },
@@ -56,7 +56,7 @@ async def emission_factor_eu(db_session: AsyncSession):
         valid_to=None,
         region="EU",
         source="European Environment Agency",
-        factor_metadata={
+        meta={
             "description": "EU average electricity consumption mix",
             "unit": "kgCO2eq/kWh",
         },

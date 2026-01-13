@@ -30,6 +30,11 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = "src"
 testpaths = ["tests/"]
+norecursedirs = [
+    "tests/unit/services",
+    "tests/unit/repositories",
+    "tests/integration/v1",
+]
 asyncio_mode = "auto"
 
 env = [

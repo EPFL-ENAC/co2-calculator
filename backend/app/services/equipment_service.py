@@ -34,7 +34,7 @@ SUBMODULE_NAMES = {
 
 
 async def get_module_stats(
-    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+    session: AsyncSession, unit_id: int, aggregate_by: str = "submodule"
 ) -> dict[str, float]:
     """Get module statistics such as total items and submodules."""
     # GOAL return total items and submodules for equipment module
@@ -48,7 +48,7 @@ async def get_module_stats(
 
 async def get_module_data(
     session: AsyncSession,
-    unit_id: str,
+    unit_id: int,
     year: int,
     preview_limit: Optional[int] = None,
 ) -> ModuleResponse:
@@ -196,7 +196,7 @@ async def get_module_data(
 
 async def get_submodule_data(
     session: AsyncSession,
-    unit_id: str,
+    unit_id: int,
     submodule_key: str,
     limit: int = 100,
     offset: int = 0,
@@ -345,7 +345,7 @@ async def get_equipment_by_id(
         "status": equipment.status,
         "service_date": equipment.service_date,
         "cost_center_description": equipment.cost_center_description,
-        "equipment_metadata": equipment.equipment_metadata,
+        "meta": equipment.meta,
         "created_at": equipment.created_at,
         "updated_at": equipment.updated_at,
         "created_by": equipment.created_by,
@@ -384,7 +384,7 @@ async def create_equipment(
         "pas_usage": "passive_usage_pct",
         "act_power": "active_power_w",
         "pas_power": "standby_power_w",
-        "metadata": "equipment_metadata",
+        "metadata": "meta",
     }
 
     for old_key, new_key in field_mapping.items():
@@ -442,7 +442,7 @@ async def create_equipment(
         "status": equipment.status,
         "service_date": equipment.service_date,
         "cost_center_description": equipment.cost_center_description,
-        "equipment_metadata": equipment.equipment_metadata,
+        "meta": equipment.meta,
         "created_at": equipment.created_at,
         "updated_at": equipment.updated_at,
         "created_by": equipment.created_by,
@@ -532,7 +532,7 @@ async def update_equipment(
     field_mapping = {
         "act_usage": "active_usage_pct",
         "pas_usage": "passive_usage_pct",
-        "metadata": "equipment_metadata",
+        "metadata": "meta",
     }
 
     for old_key, new_key in field_mapping.items():
@@ -597,7 +597,7 @@ async def update_equipment(
         "status": updated_equipment.status,
         "service_date": updated_equipment.service_date,
         "cost_center_description": updated_equipment.cost_center_description,
-        "equipment_metadata": updated_equipment.equipment_metadata,
+        "meta": updated_equipment.meta,
         "created_at": updated_equipment.created_at,
         "updated_at": updated_equipment.updated_at,
         "created_by": updated_equipment.created_by,

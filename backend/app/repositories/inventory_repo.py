@@ -30,13 +30,13 @@ class InventoryRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def list_inventories_by_unit(self, unit_id: str) -> list[Inventory]:
+    async def list_inventories_by_unit(self, unit_id: int) -> list[Inventory]:
         statement = select(Inventory).where(Inventory.unit_id == unit_id)
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
     async def get_inventory_by_unit_and_year(
-        self, unit_id: str, year: int
+        self, unit_id: int, year: int
     ) -> Optional[Inventory]:
         statement = select(Inventory).where(
             (Inventory.unit_id == unit_id) & (Inventory.year == year)

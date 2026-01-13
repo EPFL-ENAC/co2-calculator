@@ -80,7 +80,7 @@ async def create_resource(
         updated_by=user_id,
         visibility=resource.visibility,
         data=resource.data,
-        resource_metadata=resource.resource_metadata,
+        meta=resource.meta,
     )
 
     db.add(db_resource)

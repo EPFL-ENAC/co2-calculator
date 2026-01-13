@@ -1,3 +1,14 @@
+"""Unit provider interface and implementations.
+
+Flow:
+Fetch roles from role_provider
+Extract unit IDs from roles
+ - For each unit ID, fetch full unit details from unit_provider
+ - Upsert units with complete metadata (name, principal, affiliations, visibility)
+Create/update unit_users associations with role info
+
+"""
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
@@ -7,18 +18,6 @@ from sqlmodel import Session, col, select
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
-
-"""
-Unit provider interface and implementations.
-
-Flow: 
-Fetch roles from role_provider
-Extract unit IDs from roles
- - For each unit ID, fetch full unit details from unit_provider
- - Upsert units with complete metadata (name, principal, affiliations, visibility)
-Create/update unit_users associations with role info
-
-"""
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -42,7 +41,7 @@ class UnitProvider(ABC):
         """
         pass
 
-    async def get_unit_by_id(self, unit_id: str) -> Optional[Unit]:
+    async def get_unit_by_id(self, unit_id: int) -> Optional[Unit]:
         """
         Get a single unit by ID.
 
@@ -57,6 +56,8 @@ class UnitProvider(ABC):
 
 
 class DefaultUnitProvider(UnitProvider):
+    """Default unit provider that reads from the database."""
+
     type: str = "default"
 
     def __init__(self, db_session: Session):
@@ -72,12 +73,13 @@ class DefaultUnitProvider(UnitProvider):
 
 
 class AccredUnitProvider(UnitProvider):
-    type: str = "accred"
     """Accred unit provider that fetches units from EPFL Accred API.
 
     Calls the EPFL Accred units endpoint to fetch unit details
     and maps them to CO2 application Unit model.
     """
+
+    type: str = "accred"
 
     def __init__(self):
         """Initialize the Accred provider with API credentials."""
@@ -114,7 +116,6 @@ class AccredUnitProvider(UnitProvider):
                 params["ids"] = ",".join(unit_ids)
                 params["pagesize"] = len(unit_ids)
             else:
-                # If no specific IDs, you may need pagination logic
                 logger.warning(
                     "Fetching all units without filter - may require pagination"
                 )
@@ -140,21 +141,18 @@ class AccredUnitProvider(UnitProvider):
 
             # Map API response to Unit objects
             units: List[Unit] = []
-            for unit_data in unit_data_list:
-                unit_id = str(unit_data.get("id"))
-                unit_name = unit_data.get("name", "")
-                cf = unit_data.get("cf", "")
+            for dept_data in unit_data_list:
+                dept_id = str(dept_data.get("id"))
+                dept_name = dept_data.get("name", "")
+                cf = dept_data.get("cf", "")
 
                 # Extract principal information from responsible object
-                responsible_info = unit_data.get("responsible", {})
-                principal_user_id = responsible_info.get("id")
-                principal_user_name = responsible_info.get("display")
-                principal_user_email = responsible_info.get("email")
-                principal_user_function = "head"
+                responsible_info = dept_data.get("responsible", {})
+                principal_user_code = responsible_info.get("id")
 
                 # Extract affiliations from path (space-separated hierarchy)
                 affiliations = []
-                path = unit_data.get("path", "")
+                path = dept_data.get("path", "")
                 if path:
                     # path is space-separated like "EPFL ENAC ENAC-SG ENAC-IT"
                     affiliations = [
@@ -163,15 +161,12 @@ class AccredUnitProvider(UnitProvider):
 
                 units.append(
                     Unit(
-                        id=unit_id,
-                        name=unit_name,
-                        cf=cf,
-                        principal_user_id=principal_user_id,
-                        principal_user_function=principal_user_function,
-                        principal_user_name=principal_user_name,
-                        principal_user_email=principal_user_email,
+                        id=None,
+                        code=dept_id,
+                        name=dept_name,
+                        principal_user_provider_code=principal_user_code,
+                        cost_centers=[cf] if cf else [],
                         affiliations=affiliations,
-                        visibility="private",  # Default visibility
                     )
                 )
 
@@ -204,38 +199,44 @@ class AccredUnitProvider(UnitProvider):
         except Exception as e:
             logger.error(
                 "Unexpected error fetching units from Accred API",
-                extra={"unit_ids": unit_ids, "error": str(e), "type": type(e).__name__},
+                extra={
+                    "unit_ids": unit_ids,
+                    "error": str(e),
+                    "type": type(e).__name__,
+                },
             )
             logger.exception("Unexpected error fetching units from Accred API")
             raise
 
 
 class TestUnitProvider(UnitProvider):
+    """Test unit provider for development."""
+
     type: str = "test"
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
         """Return test units for development."""
         all_test_units = [
             Unit(
-                id="12345",
+                id=1,
+                code="12345",
                 name="ENAC-IT4R",
-                principal_user_id="testuser_co2.user.principal",
-                principal_user_function="Professor",
+                cost_centers=["cf-001", "cf-002"],
+                principal_user_provider_code="testuser_co2.user.principal",
                 affiliations=["ENAC", "ENAC-IT"],
-                visibility="private",
             ),
             Unit(
-                id="67890",
+                id=2,
+                code="67890",
                 name="IC-TEST",
-                principal_user_id="testuser_co2.user.principal",
-                principal_user_function="Lab Manager",
+                cost_centers=["cf-0014", "cf-0024"],
+                principal_user_provider_code="testuser_co2.user.principal",
                 affiliations=["IC"],
-                visibility="public",
             ),
         ]
 
         if unit_ids:
-            return [u for u in all_test_units if u.id in unit_ids]
+            return [d for d in all_test_units if d.code in unit_ids]
         return all_test_units
 
 

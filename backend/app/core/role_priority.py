@@ -11,13 +11,15 @@ ROLE_PRIORITY = {
 }
 
 
-def pick_role_for_unit(
-    roles: Optional[Iterable[Role]], unit_id: str
+def pick_role_for_provider_code(
+    roles: Optional[Iterable[Role]], provider_code: str
 ) -> Optional[RoleName]:
     if not roles:
         return None
     candidates: List[RoleName] = [
-        r.role for r in roles if isinstance(r.on, RoleScope) and r.on.unit == unit_id
+        r.role
+        for r in roles
+        if isinstance(r.on, RoleScope) and r.on.provider_code == provider_code
     ]
     if not candidates:
         return None

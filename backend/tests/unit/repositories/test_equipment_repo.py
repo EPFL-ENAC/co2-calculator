@@ -22,7 +22,7 @@ async def emission_factor(db_session: AsyncSession):
         valid_to=None,
         region="CH",
         source="Test data",
-        factor_metadata={},
+        meta={},
     )
     db_session.add(factor)
     await db_session.commit()
@@ -43,7 +43,7 @@ async def power_factor(db_session: AsyncSession):
         valid_from=datetime(2024, 1, 1),
         valid_to=None,
         source="Test data",
-        power_metadata={},
+        meta={},
     )
     db_session.add(factor)
     await db_session.commit()
@@ -72,7 +72,7 @@ async def sample_equipment_with_emissions(
             active_power_w=1300.0,
             standby_power_w=130.0,
             unit_id="TEST-UNIT-1",
-            equipment_metadata={},
+            meta={},
         ),
         Equipment(
             cost_center="C1348",
@@ -87,7 +87,7 @@ async def sample_equipment_with_emissions(
             active_power_w=500.0,
             standby_power_w=50.0,
             unit_id="TEST-UNIT-1",
-            equipment_metadata={},
+            meta={},
         ),
         # IT equipment
         Equipment(
@@ -103,7 +103,7 @@ async def sample_equipment_with_emissions(
             active_power_w=200.0,
             standby_power_w=20.0,
             unit_id="TEST-UNIT-2",
-            equipment_metadata={},
+            meta={},
         ),
         # Decommissioned equipment
         Equipment(
@@ -119,7 +119,7 @@ async def sample_equipment_with_emissions(
             active_power_w=100.0,
             standby_power_w=10.0,
             unit_id="TEST-UNIT-1",
-            equipment_metadata={},
+            meta={},
         ),
     ]
 
@@ -387,7 +387,7 @@ class TestGetCurrentEmissionFactor:
                 valid_to=datetime(2024, 12, 31),
                 region="CH",
                 source="Test",
-                factor_metadata={},
+                meta={},
             ),
             EmissionFactor(
                 factor_name="test_factor",
@@ -397,7 +397,7 @@ class TestGetCurrentEmissionFactor:
                 valid_to=None,  # Current version
                 region="CH",
                 source="Test",
-                factor_metadata={},
+                meta={},
             ),
         ]
         for factor in factors:
@@ -424,7 +424,7 @@ class TestGetCurrentEmissionFactor:
             valid_to=datetime(2023, 12, 31),
             region="CH",
             source="Test",
-            factor_metadata={},
+            meta={},
         )
         db_session.add(factor)
         await db_session.commit()

@@ -74,36 +74,17 @@ class EquipmentBase(SQLModel):
     )
 
     # Ownership and organization
-    unit_id: str = Field(
+    unit_id: int = Field(
         index=True,
         nullable=False,
-        description="EPFL unit/department ID",
+        description="Unit ID (integer FK)",
     )
 
     # Additional metadata
-    equipment_metadata: Optional[dict] = Field(
+    meta: Optional[dict] = Field(
         default=None,
         description="Additional equipment metadata (location, tags, etc.)",
         sa_column=Column(JSON, nullable=True),
-    )
-
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        sa_column=Column(TIMESTAMP(timezone=True), nullable=False),
-    )
-    created_by: Optional[str] = Field(
-        default=None,
-        foreign_key="users.id",
-        index=True,
-    )
-    updated_by: Optional[str] = Field(
-        default=None,
-        foreign_key="users.id",
-        index=True,
     )
 
 

@@ -44,11 +44,11 @@ class InventoryService:
     async def get_inventory(self, inventory_id: int) -> Optional[Inventory]:
         return await self.repo.get_inventory(inventory_id)
 
-    async def list_inventories_by_unit(self, unit_id: str) -> List[Inventory]:
+    async def list_inventories_by_unit(self, unit_id: int) -> List[Inventory]:
         return await self.repo.list_inventories_by_unit(unit_id)
 
     async def get_inventory_by_unit_and_year(
-        self, unit_id: str, year: int
+        self, unit_id: int, year: int
     ) -> Optional[Inventory]:
         return await self.repo.get_inventory_by_unit_and_year(unit_id, year)
 

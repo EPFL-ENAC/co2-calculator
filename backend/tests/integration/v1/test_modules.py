@@ -47,7 +47,7 @@ async def emission_factor(db_session: AsyncSession):
         valid_to=None,
         region="CH",
         source="Test data",
-        factor_metadata={},
+        meta={},
     )
     db_session.add(factor)
     await db_session.commit()
@@ -72,7 +72,7 @@ async def power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
         PowerFactor(
             submodule="scientific",
@@ -84,7 +84,7 @@ async def power_factors(db_session: AsyncSession):
             valid_from=datetime(2024, 1, 1),
             valid_to=None,
             source="Test data",
-            power_metadata={},
+            meta={},
         ),
     ]
 
@@ -614,7 +614,7 @@ async def test_create_equipment_with_optional_fields(
     assert data["name"] == "Comprehensive Test Equipment"
     assert data["sub_class"] == "Advanced Microscope"
     assert data["cost_center_description"] == "Équipement de test"
-    assert data["equipment_metadata"] == {
+    assert data["meta"] == {
         "manufacturer": "Test Corp",
         "serial": "ABC123",
     }
