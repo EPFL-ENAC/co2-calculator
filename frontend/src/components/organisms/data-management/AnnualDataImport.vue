@@ -14,7 +14,6 @@ const showUploadDialog = ref<boolean>(false);
 
 const onFilesUploaded = () => {
   showUploadDialog.value = false;
-  console.log('Files uploaded:', filesStore.tempFiles);
 };
 </script>
 
@@ -26,6 +25,31 @@ const onFilesUploaded = () => {
     </div>
     <div class="q-my-md">
       {{ $t('data_management_annual_data_import_hint') }}
+    </div>
+    <div>
+      <q-banner class="bg-grey-2 text-grey-8">
+        <q-icon name="info" size="xs" class="on-left" />
+        <span class="q-ml-sm">
+          {{
+            filesStore.tempFiles.length > 0
+              ? $t('data_management_temp_files_uploaded', {
+                  count: filesStore.tempFiles.length,
+                })
+              : $t('data_management_no_temp_files_uploaded')
+          }}
+        </span>
+        <q-btn
+          v-if="filesStore.tempFiles.length > 0"
+          no-caps
+          outline
+          color="negative"
+          icon="delete"
+          size="sm"
+          :label="$t('data_management_delete_temp_files')"
+          class="text-weight-medium on-right"
+          @click="filesStore.deleteTempFiles()"
+        />
+      </q-banner>
     </div>
     <div>
       <q-banner inline-actions class="q-px-none">
@@ -95,6 +119,7 @@ const onFilesUploaded = () => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
+                  @click="showUploadDialog = true"
                 />
                 <q-btn
                   no-caps

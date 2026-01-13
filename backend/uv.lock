@@ -504,7 +504,7 @@ wheels = [
 [[package]]
 name = "enacit4r-files"
 version = "1.0.0"
-source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?branch=main#5eb5512817ff17a9bc59c522ae0c15e292f74b54" }
+source = { git = "https://github.com/EPFL-ENAC/enacit4r-files?branch=main#9273ffc0532147430da2c588c739b57856411bc2" }
 dependencies = [
     { name = "aiobotocore" },
     { name = "cryptography" },

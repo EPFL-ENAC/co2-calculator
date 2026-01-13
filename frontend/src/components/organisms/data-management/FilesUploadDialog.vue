@@ -30,7 +30,6 @@ const uploadFiles = async () => {
   if (!selectedFiles.value) return;
   isUploading.value = true;
   try {
-    filesStore.clearTempFiles();
     await filesStore.uploadTempFiles(selectedFiles.value);
     emit('filesUploaded');
     showDialog.value = false;
