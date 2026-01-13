@@ -111,6 +111,56 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.accredApiUrlKey | default "ACCRED_API_URL" }}
+            - name: FILES_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.filesEncryptionKeyKey | default "FILES_ENCRYPTION_KEY" }}
+            - name: FILES_ENCRYPTION_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.filesEncryptionSaltKey | default "FILES_ENCRYPTION_SALT" }}
+            - name: FILES_MAX_SIZE_MB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.filesMaxSizeMbKey | default "FILES_MAX_SIZE_MB" }}
+            - name: S3_ENDPOINT_PROTOCOL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3EndpointProtocolKey | default "S3_ENDPOINT_PROTOCOL" }}
+            - name: S3_ENDPOINT_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3EndpointHostnameKey | default "S3_ENDPOINT_HOSTNAME" }}
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3AccessKeyIdKey | default "S3_ACCESS_KEY_ID" }}
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3SecretAccessKeyKey | default "S3_SECRET_ACCESS_KEY" }}
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3RegionKey | default "S3_REGION" }}
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3BucketKey | default "S3_BUCKET" }}
+            - name: S3_PATH_PREFIX
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.s3PathPrefixKey | default "S3_PATH_PREFIX" }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:
