@@ -143,12 +143,15 @@ async def get_data_filters(
     return filters
 
 
-async def check_resource_access(user: User, resource_type: str, resource: dict) -> bool:
+async def check_resource_access(
+    user: User, resource_type: str, resource: dict, action: str = "access"
+) -> bool:
     """
-    Check if a user can access a specific resource.
+    Check if a user can access/edit/delete a specific resource.
 
-    This is a convenience function that builds the input, queries the policy,
-    and returns a boolean indicating access.
+    This function uses the new "authz/resource/access" policy for resource-level
+    access control with business logic rules (e.g., API trips read-only,
+    ownership rules for standard users).
 
     Args:
         user: Current user
@@ -157,26 +160,41 @@ async def check_resource_access(user: User, resource_type: str, resource: dict) 
             - "id": Resource ID
             - "created_by": User ID who created the resource
             - "unit_id": Unit ID the resource belongs to
+            - "provider": Provider source (for professional_travel)
+        action: Action type (default: "access") - for logging/future use
 
     Returns:
         True if user can access the resource, False otherwise
 
     Example:
         ```python
-        resource = {"id": 123, "created_by": "user-123", "unit_id": "12345"}
-        if not await check_resource_access(user, "headcount", resource):
+        # Check if user can edit a professional travel record
+        resource = {
+            "id": 123,
+            "created_by": "user-123",
+            "unit_id": "12345",
+            "provider": "manual",
+        }
+        if not await check_resource_access(user, "professional_travel", resource):
             raise HTTPException(403, "Access denied")
         ```
     """
-    input_data = _build_resource_access_input(user, resource_type, resource)
+    input_data = {
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+        "resource_type": resource_type,
+        "action": action,
+        "resource": resource,
+    }
 
-    decision = await query_policy("authz/data/access", input_data)
+    # Use new resource access policy for resource-level checks
+    decision = await query_policy("authz/resource/access", input_data)
     logger.info(
         "Resource access policy evaluated",
         extra={
             "user_id": user.id,
             "resource_type": resource_type,
             "resource_id": resource.get("id"),
+            "action": action,
             "decision": decision,
         },
     )

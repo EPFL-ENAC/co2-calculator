@@ -67,18 +67,18 @@ class HeadcountService:
             user_id=user.id,
         )
 
-    async def delete_headcount(self, headcount_id: int, current_user: User) -> bool:
-        """Delete a headcount record."""
-        if (
-            current_user.has_role("co2.backoffice.admin") is False
-            and current_user.has_role("co2.user.principal") is False
-            and current_user.has_role("co2.user.secondary") is False
-        ):
-            logger.warning(
-                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
-                f"for headcount_id={sanitize(headcount_id)}"
-            )
-            raise PermissionError("User not authorized to delete headcount records.")
+    async def delete_headcount(self, headcount_id: int) -> bool:
+        """Delete a headcount record.
+
+        Authorization is handled at the API route level via require_permission().
+        This method focuses purely on the business logic of deletion.
+
+        Args:
+            headcount_id: The ID of the headcount record to delete
+
+        Returns:
+            bool: True if deletion was successful
+        """
         return await self.repo.delete_headcount(headcount_id)
 
     async def get_by_id(self, item_id: int) -> Optional[HeadCount]:

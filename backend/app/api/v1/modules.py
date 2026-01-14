@@ -767,7 +767,6 @@ async def delete_item(
         elif module_id == "my-lab":
             await HeadcountService(db).delete_headcount(
                 headcount_id=item_id,
-                current_user=current_user,
             )
         elif module_id == "professional-travel":
             await ProfessionalTravelService(db).delete_travel(

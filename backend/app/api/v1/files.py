@@ -15,10 +15,11 @@ from enacit4r_files.services import (
 from enacit4r_files.utils.files import FileChecker
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
-from app.api.deps import get_current_active_user, get_current_active_user_with_any_role
+from app.api.deps import get_current_active_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import RoleName, User
+from app.core.security import require_permission
+from app.models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -71,17 +72,14 @@ file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
 async def list_files(
     path: str = Query("", description="Path to list files from"),
     recursive: bool = Query(False, description="List files recursively"),
-    current_user: User = Depends(
-        get_current_active_user_with_any_role(
-            [RoleName.CO2_BACKOFFICE_STD, RoleName.CO2_BACKOFFICE_ADMIN]
-        )
-    ),
+    current_user: User = Depends(require_permission("backoffice.files", "view")),
 ):
     """
     List files in the specified directory.
 
     This endpoint lists files stored in the local file storage.
-    User must be authenticated via JWT (handled by dependency).
+    Requires backoffice.files view permission
+    (granted to backoffice admin and std users).
     """
     logger.info(
         "File list requested",
@@ -107,14 +105,13 @@ async def get_file(
     download: bool = Query(
         False, alias="d", description="Download file instead of inline display"
     ),
-    current_user: User = Depends(
-        get_current_active_user_with_any_role(
-            [RoleName.CO2_BACKOFFICE_STD, RoleName.CO2_BACKOFFICE_ADMIN]
-        )
-    ),
+    current_user: User = Depends(require_permission("backoffice.files", "view")),
 ):
     """
     Retrieve a file from file storage.
+
+    Requires backoffice.files view permission
+    (granted to backoffice admin and std users).
     """
     logger.info(
         "File requested",

@@ -109,11 +109,42 @@ async def get_current_active_user(
 
 
 def get_current_active_user_with_any_role(roles: list[RoleName]):
-    """Require that the user has at least one of the roles to perform an operation"""
+    """
+    DEPRECATED: Use require_permission() instead for permission-based authorization.
+
+    Require that the user has at least one of the roles to perform an operation.
+
+    This function is deprecated in favor of permission-based authorization using
+    require_permission(path, action). It is kept temporarily for backward compatibility.
+
+    Args:
+        roles: List of roles, at least one of which the user must have
+
+    Returns:
+        FastAPI dependency that returns authenticated user if role check passes
+
+    Example (OLD - deprecated):
+        user: User = Depends(
+            get_current_active_user_with_any_role([RoleName.CO2_BACKOFFICE_ADMIN])
+        )
+
+    Example (NEW - recommended):
+        user: User = Depends(require_permission("backoffice.files", "view"))
+    """
 
     async def get_current_active_user_with_any_role_impl(
         user: User = Depends(get_current_active_user),
     ) -> User:
+        # Log usage for migration tracking
+        logger.warning(
+            "DEPRECATED: get_current_active_user_with_any_role() used. "
+            "Migrate to require_permission() for permission-based authorization.",
+            extra={
+                "user_id": sanitize(user.id),
+                "required_roles": [role.value for role in roles],
+            },
+        )
+
         if not any(
             role in [user_role.role for user_role in user.roles] for role in roles
         ):

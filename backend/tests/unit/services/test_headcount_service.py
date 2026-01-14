@@ -79,34 +79,17 @@ async def test_update_headcount_delegates(service, mock_user):
 # ----------------------
 # delete_headcount
 # ----------------------
+# NOTE: Authorization is now handled at the route level via require_permission().
+# Service-level tests no longer need to test authorization logic.
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "admin,principal,secondary,should_raise",
-    [
-        (True, False, False, False),
-        (False, True, False, False),
-        (False, False, True, False),
-        (False, False, False, True),
-    ],
-)
-async def test_delete_headcount_authorization(
-    service, mock_user, admin, principal, secondary, should_raise
-):
-    mock_user.has_role.side_effect = lambda r: {
-        "co2.backoffice.admin": admin,
-        "co2.user.principal": principal,
-        "co2.user.secondary": secondary,
-    }.get(r, False)
+async def test_delete_headcount_delegates(service):
+    """Test that delete_headcount delegates to repository correctly."""
     with patch.object(
         service.repo, "delete_headcount", new=AsyncMock(return_value=True)
     ) as mock_delete:
-        if should_raise:
-            with pytest.raises(PermissionError):
-                await service.delete_headcount(1, mock_user)
-        else:
-            result = await service.delete_headcount(1, mock_user)
-            mock_delete.assert_called_with(1)
-            assert result is True
+        result = await service.delete_headcount(1)
+        mock_delete.assert_called_with(1)
+        assert result is True
 
 
 # ----------------------
@@ -127,6 +110,7 @@ async def test_get_by_id_delegates(service):
 # ----------------------
 @pytest.mark.asyncio
 async def test_get_headcounts_delegates(service):
+    """Test that get_headcounts delegates to repository with filters."""
     with patch.object(
         service.repo,
         "get_headcounts",
@@ -135,7 +119,8 @@ async def test_get_headcounts_delegates(service):
         result = await service.get_headcounts(
             "u1", 2025, 10, 0, "id", "asc", filter=None
         )
-        mock_get.assert_called_with("u1", 2025, 10, 0, "id", "asc", None)
+        # Service adds filters=None when user context is not available
+        mock_get.assert_called_with("u1", 2025, 10, 0, "id", "asc", None, filters=None)
         assert isinstance(result, list)
 
 

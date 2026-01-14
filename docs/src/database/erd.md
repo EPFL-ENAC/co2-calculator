@@ -238,11 +238,11 @@ erDiagram
   users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
   power_factors ||--}o equipment : power_factor_id
-  equipment ||--}o equipment_emissions : equipment_id
   power_factors ||--}o equipment_emissions : power_factor_id
   emission_factors ||--}o equipment_emissions : emission_factor_id
-  inventory ||--}o inventory_module : inventory_id
+  equipment ||--}o equipment_emissions : equipment_id
   module_types ||--}o inventory_module : module_type_id
+  inventory ||--}o inventory_module : inventory_id
   module_types ||--}o modules : module_type_id
   variant_types ||--}o modules : variant_type_id
   inventory_module ||--}o modules : inventory_module_id

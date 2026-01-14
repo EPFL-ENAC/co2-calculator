@@ -18,7 +18,7 @@ from app.models.professional_travel import (
     ProfessionalTravelItemResponse,
     ProfessionalTravelUpdate,
 )
-from app.models.user import RoleName, User
+from app.models.user import User
 from app.repositories.professional_travel_repo import ProfessionalTravelRepository
 from app.schemas.equipment import (
     ModuleResponse,
@@ -31,9 +31,12 @@ from app.services.travel_calculation_service import TravelCalculationService
 logger = get_logger(__name__)
 
 
-def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
+async def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
     """
-    Check if user can edit a professional travel item.
+    Check if user can edit a professional travel item using OPA resource access policy.
+
+    This function has been migrated from role-based checks to permission-based
+    resource access policy evaluation.
 
     Args:
         travel: Professional travel record
@@ -42,26 +45,26 @@ def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
     Returns:
         True if user can edit, False otherwise
 
-    Rules:
+    Rules (enforced via OPA policy):
         - API trips are read-only for everyone
-        - Principals and secondaries can edit manual/CSV trips
-        - Std users can only edit their own manual trips
+        - Principals and secondaries can edit manual/CSV trips in their units
+        - Standard users can only edit their own manual trips
+        - Backoffice admins can edit all trips
     """
-    # API trips are read-only for everyone
-    if travel.provider == "api":
-        return False
+    from app.services.authorization_service import check_resource_access
 
-    # Principals and secondaries can edit manual/CSV trips
-    if user.has_role(RoleName.CO2_USER_PRINCIPAL.value) or user.has_role(
-        RoleName.CO2_USER_SECONDARY.value
-    ):
-        return True
+    # Build resource dict for policy evaluation
+    resource = {
+        "id": travel.id,
+        "created_by": travel.created_by,
+        "unit_id": travel.unit_id,
+        "provider": travel.provider,
+    }
 
-    # Std users can only edit their own manual trips
-    if user.has_role(RoleName.CO2_USER_STD.value) and travel.created_by == user.id:
-        return True
-
-    return False
+    # Use OPA policy for resource access check
+    return await check_resource_access(
+        user, "professional_travel", resource, action="edit"
+    )
 
 
 class ProfessionalTravelService:
@@ -108,7 +111,7 @@ class ProfessionalTravelService:
             [travel]
         )
 
-        return self._to_item_response(
+        return await self._to_item_response(
             travel,
             user,
             origin_location=origin_locations.get(travel.origin_location_id),
@@ -181,7 +184,7 @@ class ProfessionalTravelService:
 
         return origin_locations, dest_locations, emissions
 
-    def _to_item_response(
+    async def _to_item_response(
         self,
         travel: ProfessionalTravel,
         user: User,
@@ -228,7 +231,7 @@ class ProfessionalTravelService:
             number_of_trips=travel.number_of_trips,
             distance_km=emission.distance_km if emission else None,
             kg_co2eq=emission.kg_co2eq if emission else None,
-            can_edit=can_user_edit_item(travel, user),
+            can_edit=await can_user_edit_item(travel, user),
         )
 
     async def _calculate_and_store_emission(
@@ -386,16 +389,16 @@ class ProfessionalTravelService:
         )
 
         # Convert to item responses with can_edit flags
-        item_responses = [
-            self._to_item_response(
+        item_responses = []
+        for travel in items:
+            item_response = await self._to_item_response(
                 travel,
                 user,
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
             )
-            for travel in items
-        ]
+            item_responses.append(item_response)
 
         # Create submodule summary
         # (professional travel has no submodules, use single 'trips' key
@@ -496,16 +499,16 @@ class ProfessionalTravelService:
         )
 
         # Convert to item responses with can_edit flags
-        item_responses = [
-            self._to_item_response(
+        item_responses = []
+        for travel in items:
+            item_response = await self._to_item_response(
                 travel,
                 user,
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
             )
-            for travel in items
-        ]
+            item_responses.append(item_response)
 
         # Get summary stats for this query
         stats = await self.repo.get_summary_stats(unit_id=unit_id, year=year, user=user)
@@ -664,8 +667,8 @@ class ProfessionalTravelService:
                 detail=f"Travel record with ID {travel_id} not found",
             )
 
-        # Check permission
-        if not can_user_edit_item(travel, user):
+        # Check permission using OPA resource access policy
+        if not await can_user_edit_item(travel, user):
             logger.warning(
                 f"Permission denied for travel update: id={sanitize(travel_id)}, "
                 f"user={sanitize(user.id)}, provider={sanitize(travel.provider)}"
@@ -754,8 +757,8 @@ class ProfessionalTravelService:
                 detail=f"Travel record with ID {travel_id} not found",
             )
 
-        # Check permission
-        if not can_user_edit_item(travel, user):
+        # Check permission using OPA resource access policy
+        if not await can_user_edit_item(travel, user):
             logger.warning(
                 f"Permission denied for travel deletion: id={sanitize(travel_id)}, "
                 f"user={sanitize(user.id)}, provider={sanitize(travel.provider)}"

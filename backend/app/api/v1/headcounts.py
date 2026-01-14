@@ -293,7 +293,8 @@ async def delete_headcount(
             detail="Headcount not found for this unit",
         )
 
-    success = await service.delete_headcount(headcount_id, current_user)
+    # Delete headcount via service (authorization already checked at route level)
+    success = await service.delete_headcount(headcount_id)
 
     if not success:
         logger.error(f"Failed to delete headcount id={sanitize(headcount_id)}")
