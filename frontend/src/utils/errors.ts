@@ -56,7 +56,7 @@ export function parsePermissionError(
   }
 
   // Try to extract the error detail from the response body
-  let detail = 'Permission denied';
+  let detail: string;
   let path: string | undefined;
   let action: string | undefined;
   let reason: string | undefined;
@@ -140,7 +140,7 @@ export async function parsePermissionErrorAsync(
     return null;
   }
 
-  let detail = 'Permission denied';
+  let detail: string;
   let path: string | undefined;
   let action: string | undefined;
   let reason: string | undefined;

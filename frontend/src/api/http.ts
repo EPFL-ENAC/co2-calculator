@@ -117,14 +117,12 @@ export const api = ky.create({
             actions: [{ icon: 'close', color: 'white' }],
           });
 
-          // Small delay to ensure toast is visible before redirect
-          setTimeout(() => {
-            const queryString = queryParams.toString();
-            const redirectUrl = queryString
-              ? `/unauthorized?${queryString}`
-              : '/unauthorized';
-            location.replace(redirectUrl);
-          }, 500);
+          // Redirect immediately - toast will remain visible during navigation
+          const queryString = queryParams.toString();
+          const redirectUrl = queryString
+            ? `/unauthorized?${queryString}`
+            : '/unauthorized';
+          location.replace(redirectUrl);
         }
       },
     ],

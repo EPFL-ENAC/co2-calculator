@@ -204,8 +204,16 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             "reason": "Insufficient permissions to access this resource",
         }
 
-    # Default for other resource types: allow (can be extended later)
-    return {"allow": True, "reason": "Resource access allowed"}
+    # Default for other/unhandled resource types: deny by default
+    # This ensures new resource types are secure until explicit policy rules are added
+    logger.warning(
+        "Resource access denied: no policy defined for resource type",
+        extra={"resource_type": resource_type},
+    )
+    return {
+        "allow": False,
+        "reason": "No policy defined for resource type",
+    }
 
 
 async def _evaluate_data_filter_policy(input_data: dict) -> dict:

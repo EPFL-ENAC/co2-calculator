@@ -38,7 +38,8 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     User Roles (affect modules.* ONLY):
     - CO2_USER_PRINCIPAL: Full module access (view + edit)
-    - CO2_USER_STD: View and edit access to professional_travel module (own trips only)
+    - CO2_USER_STD: View and edit access to professional_travel module
+      (own trips only - enforced via resource-level policy)
     - CO2_USER_SECONDARY: View-only module access
 
     System Roles (affect system.* ONLY):

@@ -9,6 +9,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.exception_handlers import permission_denied_handler
+from app.core.exceptions import (
+    InsufficientScopeError,
+    PermissionDeniedError,
+    RecordAccessDeniedError,
+)
 from app.core.logging import get_logger, setup_logging
 
 # Setup logging
@@ -203,6 +209,10 @@ app.add_middleware(
 # handles TLS termination
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
+# Register exception handlers for permission-based access control
+app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
+app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
+app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)

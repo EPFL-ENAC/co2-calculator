@@ -1,5 +1,6 @@
 """Professional Travel service for business logic."""
 
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Union
 
@@ -184,6 +185,36 @@ class ProfessionalTravelService:
 
         return origin_locations, dest_locations, emissions
 
+    async def _batch_check_edit_permissions(
+        self, travels: List[ProfessionalTravel], user: User
+    ) -> dict[int, bool]:
+        """
+        Batch check edit permissions for multiple travel items in parallel.
+
+        Args:
+            travels: List of professional travel records
+            user: Current user
+
+        Returns:
+            Dictionary mapping travel.id to can_edit boolean
+        """
+        if not travels:
+            return {}
+
+        # Build all permission check tasks in parallel
+        tasks = []
+        travel_ids = []
+        for travel in travels:
+            if travel.id is not None:
+                tasks.append(can_user_edit_item(travel, user))
+                travel_ids.append(travel.id)
+
+        # Execute all permission checks in parallel
+        results = await asyncio.gather(*tasks)
+
+        # Map results back to travel IDs
+        return dict(zip(travel_ids, results))
+
     async def _to_item_response(
         self,
         travel: ProfessionalTravel,
@@ -191,6 +222,7 @@ class ProfessionalTravelService:
         origin_location: Optional[Location] = None,
         destination_location: Optional[Location] = None,
         emission: Optional[ProfessionalTravelEmission] = None,
+        can_edit: Optional[bool] = None,
     ) -> ProfessionalTravelItemResponse:
         """
         Convert DB model to response DTO with can_edit flag.
@@ -204,6 +236,8 @@ class ProfessionalTravelService:
                 (from locations table)
             emission: Optional emission object
                 (from professional_travel_emissions table)
+            can_edit: Optional pre-computed edit permission.
+                If None, will be computed on-demand (slower for batches)
 
         Returns:
             ProfessionalTravelItemResponse with can_edit flag
@@ -217,6 +251,11 @@ class ProfessionalTravelService:
                 "Cannot create response for travel record without ID. "
                 "This should never happen for saved database records."
             )
+
+        # Compute can_edit if not provided (for backward compatibility)
+        if can_edit is None:
+            can_edit = await can_user_edit_item(travel, user)
+
         # Type narrowing: travel.id is guaranteed to be int after the None check
         return ProfessionalTravelItemResponse(
             id=travel.id,
@@ -231,7 +270,7 @@ class ProfessionalTravelService:
             number_of_trips=travel.number_of_trips,
             distance_km=emission.distance_km if emission else None,
             kg_co2eq=emission.kg_co2eq if emission else None,
-            can_edit=await can_user_edit_item(travel, user),
+            can_edit=can_edit,
         )
 
     async def _calculate_and_store_emission(
@@ -388,7 +427,10 @@ class ProfessionalTravelService:
             items
         )
 
-        # Convert to item responses with can_edit flags
+        # Batch check edit permissions for all items in parallel
+        can_edit_map = await self._batch_check_edit_permissions(items, user)
+
+        # Convert to item responses with pre-computed can_edit flags
         item_responses = []
         for travel in items:
             item_response = await self._to_item_response(
@@ -397,6 +439,7 @@ class ProfessionalTravelService:
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
+                can_edit=can_edit_map.get(travel.id) if travel.id else False,
             )
             item_responses.append(item_response)
 
@@ -498,7 +541,10 @@ class ProfessionalTravelService:
             items
         )
 
-        # Convert to item responses with can_edit flags
+        # Batch check edit permissions for all items in parallel
+        can_edit_map = await self._batch_check_edit_permissions(items, user)
+
+        # Convert to item responses with pre-computed can_edit flags
         item_responses = []
         for travel in items:
             item_response = await self._to_item_response(
@@ -507,6 +553,7 @@ class ProfessionalTravelService:
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
+                can_edit=can_edit_map.get(travel.id) if travel.id else False,
             )
             item_responses.append(item_response)
 

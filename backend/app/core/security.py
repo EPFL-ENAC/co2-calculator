@@ -224,7 +224,6 @@ def require_permission(path: str, action: str = "view") -> Callable:
                 "path": path,
                 "action": action,
                 "decision": decision,
-                "input_data": input_data,
             },
         )
 

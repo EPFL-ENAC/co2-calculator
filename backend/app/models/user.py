@@ -6,13 +6,22 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
+from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
+
+# Configure warnings to show deprecation warnings only once per call site
+# This reduces log noise while still alerting developers to deprecated usage
+# Match on the specific deprecation messages from has_role* methods
+warnings.filterwarnings(
+    "once",
+    category=DeprecationWarning,
+    message=".*is deprecated for business logic.*",
+)
 
 if TYPE_CHECKING:
     pass
 
 # from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 # from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 
 
 class RoleName(str, Enum):
