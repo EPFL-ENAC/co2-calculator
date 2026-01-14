@@ -19,6 +19,18 @@ router = APIRouter()
     "/units/{unit_id}/years/{year}/headcounts",
     response_model=HeadCount,
     status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        }
+    },
 )
 async def create_headcount(
     unit_id: str,
@@ -31,6 +43,13 @@ async def create_headcount(
     """
     Create a new headcount record.
 
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can create for their assigned units
+    - Backoffice admin: Can create for all units
+    - Standard users: No access
+
     Args:
         unit_id: The unit identifier
         year: The year for the headcount
@@ -41,6 +60,10 @@ async def create_headcount(
 
     Returns:
         Created headcount record
+
+    Raises:
+        403: Missing required permission or insufficient scope
+        500: Failed to create headcount record
     """
     try:
         logger.info(
@@ -69,6 +92,18 @@ async def create_headcount(
 @router.get(
     "/units/{unit_id}/years/{year}/headcounts",
     response_model=list[HeadCount],
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.view required"
+                    }
+                }
+            },
+        }
+    },
 )
 async def get_headcounts(
     unit_id: str,
@@ -84,6 +119,15 @@ async def get_headcounts(
     """
     Get a list of headcount records for a specific unit and year.
 
+    **Required Permission**: `modules.headcount.view`
+
+    **Authorization**:
+    - Principals and secondaries: Can view headcounts for their assigned units
+    - Backoffice admin: Can view headcounts for all units
+    - Standard users: Can view only their own headcount data
+
+    Data is automatically filtered by user scope.
+
     Args:
         unit_id: The unit identifier
         year: The year for the headcounts
@@ -94,6 +138,9 @@ async def get_headcounts(
         module_id: Optional module identifier (default: "not_defined")
         db: Database session
         current_user: Current authenticated user
+
+    Raises:
+        403: Missing required permission
     """
     logger.info(
         f"Fetching headcounts for unit={sanitize(unit_id)}, year={sanitize(year)}, "
@@ -120,6 +167,26 @@ async def get_headcounts(
 @router.get(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     response_model=HeadCount,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.view required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def get_headcount(
     unit_id: str,
@@ -131,6 +198,13 @@ async def get_headcount(
 ) -> HeadCount:
     """
     Get a specific headcount record by ID.
+
+    **Required Permission**: `modules.headcount.view`
+
+    **Authorization**:
+    - Principals and secondaries: Can view headcounts for their assigned units
+    - Backoffice admin: Can view headcounts for all units
+    - Standard users: Can view only their own headcount data
 
     Args:
         unit_id: The unit identifier
@@ -144,7 +218,8 @@ async def get_headcount(
         Headcount record
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
     """
     logger.info(
         f"Fetching headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
@@ -178,6 +253,26 @@ async def get_headcount(
 @router.patch(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     response_model=HeadCount,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def update_headcount(
     unit_id: str,
@@ -190,6 +285,13 @@ async def update_headcount(
 ) -> HeadCount:
     """
     Update an existing headcount record.
+
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can update headcounts for their assigned units
+    - Backoffice admin: Can update headcounts for all units
+    - Standard users: No access
 
     Args:
         unit_id: The unit identifier
@@ -204,7 +306,8 @@ async def update_headcount(
         Updated headcount record
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
     """
     logger.info(
         f"Updating headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
@@ -243,6 +346,26 @@ async def update_headcount(
 @router.delete(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def delete_headcount(
     unit_id: str,
@@ -255,6 +378,13 @@ async def delete_headcount(
     """
     Delete a headcount record.
 
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can delete headcounts for their assigned units
+    - Backoffice admin: Can delete headcounts for all units
+    - Standard users: No access
+
     Args:
         unit_id: The unit identifier
         year: The year for the headcount
@@ -264,7 +394,9 @@ async def delete_headcount(
         current_user: Current authenticated user
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
+        500: Failed to delete headcount record
     """
     logger.info(
         f"Deleting headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "

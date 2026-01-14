@@ -68,7 +68,29 @@ files_store = make_files_store()
 file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
 
 
-@router.get("/", response_model=List[FileNode], response_model_exclude_none=True)
+@router.get(
+    "/",
+    response_model=List[FileNode],
+    response_model_exclude_none=True,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.files.view required"
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Invalid file path",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid file path"}}
+            },
+        },
+    },
+)
 async def list_files(
     path: str = Query("", description="Path to list files from"),
     recursive: bool = Query(False, description="List files recursively"),
@@ -77,9 +99,18 @@ async def list_files(
     """
     List files in the specified directory.
 
-    This endpoint lists files stored in the local file storage.
-    Requires backoffice.files view permission
-    (granted to backoffice admin and std users).
+    **Required Permission**: `backoffice.files.view`
+
+    **Authorization**:
+    - Backoffice admin: Can list all files
+    - Backoffice std: Can list all files
+    - Other users: No access
+
+    This endpoint lists files stored in the file storage (local or S3).
+
+    Raises:
+        403: Missing required permission
+        400: Invalid file path
     """
     logger.info(
         "File list requested",
@@ -99,6 +130,28 @@ async def list_files(
     "/{file_path:path}",
     status_code=200,
     description="Download any assets from file storage",
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.files.view required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "File not found",
+            "content": {"application/json": {"example": {"detail": "File not found"}}},
+        },
+        400: {
+            "description": "Invalid file path",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid file path"}}
+            },
+        },
+    },
 )
 async def get_file(
     file_path: str,
@@ -110,8 +163,18 @@ async def get_file(
     """
     Retrieve a file from file storage.
 
-    Requires backoffice.files view permission
-    (granted to backoffice admin and std users).
+    **Required Permission**: `backoffice.files.view`
+
+    **Authorization**:
+    - Backoffice admin: Can access all files
+    - Backoffice std: Can access all files
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
+        404: File not found
+        400: Invalid file path
+        500: Internal server error
     """
     logger.info(
         "File requested",

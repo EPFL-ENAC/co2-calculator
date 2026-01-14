@@ -757,7 +757,22 @@ async def get_available_years(
 # User management endpoints
 
 
-@router.get("/users", response_model=List[UserRead])
+@router.get(
+    "/users",
+    response_model=List[UserRead],
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.view required"
+                    }
+                }
+            },
+        }
+    },
+)
 async def list_users(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -769,14 +784,38 @@ async def list_users(
     """
     List users with policy-based filtering.
 
-    Requires 'backoffice.users' view permission.
+    **Required Permission**: `backoffice.users.view`
+
+    **Authorization**:
+    - Backoffice admin: Can view all users
+    - Backoffice std: Can view all users
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
     """
     user_service = UserService(db)
     users = await user_service.list_users(current_user, skip=skip, limit=limit)
     return users
 
 
-@router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.edit required"
+                    }
+                }
+            },
+        }
+    },
+)
 async def create_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
@@ -785,14 +824,40 @@ async def create_user(
     """
     Create a new user.
 
-    Requires 'backoffice.users' edit permission.
+    **Required Permission**: `backoffice.users.edit`
+
+    **Authorization**:
+    - Backoffice admin: Can create users
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
     """
     user_service = UserService(db)
     user = await user_service.create_user(user_data.model_dump(), current_user)
     return user
 
 
-@router.get("/users/{user_id}", response_model=UserRead)
+@router.get(
+    "/users/{user_id}",
+    response_model=UserRead,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.view required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "User not found",
+            "content": {"application/json": {"example": {"detail": "User not found"}}},
+        },
+    },
+)
 async def get_user(
     user_id: str,
     db: AsyncSession = Depends(get_db),
@@ -801,15 +866,44 @@ async def get_user(
     """
     Get a user by ID.
 
+    **Required Permission**: `backoffice.users.view`
+
+    **Authorization**:
+    - Backoffice admin: Can view all users
+    - Backoffice std: Can view all users
+    - Other users: No access
+
     Returns 404 (not 403) if user lacks access to hide existence of the user.
-    Requires 'backoffice.users' view permission.
+
+    Raises:
+        403: Missing required permission
+        404: User not found or not accessible
     """
     user_service = UserService(db)
     user = await user_service.get_user(user_id, current_user)
     return user
 
 
-@router.put("/users/{user_id}", response_model=UserRead)
+@router.put(
+    "/users/{user_id}",
+    response_model=UserRead,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "User not found",
+            "content": {"application/json": {"example": {"detail": "User not found"}}},
+        },
+    },
+)
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
@@ -819,7 +913,15 @@ async def update_user(
     """
     Update a user.
 
-    Requires 'backoffice.users' edit permission.
+    **Required Permission**: `backoffice.users.edit`
+
+    **Authorization**:
+    - Backoffice admin: Can update users
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
+        404: User not found
     """
     user_service = UserService(db)
     user = await user_service.update_user(
@@ -828,7 +930,26 @@ async def update_user(
     return user
 
 
-@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "User not found",
+            "content": {"application/json": {"example": {"detail": "User not found"}}},
+        },
+    },
+)
 async def delete_user(
     user_id: str,
     db: AsyncSession = Depends(get_db),
@@ -837,7 +958,15 @@ async def delete_user(
     """
     Delete a user.
 
-    Requires 'backoffice.users' edit permission.
+    **Required Permission**: `backoffice.users.edit`
+
+    **Authorization**:
+    - Backoffice admin: Can delete users
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
+        404: User not found
     """
     user_service = UserService(db)
     deleted = await user_service.delete_user(user_id, current_user)
@@ -847,7 +976,22 @@ async def delete_user(
         )
 
 
-@router.post("/users/export", response_model=List[UserRead])
+@router.post(
+    "/users/export",
+    response_model=List[UserRead],
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: backoffice.users.export required"
+                    }
+                }
+            },
+        }
+    },
+)
 async def export_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "export")),
@@ -855,7 +999,14 @@ async def export_users(
     """
     Export all users (with policy-based filtering).
 
-    Requires 'backoffice.users' export permission.
+    **Required Permission**: `backoffice.users.export`
+
+    **Authorization**:
+    - Backoffice admin: Can export all users
+    - Other users: No access
+
+    Raises:
+        403: Missing required permission
     """
     user_service = UserService(db)
     users = await user_service.export_users(current_user)
