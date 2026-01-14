@@ -364,7 +364,7 @@ class ProfessionalTravelRepository:
             return db_obj
 
     async def update_travel(
-        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str
+        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str, user: User
     ) -> Optional[ProfessionalTravel]:
         """
         Update an existing professional travel record.
@@ -373,12 +373,18 @@ class ProfessionalTravelRepository:
             travel_id: Travel record identifier
             data: Partial update data
             user_id: User ID who updated the record
+            user: Current user (for permission checking)
 
         Returns:
             Optional[ProfessionalTravel] if found and updated, None otherwise
         """
-        # Fetch the existing record
+        # Fetch the existing record with user filtering
         statement = select(ProfessionalTravel).where(ProfessionalTravel.id == travel_id)
+
+        # User filter for standard users: only update own records
+        if self._is_standard_user(user):
+            statement = statement.where(ProfessionalTravel.created_by == user.id)
+
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()
 
@@ -405,20 +411,26 @@ class ProfessionalTravelRepository:
 
         return db_obj
 
-    async def delete_travel(self, travel_id: int) -> bool:
+    async def delete_travel(self, travel_id: int, user: User) -> bool:
         """
         Delete a professional travel record and all related emissions.
 
         Args:
             travel_id: Travel record identifier
+            user: Current user (for permission checking)
 
         Returns:
             bool: True if deleted successfully, False if not found
         """
         from sqlmodel import delete as sqlmodel_delete
 
-        # Fetch the existing record
+        # Fetch the existing record with user filtering
         statement = select(ProfessionalTravel).where(ProfessionalTravel.id == travel_id)
+
+        # User filter for standard users: only delete own records
+        if self._is_standard_user(user):
+            statement = statement.where(ProfessionalTravel.created_by == user.id)
+
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()
 

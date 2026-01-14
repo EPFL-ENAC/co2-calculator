@@ -620,6 +620,7 @@ class TestUpdateTravel:
             travel_id=travel.id,
             data=update_data,
             user_id=test_user_admin.id,
+            user=test_user_admin,
         )
 
         assert result is not None
@@ -647,6 +648,7 @@ class TestUpdateTravel:
             travel_id=travel.id,
             data=update_data,
             user_id=test_user_admin.id,
+            user=test_user_admin,
         )
 
         assert result is not None
@@ -668,6 +670,7 @@ class TestUpdateTravel:
             travel_id=99999,
             data=update_data,
             user_id=test_user_admin.id,
+            user=test_user_admin,
         )
 
         assert result is None
@@ -692,6 +695,7 @@ class TestUpdateTravel:
             travel_id=travel.id,
             data=update_data,
             user_id=test_user_admin.id,
+            user=test_user_admin,
         )
 
         assert result is not None
@@ -715,7 +719,7 @@ class TestDeleteTravel:
         travel = sample_travels_with_emissions[0]
         travel_id = travel.id
 
-        result = await repo.delete_travel(travel_id)
+        result = await repo.delete_travel(travel_id, test_user_admin)
 
         assert result is True
 
@@ -727,11 +731,12 @@ class TestDeleteTravel:
     async def test_delete_travel_not_found(
         self,
         db_session: AsyncSession,
+        test_user_admin,
     ):
         """Test deleting non-existent travel."""
         repo = ProfessionalTravelRepository(db_session)
 
-        result = await repo.delete_travel(99999)
+        result = await repo.delete_travel(99999, test_user_admin)
 
         assert result is False
 

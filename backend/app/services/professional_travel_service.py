@@ -700,7 +700,7 @@ class ProfessionalTravelService:
 
         # Update travel record via repository
         updated = await self.repo.update_travel(
-            travel_id=travel_id, data=data, user_id=user.id
+            travel_id=travel_id, data=data, user_id=user.id, user=user
         )
 
         # Recalculate and store emissions if needed (and not API trip)
@@ -769,7 +769,7 @@ class ProfessionalTravelService:
             )
 
         # Delete travel record via repository
-        success = await self.repo.delete_travel(travel_id)
+        success = await self.repo.delete_travel(travel_id, user)
 
         logger.info(
             f"Travel record deleted: id={sanitize(travel_id)}, "

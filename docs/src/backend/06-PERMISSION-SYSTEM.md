@@ -83,14 +83,14 @@ Domains are independent. Backoffice roles do not grant module access.
 
 ## Role Mapping
 
-| Role                   | Scope  | Permissions                                                 |
-| ---------------------- | ------ | ----------------------------------------------------------- |
-| `co2.backoffice.admin` | Global | `backoffice.users`: view, edit, export                      |
-| `co2.backoffice.std`   | Global | `backoffice.users`: view only                               |
-| `co2.user.principal`   | Unit   | `modules.*`: view, edit (all modules)                       |
-| `co2.user.std`         | Unit   | `modules.professional_travel`: view only (no other modules) |
-| `co2.user.secondary`   | Unit   | `modules.*`: view only (all modules)                        |
-| `co2.service.mgr`      | Global | `system.users`: edit (reserved for future)                  |
+| Role                   | Scope  | Permissions                                                                  |
+| ---------------------- | ------ | ---------------------------------------------------------------------------- |
+| `co2.backoffice.admin` | Global | `backoffice.users`: view, edit, export                                       |
+| `co2.backoffice.std`   | Global | `backoffice.users`: view only                                                |
+| `co2.user.principal`   | Unit   | `modules.*`: view, edit (all modules)                                        |
+| `co2.user.std`         | Unit   | `modules.professional_travel`: view, edit (own trips only, no other modules) |
+| `co2.user.secondary`   | Unit   | `modules.*`: view only (all modules)                                         |
+| `co2.service.mgr`      | Global | `system.users`: edit (reserved for future)                                   |
 
 Permissions from different domains combine when a user has multiple
 roles.

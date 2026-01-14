@@ -147,9 +147,9 @@ class TestCalculateUserPermissions:
         assert result["backoffice.users"]["view"] is True
         assert result["backoffice.users"]["edit"] is False
 
-        # Module permissions - CO2_USER_STD only grants professional_travel.view
+        # Module permissions - CO2_USER_STD grants professional_travel.view and edit
         assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is False
+        assert result["modules.professional_travel"]["edit"] is True
         assert result["modules.headcount"]["view"] is False
         assert result["modules.headcount"]["edit"] is False
         assert result["modules.equipment"]["view"] is False
