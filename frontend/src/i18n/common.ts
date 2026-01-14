@@ -261,6 +261,9 @@ export default {
     fr: 'Lecture seule',
   },
   header_documentation_link: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+  },
   header_backoffice_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
     fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
