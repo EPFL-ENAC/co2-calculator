@@ -13,7 +13,11 @@
       <module-total-result
         v-if="
           (
-            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+            [
+              MODULES.EquipmentElectricConsumption,
+              MODULES.MyLab,
+              MODULES.ProfessionalTravel,
+            ] as Module[]
           ).includes(currentModuleType)
         "
         :data="totalResult"
@@ -25,7 +29,11 @@
       <module-table-section
         v-if="
           (
-            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+            [
+              MODULES.EquipmentElectricConsumption,
+              MODULES.MyLab,
+              MODULES.ProfessionalTravel,
+            ] as Module[]
           ).includes(currentModuleType)
         "
         :type="currentModuleType"
@@ -84,6 +92,7 @@ const totalResult = computed(() => {
 const AuthorizedModules: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.MyLab,
+  MODULES.ProfessionalTravel,
 ];
 
 // ACTIONS

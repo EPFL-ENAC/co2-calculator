@@ -26,6 +26,7 @@ import {
   QCard,
   QCardSection,
   QCheckbox,
+  QInput,
 } from 'quasar';
 import messages from '../../src/i18n';
 import { icons } from '../../src/plugin/module-icon';
@@ -170,6 +171,7 @@ setup((app) => {
   app.component('QCard', QCard);
   app.component('QCardSection', QCardSection);
   app.component('QCheckbox', QCheckbox);
+  app.component('QInput', QInput);
 
   // Register custom SVG icons
   app.config.globalProperties.$moduleIcons = icons;

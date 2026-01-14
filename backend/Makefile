@@ -102,6 +102,9 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed_emission_factors
 	$(UV) run -m app.seed_equipment
 	$(UV) run -m app.seed_headcount
+	$(UV) run -m app.seed_professional_travel
+	$(UV) run -m app.seed_locations
+	$(UV) run -m app.seed_travel_impact_factors
 # 	$(UV) run -m app.populate_fake_data
 
 .PHONY: dev

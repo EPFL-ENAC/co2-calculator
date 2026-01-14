@@ -26,6 +26,7 @@ dependencies = [
     "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.27",
     "enacit4r-files",
+    "haversine==2.9.0",
 ]
 
 [tool.pytest.ini_options]

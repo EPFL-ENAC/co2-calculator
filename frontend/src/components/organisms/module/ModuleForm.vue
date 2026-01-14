@@ -13,7 +13,16 @@
         size="sm"
         class="cursor-pointer"
         :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
-      />
+      >
+        <q-tooltip
+          v-if="typeof hasTooltip === 'string'"
+          anchor="center right"
+          self="top right"
+          class="u-tooltip"
+        >
+          {{ $t(hasTooltip) }}
+        </q-tooltip>
+      </q-icon>
     </q-card-section>
 
     <q-card-section v-if="hasSubtitle" class="q-mx-lg q-my-xl text-subtitle1">
@@ -54,9 +63,9 @@
 
           <div class="form-grid">
             <div
-              v-for="inp in visibleFields"
+              v-for="inp in visibleFieldsWithConditional"
               :key="inp.id"
-              :class="['form-field', getGridClass(inp.ratio ?? inp?.ratio)]"
+              :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
                 v-if="
@@ -69,6 +78,103 @@
               >
                 <div class="subclass-placeholder" />
               </template>
+              <template v-else-if="inp.type === 'radio-group'">
+                <div class="radio-group-field q-mb-sm">
+                  <q-radio
+                    v-for="option in getFilteredOptions(inp)"
+                    :key="option.value"
+                    v-model="form[inp.id]"
+                    :val="option.value"
+                    :label="option.label"
+                    :disable="inp.disable"
+                    color="accent"
+                  />
+
+                  <div
+                    v-if="errors[inp.id]"
+                    class="text-negative text-caption q-mt-xs"
+                  >
+                    {{ errors[inp.id] }}
+                  </div>
+                </div>
+              </template>
+              <template v-else-if="inp.type === 'date'">
+                <q-input
+                  :model-value="String(form[inp.id] || '')"
+                  bordered
+                  mask="####/##/##"
+                  :rules="getDateRules(inp.required)"
+                  :label="
+                    $t(`${inp.labelKey || inp.label}`, {
+                      submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                    })
+                  "
+                  :error="!!errors[inp.id]"
+                  :error-message="errors[inp.id]"
+                  :required="inp.required"
+                  :dense="true"
+                  :outlined="true"
+                  :disable="inp.disable"
+                  @update:model-value="
+                    (val) => (form[inp.id] = val as FieldValue)
+                  "
+                >
+                  <template #append>
+                    <q-icon name="o_event" class="cursor-pointer">
+                      <q-popup-proxy
+                        cover
+                        transition-show="scale"
+                        transition-hide="scale"
+                      >
+                        <q-date
+                          :model-value="String(form[inp.id] || '')"
+                          :min="currentYearMinDate"
+                          :max="currentYearMaxDate"
+                          @update:model-value="
+                            (val) => (form[inp.id] = val as FieldValue)
+                          "
+                        >
+                          <div class="row items-center justify-end">
+                            <q-btn
+                              v-close-popup
+                              label="Close"
+                              color="primary"
+                              flat
+                            />
+                          </div>
+                        </q-date>
+                      </q-popup-proxy>
+                    </q-icon>
+                  </template>
+                </q-input>
+              </template>
+              <template v-else-if="inp.type === 'direction-input'">
+                <DirectionInput
+                  :from="String(form.origin ?? '')"
+                  :to="String(form.destination ?? '')"
+                  :error="!!errors.origin || !!errors.destination"
+                  :error-message="errors.origin || errors.destination || ''"
+                  :transport-mode="
+                    !rowData && form.transport_mode
+                      ? (form.transport_mode as 'flight' | 'train')
+                      : undefined
+                  "
+                  :disable="inp.disable"
+                  @update:from="
+                    (val) => {
+                      form.origin = val;
+                    }
+                  "
+                  @update:to="
+                    (val) => {
+                      form.destination = val;
+                    }
+                  "
+                  @from-location-selected="handleFromLocationSelected"
+                  @to-location-selected="handleToLocationSelected"
+                  @swap="handleSwapLocations"
+                />
+              </template>
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -80,14 +186,7 @@
                 "
                 :placeholder="inp.placeholder"
                 :type="inp.type === 'number' ? 'number' : undefined"
-                :options="
-                  dynamicOptions[inp.id] ??
-                  inp.options?.map((o) => ({
-                    label: o.label,
-                    value: o.value,
-                  })) ??
-                  []
-                "
+                :options="getFilteredOptions(inp)"
                 :loading="
                   (inp.id === 'class' && loadingClasses) ||
                   (inp.id === 'sub_class' && loadingSubclasses)
@@ -99,10 +198,12 @@
                 :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
-                :readonly="inp.id === 'act_power' || inp.id === 'pas_power'"
-                :disable="inp.id === 'act_power' || inp.id === 'pas_power'"
+                :readonly="inp.disable"
+                :disable="inp.disable"
                 :color="inp.type === 'checkbox' ? 'accent' : undefined"
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
+                :emit-value="inp.type === 'select'"
+                :map-options="inp.type === 'select'"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -153,6 +254,7 @@
               size="md"
               class="text-weight-medium"
               type="submit"
+              @click="clearOriginAndDestination"
             />
             <q-btn
               v-if="hasAddWithNote"
@@ -177,12 +279,22 @@
 import { reactive, watch, computed, toRef } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
-import { QInput, QSelect, QCheckbox } from 'quasar';
+import {
+  QInput,
+  QSelect,
+  QCheckbox,
+  QRadio,
+  QDate,
+  QPopupProxy,
+  QIcon,
+} from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
+import { calculateDistance } from 'src/api/locations';
 
 const { t: $t } = useI18n();
 
@@ -199,11 +311,13 @@ const props = withDefaults(
     rowData?: Record<string, FieldValue> | null;
     submoduleType: AllSubmoduleTypes;
     moduleType: Module | string;
-    hasTooltip?: boolean;
+    hasTooltip?: boolean | string;
     hasSubtitle?: boolean;
     hasStudentHelper?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
+    unitId?: string;
+    year?: string | number;
   }>(),
   {
     fields: null,
@@ -213,20 +327,146 @@ const props = withDefaults(
     hasStudentHelper: false,
     hasAddWithNote: true,
     addButtonLabelKey: 'common_add_button',
+    unitId: undefined,
+    year: undefined,
   },
 );
+
+// Compute current year date range to restrict date picker
+const currentYearMinDate = computed(() => {
+  const currentYear = new Date().getFullYear();
+  return `${currentYear}/01/01`;
+});
+
+const currentYearMaxDate = computed(() => {
+  const currentYear = new Date().getFullYear();
+  return `${currentYear}/12/31`;
+});
 
 const visibleFields = computed(() =>
   (props.fields ?? []).filter((f) => !f.hideIn?.form),
 );
+
+// Generic conditional visibility handling
+const visibleFieldsWithConditional = computed(() => {
+  return visibleFields.value.filter((f) => {
+    if (!f.conditionalVisibility) return true;
+
+    const { showWhen, hideWhen } = f.conditionalVisibility;
+
+    // Check showWhen condition
+    if (showWhen) {
+      const fieldValue = form[showWhen.fieldId];
+      if (fieldValue !== showWhen.value) {
+        return false;
+      }
+    }
+
+    // Check hideWhen condition
+    if (hideWhen) {
+      const fieldValue = form[hideWhen.fieldId];
+      if (fieldValue === hideWhen.value) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+});
+
+// Generic dynamic ratio handling
+function getDynamicRatio(inp: ModuleField): string | undefined {
+  if (inp.conditionalRatio) {
+    const { when, ratio } = inp.conditionalRatio;
+    const fieldValue = form[when.fieldId];
+    if (fieldValue === when.value) {
+      return ratio;
+    }
+  }
+
+  return inp.ratio;
+}
+
+// Generic conditional options filtering - made reactive with computed
+const filteredOptionsMap = computed(() => {
+  const map: Record<string, Array<{ value: string; label: string }>> = {};
+
+  visibleFields.value.forEach((inp) => {
+    // First check for dynamic options (from composables)
+    // Use dynamic options if they exist and are not empty, otherwise use static options
+    const dynamicOpts = dynamicOptions[inp.id];
+    const baseOptions =
+      dynamicOpts && dynamicOpts.length > 0
+        ? dynamicOpts
+        : (inp.options?.map((o) => ({
+            label: o.label,
+            value: o.value,
+          })) ?? []);
+
+    // If no conditionalOptions, return base options
+    if (!inp.conditionalOptions) {
+      map[inp.id] = baseOptions;
+      return;
+    }
+
+    // Handle both single condition and array of conditions
+    const conditions = Array.isArray(inp.conditionalOptions)
+      ? inp.conditionalOptions
+      : [inp.conditionalOptions];
+
+    // Check each condition - first match wins
+    let matched = false;
+    for (const condition of conditions) {
+      const { when, showOptions } = condition;
+      const fieldValue = form[when.fieldId];
+
+      // If condition matches, filter to only show specified options
+      if (fieldValue === when.value) {
+        map[inp.id] = baseOptions.filter((opt) =>
+          showOptions.includes(opt.value),
+        );
+        matched = true;
+        break;
+      }
+    }
+
+    // If no condition matches, show all options
+    if (!matched) {
+      map[inp.id] = baseOptions;
+    }
+  });
+
+  return map;
+});
+
+function getFilteredOptions(
+  inp: ModuleField,
+): Array<{ value: string; label: string }> {
+  return filteredOptionsMap.value[inp.id] ?? [];
+}
+
+function getDateRules(required?: boolean) {
+  const dateFormatRule = (val: string) => {
+    if (!val || val === '') return required ? 'Required' : true;
+    return /^\d{4}[/.]\d{2}[/.]\d{2}$/.test(val) || 'Invalid date format';
+  };
+  return [dateFormatRule];
+}
 const emit = defineEmits<{
   (e: 'submit', payload: Record<string, FieldValue>): void;
   (e: 'edit', payload: Record<string, FieldValue> | null): void;
 }>();
-const form = reactive<Record<string, FieldValue>>({});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(form, toRef(props, 'submoduleType'));
+const {
+  dynamicOptions: equipmentOptions,
+  loadingClasses,
+  loadingSubclasses,
+} = useEquipmentClassOptions(form, toRef(props, 'submoduleType'));
+
+// Use equipment options directly as dynamic options
+const dynamicOptions = equipmentOptions;
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -257,16 +497,45 @@ function init() {
     if (props.rowData && props.rowData[i.id] !== undefined) {
       form[i.id] = props.rowData[i.id];
     } else {
-      switch (effectiveType) {
-        case 'checkbox':
-        case 'boolean':
-          form[i.id] = false;
-          break;
-        case 'number':
-          form[i.id] = null;
-          break;
-        default:
-          form[i.id] = '';
+      // Check if field has a default value
+      if (i.default !== undefined) {
+        form[i.id] = i.default;
+      } else {
+        switch (effectiveType) {
+          case 'checkbox':
+          case 'boolean':
+            form[i.id] = false;
+            break;
+          case 'number':
+            form[i.id] = null;
+            break;
+          case 'radio-group':
+            form[i.id] = (() => {
+              const options =
+                dynamicOptions[i.id] ??
+                i.options?.map((o) => ({
+                  label: o.label,
+                  value: o.value,
+                })) ??
+                [];
+              return options.length > 0 ? options[0].value : '';
+            })();
+            break;
+          case 'direction-input':
+            // Initialize origin and destination fields separately
+            if (!form.origin) form.origin = '';
+            if (!form.destination) form.destination = '';
+            // Initialize location IDs (only for new entries, not editing)
+            if (!props.rowData) {
+              if (!form.origin_location_id) form.origin_location_id = undefined;
+              if (!form.destination_location_id)
+                form.destination_location_id = undefined;
+            }
+            break;
+          default:
+            // Use null for select fields, empty string for text fields
+            form[i.id] = effectiveType === 'select' ? null : '';
+        }
       }
     }
     errors[i.id] = null;
@@ -280,6 +549,65 @@ watch(
   { deep: true, immediate: true },
 );
 
+// When conditionalOptions dependencies change, reset dependent fields if their value is invalid
+watch(
+  () => filteredOptionsMap.value,
+  (newOptionsMap) => {
+    visibleFields.value.forEach((field) => {
+      if (!field.conditionalOptions) return;
+
+      const currentValue = form[field.id];
+      if (
+        currentValue === null ||
+        currentValue === undefined ||
+        currentValue === ''
+      )
+        return;
+
+      const validOptions = newOptionsMap[field.id] || [];
+      const isValid = validOptions.some((opt) => opt.value === currentValue);
+
+      if (!isValid) {
+        form[field.id] = null;
+      }
+    });
+  },
+);
+
+// Clear location data when transport mode changes (specific to professional travel)
+watch(
+  () => form.transport_mode,
+  (newMode, oldMode) => {
+    // Only clear if transport mode actually changed (not on initial mount)
+    if (oldMode !== undefined && newMode !== oldMode && !props.rowData) {
+      // Clear origin and destination field values
+      form.origin = '';
+      form.destination = '';
+      // Clear location IDs when switching transport modes
+      form.origin_location_id = undefined;
+      form.destination_location_id = undefined;
+      // Clear distance when transport mode changes
+      form.distance_km = null;
+    }
+  },
+);
+
+// Watch for changes to location IDs and transport mode to calculate distance
+watch(
+  () => [
+    form.origin_location_id,
+    form.destination_location_id,
+    form.transport_mode,
+  ],
+  () => {
+    form.distance_km = calculateDistance(
+      form.origin_location_id as number,
+      form.destination_location_id as number,
+      form.transport_mode as 'flight' | 'train',
+    );
+  },
+);
+
 function fieldComponent(type: string): Component {
   switch (type) {
     case 'select':
@@ -287,6 +615,9 @@ function fieldComponent(type: string): Component {
     case 'checkbox':
     case 'boolean':
       return QCheckbox;
+    case 'radio-group':
+      // Radio groups are handled in template, not here
+      return QInput;
     default:
       return QInput;
   }
@@ -305,6 +636,21 @@ function validateField(i: ModuleField) {
     }
     form[i.id] = validation.parsed as FieldValue;
     return true;
+  }
+
+  // Handle direction-input validation (check origin and destination)
+  if (effectiveType === 'direction-input') {
+    if (i.required) {
+      if (!form.origin || form.origin === '') {
+        errors.origin = 'Required';
+        return false;
+      }
+      if (!form.destination || form.destination === '') {
+        errors.destination = 'Required';
+        return false;
+      }
+    }
+    return !errors.origin && !errors.destination;
   }
 
   if (i.required) {
@@ -326,25 +672,73 @@ function validateField(i: ModuleField) {
 function validateForm() {
   let ok = true;
   visibleFields.value.forEach((i) => {
-    if (!validateField(i)) ok = false;
+    if (!validateField(i)) {
+      console.log(`[ModuleForm] Validation FAILED for field "${i.id}":`, {
+        value: form[i.id],
+        type: i.type,
+        required: i.required,
+        error: errors[i.id],
+      });
+      ok = false;
+    }
   });
+
   return ok;
 }
 
 function onSubmit() {
-  if (!validateForm()) return;
+  if (!validateForm()) {
+    return;
+  }
   // Normalize payload types (numbers remain numbers, booleans kept, empty -> null/string)
   const payload: Record<string, string | number | boolean | null | Option> = {};
+
+  // Fields to exclude from submission (read-only display fields)
+  const excludedFields = [
+    'origin_location_data',
+    'destination_location_data',
+    'origin', // Display-only field for table
+    'destination', // Display-only field for table
+    'round_trip', // Direction input field (not backend field)
+    'distance_km', // Read-only calculated field
+    'kg_co2eq', // Read-only calculated field
+  ];
+
   Object.keys(form).forEach((k) => {
+    // Skip excluded fields
+    if (excludedFields.includes(k)) {
+      return;
+    }
+
     const cfg = visibleFields.value.find((i) => i.id === k);
     const effectiveType = cfg?.type;
     const val = form[k];
+
     if (effectiveType === 'number') {
       payload[k] = val === null || val === '' ? null : Number(val);
     } else {
-      payload[k] = val;
+      payload[k] = val as FieldValue;
     }
   });
+
+  // Include location IDs for professional travel when creating new entries
+  // Only include if we have location IDs (from autocomplete selection)
+  if (
+    !props.rowData &&
+    form.origin_location_id !== undefined &&
+    form.destination_location_id !== undefined
+  ) {
+    payload.origin_location_id = form.origin_location_id as number;
+    payload.destination_location_id = form.destination_location_id as number;
+  }
+
+  // Backend expects 'class_' (with underscore) for Python compatibility
+  // Rename 'class' to 'class_' before sending to backend
+  if ('class' in payload) {
+    payload.class_ = payload.class;
+    delete payload.class;
+  }
+
   emit('submit', payload);
   reset();
 }
@@ -352,10 +746,34 @@ function onSubmit() {
 function reset() {
   visibleFields.value.forEach((i) => {
     const effectiveType = i.type;
-    if (effectiveType === 'checkbox' || effectiveType === 'boolean')
+    // Check if field has a default value
+    if (i.default !== undefined) {
+      form[i.id] = i.default;
+    } else if (effectiveType === 'checkbox' || effectiveType === 'boolean')
       form[i.id] = false;
     else if (effectiveType === 'number') form[i.id] = null;
-    else form[i.id] = '';
+    else if (effectiveType === 'radio-group') {
+      // Set first option as default
+      const options =
+        dynamicOptions[i.id] ??
+        i.options?.map((o) => ({
+          label: o.label,
+          value: o.value,
+        })) ??
+        [];
+      form[i.id] = options.length > 0 ? options[0].value : '';
+    } else if (effectiveType === 'direction-input') {
+      // Clear origin and destination fields
+      form.origin = '';
+      form.destination = '';
+      // Reset location IDs
+      form.origin_location_id = undefined;
+      form.destination_location_id = undefined;
+      form.distance_km = null;
+    } else {
+      // Use null for select fields, empty string for text fields
+      form[i.id] = effectiveType === 'select' ? null : '';
+    }
     errors[i.id] = null;
   });
 }
@@ -371,6 +789,54 @@ function getGridClass(ratio?: string): string {
 
 function onUseCalculatedFTE(value: number) {
   form['fte'] = value;
+}
+
+async function handleFromLocationSelected(location: {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+}) {
+  form.origin_location_id = location.id;
+  form.distance_km = await calculateDistance(
+    form.origin_location_id as number,
+    form.destination_location_id as number,
+    form.transport_mode as 'flight' | 'train',
+  );
+}
+
+async function handleToLocationSelected(location: {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+}) {
+  form.destination_location_id = location.id;
+  form.distance_km = await calculateDistance(
+    form.origin_location_id as number,
+    form.destination_location_id as number,
+    form.transport_mode as 'flight' | 'train',
+  );
+}
+
+async function handleSwapLocations() {
+  // Swap location IDs when user swaps from/to
+  const oldOriginId = form.origin_location_id;
+  const oldDestinationId = form.destination_location_id;
+
+  form.origin_location_id = oldDestinationId;
+  form.destination_location_id = oldOriginId;
+  form.distance_km = await calculateDistance(
+    form.origin_location_id as number,
+    form.destination_location_id as number,
+    form.transport_mode as 'flight' | 'train',
+  );
+}
+
+function clearOriginAndDestination() {
+  // Clear origin and destination fields when add button is clicked
+  // This ensures fields are cleared after successful form submission
+  // The reset() function will handle the actual clearing
 }
 </script>
 <style scoped lang="scss">

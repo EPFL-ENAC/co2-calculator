@@ -99,7 +99,7 @@ export const useWorkspaceStore = defineStore(
       }
     }
 
-    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to N-1)
+    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to current year or WORKSPACE_DEFAULT_YEAR)
     const availableInventoryYears = computed(() => {
       const currentYear = new Date().getFullYear();
       const yearsInDb = inventories.value.map((inv) => inv.year);

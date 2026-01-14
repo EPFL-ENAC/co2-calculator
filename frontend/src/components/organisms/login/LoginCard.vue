@@ -37,8 +37,6 @@ function validate() {
       } else {
         authStore.login();
       }
-    } else {
-      console.log('Form is invalid');
     }
   });
 }

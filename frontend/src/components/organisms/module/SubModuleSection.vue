@@ -45,8 +45,7 @@
           :threshold="threshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
-          :submodule-type="submodule.type"
-          :moduleconfig="submodule"
+          :submodule-type="submodule.id"
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="disable"
@@ -64,6 +63,8 @@
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
           :has-tooltip="submodule.hasFormTooltip"
+          :unit-id="unitId"
+          :year="year"
           @submit="submitForm"
         />
       </div>
@@ -112,13 +113,13 @@ const props = defineProps<SubModuleSectionProps>();
 
 const submoduleCount = computed(
   () =>
-    moduleStore.state.data?.submodules?.[props.submodule.type]?.summary
+    moduleStore.state.data?.submodules?.[props.submodule.id]?.summary
       ?.total_items || 0,
 );
 
 const item = computed(() => {
   if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
-    return moduleStore.state.dataSubmodule?.[props.submodule.type]?.items[0];
+    return moduleStore.state.dataSubmodule?.[props.submodule.id]?.items[0];
   }
   return null;
 });

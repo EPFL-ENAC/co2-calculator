@@ -22,9 +22,31 @@ from .headcount import (
     HeadCountUpdate,
 )
 from .inventory import Inventory, InventoryModule
+from .location import (
+    Location,
+    LocationBase,
+    LocationRead,
+)
 from .module import Module, ModuleBase
 from .module_type import ModuleType, ModuleTypeBase
+from .professional_travel import (
+    ProfessionalTravel,
+    ProfessionalTravelBase,
+    ProfessionalTravelCreate,
+    ProfessionalTravelEmission,
+    ProfessionalTravelEmissionBase,
+    ProfessionalTravelItemResponse,
+    ProfessionalTravelList,
+    ProfessionalTravelRead,
+    ProfessionalTravelUpdate,
+)
 from .resource import Resource, ResourceBase
+from .travel_impact_factor import (
+    PlaneImpactFactor,
+    PlaneImpactFactorBase,
+    TrainImpactFactor,
+    TrainImpactFactorBase,
+)
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User, UserBase
@@ -93,10 +115,26 @@ __all__ = [
     "HeadCountUpdate",
     "Inventory",
     "InventoryModule",
+    "Location",
+    "LocationBase",
+    "LocationRead",
+    "ProfessionalTravel",
+    "ProfessionalTravelBase",
+    "ProfessionalTravelCreate",
+    "ProfessionalTravelEmission",
+    "ProfessionalTravelEmissionBase",
+    "ProfessionalTravelItemResponse",
+    "ProfessionalTravelList",
+    "ProfessionalTravelRead",
+    "ProfessionalTravelUpdate",
     "Module",
     "ModuleBase",
     "ModuleType",
     "ModuleTypeBase",
+    "PlaneImpactFactor",
+    "PlaneImpactFactorBase",
+    "TrainImpactFactor",
+    "TrainImpactFactorBase",
     "VariantType",
     "VariantTypeBase",
 ]
