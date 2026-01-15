@@ -27,12 +27,8 @@ if TYPE_CHECKING:
 class RoleName(str, Enum):
     CO2_USER_STD = "co2.user.std"
     CO2_USER_PRINCIPAL = "co2.user.principal"
-    CO2_USER_SECONDARY = "co2.user.secondary"
-    CO2_BACKOFFICE_STD = "co2.backoffice.std"
-    CO2_BACKOFFICE_ADMIN = "co2.backoffice.admin"
-    CO2_SERVICE_MGR = "co2.service.mgr"
-    # it's not used in the code, but kept for backward compatibility
-    CO2_INVENTORY_VIEWER = "co2.inventory.data"
+    CO2_BACKOFFICE_METIER = "co2.backoffice.metier"
+    CO2_SUPERADMIN = "co2.superadmin"
 
 
 class GlobalScope(BaseModel):

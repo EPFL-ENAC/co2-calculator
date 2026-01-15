@@ -15,10 +15,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     This function maps role-based access control to permission-based access control.
     It processes all user roles and generates a comprehensive permissions structure.
 
-    IMPORTANT: Backoffice roles and User roles are completely independent!
-    - Backoffice roles ONLY grant backoffice.* permissions
-    - User roles ONLY grant modules.* permissions
-    - A person can have both types of roles, and permissions combine
+    IMPORTANT: Role domains are generally independent, with some exceptions:
+    - Backoffice roles (CO2_BACKOFFICE_METIER) ONLY grant backoffice.* permissions
+    - User roles (CO2_USER_*) primarily grant modules.* permissions
+      Exception: CO2_USER_PRINCIPAL also grants backoffice.users.edit for unit-scoped
+      role assignment (to assign co2.user.std to unit members)
+    - System roles (CO2_SUPERADMIN) grant system.* permissions
+      Exception: CO2_SUPERADMIN also grants full backoffice.* access
+    - A person can have multiple roles, and permissions combine
 
     Permission Structure (flat with dot notation):
     {
@@ -33,18 +37,18 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
-    - CO2_BACKOFFICE_ADMIN: Full backoffice access (view/edit/export users)
-    - CO2_BACKOFFICE_STD: View-only backoffice access
+    - CO2_BACKOFFICE_METIER: Backoffice administrator with reporting, documentation,
+      and data update capabilities (view/edit/export users)
 
     User Roles (affect modules.* ONLY):
-    - CO2_USER_PRINCIPAL: Full module access (view + edit)
+    - CO2_USER_PRINCIPAL: Full module access (view + edit) + can assign co2.user.std
+      role to unit members (backoffice.users.edit for unit scope)
     - CO2_USER_STD: View and edit access to professional_travel module
       (own trips only - enforced via resource-level policy)
-    - CO2_USER_SECONDARY: View-only module access
 
-    System Roles (affect system.* ONLY):
-    - CO2_SERVICE_MGR: System route access only (reserved for future system routes)
-      Note: Does NOT grant backoffice or module access. System routes are separate.
+    System Roles (affect system.* and backoffice.*):
+    - CO2_SUPERADMIN: Super administrator with full system and backoffice access
+      (system.users.edit for role assignment, backoffice.* for admin access)
 
     Args:
         roles: List of Role objects containing role name and scope
@@ -91,20 +95,15 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
-        if role_name == RoleName.CO2_BACKOFFICE_ADMIN.value:
-            if is_global_scope(scope):
+        if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
+            # Backoffice metier can have either global scope or affiliation scope
+            # Grants full backoffice access for reporting, docs, and data updates
+            if is_global_scope(scope) or is_role_scope(scope):
                 permissions["backoffice.users"] = {
                     "view": True,
                     "edit": True,
                     "export": True,
                 }
-                permissions["backoffice.files"]["view"] = True
-
-        elif role_name == RoleName.CO2_BACKOFFICE_STD.value:
-            # Backoffice std can have either global scope or affiliation scope
-            # Both should grant view permission
-            if is_global_scope(scope) or is_role_scope(scope):
-                permissions["backoffice.users"]["view"] = True
                 permissions["backoffice.files"]["view"] = True
 
         # USER ROLES - Only affect modules.* permissions
@@ -120,29 +119,26 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 permissions["modules.purchase"] = {"view": True, "edit": True}
                 permissions["modules.internal_services"] = {"view": True, "edit": True}
                 permissions["modules.external_cloud"] = {"view": True, "edit": True}
+                # Principals can assign co2.user.std role to unit members
+                # This grants backoffice.users.edit for unit-scoped role assignment
+                permissions["backoffice.users"]["edit"] = True
 
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
                 permissions["modules.professional_travel"]["view"] = True
                 permissions["modules.professional_travel"]["edit"] = True
 
-        elif role_name == RoleName.CO2_USER_SECONDARY.value:
-            if is_role_scope(scope):
-                permissions["modules.headcount"] = {"view": True, "edit": True}
-                permissions["modules.equipment"] = {"view": True, "edit": True}
-                permissions["modules.professional_travel"] = {
+        # SYSTEM ROLES - Affect system.* permissions (and potentially backoffice.*)
+        elif role_name == RoleName.CO2_SUPERADMIN.value:
+            if is_global_scope(scope):
+                # Super admin has full system and backoffice access
+                permissions["system.users"]["edit"] = True
+                permissions["backoffice.users"] = {
                     "view": True,
                     "edit": True,
+                    "export": True,
                 }
-                permissions["modules.infrastructure"] = {"view": True, "edit": True}
-                permissions["modules.purchase"] = {"view": True, "edit": True}
-                permissions["modules.internal_services"] = {"view": True, "edit": True}
-                permissions["modules.external_cloud"] = {"view": True, "edit": True}
-
-        # SYSTEM ROLE - Only affects system.* permissions
-        elif role_name == RoleName.CO2_SERVICE_MGR.value:
-            if is_global_scope(scope):
-                permissions["system.users"]["edit"] = True
+                permissions["backoffice.files"]["view"] = True
 
     return permissions
 

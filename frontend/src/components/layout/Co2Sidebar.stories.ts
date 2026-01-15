@@ -12,7 +12,7 @@ import Co2Sidebar from './Co2Sidebar.vue';
  * - Navigation items for backoffice or system sections
  * - Icons and labels for each navigation item
  * - Active/selected state highlighting
- * - Role-based access control (disables limited access items for BackOfficeStandard users)
+ * - Role-based access control
  *
  * ## Backoffice Sidebar Area
  * This component is used in the backoffice area of the application.
@@ -29,7 +29,7 @@ import Co2Sidebar from './Co2Sidebar.vue';
  * - System Logs
  *
  * ## Features
- * - Role-based item disabling (BackOfficeStandard users cannot access limited items)
+ * - Role-based item access control
  * - Active route highlighting
  * - Click navigation to different routes
  * - Responsive sidebar layout
@@ -123,7 +123,7 @@ const withRouterAndAuth = (config: {
 };
 
 /**
- * Backoffice sidebar with BackOfficeAdmin user.
+ * Backoffice sidebar with BackOfficeMetier user.
  * All navigation items are enabled and clickable.
  * This is the backoffice sidebar area.
  */
@@ -143,7 +143,7 @@ export const Backoffice: Story = {
         display_name: 'Admin User',
         roles_raw: [
           {
-            role: ROLES.BackOfficeAdmin,
+            role: ROLES.BackOfficeMetier,
             on: 'global',
           },
         ],
@@ -163,11 +163,10 @@ export const Backoffice: Story = {
 };
 
 /**
- * Backoffice sidebar with BackOfficeStandard user (restricted access).
- * Limited access items (User Management and Data Management) are disabled.
- * This demonstrates the backoffice restricted sidebar area.
+ * Backoffice sidebar with BackOfficeMetier user.
+ * This demonstrates the backoffice sidebar area.
  */
-export const BackofficeRestricted: Story = {
+export const BackofficeMetier: Story = {
   parameters: {
     layout: 'padded',
   },
@@ -179,11 +178,11 @@ export const BackofficeRestricted: Story = {
       },
       user: {
         id: '2',
-        email: 'standard@example.com',
-        display_name: 'Standard User',
+        email: 'metier@example.com',
+        display_name: 'Backoffice Metier User',
         roles_raw: [
           {
-            role: ROLES.BackOfficeStandard,
+            role: ROLES.BackOfficeMetier,
             on: 'global',
           },
         ],
@@ -203,11 +202,11 @@ export const BackofficeRestricted: Story = {
 };
 
 /**
- * System sidebar with System role user.
+ * System sidebar with SuperAdmin role user.
  * All system navigation items are enabled.
  * This is the system sidebar area.
  */
-export const System: Story = {
+export const SuperAdmin: Story = {
   parameters: {
     layout: 'padded',
   },
@@ -219,11 +218,11 @@ export const System: Story = {
       },
       user: {
         id: '3',
-        email: 'system@example.com',
-        display_name: 'System User',
+        email: 'superadmin@example.com',
+        display_name: 'Super Admin User',
         roles_raw: [
           {
-            role: ROLES.System,
+            role: ROLES.SuperAdmin,
             on: 'global',
           },
         ],

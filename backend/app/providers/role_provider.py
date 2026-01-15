@@ -228,13 +228,6 @@ class TestRoleProvider(RoleProvider):
                     on=RoleScope(unit="12345", affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.user.secondary":
-            roles = [
-                Role(
-                    role=RoleName.CO2_USER_SECONDARY,
-                    on=RoleScope(unit="12345", affiliation="testaffiliation"),
-                )
-            ]
         elif requested_role == "co2.user.principal":
             roles = [
                 Role(
@@ -242,21 +235,15 @@ class TestRoleProvider(RoleProvider):
                     on=RoleScope(unit="12345", affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.backoffice.std":
+        elif requested_role == "co2.backoffice.metier":
             roles = [
                 Role(
-                    role=RoleName.CO2_BACKOFFICE_STD,
+                    role=RoleName.CO2_BACKOFFICE_METIER,
                     on=RoleScope(affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.backoffice.admin":
-            roles = [
-                Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope(scope="global"))
-            ]
-        elif requested_role == "co2.service.mgr":
-            roles = [
-                Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope(scope="global"))
-            ]
+        elif requested_role == "co2.superadmin":
+            roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope(scope="global"))]
         else:
             roles = []
 
@@ -418,10 +405,10 @@ class AccredRoleProvider(RoleProvider):
                         extra={"auth_name": auth_name, "user_id": user_id},
                     )
                     continue
-                if auth_name == RoleName.CO2_BACKOFFICE_ADMIN:
-                    # Global admin role
+                if auth_name == RoleName.CO2_SUPERADMIN:
+                    # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
-                elif auth_name == RoleName.CO2_BACKOFFICE_STD:
+                elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
                     affiliations_names = (
                         auth.get("reason").get("resource").get("sortpath")
                     )

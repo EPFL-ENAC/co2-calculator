@@ -19,7 +19,7 @@
 
 The CO2 Calculator API uses a **permission-based authorization model** where:
 
-- **Roles are assigned** to users (e.g., `co2.user.principal`, `co2.backoffice.admin`)
+- **Roles are assigned** to users (e.g., `co2.user.principal`, `co2.superadmin`)
 - **Permissions are calculated** dynamically from roles at authentication time
 - **Authorization checks** are performed at multiple levels: route, service, and resource
 
@@ -36,19 +36,17 @@ Permissions use dot-notation paths with actions:
 
 Roles are assigned to users and determine which permissions they receive:
 
-- `co2.user.std` - Standard user with own-scope access
-- `co2.user.principal` - Unit manager with unit-scope access
-- `co2.user.secondary` - Delegated unit manager (same as principal)
-- `co2.backoffice.std` - Backoffice user with unit-scope admin access
-- `co2.backoffice.admin` - Backoffice administrator with global access
-- `co2.service.mgr` - System administrator with full access
+- `co2.user.std` - Standard user with own-scope access (professional travel only)
+- `co2.user.principal` - Unit manager with unit-scope access (all modules)
+- `co2.backoffice.metier` - Backoffice administrator with reporting and data access
+- `co2.superadmin` - Super administrator with full system and backoffice access
 
 #### Scopes
 
 Scopes determine the data a user can access:
 
-- **Global** - See all data (backoffice admin, service manager)
-- **Unit** - See data for assigned units (principals, secondaries)
+- **Global** - See all data (super admin, backoffice metier)
+- **Unit** - See data for assigned units (principals)
 - **Own** - See only own data (standard users)
 
 #### Resources
@@ -97,7 +95,7 @@ def map_role_permissions(role: str) -> dict:
     """Map role to permissions."""
     permissions = initialize_permissions()
 
-    if role == "co2.backoffice.admin":
+    if role == "co2.superadmin":
         permissions["backoffice"]["users"]["view"] = True
         permissions["backoffice"]["users"]["edit"] = True
         permissions["backoffice"]["files"]["view"] = True
@@ -596,8 +594,8 @@ Professional travel has complex resource-level rules defined in [app/core/policy
 #### Rules
 
 1. **API trips are read-only** - Cannot be edited by anyone
-2. **Backoffice admin** - Can edit all trips (global scope)
-3. **Principals/Secondaries** - Can edit manual/CSV trips in their units
+2. **Super admin** - Can edit all trips (global scope)
+3. **Principals** - Can edit manual/CSV trips in their units
 4. **Standard users** - Can only edit their own manual trips
 
 #### Implementation
@@ -675,7 +673,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
         user_unit_ids = set()
         principal_or_secondary = False
         for role in roles:
-            if role.role in ["co2.user.principal", "co2.user.secondary"]:
+            if role.role == "co2.user.principal":
                 principal_or_secondary = True
                 if role.on.unit:
                     user_unit_ids.add(role.on.unit)
@@ -881,13 +879,13 @@ async def principal_user(db):
     return user
 
 @pytest.fixture
-async def backoffice_admin(db):
-    """Create a backoffice admin with global access."""
+async def superadmin(db):
+    """Create a super admin with global access."""
     user = User(
         id="user-admin-123",
         email="admin@example.com",
         roles=[
-            Role(role="co2.backoffice.admin", on=GlobalScope())
+            Role(role="co2.superadmin", on=GlobalScope())
         ]
     )
     return user
@@ -967,7 +965,7 @@ async def test_data_filtering_by_scope(
     db: AsyncSession,
     standard_user_token: str,
     principal_user_token: str,
-    backoffice_admin_token: str
+    superadmin_token: str
 ):
     """Test that data is properly filtered by user scope."""
 
@@ -989,10 +987,10 @@ async def test_data_filtering_by_scope(
     )
     assert len(response.json()) >= 1
 
-    # Admin should see all data
+    # Super admin should see all data
     response = await client.get(
         "/api/v1/units/12345/years/2024/headcounts",
-        headers={"Authorization": f"Bearer {backoffice_admin_token}"}
+        headers={"Authorization": f"Bearer {superadmin_token}"}
     )
     assert len(response.json()) >= 1
 ```
@@ -1005,17 +1003,17 @@ Test resource-level business rules:
 @pytest.mark.asyncio
 async def test_cannot_edit_api_trip(
     client: AsyncClient,
-    backoffice_admin_token: str
+    superadmin_token: str
 ):
-    """Test that even admins cannot edit API trips."""
+    """Test that even super admins cannot edit API trips."""
 
     # Create API trip
     trip = await create_trip(provider="api", unit_id="12345")
 
-    # Try to edit as admin
+    # Try to edit as super admin
     response = await client.patch(
         f"/api/v1/professional-travel/{trip.id}",
-        headers={"Authorization": f"Bearer {backoffice_admin_token}"},
+        headers={"Authorization": f"Bearer {superadmin_token}"},
         json={"distance": 1000}
     )
 
@@ -1290,10 +1288,10 @@ if user.has_role("co2.user.principal"):
     # ...
 
 # Pattern 2: Role-based dependencies
-current_user: User = Depends(get_current_active_user_with_any_role(["co2.backoffice.admin"]))
+current_user: User = Depends(get_current_active_user_with_any_role(["co2.superadmin"]))
 
 # Pattern 3: Role checks in services
-if "co2.backoffice.admin" in [role.role for role in user.roles]:
+if "co2.superadmin" in [role.role for role in user.roles]:
     # ...
 ```
 
@@ -1311,8 +1309,7 @@ async def get_headcounts(
     current_user: User = Depends(
         get_current_active_user_with_any_role([
             "co2.user.principal",
-            "co2.user.secondary",
-            "co2.backoffice.admin"
+            "co2.superadmin"
         ])
     )
 ):
@@ -1348,7 +1345,7 @@ class HeadcountService:
     async def get_headcounts(self):
         # Check if user is admin
         is_admin = any(
-            role.role == "co2.backoffice.admin"
+            role.role == "co2.superadmin"
             for role in self.user.roles
         )
 
@@ -1393,7 +1390,7 @@ async def update_trip(self, trip_id: int, data: TripUpdate):
     trip = await self.repository.get_by_id(trip_id)
 
     # Check if user can edit
-    is_admin = self.user.has_role("co2.backoffice.admin")
+    is_admin = self.user.has_role("co2.superadmin")
     is_owner = trip.created_by == self.user.id
 
     if not (is_admin or is_owner):
@@ -1461,7 +1458,7 @@ DeprecationWarning: has_role() is deprecated. Use permission-based checks instea
 
 - [ ] Search codebase for `has_role()` calls
 - [ ] Search for `get_current_active_user_with_any_role()`
-- [ ] Search for role name strings in business logic (e.g., `"co2.backoffice.admin"`)
+- [ ] Search for role name strings in business logic (e.g., `"co2.superadmin"`)
 - [ ] Replace with `require_permission()` at route level
 - [ ] Replace with `get_data_filters()` in services for list operations
 - [ ] Replace with `check_resource_access()` in services for updates

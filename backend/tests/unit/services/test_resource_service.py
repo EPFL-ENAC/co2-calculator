@@ -16,7 +16,7 @@ OTHER_UNIT_ID = "67890"
 
 standar_user_role = Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit=TEST_UNIT_ID))
 other_user_role = Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit=OTHER_UNIT_ID))
-admin_user_role = Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+admin_user_role = Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
 
 @pytest_asyncio.fixture

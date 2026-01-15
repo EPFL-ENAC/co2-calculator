@@ -19,11 +19,10 @@ from app.models.user import User
 
 NUM_UNITS = 10000
 NUM_USERS = 40000
-USER_ROLES = ["co2.user.std", "co2.user.principal", "co2.user.secondary"]
+USER_ROLES = ["co2.user.std", "co2.user.principal"]
 ADMIN_ROLES = [
-    "co2.backoffice.std",
-    "co2.backoffice.admin",
-    "co2.service.mgr",
+    "co2.backoffice.metier",
+    "co2.superadmin",
 ]
 
 fake = Faker()
@@ -95,7 +94,11 @@ async def main():
         for role in ADMIN_ROLES:
             email = fake.unique.email()
             user_id = fake.unique.random_int(100000, 999999)
-            scope = "global" if role != "co2.backoffice.std" else {"unit": "1"}
+            scope = (
+                "global"
+                if role == "co2.superadmin"
+                else {"affiliation": "testaffiliation"}
+            )
             users.append(
                 {
                     "id": user_id,

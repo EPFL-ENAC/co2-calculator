@@ -22,10 +22,8 @@ const role = ref('co2.user.std');
 const roleOptions = computed(() => [
   { value: 'co2.user.std', label: 'User Standard' },
   { value: 'co2.user.principal', label: 'Unit Manager' },
-  { value: 'co2.user.secondary', label: 'Delegate of Unit Manager' },
-  { value: 'co2.backoffice.std', label: 'Back Office Restricted' },
-  { value: 'co2.backoffice.admin', label: 'Back Office Administrator' },
-  { value: 'co2.service.mgr', label: 'System IT Administrator' },
+  { value: 'co2.backoffice.metier', label: 'Backoffice Administrator' },
+  { value: 'co2.superadmin', label: 'Super Admin' },
 ]);
 const isTestMode = computed(() => props.mode === 'test');
 

@@ -44,7 +44,7 @@ class TestCanUserEditItem:
             display_name="Admin",
             provider="test",
         )
-        admin_user.roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+        admin_user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
 
         assert await can_user_edit_item(travel, admin_user) is False
 
@@ -98,8 +98,8 @@ class TestCanUserEditItem:
         assert await can_user_edit_item(travel, principal_user) is True
 
     @pytest.mark.asyncio
-    async def test_secondary_can_edit_manual_trips(self):
-        """Test that secondaries can edit manual/CSV trips."""
+    async def test_principal_can_edit_csv_trips(self):
+        """Test that principals can edit CSV trips."""
         travel = ProfessionalTravel(
             id=1,
             unit_id="TEST-UNIT-1",
@@ -108,17 +108,17 @@ class TestCanUserEditItem:
             created_by="other-user",
         )
 
-        secondary_user = User(
-            id="secondary",
-            email="secondary@test.com",
-            display_name="Secondary",
+        principal_user = User(
+            id="principal",
+            email="principal@test.com",
+            display_name="Principal",
             provider="test",
         )
-        secondary_user.roles = [
-            Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="TEST-UNIT-1"))
+        principal_user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert await can_user_edit_item(travel, secondary_user) is True
+        assert await can_user_edit_item(travel, principal_user) is True
 
     @pytest.mark.asyncio
     async def test_std_user_can_edit_own_manual_trips(self):
@@ -238,8 +238,8 @@ class TestCanUserEditItem:
         assert await can_user_edit_item(travel, principal_user) is True
 
     @pytest.mark.asyncio
-    async def test_secondary_with_global_scope_can_edit(self):
-        """Test that secondary with global scope can edit manual trips."""
+    async def test_superadmin_can_edit_manual_trips(self):
+        """Test that superadmin can edit manual trips."""
         travel = ProfessionalTravel(
             id=1,
             unit_id="TEST-UNIT-1",
@@ -248,17 +248,15 @@ class TestCanUserEditItem:
             created_by="other-user",
         )
 
-        secondary_user = User(
-            id="secondary",
-            email="secondary@test.com",
-            display_name="Secondary",
+        superadmin_user = User(
+            id="superadmin",
+            email="superadmin@test.com",
+            display_name="SuperAdmin",
             provider="test",
         )
-        secondary_user.roles = [
-            Role(role=RoleName.CO2_USER_SECONDARY, on=GlobalScope())
-        ]
+        superadmin_user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
 
-        assert await can_user_edit_item(travel, secondary_user) is True
+        assert await can_user_edit_item(travel, superadmin_user) is True
 
 
 @pytest_asyncio.fixture
@@ -270,7 +268,7 @@ async def test_user_admin(db_session: AsyncSession):
         display_name="Test Admin",
         provider="test",
     )
-    user.roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+    user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)

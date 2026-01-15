@@ -11,8 +11,8 @@ Reject Open Policy Agent (OPA) as too complex for current needs.
 
 ## Context
 
-Need authorization system for 6 user roles (`co2.user.std`,
-`co2.user.principal`, `co2.backoffice.admin`, etc.) controlling
+Need authorization system for 4 user roles (`co2.user.std`,
+`co2.user.principal`, `co2.backoffice.metier`, `co2.superadmin`) controlling
 who can view/create/edit emission records and manage units.
 
 Options: In-code RBAC vs external policy engine (OPA).
@@ -55,7 +55,7 @@ Options: In-code RBAC vs external policy engine (OPA).
 
 **Positive:**
 
-- Simple implementation: `user.has_role("co2.service.mgr")`
+- Simple implementation: `user.has_role("co2.superadmin")`
 - Zero infrastructure overhead
 - Fast development (no Rego learning)
 - In-memory permission checks
@@ -94,7 +94,7 @@ class User(Base):
 
 @router.post("/resources")
 async def create_resource(data: ResourceCreate, user: User = Depends(get_current_user)):
-    if not user.has_any_role(["co2.user.principal", "co2.service.mgr"]):
+    if not user.has_any_role(["co2.user.principal", "co2.superadmin"]):
         raise HTTPException(403, "Insufficient permissions")
     # ... create resource
 ```

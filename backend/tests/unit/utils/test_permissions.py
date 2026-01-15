@@ -23,31 +23,32 @@ class TestCalculateUserPermissions:
         result = calculate_user_permissions([])
         assert result == {}
 
-    def test_backoffice_admin_global_scope(self):
-        """Test backoffice admin with global scope grants all permissions."""
-        roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+    def test_superadmin_global_scope(self):
+        """Test superadmin with global scope grants all permissions."""
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
         assert result["backoffice.users"]["view"] is True
         assert result["backoffice.users"]["edit"] is True
         assert result["backoffice.users"]["export"] is True
+        assert result["system.users"]["edit"] is True
         assert result["modules.headcount"]["view"] is False
         assert result["modules.equipment"]["view"] is False
 
-    def test_backoffice_std_global_scope(self):
-        """Test backoffice std with global scope grants view only."""
-        roles = [Role(role=RoleName.CO2_BACKOFFICE_STD, on=GlobalScope())]
+    def test_backoffice_metier_global_scope(self):
+        """Test backoffice metier with global scope grants full backoffice access."""
+        roles = [Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
         assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is False
-        assert result["backoffice.users"]["export"] is False
+        assert result["backoffice.users"]["edit"] is True
+        assert result["backoffice.users"]["export"] is True
 
-    def test_backoffice_admin_wrong_scope(self):
-        """Test backoffice admin with unit scope does not grant permissions."""
+    def test_superadmin_wrong_scope(self):
+        """Test superadmin with unit scope does not grant permissions."""
         roles = [
             Role(
-                role=RoleName.CO2_BACKOFFICE_ADMIN,
+                role=RoleName.CO2_SUPERADMIN,
                 on=RoleScope(unit="10208"),
             )
         ]
@@ -75,7 +76,8 @@ class TestCalculateUserPermissions:
         assert result["modules.internal_services"]["edit"] is True
         assert result["modules.external_cloud"]["view"] is True
         assert result["modules.external_cloud"]["edit"] is True
-        assert result["backoffice.users"]["view"] is False
+        # Principal also gets backoffice.users.edit for unit-scoped role assignment
+        assert result["backoffice.users"]["edit"] is True
 
     def test_user_std_unit_scope(self):
         """Test user std with unit scope grants view and edit for professional_travel."""  # noqa: E501
@@ -97,27 +99,6 @@ class TestCalculateUserPermissions:
         assert result["modules.external_cloud"]["view"] is False
         assert result["modules.external_cloud"]["edit"] is False
 
-    def test_user_secondary_unit_scope(self):
-        """Test user secondary with unit scope grants view and edit for all modules."""
-        roles = [Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="10208"))]
-        result = calculate_user_permissions(roles)
-
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is True
-        assert result["modules.equipment"]["view"] is True
-        assert result["modules.equipment"]["edit"] is True
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.infrastructure"]["view"] is True
-        assert result["modules.infrastructure"]["edit"] is True
-        assert result["modules.purchase"]["view"] is True
-        assert result["modules.purchase"]["edit"] is True
-        assert result["modules.internal_services"]["view"] is True
-        assert result["modules.internal_services"]["edit"] is True
-        assert result["modules.external_cloud"]["view"] is True
-        assert result["modules.external_cloud"]["edit"] is True
-        assert result["backoffice.users"]["view"] is False
-
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
         roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
@@ -126,26 +107,17 @@ class TestCalculateUserPermissions:
         assert result["modules.headcount"]["view"] is False
         assert result["modules.headcount"]["edit"] is False
 
-    def test_service_mgr_global_scope(self):
-        """Test service manager role (reserved for future)."""
-        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope())]
-        result = calculate_user_permissions(roles)
-
-        # Service manager does not grant any current permissions
-        assert result["backoffice.users"]["view"] is False
-        assert result["modules.headcount"]["view"] is False
-
     def test_combined_backoffice_and_user_roles(self):
         """Test that permissions from different domains combine."""
         roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_STD, on=GlobalScope()),
+            Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope()),
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208")),
         ]
         result = calculate_user_permissions(roles)
 
         # Backoffice permissions
         assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is False
+        assert result["backoffice.users"]["edit"] is True
 
         # Module permissions - CO2_USER_STD grants professional_travel.view and edit
         assert result["modules.professional_travel"]["view"] is True
@@ -159,7 +131,7 @@ class TestCalculateUserPermissions:
         """Test multiple user roles for same unit combine correctly."""
         roles = [
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208")),
-            Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="10208")),
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="10208")),
         ]
         result = calculate_user_permissions(roles)
 
@@ -172,7 +144,7 @@ class TestCalculateUserPermissions:
         """Test that role name can be string or enum."""
         # Create role with string role name
         role_dict = {
-            "role": "co2.backoffice.admin",
+            "role": "co2.superadmin",
             "on": {"scope": "global"},
         }
         role = Role(**role_dict)
@@ -190,15 +162,14 @@ class TestCalculateUserPermissions:
         # Should return empty dict for no roles
         assert result == {}
 
-    def test_backoffice_admin_overrides_std(self):
-        """Test that admin role overrides std role permissions."""
+    def test_superadmin_has_all_backoffice(self):
+        """Test that superadmin role grants all backoffice permissions."""
         roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_STD, on=GlobalScope()),
-            Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope()),
+            Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()),
         ]
         result = calculate_user_permissions(roles)
 
-        # Admin should grant all permissions
+        # Superadmin should grant all backoffice permissions
         assert result["backoffice.users"]["view"] is True
         assert result["backoffice.users"]["edit"] is True
         assert result["backoffice.users"]["export"] is True
@@ -390,22 +361,18 @@ class TestGetPermissionValue:
         result = calculate_user_permissions(None)
         assert result == {}
 
-    def test_calculate_user_permissions_backoffice_std_with_affiliation_scope(self):
-        """Test backoffice std with affiliation scope grants view."""
+    def test_calculate_user_permissions_backoffice_metier_with_affiliation_scope(self):
+        """Test backoffice metier with affiliation scope grants full backoffice."""
         roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_STD, on=RoleScope(affiliation="TEST-AFF"))
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="TEST-AFF"),
+            )
         ]
         result = calculate_user_permissions(roles)
         assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is False
-
-    def test_calculate_user_permissions_user_secondary_global_scope(self):
-        """Test user secondary with global scope does not grant permissions."""
-        roles = [Role(role=RoleName.CO2_USER_SECONDARY, on=GlobalScope())]
-        result = calculate_user_permissions(roles)
-        # Global scope for user roles should not grant permissions
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.equipment"]["view"] is False
+        assert result["backoffice.users"]["edit"] is True
+        assert result["backoffice.users"]["export"] is True
 
     def test_calculate_user_permissions_user_principal_global_scope(self):
         """Test user principal with global scope does not grant permissions."""
@@ -415,17 +382,18 @@ class TestGetPermissionValue:
         assert result["modules.headcount"]["view"] is False
         assert result["modules.equipment"]["view"] is False
 
-    def test_calculate_user_permissions_service_mgr_global_scope(self):
-        """Test service manager with global scope grants system permissions."""
-        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope())]
+    def test_calculate_user_permissions_superadmin_global_scope(self):
+        """Test superadmin with global scope grants system and backoffice perms."""
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         result = calculate_user_permissions(roles)
         assert result["system.users"]["edit"] is True
-        assert result["backoffice.users"]["view"] is False
+        assert result["backoffice.users"]["view"] is True
+        assert result["backoffice.users"]["edit"] is True
         assert result["modules.headcount"]["view"] is False
 
-    def test_calculate_user_permissions_service_mgr_unit_scope(self):
-        """Test service manager with unit scope does not grant permissions."""
-        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=RoleScope(unit="12345"))]
+    def test_calculate_user_permissions_superadmin_unit_scope(self):
+        """Test superadmin with unit scope does not grant permissions."""
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
         result = calculate_user_permissions(roles)
         assert result["system.users"]["edit"] is False
 
@@ -433,7 +401,7 @@ class TestGetPermissionValue:
         """Test calculate_user_permissions with role name as string."""
         # Create role with string role name directly
         role_dict = {
-            "role": "co2.user.secondary",
+            "role": "co2.user.principal",
             "on": {"unit": "12345"},
         }
         role = Role(**role_dict)
@@ -442,18 +410,12 @@ class TestGetPermissionValue:
         assert result["modules.headcount"]["view"] is True
         assert result["modules.headcount"]["edit"] is True
 
-    def test_calculate_user_permissions_invalid_role_enum(self):
-        """Test calculate_user_permissions with invalid role enum value."""
-        # Create a role with a valid enum but test that non-matching role names
-        # don't grant permissions
-        # We'll use a valid role but test the logic path for roles that don't
-        # match any condition
-        # Since Role validation requires a valid RoleName, we'll test with a
-        # role that has valid enum but test the else path by ensuring no
-        # permissions are granted for unmatched conditions
-        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=RoleScope(unit="12345"))]
+    def test_calculate_user_permissions_invalid_role_scope(self):
+        """Test calculate_user_permissions with role that has wrong scope."""
+        # Test that roles with wrong scope don't grant permissions
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
         result = calculate_user_permissions(roles)
-        # Service manager with unit scope (not global) should not grant permissions
+        # Superadmin with unit scope (not global) should not grant permissions
         assert result["system.users"]["edit"] is False
         assert result["backoffice.users"]["view"] is False
         assert result["modules.headcount"]["view"] is False

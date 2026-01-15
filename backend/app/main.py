@@ -78,7 +78,7 @@ app = FastAPI(
 
     The API uses a permission-based authorization model where:
 
-    - **Roles are assigned** to users (e.g., principal, secondary, backoffice admin)
+    - **Roles are assigned** to users (e.g., principal, backoffice metier, super admin)
     - **Permissions are calculated** dynamically from roles at authentication
     - **Access control** is enforced at the route level using permissions
     - **Data filtering** is applied based on user scope (global, unit, own)
@@ -143,8 +143,8 @@ app = FastAPI(
 
     Data access is automatically filtered based on user scope:
 
-    * **Global scope** (backoffice admin, service manager) - See all data
-    * **Unit scope** (principals, secondaries) - See data for their assigned units
+    * **Global scope** (super admin) - See all data
+    * **Unit scope** (principals) - See data for their assigned units
     * **Own scope** (standard users) - See only their own data
 
     ## Assigned Roles
@@ -154,10 +154,9 @@ app = FastAPI(
 
     * **co2.user.std** - Basic user with own-scope access
     * **co2.user.principal** - Unit-level manager with unit-scope access
-    * **co2.user.secondary** - Delegated unit manager (same permissions as principal)
-    * **co2.backoffice.std** - Back office restricted with unit-scope admin access
-    * **co2.backoffice.admin** - Back office administrator with global-scope access
-    * **co2.service.mgr** - System IT administrator with full access
+    * **co2.backoffice.metier** - Backoffice administrator with reporting and
+      data access
+    * **co2.superadmin** - Super administrator with full system and backoffice access
 
     See permission documentation for detailed role-to-permission mapping.
 
