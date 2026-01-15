@@ -25,7 +25,7 @@ class TestRoleProviderIntegration:
                 "roles": [
                     "co2.user.std@unit:100",
                     "co2.user.principal@unit:200",
-                    "co2.backoffice.admin@global",
+                    "co2.superadmin@global",
                 ],
             }
 

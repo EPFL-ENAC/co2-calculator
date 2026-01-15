@@ -280,7 +280,7 @@ export const WithBackOfficeAccess: Story = {
         display_name: 'Admin User',
         roles_raw: [
           {
-            role: ROLES.BackOfficeAdmin,
+            role: ROLES.BackOfficeMetier,
             on: 'global',
           },
         ],

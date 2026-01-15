@@ -47,7 +47,7 @@ def sample_userinfo() -> Dict[str, Any]:
         "roles": [
             "co2.user.std@unit:12345",
             "co2.user.principal@unit:12345",
-            "co2.backoffice.admin@global",
+            "co2.superadmin@global",
         ],
     }
 
@@ -77,20 +77,20 @@ class TestDefaultRoleProvider:
         assert roles[1] == Role(
             role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="12345")
         )
-        assert roles[2] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[2] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
     async def test_parse_roles_with_global_scope(self):
         """Test parsing roles with global scope."""
         userinfo = {
             "email": "admin@epfl.ch",
-            "roles": ["co2.backoffice.admin@global"],
+            "roles": ["co2.superadmin@global"],
         }
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[0] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
     async def test_parse_roles_no_roles_in_jwt(self):
@@ -179,7 +179,7 @@ class TestDefaultRoleProvider:
             "roles": [
                 "co2.user.std@unit:12345",
                 "co2.user.principal@unit:67890",
-                "co2.user.secondary@unit:11111",
+                "co2.user.std@unit:11111",
             ],
         }
         provider = DefaultRoleProvider()
@@ -250,14 +250,14 @@ class TestAccredRoleProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_accred_fetch_roles_with_global_admin(
+    async def test_accred_fetch_roles_with_global_superadmin(
         self, accred_provider, sample_user_id
     ):
-        """Test fetching global admin role from Accred API."""
+        """Test fetching global superadmin role from Accred API."""
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.backoffice.admin",
+                    "name": "co2.superadmin",
                     "state": "active",
                     "accredunitid": "12345",
                 }
@@ -279,17 +279,17 @@ class TestAccredRoleProvider:
             roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[0] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
-    async def test_accred_fetch_roles_with_backoffice_std(
+    async def test_accred_fetch_roles_with_backoffice_metier(
         self, accred_provider, sample_user_id
     ):
-        """Test fetching backoffice.std role with affiliation scope."""
+        """Test fetching backoffice.metier role with affiliation scope."""
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.backoffice.std",
+                    "name": "co2.backoffice.metier",
                     "state": "active",
                     "accredunitid": "12345",
                     "reason": {"resource": {"sortpath": "Engineering"}},
@@ -313,7 +313,7 @@ class TestAccredRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_BACKOFFICE_STD,
+            role=RoleName.CO2_BACKOFFICE_METIER,
             on=RoleScope(affiliation="Engineering"),
         )
 
