@@ -395,6 +395,8 @@ async def create_item(
             data=parsed_travel,
             provider_source="manual",
             user=current_user,
+            year=year,
+            unit_id=unit_id,
         )
         # Handle round trip (returns list) or single trip
         travel = travel_result[0] if isinstance(travel_result, list) else travel_result
