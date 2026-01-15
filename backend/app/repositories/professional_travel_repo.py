@@ -231,6 +231,7 @@ class ProfessionalTravelRepository:
         provider_source: str,
         user_id: str,
         year: Optional[int] = None,
+        unit_id: Optional[str] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -242,10 +243,19 @@ class ProfessionalTravelRepository:
             provider_source: Provider source ('manual', 'api', 'csv')
             user_id: User ID who created the record
             year: Optional year from workspace setup. Used when departure_date is empty.
+            unit_id: Optional unit_id from path. Validated against data.unit_id if
+                provided.
 
         Returns:
             ProfessionalTravel or List[ProfessionalTravel] if round trip
         """
+        # Validate unit_id matches if provided
+        if unit_id is not None and data.unit_id != unit_id:
+            raise ValueError(
+                f"unit_id in path ({unit_id}) must match unit_id in data "
+                f"({data.unit_id})"
+            )
+
         # Calculate year from departure_date
         if data.departure_date:
             year = data.departure_date.year
@@ -267,8 +277,9 @@ class ProfessionalTravelRepository:
         # Log user_id for debugging
         logger.info(
             f"[professional_travel_repo] Creating travel with user_id={user_id}, "
-            f"traveler_name={data.traveler_name}, is_round_trip={data.is_round_trip}, "
-            f"year={year}, departure_date={data.departure_date}"
+            f"unit_id={data.unit_id}, traveler_name={data.traveler_name}, "
+            f"is_round_trip={data.is_round_trip}, year={year}, "
+            f"departure_date={data.departure_date}"
         )
 
         # Handle round trip: create 2 records
