@@ -22,8 +22,8 @@ export default {
     fr: 'Édition de la documentation',
   },
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.description]: {
-    en: 'backoffice-documentation-editing-description',
-    fr: 'backoffice-documentation-editing-description',
+    en: 'Manage and update documentation and translation files.',
+    fr: 'Gérer et mettre à jour la documentation et les fichiers de traduction.',
   },
   [BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName]: {
     en: 'Reporting',

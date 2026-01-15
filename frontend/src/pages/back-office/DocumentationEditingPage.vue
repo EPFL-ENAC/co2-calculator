@@ -241,7 +241,18 @@ const columns: QTableColumn[] = [
           {{ $t('documentation_editing_documentation_title') }}
         </h1>
         <div class="text-body1 q-mb-xl">
-          {{ $t('documentation_editing_documentation_description') }}
+          {{ $t('documentation_editing_documentation_description_part_1') }}
+          <a
+            :href="
+              $t('documentation_editing_documentation_description_link_url')
+            "
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{
+              $t('documentation_editing_documentation_description_link_text')
+            }} </a
+          >{{ $t('documentation_editing_documentation_description_part_2') }}
         </div>
         <q-table
           flat
