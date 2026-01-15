@@ -99,7 +99,7 @@ export default {
   },
   documentation_editing_rows_common_description: {
     en: 'Find all common text used throughout the application, such as headers, footers, and navigation elements.',
-    fr: "Trouvez tous les textes communs utilisés dans toute l'application, telles que les en-têtes, les pieds de page et les éléments de navigation.",
+    fr: "Trouvez tous les textes communs utilisés dans toute l'application, tels que les en-têtes, les pieds de page et les éléments de navigation.",
   },
   documentation_editing_rows_my_lab_topic: {
     en: 'Headcount',
