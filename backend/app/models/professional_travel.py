@@ -55,6 +55,9 @@ class ProfessionalTravelBase(SQLModel):
         if v is None or isinstance(v, dt_date):
             return v
         if isinstance(v, str):
+            # Handle empty strings as None
+            if not v.strip():
+                return None
             # Replace slashes with dashes for ISO format parsing
             normalized = v.replace("/", "-")
             try:
@@ -174,6 +177,9 @@ class ProfessionalTravelUpdate(SQLModel):
         if v is None or isinstance(v, dt_date):
             return v
         if isinstance(v, str):
+            # Handle empty strings as None
+            if not v.strip():
+                return None
             # Replace slashes with dashes for ISO format parsing
             normalized = v.replace("/", "-")
             try:

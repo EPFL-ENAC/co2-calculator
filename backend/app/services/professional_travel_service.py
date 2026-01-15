@@ -550,6 +550,7 @@ class ProfessionalTravelService:
         data: ProfessionalTravelCreate,
         provider_source: str,
         user: User,
+        year: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -558,6 +559,7 @@ class ProfessionalTravelService:
             data: Travel creation data
             provider_source: Provider source ('manual', 'api', 'csv')
             user: Current user
+            year: Optional year from workspace setup. Used when departure_date is empty.
 
         Returns:
             Created ProfessionalTravel record(s) - list if round trip
@@ -579,7 +581,8 @@ class ProfessionalTravelService:
             f"traveler_name={sanitize(data.traveler_name)}, "
             f"origin_location_id={data.origin_location_id}, "
             f"destination_location_id={data.destination_location_id}, "
-            f"provider={sanitize(provider_source)}"
+            f"provider={sanitize(provider_source)}, "
+            f"year={year}"
         )
 
         # Create travel record(s) via repository
@@ -587,6 +590,7 @@ class ProfessionalTravelService:
             data=data,
             provider_source=provider_source,
             user_id=user.id,
+            year=year,
         )
 
         # Calculate and store emissions (skip for API trips)

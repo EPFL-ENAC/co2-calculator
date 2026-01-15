@@ -230,6 +230,7 @@ class ProfessionalTravelRepository:
         data: ProfessionalTravelCreate,
         provider_source: str,
         user_id: str,
+        year: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -240,6 +241,7 @@ class ProfessionalTravelRepository:
             data: Travel data to create
             provider_source: Provider source ('manual', 'api', 'csv')
             user_id: User ID who created the record
+            year: Optional year from workspace setup. Used when departure_date is empty.
 
         Returns:
             ProfessionalTravel or List[ProfessionalTravel] if round trip
@@ -247,14 +249,26 @@ class ProfessionalTravelRepository:
         # Calculate year from departure_date
         if data.departure_date:
             year = data.departure_date.year
+            logger.info(
+                f"[professional_travel_repo] Using year from departure_date: {year}"
+            )
+        elif year is not None:
+            # Use provided year from workspace setup if no departure_date
+            logger.info(
+                f"[professional_travel_repo] Using year from workspace setup: {year}"
+            )
         else:
-            # Fallback to current year if no departure_date
+            # Fallback to current year if no departure_date and no year provided
             year = datetime.now(timezone.utc).year
+            logger.info(
+                f"[professional_travel_repo] Using current year as fallback: {year}"
+            )
 
         # Log user_id for debugging
         logger.info(
             f"[professional_travel_repo] Creating travel with user_id={user_id}, "
-            f"traveler_name={data.traveler_name}, is_round_trip={data.is_round_trip}"
+            f"traveler_name={data.traveler_name}, is_round_trip={data.is_round_trip}, "
+            f"year={year}, departure_date={data.departure_date}"
         )
 
         # Handle round trip: create 2 records

@@ -1,5 +1,4 @@
 Generating Mermaid ERD...
-
 ```mermaid
 erDiagram
   emission_factors {
@@ -236,17 +235,17 @@ erDiagram
   }
   users ||--}o emission_factors : created_by
   users ||--}o power_factors : created_by
-  power_factors ||--}o equipment : power_factor_id
   users ||--}o equipment : created_by
   users ||--}o equipment : updated_by
-  emission_factors ||--}o equipment_emissions : emission_factor_id
-  power_factors ||--}o equipment_emissions : power_factor_id
+  power_factors ||--}o equipment : power_factor_id
   equipment ||--}o equipment_emissions : equipment_id
+  power_factors ||--}o equipment_emissions : power_factor_id
+  emission_factors ||--}o equipment_emissions : emission_factor_id
   inventory ||--}o inventory_module : inventory_id
   module_types ||--}o inventory_module : module_type_id
   module_types ||--}o modules : module_type_id
-  inventory_module ||--}o modules : inventory_module_id
   variant_types ||--}o modules : variant_type_id
+  inventory_module ||--}o modules : inventory_module_id
   locations ||--}o professional_travels : origin_location_id
   locations ||--}o professional_travels : destination_location_id
   professional_travels ||--}o professional_travel_emissions : professional_travel_id
@@ -254,9 +253,8 @@ erDiagram
   plane_impact_factors ||--}o professional_travel_emissions : plane_impact_factor_id
   users ||--}o resources : created_by
   users ||--}o resources : updated_by
-  units ||--}o unit_users : unit_id
   users ||--}o unit_users : user_id
+  units ||--}o unit_users : unit_id
   module_types ||--}o variant_types : module_type_id
 ```
-
 Mermaid ERD generation complete.
