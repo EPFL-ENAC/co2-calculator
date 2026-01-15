@@ -21,6 +21,7 @@ def mock_user():
     user.id = "test-user-123"
     user.email = "test@example.com"
     user.is_active = True
+    user.roles = []  # Make roles iterable
     return user
 
 
@@ -34,6 +35,16 @@ def mock_current_user(mock_user):
     app.dependency_overrides[get_current_active_user] = override_get_current_active_user
     yield mock_user
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def mock_permission_check(monkeypatch):
+    """Mock OPA permission check to always allow for tests."""
+
+    async def mock_query_policy(*args, **kwargs):
+        return {"allow": True}
+
+    monkeypatch.setattr("app.api.v1.modules.query_policy", mock_query_policy)
 
 
 @pytest.fixture

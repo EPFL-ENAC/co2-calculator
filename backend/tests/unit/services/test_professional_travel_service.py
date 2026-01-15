@@ -25,7 +25,8 @@ from app.services.professional_travel_service import (
 class TestCanUserEditItem:
     """Tests for can_user_edit_item function."""
 
-    def test_api_trips_read_only(self):
+    @pytest.mark.asyncio
+    async def test_api_trips_read_only(self):
         """Test that API trips are read-only for everyone."""
         # Create a travel with API provider
         travel = ProfessionalTravel(
@@ -45,7 +46,7 @@ class TestCanUserEditItem:
         )
         admin_user.roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
 
-        assert can_user_edit_item(travel, admin_user) is False
+        assert await can_user_edit_item(travel, admin_user) is False
 
         # Principal user
         principal_user = User(
@@ -58,7 +59,7 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, principal_user) is False
+        assert await can_user_edit_item(travel, principal_user) is False
 
         # Standard user
         std_user = User(
@@ -71,9 +72,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, std_user) is False
+        assert await can_user_edit_item(travel, std_user) is False
 
-    def test_principal_can_edit_manual_trips(self):
+    @pytest.mark.asyncio
+    async def test_principal_can_edit_manual_trips(self):
         """Test that principals can edit manual/CSV trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -93,9 +95,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, principal_user) is True
+        assert await can_user_edit_item(travel, principal_user) is True
 
-    def test_secondary_can_edit_manual_trips(self):
+    @pytest.mark.asyncio
+    async def test_secondary_can_edit_manual_trips(self):
         """Test that secondaries can edit manual/CSV trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -115,9 +118,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_SECONDARY, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, secondary_user) is True
+        assert await can_user_edit_item(travel, secondary_user) is True
 
-    def test_std_user_can_edit_own_manual_trips(self):
+    @pytest.mark.asyncio
+    async def test_std_user_can_edit_own_manual_trips(self):
         """Test that std users can edit their own manual trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -137,9 +141,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, std_user) is True
+        assert await can_user_edit_item(travel, std_user) is True
 
-    def test_std_user_cannot_edit_others_manual_trips(self):
+    @pytest.mark.asyncio
+    async def test_std_user_cannot_edit_others_manual_trips(self):
         """Test that std users cannot edit other users' manual trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -159,9 +164,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="TEST-UNIT-1"))
         ]
 
-        assert can_user_edit_item(travel, std_user) is False
+        assert await can_user_edit_item(travel, std_user) is False
 
-    def test_std_user_cannot_edit_csv_trips(self):
+    @pytest.mark.asyncio
+    async def test_std_user_cannot_edit_csv_trips(self):
         """Test that std users cannot edit CSV trips even if they created them."""
         travel = ProfessionalTravel(
             id=1,
@@ -185,9 +191,10 @@ class TestCanUserEditItem:
         # Actually, looking at the code, CSV trips should work the same as manual
         # Let me check the logic again - the function checks provider == "api"
         # So CSV and manual should both work for std users if they created them
-        assert can_user_edit_item(travel, std_user) is True
+        assert await can_user_edit_item(travel, std_user) is True
 
-    def test_user_without_roles_cannot_edit(self):
+    @pytest.mark.asyncio
+    async def test_user_without_roles_cannot_edit(self):
         """Test that users without relevant roles cannot edit."""
         travel = ProfessionalTravel(
             id=1,
@@ -205,9 +212,10 @@ class TestCanUserEditItem:
         )
         user.roles = []
 
-        assert can_user_edit_item(travel, user) is False
+        assert await can_user_edit_item(travel, user) is False
 
-    def test_principal_with_global_scope_can_edit(self):
+    @pytest.mark.asyncio
+    async def test_principal_with_global_scope_can_edit(self):
         """Test that principal with global scope can edit manual trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -227,9 +235,10 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_PRINCIPAL, on=GlobalScope())
         ]
 
-        assert can_user_edit_item(travel, principal_user) is True
+        assert await can_user_edit_item(travel, principal_user) is True
 
-    def test_secondary_with_global_scope_can_edit(self):
+    @pytest.mark.asyncio
+    async def test_secondary_with_global_scope_can_edit(self):
         """Test that secondary with global scope can edit manual trips."""
         travel = ProfessionalTravel(
             id=1,
@@ -249,7 +258,7 @@ class TestCanUserEditItem:
             Role(role=RoleName.CO2_USER_SECONDARY, on=GlobalScope())
         ]
 
-        assert can_user_edit_item(travel, secondary_user) is True
+        assert await can_user_edit_item(travel, secondary_user) is True
 
 
 @pytest_asyncio.fixture
@@ -452,7 +461,7 @@ class TestToItemResponse:
         """Test _to_item_response without location data."""
         service = ProfessionalTravelService(db_session)
 
-        response = service._to_item_response(
+        response = await service._to_item_response(
             travel=sample_travel,
             user=test_user_admin,
             origin_location=None,
@@ -487,16 +496,34 @@ class TestToItemResponse:
         with pytest.raises(
             ValueError, match="Cannot create response for travel record without ID"
         ):
-            service._to_item_response(
+            await service._to_item_response(
                 travel=travel,
                 user=test_user_admin,
             )
 
     @pytest.mark.asyncio
     async def test_to_item_response_with_locations_and_emission(
-        self, db_session: AsyncSession, sample_travel, sample_locations, test_user_admin
+        self,
+        db_session: AsyncSession,
+        sample_travel,
+        sample_locations,
+        test_user_admin,
+        monkeypatch,
     ):
         """Test _to_item_response with location and emission data."""
+
+        # Mock check_resource_access to return False for admin on manual trips
+        # Since it's imported inside the function, we need to patch it in the
+        # authorization_service module
+        async def mock_check_resource_access(user, resource_type, resource, action):
+            # Admin cannot edit manual trips (only principals/secondaries can)
+            return False
+
+        monkeypatch.setattr(
+            "app.services.authorization_service.check_resource_access",
+            mock_check_resource_access,
+        )
+
         service = ProfessionalTravelService(db_session)
 
         emission = ProfessionalTravelEmission(
@@ -508,7 +535,7 @@ class TestToItemResponse:
         db_session.add(emission)
         await db_session.commit()
 
-        response = service._to_item_response(
+        response = await service._to_item_response(
             travel=sample_travel,
             user=test_user_admin,
             origin_location=sample_locations[0],
@@ -535,7 +562,7 @@ class TestToItemResponse:
         """Test _to_item_response sets can_edit correctly for principal user."""
         service = ProfessionalTravelService(db_session)
 
-        response = service._to_item_response(
+        response = await service._to_item_response(
             travel=sample_travel,
             user=test_user_principal,
             origin_location=sample_locations[0],

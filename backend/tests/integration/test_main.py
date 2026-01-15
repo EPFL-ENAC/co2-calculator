@@ -12,6 +12,9 @@ def test_root_endpoint():
     resp = client.get("/")
     assert resp.status_code == 200
     assert resp.json()["status"] == "running"
+    assert "name" in resp.json()
+    assert "version" in resp.json()
+    assert "docs" in resp.json()
 
 
 @pytest.mark.asyncio
