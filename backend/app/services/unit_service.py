@@ -74,7 +74,7 @@ class UnitService:
             {
                 "id": "12345",
                 "name": "ENAC-IT4R",
-                "current_user_role": "co2.user.principal",
+                "current_user_role": "calco2.user.principal",
                 "principal_user_id": "67890",
                 "principal_user_name": "Alice",
                 "principal_user_function": "Professor",

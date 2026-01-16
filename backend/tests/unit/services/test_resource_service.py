@@ -34,9 +34,9 @@ async def test_user(db_session):
     """Create a test user for testing."""
     role_provider = get_role_provider("test")
     testuser_info = {
-        "requested_role": "co2.user.std",
-        "email": "testuser_co2.user.std@example.org",
-        "sub": "testuser_co2.user.std_id",
+        "requested_role": RoleName.CO2_USER_STD.value,
+        "email": f"testuser_{RoleName.CO2_USER_STD.value}@example.org",
+        "sub": f"testuser_{RoleName.CO2_USER_STD.value}_id",
     }
     user_id = role_provider.get_user_id(testuser_info)
     roles = await role_provider.get_roles(testuser_info)

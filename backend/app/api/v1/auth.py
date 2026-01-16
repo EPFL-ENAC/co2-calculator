@@ -17,6 +17,7 @@ from app.core.security import (
     create_refresh_token,
     decode_jwt,
 )
+from app.models.user import RoleName
 from app.providers.role_provider import get_role_provider
 from app.schemas.user import UserRead
 from app.services.user_service import UserService
@@ -95,7 +96,7 @@ def _set_auth_cookies(
     "/login-test",
 )
 async def login_test(
-    role: str = "co2.user.std",
+    role: str = RoleName.CO2_USER_STD.value,
     db: AsyncSession = Depends(get_db),
 ):
     """

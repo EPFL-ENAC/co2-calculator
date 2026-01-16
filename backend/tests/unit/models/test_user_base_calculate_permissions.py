@@ -30,7 +30,7 @@ class TestUserBaseCalculatePermissions:
         """Test calculate_permissions with roles_raw as dicts."""
         user_base = UserBase()
         user_base.roles_raw = [
-            {"role": "co2.user.std", "on": {"unit": "12345"}},
+            {"role": f"{RoleName.CO2_USER_STD.value}", "on": {"unit": "12345"}},
         ]
         perms = user_base.calculate_permissions()
         assert "modules.professional_travel" in perms

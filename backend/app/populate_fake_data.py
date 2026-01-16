@@ -15,14 +15,14 @@ from sqlalchemy import insert
 
 from app.db import SessionLocal
 from app.models.unit import Unit
-from app.models.user import User
+from app.models.user import RoleName, User
 
 NUM_UNITS = 10000
 NUM_USERS = 40000
-USER_ROLES = ["co2.user.std", "co2.user.principal"]
+USER_ROLES = [RoleName.CO2_USER_STD.value, RoleName.CO2_USER_PRINCIPAL.value]
 ADMIN_ROLES = [
-    "co2.backoffice.metier",
-    "co2.superadmin",
+    RoleName.CO2_BACKOFFICE_METIER.value,
+    RoleName.CO2_SUPERADMIN.value,
 ]
 
 fake = Faker()
@@ -96,7 +96,7 @@ async def main():
             user_id = fake.unique.random_int(100000, 999999)
             scope = (
                 "global"
-                if role == "co2.superadmin"
+                if role == "calco2.superadmin"
                 else {"affiliation": "testaffiliation"}
             )
             users.append(

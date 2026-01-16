@@ -19,6 +19,7 @@ from app.models.professional_travel import (
     ProfessionalTravel,
     ProfessionalTravelEmission,
 )
+from app.models.user import RoleName
 from app.services.travel_calculation_service import TravelCalculationService
 
 logger = get_logger(__name__)
@@ -48,7 +49,7 @@ async def seed_professional_travel(session: AsyncSession) -> None:
             if not traveler_id:
                 # Default to standard user ID for test compatibility
                 # This matches the test login system: testuser_co2.user.std
-                traveler_id = "testuser_co2.user.std"
+                traveler_id = f"testuser_{RoleName.CO2_USER_STD.value}"
                 if not traveler_name:
                     traveler_name = "Test Standard User"
 

@@ -401,7 +401,7 @@ class TestGetPermissionValue:
         """Test calculate_user_permissions with role name as string."""
         # Create role with string role name directly
         role_dict = {
-            "role": "co2.user.principal",
+            "role": RoleName.CO2_USER_PRINCIPAL.value,
             "on": {"unit": "12345"},
         }
         role = Role(**role_dict)

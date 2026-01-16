@@ -45,9 +45,9 @@ def sample_userinfo() -> Dict[str, Any]:
         "email": "user@epfl.ch",
         "user_id": 352707,
         "roles": [
-            "co2.user.std@unit:12345",
-            "co2.user.principal@unit:12345",
-            "co2.superadmin@global",
+            f"{RoleName.CO2_USER_STD.value}@unit:12345",
+            f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:12345",
+            f"{RoleName.CO2_SUPERADMIN.value}@global",
         ],
     }
 
@@ -117,7 +117,7 @@ class TestDefaultRoleProvider:
             "email": "user@epfl.ch",
             "roles": [
                 123,  # Invalid: not a string
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -132,8 +132,8 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std",  # Invalid: no @
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}",  # Invalid: no @
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -148,8 +148,8 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std@invalid",  # Invalid: no colon in scope
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}@invalid",  # Invalid: no colon in scope
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -163,7 +163,7 @@ class TestDefaultRoleProvider:
         """Test that whitespace in roles is trimmed."""
         userinfo = {
             "email": "user@epfl.ch",
-            "roles": [" co2.user.std @ unit : 12345 "],
+            "roles": [f" {RoleName.CO2_USER_STD.value} @ unit : 12345 "],
         }
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(userinfo)
@@ -177,9 +177,9 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std@unit:12345",
-                "co2.user.principal@unit:67890",
-                "co2.user.std@unit:11111",
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
+                f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:67890",
+                f"{RoleName.CO2_USER_STD.value}@unit:11111",
             ],
         }
         provider = DefaultRoleProvider()
@@ -217,12 +217,12 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.principal",
+                    "name": RoleName.CO2_USER_PRINCIPAL.value,
                     "state": "active",
                     "accredunitid": "67890",
                 },
@@ -353,7 +353,7 @@ class TestAccredRoleProvider:
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
@@ -385,12 +385,12 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "inactive",
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
@@ -422,11 +422,11 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },

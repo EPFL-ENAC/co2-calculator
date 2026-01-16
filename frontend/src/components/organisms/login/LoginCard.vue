@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from 'src/stores/auth';
 import { useI18n } from 'vue-i18n';
+import { ROLES } from 'src/constant/roles';
 
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
@@ -17,13 +18,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const form = ref(null);
-const role = ref('co2.user.std');
+const role = ref(ROLES.StandardUser);
 
 const roleOptions = computed(() => [
-  { value: 'co2.user.std', label: 'User Standard' },
-  { value: 'co2.user.principal', label: 'Unit Manager' },
-  { value: 'co2.backoffice.metier', label: 'Backoffice Administrator' },
-  { value: 'co2.superadmin', label: 'Super Admin' },
+  { value: ROLES.StandardUser, label: 'User Standard' },
+  { value: ROLES.PrincipalUser, label: 'Unit Manager' },
+  { value: ROLES.BackOfficeMetier, label: 'Backoffice Administrator' },
+  { value: ROLES.SuperAdmin, label: 'Super Admin' },
 ]);
 const isTestMode = computed(() => props.mode === 'test');
 

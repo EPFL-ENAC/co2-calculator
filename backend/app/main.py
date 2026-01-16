@@ -152,12 +152,11 @@ app = FastAPI(
     Users are assigned one or more of these roles. Permissions are calculated
     from role assignments:
 
-    * **co2.user.std** - Basic user with own-scope access
-    * **co2.user.principal** - Unit-level manager with unit-scope access
-    * **co2.backoffice.metier** - Backoffice administrator with reporting and
+    * **calco2.user.std** - Basic user with own-scope access
+    * **calco2.user.principal** - Unit-level manager with unit-scope access
+    * **calco2.backoffice.metier** - Backoffice administrator with reporting and
       data access
-    * **co2.superadmin** - Super administrator with full system and backoffice access
-
+    * **calco2.superadmin** - Super administrator with full system and backoffice access
     See permission documentation for detailed role-to-permission mapping.
 
     ## 403 Error Responses

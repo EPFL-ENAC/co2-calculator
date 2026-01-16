@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleScope, User
+from app.models.user import GlobalScope, Role, RoleName, RoleScope, User
 from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
@@ -173,7 +173,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             role_scope = role.on
 
             # Check if principal role
-            if role_name == "co2.user.principal":
+            if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
                 # Extract unit from scope
                 if isinstance(role_scope, RoleScope) and role_scope.unit:
