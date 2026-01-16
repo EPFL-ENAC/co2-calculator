@@ -130,8 +130,13 @@ const chartOption = computed((): EChartsOption => {
           seriesName?: string;
           value?: number;
           color?: string;
+          axisValue?: string | number;
         }>;
-        let tooltip = `<strong>${p[0]?.seriesName || ''}</strong><br/>`;
+        if (!p || p.length === 0) {
+          return '';
+        }
+        const heading = p[0].axisValue != null ? String(p[0].axisValue) : '';
+        let tooltip = heading ? `<strong>${heading}</strong><br/>` : '';
         p.forEach((item) => {
           tooltip += `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${item.color};"></span>`;
           tooltip += `${item.seriesName}: <strong>${item.value?.toFixed(0)}</strong><br/>`;
@@ -140,7 +145,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     legend: {
-      data: [t('plane', 'plane'), t('train', 'train')],
+      data: [t('flight', 'flight'), t('train', 'train')],
       top: 0,
       left: 'center',
     },
@@ -168,7 +173,7 @@ const chartOption = computed((): EChartsOption => {
     },
     series: [
       {
-        name: t('plane', 'plane'),
+        name: t('flight', 'flight'),
         type: 'line',
         data: chartData.value.plane,
         smooth: true,

@@ -12,7 +12,7 @@ const moduleFields: ModuleField[] = [
     ratio: '2/12',
     options: [
       { value: 'train', label: 'Train' },
-      { value: 'flight', label: 'Plane' },
+      { value: 'flight', label: 'Flight' },
     ],
     editableInline: false,
   },

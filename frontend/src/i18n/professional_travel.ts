@@ -166,7 +166,7 @@ export default {
     fr: 'Train',
   },
   flight: {
-    en: 'Plane',
-    fr: 'Avion',
+    en: 'Flight',
+    fr: 'Vol',
   },
 } as const;

@@ -44,7 +44,6 @@ const treemapData = computed(() => {
     ['darker', 'dark', 'default', 'light', 'lighter'];
 
   if (!props.datasetSource || props.datasetSource.length === 0) {
-    console.log('TreeMapModuleChart - No datasetSource data available');
     return [];
   }
 
@@ -54,8 +53,6 @@ const treemapData = computed(() => {
     children?: Array<{ name: string; value: number; percentage?: number }>;
   }>;
 
-  console.log('TreeMapModuleChart - Processing sourceData:', sourceData);
-
   const result = sourceData
     .filter((item) => {
       // Filter out items that don't have the required structure
@@ -64,9 +61,7 @@ const treemapData = computed(() => {
         item.name &&
         item.value !== undefined &&
         Array.isArray(item.children);
-      if (!hasValidStructure) {
-        console.warn('TreeMapModuleChart - Invalid item structure:', item);
-      }
+
       return hasValidStructure;
     })
     .map((item, index) => {
@@ -94,9 +89,6 @@ const treemapData = computed(() => {
       };
     })
     .filter((item) => item.value > 0 && item.children.length > 0);
-
-  console.log('TreeMapModuleChart - Final treemapData result:', result);
-  console.log('TreeMapModuleChart - Final result length:', result.length);
 
   return result;
 });
@@ -355,12 +347,12 @@ const isEvolutionDialogOpen = computed({
       outline
       icon="o_timeline"
       size="sm"
-      label="Evolution over time"
+      :label="t('evolution_over_time')"
       class="text-weight-medium q-mb-sm"
       :disable="!hasMultipleYears"
       :title="
         !hasMultipleYears
-          ? 'Evolution over time requires data from multiple years'
+          ? t('evolution_over_time_requires_multiple_years')
           : ''
       "
       @click="isEvolutionDialogOpen = true"
@@ -373,7 +365,9 @@ const isEvolutionDialogOpen = computed({
   <q-dialog v-model="isEvolutionDialogOpen" class="evolution-dialog">
     <q-card>
       <q-card-section class="row items-center q-py-md">
-        <div class="text-h4 text-weight-medium">Evolution over time</div>
+        <div class="text-h4 text-weight-medium">
+          {{ t('evolution_over_time') }}
+        </div>
         <q-space />
         <q-btn v-close-popup icon="close" flat round dense />
       </q-card-section>
@@ -388,7 +382,7 @@ const isEvolutionDialogOpen = computed({
 <style scoped>
 .chart {
   width: 100%;
-  height: 280px;
+  height: 180px;
   overflow: visible;
 }
 

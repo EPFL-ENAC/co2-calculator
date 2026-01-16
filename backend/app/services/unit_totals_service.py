@@ -28,7 +28,6 @@ class UnitTotalsService:
             Tuple of (total_kg_co2eq, total_fte)
         """
         total_kg_co2eq = 0.0
-        total_fte = 0.0
 
         # Equipment Electric Consumption
         try:
