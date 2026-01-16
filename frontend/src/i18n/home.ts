@@ -52,8 +52,8 @@ export default {
     fr: 'nous contacter',
   },
   home_intro_5_contact_link_url: {
-    en: 'mailto:sustainability@epfl.ch',
-    fr: 'mailto:sustainability@epfl.ch',
+    en: 'mailto:sustainability%40epfl.ch',
+    fr: 'mailto:sustainability%40epfl.ch',
   },
   home_intro_5_part_3: {
     en: '.',

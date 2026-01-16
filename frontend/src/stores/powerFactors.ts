@@ -33,6 +33,7 @@ export const usePowerFactorsStore = defineStore('power-factors', () => {
       optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
     });
 
+    debugger;
     subclassOptionMapBySubmodule[submodule] = optionMap;
     subclassMapFetchedAt[submodule] = now;
 
