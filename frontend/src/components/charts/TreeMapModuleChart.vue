@@ -116,27 +116,13 @@ const chartOption = computed((): EChartsOption => {
     backgroundColor: 'transparent',
     grid: {
       top: 0,
-      bottom: legendData.value.length > 0 ? 50 : 0,
+      bottom: 0,
       left: 0,
       right: 0,
       containLabel: false,
     },
     legend: {
-      show: legendData.value.length > 0,
-      data: legendData.value.map((item) => ({
-        name: item.name,
-        itemStyle: {
-          color: item.color,
-        },
-      })),
-      bottom: 5,
-      orient: 'horizontal',
-      itemGap: 15,
-      textStyle: {
-        fontSize: 12,
-        color: '#333',
-      },
-      type: 'scroll',
+      show: false,
     },
     tooltip: {
       trigger: 'item',
@@ -212,7 +198,7 @@ const chartOption = computed((): EChartsOption => {
         left: 0,
         right: 0,
         top: 0,
-        bottom: legendData.value.length > 0 ? 50 : 0,
+        bottom: 0,
         width: '100%',
         height: '100%',
         label: {
@@ -342,7 +328,25 @@ const isEvolutionDialogOpen = computed({
 </script>
 
 <template>
-  <div class="flex justify-end">
+  <div class="flex justify-between items-center">
+    <q-card-section
+      v-if="legendData.length > 0"
+      class="legend-container q-pa-none"
+    >
+      <div class="flex flex-wrap" style="gap: 15px">
+        <div
+          v-for="item in legendData"
+          :key="item.name"
+          class="legend-item flex items-center"
+        >
+          <span
+            class="legend-color"
+            :style="{ backgroundColor: item.color }"
+          ></span>
+          <span class="legend-label">{{ item.name }}</span>
+        </div>
+      </div>
+    </q-card-section>
     <q-btn
       v-if="showEvolutionButton"
       color="primary"
@@ -400,5 +404,27 @@ const isEvolutionDialogOpen = computed({
 
 .evolution-dialog :deep(.q-dialog__inner) {
   max-width: 900px;
+}
+
+.legend-container {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.legend-item {
+  gap: 6px;
+}
+
+.legend-color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 12px;
+  color: #333;
 }
 </style>
