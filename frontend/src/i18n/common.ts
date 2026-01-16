@@ -56,7 +56,7 @@ export default {
   },
   [ROLES.PrincipalUser]: {
     en: 'Unit Manager',
-    fr: 'Responsable d\'unité',
+    fr: "Responsable d'unité",
   },
   [ROLES.BackOfficeMetier]: {
     en: 'Backoffice Administrator',
