@@ -83,3 +83,11 @@ $tooltip-padding-y: opt.$tokens-spacing-48 !default;
 $tooltip-max-width: opt.$tokens-layout-md-modal-width !default;
 $tooltip-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $tooltip-box-shadow: opt.$tokens-box-shadow !default;
+
+// Link
+$link-color: opt.$tokens-colors-red-red-100 !default;
+$link-underline-color: opt.$tokens-colors-base-black !default;
+$link-hover-color: opt.$tokens-colors-base-black !default;
+$link-hover-underline-color: opt.$tokens-colors-red-red-100 !default;
+$link-visited-color: opt.$tokens-colors-red-red-100 !default;
+$link-active-color: opt.$tokens-colors-red-red-100 !default;

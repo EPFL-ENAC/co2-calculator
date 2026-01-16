@@ -1,0 +1,26 @@
+@use '../../02-tokens' as tokens;
+
+.link {
+  color: tokens.$link-color;
+  text-decoration: underline;
+  text-decoration-color: tokens.$link-underline-color;
+  text-underline-offset: 2px;
+  transition:
+    color 0.2s ease,
+    text-decoration-color 0.2s ease;
+
+  &:hover {
+    color: tokens.$link-hover-color;
+    text-decoration-color: tokens.$link-hover-underline-color;
+  }
+
+  &:visited {
+    color: tokens.$link-visited-color;
+    text-decoration-color: tokens.$link-underline-color;
+  }
+
+  &:active {
+    color: tokens.$link-active-color;
+    text-decoration-color: tokens.$link-underline-color;
+  }
+}

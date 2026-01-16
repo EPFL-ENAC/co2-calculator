@@ -49,33 +49,38 @@ const modulesCounterText = computed(() =>
     count: Object.keys(MODULES).length + 1,
   }),
 );
-
-const homeIntroWithLinks = computed(() => {
-  return t('home_intro_5', {
-    documentationLink: t('info_with_link', {
-      url: '/documentation',
-      linkText: t('documentation'),
-    }),
-    contactLink: t('info_with_link', {
-      url: '/contact',
-      linkText: t('contact'),
-    }),
-  });
-});
 </script>
 
 <template>
   <q-page class="page-grid">
     <q-card flat class="container">
       <h1 class="text-h2 q-mb-md">{{ $t('home_title') }}</h1>
-      <p class="text-body1">{{ $t('home_intro_1') }}</p>
+      <p class="text-body1">
+        {{ $t('home_intro_1_part_1')
+        }}<a
+          :href="$t('home_intro_1_link_url')"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link"
+          >{{ $t('home_intro_1_link_text') }}</a
+        >{{ $t('home_intro_1_part_2') }}
+      </p>
       <p class="text-body1">{{ $t('home_intro_2') }}</p>
       <p class="text-body1">{{ $t('home_intro_3') }}</p>
       <p class="text-body1">{{ $t('home_intro_4') }}</p>
       <p class="text-body1">
-        <span>
-          {{ homeIntroWithLinks }}
-        </span>
+        {{ $t('home_intro_5_part_1')
+        }}<a
+          :href="$t('home_intro_5_link_url')"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link"
+          >{{ $t('home_intro_5_link_text') }}</a
+        >{{ $t('home_intro_5_part_2')
+        }}<a :href="$t('home_intro_5_contact_link_url')" class="link">{{
+          $t('home_intro_5_contact_link_text')
+        }}</a
+        >{{ $t('home_intro_5_part_3') }}
       </p>
       <p class="text-body1 q-mb-none">{{ $t('home_intro_6') }}</p>
       <q-btn
