@@ -71,7 +71,7 @@ class TestUserBaseRolesProperty:
         user_base = UserBase()
         roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         user_base.roles = roles
-        assert user_base.roles_raw[0]["role"] == "co2.superadmin"
+        assert user_base.roles_raw[0]["role"] == RoleName.CO2_SUPERADMIN.value
 
 
 class TestUserCalculatePermissions:
@@ -229,7 +229,9 @@ class TestUserHasRoleOn:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             assert (
-                user.has_role_on("co2.backoffice.metier", "affiliation", "TEST-AFF")
+                user.has_role_on(
+                    f"{RoleName.CO2_BACKOFFICE_METIER.value}", "affiliation", "TEST-AFF"
+                )
                 is True
             )
 
@@ -247,7 +249,7 @@ class TestUserHasRoleGlobal:
         user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.superadmin") is True
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is True
 
     def test_has_role_global_false_unit_scope(self):
         """Test has_role_global returns False for unit scope."""
@@ -259,7 +261,7 @@ class TestUserHasRoleGlobal:
         user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.superadmin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
     def test_has_role_global_false_wrong_role(self):
         """Test has_role_global returns False for wrong role."""
@@ -271,7 +273,7 @@ class TestUserHasRoleGlobal:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.superadmin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
     def test_has_role_global_empty_roles(self):
         """Test has_role_global with empty roles."""
@@ -283,7 +285,7 @@ class TestUserHasRoleGlobal:
         user.roles = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.superadmin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
 
 class TestUserRepr:

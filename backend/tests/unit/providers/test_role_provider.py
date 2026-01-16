@@ -84,7 +84,7 @@ class TestDefaultRoleProvider:
         """Test parsing roles with global scope."""
         userinfo = {
             "email": "admin@epfl.ch",
-            "roles": ["co2.superadmin@global"],
+            "roles": [f"{RoleName.CO2_SUPERADMIN.value}@global"],
         }
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(userinfo)
@@ -257,7 +257,7 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.superadmin",
+                    "name": f"{RoleName.CO2_SUPERADMIN.value}",
                     "state": "active",
                     "accredunitid": "12345",
                 }
@@ -289,7 +289,7 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.backoffice.metier",
+                    "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
                     "state": "active",
                     "accredunitid": "12345",
                     "reason": {"resource": {"sortpath": "Engineering"}},

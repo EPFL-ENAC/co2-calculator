@@ -144,7 +144,7 @@ class TestCalculateUserPermissions:
         """Test that role name can be string or enum."""
         # Create role with string role name
         role_dict = {
-            "role": "co2.superadmin",
+            "role": f"{RoleName.CO2_SUPERADMIN.value}",
             "on": {"scope": "global"},
         }
         role = Role(**role_dict)
