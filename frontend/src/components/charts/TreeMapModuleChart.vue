@@ -117,15 +117,42 @@ const treemapData = computed(() => {
   return result;
 });
 
+// Extract categories with their colors for the legend
+const legendData = computed(() => {
+  return treemapData.value.map((item) => ({
+    name: item.name,
+    color:
+      (item.itemStyle as { color?: string })?.color ||
+      props.colorScheme.default,
+  }));
+});
+
 const chartOption = computed((): EChartsOption => {
   return {
     backgroundColor: 'transparent',
     grid: {
       top: 0,
-      bottom: 0,
+      bottom: legendData.value.length > 0 ? 50 : 0,
       left: 0,
       right: 0,
       containLabel: false,
+    },
+    legend: {
+      show: legendData.value.length > 0,
+      data: legendData.value.map((item) => ({
+        name: item.name,
+        itemStyle: {
+          color: item.color,
+        },
+      })),
+      bottom: 5,
+      orient: 'horizontal',
+      itemGap: 15,
+      textStyle: {
+        fontSize: 12,
+        color: '#333',
+      },
+      type: 'scroll',
     },
     tooltip: {
       trigger: 'item',
@@ -163,7 +190,7 @@ const chartOption = computed((): EChartsOption => {
         left: 0,
         right: 0,
         top: 0,
-        bottom: 0,
+        bottom: legendData.value.length > 0 ? 50 : 0,
         width: '100%',
         height: '100%',
         label: {
@@ -335,12 +362,14 @@ const isEvolutionDialogOpen = computed({
 <style scoped>
 .chart {
   width: 100%;
-  height: 250px;
+  height: 280px;
+  overflow: visible;
 }
 
 .chart-container {
   padding: 0 !important;
   margin: 0 !important;
+  overflow: visible;
 }
 
 .chart :deep(canvas) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
@@ -11,6 +11,7 @@ import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarb
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.vue';
 import { nOrDash } from 'src/utils/number';
+import { api } from 'src/api/http';
 
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
@@ -25,6 +26,49 @@ const timelineStore = useTimelineStore();
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
+
+interface UnitTotals {
+  total_kg_co2eq: number | null;
+  total_tonnes_co2eq: number | null;
+  total_fte: number | null;
+  kg_co2eq_per_fte: number | null;
+  previous_year_total_kg_co2eq: number | null;
+  previous_year_total_tonnes_co2eq: number | null;
+  year_comparison_percentage: number | null;
+}
+
+const unitTotals = ref<UnitTotals | null>(null);
+const unitTotalsLoading = ref(false);
+
+async function fetchUnitTotals() {
+  const unitId = workspaceStore.selectedUnit?.id;
+  if (!unitId) return;
+
+  try {
+    unitTotalsLoading.value = true;
+    const totals = await api
+      .get(`unit/${unitId}/${currentYear.value}/totals`)
+      .json<UnitTotals>();
+    unitTotals.value = totals;
+  } catch (error) {
+    console.error('Error fetching unit totals:', error);
+    unitTotals.value = null;
+  } finally {
+    unitTotalsLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchUnitTotals();
+});
+
+// Watch for year/unit changes
+watch(
+  () => [workspaceStore.selectedUnit?.id, currentYear.value],
+  () => {
+    fetchUnitTotals();
+  },
+);
 
 const isModuleValidated = (module: string) => {
   return timelineStore.itemStates[module as Module] === MODULE_STATES.Validated;
@@ -299,6 +343,103 @@ const downloadPDF = () => {
                     :type="MODULES.ProfessionalTravel"
                     :show-evolution-chart="true"
                   />
+                  <q-card v-if="unitTotals" flat class="grid-3-col q-mb-lg">
+                    <BigNumber
+                      :title="$t('results_total_unit_carbon_footprint')"
+                      :number="
+                        unitTotals.total_tonnes_co2eq
+                          ? nOrDash(unitTotals.total_tonnes_co2eq)
+                          : '-'
+                      "
+                      :comparison="
+                        $t('results_equivalent_to_car', {
+                          km: nOrDash(
+                            calculateEquivalentKm(
+                              unitTotals.total_kg_co2eq || 0,
+                              0.34,
+                            ),
+                          ),
+                          value: `${nOrDash(0.34)}`,
+                        })
+                      "
+                      :comparison-highlight="`${nOrDash(
+                        calculateEquivalentKm(
+                          unitTotals.total_kg_co2eq || 0,
+                          0.34,
+                        ),
+                      )}km`"
+                      color="negative"
+                    >
+                      <template #tooltip>{{
+                        $t('results_total_unit_carbon_footprint_tooltip', {
+                          value: nOrDash(0.34),
+                          unit: $t('results_kg_co2eq_per_km'),
+                        })
+                      }}</template>
+                    </BigNumber>
+                    <BigNumber
+                      :title="$t('results_carbon_footprint_per_fte')"
+                      :number="
+                        unitTotals.kg_co2eq_per_fte
+                          ? nOrDash(unitTotals.kg_co2eq_per_fte / 1000)
+                          : '-'
+                      "
+                      :comparison="
+                        $t('results_paris_agreement_value', {
+                          value: `${nOrDash(2)}${$t('results_units_tonnes')}`,
+                        })
+                      "
+                      :comparison-highlight="`${nOrDash(2)}${$t('results_units_tonnes')}`"
+                      color="negative"
+                    >
+                      <template #tooltip>{{
+                        $t('results_paris_agreement_tooltip')
+                      }}</template>
+                    </BigNumber>
+                    <div
+                      :class="{
+                        'no-data-styling': unitTotals.year_comparison_percentage === null,
+                      }"
+                    >
+                      <BigNumber
+                        :title="$t('results_unit_carbon_footprint')"
+                        :number="
+                          unitTotals.year_comparison_percentage !== null
+                            ? `${unitTotals.year_comparison_percentage > 0 ? '+' : ''}${nOrDash(unitTotals.year_comparison_percentage)}%`
+                            : '-'
+                        "
+                        :unit="
+                          $t('results_compared_to', {
+                            year: (currentYear - 1).toString(),
+                          })
+                        "
+                        :color="
+                          unitTotals.year_comparison_percentage === null
+                            ? undefined
+                            : unitTotals.year_comparison_percentage < 0
+                              ? 'positive'
+                              : 'negative'
+                        "
+                        :comparison="
+                          unitTotals.previous_year_total_tonnes_co2eq !== null
+                            ? $t('results_compared_to_value_of', {
+                                value: `${nOrDash(
+                                  unitTotals.previous_year_total_tonnes_co2eq,
+                                )}${$t('results_units_tonnes')}`,
+                              })
+                            : ''
+                        "
+                        :comparison-highlight="
+                          unitTotals.previous_year_total_tonnes_co2eq !== null
+                            ? `${nOrDash(
+                                unitTotals.previous_year_total_tonnes_co2eq,
+                              )}${$t('results_units_tonnes')}`
+                            : ''
+                        "
+                      >
+                      </BigNumber>
+                    </div>
+                  </q-card>
                 </template>
                 <template
                   v-else-if="
@@ -329,6 +470,7 @@ const downloadPDF = () => {
                     </q-card-section>
                   </q-card>
                 </template>
+
                 <q-card v-else flat bordered>
                   <q-card-section class="flex items-center q-mb-xs">
                     <q-icon name="o_info" size="xs" color="primary">
@@ -387,6 +529,15 @@ const downloadPDF = () => {
     justify-content: center;
     padding: 3rem;
     min-height: 200px;
+  }
+}
+
+.no-data-styling {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+
+  :deep(.text-h1) {
+    color: rgba(0, 0, 0, 0.38) !important;
   }
 }
 </style>
