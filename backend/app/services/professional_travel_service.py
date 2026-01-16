@@ -1,5 +1,6 @@
 """Professional Travel service for business logic."""
 
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Union
 
@@ -18,7 +19,7 @@ from app.models.professional_travel import (
     ProfessionalTravelItemResponse,
     ProfessionalTravelUpdate,
 )
-from app.models.user import RoleName, User
+from app.models.user import User
 from app.repositories.professional_travel_repo import ProfessionalTravelRepository
 from app.schemas.equipment import (
     ModuleResponse,
@@ -31,9 +32,12 @@ from app.services.travel_calculation_service import TravelCalculationService
 logger = get_logger(__name__)
 
 
-def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
+async def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
     """
-    Check if user can edit a professional travel item.
+    Check if user can edit a professional travel item using OPA resource access policy.
+
+    This function has been migrated from role-based checks to permission-based
+    resource access policy evaluation.
 
     Args:
         travel: Professional travel record
@@ -42,26 +46,26 @@ def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
     Returns:
         True if user can edit, False otherwise
 
-    Rules:
+    Rules (enforced via OPA policy):
         - API trips are read-only for everyone
-        - Principals and secondaries can edit manual/CSV trips
-        - Std users can only edit their own manual trips
+        - Principals and secondaries can edit manual/CSV trips in their units
+        - Standard users can only edit their own manual trips
+        - Backoffice admins can edit all trips
     """
-    # API trips are read-only for everyone
-    if travel.provider == "api":
-        return False
+    from app.services.authorization_service import check_resource_access
 
-    # Principals and secondaries can edit manual/CSV trips
-    if user.has_role(RoleName.CO2_USER_PRINCIPAL.value) or user.has_role(
-        RoleName.CO2_USER_SECONDARY.value
-    ):
-        return True
+    # Build resource dict for policy evaluation
+    resource = {
+        "id": travel.id,
+        "created_by": travel.created_by,
+        "unit_id": travel.unit_id,
+        "provider": travel.provider,
+    }
 
-    # Std users can only edit their own manual trips
-    if user.has_role(RoleName.CO2_USER_STD.value) and travel.created_by == user.id:
-        return True
-
-    return False
+    # Use OPA policy for resource access check
+    return await check_resource_access(
+        user, "professional_travel", resource, action="edit"
+    )
 
 
 class ProfessionalTravelService:
@@ -108,7 +112,7 @@ class ProfessionalTravelService:
             [travel]
         )
 
-        return self._to_item_response(
+        return await self._to_item_response(
             travel,
             user,
             origin_location=origin_locations.get(travel.origin_location_id),
@@ -181,13 +185,44 @@ class ProfessionalTravelService:
 
         return origin_locations, dest_locations, emissions
 
-    def _to_item_response(
+    async def _batch_check_edit_permissions(
+        self, travels: List[ProfessionalTravel], user: User
+    ) -> dict[int, bool]:
+        """
+        Batch check edit permissions for multiple travel items in parallel.
+
+        Args:
+            travels: List of professional travel records
+            user: Current user
+
+        Returns:
+            Dictionary mapping travel.id to can_edit boolean
+        """
+        if not travels:
+            return {}
+
+        # Build all permission check tasks in parallel
+        tasks = []
+        travel_ids = []
+        for travel in travels:
+            if travel.id is not None:
+                tasks.append(can_user_edit_item(travel, user))
+                travel_ids.append(travel.id)
+
+        # Execute all permission checks in parallel
+        results = await asyncio.gather(*tasks)
+
+        # Map results back to travel IDs
+        return dict(zip(travel_ids, results))
+
+    async def _to_item_response(
         self,
         travel: ProfessionalTravel,
         user: User,
         origin_location: Optional[Location] = None,
         destination_location: Optional[Location] = None,
         emission: Optional[ProfessionalTravelEmission] = None,
+        can_edit: Optional[bool] = None,
     ) -> ProfessionalTravelItemResponse:
         """
         Convert DB model to response DTO with can_edit flag.
@@ -201,6 +236,8 @@ class ProfessionalTravelService:
                 (from locations table)
             emission: Optional emission object
                 (from professional_travel_emissions table)
+            can_edit: Optional pre-computed edit permission.
+                If None, will be computed on-demand (slower for batches)
 
         Returns:
             ProfessionalTravelItemResponse with can_edit flag
@@ -214,6 +251,11 @@ class ProfessionalTravelService:
                 "Cannot create response for travel record without ID. "
                 "This should never happen for saved database records."
             )
+
+        # Compute can_edit if not provided (for backward compatibility)
+        if can_edit is None:
+            can_edit = await can_user_edit_item(travel, user)
+
         # Type narrowing: travel.id is guaranteed to be int after the None check
         return ProfessionalTravelItemResponse(
             id=travel.id,
@@ -228,7 +270,7 @@ class ProfessionalTravelService:
             number_of_trips=travel.number_of_trips,
             distance_km=emission.distance_km if emission else None,
             kg_co2eq=emission.kg_co2eq if emission else None,
-            can_edit=can_user_edit_item(travel, user),
+            can_edit=can_edit,
         )
 
     async def _calculate_and_store_emission(
@@ -385,17 +427,21 @@ class ProfessionalTravelService:
             items
         )
 
-        # Convert to item responses with can_edit flags
-        item_responses = [
-            self._to_item_response(
+        # Batch check edit permissions for all items in parallel
+        can_edit_map = await self._batch_check_edit_permissions(items, user)
+
+        # Convert to item responses with pre-computed can_edit flags
+        item_responses = []
+        for travel in items:
+            item_response = await self._to_item_response(
                 travel,
                 user,
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
+                can_edit=can_edit_map.get(travel.id) if travel.id else False,
             )
-            for travel in items
-        ]
+            item_responses.append(item_response)
 
         # Create submodule summary
         # (professional travel has no submodules, use single 'trips' key
@@ -495,17 +541,21 @@ class ProfessionalTravelService:
             items
         )
 
-        # Convert to item responses with can_edit flags
-        item_responses = [
-            self._to_item_response(
+        # Batch check edit permissions for all items in parallel
+        can_edit_map = await self._batch_check_edit_permissions(items, user)
+
+        # Convert to item responses with pre-computed can_edit flags
+        item_responses = []
+        for travel in items:
+            item_response = await self._to_item_response(
                 travel,
                 user,
                 origin_location=origin_locations.get(travel.origin_location_id),
                 destination_location=dest_locations.get(travel.destination_location_id),
                 emission=emissions.get(travel.id) if travel.id else None,
+                can_edit=can_edit_map.get(travel.id) if travel.id else False,
             )
-            for travel in items
-        ]
+            item_responses.append(item_response)
 
         # Get summary stats for this query
         stats = await self.repo.get_summary_stats(unit_id=unit_id, year=year, user=user)
@@ -664,8 +714,8 @@ class ProfessionalTravelService:
                 detail=f"Travel record with ID {travel_id} not found",
             )
 
-        # Check permission
-        if not can_user_edit_item(travel, user):
+        # Check permission using OPA resource access policy
+        if not await can_user_edit_item(travel, user):
             logger.warning(
                 f"Permission denied for travel update: id={sanitize(travel_id)}, "
                 f"user={sanitize(user.id)}, provider={sanitize(travel.provider)}"
@@ -697,7 +747,7 @@ class ProfessionalTravelService:
 
         # Update travel record via repository
         updated = await self.repo.update_travel(
-            travel_id=travel_id, data=data, user_id=user.id
+            travel_id=travel_id, data=data, user_id=user.id, user=user
         )
 
         # Recalculate and store emissions if needed (and not API trip)
@@ -754,8 +804,8 @@ class ProfessionalTravelService:
                 detail=f"Travel record with ID {travel_id} not found",
             )
 
-        # Check permission
-        if not can_user_edit_item(travel, user):
+        # Check permission using OPA resource access policy
+        if not await can_user_edit_item(travel, user):
             logger.warning(
                 f"Permission denied for travel deletion: id={sanitize(travel_id)}, "
                 f"user={sanitize(user.id)}, provider={sanitize(travel.provider)}"
@@ -766,7 +816,7 @@ class ProfessionalTravelService:
             )
 
         # Delete travel record via repository
-        success = await self.repo.delete_travel(travel_id)
+        success = await self.repo.delete_travel(travel_id, user)
 
         logger.info(
             f"Travel record deleted: id={sanitize(travel_id)}, "

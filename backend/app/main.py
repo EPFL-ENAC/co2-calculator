@@ -9,6 +9,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.exception_handlers import permission_denied_handler
+from app.core.exceptions import (
+    InsufficientScopeError,
+    PermissionDeniedError,
+    RecordAccessDeniedError,
+)
 from app.core.logging import get_logger, setup_logging
 
 # Setup logging
@@ -56,36 +62,130 @@ app = FastAPI(
     # Prevent automatic redirect on trailing slash: Mandatory double slash handling
     redirect_slashes=False,
     description="""
-    CO2 Calculator API with hierarchical authorization using Open Policy Agent.
-    
-    ## Features
-    
-    * **JWT Authentication** - Secure token-based authentication
-    * **OPA Authorization** - Fine-grained access control with Open Policy Agent
-    * **RBAC** - Role-based access control for users
-    * **Multi-tenancy** - Support for multiple EPFL units
-    * **RESTful API** - Clean and consistent API design
-    
-    ## Authorization Model
-    
-    The API uses OPA (Open Policy Agent) to make authorization decisions:
-    
-    1. User authenticates and receives JWT token
-    2. Each request includes JWT token in Authorization header
-    3. Backend validates JWT and extracts user context
-    4. Service layer queries OPA with user context and action
-    5. OPA returns decision with optional filters
-    6. Backend applies filters to database queries
-    7. Only authorized data is returned
-    
-    ## Roles
+    CO2 Calculator API with permission-based authorization using Open Policy Agent.
 
-    * **co2.user.std**: basic user
-    * **co2.user.principal**: unit-level manager
-    * **co2.user.secondary**: delegated unit manager (same permissions as principal)
-    * **co2.backoffice.std**: back office restricted (treat as admin but unit-scoped)
-    * **co2.backoffice.admin**: back office full (treat as cross-unit admin)
-    * **co2.service.mgr**: system IT administrator (treat as unconditional allow)
+    ## Features
+
+    * **JWT Authentication** - Secure token-based authentication
+    * **Permission-Based Authorization** - Fine-grained access control with
+      calculated permissions
+    * **OPA Policies** - Policy-based resource filtering and access control
+    * **Multi-tenancy** - Support for multiple EPFL units with scope-based
+      data filtering
+    * **RESTful API** - Clean and consistent API design
+
+    ## Permission-Based Authorization
+
+    The API uses a permission-based authorization model where:
+
+    - **Roles are assigned** to users (e.g., principal, secondary, backoffice admin)
+    - **Permissions are calculated** dynamically from roles at authentication
+    - **Access control** is enforced at the route level using permissions
+    - **Data filtering** is applied based on user scope (global, unit, own)
+
+    ### Permission Structure
+
+    Permissions follow a hierarchical dot-notation structure:
+
+    * **backoffice.*** - Administrative features
+        * `backoffice.users` (view, edit) - User management
+        * `backoffice.files` (view) - File storage access
+        * `backoffice.access` (view) - Full backoffice access
+
+    * **modules.*** - CO2 calculation modules
+        * `modules.headcount` (view, edit) - Headcount data
+        * `modules.professional_travel` (view, edit, export) - Travel records
+        * `modules.equipment` (view, edit) - Equipment tracking
+        * `modules.surface` (view, edit) - Surface data
+
+    * **system.*** - System-level routes
+        * `system.routes` (view) - System route access
+
+    ### Permission Actions
+
+    Each permission supports different actions:
+    - **view** - Read access to resources
+    - **edit** - Create, update, and delete operations
+    - **export** - Data export capabilities
+
+    ### How Permissions Work
+
+    1. User authenticates via `/api/v1/auth/login` and receives JWT token
+    2. JWT token contains user information and assigned roles
+    3. On each request, permissions are calculated from roles
+    4. Routes use `require_permission("path.resource", "action")` decorator
+    5. If permission denied, returns 403 with specific error message
+    6. Data queries are filtered by user scope (global/unit/own)
+
+    ### Example Permission Check
+
+    ```python
+    @router.get("/headcounts")
+    async def get_headcounts(
+        user: User = Depends(require_permission("modules.headcount", "view"))
+    ):
+        # Only users with modules.headcount.view permission can access
+        # Data is filtered by scope: global, unit, or own
+    ```
+
+    ## Authorization Model with OPA
+
+    The API uses OPA (Open Policy Agent) patterns for authorization decisions:
+
+    1. **Route-level permission checks** - Enforced via `require_permission()`
+       decorator
+    2. **Service-level data filtering** - Applied via `get_data_filters()`
+       based on scope
+    3. **Resource-level access control** - Checked via `check_resource_access()`
+       for individual resources
+
+    ### Scope-Based Data Filtering
+
+    Data access is automatically filtered based on user scope:
+
+    * **Global scope** (backoffice admin, service manager) - See all data
+    * **Unit scope** (principals, secondaries) - See data for their assigned units
+    * **Own scope** (standard users) - See only their own data
+
+    ## Assigned Roles
+
+    Users are assigned one or more of these roles. Permissions are calculated
+    from role assignments:
+
+    * **co2.user.std** - Basic user with own-scope access
+    * **co2.user.principal** - Unit-level manager with unit-scope access
+    * **co2.user.secondary** - Delegated unit manager (same permissions as principal)
+    * **co2.backoffice.std** - Back office restricted with unit-scope admin access
+    * **co2.backoffice.admin** - Back office administrator with global-scope access
+    * **co2.service.mgr** - System IT administrator with full access
+
+    See permission documentation for detailed role-to-permission mapping.
+
+    ## 403 Error Responses
+
+    When a user lacks required permissions, the API returns a 403 Forbidden response:
+
+    ```json
+    {
+        "detail": "Permission denied: modules.headcount.edit required"
+    }
+    ```
+
+    ### Common Causes
+
+    * **Missing permission** - User's roles don't grant the required permission
+    * **Insufficient scope** - User has permission but wrong scope
+      (e.g., different unit)
+    * **Resource restrictions** - Business rules prevent access
+      (e.g., API trips are read-only)
+
+    ### Requesting Access
+
+    To gain additional permissions:
+    1. Contact your unit principal or backoffice administrator
+    2. Request the specific permission needed (shown in error message)
+    3. Administrator can assign appropriate role via
+       `/api/v1/backoffice/users` endpoints
 
     """,
     # Swagger UI lives at /api/docs externally, but /docs internally works too
@@ -109,6 +209,10 @@ app.add_middleware(
 # handles TLS termination
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
+# Register exception handlers for permission-based access control
+app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
+app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
+app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)

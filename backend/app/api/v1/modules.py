@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.policy import query_policy
 from app.models.headcount import (
     HeadCountCreate,
     HeadCountCreateRequest,
@@ -36,6 +37,84 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _get_module_permission_path(module_id: str) -> Optional[str]:
+    """
+    Map module ID to permission path.
+
+    Args:
+        module_id: Module identifier
+            (e.g., "professional-travel", "equipment-electric-consumption")
+
+    Returns:
+        Permission path (e.g., "modules.professional_travel") or None
+        if module doesn't require permission
+    """
+    module_permission_map = {
+        "professional-travel": "modules.professional_travel",
+        "equipment-electric-consumption": "modules.equipment",
+        "infrastructure": "modules.infrastructure",
+        "purchase": "modules.purchase",
+        "internal-services": "modules.internal_services",
+        "external-cloud": "modules.external_cloud",
+        "my-lab": "modules.headcount",  # Headcount module
+    }
+    return module_permission_map.get(module_id)
+
+
+async def _check_module_permission(user: User, module_id: str, action: str) -> None:
+    """
+    Check if user has permission for the module.
+
+    Args:
+        user: Current user
+        module_id: Module identifier
+        action: Permission action ("view" or "edit")
+
+    Raises:
+        HTTPException: 403 if permission denied
+    """
+    permission_path = _get_module_permission_path(module_id)
+    if not permission_path:
+        # Module doesn't require permission check, allow access
+        return
+
+    # Build OPA input with user context
+    input_data = {
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+        "path": permission_path,
+        "action": action,
+    }
+    decision = await query_policy("authz/permission/check", input_data)
+
+    logger.info(
+        "Module permission check",
+        extra={
+            "user_id": sanitize(user.id),
+            "module_id": sanitize(module_id),
+            "permission_path": permission_path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+
+    if not decision.get("allow", False):
+        reason = decision.get("reason", "Permission denied")
+        logger.warning(
+            "Module permission check denied",
+            extra={
+                "user_id": sanitize(user.id),
+                "module_id": sanitize(module_id),
+                "permission_path": permission_path,
+                "action": action,
+                "reason": reason,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: {reason}",
+        )
+
+
 @router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
 async def get_module_stats(
     unit_id: str,
@@ -57,6 +136,8 @@ async def get_module_stats(
     Returns:
         List of integers with statistics (e.g., total items, total submodules)
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET module stats: module_id={sanitize(module_id)}, "
         f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
@@ -124,6 +205,8 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
@@ -210,6 +293,8 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET submodule: module_id={sanitize(module_id)}, "
         f"unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
@@ -307,6 +392,8 @@ async def create_item(
     Returns:
         EquipmentDetailResponse with created equipment
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
         f"POST item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
@@ -459,6 +546,8 @@ async def get_item(
     Returns:
         EquipmentDetailResponse
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
@@ -552,6 +641,8 @@ async def update_equipment(
     Returns:
         EquipmentDetailResponse with updated equipment
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
         f"PATCH item: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
@@ -658,6 +749,8 @@ async def delete_item(
     Returns:
         No content (204)
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
         f"DELETE item: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
@@ -674,7 +767,6 @@ async def delete_item(
         elif module_id == "my-lab":
             await HeadcountService(db).delete_headcount(
                 headcount_id=item_id,
-                current_user=current_user,
             )
         elif module_id == "professional-travel":
             await ProfessionalTravelService(db).delete_travel(

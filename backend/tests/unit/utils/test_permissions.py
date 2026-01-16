@@ -78,7 +78,7 @@ class TestCalculateUserPermissions:
         assert result["backoffice.users"]["view"] is False
 
     def test_user_std_unit_scope(self):
-        """Test user std with unit scope grants only view for professional_travel."""
+        """Test user std with unit scope grants view and edit for professional_travel."""  # noqa: E501
         roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208"))]
         result = calculate_user_permissions(roles)
 
@@ -87,7 +87,7 @@ class TestCalculateUserPermissions:
         assert result["modules.equipment"]["view"] is False
         assert result["modules.equipment"]["edit"] is False
         assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is False
+        assert result["modules.professional_travel"]["edit"] is True
         assert result["modules.infrastructure"]["view"] is False
         assert result["modules.infrastructure"]["edit"] is False
         assert result["modules.purchase"]["view"] is False
@@ -147,9 +147,9 @@ class TestCalculateUserPermissions:
         assert result["backoffice.users"]["view"] is True
         assert result["backoffice.users"]["edit"] is False
 
-        # Module permissions - CO2_USER_STD only grants professional_travel.view
+        # Module permissions - CO2_USER_STD grants professional_travel.view and edit
         assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is False
+        assert result["modules.professional_travel"]["edit"] is True
         assert result["modules.headcount"]["view"] is False
         assert result["modules.headcount"]["edit"] is False
         assert result["modules.equipment"]["view"] is False
@@ -350,4 +350,145 @@ class TestGetPermissionValue:
             "modules.headcount": "invalid",
         }
         result = get_permission_value(perms, "modules.headcount.view")
+        assert result is None
+
+    def test_get_permission_value_empty_path(self):
+        """Test get_permission_value with empty path."""
+        perms = {
+            "modules.headcount": {"view": True},
+        }
+        result = get_permission_value(perms, "")
+        assert result is None
+
+    def test_get_permission_value_no_dot(self):
+        """Test get_permission_value with path that has no dot."""
+        perms = {
+            "modules.headcount": {"view": True},
+        }
+        result = get_permission_value(perms, "invalid")
+        assert result is None
+
+    def test_has_permission_with_none_action(self):
+        """Test has_permission with None action."""
+        perms = {
+            "modules.headcount": {"view": True},
+        }
+        # Should default to "view"
+        result = has_permission(perms, "modules.headcount")
+        assert result is True
+
+    def test_has_permission_with_empty_action(self):
+        """Test has_permission with empty action string."""
+        perms = {
+            "modules.headcount": {"view": True},
+        }
+        result = has_permission(perms, "modules.headcount", "")
+        assert result is False
+
+    def test_calculate_user_permissions_with_none_roles(self):
+        """Test calculate_user_permissions with None roles."""
+        result = calculate_user_permissions(None)
+        assert result == {}
+
+    def test_calculate_user_permissions_backoffice_std_with_affiliation_scope(self):
+        """Test backoffice std with affiliation scope grants view."""
+        roles = [
+            Role(role=RoleName.CO2_BACKOFFICE_STD, on=RoleScope(affiliation="TEST-AFF"))
+        ]
+        result = calculate_user_permissions(roles)
+        assert result["backoffice.users"]["view"] is True
+        assert result["backoffice.users"]["edit"] is False
+
+    def test_calculate_user_permissions_user_secondary_global_scope(self):
+        """Test user secondary with global scope does not grant permissions."""
+        roles = [Role(role=RoleName.CO2_USER_SECONDARY, on=GlobalScope())]
+        result = calculate_user_permissions(roles)
+        # Global scope for user roles should not grant permissions
+        assert result["modules.headcount"]["view"] is False
+        assert result["modules.equipment"]["view"] is False
+
+    def test_calculate_user_permissions_user_principal_global_scope(self):
+        """Test user principal with global scope does not grant permissions."""
+        roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=GlobalScope())]
+        result = calculate_user_permissions(roles)
+        # Global scope for user roles should not grant permissions
+        assert result["modules.headcount"]["view"] is False
+        assert result["modules.equipment"]["view"] is False
+
+    def test_calculate_user_permissions_service_mgr_global_scope(self):
+        """Test service manager with global scope grants system permissions."""
+        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope())]
+        result = calculate_user_permissions(roles)
+        assert result["system.users"]["edit"] is True
+        assert result["backoffice.users"]["view"] is False
+        assert result["modules.headcount"]["view"] is False
+
+    def test_calculate_user_permissions_service_mgr_unit_scope(self):
+        """Test service manager with unit scope does not grant permissions."""
+        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=RoleScope(unit="12345"))]
+        result = calculate_user_permissions(roles)
+        assert result["system.users"]["edit"] is False
+
+    def test_calculate_user_permissions_role_as_string(self):
+        """Test calculate_user_permissions with role name as string."""
+        # Create role with string role name directly
+        role_dict = {
+            "role": "co2.user.secondary",
+            "on": {"unit": "12345"},
+        }
+        role = Role(**role_dict)
+        roles = [role]
+        result = calculate_user_permissions(roles)
+        assert result["modules.headcount"]["view"] is True
+        assert result["modules.headcount"]["edit"] is True
+
+    def test_calculate_user_permissions_invalid_role_enum(self):
+        """Test calculate_user_permissions with invalid role enum value."""
+        # Create a role with a valid enum but test that non-matching role names
+        # don't grant permissions
+        # We'll use a valid role but test the logic path for roles that don't
+        # match any condition
+        # Since Role validation requires a valid RoleName, we'll test with a
+        # role that has valid enum but test the else path by ensuring no
+        # permissions are granted for unmatched conditions
+        roles = [Role(role=RoleName.CO2_SERVICE_MGR, on=RoleScope(unit="12345"))]
+        result = calculate_user_permissions(roles)
+        # Service manager with unit scope (not global) should not grant permissions
+        assert result["system.users"]["edit"] is False
+        assert result["backoffice.users"]["view"] is False
+        assert result["modules.headcount"]["view"] is False
+
+    def test_calculate_user_permissions_multiple_units(self):
+        """Test calculate_user_permissions with roles for multiple units."""
+        roles = [
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="99999")),
+        ]
+        result = calculate_user_permissions(roles)
+        # Should grant permissions (same role, different units)
+        assert result["modules.professional_travel"]["view"] is True
+        assert result["modules.professional_travel"]["edit"] is True
+
+    def test_has_permission_with_false_value(self):
+        """Test has_permission with explicitly False value."""
+        perms = {
+            "modules.headcount": {"view": False, "edit": False},
+        }
+        result = has_permission(perms, "modules.headcount", "view")
+        assert result is False
+
+    def test_get_permission_value_with_false_value(self):
+        """Test get_permission_value with explicitly False value."""
+        perms = {
+            "modules.headcount": {"view": False},
+        }
+        result = get_permission_value(perms, "modules.headcount.view")
+        assert result is False
+
+    def test_get_permission_value_with_zero_dots(self):
+        """Test get_permission_value with path that has no dots."""
+        perms = {
+            "modules.headcount": {"view": True},
+        }
+        result = get_permission_value(perms, "invalidpath")
         assert result is None

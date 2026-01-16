@@ -40,6 +40,7 @@ class ProfessionalTravelRepository:
         sort_by: str,
         sort_order: str,
         filter: Optional[str] = None,
+        filters: Optional[dict] = None,
     ) -> Tuple[List[ProfessionalTravel], int]:
         """
         Get professional travel records by unit_id and year.
@@ -53,6 +54,7 @@ class ProfessionalTravelRepository:
             sort_by: Column name to sort by
             sort_order: 'asc' or 'desc'
             filter: Optional text search filter
+            filters: Optional dict with additional filters (unit_id, user_id, etc.)
 
         Returns:
             Tuple of (list of ProfessionalTravel records, total count)
@@ -100,10 +102,27 @@ class ProfessionalTravelRepository:
                 ),
             )
             .where(
-                ProfessionalTravel.unit_id == unit_id,
                 ProfessionalTravel.year == year,
             )
         )
+
+        # Apply filters from filters dict
+        if filters:
+            # Apply unit_ids filter (list of unit IDs)
+            if "unit_ids" in filters:
+                statement = statement.where(
+                    col(ProfessionalTravel.unit_id).in_(filters["unit_ids"])
+                )
+            # Apply user_id filter (filter by creator)
+            if "user_id" in filters:
+                statement = statement.where(
+                    ProfessionalTravel.created_by == filters["user_id"]
+                )
+
+        # Legacy unit_id parameter (only apply if no filters provided)
+        if not filters or "unit_ids" not in filters:
+            if unit_id:
+                statement = statement.where(ProfessionalTravel.unit_id == unit_id)
 
         # Add emission fields to field mapping
         field_mapping["distance_km"] = col(ProfessionalTravelEmission.distance_km)
@@ -113,14 +132,9 @@ class ProfessionalTravelRepository:
         if self._is_standard_user(user):
             logger.info(
                 f"[professional_travel_repo] Filtering travels for standard user: "
-                f"user_id={user.id}, unit_id={unit_id}, year={year}"
+                f"user_id={user.id}, year={year}"
             )
             statement = statement.where(ProfessionalTravel.created_by == user.id)
-        else:
-            logger.info(
-                f"[professional_travel_repo] Loading all travels for admin user: "
-                f"user_id={user.id}, unit_id={unit_id}, year={year}"
-            )
 
         # Text search filter
         if filter:
@@ -178,12 +192,29 @@ class ProfessionalTravelRepository:
                 col(count_dest.c.id) == col(ProfessionalTravel.destination_location_id),
             )
             .where(
-                ProfessionalTravel.unit_id == unit_id,
                 ProfessionalTravel.year == year,
             )
         )
 
-        # Apply same user filter
+        # Apply filters from filters dict (same as main query)
+        if filters:
+            # Apply unit_ids filter (list of unit IDs)
+            if "unit_ids" in filters:
+                count_base = count_base.where(
+                    col(ProfessionalTravel.unit_id).in_(filters["unit_ids"])
+                )
+            # Apply user_id filter (filter by creator)
+            if "user_id" in filters:
+                count_base = count_base.where(
+                    ProfessionalTravel.created_by == filters["user_id"]
+                )
+
+        # Legacy unit_id parameter (only apply if no filters provided)
+        if not filters or "unit_ids" not in filters:
+            if unit_id:
+                count_base = count_base.where(ProfessionalTravel.unit_id == unit_id)
+
+        # Apply same user filter for standard users
         if self._is_standard_user(user):
             count_base = count_base.where(ProfessionalTravel.created_by == user.id)
 
@@ -333,7 +364,7 @@ class ProfessionalTravelRepository:
             return db_obj
 
     async def update_travel(
-        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str
+        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str, user: User
     ) -> Optional[ProfessionalTravel]:
         """
         Update an existing professional travel record.
@@ -342,12 +373,18 @@ class ProfessionalTravelRepository:
             travel_id: Travel record identifier
             data: Partial update data
             user_id: User ID who updated the record
+            user: Current user (for permission checking)
 
         Returns:
             Optional[ProfessionalTravel] if found and updated, None otherwise
         """
-        # Fetch the existing record
+        # Fetch the existing record with user filtering
         statement = select(ProfessionalTravel).where(ProfessionalTravel.id == travel_id)
+
+        # User filter for standard users: only update own records
+        if self._is_standard_user(user):
+            statement = statement.where(ProfessionalTravel.created_by == user.id)
+
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()
 
@@ -374,20 +411,26 @@ class ProfessionalTravelRepository:
 
         return db_obj
 
-    async def delete_travel(self, travel_id: int) -> bool:
+    async def delete_travel(self, travel_id: int, user: User) -> bool:
         """
         Delete a professional travel record and all related emissions.
 
         Args:
             travel_id: Travel record identifier
+            user: Current user (for permission checking)
 
         Returns:
             bool: True if deleted successfully, False if not found
         """
         from sqlmodel import delete as sqlmodel_delete
 
-        # Fetch the existing record
+        # Fetch the existing record with user filtering
         statement = select(ProfessionalTravel).where(ProfessionalTravel.id == travel_id)
+
+        # User filter for standard users: only delete own records
+        if self._is_standard_user(user):
+            statement = statement.where(ProfessionalTravel.created_by == user.id)
+
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()
 

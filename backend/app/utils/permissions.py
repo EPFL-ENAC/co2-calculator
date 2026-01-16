@@ -38,7 +38,8 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     User Roles (affect modules.* ONLY):
     - CO2_USER_PRINCIPAL: Full module access (view + edit)
-    - CO2_USER_STD: View-only access to professional_travel module
+    - CO2_USER_STD: View and edit access to professional_travel module
+      (own trips only - enforced via resource-level policy)
     - CO2_USER_SECONDARY: View-only module access
 
     System Roles (affect system.* ONLY):
@@ -57,6 +58,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     # Initialize with all permissions set to False
     permissions = {
         "backoffice.users": {"view": False, "edit": False, "export": False},
+        "backoffice.files": {"view": False},
         "system.users": {"edit": False},
         "modules.headcount": {"view": False, "edit": False},
         "modules.equipment": {"view": False, "edit": False},
@@ -96,12 +98,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                     "edit": True,
                     "export": True,
                 }
+                permissions["backoffice.files"]["view"] = True
 
         elif role_name == RoleName.CO2_BACKOFFICE_STD.value:
             # Backoffice std can have either global scope or affiliation scope
             # Both should grant view permission
             if is_global_scope(scope) or is_role_scope(scope):
                 permissions["backoffice.users"]["view"] = True
+                permissions["backoffice.files"]["view"] = True
 
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
@@ -120,6 +124,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
                 permissions["modules.professional_travel"]["view"] = True
+                permissions["modules.professional_travel"]["edit"] = True
 
         elif role_name == RoleName.CO2_USER_SECONDARY.value:
             if is_role_scope(scope):

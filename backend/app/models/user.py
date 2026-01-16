@@ -1,17 +1,27 @@
 """User model for authentication and authorization."""
 
+import warnings
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
+from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
+
+# Configure warnings to show deprecation warnings only once per call site
+# This reduces log noise while still alerting developers to deprecated usage
+# Match on the specific deprecation messages from has_role* methods
+warnings.filterwarnings(
+    "once",
+    category=DeprecationWarning,
+    message=".*is deprecated for business logic.*",
+)
 
 if TYPE_CHECKING:
     pass
 
 # from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 # from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 
 
 class RoleName(str, Enum):
@@ -134,18 +144,37 @@ class User(UserBase, table=True):
     def has_role(self, role: str) -> bool:
         """Check if user has a specific role (any scope).
 
+        DEPRECATED: Use permission-based checks via require_permission() or
+        check_resource_access() instead of direct role checks in business logic.
+
+        This method remains for internal use (permission calculation, role providers),
+        but should not be used in service-level authorization logic.
+
         Args:
             role: Role name to check (e.g., "co2.user.std")
 
         Returns:
             True if user has the role with any scope
         """
+        warnings.warn(
+            "has_role() is deprecated for business logic. "
+            "Use permission-based authorization via require_permission() "
+            "or check_resource_access() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not self.roles:
             return False
         return any(r.role == role for r in self.roles)
 
     def has_role_on(self, role: str, scope_type: str, scope_id: str) -> bool:
         """Check if user has a specific role on a specific resource.
+
+        DEPRECATED: Use permission-based checks via require_permission() or
+        check_resource_access() instead of direct role checks in business logic.
+
+        This method remains for internal use, but should not be used in
+        service-level authorization logic.
 
         Args:
             role: Role name (e.g., "co2.user.std")
@@ -155,6 +184,13 @@ class User(UserBase, table=True):
         Returns:
             True if user has the role on the specified resource
         """
+        warnings.warn(
+            "has_role_on() is deprecated for business logic. "
+            "Use permission-based authorization via require_permission() "
+            "or check_resource_access() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not self.roles:
             return False
         for r in self.roles:
@@ -170,12 +206,25 @@ class User(UserBase, table=True):
     def has_role_global(self, role: str) -> bool:
         """Check if user has a specific role with global scope.
 
+        DEPRECATED: Use permission-based checks via require_permission() or
+        check_resource_access() instead of direct role checks in business logic.
+
+        This method remains for internal use, but should not be used in
+        service-level authorization logic.
+
         Args:
             role: Role name (e.g., "co2.backoffice.admin")
 
         Returns:
             True if user has the role with global scope
         """
+        warnings.warn(
+            "has_role_global() is deprecated for business logic. "
+            "Use permission-based authorization via require_permission() "
+            "or check_resource_access() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not self.roles:
             return False
         return any(r.role == role and isinstance(r.on, GlobalScope) for r in self.roles)

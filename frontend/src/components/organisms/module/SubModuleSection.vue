@@ -52,7 +52,7 @@
         />
       </div>
       <q-separator />
-      <div v-if="submodule.moduleFields && !disable">
+      <div v-if="submodule.moduleFields && !disable && canEdit" class="q-mx-lg">
         <module-form
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
@@ -68,6 +68,14 @@
           @submit="submitForm"
         />
       </div>
+      <div
+        v-else-if="submodule.moduleFields && !disable && !canEdit"
+        class="q-mx-lg q-my-md"
+      >
+        <q-badge color="warning" class="q-px-md q-py-sm">
+          {{ $t('common_view_only') }}
+        </q-badge>
+      </div>
     </q-card-section>
   </q-expansion-item>
 </template>
@@ -82,6 +90,9 @@ import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
   Threshold,
@@ -110,6 +121,22 @@ type CommonProps = {
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<SubModuleSectionProps>();
+
+const authStore = useAuthStore();
+
+// Permission check: can user edit this module?
+const canEdit = computed(() => {
+  const permissionPath = getModulePermissionPath(props.moduleType);
+  if (!permissionPath) {
+    // Module doesn't require permission, allow editing (backward compatibility)
+    return true;
+  }
+  return hasPermission(
+    authStore.user?.permissions,
+    permissionPath,
+    PermissionAction.EDIT,
+  );
+});
 
 const submoduleCount = computed(
   () =>
