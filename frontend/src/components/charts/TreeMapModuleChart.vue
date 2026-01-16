@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { TreemapChart } from 'echarts/charts';
@@ -7,16 +8,18 @@ import type { EChartsOption } from 'echarts';
 import {
   TooltipComponent,
   LegendComponent,
-  DatasetComponent,
+  GridComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+
+const { t } = useI18n();
 
 use([
   CanvasRenderer,
   TreemapChart,
   TooltipComponent,
   LegendComponent,
-  DatasetComponent,
+  GridComponent,
 ]);
 
 const props = defineProps<{
@@ -27,85 +30,44 @@ const props = defineProps<{
     light: string;
     lighter: string;
   };
+  datasetSource: Array<Record<string, unknown>>;
 }>();
 
-const datasetSource = computed(() => {
-  return [
-    {
-      category: 'plane',
-      business: 6,
-      economic: 4,
-    },
-    {
-      category: 'train',
-      other: 5,
-      firstClass: 3,
-    },
-  ];
-});
-
-// Build series array first (will be used to extract mapping)
-const seriesArray = computed(() => {
-  return [
-    {
-      name: 'business',
-      key: 'business',
-      itemStyle: {
-        color: props.colorScheme.default,
-      },
-    },
-    {
-      name: 'economic',
-      key: 'economic',
-      itemStyle: {
-        color: props.colorScheme.default,
-      },
-    },
-    {
-      name: 'other',
-      key: 'other',
-      itemStyle: {
-        color: props.colorScheme.dark,
-      },
-    },
-    {
-      name: 'first class',
-      key: 'firstClass',
-      itemStyle: {
-        color: props.colorScheme.dark,
-      },
-    },
-  ];
-});
-
 const treemapData = computed(() => {
-  return datasetSource.value.map((item) => {
-    const children: Array<{
+  const colorKeys: Array<'lighter' | 'light' | 'default' | 'dark' | 'darker'> =
+    ['lighter', 'light', 'default', 'dark', 'darker'];
+
+  return (
+    props.datasetSource as Array<{
       name: string;
       value: number;
-      itemStyle?: { color: string };
-    }> = [];
-    let totalValue = 0;
+      children: Array<{ name: string; value: number; percentage?: number }>;
+    }>
+  )
+    .map((item, index) => {
+      const categoryIndex = Math.min(index, colorKeys.length - 1);
+      const color = props.colorScheme[colorKeys[categoryIndex] || 'default'];
 
-    // Explicitly specify each element using seriesArray configuration
-    seriesArray.value.forEach((series) => {
-      const value = item[series.key as keyof typeof item] as number | undefined;
-      if (value && value > 0) {
-        children.push({
-          name: series.name,
-          value,
-          itemStyle: series.itemStyle,
-        });
-        totalValue += value;
-      }
-    });
+      const children = item.children
+        .filter((child) => child.value && child.value > 0)
+        .map((child) => ({
+          name:
+            child.percentage !== undefined
+              ? `${t(child.name, child.name)} (${Math.round(child.percentage)}%)`
+              : t(child.name, child.name),
+          value: child.value,
+          itemStyle: { color },
+        }));
 
-    return {
-      name: item.category,
-      value: totalValue,
-      children,
-    };
-  });
+      return {
+        name: t(item.name, item.name),
+        value: item.value,
+        children,
+        itemStyle: { color },
+        _sortIndex: index,
+      };
+    })
+    .filter((item) => item.value > 0 && item.children.length > 0);
 });
 
 const chartOption = computed((): EChartsOption => {
@@ -130,15 +92,17 @@ const chartOption = computed((): EChartsOption => {
         const value = p.value || 0;
         const path = p.treePathInfo?.map((item) => item.name) || [name];
 
-        let tooltip = `<strong>${path.join(' / ')}</strong><br/>`;
+        const translatedPath = path.map((name) => {
+          // Try to translate the name, fallback to original if translation not found
+          const translation = t(name, name);
+          return translation;
+        });
+
+        let tooltip = `<strong>${translatedPath.join(' / ')}</strong><br/>`;
         tooltip += `Value: <strong>${value.toFixed(1)}</strong>`;
 
         return tooltip;
       },
-    },
-    dataset: {
-      dimensions: ['category', 'business', 'economic', 'other', 'firstClass'],
-      source: datasetSource.value as Array<Record<string, unknown>>,
     },
     series: [
       {
@@ -183,6 +147,7 @@ const chartOption = computed((): EChartsOption => {
             color: 'black',
           },
         },
+        sort: false,
         levels: [
           {
             // Top level (plane, train)
@@ -238,15 +203,6 @@ const chartRef = ref<InstanceType<typeof VChart>>();
 </script>
 
 <template>
-  <q-card-section class="flex justify-between items-center q-pb-none">
-    <div>
-      <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-        {{ $t('treemap_module_chart_title') }}
-      </span>
-    </div>
-
-    <div></div>
-  </q-card-section>
   <q-card-section class="chart-container q-pa-none">
     <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
   </q-card-section>

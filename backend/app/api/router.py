@@ -11,6 +11,7 @@ from app.api.v1 import (
     locations,
     modules,
     power_factors,
+    professional_travel,
     resources,
     unit_results,
     units,
@@ -26,6 +27,11 @@ api_router.include_router(resources.router, prefix="/resources", tags=["resource
 api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
 api_router.include_router(backoffice.router, prefix="/backoffice", tags=["backoffice"])
 api_router.include_router(modules.router, prefix="/modules", tags=["modules"])
+api_router.include_router(
+    professional_travel.router,
+    prefix="/professional-travel",
+    tags=["professional-travel"],
+)
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(
     power_factors.router, prefix="/power-factors", tags=["power-factors"]

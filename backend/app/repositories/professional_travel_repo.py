@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, func, or_
+from sqlalchemy.sql import Select
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.location import Location
 from app.models.professional_travel import (
@@ -504,3 +506,137 @@ class ProfessionalTravelRepository:
             "total_kg_co2eq": float(row.total_kg_co2eq or 0.0),
             "total_distance_km": float(row.total_distance_km or 0.0),
         }
+
+    async def get_stats_by_class(
+        self, unit_id: str, year: int, user: User
+    ) -> List[dict[str, Any]]:
+        """
+        Get professional travel statistics aggregated by transport mode and class.
+
+        Args:
+            unit_id: Unit identifier
+            year: Year filter
+            user: Current user (for filtering standard users)
+
+        Returns:
+            List of dicts in treemap format with hierarchical structure:
+            Each dict has "name" (category), "value" (total kg_co2eq), and "children"
+            array with class-level data including "name", "value", and "percentage"
+        """
+        # Build aggregation query grouped by transport_mode and class
+        # Only include rows with actual emissions (INNER JOIN)
+        query: Select = (
+            select(
+                col(ProfessionalTravel.transport_mode).label("category"),
+                col(ProfessionalTravel.class_).label("class_key"),
+                func.sum(col(ProfessionalTravelEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                ProfessionalTravelEmission,
+                and_(
+                    col(ProfessionalTravelEmission.professional_travel_id)
+                    == col(ProfessionalTravel.id),
+                    col(ProfessionalTravelEmission.is_current) == True,  # noqa: E712
+                ),
+            )
+            .where(
+                ProfessionalTravel.unit_id == unit_id,
+                ProfessionalTravel.year == year,
+                col(ProfessionalTravelEmission.kg_co2eq).isnot(None),
+                col(ProfessionalTravelEmission.kg_co2eq) > 0,
+            )
+            .group_by(
+                col(ProfessionalTravel.transport_mode),
+                col(ProfessionalTravel.class_),
+            )
+        )
+
+        # Apply user filter for standard users
+        if self._is_standard_user(user):
+            query = query.where(col(ProfessionalTravel.created_by) == user.id)
+
+        # Execute query
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        logger.info(
+            f"get_stats_by_class: Found {len(rows)} rows for "
+            f"unit_id={sanitize(unit_id)}, year={year}"
+        )
+
+        # Group by category (transport_mode) and aggregate by class
+        data_dict: dict[str, dict[str, float]] = {}
+        for row in rows:
+            category = row.category or "unknown"
+            class_key = row.class_key
+            kg_co2eq = float(row.kg_co2eq or 0.0)
+
+            # Skip rows with zero or null emissions
+            if kg_co2eq <= 0:
+                logger.debug(
+                    f"Skipping row with zero emissions: category={category}, "
+                    f"class={class_key}"
+                )
+                continue
+
+            if category not in data_dict:
+                data_dict[category] = {}
+
+            # Handle null class_key - use a default based on category
+            if class_key is None:
+                # Default class for flights/trains without class specified
+                if category == "flight":
+                    class_key = "eco"  # Default to eco for flights
+                elif category == "train":
+                    class_key = "class_2"  # Default to class_2 for trains
+                else:
+                    class_key = "unknown"
+                logger.debug(
+                    f"Using default class '{class_key}' for category '{category}' "
+                    f"with null class"
+                )
+
+            # Sum emissions by class (handle multiple rows with same class)
+            data_dict[category][class_key] = (
+                data_dict[category].get(class_key, 0.0) + kg_co2eq
+            )
+
+        # Calculate total kg_co2eq across all categories and classes
+        total_kg_co2eq = sum(sum(classes.values()) for classes in data_dict.values())
+
+        # Convert to treemap format: hierarchical structure with name,
+        # value, and children
+        result_list = []
+        for category, classes in data_dict.items():
+            category_total = sum(classes.values())
+
+            # Build children array for this category
+            children = []
+            for class_key, kg_co2eq in classes.items():
+                class_percentage = (
+                    (kg_co2eq / total_kg_co2eq * 100) if total_kg_co2eq > 0 else 0.0
+                )
+                children.append(
+                    {
+                        "name": class_key,
+                        "value": kg_co2eq,
+                        "percentage": class_percentage,
+                    }
+                )
+
+            # Only include categories with valid children
+            if children and category_total > 0:
+                result_list.append(
+                    {
+                        "name": category,
+                        "value": category_total,
+                        "children": children,
+                    }
+                )
+                logger.info(
+                    f"Category '{category}' with classes: {list(classes.keys())}, "
+                    f"total items: {len(result_list)}"
+                )
+
+        logger.info(f"get_stats_by_class: Returning {len(result_list)} categories")
+        return result_list

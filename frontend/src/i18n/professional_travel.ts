@@ -135,4 +135,38 @@ export default {
     en: 'Equivalent to {trips} trips a full year.',
     fr: 'Équivalent à {trips} voyages pendant une année complète.',
   },
+  // Class keys
+  class_1: {
+    en: 'Class 1',
+    fr: 'Classe 1',
+  },
+  class_2: {
+    en: 'Class 2',
+    fr: 'Classe 2',
+  },
+  first: {
+    en: 'First',
+    fr: 'Première',
+  },
+  business: {
+    en: 'Business',
+    fr: 'Affaires',
+  },
+  eco: {
+    en: 'Eco',
+    fr: 'Éco',
+  },
+  eco_plus: {
+    en: 'Eco+',
+    fr: 'Éco+',
+  },
+  // Category keys
+  train: {
+    en: 'Train',
+    fr: 'Train',
+  },
+  flight: {
+    en: 'Plane',
+    fr: 'Avion',
+  },
 } as const;
