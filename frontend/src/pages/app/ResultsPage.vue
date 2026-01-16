@@ -398,7 +398,8 @@ const downloadPDF = () => {
                     </BigNumber>
                     <div
                       :class="{
-                        'no-data-styling': unitTotals.year_comparison_percentage === null,
+                        'no-data-styling':
+                          unitTotals.year_comparison_percentage === null,
                       }"
                     >
                       <BigNumber

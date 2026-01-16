@@ -39,22 +39,6 @@ const props = defineProps<{
   showEvolutionDialog?: boolean;
 }>();
 
-watch(
-  () => props.datasetSource,
-  (newValue) => {
-    console.log('TreeMapModuleChart - datasetSource:', newValue);
-    console.log('TreeMapModuleChart - datasetSource length:', newValue?.length);
-    if (newValue && newValue.length > 0) {
-      console.log('TreeMapModuleChart - first item structure:', newValue[0]);
-      console.log(
-        'TreeMapModuleChart - first item has children?',
-        'children' in (newValue[0] || {}),
-      );
-    }
-  },
-  { immediate: true, deep: true },
-);
-
 const treemapData = computed(() => {
   const colorKeys: Array<'lighter' | 'light' | 'default' | 'dark' | 'darker'> =
     ['darker', 'dark', 'default', 'light', 'lighter'];
@@ -161,19 +145,57 @@ const chartOption = computed((): EChartsOption => {
           name?: string;
           value?: number;
           treePathInfo?: Array<{ name: string }>;
+          color?: string;
+          itemStyle?: { color?: string };
+          data?: { name?: string };
         };
-        const name = p.name || '';
+        const name = p.name || p.data?.name || '';
         const value = p.value || 0;
-        const path = p.treePathInfo?.map((item) => item.name) || [name];
 
-        const translatedPath = path.map((name) => {
-          // Try to translate the name, fallback to original if translation not found
-          const translation = t(name, name);
-          return translation;
-        });
+        const path = p.treePathInfo?.map((item) => item.name) || [];
+        const color =
+          p.itemStyle?.color || p.color || props.colorScheme.default;
 
-        let tooltip = `<strong>${translatedPath.join(' / ')}</strong><br/>`;
-        tooltip += `Value: <strong>${value.toFixed(1)}</strong>`;
+        const allData = treemapData.value;
+        let categoryName = '';
+        let className = name;
+
+        // Always search through categories to find the correct parent
+        for (const category of allData) {
+          if (category.children) {
+            // Check if this name matches any child in this category
+            const matchingChild = category.children.find((c) => {
+              const childBase = c.name?.split(' (')[0];
+              const nameBase = name.split(' (')[0];
+              return c.name === name || childBase === nameBase;
+            });
+            if (matchingChild) {
+              categoryName = category.name;
+              className = matchingChild.name || name;
+              break;
+            }
+          }
+          // Check if name matches the category itself
+          if (category.name === name) {
+            categoryName = category.name;
+            className = category.name;
+            break;
+          }
+        }
+
+        // If path has multiple levels and we didn't find a match, use path
+        if (!categoryName && path.length > 1) {
+          categoryName = t(path[0], path[0]);
+          className = t(path[path.length - 1], path[path.length - 1]);
+        }
+
+        // Final fallback
+        if (!categoryName) {
+          categoryName = path.length > 0 ? t(path[0], path[0]) : name;
+        }
+
+        let tooltip = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span><strong>${categoryName}</strong><br/>`;
+        tooltip += `${className}: <strong>${value.toFixed(0)}</strong>`;
 
         return tooltip;
       },
