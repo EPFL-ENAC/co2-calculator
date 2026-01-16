@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -11,8 +11,13 @@ import {
   GridComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
+import { useModuleStore } from 'src/stores/modules';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 const { t } = useI18n();
+const moduleStore = useModuleStore();
+const workspaceStore = useWorkspaceStore();
 
 use([
   CanvasRenderer,
@@ -31,25 +36,62 @@ const props = defineProps<{
     lighter: string;
   };
   datasetSource: Array<Record<string, unknown>>;
+  showEvolutionDialog?: boolean;
 }>();
+
+watch(
+  () => props.datasetSource,
+  (newValue) => {
+    console.log('TreeMapModuleChart - datasetSource:', newValue);
+    console.log('TreeMapModuleChart - datasetSource length:', newValue?.length);
+    if (newValue && newValue.length > 0) {
+      console.log('TreeMapModuleChart - first item structure:', newValue[0]);
+      console.log(
+        'TreeMapModuleChart - first item has children?',
+        'children' in (newValue[0] || {}),
+      );
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 const treemapData = computed(() => {
   const colorKeys: Array<'lighter' | 'light' | 'default' | 'dark' | 'darker'> =
-    ['lighter', 'light', 'default', 'dark', 'darker'];
+    ['darker', 'dark', 'default', 'light', 'lighter'];
 
-  return (
-    props.datasetSource as Array<{
-      name: string;
-      value: number;
-      children: Array<{ name: string; value: number; percentage?: number }>;
-    }>
-  )
+  if (!props.datasetSource || props.datasetSource.length === 0) {
+    console.log('TreeMapModuleChart - No datasetSource data available');
+    return [];
+  }
+
+  const sourceData = props.datasetSource as Array<{
+    name: string;
+    value: number;
+    children?: Array<{ name: string; value: number; percentage?: number }>;
+  }>;
+
+  console.log('TreeMapModuleChart - Processing sourceData:', sourceData);
+
+  const result = sourceData
+    .filter((item) => {
+      // Filter out items that don't have the required structure
+      const hasValidStructure =
+        item &&
+        item.name &&
+        item.value !== undefined &&
+        Array.isArray(item.children);
+      if (!hasValidStructure) {
+        console.warn('TreeMapModuleChart - Invalid item structure:', item);
+      }
+      return hasValidStructure;
+    })
     .map((item, index) => {
       const categoryIndex = Math.min(index, colorKeys.length - 1);
       const color = props.colorScheme[colorKeys[categoryIndex] || 'default'];
 
-      const children = item.children
-        .filter((child) => child.value && child.value > 0)
+      // item.children is guaranteed to exist due to filter above
+      const children = (item.children || [])
+        .filter((child) => child && child.value && child.value > 0)
         .map((child) => ({
           name:
             child.percentage !== undefined
@@ -68,6 +110,11 @@ const treemapData = computed(() => {
       };
     })
     .filter((item) => item.value > 0 && item.children.length > 0);
+
+  console.log('TreeMapModuleChart - Final treemapData result:', result);
+  console.log('TreeMapModuleChart - Final result length:', result.length);
+
+  return result;
 });
 
 const chartOption = computed((): EChartsOption => {
@@ -124,12 +171,12 @@ const chartOption = computed((): EChartsOption => {
           formatter: '{b}',
           fontSize: 14,
           fontWeight: 'bold',
-          color: 'black',
+          color: 'white',
         },
         upperLabel: {
           show: true,
           height: 0,
-          color: 'black',
+          color: 'white',
         },
         itemStyle: {
           borderColor: 'transparent',
@@ -144,7 +191,7 @@ const chartOption = computed((): EChartsOption => {
           label: {
             show: true,
             fontSize: 16,
-            color: 'black',
+            color: 'white',
           },
         },
         sort: false,
@@ -200,12 +247,89 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+const showEvolutionDialogRef = ref(false);
+
+// Check if evolution data has multiple years
+const hasMultipleYears = computed(() => {
+  const evolutionData = moduleStore.state.travelEvolutionOverTime as Array<{
+    year: number;
+    transport_mode: string;
+    kg_co2eq: number;
+  }>;
+
+  if (!evolutionData || evolutionData.length === 0) {
+    return false;
+  }
+
+  const uniqueYears = new Set<number>();
+  evolutionData.forEach((item) => {
+    if (item.year) {
+      uniqueYears.add(item.year);
+    }
+  });
+
+  return uniqueYears.size > 1;
+});
+
+// Fetch evolution data when component mounts or unit changes
+watch(
+  () => workspaceStore.selectedUnit?.id,
+  (unitId) => {
+    if (unitId) {
+      moduleStore.getTravelEvolutionOverTime(unitId);
+    }
+  },
+  { immediate: true },
+);
+
+const showEvolutionButton = computed(() => props.showEvolutionDialog ?? true);
+
+const isEvolutionDialogOpen = computed({
+  get: () => showEvolutionDialogRef.value,
+  set: (value: boolean) => {
+    showEvolutionDialogRef.value = value;
+  },
+});
 </script>
 
 <template>
+  <div class="flex justify-end">
+    <q-btn
+      v-if="showEvolutionButton"
+      color="primary"
+      unelevated
+      no-caps
+      outline
+      icon="o_timeline"
+      size="sm"
+      label="Evolution over time"
+      class="text-weight-medium q-mb-sm"
+      :disable="!hasMultipleYears"
+      :title="
+        !hasMultipleYears
+          ? 'Evolution over time requires data from multiple years'
+          : ''
+      "
+      @click="isEvolutionDialogOpen = true"
+    />
+  </div>
   <q-card-section class="chart-container q-pa-none">
     <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
   </q-card-section>
+
+  <q-dialog v-model="isEvolutionDialogOpen" class="evolution-dialog">
+    <q-card>
+      <q-card-section class="row items-center q-py-md">
+        <div class="text-h4 text-weight-medium">Evolution over time</div>
+        <q-space />
+        <q-btn v-close-popup icon="close" flat round dense />
+      </q-card-section>
+      <q-separator />
+      <q-card-section>
+        <EvolutionOverTimeChart :color-scheme="colorScheme" />
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <style scoped>
@@ -221,5 +345,9 @@ const chartRef = ref<InstanceType<typeof VChart>>();
 
 .chart :deep(canvas) {
   display: block;
+}
+
+.evolution-dialog :deep(.q-dialog__inner) {
+  max-width: 900px;
 }
 </style>

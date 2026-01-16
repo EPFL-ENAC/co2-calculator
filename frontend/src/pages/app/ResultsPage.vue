@@ -13,13 +13,22 @@ import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.v
 import { nOrDash } from 'src/utils/number';
 
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
+import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useTimelineStore } from 'src/stores/modules';
+import { MODULES, Module } from 'src/constant/modules';
+import { MODULE_STATES } from 'src/constant/moduleStates';
 const { t } = useI18n();
 
 const workspaceStore = useWorkspaceStore();
+const timelineStore = useTimelineStore();
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
+
+const isModuleValidated = (module: string) => {
+  return timelineStore.itemStates[module as Module] === MODULE_STATES.Validated;
+};
 
 const viewUncertainties = ref(false);
 const compareYears = ref(false);
@@ -280,7 +289,47 @@ const downloadPDF = () => {
                   >
                   </BigNumber>
                 </q-card>
-                <q-card flat bordered>
+                <template
+                  v-if="
+                    module === MODULES.ProfessionalTravel &&
+                    isModuleValidated(module)
+                  "
+                >
+                  <ModuleCharts
+                    :type="MODULES.ProfessionalTravel"
+                    :show-evolution-chart="true"
+                  />
+                </template>
+                <template
+                  v-else-if="
+                    module === MODULES.ProfessionalTravel &&
+                    !isModuleValidated(module)
+                  "
+                >
+                  <q-card flat bordered class="validation-required-card">
+                    <q-card-section class="validation-required-card__content">
+                      <q-icon
+                        name="o_info"
+                        size="md"
+                        color="accent"
+                        class="q-mb-md"
+                      />
+                      <div
+                        class="text-h6 text-weight-medium text-center q-mb-sm"
+                      >
+                        {{
+                          $t('results_validate_module_title', {
+                            module: $t(module),
+                          })
+                        }}
+                      </div>
+                      <div class="text-body2 text-secondary text-center">
+                        {{ $t('results_validate_module_message') }}
+                      </div>
+                    </q-card-section>
+                  </q-card>
+                </template>
+                <q-card v-else flat bordered>
                   <q-card-section class="flex items-center q-mb-xs">
                     <q-icon name="o_info" size="xs" color="primary">
                       <q-tooltip
@@ -324,3 +373,20 @@ const downloadPDF = () => {
     </div>
   </q-page>
 </template>
+
+<style scoped lang="scss">
+.validation-required-card {
+  min-height: 200px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    min-height: 200px;
+  }
+}
+</style>

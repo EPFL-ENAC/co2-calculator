@@ -175,6 +175,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: Array<Record<string, unknown>>;
     loadingTravelStatsByClass: boolean;
     errorTravelStatsByClass: string | null;
+    travelEvolutionOverTime: Array<Record<string, unknown>>;
+    loadingTravelEvolutionOverTime: boolean;
+    errorTravelEvolutionOverTime: string | null;
   }>({
     loading: false,
     error: null,
@@ -189,6 +192,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: [],
     loadingTravelStatsByClass: false,
     errorTravelStatsByClass: null,
+    travelEvolutionOverTime: [],
+    loadingTravelEvolutionOverTime: false,
+    errorTravelEvolutionOverTime: null,
   });
   function modulePath(moduleType: Module, unit: string, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -563,6 +569,26 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getTravelEvolutionOverTime(unit: string) {
+    state.loadingTravelEvolutionOverTime = true;
+    state.errorTravelEvolutionOverTime = null;
+    try {
+      const path = `professional-travel/${encodeURIComponent(unit)}/evolution-over-time`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.travelEvolutionOverTime = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorTravelEvolutionOverTime = err.message ?? 'Unknown error';
+        state.travelEvolutionOverTime = [];
+      } else {
+        state.errorTravelEvolutionOverTime = 'Unknown error';
+        state.travelEvolutionOverTime = [];
+      }
+    } finally {
+      state.loadingTravelEvolutionOverTime = false;
+    }
+  }
+
   return {
     initializeSubmoduleState,
     getModuleData,
@@ -572,6 +598,7 @@ export const useModuleStore = defineStore('modules', () => {
     patchItem,
     deleteItem,
     getTravelStatsByClass,
+    getTravelEvolutionOverTime,
     state,
   };
 });

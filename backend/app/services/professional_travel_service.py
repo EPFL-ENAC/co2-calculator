@@ -613,6 +613,26 @@ class ProfessionalTravelService:
         """
         return await self.repo.get_stats_by_class(unit_id=unit_id, year=year, user=user)
 
+    async def get_evolution_over_time(
+        self, unit_id: str, user: User
+    ) -> List[dict[str, Any]]:
+        """
+        Get professional travel statistics aggregated by year and transport mode.
+
+        Args:
+            unit_id: Unit identifier
+            user: Current user (for filtering standard users)
+
+        Returns:
+            List of dicts with year, transport_mode, and kg_co2eq:
+            [
+                {"year": 2020, "transport_mode": "flight", "kg_co2eq": 15000.0},
+                {"year": 2020, "transport_mode": "train", "kg_co2eq": 8000.0},
+                ...
+            ]
+        """
+        return await self.repo.get_evolution_over_time(unit_id=unit_id, user=user)
+
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,

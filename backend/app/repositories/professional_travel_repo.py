@@ -640,3 +640,79 @@ class ProfessionalTravelRepository:
 
         logger.info(f"get_stats_by_class: Returning {len(result_list)} categories")
         return result_list
+
+    async def get_evolution_over_time(
+        self, unit_id: str, user: User
+    ) -> List[dict[str, Any]]:
+        """
+        Get professional travel statistics aggregated by year and transport mode.
+
+        Args:
+            unit_id: Unit identifier
+            user: Current user (for filtering standard users)
+
+        Returns:
+            List of dicts with year, transport_mode, and kg_co2eq:
+            [
+                {"year": 2020, "transport_mode": "flight", "kg_co2eq": 15000.0},
+                {"year": 2020, "transport_mode": "train", "kg_co2eq": 8000.0},
+                ...
+            ]
+        """
+        # Build aggregation query grouped by year and transport_mode
+        # Only include rows with actual emissions (INNER JOIN)
+        query: Select = (
+            select(
+                col(ProfessionalTravel.year).label("year"),
+                col(ProfessionalTravel.transport_mode).label("transport_mode"),
+                func.sum(col(ProfessionalTravelEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                ProfessionalTravelEmission,
+                and_(
+                    col(ProfessionalTravelEmission.professional_travel_id)
+                    == col(ProfessionalTravel.id),
+                    col(ProfessionalTravelEmission.is_current) == True,  # noqa: E712
+                ),
+            )
+            .where(
+                ProfessionalTravel.unit_id == unit_id,
+                col(ProfessionalTravelEmission.kg_co2eq).isnot(None),
+                col(ProfessionalTravelEmission.kg_co2eq) > 0,
+            )
+            .group_by(
+                col(ProfessionalTravel.year),
+                col(ProfessionalTravel.transport_mode),
+            )
+            .order_by(
+                col(ProfessionalTravel.year).asc(),
+                col(ProfessionalTravel.transport_mode).asc(),
+            )
+        )
+
+        # Apply user filter for standard users
+        if self._is_standard_user(user):
+            query = query.where(col(ProfessionalTravel.created_by) == user.id)
+
+        # Execute query
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        logger.info(
+            f"get_evolution_over_time: Found {len(rows)} rows for "
+            f"unit_id={sanitize(unit_id)}"
+        )
+
+        # Convert to list of dicts
+        result_list = []
+        for row in rows:
+            result_list.append(
+                {
+                    "year": int(row.year),
+                    "transport_mode": row.transport_mode or "unknown",
+                    "kg_co2eq": float(row.kg_co2eq or 0.0),
+                }
+            )
+
+        logger.info(f"get_evolution_over_time: Returning {len(result_list)} rows")
+        return result_list
