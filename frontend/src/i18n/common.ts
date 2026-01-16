@@ -51,28 +51,20 @@ export default {
     fr: 't CO₂-eq',
   },
   [ROLES.StandardUser]: {
-    en: 'Standard User',
-    fr: 'Utilisateur Standard',
+    en: 'User',
+    fr: 'Utilisateur',
   },
   [ROLES.PrincipalUser]: {
-    en: 'Principal User',
-    fr: 'Utilisateur Principal',
+    en: 'Unit Manager',
+    fr: "Responsable d'unité",
   },
-  [ROLES.SecondaryUser]: {
-    en: 'Secondary User',
-    fr: 'Utilisateur Secondaire',
+  [ROLES.BackOfficeMetier]: {
+    en: 'Backoffice Administrator',
+    fr: 'Administrateur métier',
   },
-  [ROLES.BackOfficeAdmin]: {
-    en: 'Backoffice Admin',
-    fr: 'Administrateur Back-office',
-  },
-  [ROLES.BackOfficeStandard]: {
-    en: 'Backoffice Standard User',
-    fr: 'Utilisateur Standard Back-office',
-  },
-  [ROLES.System]: {
-    en: 'System Manager',
-    fr: 'Gestionnaire Système',
+  [ROLES.SuperAdmin]: {
+    en: 'Super Admin',
+    fr: 'Super Admin',
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',

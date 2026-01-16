@@ -45,9 +45,9 @@ def sample_userinfo() -> Dict[str, Any]:
         "email": "user@epfl.ch",
         "user_id": 352707,
         "roles": [
-            "co2.user.std@unit:12345",
-            "co2.user.principal@unit:12345",
-            "co2.backoffice.admin@global",
+            f"{RoleName.CO2_USER_STD.value}@unit:12345",
+            f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:12345",
+            f"{RoleName.CO2_SUPERADMIN.value}@global",
         ],
     }
 
@@ -77,20 +77,20 @@ class TestDefaultRoleProvider:
         assert roles[1] == Role(
             role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="12345")
         )
-        assert roles[2] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[2] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
     async def test_parse_roles_with_global_scope(self):
         """Test parsing roles with global scope."""
         userinfo = {
             "email": "admin@epfl.ch",
-            "roles": ["co2.backoffice.admin@global"],
+            "roles": [f"{RoleName.CO2_SUPERADMIN.value}@global"],
         }
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[0] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
     async def test_parse_roles_no_roles_in_jwt(self):
@@ -117,7 +117,7 @@ class TestDefaultRoleProvider:
             "email": "user@epfl.ch",
             "roles": [
                 123,  # Invalid: not a string
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -132,8 +132,8 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std",  # Invalid: no @
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}",  # Invalid: no @
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -148,8 +148,8 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std@invalid",  # Invalid: no colon in scope
-                "co2.user.std@unit:12345",
+                f"{RoleName.CO2_USER_STD.value}@invalid",  # Invalid: no colon in scope
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
         provider = DefaultRoleProvider()
@@ -163,7 +163,7 @@ class TestDefaultRoleProvider:
         """Test that whitespace in roles is trimmed."""
         userinfo = {
             "email": "user@epfl.ch",
-            "roles": [" co2.user.std @ unit : 12345 "],
+            "roles": [f" {RoleName.CO2_USER_STD.value} @ unit : 12345 "],
         }
         provider = DefaultRoleProvider()
         roles = await provider.get_roles(userinfo)
@@ -177,9 +177,9 @@ class TestDefaultRoleProvider:
         userinfo = {
             "email": "user@epfl.ch",
             "roles": [
-                "co2.user.std@unit:12345",
-                "co2.user.principal@unit:67890",
-                "co2.user.secondary@unit:11111",
+                f"{RoleName.CO2_USER_STD.value}@unit:12345",
+                f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:67890",
+                f"{RoleName.CO2_USER_STD.value}@unit:11111",
             ],
         }
         provider = DefaultRoleProvider()
@@ -217,12 +217,12 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.principal",
+                    "name": RoleName.CO2_USER_PRINCIPAL.value,
                     "state": "active",
                     "accredunitid": "67890",
                 },
@@ -250,14 +250,14 @@ class TestAccredRoleProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_accred_fetch_roles_with_global_admin(
+    async def test_accred_fetch_roles_with_global_superadmin(
         self, accred_provider, sample_user_id
     ):
-        """Test fetching global admin role from Accred API."""
+        """Test fetching global superadmin role from Accred API."""
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.backoffice.admin",
+                    "name": f"{RoleName.CO2_SUPERADMIN.value}",
                     "state": "active",
                     "accredunitid": "12345",
                 }
@@ -279,17 +279,17 @@ class TestAccredRoleProvider:
             roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())
+        assert roles[0] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
-    async def test_accred_fetch_roles_with_backoffice_std(
+    async def test_accred_fetch_roles_with_backoffice_metier(
         self, accred_provider, sample_user_id
     ):
-        """Test fetching backoffice.std role with affiliation scope."""
+        """Test fetching backoffice.metier role with affiliation scope."""
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.backoffice.std",
+                    "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
                     "state": "active",
                     "accredunitid": "12345",
                     "reason": {"resource": {"sortpath": "Engineering"}},
@@ -313,7 +313,7 @@ class TestAccredRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_BACKOFFICE_STD,
+            role=RoleName.CO2_BACKOFFICE_METIER,
             on=RoleScope(affiliation="Engineering"),
         )
 
@@ -353,7 +353,7 @@ class TestAccredRoleProvider:
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
@@ -385,12 +385,12 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "inactive",
                     "accredunitid": "12345",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },
@@ -422,11 +422,11 @@ class TestAccredRoleProvider:
         mock_response = {
             "authorizations": [
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                 },
                 {
-                    "name": "co2.user.std",
+                    "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
                 },

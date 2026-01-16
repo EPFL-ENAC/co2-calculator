@@ -83,14 +83,12 @@ Domains are independent. Backoffice roles do not grant module access.
 
 ## Role Mapping
 
-| Role                   | Scope  | Permissions                                                                  |
-| ---------------------- | ------ | ---------------------------------------------------------------------------- |
-| `co2.backoffice.admin` | Global | `backoffice.users`: view, edit, export                                       |
-| `co2.backoffice.std`   | Global | `backoffice.users`: view only                                                |
-| `co2.user.principal`   | Unit   | `modules.*`: view, edit (all modules)                                        |
-| `co2.user.std`         | Unit   | `modules.professional_travel`: view, edit (own trips only, no other modules) |
-| `co2.user.secondary`   | Unit   | `modules.*`: view only (all modules)                                         |
-| `co2.service.mgr`      | Global | `system.users`: edit (reserved for future)                                   |
+| Role                    | Scope  | Permissions                                                                  |
+| ----------------------- | ------ | ---------------------------------------------------------------------------- |
+| `co2.superadmin`        | Global | `backoffice.users`: view, edit, export; `system.users`: edit                 |
+| `co2.backoffice.metier` | Global | `backoffice.users`: view, edit, export (reporting and data access)           |
+| `co2.user.principal`    | Unit   | `modules.*`: view, edit (all modules); `backoffice.users`: edit (unit scope) |
+| `co2.user.std`          | Unit   | `modules.professional_travel`: view, edit (own trips only, no other modules) |
 
 Permissions from different domains combine when a user has multiple
 roles.
@@ -197,8 +195,8 @@ class HeadcountService:
 
 **Scope types:**
 
-- **Global scope** (backoffice admin, service manager) - See all data, empty filters
-- **Unit scope** (principals, secondaries) - See data for assigned units
+- **Global scope** (super admin, backoffice metier) - See all data, empty filters
+- **Unit scope** (principals) - See data for assigned units
 - **Own scope** (standard users) - See only own data
 
 ### Resource-Level Access Control
@@ -241,8 +239,8 @@ OPA policies enforce business rules for individual resources:
 The `authz/resource/access` policy in `app/core/policy.py` implements these rules for professional travel:
 
 1. **API trips are read-only** - Cannot be edited by anyone (provider = "api")
-2. **Backoffice admin** - Can edit all trips (global scope)
-3. **Principals/Secondaries** - Can edit manual/CSV trips in their assigned units
+2. **Super admin** - Can edit all trips (global scope)
+3. **Principals** - Can edit manual/CSV trips in their assigned units
 4. **Standard users** - Can only edit their own manual trips
 
 Example policy evaluation:

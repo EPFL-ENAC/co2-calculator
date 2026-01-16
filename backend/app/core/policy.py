@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleScope, User
+from app.models.user import GlobalScope, Role, RoleName, RoleScope, User
 from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
@@ -172,8 +172,8 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             role_name = role.role if isinstance(role.role, str) else role.role.value
             role_scope = role.on
 
-            # Check if principal or secondary role
-            if role_name in ["co2.user.principal", "co2.user.secondary"]:
+            # Check if principal role
+            if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
                 # Extract unit from scope
                 if isinstance(role_scope, RoleScope) and role_scope.unit:
@@ -181,13 +181,12 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
                 elif isinstance(role_scope, dict) and role_scope.get("unit"):
                     user_unit_ids.add(role_scope["unit"])
 
-        # Principals/secondaries can edit manual/CSV trips in their units
+        # Principals can edit manual/CSV trips in their units
         if principal_or_secondary and resource_unit_id in user_unit_ids:
             return {
                 "allow": True,
                 "reason": (
-                    "Unit scope access "
-                    "(principal/secondary can edit trips in their units)"
+                    "Unit scope access (principal can edit trips in their units)"
                 ),
             }
 

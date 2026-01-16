@@ -24,15 +24,12 @@ if TYPE_CHECKING:
 # from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
+# ONLY ONE PLACE TO DEFINE ROLE NAMES
 class RoleName(str, Enum):
-    CO2_USER_STD = "co2.user.std"
-    CO2_USER_PRINCIPAL = "co2.user.principal"
-    CO2_USER_SECONDARY = "co2.user.secondary"
-    CO2_BACKOFFICE_STD = "co2.backoffice.std"
-    CO2_BACKOFFICE_ADMIN = "co2.backoffice.admin"
-    CO2_SERVICE_MGR = "co2.service.mgr"
-    # it's not used in the code, but kept for backward compatibility
-    CO2_INVENTORY_VIEWER = "co2.inventory.data"
+    CO2_USER_STD = "calco2.user.standard"
+    CO2_USER_PRINCIPAL = "calco2.user.principal"
+    CO2_BACKOFFICE_METIER = "calco2.backoffice.metier"
+    CO2_SUPERADMIN = "calco2.superadmin"
 
 
 class GlobalScope(BaseModel):
@@ -51,17 +48,7 @@ class Role(BaseModel):
 
 class UserBase(SQLModel):
     # Role-based access control (hierarchical structure)
-    # Format: [{"role": "co2.user.std", "on": {"unit": "12345"}}]
-    # roles: List[Role] = Field(
-    #     default_factory=list,
-    #     description="User roles with hierarchical scopes",
-    # )
-    # roles: List[Role] = Field(
-    #     default_factory=list,
-    #     description="User roles with hierarchical scopes",
-    #     exclude=True,
-    # )
-
+    # Format: [{"role": "calco2.user.standard", "on": {"unit": "12345"}}]
     roles_raw: Optional[List[dict]] = Field(
         default=None,
         sa_column=Column(JSON),
@@ -151,7 +138,7 @@ class User(UserBase, table=True):
         but should not be used in service-level authorization logic.
 
         Args:
-            role: Role name to check (e.g., "co2.user.std")
+            role: Role name to check (e.g., "calco2.user.standard")
 
         Returns:
             True if user has the role with any scope
@@ -177,7 +164,7 @@ class User(UserBase, table=True):
         service-level authorization logic.
 
         Args:
-            role: Role name (e.g., "co2.user.std")
+            role: Role name (e.g., "calco2.user.standard")
             scope_type: Scope type (e.g., "unit", "affiliation")
             scope_id: Scope identifier (e.g., "12345")
 
@@ -213,7 +200,7 @@ class User(UserBase, table=True):
         service-level authorization logic.
 
         Args:
-            role: Role name (e.g., "co2.backoffice.admin")
+            role: Role name (e.g., "calco2.backoffice.admin")
 
         Returns:
             True if user has the role with global scope

@@ -23,9 +23,9 @@ class TestRoleProviderIntegration:
             userinfo = {
                 "email": "user@epfl.ch",
                 "roles": [
-                    "co2.user.std@unit:100",
-                    "co2.user.principal@unit:200",
-                    "co2.backoffice.admin@global",
+                    f"{RoleName.CO2_USER_STD.value}@unit:100",
+                    f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:200",
+                    f"{RoleName.CO2_SUPERADMIN.value}@global",
                 ],
             }
 
@@ -46,7 +46,7 @@ class TestRoleProviderIntegration:
             mock_response = {
                 "authorizations": [
                     {
-                        "name": "co2.user.std",
+                        "name": f"{RoleName.CO2_USER_STD.value}",
                         "state": "active",
                         "accredunitid": "100",
                     }

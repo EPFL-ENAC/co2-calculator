@@ -26,7 +26,7 @@ class TestUserBaseRolesProperty:
         """Test roles property with dict roles_raw."""
         user_base = UserBase()
         user_base.roles_raw = [
-            {"role": "co2.user.std", "on": {"unit": "12345"}},
+            {"role": f"{RoleName.CO2_USER_STD.value}", "on": {"unit": "12345"}},
         ]
         roles = user_base.roles
         assert len(roles) == 1
@@ -46,7 +46,10 @@ class TestUserBaseRolesProperty:
         """Test roles property with mixed dict and Role objects."""
         user_base = UserBase()
         role_obj = Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
-        role_dict = {"role": "co2.user.principal", "on": {"unit": "99999"}}
+        role_dict = {
+            "role": f"{RoleName.CO2_USER_PRINCIPAL.value}",
+            "on": {"unit": "99999"},
+        }
         user_base.roles_raw = [role_obj, role_dict]
         roles = user_base.roles
         assert len(roles) == 2
@@ -60,15 +63,15 @@ class TestUserBaseRolesProperty:
         user_base.roles = roles
         assert user_base.roles_raw is not None
         assert len(user_base.roles_raw) == 1
-        assert user_base.roles_raw[0]["role"] == "co2.user.std"
+        assert user_base.roles_raw[0]["role"] == f"{RoleName.CO2_USER_STD.value}"
         assert user_base.roles_raw[0]["on"]["unit"] == "12345"
 
     def test_roles_setter_with_enum(self):
         """Test roles setter handles RoleName enum correctly."""
         user_base = UserBase()
-        roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         user_base.roles = roles
-        assert user_base.roles_raw[0]["role"] == "co2.backoffice.admin"
+        assert user_base.roles_raw[0]["role"] == RoleName.CO2_SUPERADMIN.value
 
 
 class TestUserCalculatePermissions:
@@ -119,7 +122,7 @@ class TestUserHasRole:
             warnings.simplefilter("ignore", DeprecationWarning)
             # Compare with enum value - RoleName is str, Enum so should compare
             # with string
-            assert user.has_role("co2.user.std") is True
+            assert user.has_role(f"{RoleName.CO2_USER_STD.value}") is True
 
     def test_has_role_false(self):
         """Test has_role returns False when user doesn't have the role."""
@@ -131,7 +134,7 @@ class TestUserHasRole:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role("co2.user.principal") is False
+            assert user.has_role(f"{RoleName.CO2_USER_PRINCIPAL.value}") is False
 
     def test_has_role_empty_roles(self):
         """Test has_role with empty roles."""
@@ -143,7 +146,7 @@ class TestUserHasRole:
         user.roles = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role("co2.user.std") is False
+            assert user.has_role(f"{RoleName.CO2_USER_STD.value}") is False
 
     def test_has_role_deprecation_warning(self):
         """Test that has_role raises deprecation warning."""
@@ -155,7 +158,7 @@ class TestUserHasRole:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            user.has_role("co2.user.std")
+            user.has_role(f"{RoleName.CO2_USER_STD.value}")
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
 
@@ -173,7 +176,10 @@ class TestUserHasRoleOn:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_on("co2.user.std", "unit", "12345") is True
+            assert (
+                user.has_role_on(f"{RoleName.CO2_USER_STD.value}", "unit", "12345")
+                is True
+            )
 
     def test_has_role_on_false_wrong_unit(self):
         """Test has_role_on returns False for wrong unit."""
@@ -185,7 +191,10 @@ class TestUserHasRoleOn:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_on("co2.user.std", "unit", "99999") is False
+            assert (
+                user.has_role_on(f"{RoleName.CO2_USER_STD.value}", "unit", "99999")
+                is False
+            )
 
     def test_has_role_on_false_wrong_role(self):
         """Test has_role_on returns False for wrong role."""
@@ -197,7 +206,12 @@ class TestUserHasRoleOn:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_on("co2.user.principal", "unit", "12345") is False
+            assert (
+                user.has_role_on(
+                    f"{RoleName.CO2_USER_PRINCIPAL.value}", "unit", "12345"
+                )
+                is False
+            )
 
     def test_has_role_on_with_affiliation(self):
         """Test has_role_on with affiliation scope."""
@@ -207,12 +221,17 @@ class TestUserHasRoleOn:
             provider="test",
         )
         user.roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_STD, on=RoleScope(affiliation="TEST-AFF"))
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="TEST-AFF"),
+            )
         ]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             assert (
-                user.has_role_on("co2.backoffice.std", "affiliation", "TEST-AFF")
+                user.has_role_on(
+                    f"{RoleName.CO2_BACKOFFICE_METIER.value}", "affiliation", "TEST-AFF"
+                )
                 is True
             )
 
@@ -227,10 +246,10 @@ class TestUserHasRoleGlobal:
             email="test@example.com",
             provider="test",
         )
-        user.roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+        user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.backoffice.admin") is True
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is True
 
     def test_has_role_global_false_unit_scope(self):
         """Test has_role_global returns False for unit scope."""
@@ -239,12 +258,10 @@ class TestUserHasRoleGlobal:
             email="test@example.com",
             provider="test",
         )
-        user.roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=RoleScope(unit="12345"))
-        ]
+        user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.backoffice.admin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
     def test_has_role_global_false_wrong_role(self):
         """Test has_role_global returns False for wrong role."""
@@ -256,7 +273,7 @@ class TestUserHasRoleGlobal:
         user.roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.backoffice.admin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
     def test_has_role_global_empty_roles(self):
         """Test has_role_global with empty roles."""
@@ -268,7 +285,7 @@ class TestUserHasRoleGlobal:
         user.roles = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            assert user.has_role_global("co2.backoffice.admin") is False
+            assert user.has_role_global(RoleName.CO2_SUPERADMIN.value) is False
 
 
 class TestUserRepr:

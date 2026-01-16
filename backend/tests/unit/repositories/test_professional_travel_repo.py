@@ -27,7 +27,7 @@ async def test_user_admin(db_session: AsyncSession):
         provider="test",
     )
     # Set admin role with global scope
-    user.roles = [Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope())]
+    user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)

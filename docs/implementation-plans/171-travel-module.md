@@ -189,8 +189,8 @@ def can_user_edit_item(travel: ProfessionalTravel, user: User) -> bool:
     if travel.provider == 'api':
         return False
 
-    # Principals and secondaries can edit manual/CSV trips
-    if user.has_role("co2.user.principal") or user.has_role("co2.user.secondary"):
+    # Principals can edit manual/CSV trips
+    if user.has_role("co2.user.principal"):
         return True
 
     # Std users can only edit their own manual trips
