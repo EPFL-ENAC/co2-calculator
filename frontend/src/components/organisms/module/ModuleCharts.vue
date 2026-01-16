@@ -13,6 +13,9 @@
           {{ $t(`${type}-charts-no-data-message`) }}
         </span>
       </template>
+      <template v-else-if="type === 'professional-travel'">
+        <tree-map-module-chart :color-scheme="colors.blue" />
+      </template>
       <h2 v-else class="text-h3 q-mb-none text-bold text-uppercase">
         {{ $t(`${type}-charts-title`) }}
       </h2>
@@ -24,10 +27,13 @@
 import { computed } from 'vue';
 import { Module } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
+import TreeMapModuleChart from 'src/components/charts/TreeMapModuleChart.vue';
 import { useModuleStore } from 'src/stores/modules';
+import { colors } from 'src/constant/charts';
 
 defineProps<{
   type: Module;
+  viewUncertainties?: boolean;
 }>();
 
 const moduleStore = useModuleStore();
