@@ -172,6 +172,12 @@ export const useModuleStore = defineStore('modules', () => {
       }
     >; // key: submodule ID
     loadedSubmodules: Record<string, boolean>; // key: submodule ID
+    travelStatsByClass: Array<Record<string, unknown>>;
+    loadingTravelStatsByClass: boolean;
+    errorTravelStatsByClass: string | null;
+    travelEvolutionOverTime: Array<Record<string, unknown>>;
+    loadingTravelEvolutionOverTime: boolean;
+    errorTravelEvolutionOverTime: string | null;
   }>({
     loading: false,
     error: null,
@@ -183,6 +189,12 @@ export const useModuleStore = defineStore('modules', () => {
     dataSubmodule: reactive({}),
     paginationSubmodule: reactive({}),
     loadedSubmodules: reactive({}),
+    travelStatsByClass: [],
+    loadingTravelStatsByClass: false,
+    errorTravelStatsByClass: null,
+    travelEvolutionOverTime: [],
+    loadingTravelEvolutionOverTime: false,
+    errorTravelEvolutionOverTime: null,
   });
   function modulePath(moduleType: Module, unit: string, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -399,13 +411,17 @@ export const useModuleStore = defineStore('modules', () => {
       await getModuleTotals(moduleType, unitId, year);
 
       // Refetch the affected submodule with current pagination/sort state
-
       await getSubmoduleData({
         moduleType,
         unit: unitId,
         year,
         submoduleType: submoduleType,
       });
+
+      // Auto-refetch travel stats if this is professional travel module
+      if (moduleType === MODULES.ProfessionalTravel) {
+        await getTravelStatsByClass(unitId, String(year));
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -484,6 +500,11 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
+
+      // Auto-refetch travel stats if this is professional travel module
+      if (moduleType === MODULES.ProfessionalTravel) {
+        await getTravelStatsByClass(unit, year);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -516,10 +537,55 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
+
+      // Auto-refetch travel stats if this is professional travel module
+      if (moduleType === MODULES.ProfessionalTravel) {
+        await getTravelStatsByClass(unit, year);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
       throw err;
+    }
+  }
+
+  async function getTravelStatsByClass(unit: string, year: string) {
+    state.loadingTravelStatsByClass = true;
+    state.errorTravelStatsByClass = null;
+    try {
+      const path = `professional-travel/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/stats-by-class`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.travelStatsByClass = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorTravelStatsByClass = err.message ?? 'Unknown error';
+        state.travelStatsByClass = [];
+      } else {
+        state.errorTravelStatsByClass = 'Unknown error';
+        state.travelStatsByClass = [];
+      }
+    } finally {
+      state.loadingTravelStatsByClass = false;
+    }
+  }
+
+  async function getTravelEvolutionOverTime(unit: string) {
+    state.loadingTravelEvolutionOverTime = true;
+    state.errorTravelEvolutionOverTime = null;
+    try {
+      const path = `professional-travel/${encodeURIComponent(unit)}/evolution-over-time`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.travelEvolutionOverTime = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorTravelEvolutionOverTime = err.message ?? 'Unknown error';
+        state.travelEvolutionOverTime = [];
+      } else {
+        state.errorTravelEvolutionOverTime = 'Unknown error';
+        state.travelEvolutionOverTime = [];
+      }
+    } finally {
+      state.loadingTravelEvolutionOverTime = false;
     }
   }
 
@@ -531,6 +597,8 @@ export const useModuleStore = defineStore('modules', () => {
     postItem,
     patchItem,
     deleteItem,
+    getTravelStatsByClass,
+    getTravelEvolutionOverTime,
     state,
   };
 });

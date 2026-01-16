@@ -24,7 +24,12 @@
         :type="currentModuleType"
         :module-config="currentModuleConfig"
       />
-      <module-charts :type="currentModuleType" />
+      <q-card class="container container--pa-none" flat style="padding: 0">
+        <module-charts
+          :type="currentModuleType"
+          :show-evolution-chart="false"
+        />
+      </q-card>
       <!-- module tables iteration -->
       <module-table-section
         v-if="

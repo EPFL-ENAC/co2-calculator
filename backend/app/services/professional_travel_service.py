@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_
@@ -594,6 +594,44 @@ class ProfessionalTravelService:
             Dict with total_items, total_kg_co2eq, total_distance_km
         """
         return await self.repo.get_summary_stats(unit_id=unit_id, year=year, user=user)
+
+    async def get_stats_by_class(
+        self, unit_id: str, year: int, user: User
+    ) -> List[dict[str, Any]]:
+        """
+        Get professional travel statistics aggregated by transport mode and class.
+
+        Args:
+            unit_id: Unit identifier
+            year: Year filter
+            user: Current user (for filtering standard users)
+
+        Returns:
+            List of dicts in treemap format with hierarchical structure:
+            Each dict has "name" (category), "value" (total kg_co2eq), and "children"
+            array with class-level data including "name", "value", and "percentage"
+        """
+        return await self.repo.get_stats_by_class(unit_id=unit_id, year=year, user=user)
+
+    async def get_evolution_over_time(
+        self, unit_id: str, user: User
+    ) -> List[dict[str, Any]]:
+        """
+        Get professional travel statistics aggregated by year and transport mode.
+
+        Args:
+            unit_id: Unit identifier
+            user: Current user (for filtering standard users)
+
+        Returns:
+            List of dicts with year, transport_mode, and kg_co2eq:
+            [
+                {"year": 2020, "transport_mode": "flight", "kg_co2eq": 15000.0},
+                {"year": 2020, "transport_mode": "train", "kg_co2eq": 8000.0},
+                ...
+            ]
+        """
+        return await self.repo.get_evolution_over_time(unit_id=unit_id, user=user)
 
     async def create_travel(
         self,

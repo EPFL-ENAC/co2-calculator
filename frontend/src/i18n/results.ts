@@ -127,6 +127,14 @@ export default {
     en: 'Equipment Distribution',
     fr: 'Distribution des équipements',
   },
+  results_validate_module_title: {
+    en: 'Validate {module} to see results',
+    fr: 'Validez {module} pour voir les résultats',
+  },
+  results_validate_module_message: {
+    en: 'Please validate this module to view detailed charts and statistics.',
+    fr: 'Veuillez valider ce module pour afficher les graphiques et statistiques détaillés.',
+  },
   results_objectives_2040_title: {
     en: 'Reduction objective 2040',
     fr: 'Objectif de réduction 2040',
