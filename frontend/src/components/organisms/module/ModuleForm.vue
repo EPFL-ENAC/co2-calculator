@@ -127,9 +127,18 @@
                         transition-hide="scale"
                       >
                         <q-date
-                          :model-value="String(form[inp.id] || '')"
-                          :min="currentYearMinDate"
-                          :max="currentYearMaxDate"
+                          :model-value="
+                            String(form[inp.id] || yearDateRange.default)
+                          "
+                          :default-view="form[inp.id] ? undefined : 'Calendar'"
+                          :min="yearDateRange.min"
+                          :max="yearDateRange.max"
+                          :navigation-min-year-month="
+                            yearDateRange.navigationMin
+                          "
+                          :navigation-max-year-month="
+                            yearDateRange.navigationMax
+                          "
                           @update:model-value="
                             (val) => (form[inp.id] = val as FieldValue)
                           "
@@ -279,6 +288,7 @@
 import { reactive, watch, computed, toRef } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   QInput,
   QSelect,
@@ -298,6 +308,7 @@ import { calculateDistance } from 'src/api/locations';
 import { MODULES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
+const workspaceStore = useWorkspaceStore();
 
 interface Option {
   label: string;
@@ -333,16 +344,17 @@ const props = withDefaults(
   },
 );
 
-// Compute current year date range to restrict date picker
-const currentYearMinDate = computed(() => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear}/01/01`;
-});
+const selectedYear = computed(
+  () => workspaceStore.selectedYear ?? new Date().getFullYear(),
+);
 
-const currentYearMaxDate = computed(() => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear}/12/31`;
-});
+const yearDateRange = computed(() => ({
+  min: `${selectedYear.value}/01/01`,
+  max: `${selectedYear.value}/12/31`,
+  navigationMin: `${selectedYear.value}/01`,
+  navigationMax: `${selectedYear.value}/12`,
+  default: `${selectedYear.value}/01/01`,
+}));
 
 const visibleFields = computed(() =>
   (props.fields ?? []).filter((f) => !f.hideIn?.form),
