@@ -1,4 +1,5 @@
 Generating Mermaid ERD...
+
 ```mermaid
 erDiagram
   emission_factors {
@@ -257,4 +258,5 @@ erDiagram
   units ||--}o unit_users : unit_id
   module_types ||--}o variant_types : module_type_id
 ```
+
 Mermaid ERD generation complete.
