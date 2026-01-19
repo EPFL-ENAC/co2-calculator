@@ -3,260 +3,260 @@ Generating Mermaid ERD...
 ```mermaid
 erDiagram
   emission_factors {
+    TIMESTAMP created_at
+    VARCHAR created_by FK
+    JSON factor_metadata
     VARCHAR factor_name "indexed"
-    FLOAT value
-    INTEGER version "indexed"
-    TIMESTAMP valid_from
-    TIMESTAMP valid_to
+    INTEGER id PK
     VARCHAR region "indexed"
     VARCHAR source
-    JSON factor_metadata
-    TIMESTAMP created_at
-    VARCHAR created_by FK "indexed"
-    INTEGER id PK "indexed"
-  }
-  power_factors {
-    VARCHAR submodule "indexed"
-    VARCHAR sub_category "indexed"
-    VARCHAR equipment_class "indexed"
-    VARCHAR sub_class "indexed"
-    FLOAT active_power_w
-    FLOAT standby_power_w
-    INTEGER version "indexed"
     TIMESTAMP valid_from
     TIMESTAMP valid_to
-    VARCHAR source
-    JSON power_metadata
-    TIMESTAMP created_at
-    VARCHAR created_by FK "indexed"
-    INTEGER id PK "indexed"
+    FLOAT value
+    INTEGER version "indexed"
   }
   equipment {
+    FLOAT active_usage_pct
+    VARCHAR category "indexed"
     VARCHAR cost_center "indexed"
     VARCHAR cost_center_description
-    VARCHAR name "indexed"
-    VARCHAR category "indexed"
-    VARCHAR submodule "indexed"
+    TIMESTAMP created_at
+    VARCHAR created_by FK
     VARCHAR equipment_class "indexed"
-    VARCHAR sub_class
+    JSON equipment_metadata
+    INTEGER id PK
+    VARCHAR name "indexed"
+    FLOAT passive_usage_pct
+    INTEGER power_factor_id FK
     TIMESTAMP service_date
     VARCHAR status "indexed"
-    FLOAT active_usage_pct
-    FLOAT passive_usage_pct
-    INTEGER power_factor_id FK "indexed"
+    VARCHAR sub_class
+    VARCHAR submodule "indexed"
     VARCHAR unit_id "indexed"
-    JSON equipment_metadata
-    TIMESTAMP created_at
     TIMESTAMP updated_at
-    VARCHAR created_by FK "indexed"
-    VARCHAR updated_by FK "indexed"
-    INTEGER id PK "indexed"
+    VARCHAR updated_by FK
   }
   equipment_emissions {
-    INTEGER equipment_id FK "indexed"
     FLOAT annual_kwh
-    FLOAT kg_co2eq
-    INTEGER emission_factor_id FK "indexed"
-    INTEGER power_factor_id FK "indexed"
-    VARCHAR formula_version
-    TIMESTAMP computed_at "indexed"
     JSON calculation_inputs
+    TIMESTAMP computed_at "indexed"
+    INTEGER emission_factor_id FK
+    INTEGER equipment_id FK
+    VARCHAR formula_version
+    INTEGER id PK
     BOOLEAN is_current "indexed"
-    INTEGER id PK "indexed"
+    FLOAT kg_co2eq
+    INTEGER power_factor_id FK
   }
   headcounts {
+    VARCHAR cf
+    VARCHAR cf_name
+    VARCHAR cf_user_id
     DATETIME created_at
-    DATETIME updated_at
     VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
     DATE date
-    VARCHAR(50) unit_id "indexed"
-    VARCHAR(255) unit_name
-    VARCHAR(50) cf
-    VARCHAR(255) cf_name
-    VARCHAR(50) cf_user_id
-    VARCHAR(255) display_name
-    VARCHAR(100) status
-    VARCHAR(255) function
-    VARCHAR(20) sciper "indexed"
+    VARCHAR display_name
     FLOAT fte
-    VARCHAR submodule "indexed"
+    VARCHAR function
+    VARCHAR function_role
     INTEGER id PK
-    VARCHAR(50) provider
-    VARCHAR(50) function_role
+    VARCHAR provider
+    VARCHAR sciper "indexed"
+    VARCHAR status
+    VARCHAR submodule "indexed"
+    VARCHAR unit_id "indexed"
+    VARCHAR unit_name
+    DATETIME updated_at
+    VARCHAR updated_by "indexed"
   }
   inventory {
-    INTEGER year
-    VARCHAR unit_id
     INTEGER id PK
+    VARCHAR unit_id
+    INTEGER year
   }
   inventory_module {
-    INTEGER module_type_id FK "indexed"
-    INTEGER status
-    INTEGER inventory_id FK "indexed"
     INTEGER id PK
+    INTEGER inventory_id FK
+    INTEGER module_type_id FK
+    INTEGER status
   }
   locations {
+    VARCHAR countrycode "indexed"
     DATETIME created_at
-    DATETIME updated_at
     VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR(50) transport_mode "indexed"
-    VARCHAR(255) name "indexed"
+    VARCHAR iata_code "indexed"
+    INTEGER id PK
     FLOAT latitude
     FLOAT longitude
-    VARCHAR(10) iata_code "indexed"
-    VARCHAR(10) countrycode "indexed"
-    INTEGER id PK
-  }
-  modules {
-    INTEGER module_type_id FK "indexed"
-    INTEGER variant_type_id FK "indexed"
-    INTEGER inventory_module_id FK "indexed"
-    JSON data
-    INTEGER id PK "indexed"
+    VARCHAR name "indexed"
+    VARCHAR transport_mode "indexed"
+    DATETIME updated_at
+    VARCHAR updated_by "indexed"
   }
   module_types {
-    VARCHAR name UK "indexed"
     VARCHAR description
-    INTEGER id PK "indexed"
-  }
-  professional_travels {
-    DATETIME created_at
-    DATETIME updated_at
-    VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR(255) traveler_name
-    INTEGER origin_location_id FK "indexed"
-    INTEGER destination_location_id FK "indexed"
-    DATE departure_date
-    BOOLEAN is_round_trip
-    VARCHAR(50) transport_mode
-    VARCHAR(50) class
-    INTEGER number_of_trips
-    VARCHAR(50) unit_id "indexed"
     INTEGER id PK
-    VARCHAR(50) traveler_id
-    VARCHAR(50) provider
-    INTEGER year "indexed"
-  }
-  professional_travel_emissions {
-    INTEGER professional_travel_id FK "indexed"
-    FLOAT distance_km
-    FLOAT kg_co2eq
-    INTEGER plane_impact_factor_id FK "indexed"
-    INTEGER train_impact_factor_id FK "indexed"
-    VARCHAR formula_version
-    TIMESTAMP computed_at "indexed"
-    JSON calculation_inputs
-    BOOLEAN is_current "indexed"
-    INTEGER id PK "indexed"
-  }
-  resources {
     VARCHAR name "indexed"
-    VARCHAR description
-    VARCHAR visibility
+  }
+  modules {
     JSON data
-    JSON resource_metadata
-    TIMESTAMP created_at
-    TIMESTAMP updated_at
-    VARCHAR created_by FK "indexed"
-    VARCHAR updated_by FK "indexed"
-    VARCHAR unit_id "indexed"
-    INTEGER id PK "indexed"
+    INTEGER id PK
+    INTEGER inventory_module_id FK
+    INTEGER module_type_id FK
+    INTEGER variant_type_id FK
   }
   plane_impact_factors {
+    VARCHAR category "indexed"
     DATETIME created_at
-    DATETIME updated_at
     VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR(50) factor_type "indexed"
-    VARCHAR(50) category "indexed"
+    VARCHAR factor_type "indexed"
+    INTEGER id PK
     FLOAT impact_score
-    FLOAT rfi_adjustment
-    FLOAT min_distance
     FLOAT max_distance
+    FLOAT min_distance
+    FLOAT rfi_adjustment
+    VARCHAR source
+    DATETIME updated_at
+    VARCHAR updated_by "indexed"
     TIMESTAMP valid_from
     TIMESTAMP valid_to
-    VARCHAR source
+  }
+  power_factors {
+    FLOAT active_power_w
+    TIMESTAMP created_at
+    VARCHAR created_by FK
+    VARCHAR equipment_class "indexed"
     INTEGER id PK
+    JSON power_metadata
+    VARCHAR source
+    FLOAT standby_power_w
+    VARCHAR sub_category "indexed"
+    VARCHAR sub_class "indexed"
+    VARCHAR submodule "indexed"
+    TIMESTAMP valid_from
+    TIMESTAMP valid_to
+    INTEGER version "indexed"
+  }
+  professional_travel_emissions {
+    JSON calculation_inputs
+    TIMESTAMP computed_at "indexed"
+    FLOAT distance_km
+    VARCHAR formula_version
+    INTEGER id PK
+    BOOLEAN is_current "indexed"
+    FLOAT kg_co2eq
+    INTEGER plane_impact_factor_id FK
+    INTEGER professional_travel_id FK
+    INTEGER train_impact_factor_id FK
+  }
+  professional_travels {
+    VARCHAR class
+    DATETIME created_at
+    VARCHAR created_by "indexed"
+    DATE departure_date
+    INTEGER destination_location_id FK
+    INTEGER id PK
+    BOOLEAN is_round_trip
+    INTEGER number_of_trips
+    INTEGER origin_location_id FK
+    VARCHAR provider
+    VARCHAR transport_mode
+    VARCHAR traveler_id
+    VARCHAR traveler_name
+    VARCHAR unit_id "indexed"
+    DATETIME updated_at
+    VARCHAR updated_by "indexed"
+    INTEGER year "indexed"
+  }
+  resources {
+    TIMESTAMP created_at
+    VARCHAR created_by FK
+    JSON data
+    VARCHAR description
+    INTEGER id PK
+    VARCHAR name "indexed"
+    JSON resource_metadata
+    VARCHAR unit_id "indexed"
+    TIMESTAMP updated_at
+    VARCHAR updated_by FK
+    VARCHAR visibility
   }
   train_impact_factors {
+    VARCHAR countrycode "indexed"
     DATETIME created_at
-    DATETIME updated_at
     VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR(10) countrycode "indexed"
+    INTEGER id PK
     FLOAT impact_score
+    VARCHAR source
+    DATETIME updated_at
+    VARCHAR updated_by "indexed"
     TIMESTAMP valid_from
     TIMESTAMP valid_to
-    VARCHAR source
-    INTEGER id PK
-  }
-  units {
-    VARCHAR code UK "indexed"
-    VARCHAR name "indexed"
-    VARCHAR principal_user_id "indexed"
-    VARCHAR principal_user_function
-    VARCHAR principal_user_name
-    VARCHAR principal_user_email
-    JSON affiliations
-    VARCHAR visibility
-    TIMESTAMP created_at
-    TIMESTAMP updated_at
-    VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR id PK "indexed"
-    VARCHAR cf
-    VARCHAR provider
-  }
-  users {
-    JSON roles_raw
-    BOOLEAN is_active
-    DATETIME last_login
-    TIMESTAMP created_at
-    TIMESTAMP updated_at
-    VARCHAR created_by "indexed"
-    VARCHAR updated_by "indexed"
-    VARCHAR id PK "indexed"
-    VARCHAR provider
-    VARCHAR email UK "indexed"
-    VARCHAR display_name
   }
   unit_users {
-    VARCHAR unit_id PK "FK"
-    VARCHAR user_id PK "FK"
     VARCHAR role "indexed"
+    VARCHAR unit_id PK
+    VARCHAR user_id PK
+  }
+  units {
+    JSON affiliations
+    VARCHAR cf
+    VARCHAR code "indexed"
+    TIMESTAMP created_at
+    VARCHAR created_by "indexed"
+    VARCHAR id PK
+    VARCHAR name "indexed"
+    VARCHAR principal_user_email
+    VARCHAR principal_user_function
+    VARCHAR principal_user_id "indexed"
+    VARCHAR principal_user_name
+    VARCHAR provider
+    TIMESTAMP updated_at
+    VARCHAR updated_by "indexed"
+    VARCHAR visibility
+  }
+  users {
+    TIMESTAMP created_at
+    VARCHAR created_by "indexed"
+    VARCHAR display_name
+    VARCHAR email "indexed"
+    VARCHAR id PK
+    BOOLEAN is_active
+    DATETIME last_login
+    VARCHAR provider
+    JSON roles_raw
+    TIMESTAMP updated_at
+    VARCHAR updated_by "indexed"
   }
   variant_types {
-    VARCHAR name "indexed"
     VARCHAR description
-    INTEGER module_type_id FK "indexed"
-    INTEGER id PK "indexed"
+    INTEGER id PK
+    INTEGER module_type_id FK
+    VARCHAR name "indexed"
   }
-  users ||--}o emission_factors : created_by
-  users ||--}o power_factors : created_by
-  power_factors ||--}o equipment : power_factor_id
-  users ||--}o equipment : created_by
-  users ||--}o equipment : updated_by
-  emission_factors ||--}o equipment_emissions : emission_factor_id
-  equipment ||--}o equipment_emissions : equipment_id
-  power_factors ||--}o equipment_emissions : power_factor_id
-  inventory ||--}o inventory_module : inventory_id
-  module_types ||--}o inventory_module : module_type_id
-  inventory_module ||--}o modules : inventory_module_id
-  variant_types ||--}o modules : variant_type_id
-  module_types ||--}o modules : module_type_id
-  locations ||--}o professional_travels : destination_location_id
-  locations ||--}o professional_travels : origin_location_id
-  train_impact_factors ||--}o professional_travel_emissions : train_impact_factor_id
-  plane_impact_factors ||--}o professional_travel_emissions : plane_impact_factor_id
-  professional_travels ||--}o professional_travel_emissions : professional_travel_id
-  users ||--}o resources : created_by
-  users ||--}o resources : updated_by
-  users ||--}o unit_users : user_id
-  units ||--}o unit_users : unit_id
-  module_types ||--}o variant_types : module_type_id
+  emission_factors ||--}o equipment_emissions : "emission_factor_id"
+  equipment ||--}o equipment_emissions : "equipment_id"
+  inventory ||--}o inventory_module : "inventory_id"
+  inventory_module ||--}o modules : "inventory_module_id"
+  locations ||--}o professional_travels : "destination_location_id"
+  locations ||--}o professional_travels : "origin_location_id"
+  module_types ||--}o inventory_module : "module_type_id"
+  module_types ||--}o modules : "module_type_id"
+  module_types ||--}o variant_types : "module_type_id"
+  plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
+  power_factors ||--}o equipment : "power_factor_id"
+  power_factors ||--}o equipment_emissions : "power_factor_id"
+  professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
+  train_impact_factors ||--}o professional_travel_emissions : "train_impact_factor_id"
+  units ||--}o unit_users : "unit_id"
+  users ||--}o emission_factors : "created_by"
+  users ||--}o equipment : "created_by"
+  users ||--}o equipment : "updated_by"
+  users ||--}o power_factors : "created_by"
+  users ||--}o resources : "created_by"
+  users ||--}o resources : "updated_by"
+  users ||--}o unit_users : "user_id"
+  variant_types ||--}o modules : "variant_type_id"
 ```
 
 Mermaid ERD generation complete.
