@@ -24,21 +24,6 @@ from app.utils.distance_geography import (
 
 logger = get_logger(__name__)
 
-# Class multipliers for plane travel
-# Note: Frontend uses 'eco' and 'eco_plus', not 'economy' and 'economy_plus'
-PLANE_CLASS_MULTIPLIERS = {
-    "eco": 1.0,
-    "eco_plus": 1.2,
-    "business": 2.0,
-    "first": 3.0,
-}
-
-# Class multipliers for train travel
-TRAIN_CLASS_MULTIPLIERS = {
-    "class_2": 1.0,
-    "class_1": 1.5,
-}
-
 
 class TravelCalculationService:
     """Service for calculating travel emissions."""
