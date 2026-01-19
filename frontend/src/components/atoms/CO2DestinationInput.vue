@@ -3,7 +3,7 @@
     <q-card
       bordered
       flat
-      :class="{ 'destination-input-error': error }"
+      :class="{ 'destination-input-error': finalError }"
       class="destination-input-card"
     >
       <q-card-section class="flex column q-pa-none position-relative">
@@ -160,8 +160,8 @@
       </q-card-section>
       <q-separator class="destination-separator" color="grey-4" />
     </q-card>
-    <div v-if="error" class="destination-input-error-message">
-      {{ errorMessage }}
+    <div v-if="finalError" class="destination-input-error-message">
+      {{ finalErrorMessage }}
     </div>
     <div v-else class="destination-input-bottom-space"></div>
   </div>
@@ -228,6 +228,27 @@ const toModel = ref<string>('');
 
 // Enable autocomplete only when transportMode is set
 const isAutocompleteEnabled = computed(() => !!props.transportMode);
+
+// Validation: Check if from and to are the same
+const hasSameDestinationError = computed(() => {
+  const fromValue = props.from?.trim() || '';
+  const toValue = props.to?.trim() || '';
+  return fromValue && toValue && fromValue === toValue;
+});
+
+// Combined error state (internal validation + external error prop)
+const internalError = computed(() => hasSameDestinationError.value);
+const internalErrorMessage = computed(() =>
+  hasSameDestinationError.value
+    ? $t(`${MODULES.ProfessionalTravel}-error-same-destination`)
+    : '',
+);
+
+// Final error state combines internal and external errors
+const finalError = computed(() => props.error || internalError.value);
+const finalErrorMessage = computed(() =>
+  props.errorMessage || internalErrorMessage.value,
+);
 
 // Watch for external changes to from/to values
 watch(

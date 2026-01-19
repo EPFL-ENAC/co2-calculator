@@ -169,4 +169,8 @@ export default {
     en: 'Flight',
     fr: 'Vol',
   },
+  [`${MODULES.ProfessionalTravel}-error-same-destination`]: {
+    en: 'Origin and destination cannot be the same',
+    fr: "L'origine et la destination ne peuvent pas être identiques",
+  },
 } as const;

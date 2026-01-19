@@ -295,6 +295,7 @@ import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import { calculateDistance } from 'src/api/locations';
+import { MODULES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 
@@ -640,6 +641,10 @@ function validateField(i: ModuleField) {
 
   // Handle direction-input validation (check origin and destination)
   if (effectiveType === 'direction-input') {
+    // Clear previous errors
+    errors.origin = null;
+    errors.destination = null;
+
     if (i.required) {
       if (!form.origin || form.origin === '') {
         errors.origin = 'Required';
@@ -650,6 +655,19 @@ function validateField(i: ModuleField) {
         return false;
       }
     }
+
+    // Check if origin and destination are the same
+    const originValue = String(form.origin || '').trim();
+    const destinationValue = String(form.destination || '').trim();
+    if (originValue && destinationValue && originValue === destinationValue) {
+      const errorMessage = $t(
+        `${MODULES.ProfessionalTravel}-error-same-destination`,
+      );
+      errors.origin = errorMessage;
+      errors.destination = errorMessage;
+      return false;
+    }
+
     return !errors.origin && !errors.destination;
   }
 
