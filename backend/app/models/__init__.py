@@ -2,6 +2,7 @@
 
 from sqlmodel import Relationship
 
+from .data_ingestion import DataIngestionJob
 from .emission_factor import (
     EmissionFactor,
     EmissionFactorBase,
@@ -98,6 +99,7 @@ __all__ = [
     "User",
     "UserBase",
     "UnitUser",
+    "DataIngestionJob",
     "Resource",
     "ResourceBase",
     "EmissionFactor",
