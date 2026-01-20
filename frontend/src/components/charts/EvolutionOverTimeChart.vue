@@ -176,7 +176,7 @@ const chartOption = computed((): EChartsOption => {
         name: t('flight', 'flight'),
         type: 'line',
         data: chartData.value.plane,
-        smooth: true,
+        smooth: false,
         lineStyle: {
           color: props.colorScheme.darker,
           width: 3,
@@ -209,7 +209,7 @@ const chartOption = computed((): EChartsOption => {
         name: t('train', 'train'),
         type: 'line',
         data: chartData.value.train,
-        smooth: true,
+        smooth: false,
         lineStyle: {
           color: props.colorScheme.dark,
           width: 3,
