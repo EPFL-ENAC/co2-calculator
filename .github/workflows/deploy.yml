@@ -15,10 +15,6 @@ jobs:
     with:
       name: "co2-calculator"
       registry: ghcr.io
-      registry_path: epfl-enac/co2-calculator/helm
-      registry_username: ${{ github.actor }}
-    secrets:
-      registry_token: ${{ secrets.GITHUB_TOKEN }}
   deploy:
     needs:
       - publish-chart
