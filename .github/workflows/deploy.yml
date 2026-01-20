@@ -14,7 +14,7 @@ jobs:
     uses: ./.github/workflows/publish_chart.yaml
     with:
       name: "co2-calculator"
-      registry: ghcr.io
+      registry: "epfl-enac/co2-calculator"
   deploy:
     needs:
       - publish-chart
