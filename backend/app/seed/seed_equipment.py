@@ -28,6 +28,9 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+CSV_PATH = Path(__file__).parent.parent.parent / "seed_data" / "seed_equipment_data.csv"
+
+
 def parse_date(date_str: str) -> Optional[datetime]:
     """Parse date from CSV format (e.g., '12/7/2024')."""
     if not date_str:
@@ -151,7 +154,7 @@ async def seed_equipment(session: AsyncSession) -> None:
     power_factors_map = await load_power_factors_map(session)
 
     # Find the CSV file
-    csv_path = Path(__file__).parent / "api" / "v1" / "synth_data.csv"
+    csv_path = CSV_PATH
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_path}")
         return

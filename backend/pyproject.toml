@@ -27,6 +27,7 @@ dependencies = [
     "sqlmodel>=0.0.27",
     "enacit4r-files",
     "haversine==2.9.0",
+    "requests>=2.32.4",
 ]
 
 [tool.pytest.ini_options]
@@ -74,6 +75,7 @@ dev = [
     "locust>=2.42.2",
     "pytest-env>=1.2.0",
     "faker>=38.2.0",
+    "types-requests>=2.32.4.20260107",
 ]
 
 [tool.mypy]

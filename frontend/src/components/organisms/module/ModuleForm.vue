@@ -127,9 +127,18 @@
                         transition-hide="scale"
                       >
                         <q-date
-                          :model-value="String(form[inp.id] || '')"
-                          :min="currentYearMinDate"
-                          :max="currentYearMaxDate"
+                          :model-value="
+                            String(form[inp.id] || yearDateRange.default)
+                          "
+                          :default-view="form[inp.id] ? undefined : 'Calendar'"
+                          :min="yearDateRange.min"
+                          :max="yearDateRange.max"
+                          :navigation-min-year-month="
+                            yearDateRange.navigationMin
+                          "
+                          :navigation-max-year-month="
+                            yearDateRange.navigationMax
+                          "
                           @update:model-value="
                             (val) => (form[inp.id] = val as FieldValue)
                           "
@@ -279,6 +288,7 @@
 import { reactive, watch, computed, toRef } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   QInput,
   QSelect,
@@ -295,8 +305,10 @@ import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import { calculateDistance } from 'src/api/locations';
+import { MODULES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
+const workspaceStore = useWorkspaceStore();
 
 interface Option {
   label: string;
@@ -332,16 +344,17 @@ const props = withDefaults(
   },
 );
 
-// Compute current year date range to restrict date picker
-const currentYearMinDate = computed(() => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear}/01/01`;
-});
+const selectedYear = computed(
+  () => workspaceStore.selectedYear ?? new Date().getFullYear(),
+);
 
-const currentYearMaxDate = computed(() => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear}/12/31`;
-});
+const yearDateRange = computed(() => ({
+  min: `${selectedYear.value}/01/01`,
+  max: `${selectedYear.value}/12/31`,
+  navigationMin: `${selectedYear.value}/01`,
+  navigationMax: `${selectedYear.value}/12`,
+  default: `${selectedYear.value}/01/01`,
+}));
 
 const visibleFields = computed(() =>
   (props.fields ?? []).filter((f) => !f.hideIn?.form),
@@ -640,6 +653,10 @@ function validateField(i: ModuleField) {
 
   // Handle direction-input validation (check origin and destination)
   if (effectiveType === 'direction-input') {
+    // Clear previous errors
+    errors.origin = null;
+    errors.destination = null;
+
     if (i.required) {
       if (!form.origin || form.origin === '') {
         errors.origin = 'Required';
@@ -650,6 +667,19 @@ function validateField(i: ModuleField) {
         return false;
       }
     }
+
+    // Check if origin and destination are the same
+    const originValue = String(form.origin || '').trim();
+    const destinationValue = String(form.destination || '').trim();
+    if (originValue && destinationValue && originValue === destinationValue) {
+      const errorMessage = $t(
+        `${MODULES.ProfessionalTravel}-error-same-destination`,
+      );
+      errors.origin = errorMessage;
+      errors.destination = errorMessage;
+      return false;
+    }
+
     return !errors.origin && !errors.destination;
   }
 

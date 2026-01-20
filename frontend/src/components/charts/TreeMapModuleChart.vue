@@ -363,7 +363,7 @@ const isEvolutionDialogOpen = computed({
   </q-card-section>
 
   <q-dialog v-model="isEvolutionDialogOpen" class="evolution-dialog">
-    <q-card>
+    <q-card style="width: 700px; max-width: 80vw">
       <q-card-section class="row items-center q-py-md">
         <div class="text-h4 text-weight-medium">
           {{ t('evolution_over_time') }}
@@ -394,10 +394,6 @@ const isEvolutionDialogOpen = computed({
 
 .chart :deep(canvas) {
   display: block;
-}
-
-.evolution-dialog :deep(.q-dialog__inner) {
-  max-width: 900px;
 }
 
 .legend-container {

@@ -3,9 +3,10 @@ import { ref } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
 import FilesUploadDialog from './FilesUploadDialog.vue';
 import { useFilesStore } from 'src/stores/files';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 
 const filesStore = useFilesStore();
-
+const dataManagementStore = useBackofficeDataManagement();
 interface Props {
   year: number;
 }
@@ -14,6 +15,16 @@ const showUploadDialog = ref<boolean>(false);
 
 const onFilesUploaded = () => {
   showUploadDialog.value = false;
+};
+
+const dataEntrySync = async (moduleTypeId: number, year: number) => {
+  await dataManagementStore.initiateSync(
+    moduleTypeId,
+    year,
+    'api',
+    'data_entries',
+  );
+  // fetch status? // have sse ? how do we poll ?
 };
 </script>
 
@@ -121,6 +132,7 @@ const onFilesUploaded = () => {
                   class="text-weight-medium"
                   @click="showUploadDialog = true"
                 />
+                <!-- TODO: use enum for data_module_type_id -->
                 <q-btn
                   no-caps
                   color="accent"
@@ -128,6 +140,7 @@ const onFilesUploaded = () => {
                   size="sm"
                   :label="$t('data_management_connect_api')"
                   class="text-weight-medium on-right"
+                  @click="dataEntrySync(MODULES_LIST.indexOf(module) + 1, year)"
                 />
                 <q-btn
                   no-caps

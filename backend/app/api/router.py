@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth,
     backoffice,
+    data_sync,
     files,
     headcounts,
     inventory,
@@ -40,3 +41,4 @@ api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headco
 api_router.include_router(inventory.router, prefix="/inventories", tags=["inventories"])
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
+api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])

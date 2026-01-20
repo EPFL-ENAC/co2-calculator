@@ -258,6 +258,25 @@ class ProfessionalTravelRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
+    async def bulk_insert_travel_entries(
+        self, entries: List[dict[str, Any]]
+    ) -> List[ProfessionalTravel]:
+        """
+        Bulk insert professional travel entries.
+
+        Args:
+            entries: List of dicts representing professional travel data
+
+        Returns:
+            List of ProfessionalTravel instances that were inserted
+        """
+        db_objs = [ProfessionalTravel.model_validate(entry) for entry in entries]
+        self.session.add_all(db_objs)
+        await self.session.commit()
+        for obj in db_objs:
+            await self.session.refresh(obj)
+        return db_objs
+
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,

@@ -25,12 +25,14 @@ from app.services.travel_calculation_service import TravelCalculationService
 logger = get_logger(__name__)
 settings = get_settings()
 
+CSV_PATH = Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_flight.csv"
+
 
 async def seed_professional_travel(session: AsyncSession) -> None:
     """Upsert professional travel data from seed_professional_travel.csv."""
     logger.info("Upserting professional travel data...")
 
-    csv_path = Path(__file__).parent.parent / "seed_professional_travel.csv"
+    csv_path = CSV_PATH
     if not csv_path.exists():
         logger.error(f"Professional travel CSV file not found at {csv_path}")
         return
