@@ -44,8 +44,8 @@ export default {
     fr: 'Ajouter un voyage',
   },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
-    en: 'Each leg of a journey must be entered as a separate trip.',
-    fr: 'Chaque étape du trajet doit être saisie comme un déplacement distinct.',
+    en: 'In the same tab, please enter the details of your train journeys in Switzerland or abroad.',
+    fr: 'Dans le même onglet, merci de saisir les données relatives à vos déplacements en train en Suisse ou à l’international.',
   },
   [`${MODULES.ProfessionalTravel}-other-form-title`]: {
     en: 'Add a trip',
@@ -82,20 +82,20 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
-    en: 'Record travel by plane and train, along with their associated emissions. ',
-    fr: 'Enregistrez les déplacements en avion et en train, ainsi que les émissions associées.',
+    en: 'Estimate the impact of your professional travel',
+    fr: 'Estimez l’impact de vos voyages professionnels',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
-    en: 'Please manually complete all train trips. Plane trips are usually already listed in the table below.',
-    fr: 'Veuillez renseigner manuellement tous les trajets en train. Les trajets en avion sont généralement déjà renseignés dans le tableau ci-dessous.',
+    en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane.",
+    fr: "Ce module permet d'estimer et de visualiser l'impact de vos voyages (ou de votre unité) en train et en avion.",
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint`]: {
     en: 'Total Travel Carbon Footprint',
     fr: 'Empreinte CO₂ totale déplacements',
   },
   [`${MODULES.ProfessionalTravel}-title-tooltip-title`]: {
-    en: 'Information',
-    fr: 'Information',
+    en: 'Data relating to your air travel is provided to us by the EPFL Travel Agency, and the associated carbon footprint is calculated taking into account several factors such as distance, class booked, flight altitude, number of people on the plane, airline, etc. If you have traveled outside of the agency, please enter the departure city and arrival city in the tab below. The calculation methodology will then be different and will take into account the distance and type of flight (very short-haul, short-haul, medium-haul, or long-haul).',
+    fr: 'Les données relatives à vos voyages en avion nous sont communiquées par l’Agence de voyages EPFL et l’empreinte carbone associée est calculée en considérant plusieurs facteurs tels que la distance, la classe réservée, la hauteur de vol, le nombre de personne dans l’avion, la compagnie aérienne, etc. Si vous avez effectué un voyage hors agence, merci de saisir dans l’onglet ci-dessous, la ville de départ et la ville d’arrivée. La méthodologie de calcul sera alors différente et considérera la distance et le type de vol (très court-courrier, court-courrier, moyen-courrier ou long-courrier).',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {
@@ -168,5 +168,9 @@ export default {
   flight: {
     en: 'Flight',
     fr: 'Vol',
+  },
+  [`${MODULES.ProfessionalTravel}-error-same-destination`]: {
+    en: 'Origin and destination cannot be the same',
+    fr: "L'origine et la destination ne peuvent pas être identiques",
   },
 } as const;
