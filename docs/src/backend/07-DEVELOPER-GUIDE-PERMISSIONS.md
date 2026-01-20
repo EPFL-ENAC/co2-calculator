@@ -255,7 +255,7 @@ require_permission("modules.equipment", "edit")              # Edit equipment da
 
 ### Examples from Codebase
 
-#### Example 1: Headcount Endpoints ([app/api/v1/headcounts.py](../../../../backend/app/api/v1/headcounts.py))
+#### Example 1: Headcount Endpoints ([app/api/v1/headcounts.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/api/v1/headcounts.py))
 
 ```python
 @router.get(
@@ -283,7 +283,7 @@ async def get_headcounts(
     return headcounts
 ```
 
-#### Example 2: User Management ([app/api/v1/backoffice.py](../../../../backend/app/api/v1/backoffice.py))
+#### Example 2: User Management ([app/api/v1/backoffice.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/api/v1/backoffice.py))
 
 ```python
 @router.get("/users", response_model=List[UserRead])
@@ -304,7 +304,7 @@ async def list_users(
     pass
 ```
 
-#### Example 3: File Access ([app/api/v1/files.py](../../../../backend/app/api/v1/files.py))
+#### Example 3: File Access ([app/api/v1/files.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/api/v1/files.py))
 
 ```python
 @router.get(
@@ -451,7 +451,7 @@ class HeadcountRepository:
 
 ### Example from HeadcountService
 
-Full example from [app/services/headcount_service.py](../../../../backend/app/services/headcount_service.py):
+Full example from [app/services/headcount_service.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/services/headcount_service.py):
 
 ```python
 from app.services.authorization_service import get_data_filters
@@ -589,7 +589,7 @@ async def update_resource(
 
 ### Professional Travel Example
 
-Professional travel has complex resource-level rules defined in [app/core/policy.py](../../../../backend/app/core/policy.py):
+Professional travel has complex resource-level rules defined in [app/core/policy.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/core/policy.py):
 
 #### Rules
 
@@ -643,7 +643,7 @@ async def update_professional_travel(
     return updated_trip
 ```
 
-#### Policy Logic ([app/core/policy.py](../../../../backend/app/core/policy.py#L146-L205))
+#### Policy Logic ([app/core/policy.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/core/policy.py#L146-L205))
 
 ```python
 async def _evaluate_resource_access_policy(input_data: dict) -> dict:
@@ -692,7 +692,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
 
 To add custom business rules for a new resource type:
 
-1. Add policy logic in `_evaluate_resource_access_policy()` in [app/core/policy.py](../../../../backend/app/core/policy.py)
+1. Add policy logic in `_evaluate_resource_access_policy()` in [app/core/policy.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/core/policy.py)
 2. Check resource type and apply rules:
 
 ```python
@@ -1149,7 +1149,7 @@ async def update_trip(
    }
    ```
 
-4. **Check role-to-permission mapping** - Look in [app/utils/permissions.py](../../../../backend/app/utils/permissions.py) to see if the role grants the permission.
+4. **Check role-to-permission mapping** - Look in [app/utils/permissions.py](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/utils/permissions.py) to see if the role grants the permission.
 
 5. **Check for typos** - Ensure permission path matches exactly (case-sensitive).
 
