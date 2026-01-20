@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.3.0...v0.3.1) (2026-01-20)
+
+
+### Bug Fixes
+
+* update teh PR template ([3e4e0ac](https://github.com/EPFL-ENAC/co2-calculator/commit/3e4e0acd66b230e9937ae626d7cc435788fdd527))
+
 ## [0.3.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.2.0...v0.3.0) (2025-12-23)
 
 
