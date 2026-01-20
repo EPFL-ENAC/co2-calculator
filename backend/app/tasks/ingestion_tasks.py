@@ -49,7 +49,7 @@ async def run_sync_task(
         # Update module's last_sync_status
         await provider._update_job(
             status_code=result["status_code"],
-            status_message=result["message"],
+            status_message=result["status_message"],
             extra_metadata=result.get("data", {}),
         )
 

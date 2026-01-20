@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from app.db import SessionLocal
 from app.models.data_ingestion import (
     DataIngestionJob,
+    EntityType,
     FactorType,
     IngestionMethod,
     IngestionStatus,
@@ -58,20 +59,20 @@ class DataIngestionProvider(ABC):
     ) -> int:
         async with SessionLocal() as db:
             repo = DataIngestionRepository(db)
-            job = await repo.create_ingestion_job(
-                DataIngestionJob(
-                    module_type_id=module_type_id,
-                    year=year,
-                    target_type=target_type,
-                    ingestion_method=ingestion_method,
-                    status=IngestionStatus.NOT_STARTED,
-                    status_message="Job created",
-                    meta={
-                        "factor_type_id": factor_type_id if factor_type_id else None,
-                    },
-                    provider=self.user.provider if self.user else None,
-                ),
+            data = DataIngestionJob(
+                entity_type=EntityType.MODULE_PER_YEAR,
+                module_type_id=module_type_id,
+                year=year,
+                target_type=target_type,
+                ingestion_method=ingestion_method,
+                status=IngestionStatus.NOT_STARTED,
+                status_message="Job created",
+                meta={
+                    "factor_type_id": factor_type_id.value if factor_type_id else None,
+                },
+                provider=self.user.provider if self.user else None,
             )
+            job = await repo.create_ingestion_job(data)
             if not job:
                 raise Exception("Failed to create ingestion job")
             self.job_id = job.id
@@ -110,10 +111,14 @@ class DataIngestionProvider(ABC):
                     "message": f"Successfully processed {result['inserted']} records"
                 },
             )
-            return {"status_code": 200, "message": "Success", "data": result}
+            return {
+                "status_code": IngestionStatus.COMPLETED,
+                "status_message": "Success",
+                "data": result,
+            }
         except Exception as e:
             await self._update_job(
-                status_message="failed",
+                status_message=f"failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
                 extra_metadata={"error": str(e)},
             )

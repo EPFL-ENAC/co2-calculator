@@ -1,14 +1,16 @@
 import pytest
 
 from app.models.user import User
-from app.services.data_ingestion.tableau_provider import TableauFlightsProvider
+from app.services.data_ingestion.professional_travel_api_provider import (
+    ProfessionalTravelApiProvider,
+)
 
 # @pytest.mark.asyncio
 # async def test_tableau_ingest_real():
 #     config = {}
 #     user = User(id=1, username="your_tableau_username")  # Add other fields if needed
 
-#     provider = TableauFlightsProvider(config, user)
+#     provider = ProfessionalTravelApiProvider(config, user)
 #     filters = {
 #         # Add any required filter keys here
 #     }
@@ -29,7 +31,7 @@ async def test_tableau_fetch_data_real():
     config = {}
     user = User(id=1, username="your_tableau_username")  # Add other fields if needed
 
-    provider = TableauFlightsProvider(config, user)
+    provider = ProfessionalTravelApiProvider(config, user)
     filters = {
         # Add any required filter keys here, e.g.:
         # "year": 2025,

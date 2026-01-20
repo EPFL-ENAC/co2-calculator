@@ -56,7 +56,7 @@ class DataIngestionRepository:
             DataIngestionJob.model_validate(result_job)
 
             result_job.status_message = status_message
-            result_job.status = status_code.value
+            result_job.status = status_code
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
                 **self.sanitize_for_json(metadata or {}),
@@ -70,7 +70,6 @@ class DataIngestionRepository:
                     )
                 ),
             }
-            print("DEBUG merged_meta:", merged_meta)
             result_job.meta = merged_meta
             await self.session.commit()
             await self.session.refresh(result_job)

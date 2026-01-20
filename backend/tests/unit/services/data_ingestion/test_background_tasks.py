@@ -18,9 +18,8 @@ async def test_run_sync_task_success():
     fake_provider.set_job_id = AsyncMock()
     fake_provider.ingest = AsyncMock(
         return_value={
-            "status": "success",
+            "status_message": "success",
             "status_code": 200,
-            "message": "ok",
             "data": {"foo": "bar"},
         }
     )

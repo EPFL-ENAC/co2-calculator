@@ -1,17 +1,19 @@
 import asyncio
-import json
 import uuid
 from asyncio.log import logger
 from datetime import datetime, timedelta, timezone
+from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set
 
 import requests
 from joserfc import jwt as JWT
 from joserfc.jwk import OctKey
+from sqlmodel import select
 
 from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models.data_ingestion import IngestionStatus
+from app.models.location import Location
 from app.models.user import User
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.professional_travel_service import ProfessionalTravelService
@@ -43,7 +45,7 @@ def normalize_vds_payload(payload: Dict[str, Any]) -> tuple[Dict[str, Any], bool
     return payload, changed
 
 
-class TableauFlightsProvider(DataIngestionProvider):
+class ProfessionalTravelApiProvider(DataIngestionProvider):
     def __init__(
         self,
         config: Dict[str, Any],
@@ -89,7 +91,6 @@ class TableauFlightsProvider(DataIngestionProvider):
                 raise Exception("Tableau authentication failed")
             result = await self._vds_query_datasource(session, x_auth, payload)
 
-            logger.info(f"VDS query result: {len(result)} records")
             if isinstance(result, dict) and "data" in result:
                 return result["data"]
             elif isinstance(result, list):
@@ -112,30 +113,39 @@ class TableauFlightsProvider(DataIngestionProvider):
         try:
             transformed = []
 
-            # async def get_location_id_by_code(code: str) -> Optional[int]:
-            #     from sqlmodel import select
-
-            #     from app.models.location import Location
-
-            #     async with SessionLocal() as db:
-            #         result = await db.execute(
-            #             select(Location).where(Location.code == code)
-            #         )
-            #         location = result.scalar_one_or_none()
-            #     return location.id if location else None
+            async def get_location_id_by_code(code: str) -> Optional[int]:
+                async with SessionLocal() as db:
+                    result = await db.execute(
+                        select(Location).where(Location.iata_code == code)
+                    )
+                    location = result.scalar_one_or_none()
+                return location.id if location else None
 
             for record in raw_data:
+                # check date < 01.01.year+1
+                departure_date_str = record.get("IN_Departure date") or ""
+                departure_date = self._parse_date(departure_date_str)
+                if (not departure_date) or (departure_date.year != self.config["year"]):
+                    continue  # Skip records not in the target year
                 # In your transform_data method, before appending entry:
-                # origin_code = record.get("IN_Segment origin airport code")
-                # destination_code = record.get("IN_Segment destination airport code")
-                # origin_location_id = await get_location_id_by_code(origin_code)
-                # destination_location_id = await get_location_id_by_code(
-                #     destination_code
-                # )
+                origin_code: str = record.get("IN_Segment origin airport code") or ""
+                destination_code: str = (
+                    record.get("IN_Segment destination airport code") or ""
+                )
+                origin_location_id = await get_location_id_by_code(origin_code)
+                destination_location_id = await get_location_id_by_code(
+                    destination_code
+                )
+                if (origin_location_id is None) or (destination_location_id is None):
+                    continue  # Skip records with unknown locations
+                sciper = record.get("SCIPER")
+                if not sciper or str(sciper).strip() == "":
+                    continue  # Skip records without valid sciper
+
+                traveler_name = sciper if sciper else "Unknown"
 
                 entry = {
-                    # "inventory_id": self.inventory_id,
-                    "sciper": record.get("Sciper"),
+                    "sciper": sciper,
                     "centre_financier": record.get("Centre financier"),
                     "departure_date": self._parse_date(
                         record.get("IN_Departure date") or ""
@@ -146,7 +156,7 @@ class TableauFlightsProvider(DataIngestionProvider):
                     "destination_code": record.get(
                         "IN_Segment destination airport code"
                     ),
-                    "travel_class": self._normalize_class(
+                    "class_": self._normalize_class(
                         record.get("IN_Segment class") or ""
                     ),
                     "supplier": record.get("IN_Supplier"),
@@ -155,17 +165,14 @@ class TableauFlightsProvider(DataIngestionProvider):
                     "round_trip": record.get("ROUND_TRIP") == "YES",
                     "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
                     "co2_kg": record.get("OUT_CO2_CORRECTED"),
-                    # "created_by": self.user_id,
-                    # "carbon_report_module_id": self.module_id,
-                    # TODO: join with users table to get user display_name
-                    "traveler_name": record.get("Sciper"),  # or another field
-                    "origin_location_id": 0,  # origin_location_id,
-                    "destination_location_id": 0,  # destination_location_id,
+                    "traveler_name": traveler_name,
+                    "traveler_id": sciper,
+                    "provider": self.config["provider"],
+                    "origin_location_id": origin_location_id,
+                    "destination_location_id": destination_location_id,
                     "transport_mode": record.get("TRANSPORT_TYPE"),
-                    # TODO: unit_id mapping
-                    "unit_id": "10208",  # map from your context or record
-                    # TODO: extract year from departure_date
-                    "year": 2025,  # extract from date or context
+                    "unit_id": "10208",  # TODO: map from your context or record
+                    "year": self.config["year"],
                 }
                 transformed.append(entry)
 
@@ -185,9 +192,13 @@ class TableauFlightsProvider(DataIngestionProvider):
         result = []
         async with SessionLocal() as db:
             professional_travel_service = ProfessionalTravelService(db)
+            # data-entries bulk insert
             result = await professional_travel_service.bulk_insert_travel_entries(data)
-        # TODO: implement bulk insert
-        # result = data  # dummy
+            # emissions bulk insert
+            # professional_travel_emission_service = ProfessionalEmissionService(db)
+            # await professional_travel_emission_service.bulk_insert_travel_emissions(
+            #     data=Trave
+            # )
         return {"inserted": len(result)}
 
     def _generate_jwt(self) -> str:
@@ -224,9 +235,7 @@ class TableauFlightsProvider(DataIngestionProvider):
             session.post, url, json=payload, timeout=self.timeout
         )
 
-        logger.info(f"Tableau sign-in response status: {response.status_code}")
-
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             return response.json()["credentials"]["token"]
 
         # Log error details for debugging
@@ -258,7 +267,7 @@ class TableauFlightsProvider(DataIngestionProvider):
             session.post, url, json=payload, headers=headers, timeout=self.timeout
         )
 
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             return response.json()
         raise Exception(
             f"Failed to read metadata: {response.status_code} {response.text}"
@@ -320,20 +329,10 @@ class TableauFlightsProvider(DataIngestionProvider):
             "Accept": "application/json",
             "X-Tableau-Auth": x_auth,
         }
-
-        logger.info(
-            "================================ VDS QUERY datasource ===================="
-        )
-
-        logger.info(f"QUERY PAYLOAD: {json.dumps(payload, ensure_ascii=False)}")
-
         response = await asyncio.to_thread(
             session.post, url, json=payload, headers=headers, timeout=self.timeout
         )
-
-        logger.info(f"QUERY RESPONSE: {response.status_code} {response.text}")
-
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             return response.json()
         raise Exception(f"Query failed: {response.status_code} {response.text}")
 
@@ -344,11 +343,11 @@ class TableauFlightsProvider(DataIngestionProvider):
 
     def _normalize_class(self, class_str: str) -> str:
         mapping = {
-            "AIR ECONOMY CLASS": "economy",
+            "AIR ECONOMY CLASS": "eco",
             "AIR BUSINESS CLASS": "business",
             "AIR FIRST CLASS": "first",
         }
-        return mapping.get(class_str, "economy")
+        return mapping.get(class_str, "eco")
 
 
 def to_bool(value: str) -> bool:

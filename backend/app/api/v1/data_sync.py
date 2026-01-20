@@ -69,11 +69,11 @@ async def sync_module_data_entries(
     }
     """
     provider = await ProviderFactory.create_provider(
-        config=request.config or {},
-        user=current_user,
         module_type_id=ModuleTypeEnum(module_type_id),
         ingestion_method=request.ingestion_method,
         target_type=request.target_type,
+        config=request.config or {},
+        user=current_user,
     )
 
     if not provider:
@@ -94,9 +94,9 @@ async def sync_module_data_entries(
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),
         year=request.year,
-        factor_type_id=factor_type_id,
         ingestion_method=request.ingestion_method,
         target_type=request.target_type,
+        factor_type_id=factor_type_id,
     )
     # Enqueue Celery task instead of background_tasks
     # run_ingestion.delay(

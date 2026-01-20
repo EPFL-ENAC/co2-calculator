@@ -4,7 +4,9 @@ from app.models.data_ingestion import IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.data_ingestion.tableau_provider import TableauFlightsProvider
+from app.services.data_ingestion.professional_travel_api_provider import (
+    ProfessionalTravelApiProvider,
+)
 
 # from app.services.data_ingestion.csv_provider import (
 #     CSVDataEntriesProvider,
@@ -18,12 +20,12 @@ class ProviderFactory:
     # Registry of available providers
     PROVIDERS = {
         # Data Entries providers
-        # ("travel", "tableau_api", "data_entries"): TableauFlightsProvider,
+        # ("travel", "tableau_api", "data_entries"): ProfessionalTravelApiProvider,
         (
             ModuleTypeEnum.professional_travel,
             IngestionMethod.api,
             TargetType.DATA_ENTRIES,
-        ): TableauFlightsProvider,
+        ): ProfessionalTravelApiProvider,
         # ("travel", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
@@ -60,10 +62,10 @@ class ProviderFactory:
     async def create_provider(
         cls,
         module_type_id: ModuleTypeEnum,
-        user: User,
-        config: dict,
         ingestion_method: IngestionMethod,
         target_type: TargetType,
+        config: dict,
+        user: User,
     ) -> Optional[DataIngestionProvider]:
         """
         Create the appropriate provider instance.

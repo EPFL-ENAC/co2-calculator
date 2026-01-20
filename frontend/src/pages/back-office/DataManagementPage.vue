@@ -7,7 +7,14 @@ import ModulesConfig from 'src/components/organisms/data-management/ModulesConfi
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 
 // TODO: fix the available years dynamically
-const availableYears = ref<number[]>([2022, 2023, 2024]);
+const MIN_YEARS = 2025;
+const availableYears = ref<number[]>([]);
+const currentYear = new Date().getFullYear();
+if (currentYear > MIN_YEARS) {
+  for (let year = MIN_YEARS; year < currentYear; year++) {
+    availableYears.value.push(year);
+  }
+}
 const selectedYear = ref<number>(
   availableYears.value[availableYears.value.length - 1],
 );
