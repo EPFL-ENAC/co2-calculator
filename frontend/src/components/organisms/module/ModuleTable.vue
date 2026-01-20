@@ -115,7 +115,7 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.name === 'class' || col.name === 'sub_class'"
+              v-if="col.name === 'equipment_class' || col.name === 'sub_class'"
               :row="slotProps.row"
               :field-id="col.field"
               :module-type="moduleType"

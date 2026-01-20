@@ -20,6 +20,7 @@
       hide-bottom-space
       class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
+      :disable="props.disable"
       @update:model-value="onChange"
     />
   </div>
@@ -44,19 +45,20 @@ type CommonProps = {
 
   unitId: string;
   year: string | number;
+  disable?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
 
-const isClass = computed(() => props.fieldId === 'class');
+const isClass = computed(() => props.fieldId === 'equipment_class');
 const isSubClass = computed(() => props.fieldId === 'sub_class');
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'));
 
-const classOptions = computed(() => dynamicOptions['class'] ?? []);
+const classOptions = computed(() => dynamicOptions['equipment_class'] ?? []);
 const subClassOptions = computed(() => dynamicOptions['sub_class'] ?? []);
 
 const options = computed(() =>
