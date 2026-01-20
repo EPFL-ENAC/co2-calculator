@@ -18,12 +18,17 @@ from app.models.location import Location
 logger = get_logger(__name__)
 
 
+CSV_PATH = (
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_destination.csv"
+)
+
+
 async def seed_locations(session: AsyncSession) -> None:
     """Seed locations from travel_destination.csv."""
     logger.info("Seeding locations from CSV...")
 
     # Find the CSV file
-    csv_path = Path(__file__).parent / "api" / "v1" / "travel_destination.csv"
+    csv_path = CSV_PATH
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_path}")
         return

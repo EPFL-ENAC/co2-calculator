@@ -21,6 +21,10 @@ from app.models.emission_factor import EmissionFactor, PowerFactor
 logger = get_logger(__name__)
 settings = get_settings()
 
+CSV_PATH = (
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_equipment_table_power.csv"
+)
+
 
 async def seed_emission_factors(session: AsyncSession) -> None:
     """Seed initial emission factors."""
@@ -74,7 +78,7 @@ async def seed_power_factors(session: AsyncSession) -> None:
         return
 
     # Find the CSV file
-    csv_path = Path(__file__).parent / "api" / "v1" / "table_power.csv"
+    csv_path = CSV_PATH
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_path}")
         return

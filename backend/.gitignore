@@ -34,6 +34,9 @@ ENV/
 *~
 .DS_Store
 
+# SEED DATA
+seed_data/
+
 # Testing
 .pytest_cache/
 .coverage
