@@ -6,7 +6,7 @@ from sqlalchemy.orm import DeclarativeMeta
 from sqlmodel import SQLModel
 
 # Import all model modules so tables are registered
-from app.models import module, module_type, resource, user, variant_type  # noqa: F401
+from app.models import module, module_type, user, variant_type  # noqa: F401
 
 
 def generate_mermaid(base: Optional[DeclarativeMeta] = None) -> str:
