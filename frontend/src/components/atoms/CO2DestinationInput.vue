@@ -218,7 +218,6 @@ const emit = defineEmits<{
   (e: 'swap'): void;
 }>();
 
-// Autocomplete state
 const fromOptions = ref<Location[]>([]);
 const toOptions = ref<Location[]>([]);
 const loadingFrom = ref(false);
@@ -226,17 +225,14 @@ const loadingTo = ref(false);
 const fromModel = ref<string>('');
 const toModel = ref<string>('');
 
-// Enable autocomplete only when transportMode is set
 const isAutocompleteEnabled = computed(() => !!props.transportMode);
 
-// Validation: Check if from and to are the same
 const hasSameDestinationError = computed(() => {
   const fromValue = props.from?.trim() || '';
   const toValue = props.to?.trim() || '';
   return fromValue && toValue && fromValue === toValue;
 });
 
-// Combined error state (internal validation + external error prop)
 const internalError = computed(() => hasSameDestinationError.value);
 const internalErrorMessage = computed(() =>
   hasSameDestinationError.value
@@ -244,13 +240,11 @@ const internalErrorMessage = computed(() =>
     : '',
 );
 
-// Final error state combines internal and external errors
 const finalError = computed(() => props.error || internalError.value);
-const finalErrorMessage = computed(() =>
-  props.errorMessage || internalErrorMessage.value,
+const finalErrorMessage = computed(
+  () => props.errorMessage || internalErrorMessage.value,
 );
 
-// Watch for external changes to from/to values
 watch(
   () => props.from,
   (newVal) => {
@@ -271,7 +265,6 @@ watch(
   { immediate: true },
 );
 
-// Safeguard: Ensure model values are always strings (prevent [object Object] display)
 watch(fromModel, (newVal) => {
   if (newVal && typeof newVal === 'object') {
     fromModel.value = (newVal as Location).name || '';
@@ -284,22 +277,17 @@ watch(toModel, (newVal) => {
   }
 });
 
-// Clear search results and field values when transport mode changes
 watch(
   () => props.transportMode,
   (newMode, oldMode) => {
-    // Only clear if transport mode actually changed (not on initial mount)
     if (oldMode !== undefined && newMode !== oldMode) {
       // Clear options
       fromOptions.value = [];
       toOptions.value = [];
-      // Clear loading states
       loadingFrom.value = false;
       loadingTo.value = false;
-      // Clear field values
       fromModel.value = '';
       toModel.value = '';
-      // Emit empty values to clear parent form
       emit('update:from', '');
       emit('update:to', '');
     }
@@ -362,15 +350,11 @@ function handleFromSelection(value: Location | string | null) {
   }
 
   if (typeof value === 'string') {
-    // User typed a string - emit it
-    // The model value should be the string with fill-input
     fromModel.value = value;
     emit('update:from', value);
     return;
   }
 
-  // Location object selected from dropdown
-  // With fill-input, we still set model to the name string
   fromModel.value = value.name;
   emit('update:from', value.name);
   emit('from-location-selected', {
@@ -389,15 +373,11 @@ function handleToSelection(value: Location | string | null) {
   }
 
   if (typeof value === 'string') {
-    // User typed a string - emit it
-    // The model value should be the string with fill-input
     toModel.value = value;
     emit('update:to', value);
     return;
   }
 
-  // Location object selected from dropdown
-  // With fill-input, we still set model to the name string
   toModel.value = value.name;
   emit('update:to', value.name);
   emit('to-location-selected', {
@@ -416,9 +396,8 @@ function swapValues() {
 
   emit('update:from', oldTo);
   emit('update:to', oldFrom);
-  emit('swap'); // Emit swap event to allow parent to swap location data
+  emit('swap');
 
-  // Swap models for autocomplete
   if (isAutocompleteEnabled.value) {
     fromModel.value = oldToModel;
     toModel.value = oldFromModel;
@@ -429,7 +408,6 @@ function swapValues() {
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
 
-// Hide dropdown icon for q-select components
 :deep(.q-select__dropdown-icon),
 :deep(.q-select-dropdown-icon),
 :deep(.q-select_dropdown-icon) {
@@ -513,11 +491,11 @@ function swapValues() {
   font-size: 12px;
   line-height: 1.5;
   padding-top: 4px;
-  padding-left: 12px; // Match Quasar's error message padding
-  min-height: 20px; // Ensure consistent spacing
+  padding-left: 12px;
+  min-height: 20px;
 }
 
 .destination-input-bottom-space {
-  min-height: 20px; // Maintain spacing when no error
+  min-height: 20px;
 }
 </style>

@@ -45,7 +45,7 @@ export default {
   },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
     en: 'In the same tab, please enter the details of your train journeys in Switzerland or abroad.',
-    fr: 'Dans le même onglet, merci de saisir les données relatives à vos déplacements en train en Suisse ou à l’internationale.',
+    fr: 'Dans le même onglet, merci de saisir les données relatives à vos déplacements en train en Suisse ou à l’international.',
   },
   [`${MODULES.ProfessionalTravel}-other-form-title`]: {
     en: 'Add a trip',
@@ -82,7 +82,7 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
-    en: 'Estimate the impact of your professionnal travel',
+    en: 'Estimate the impact of your professional travel',
     fr: 'Estimez l’impact de vos voyages professionnels',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
