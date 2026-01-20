@@ -12,10 +12,31 @@ import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 import { useTimelineStore } from 'src/stores/modules';
+import { useModuleStore } from 'src/stores/modules';
+import { nOrDash } from 'src/utils/number';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
+const moduleStore = useModuleStore();
+
+const currentYear = computed(
+  () => workspaceStore.selectedYear ?? new Date().getFullYear(),
+);
+
+const moduleTotals = computed(() => {
+  if (
+    workspaceStore.selectedUnit?.id &&
+    currentYear.value &&
+    !moduleStore.state.moduleTotals
+  ) {
+    moduleStore.getModuleTotalsAggregated(
+      workspaceStore.selectedUnit.id,
+      currentYear.value,
+    );
+  }
+  return moduleStore.state.moduleTotals;
+});
 
 function hasModulePermission(
   module: Module,
@@ -29,7 +50,6 @@ function hasModulePermission(
 }
 const timelineStore = useTimelineStore();
 
-// Merge static MODULE_CARDS with dynamic status badges from API
 const moduleCardsWithStatus = computed(() => {
   return MODULE_CARDS.map(
     (card): ModuleCard => ({
@@ -38,10 +58,6 @@ const moduleCardsWithStatus = computed(() => {
         getBadgeForStatus(timelineStore.itemStates[card.module]) ?? undefined,
     }),
   );
-});
-
-const currentYear = computed(() => {
-  return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
 
 const modulesCounterText = computed(() =>
@@ -113,9 +129,11 @@ const modulesCounterText = computed(() =>
             :to="{ name: 'results' }"
           />
           <div class="column items-end">
-            <p class="text-h1 text-weight-medium q-mb-none">42'000</p>
+            <p class="text-h1 text-weight-medium q-mb-none">
+              {{ nOrDash(moduleTotals?.total) }}
+            </p>
             <p class="text-secondary text-body2 q-mb-none">
-              {{ $t('results_units') }}
+              {{ $t('tco2eq') }}
             </p>
           </div>
         </div>
@@ -215,16 +233,14 @@ const modulesCounterText = computed(() =>
               />
             </div>
             <div
-              v-if="moduleCard.value"
+              v-if="moduleCard.value || moduleTotals?.[moduleCard.module]"
               class="row q-gutter-xs text-body1 items-baseline"
             >
-              <p class="text-weight-medium q-mb-none">{{ moduleCard.value }}</p>
+              <p class="text-weight-medium q-mb-none">
+                {{ nOrDash(moduleStore.getModuleTotal(moduleCard.module)) }}
+              </p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{
-                  $t('module_total_result_title_unit', {
-                    type: moduleCard.module,
-                  })
-                }}
+                {{ $t('module_total_result_title_unit') }}
               </p>
             </div>
           </div>

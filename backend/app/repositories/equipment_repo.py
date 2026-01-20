@@ -250,6 +250,7 @@ async def get_equipment_summary_by_submodule(
     session: AsyncSession,
     unit_id: Optional[str] = None,
     status: Optional[str] = "In service",
+    year: Optional[int] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Get aggregated summary statistics grouped by submodule.
@@ -258,6 +259,7 @@ async def get_equipment_summary_by_submodule(
         session: Database session
         unit_id: Filter by unit ID
         status: Filter by equipment status
+        year: Optional year to filter emissions by computed_at year
 
     Returns:
         Dict mapping submodule to summary stats:
@@ -292,6 +294,11 @@ async def get_equipment_summary_by_submodule(
         query = query.where(col(Equipment.unit_id) == unit_id)
     if status:
         query = query.where(col(Equipment.status) == status)
+    if year is not None:
+        # Filter by year of computed_at timestamp
+        query = query.where(
+            func.extract("year", col(EquipmentEmission.computed_at)) == year
+        )
 
     # Execute query
     result = await session.execute(query)

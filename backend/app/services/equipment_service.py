@@ -46,6 +46,30 @@ async def get_module_stats(
     )
 
 
+async def get_total_kg_co2eq(session: AsyncSession, unit_id: str, year: int) -> float:
+    """
+    Get total kg CO2eq for all equipment in a unit for a specific year.
+
+    Args:
+        session: Database session
+        unit_id: Unit ID to filter equipment
+        year: Year to filter emissions by computed_at year
+
+    Returns:
+        Total kg CO2eq as float
+    """
+    # Get summary statistics by submodule
+    summary_by_submodule = await equipment_repo.get_equipment_summary_by_submodule(
+        session, unit_id=unit_id, status="In service", year=year
+    )
+    # Sum total_kg_co2eq from all submodules
+    total_kg_co2eq = sum(
+        summary_by_submodule.get(k, {}).get("total_kg_co2eq", 0.0)
+        for k in ["scientific", "it", "other"]
+    )
+    return float(total_kg_co2eq or 0.0)
+
+
 async def get_module_data(
     session: AsyncSession,
     unit_id: str,
@@ -58,7 +82,7 @@ async def get_module_data(
     Args:
         session: Database session
         unit_id: Unit ID to filter equipment
-        year: Year for the data (currently informational only)
+        year: Year to filter emissions by computed_at year
         preview_limit: Optional limit for items per submodule
 
     Returns:
@@ -71,7 +95,7 @@ async def get_module_data(
 
     # Get summary statistics by submodule
     summary_by_submodule = await equipment_repo.get_equipment_summary_by_submodule(
-        session, unit_id=unit_id, status="In service"
+        session, unit_id=unit_id, status="In service", year=year
     )
 
     submodules = {}

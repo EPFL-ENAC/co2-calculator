@@ -153,6 +153,7 @@ async def sample_equipment(
             formula_version="v1_linear",
             is_current=True,
             calculation_inputs={},
+            computed_at=datetime(2024, 6, 1),  # Set to 2024 for year filtering
         )
         db_session.add(emission)
 
@@ -645,3 +646,346 @@ async def test_unauthorized_access(client: AsyncClient):
 
     # Should require authentication (401) or redirect to login
     assert response.status_code in [401, 403, 307]
+
+
+# ==========================================
+# Tests for GET /{unit_id}/{year}/totals endpoint
+# ==========================================
+
+
+@pytest.fixture
+async def sample_professional_travel_with_emissions(
+    db_session: AsyncSession, sample_equipment
+):
+    """Create sample professional travel records with emissions for testing."""
+    from app.models.location import Location
+    from app.models.professional_travel import (
+        ProfessionalTravel,
+        ProfessionalTravelEmission,
+    )
+
+    # Create locations
+    locations = [
+        Location(
+            transport_mode="train",
+            name="Zurich Hauptbahnhof",
+            latitude=47.3782,
+            longitude=8.5402,
+            countrycode="CH",
+        ),
+        Location(
+            transport_mode="train",
+            name="Geneva Cornavin",
+            latitude=46.2104,
+            longitude=6.1427,
+            countrycode="CH",
+        ),
+    ]
+
+    for location in locations:
+        db_session.add(location)
+    await db_session.commit()
+
+    for location in locations:
+        await db_session.refresh(location)
+
+    # Create professional travel records
+    travels = [
+        ProfessionalTravel(
+            traveler_id=None,
+            traveler_name="Test Traveler",
+            origin_location_id=locations[0].id,
+            destination_location_id=locations[1].id,
+            departure_date=datetime(2024, 6, 15).date(),
+            is_round_trip=False,
+            transport_mode="train",
+            class_="class_1",
+            number_of_trips=1,
+            unit_id="C1348",
+            provider="manual",
+            year=2024,
+            created_by="test-user-123",
+            updated_by="test-user-123",
+        ),
+    ]
+
+    for travel in travels:
+        db_session.add(travel)
+    await db_session.commit()
+
+    for travel in travels:
+        await db_session.refresh(travel)
+
+    # Create emissions for professional travel
+    emissions = [
+        ProfessionalTravelEmission(
+            professional_travel_id=travels[0].id,
+            distance_km=150.0,
+            kg_co2eq=5000.0,  # 5 tCO2eq
+            formula_version="v1",
+            calculation_inputs={},
+            is_current=True,
+        ),
+    ]
+
+    for emission in emissions:
+        db_session.add(emission)
+    await db_session.commit()
+
+    return travels, emissions
+
+
+@pytest.fixture
+def mock_permission_check_selective(monkeypatch):
+    """Mock OPA permission check with selective allow/deny based on module."""
+
+    def create_mock(equipment_allowed=True, travel_allowed=True):
+        async def mock_query_policy(endpoint, input_data):
+            permission_path = input_data.get("path", "")
+            if permission_path == "modules.equipment":
+                return {"allow": equipment_allowed, "reason": "Test permission"}
+            elif permission_path == "modules.professional_travel":
+                return {"allow": travel_allowed, "reason": "Test permission"}
+            return {"allow": True}
+
+        monkeypatch.setattr("app.api.v1.modules.query_policy", mock_query_policy)
+        return mock_query_policy
+
+    return create_mock
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_success(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+):
+    """Test successful aggregation with both modules accessible."""
+    # Equipment: 9 items * 109.5 kg CO2eq = 985.5 kg CO2eq = 0.99 tCO2eq
+    # Professional travel: 5000 kg CO2eq = 5.0 tCO2eq
+    # Total: 0.99 + 5.0 = 5.99 tCO2eq
+
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check structure
+    assert "total" in data
+    assert "equipment-electric-consumption" in data
+    assert "professional-travel" in data
+
+    # Check values are floats
+    assert isinstance(data["total"], float)
+    assert isinstance(data["equipment-electric-consumption"], float)
+    assert isinstance(data["professional-travel"], float)
+
+    # Check that totals are calculated correctly
+    assert data["equipment-electric-consumption"] > 0
+    assert data["professional-travel"] == 5.0  # 5000 kg / 1000
+    assert data["total"] == round(
+        data["equipment-electric-consumption"] + data["professional-travel"], 2
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_permission_denied_equipment(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+    monkeypatch,
+):
+    """Test permission denied for equipment module."""
+
+    # Mock permission check to deny equipment but allow travel
+    async def mock_query_policy(endpoint, input_data):
+        permission_path = input_data.get("path", "")
+        if permission_path == "modules.equipment":
+            return {"allow": False, "reason": "Permission denied"}
+        return {"allow": True}
+
+    monkeypatch.setattr("app.api.v1.modules.query_policy", mock_query_policy)
+
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Equipment should be 0 (permission denied)
+    assert data["equipment-electric-consumption"] == 0.0
+    # Professional travel should still be included
+    assert data["professional-travel"] == 5.0
+    # Total should only include travel
+    assert data["total"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_permission_denied_travel(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+    monkeypatch,
+):
+    """Test permission denied for professional travel module."""
+
+    # Mock permission check to allow equipment but deny travel
+    async def mock_query_policy(endpoint, input_data):
+        permission_path = input_data.get("path", "")
+        if permission_path == "modules.professional_travel":
+            return {"allow": False, "reason": "Permission denied"}
+        return {"allow": True}
+
+    monkeypatch.setattr("app.api.v1.modules.query_policy", mock_query_policy)
+
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Equipment should be included
+    assert data["equipment-electric-consumption"] > 0
+    # Professional travel should be 0 (permission denied)
+    assert data["professional-travel"] == 0.0
+    # Total should only include equipment
+    assert data["total"] == data["equipment-electric-consumption"]
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_permission_denied_both(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+    monkeypatch,
+):
+    """Test permission denied for both modules."""
+
+    # Mock permission check to deny both modules
+    async def mock_query_policy(endpoint, input_data):
+        permission_path = input_data.get("path", "")
+        if permission_path in ["modules.equipment", "modules.professional_travel"]:
+            return {"allow": False, "reason": "Permission denied"}
+        return {"allow": True}
+
+    monkeypatch.setattr("app.api.v1.modules.query_policy", mock_query_policy)
+
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Both should be 0 (permission denied)
+    assert data["equipment-electric-consumption"] == 0.0
+    assert data["professional-travel"] == 0.0
+    # Total should be 0
+    assert data["total"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_zero_emissions_travel(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    db_session: AsyncSession,
+):
+    """Test edge case where professional travel module returns zero emissions."""
+    # Equipment data exists, but no travel data
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Equipment should be included
+    assert data["equipment-electric-consumption"] > 0
+    # Professional travel should be 0 (no data)
+    assert data["professional-travel"] == 0.0
+    # Total should only include equipment
+    assert data["total"] == data["equipment-electric-consumption"]
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_zero_emissions_both(
+    client: AsyncClient,
+    mock_current_user,
+):
+    """Test edge case where both modules return zero emissions."""
+    # No data for either module
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Both should be 0
+    assert data["equipment-electric-consumption"] == 0.0
+    assert data["professional-travel"] == 0.0
+    # Total should be 0
+    assert data["total"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_conversion_kg_to_tonnes(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+):
+    """Test that kg CO2eq is correctly converted to tonnes (tCO2eq)."""
+    response = await client.get("/api/v1/modules/C1348/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Professional travel: 5000 kg CO2eq = 5.0 tCO2eq
+    assert data["professional-travel"] == 5.0
+
+    # Equipment: should be in tonnes (kg / 1000)
+    # 9 items * 109.5 kg = 985.5 kg = 0.99 tCO2eq (rounded to 2 decimals)
+    assert data["equipment-electric-consumption"] == round(985.5 / 1000.0, 2)
+
+    # Total should be sum of both in tonnes
+    expected_total = round(
+        data["equipment-electric-consumption"] + data["professional-travel"], 2
+    )
+    assert data["total"] == expected_total
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_different_unit_id(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+):
+    """Test totals for a different unit ID with no data."""
+    response = await client.get("/api/v1/modules/DIFFERENT-UNIT/2024/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Both should be 0 (no data for this unit)
+    assert data["equipment-electric-consumption"] == 0.0
+    assert data["professional-travel"] == 0.0
+    assert data["total"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_module_totals_different_year(
+    client: AsyncClient,
+    mock_current_user,
+    sample_equipment,
+    sample_professional_travel_with_emissions,
+):
+    """Test totals for a different year with no data."""
+    response = await client.get("/api/v1/modules/C1348/2023/totals")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Equipment data is for 2024, so 2023 should return 0
+    # Professional travel is for 2024, so 2023 should return 0
+    assert data["equipment-electric-consumption"] == 0.0
+    assert data["professional-travel"] == 0.0
+    assert data["total"] == 0.0
