@@ -10,22 +10,29 @@ name: deploy
     tags: ["v*.*.*"]
 
 jobs:
+  publish-chart:
+    uses: ./.github/workflows/publish_chart.yaml
+    with:
+      name: "co2-calculator"
+      registry: ghcr.io
+      registry_path: epfl-enac/co2-calculator/helm
+      registry_username: ${{ github.actor }}
+    secrets:
+      registry_token: ${{ secrets.GITHUB_TOKEN }}
   deploy:
+    needs:
+      - publish-chart
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.6.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.8.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
+      registry_token: ${{ secrets.GITHUB_TOKEN }}
     with:
       # Optional inputs can be passed here
       ORG: epfl
       REPO: co2-calculator
       build_context: '[ "./frontend", "./backend" ]' # context paths to build
-  publish-chart:
-    uses: ./.github/workflows/publish_chart.yaml
-    needs:
-      - deploy
-    with:
-      registry: "epfl-enac/co2-calculator"
-      name: "co2-calculator"
+      helm_chart_name: co2-calculator
+      helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}

@@ -3,12 +3,25 @@ name: Package and Publish Helm Chart
 on:
   workflow_call:
     inputs:
-      registry:
-        required: true
-        type: string
       name:
         required: true
         type: string
+      registry:
+        required: true
+        type: string
+      registry_path:
+        required: true
+        type: string
+      registry_username:
+        required: true
+        type: string
+    secrets:
+      registry_token:
+        required: true
+    outputs:
+      chart_version:
+        description: "The version of the published chart"
+        value: ${{ jobs.build-image.outputs.chart_version }}
 
 jobs:
   build-image:
@@ -21,6 +34,8 @@ jobs:
     defaults:
       run:
         working-directory: ./helm
+    outputs:
+      chart_version: ${{ steps.chart_version.outputs.chart_version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,18 +43,35 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io/${{ inputs.registry }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ inputs.registry }}
+          username: ${{ inputs.registry_username }}
+          password: ${{ secrets.registry_token }}
 
       - name: Render Chart
         run: helm template .
 
+      - name: Set Helm chart version based on branch
+        run: |
+          if [[ "${{github.ref}}" == refs/tags/* ]]; then
+            echo "CHART_VER=1.0.${{ github.run_number }}" >> $GITHUB_ENV
+          fi
+          if [[ "${{github.ref}}" == refs/heads/stage ]]; then
+            echo "CHART_VER=1.0.${{ github.run_number }}-rc" >> $GITHUB_ENV
+          fi
+          if [[ "${{github.ref}}" == refs/heads/dev ]]; then
+            echo "CHART_VER=1.0.${{ github.run_number }}-dev" >> $GITHUB_ENV
+          fi
+
       - name: Package Chart
-        run: helm package --version 1.0.${{ github.run_number }} .
+        run: helm package --version $CHART_VER .
 
       - name: Push Chart
         if: github.event_name != 'pull_request'
-        run: helm push ${{ inputs.name }}-1.0.${{ github.run_number }}.tgz oci://ghcr.io/${{ inputs.registry }}/helm
+        run: helm push ${{ inputs.name }}-$CHART_VER.tgz oci://${{ inputs.registry }}/${{ inputs.registry_path }}
         env:
           HELM_EXPERIMENTAL_OCI: 1
+
+      - name: Return Chart Version
+        id: chart_version
+        run: |
+          echo "chart_version=$CHART_VER" >> $GITHUB_OUTPUT
