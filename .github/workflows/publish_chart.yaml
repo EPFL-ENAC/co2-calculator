@@ -61,6 +61,9 @@ jobs:
           if [[ "${{github.ref}}" == refs/heads/dev ]]; then
             echo "CHART_VER=1.0.${{ github.run_number }}-dev" >> $GITHUB_ENV
           fi
+          if [[ "${{github.ref}}" == refs/heads/ci-test/* ]]; then
+            echo "CHART_VER=1.0.${{ github.run_number }}-dev" >> $GITHUB_ENV
+          fi
 
       - name: Package Chart
         run: helm package --version $CHART_VER .
