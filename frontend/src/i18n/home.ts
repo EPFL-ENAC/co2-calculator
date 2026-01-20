@@ -115,4 +115,8 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
+  home_validate_module_message: {
+    en: 'Please validate module',
+    fr: 'Veuillez valider le module',
+  },
 } as const;

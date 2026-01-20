@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { ModuleCard } from 'src/constant/moduleCards';
-import { getBadgeForStatus } from 'src/constant/moduleStates';
+import { getBadgeForStatus, MODULE_STATES } from 'src/constant/moduleStates';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
@@ -233,7 +233,10 @@ const modulesCounterText = computed(() =>
               />
             </div>
             <div
-              v-if="moduleCard.value || moduleTotals?.[moduleCard.module]"
+              v-if="
+                timelineStore.itemStates[moduleCard.module] !==
+                MODULE_STATES.Default
+              "
               class="row q-gutter-xs text-body1 items-baseline"
             >
               <p class="text-weight-medium q-mb-none">
@@ -242,6 +245,12 @@ const modulesCounterText = computed(() =>
               <p class="text-body2 text-secondary q-mb-none">
                 {{ $t('module_total_result_title_unit') }}
               </p>
+            </div>
+            <div
+              v-else
+              class="row q-gutter-xs text-body1 text-grey-4 items-baseline"
+            >
+              <p class="text-weight-medium q-mb-none">—</p>
             </div>
           </div>
         </q-card>
