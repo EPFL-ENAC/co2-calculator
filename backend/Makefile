@@ -99,13 +99,14 @@ test-cov-xml: ## Run tests with coverage and output XML report
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
-	$(UV) run -m app.seed_emission_factors
-	$(UV) run -m app.seed_equipment
-	$(UV) run -m app.seed_headcount
-	$(UV) run -m app.seed_professional_travel
-	$(UV) run -m app.seed_locations
-	$(UV) run -m app.seed_travel_impact_factors
-# 	$(UV) run -m app.populate_fake_data
+	$(UV) run -m app.seed.seed_emission_factors
+	$(UV) run -m app.seed.seed_equipment
+	$(UV) run -m app.seed.seed_headcount
+	$(UV) run -m app.seed.seed_locations
+# 	TODO: seed_professionnal_travel should use current csv
+# 	$(UV) run -m app.seed.seed_professional_travel
+	$(UV) run -m app.seed.seed_travel_impact_factors
+# 	$(UV) run -m app.seed.populate_fake_data
 
 .PHONY: dev
 dev: install ## Start backend development server
@@ -136,6 +137,10 @@ build: ## Build Docker image
 .PHONY: db-migrate
 db-migrate: ## Run database migrations (upgrade to head)
 	uv run alembic upgrade head
+
+.PHONY: db-downgrade
+db-downgrade: ## Downgrade database to previous revision (usage: make db-downgrade revision="-1")
+	uv run alembic downgrade -1
 
 .PHONY: db-revision
 db-revision: ## Create new migration (usage: make db-revision message="description")

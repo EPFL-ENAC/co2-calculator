@@ -2,6 +2,19 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
+  data_ingestion_jobs {
+    INTEGER entity_id
+    VARCHAR entity_type
+    INTEGER id PK
+    VARCHAR ingestion_method
+    JSON meta
+    INTEGER module_type_id FK
+    VARCHAR provider
+    VARCHAR status
+    VARCHAR status_message
+    VARCHAR target_type
+    INTEGER year
+  }
   emission_factors {
     TIMESTAMP created_at
     VARCHAR created_by FK
@@ -240,6 +253,7 @@ erDiagram
   inventory_module ||--}o modules : "inventory_module_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"
+  module_types ||--}o data_ingestion_jobs : "module_type_id"
   module_types ||--}o inventory_module : "module_type_id"
   module_types ||--}o modules : "module_type_id"
   module_types ||--}o variant_types : "module_type_id"

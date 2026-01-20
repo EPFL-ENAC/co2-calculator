@@ -75,6 +75,12 @@ class ProfessionalTravelService:
         self.session = session
         self.repo = ProfessionalTravelRepository(session)
 
+    async def bulk_insert_travel_entries(
+        self, entries: List[dict[str, Any]]
+    ) -> List[ProfessionalTravel]:
+        """Bulk insert professional travel entries."""
+        return await self.repo.bulk_insert_travel_entries(entries)
+
     async def _validate_traveler(
         self, traveler_id: Optional[str], traveler_name: str, unit_id: str
     ) -> Optional[str]:

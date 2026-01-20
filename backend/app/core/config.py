@@ -139,6 +139,19 @@ class Settings(BaseSettings):
     LOKI_LABEL_JOB: Optional[str] = None
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
+    # TRAVEL API TABLEAU CONFIGURATION
+    TABLEAU_SERVER_URL: str = ""
+    TABLEAU_SITE_CONTENT_URL: Optional[str] = None
+    TABLEAU_DS_FLIGHTS_LUID: str = ""
+    TABLEAU_CONNECTED_APP_CLIENT_ID: str = ""
+    TABLEAU_CONNECTED_APP_SECRET_ID: str = ""
+    TABLEAU_CONNECTED_APP_SECRET_VALUE: str = ""
+    TABLEAU_USERNAME: str = ""
+    TABLEAU_VERIFY_SSL: str = "true"
+    TABLEAU_REQUEST_TIMEOUT_SECONDS: str = "300"
+    TABLEAU_REST_MIN_API_VERSION: str = "2.4"
+    TABLEAU_MAX_FIELDS: int = 50
+
     # Role Provider Plugin Configuration
     PROVIDER_PLUGIN: str = Field(
         default="default",

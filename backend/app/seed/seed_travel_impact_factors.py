@@ -21,13 +21,24 @@ from app.models.travel_impact_factor import (
 
 logger = get_logger(__name__)
 
+CSV_PLANE_PATH = (
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_travel_plane_impact_factors.csv"
+)
+CSV_TRAIN_PATH = (
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_travel_train_impact_factors.csv"
+)
+
 
 async def seed_plane_impact_factors(session: AsyncSession) -> None:
     """Seed plane impact factors from plane_impact_factors.csv."""
     logger.info("Seeding plane impact factors from CSV...")
 
     # Find the CSV file
-    csv_path = Path(__file__).parent / "api" / "v1" / "plane_impact_factors.csv"
+    csv_path = CSV_PLANE_PATH
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_path}")
         return
@@ -216,12 +227,12 @@ async def seed_train_impact_factors(session: AsyncSession) -> None:
     logger.info("Seeding train impact factors from CSV...")
 
     # Find the CSV file
-    csv_path = Path(__file__).parent / "api" / "v1" / "train_impact_factors.csv"
+    csv_path = CSV_TRAIN_PATH
     logger.debug(f"Looking for train impact factors CSV at: {csv_path}")
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_path}")
         logger.error(f"Absolute path: {csv_path.resolve()}")
-        parent_dir = Path(__file__).parent.parent / "api" / "v1"
+        parent_dir = Path(__file__).parent.parent.parent / "seed_data"
         logger.error(f"Parent directory contents: {list(parent_dir.iterdir())}")
         return
     logger.info(f"Found train impact factors CSV at: {csv_path}")

@@ -4,11 +4,31 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import AnnualDataImport from 'src/components/organisms/data-management/AnnualDataImport.vue';
 import ModulesConfig from 'src/components/organisms/data-management/ModulesConfig.vue';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 
-const availableYears = ref<number[]>([2022, 2023, 2024]);
+// TODO: fix the available years dynamically
+const MIN_YEARS = 2025;
+const availableYears = ref<number[]>([]);
+const currentYear = new Date().getFullYear();
+if (currentYear > MIN_YEARS) {
+  for (let year = MIN_YEARS; year < currentYear; year++) {
+    availableYears.value.push(year);
+  }
+}
 const selectedYear = ref<number>(
   availableYears.value[availableYears.value.length - 1],
 );
+
+const backofficeDataManagement = useBackofficeDataManagement();
+
+// Fetch sync jobs when year changes
+const fetchSyncJobs = async () => {
+  await backofficeDataManagement.fetchSyncJobsByYear(selectedYear.value);
+};
+
+// Watch for year changes and fetch sync jobs
+import { watch } from 'vue';
+watch(selectedYear, fetchSyncJobs, { immediate: true });
 </script>
 
 <template>
