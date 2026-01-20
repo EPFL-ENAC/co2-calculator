@@ -19,7 +19,7 @@ class InventoryRead(InventoryBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class InventoryUpdate(BaseModel):
@@ -48,7 +48,7 @@ class InventoryModuleRead(BaseModel):
     status: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class InventoryModuleUpdate(BaseModel):
