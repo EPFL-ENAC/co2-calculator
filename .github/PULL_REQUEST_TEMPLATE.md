@@ -17,32 +17,22 @@ Please check the type that applies:
 - [ ] 🔧 Configuration change
 - [ ] 🧹 Code cleanup
 
-## Testing checklist
+## Code quality checklist 
 
-- [ ] I've tested this change locally
-- [ ] `make ci` passes without errors
-- [ ] Tests added/updated (60% coverage minimum)
-- [ ] No test failures introduced
-
-## Code quality checklist
-
+- [ ] I confirm that my contribution is original and that I assign all intellectual property rights in this contribution to EPFL, retaining no ownership rights.
 - [ ] Code follows our standards (linter passes)
 - [ ] No hardcoded values or secrets
 - [ ] Documentation updated for new features
 - [ ] Commit messages follow convention
 - [ ] No console.log or debug statements
 
-## For UI changes only
 
-- [ ] Screenshots/GIFs/videos included below
-- [ ] WCAG Level AA accessibility verified
-- [ ] Keyboard navigation works correctly
-- [ ] Tested on mobile, tablet, and desktop
-- [ ] Focus indicators visible
+## Testing checklist
 
-## Screenshots (if applicable)
-
-<!-- For UI changes, drag & drop screenshots here -->
+- [ ] I've tested this change locally
+- [ ] `make ci` passes without errors
+- [ ] Tests added/updated (60% coverage minimum)
+- [ ] No test failures introduced
 
 ## Related issues
 
