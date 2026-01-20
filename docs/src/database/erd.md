@@ -181,19 +181,6 @@ erDiagram
     VARCHAR updated_by "indexed"
     INTEGER year "indexed"
   }
-  resources {
-    TIMESTAMP created_at
-    VARCHAR created_by FK
-    JSON data
-    VARCHAR description
-    INTEGER id PK
-    VARCHAR name "indexed"
-    JSON resource_metadata
-    VARCHAR unit_id "indexed"
-    TIMESTAMP updated_at
-    VARCHAR updated_by FK
-    VARCHAR visibility
-  }
   train_impact_factors {
     VARCHAR countrycode "indexed"
     DATETIME created_at
@@ -267,8 +254,6 @@ erDiagram
   users ||--}o equipment : "created_by"
   users ||--}o equipment : "updated_by"
   users ||--}o power_factors : "created_by"
-  users ||--}o resources : "created_by"
-  users ||--}o resources : "updated_by"
   users ||--}o unit_users : "user_id"
   variant_types ||--}o modules : "variant_type_id"
 ```

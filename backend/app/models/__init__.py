@@ -41,7 +41,6 @@ from .professional_travel import (
     ProfessionalTravelRead,
     ProfessionalTravelUpdate,
 )
-from .resource import Resource, ResourceBase
 from .travel_impact_factor import (
     PlaneImpactFactor,
     PlaneImpactFactorBase,
@@ -55,16 +54,10 @@ from .variant_type import VariantType, VariantTypeBase
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
 User.model_rebuild()
-Resource.model_rebuild()
 
 # Now add relationships after both classes exist
 User.resources = Relationship(
     back_populates="user",
-)
-
-Resource.user = Relationship(
-    back_populates="resources",
-    sa_relationship_kwargs={"foreign_keys": "[Resource.updated_by]"},
 )
 
 
