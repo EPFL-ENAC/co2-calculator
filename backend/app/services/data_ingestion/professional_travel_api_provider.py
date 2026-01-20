@@ -87,8 +87,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
 
             payload = self._build_payload(field_captions)
             payload, _ = normalize_vds_payload(payload)
-            if x_auth is None:
-                raise Exception("Tableau authentication failed")
             result = await self._vds_query_datasource(session, x_auth, payload)
 
             if isinstance(result, dict) and "data" in result:
