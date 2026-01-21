@@ -42,12 +42,12 @@ async def async_session():
 @pytest.mark.asyncio
 async def test_service_create_and_get(async_session):
     service = InventoryService(async_session)
-    data = InventoryCreate(year=2025, unit_id="unit1")
+    data = InventoryCreate(year=2025, unit_id=1)
     inv = await service.create_inventory(data)
     assert inv.id is not None
     fetched = await service.get_inventory(inv.id)
     assert fetched is not None
-    assert fetched.unit_id == "unit1"
+    assert fetched.unit_id == 1
     assert fetched.year == 2025
 
 
@@ -55,7 +55,7 @@ async def test_service_create_and_get(async_session):
 async def test_service_create_auto_creates_modules(async_session):
     """Test that creating an inventory auto-creates all module records."""
     service = InventoryService(async_session)
-    data = InventoryCreate(year=2025, unit_id="unit1")
+    data = InventoryCreate(year=2025, unit_id=1)
     inv = await service.create_inventory(data)
 
     # Check that modules were auto-created
@@ -71,20 +71,20 @@ async def test_service_create_auto_creates_modules(async_session):
 @pytest.mark.asyncio
 async def test_service_list_inventories_by_unit(async_session):
     service = InventoryService(async_session)
-    await service.create_inventory(InventoryCreate(year=2025, unit_id="unitA"))
-    await service.create_inventory(InventoryCreate(year=2026, unit_id="unitA"))
-    await service.create_inventory(InventoryCreate(year=2025, unit_id="unitB"))
-    items = await service.list_inventories_by_unit("unitA")
+    await service.create_inventory(InventoryCreate(year=2025, unit_id=1))
+    await service.create_inventory(InventoryCreate(year=2026, unit_id=1))
+    await service.create_inventory(InventoryCreate(year=2025, unit_id=2))
+    items = await service.list_inventories_by_unit(1)
     assert len(items) == 2
 
 
 @pytest.mark.asyncio
 async def test_service_update_and_delete(async_session):
     service = InventoryService(async_session)
-    data = InventoryCreate(year=2025, unit_id="unitX")
+    data = InventoryCreate(year=2025, unit_id=1)
     inv = await service.create_inventory(data)
 
-    update = InventoryUpdate(year=2026, unit_id="unitX")
+    update = InventoryUpdate(year=2026, unit_id=1)
     updated = await service.update_inventory(inv.id, update)
     assert updated.year == 2026
 
@@ -102,7 +102,7 @@ async def test_service_update_and_delete(async_session):
 async def test_module_status_update(async_session):
     """Test updating module status via service."""
     service = InventoryService(async_session)
-    inv = await service.create_inventory(InventoryCreate(year=2025, unit_id="unit1"))
+    inv = await service.create_inventory(InventoryCreate(year=2025, unit_id=1))
 
     # Update a module status
     module_type_id = 1  # my-lab

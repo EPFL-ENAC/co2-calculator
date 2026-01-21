@@ -12,18 +12,18 @@ from app.schemas.inventory import (
 
 
 def test_inventory_create_schema():
-    data = {"year": 2025, "unit_id": "unit-123"}
+    data = {"year": 2025, "unit_id": 1}
     obj = InventoryCreate(**data)
     assert obj.year == 2025
-    assert obj.unit_id == "unit-123"
+    assert obj.unit_id == 1
 
 
 def test_inventory_read_schema():
-    data = {"id": 1, "year": 2025, "unit_id": "unit-123"}
+    data = {"id": 1, "year": 2025, "unit_id": 1}
     obj = InventoryRead(**data)
     assert obj.id == 1
     assert obj.year == 2025
-    assert obj.unit_id == "unit-123"
+    assert obj.unit_id == 1
 
 
 def test_inventory_module_create_schema():

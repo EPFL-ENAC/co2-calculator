@@ -41,8 +41,6 @@ class TestBuildPolicyInput:
         unit = Unit(
             id="test-unit",
             name="Test Unit",
-            created_by="creator-id",
-            visibility="private",
         )
 
         service = UnitService(session=None)
@@ -52,8 +50,6 @@ class TestBuildPolicyInput:
         assert input_data["resource_type"] == "unit"
         assert "resource" in input_data
         assert input_data["resource"]["id"] == "test-unit"
-        assert input_data["resource"]["created_by"] == "creator-id"
-        assert input_data["resource"]["visibility"] == "private"
 
     def test_build_policy_input_different_actions(self):
         """Test building policy input for different actions."""

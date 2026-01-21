@@ -67,7 +67,7 @@ async def test_get_module_data_preview_limit_none(mock_session, mock_equipment_r
 
     # Execute
     response = await equipment_service.get_module_data(
-        mock_session, "unit123", 2024, preview_limit=None
+        mock_session, 123, 2024, preview_limit=None
     )
 
     # Assert
@@ -85,7 +85,7 @@ async def test_get_module_data_empty_summary(mock_session, mock_equipment_repo):
     mock_equipment_repo.get_equipment_with_emissions.return_value = ([], 5)
     # Execute
     response = await equipment_service.get_module_data(
-        mock_session, "unit123", 2024, preview_limit=5
+        mock_session, 123, 2024, preview_limit=5
     )
 
     # Assert
@@ -110,7 +110,7 @@ async def test_get_module_data_nonexistent_submodule(mock_session, mock_equipmen
 
     # Execute
     response = await equipment_service.get_module_data(
-        mock_session, "unit123", 2024, preview_limit=5
+        mock_session, 123, 2024, preview_limit=5
     )
 
     # Assert
