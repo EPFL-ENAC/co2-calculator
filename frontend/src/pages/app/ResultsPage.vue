@@ -272,7 +272,7 @@ const downloadPDF = () => {
               </template>
               <q-separator />
 
-              <div class="q-pa-lg">
+              <div class="q-px-lg">
                 <q-card
                   v-if="getModuleConfig(module)?.resultBigNumbers"
                   flat
@@ -381,7 +381,12 @@ const downloadPDF = () => {
                       :title="$t('results_carbon_footprint_per_fte')"
                       :number="
                         unitTotals.kg_co2eq_per_fte
-                          ? nOrDash(unitTotals.kg_co2eq_per_fte / 1000)
+                          ? nOrDash(unitTotals.kg_co2eq_per_fte / 1000, {
+                              options: {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              },
+                            })
                           : '-'
                       "
                       :comparison="

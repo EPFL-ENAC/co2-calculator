@@ -90,16 +90,16 @@ const datasetSource = computed(() => {
       otherStdDev: 0.04,
     },
     {
+      category: t('charts-it-category'),
+      itInfrastructure: 25,
+      itInfrastructureStdDev: 0.2,
+    },
+    {
       category: t('charts-professional-travel-category'),
       train: 1.5,
       trainStdDev: 0.3,
       plane: 3,
       planeStdDev: 0.6,
-    },
-    {
-      category: t('charts-it-category'),
-      itInfrastructure: 25,
-      itInfrastructureStdDev: 0.2,
     },
     {
       category: t('charts-purchases-category'),
@@ -256,7 +256,7 @@ const additionalSeriesData = computed(() => {
         y: 'commuting',
       },
       itemStyle: {
-        color: colors.value.tealBlue.default,
+        color: colors.value.aqua.darker,
       },
       label: {
         show: false,
@@ -271,7 +271,7 @@ const additionalSeriesData = computed(() => {
         y: 'food',
       },
       itemStyle: {
-        color: colors.value.forestGreen.default,
+        color: colors.value.mint.darker,
       },
       label: {
         show: false,
@@ -286,7 +286,7 @@ const additionalSeriesData = computed(() => {
         y: 'waste',
       },
       itemStyle: {
-        color: colors.value.limeGreen.default,
+        color: colors.value.periwinkle.darker,
       },
       label: {
         show: false,
@@ -301,7 +301,7 @@ const additionalSeriesData = computed(() => {
         y: 'greyEnergy',
       },
       itemStyle: {
-        color: colors.value.neutralGrey.default,
+        color: colors.value.skyBlue.darker,
       },
       label: {
         show: false,
@@ -334,7 +334,7 @@ const chartOption = computed((): EChartsOption => {
         data: markLineData.value,
       },
       itemStyle: {
-        color: colors.value.notDefined.default,
+        color: colors.value.peach.darker,
       },
       label: {
         show: false,
@@ -349,7 +349,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'infrastructureGas',
       },
       itemStyle: {
-        color: colors.value.notDefined.default,
+        color: colors.value.apricot.darker,
       },
       label: {
         show: false,
@@ -364,7 +364,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'cooling',
       },
       itemStyle: {
-        color: colors.value.blueGrey.darker,
+        color: colors.value.lilac.darker,
       },
       label: {
         show: false,
@@ -379,7 +379,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'ventilation',
       },
       itemStyle: {
-        color: colors.value.blueGrey.dark,
+        color: colors.value.lilac.dark,
       },
       label: {
         show: false,
@@ -394,7 +394,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'lighting',
       },
       itemStyle: {
-        color: colors.value.blueGrey.default,
+        color: colors.value.lilac.default,
       },
       label: {
         show: false,
@@ -409,7 +409,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'scientific',
       },
       itemStyle: {
-        color: colors.value.purple.darker,
+        color: colors.value.mauve.darker,
       },
       label: {
         show: false,
@@ -424,7 +424,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'it',
       },
       itemStyle: {
-        color: colors.value.purple.dark,
+        color: colors.value.mauve.dark,
       },
       label: {
         show: false,
@@ -439,37 +439,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'other',
       },
       itemStyle: {
-        color: colors.value.purple.default,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-train-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'train',
-      },
-      itemStyle: {
-        color: colors.value.blue.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-plane-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'plane',
-      },
-      itemStyle: {
-        color: colors.value.blue.dark,
+        color: colors.value.mauve.default,
       },
       label: {
         show: false,
@@ -484,7 +454,37 @@ const chartOption = computed((): EChartsOption => {
         y: 'itInfrastructure',
       },
       itemStyle: {
-        color: colors.value.notDefined.default,
+        color: colors.value.lavender.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-train-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'train',
+      },
+      itemStyle: {
+        color: colors.value.babyBlue.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-plane-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'plane',
+      },
+      itemStyle: {
+        color: colors.value.babyBlue.dark,
       },
       label: {
         show: false,
@@ -499,7 +499,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'bioChemicals',
       },
       itemStyle: {
-        color: colors.value.green.darker,
+        color: colors.value.lightGreen.darker,
       },
       label: {
         show: false,
@@ -514,7 +514,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'consumables',
       },
       itemStyle: {
-        color: colors.value.green.dark,
+        color: colors.value.lightGreen.dark,
       },
       label: {
         show: false,
@@ -529,7 +529,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'equipment',
       },
       itemStyle: {
-        color: colors.value.green.default,
+        color: colors.value.lightGreen.default,
       },
       label: {
         show: false,
@@ -544,7 +544,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'services',
       },
       itemStyle: {
-        color: colors.value.green.light,
+        color: colors.value.lightGreen.light,
       },
       label: {
         show: false,
@@ -559,7 +559,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'scitas',
       },
       itemStyle: {
-        color: colors.value.purpleGrey.darker,
+        color: colors.value.paleYellowGreen.default,
       },
       label: {
         show: false,
@@ -574,7 +574,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'rcp',
       },
       itemStyle: {
-        color: colors.value.purpleGrey.dark,
+        color: colors.value.paleYellowGreen.light,
       },
       label: {
         show: false,

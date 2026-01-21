@@ -1,5 +1,5 @@
 <template>
-  <q-card-section class="text-left module-charts">
+  <q-card-section class="text-left module-charts q-px-none">
     <template v-if="type === 'my-lab'">
       <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
         {{ $t('my-lab-charts-title') }}
@@ -20,7 +20,7 @@
           travelDatasetSource.length > 0
         "
         :show-evolution-dialog="showEvolutionChart"
-        :color-scheme="colors.blue"
+        :color-scheme="colors.babyBlue"
         :dataset-source="travelDatasetSource"
       />
       <div v-else-if="loadingTravelData" class="text-body2 text-secondary">
