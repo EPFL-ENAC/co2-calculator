@@ -3,12 +3,12 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from backend.app.models.data_ingestion import IngestionMethod
 from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.schemas.equipment import SubmoduleResponse, SubmoduleSummary
 

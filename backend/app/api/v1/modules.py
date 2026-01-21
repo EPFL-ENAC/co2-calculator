@@ -2,6 +2,7 @@
 
 from typing import Optional, Union
 
+from backend.app.models.data_ingestion import IngestionMethod
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -528,7 +529,7 @@ async def create_item(
             )
         headcount = await HeadcountService(db).create_headcount(
             data=headcount_create,
-            provider_source="manual",
+            provider_source=IngestionMethod.manual,
             user_id=current_user.id,
         )
         if headcount is None:
@@ -566,10 +567,11 @@ async def create_item(
         )
         travel_result = await ProfessionalTravelService(db).create_travel(
             data=parsed_travel,
-            provider_source="manual",
             user=current_user,
             year=year,
             unit_id=unit_id,
+            provider_source=IngestionMethod.manual,
+            provider=current_user.provider,
         )
         # Handle round trip (returns list) or single trip
         travel = travel_result[0] if isinstance(travel_result, list) else travel_result

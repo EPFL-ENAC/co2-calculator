@@ -174,6 +174,7 @@ erDiagram
     INTEGER number_of_trips
     INTEGER origin_location_id FK
     VARCHAR provider
+    VARCHAR provider_source
     VARCHAR transport_mode
     INTEGER traveler_id
     VARCHAR traveler_name

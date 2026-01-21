@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.models.user import User
 from app.repositories.headcount_repo import HeadCountRepository
@@ -44,7 +45,7 @@ class HeadcountService:
     async def create_headcount(
         self,
         data: HeadCountCreate,
-        provider_source: str,
+        provider_source: IngestionMethod,
         user_id: int,
     ) -> HeadCount:
         """Create a new headcount record."""

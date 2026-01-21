@@ -9,6 +9,7 @@ from sqlalchemy import JSON, TIMESTAMP, Column, String
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
+from app.models.data_ingestion import IngestionMethod
 from app.models.user import UserProvider
 
 from .headcount import AuditMixin
@@ -121,11 +122,18 @@ class ProfessionalTravel(ProfessionalTravelBase, AuditMixin, table=True):
     )
 
     # Provider: Set by system/logic, not by user input directly
-    # Literal["api", "csv", "manual"]
     provider: UserProvider = Field(
         default=UserProvider.DEFAULT.value,
         sa_column=Column(
             SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Sync source provider (accred, default, test)",
+    )
+    provider_source: IngestionMethod = Field(
+        default=IngestionMethod.manual.value,
+        sa_column=Column(
+            SAEnum(IngestionMethod, name="ingestion_method_enum", native_enum=True),
             nullable=False,
         ),
         description="Sync source provider (accred, default, test)",
@@ -199,6 +207,7 @@ class ProfessionalTravelUpdate(SQLModel):
     number_of_trips: Optional[int] = None
     unit_id: Optional[int] = None
     provider: Optional[UserProvider] = None
+    provider_source: Optional[IngestionMethod] = None
 
 
 # ==========================================

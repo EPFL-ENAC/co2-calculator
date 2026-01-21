@@ -3,7 +3,6 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple, Union
 
-from backend.app.models.data_ingestion import IngestionMethod
 from sqlalchemy import and_, func, or_
 from sqlalchemy.sql import Select
 from sqlmodel import col, select
@@ -11,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_ingestion import IngestionMethod
 from app.models.location import Location
 from app.models.professional_travel import (
     ProfessionalTravel,
@@ -18,7 +18,7 @@ from app.models.professional_travel import (
     ProfessionalTravelEmission,
     ProfessionalTravelUpdate,
 )
-from app.models.user import RoleName, User
+from app.models.user import RoleName, User, UserProvider
 
 logger = get_logger(__name__)
 
@@ -282,6 +282,7 @@ class ProfessionalTravelRepository:
         self,
         data: ProfessionalTravelCreate,
         provider_source: IngestionMethod,
+        provider: UserProvider,
         user_id: int,
         year: Optional[int] = None,
         unit_id: Optional[int] = None,
@@ -293,7 +294,8 @@ class ProfessionalTravelRepository:
 
         Args:
             data: Travel data to create
-            provider_source: Provider source ('manual', 'api', 'csv')
+            provider_source: IngestionMethod source of the data
+            provider: UserProvider source of the data
             user_id: User ID who created the record
             year: Optional year from workspace setup. Used when departure_date is empty.
             unit_id: Optional unit_id from path. Validated against data.unit_id if
@@ -340,7 +342,7 @@ class ProfessionalTravelRepository:
             # Outbound trip
             outbound_data = data.model_dump()
             outbound_data["year"] = year
-            outbound_data["provider"] = provider_source
+            outbound_data["provider_source"] = provider_source
             outbound_data["created_by"] = user_id
             outbound_data["updated_by"] = user_id
             outbound_data["is_round_trip"] = False
@@ -357,7 +359,7 @@ class ProfessionalTravelRepository:
             return_data["year"] = (
                 data.departure_date.year if data.departure_date else year
             )
-            return_data["provider"] = provider_source
+            return_data["provider_source"] = provider_source
             return_data["created_by"] = user_id
             return_data["updated_by"] = user_id
             return_data["is_round_trip"] = False
@@ -375,7 +377,8 @@ class ProfessionalTravelRepository:
             db_obj = ProfessionalTravel.model_validate(
                 {**data.model_dump(), "year": year}
             )
-            db_obj.provider = provider_source
+            db_obj.provider_source = provider_source
+            db_obj.provider = provider
             db_obj.created_by = user_id
             db_obj.updated_by = user_id
 

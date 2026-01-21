@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_ingestion import IngestionMethod
 from app.models.location import Location
 from app.models.professional_travel import (
     ProfessionalTravel,
@@ -19,7 +20,7 @@ from app.models.professional_travel import (
     ProfessionalTravelItemResponse,
     ProfessionalTravelUpdate,
 )
-from app.models.user import User
+from app.models.user import User, UserProvider
 from app.repositories.professional_travel_repo import ProfessionalTravelRepository
 from app.schemas.equipment import (
     ModuleResponse,
@@ -643,8 +644,9 @@ class ProfessionalTravelService:
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,
-        provider_source: str,
         user: User,
+        provider_source: IngestionMethod,
+        provider: UserProvider,
         year: Optional[int] = None,
         unit_id: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
@@ -703,6 +705,7 @@ class ProfessionalTravelService:
         travel_records = await self.repo.create_travel(
             data=data,
             provider_source=provider_source,
+            provider=provider,
             user_id=user.id,
             year=year,
             unit_id=unit_id,
