@@ -90,6 +90,7 @@ class ModuleResponse(BaseModel):
 
     module_type: str = Field(..., description="Module type identifier")
     unit: str = Field(..., description="Unit of measurement")
+    unit_id: int = Field(..., description="Unit ID")
     year: int = Field(..., description="Data year")
     retrieved_at: datetime = Field(..., description="Retrieval timestamp")
     submodules: Dict[str, SubmoduleResponse] = Field(
@@ -102,7 +103,7 @@ class ModuleResponse(BaseModel):
 class EquipmentFilters(BaseModel):
     """Filters for equipment queries."""
 
-    unit_id: Optional[str] = Field(None, description="Filter by unit ID")
+    unit_id: Optional[int] = Field(None, description="Filter by unit ID")
     status: Optional[str] = Field("In service", description="Filter by status")
     submodule: Optional[str] = Field(None, description="Filter by submodule")
     service_date_from: Optional[datetime] = Field(
@@ -116,7 +117,7 @@ class EquipmentFilters(BaseModel):
 class EquipmentCreateRequest(BaseModel):
     """Request schema for creating new equipment."""
 
-    unit_id: str = Field(..., description="Unit ID (e.g., '10208')")
+    unit_id: int = Field(..., description="Unit ID (e.g., '10208')")
     cost_center: Optional[str] = Field(
         None, description="Cost center code (defaults to unit_id if not provided)"
     )
@@ -249,7 +250,7 @@ class EquipmentDetailResponse(BaseModel):
 
     id: int = Field(..., description="Equipment ID")
     cost_center: str = Field(..., description="Cost center code")
-    unit_id: str = Field(..., description="Unit ID")
+    unit_id: int = Field(..., description="Unit ID")
     name: str = Field(..., description="Equipment name")
     category: str = Field(..., description="Equipment category")
     submodule: str = Field(..., description="Submodule grouping")

@@ -7,6 +7,7 @@ from sqlmodel import Session, col, select
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
+from app.models.user import UserProvider
 
 """
 Unit provider interface and implementations.
@@ -44,7 +45,7 @@ class UnitProvider(ABC):
 
     async def get_unit_by_id(self, unit_id: str) -> Optional[Unit]:
         """
-        Get a single unit by ID.
+        Get a single unit by ID, here the unit_id is the provider_code.
 
         Args:
             unit_id: Unit ID to fetch
@@ -58,6 +59,7 @@ class UnitProvider(ABC):
 
 class DefaultUnitProvider(UnitProvider):
     type: str = "default"
+    """Default unit provider that reads from the database."""
 
     def __init__(self, db_session: Session):
         self.db_session = db_session
@@ -147,10 +149,7 @@ class AccredUnitProvider(UnitProvider):
 
                 # Extract principal information from responsible object
                 responsible_info = unit_data.get("responsible", {})
-                principal_user_id = responsible_info.get("id")
-                principal_user_name = responsible_info.get("display")
-                principal_user_email = responsible_info.get("email")
-                principal_user_function = "head"
+                principal_user_code = responsible_info.get("id")
 
                 # Extract affiliations from path (space-separated hierarchy)
                 affiliations = []
@@ -163,15 +162,12 @@ class AccredUnitProvider(UnitProvider):
 
                 units.append(
                     Unit(
-                        id=unit_id,
+                        id=None,
+                        provider_code=unit_id,
                         name=unit_name,
-                        cf=cf,
-                        principal_user_id=principal_user_id,
-                        principal_user_function=principal_user_function,
-                        principal_user_name=principal_user_name,
-                        principal_user_email=principal_user_email,
+                        principal_user_provider_code=principal_user_code,
+                        cost_centers=[cf] if cf else [],
                         affiliations=affiliations,
-                        visibility="private",  # Default visibility
                     )
                 )
 
@@ -204,43 +200,49 @@ class AccredUnitProvider(UnitProvider):
         except Exception as e:
             logger.error(
                 "Unexpected error fetching units from Accred API",
-                extra={"unit_ids": unit_ids, "error": str(e), "type": type(e).__name__},
+                extra={
+                    "unit_ids": unit_ids,
+                    "error": str(e),
+                    "type": type(e).__name__,
+                },
             )
             logger.exception("Unexpected error fetching units from Accred API")
             raise
 
 
 class TestUnitProvider(UnitProvider):
+    """Test unit provider for development."""
+
     type: str = "test"
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
         """Return test units for development."""
         all_test_units = [
             Unit(
-                id="12345",
+                id=1,
+                provider_code="12345",
                 name="ENAC-IT4R",
-                principal_user_id="testuser_co2.user.principal",
-                principal_user_function="Professor",
+                cost_centers=["cf-001", "cf-002"],
+                principal_user_provider_code="testuser_co2.user.principal",
                 affiliations=["ENAC", "ENAC-IT"],
-                visibility="private",
             ),
             Unit(
-                id="67890",
+                id=2,
+                provider_code="67890",
                 name="IC-TEST",
-                principal_user_id="testuser_co2.user.principal",
-                principal_user_function="Lab Manager",
+                cost_centers=["cf-0014", "cf-0024"],
+                principal_user_provider_code="testuser_co2.user.principal",
                 affiliations=["IC"],
-                visibility="public",
             ),
         ]
 
         if unit_ids:
-            return [u for u in all_test_units if u.id in unit_ids]
+            return [d for d in all_test_units if d.provider_code in unit_ids]
         return all_test_units
 
 
 def get_unit_provider(
-    provider_type: str | None = None, db_session: Session | None = None
+    provider_type: UserProvider | None = None, db_session: Session | None = None
 ) -> UnitProvider:
     """Factory function to get the configured unit provider.
 
@@ -254,15 +256,15 @@ def get_unit_provider(
     if not provider_type:
         provider_type = settings.PROVIDER_PLUGIN
 
-    if provider_type == "default":
+    if provider_type == UserProvider.DEFAULT:
         logger.info("Using DefaultUnitProvider (Database)")
         if not db_session:
             raise ValueError("DefaultUnitProvider requires a database session")
         return DefaultUnitProvider(db_session)
-    elif provider_type == "accred":
+    elif provider_type == UserProvider.ACCRED:
         logger.info("Using AccredUnitProvider (EPFL Accred API)")
         return AccredUnitProvider()
-    elif provider_type == "test":
+    elif provider_type == UserProvider.TEST:
         logger.info("Using TestUnitProvider (for testing)")
         return TestUnitProvider()
     else:

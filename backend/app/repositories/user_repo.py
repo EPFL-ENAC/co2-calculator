@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.user import Role, User
+from app.models.user import Role, User, UserProvider
 
 
 class UserRepository:
@@ -20,9 +20,17 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID."""
-        result = await self.session.exec(select(User).where(User.id == user_id))
+    async def get_by_id(self, id: int) -> Optional[User]:
+        """Get user by ID (integer)."""
+        result = await self.session.exec(select(User).where(User.id == id))
+        entity = result.one_or_none()
+        return entity
+
+    async def get_by_code(self, provider_code: str) -> Optional[User]:
+        """Get user by code."""
+        result = await self.session.exec(
+            select(User).where(User.provider_code == provider_code)
+        )
         entity = result.one_or_none()
         return entity
 
@@ -34,26 +42,23 @@ class UserRepository:
 
     async def create(
         self,
-        user_id: Optional[str] = None,
+        provider_code: str,
         email: str = "",
         display_name: Optional[str] = None,
         roles: Optional[List[Role]] = None,
-        provider: Optional[str] = None,
+        provider: Optional[UserProvider] = None,
+        function: Optional[str] = None,
     ) -> User:
         """Create a new user."""
         now = datetime.utcnow()
         entity = User(
-            id=user_id,
+            provider_code=provider_code,
             email=email,
             display_name=display_name,
             roles=roles or [],
-            is_active=True,
-            last_login=now,
-            created_at=now,
-            created_by=user_id,
-            updated_at=now,
-            updated_by=user_id,
             provider=provider,
+            function=function,
+            last_login=now,
         )
         self.session.add(entity)
         await self.session.commit()
@@ -62,15 +67,14 @@ class UserRepository:
 
     async def update(
         self,
-        user_id: str,
+        id: int,
         display_name: Optional[str] = None,
         roles: Optional[List[Role]] = None,
-        provider: Optional[str] = None,
-        updated_by: Optional[str] = None,
-        is_active: Optional[bool] = None,
+        provider: Optional[UserProvider] = None,
+        function: Optional[str] = None,
     ) -> User:
-        """Update an existing user."""
-        result = await self.session.exec(select(User).where(User.id == user_id))
+        """Update an existing user by ID."""
+        result = await self.session.exec(select(User).where(User.id == id))
         entity = result.one_or_none()
         if not entity:
             raise HTTPException(status_code=404, detail="User not found")
@@ -80,17 +84,10 @@ class UserRepository:
         if roles is not None:
             entity.roles = roles
 
-        if display_name is not None:
-            entity.display_name = display_name
-
-        if provider is not None:
-            entity.provider = provider
-
-        if is_active is not None:
-            entity.is_active = is_active
-
-        entity.updated_at = now
-        entity.updated_by = updated_by or user_id
+        entity.last_login = now
+        entity.display_name = display_name or entity.display_name
+        entity.provider = provider or entity.provider
+        entity.function = function or entity.function
         # force revalidation
         await self.session.commit()
         await self.session.refresh(entity)
@@ -129,9 +126,9 @@ class UserRepository:
         result = await self.session.execute(query)
         return result.scalar_one()
 
-    async def delete(self, user_id: str) -> bool:
+    async def delete(self, id: int) -> bool:
         """Delete a user by ID."""
-        result = await self.session.exec(select(User).where(User.id == user_id))
+        result = await self.session.exec(select(User).where(User.id == id))
         entity = result.one_or_none()
         if not entity:
             return False

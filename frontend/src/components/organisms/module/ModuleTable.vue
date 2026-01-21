@@ -329,7 +329,7 @@ type ModuleRow = Record<string, RowValue> & {
 
 type CommonProps = {
   moduleFields: ModuleField[] | null;
-  unitId: string;
+  unitId: number;
   year: string | number;
   threshold: Threshold;
   hasTopBar?: boolean;

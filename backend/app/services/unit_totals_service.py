@@ -19,7 +19,7 @@ class UnitTotalsService:
         self.session = session
 
     async def _calculate_totals_for_year(
-        self, unit_id: str, year: int, user
+        self, unit_id: int, year: int, user
     ) -> tuple[float, float]:
         """
         Calculate totals for a specific year without recursion.
@@ -82,7 +82,7 @@ class UnitTotalsService:
         return total_kg_co2eq, total_fte
 
     async def get_unit_totals(
-        self, unit_id: str, year: int, user
+        self, unit_id: int, year: int, user
     ) -> dict[str, Optional[float]]:
         """
         Get total carbon footprint metrics for a unit across all modules.

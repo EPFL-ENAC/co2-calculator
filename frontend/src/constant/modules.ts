@@ -197,7 +197,7 @@ export interface Totals {
 
 export interface ModuleResponse {
   module_type: string;
-  unit: string;
+  unit: number;
   year: string;
   stats?: Record<string, number>;
   retrieved_at: string;

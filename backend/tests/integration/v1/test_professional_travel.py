@@ -23,7 +23,6 @@ def mock_user():
     user = Mock(spec=User)
     user.id = "test-user-123"
     user.email = "test@example.com"
-    user.is_active = True
     user.roles = []  # Make roles iterable
     user.has_role = Mock(
         return_value=False

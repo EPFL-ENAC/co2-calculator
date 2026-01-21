@@ -6,7 +6,10 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, field_validator
 from sqlalchemy import JSON, TIMESTAMP, Column, String
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
+
+from app.models.user import UserProvider
 
 from .headcount import AuditMixin
 
@@ -22,9 +25,8 @@ class ProfessionalTravelBase(SQLModel):
     """
 
     # Traveler information
-    traveler_id: Optional[str] = Field(
+    traveler_id: Optional[int] = Field(
         default=None,
-        max_length=50,
         description="Links to headcount.cf_user_id",
     )
     traveler_name: str = Field(
@@ -90,9 +92,8 @@ class ProfessionalTravelBase(SQLModel):
     )
 
     # Organization & filtering
-    unit_id: str = Field(
+    unit_id: int = Field(
         index=True,
-        max_length=50,
         description="Cost center/unit",
     )
 
@@ -114,18 +115,20 @@ class ProfessionalTravel(ProfessionalTravelBase, AuditMixin, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # traveler_id is optional - traveler_name is used as free-text field
-    traveler_id: Optional[str] = Field(
+    traveler_id: Optional[int] = Field(
         default=None,
-        max_length=50,
         description="Links to headcount.cf_user_id (optional)",
     )
 
     # Provider: Set by system/logic, not by user input directly
     # Literal["api", "csv", "manual"]
-    provider: Optional[str] = Field(
-        default=None,
-        max_length=50,
-        description="api | csv | manual",
+    provider: UserProvider = Field(
+        default=UserProvider.DEFAULT.value,
+        sa_column=Column(
+            SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Sync source provider (accred, default, test)",
     )
 
     # Year: Calculated from departure_date for filtering
@@ -164,7 +167,7 @@ class ProfessionalTravelUpdate(SQLModel):
     required field conflicts.
     """
 
-    traveler_id: Optional[str] = None
+    traveler_id: Optional[int] = None
     traveler_name: Optional[str] = None
     origin_location_id: Optional[int] = None
     destination_location_id: Optional[int] = None
@@ -194,8 +197,8 @@ class ProfessionalTravelUpdate(SQLModel):
     transport_mode: Optional[str] = None
     class_: Optional[str] = None
     number_of_trips: Optional[int] = None
-    unit_id: Optional[str] = None
-    provider: Optional[str] = None
+    unit_id: Optional[int] = None
+    provider: Optional[UserProvider] = None
 
 
 # ==========================================
@@ -210,7 +213,7 @@ class ProfessionalTravelRead(ProfessionalTravelBase, AuditMixin):
     """
 
     id: int
-    provider: Optional[str]
+    provider: Optional[UserProvider] = None
     year: int
 
 

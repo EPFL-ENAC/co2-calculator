@@ -15,7 +15,6 @@ def mock_user():
     user = Mock()
     user.id = 1
     user.email = "test@example.com"
-    user.is_active = True
     return user
 
 

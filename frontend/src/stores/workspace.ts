@@ -6,7 +6,7 @@ import { api } from 'src/api/http';
 export const WORKSPACE_DEFAULT_YEAR = 2025;
 
 export interface Unit {
-  id: string;
+  id: number;
   name: string;
   principal_user_id: string;
   principal_user_function: string;
@@ -24,7 +24,7 @@ interface YearResult {
 }
 
 interface UnitResults {
-  id: string;
+  id: number;
   name: string;
   updated_at: number;
   years: YearResult[];
@@ -62,7 +62,7 @@ export const useWorkspaceStore = defineStore(
     const selectedInventory = ref<Inventory | null>(null);
 
     // Fetch all inventories for a unit
-    async function fetchInventoriesForUnit(unitId: string) {
+    async function fetchInventoriesForUnit(unitId: number) {
       try {
         inventoriesLoading.value = true;
         inventoriesError.value = null;
@@ -80,7 +80,7 @@ export const useWorkspaceStore = defineStore(
 
     // Fetch inventory for a unit of a given year
     // /unit/{unit_id}/year/{year}/
-    async function fetchInventoryForUnitYear(unitId: string, year: number) {
+    async function fetchInventoryForUnitYear(unitId: number, year: number) {
       try {
         inventoriesLoading.value = true;
         inventoriesError.value = null;
@@ -122,7 +122,7 @@ export const useWorkspaceStore = defineStore(
 
     // Create inventory for a unit/year
     async function createInventory(
-      unitId: string,
+      unitId: number,
       year: number,
     ): Promise<Inventory> {
       try {
@@ -145,7 +145,7 @@ export const useWorkspaceStore = defineStore(
     }
 
     // Set selected inventory by year (create if needed)
-    async function selectInventoryForYear(unitId: string, year: number) {
+    async function selectInventoryForYear(unitId: number, year: number) {
       let inv: Inventory | null = await fetchInventoryForUnitYear(unitId, year);
       if (!inv) {
         inv = await createInventory(unitId, year);
@@ -156,7 +156,7 @@ export const useWorkspaceStore = defineStore(
 
     // Set selected inventory by year (create if needed)
     async function selectWithoutFetchingInventoryForYear(
-      unitId: string,
+      unitId: number,
       year: number,
     ) {
       let inv = await inventoryForYear(year);
@@ -187,7 +187,7 @@ export const useWorkspaceStore = defineStore(
       return unitResults.value.years.find((y) => y.year === selectedYear.value);
     });
 
-    function getLatestYear(unitId: string): number | null {
+    function getLatestYear(unitId: number): number | null {
       if (
         !unitResults.value ||
         unitResults.value.id !== unitId ||

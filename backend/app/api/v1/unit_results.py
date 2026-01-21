@@ -56,7 +56,7 @@ async def get_unit_results(
 
 @router.get("/{unit_id}/{year}/totals", response_model=dict)
 async def get_unit_totals(
-    unit_id: str,
+    unit_id: int,
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

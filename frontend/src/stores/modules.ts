@@ -207,7 +207,7 @@ export const useModuleStore = defineStore('modules', () => {
     loadingModuleTotals: false,
     errorModuleTotals: null,
   });
-  function modulePath(moduleType: Module, unit: string, year: string) {
+  function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
     const unitEncoded = encodeURIComponent(unit);
     const yearEncoded = encodeURIComponent(year);
@@ -242,7 +242,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleData(moduleType: Module, unit: string, year: string) {
+  async function getModuleData(moduleType: Module, unit: number, year: string) {
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -265,7 +265,7 @@ export const useModuleStore = defineStore('modules', () => {
 
   async function getModuleTotals(
     moduleType: Module,
-    unit: string,
+    unit: number,
     year: string,
   ) {
     state.loading = true;
@@ -292,7 +292,7 @@ export const useModuleStore = defineStore('modules', () => {
   }: {
     moduleType: Module;
     submoduleType: string;
-    unit: string;
+    unit: number;
     year: string;
   }) {
     state.loadingSubmodule[submoduleType] = true;
@@ -360,7 +360,7 @@ export const useModuleStore = defineStore('modules', () => {
   type FieldValue = string | number | boolean | null | Option;
   async function postItem(
     moduleType: Module,
-    unitId: string,
+    unitId: number,
     year: string | number,
     submoduleType: string,
     payload: Record<string, FieldValue>,
@@ -446,7 +446,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function patchItem(
     moduleType: Module,
     submoduleType: AllSubmoduleTypes,
-    unit: string,
+    unit: number,
     year: string,
     itemId: number,
     payload: Record<string, FieldValue>,
@@ -531,7 +531,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function deleteItem(
     moduleType: Module,
     submoduleType: AllSubmoduleTypes,
-    unit: string,
+    unit: number,
     year: string,
     itemId: number,
   ) {
@@ -568,7 +568,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelStatsByClass(unit: string, year: string) {
+  async function getTravelStatsByClass(unit: number, year: string) {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
@@ -588,7 +588,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelEvolutionOverTime(unit: string) {
+  async function getTravelEvolutionOverTime(unit: number) {
     state.loadingTravelEvolutionOverTime = true;
     state.errorTravelEvolutionOverTime = null;
     try {
@@ -609,7 +609,7 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   // Track which unit/year the current totals are for
-  const moduleTotalsUnitId = ref<string | null>(null);
+  const moduleTotalsUnitId = ref<number | null>(null);
   const moduleTotalsYear = ref<number | null>(null);
 
   /**
@@ -618,7 +618,7 @@ export const useModuleStore = defineStore('modules', () => {
    * @param unitId - Unit ID
    * @param year - Year for the data (must be a number)
    */
-  async function getModuleTotalsAggregated(unitId: string, year: number) {
+  async function getModuleTotalsAggregated(unitId: number, year: number) {
     state.loadingModuleTotals = true;
     state.errorModuleTotals = null;
     try {

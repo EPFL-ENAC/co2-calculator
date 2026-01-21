@@ -35,7 +35,7 @@ const props = defineProps<{
   data: ModuleResponse | null;
   loading: boolean;
   error: string | null;
-  unitId: string;
+  unitId: number;
   year: string | number;
   disable: boolean;
 }>();

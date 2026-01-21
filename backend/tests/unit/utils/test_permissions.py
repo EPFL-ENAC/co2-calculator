@@ -7,9 +7,14 @@ Tests cover:
 - Edge cases and combinations
 """
 
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
-from app.utils.permissions import (
+from app.models.user import (
+    GlobalScope,
+    Role,
+    RoleName,
+    RoleScope,
     calculate_user_permissions,
+)
+from app.utils.permissions import (
     get_permission_value,
     has_permission,
 )

@@ -30,7 +30,7 @@ class HeadcountService:
         self.user = user
 
     async def get_module_stats(
-        self, unit_id: str, year: int, aggregate_by: str = "submodule"
+        self, unit_id: int, year: int, aggregate_by: str = "submodule"
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
         # GOAL return total items and submodules for headcount module
@@ -45,7 +45,7 @@ class HeadcountService:
         self,
         data: HeadCountCreate,
         provider_source: str,
-        user_id: str,
+        user_id: int,
     ) -> HeadCount:
         """Create a new headcount record."""
         return await self.repo.create_headcount(
@@ -61,6 +61,9 @@ class HeadcountService:
         user: User,
     ) -> Optional[HeadCount]:
         """Update an existing headcount record."""
+        if not user or not user.id:
+            logger.error("User context is required for updating headcount")
+            return None
         return await self.repo.update_headcount(
             headcount_id=headcount_id,
             data=data,
@@ -102,7 +105,7 @@ class HeadcountService:
 
     async def get_headcounts(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         limit: int = 100,
         offset: int = 0,
@@ -122,7 +125,7 @@ class HeadcountService:
 
     async def get_module_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
     ) -> ModuleResponse:
         """
@@ -196,7 +199,8 @@ class HeadcountService:
         # Create module response
         module_response = ModuleResponse(
             module_type="my-lab",
-            unit=unit_id,
+            unit="FTE",
+            unit_id=unit_id,
             year=year,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
@@ -213,7 +217,7 @@ class HeadcountService:
 
     async def get_submodule_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         submodule_key: str,
         limit: int = 100,
@@ -235,7 +239,7 @@ class HeadcountService:
         )
 
     async def get_by_unit_and_date(
-        self, unit_id: str, date: str
+        self, unit_id: int, date: str
     ) -> Optional[HeadCount]:
         """Get headcount record by unit_id and date."""
         return await self.repo.get_by_unit_and_date(unit_id, date)

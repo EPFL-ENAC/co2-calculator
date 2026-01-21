@@ -19,7 +19,7 @@ class UnitUserRepository:
         self.session = session
 
     async def get_by_unit_and_user(
-        self, unit_id: str, user_id: str
+        self, unit_id: int, user_id: int
     ) -> Optional[UnitUser]:
         """Get UnitUser association by unit ID and user ID."""
         result = await self.session.exec(
@@ -29,14 +29,14 @@ class UnitUserRepository:
         )
         return result.one_or_none()
 
-    async def get_by_user(self, user_id: str) -> List[UnitUser]:
+    async def get_by_user(self, user_id: int) -> List[UnitUser]:
         """Get all unit associations for a specific user."""
         result = await self.session.exec(
             select(UnitUser).where(UnitUser.user_id == user_id)
         )
         return list(result.all())
 
-    async def get_by_unit(self, unit_id: str) -> List[UnitUser]:
+    async def get_by_unit(self, unit_id: int) -> List[UnitUser]:
         """Get all user associations for a specific unit."""
         result = await self.session.exec(
             select(UnitUser).where(UnitUser.unit_id == unit_id)
@@ -45,8 +45,8 @@ class UnitUserRepository:
 
     async def create(
         self,
-        unit_id: str,
-        user_id: str,
+        unit_id: int,
+        user_id: int,
         role: RoleName,
     ) -> UnitUser:
         """Create a new UnitUser association."""
@@ -62,29 +62,29 @@ class UnitUserRepository:
 
     async def update_role(
         self,
-        unit_id: str,
-        user_id: str,
+        unit_id: int,
+        user_id: int,
         role: RoleName,
     ) -> UnitUser:
-        """Update the role for a UnitUser association. Returns None if not found."""
+        """Update the role for a UnitUser association."""
         result = await self.session.exec(
             select(UnitUser).where(
                 (UnitUser.user_id == user_id) & (UnitUser.unit_id == unit_id)
             )
         )
-        entity = result.one_or_none()
+        entity: Optional[UnitUser] = result.one_or_none()
         if not entity:
             raise ValueError("UnitUser association not found")
 
-        entity.role = role.value
+        entity.role = role
         await self.session.commit()
         await self.session.refresh(entity)
         return entity
 
     async def upsert(
         self,
-        unit_id: str,
-        user_id: str,
+        unit_id: int,
+        user_id: int,
         role: RoleName,
     ) -> UnitUser:
         """Create or update a UnitUser association."""
@@ -98,7 +98,7 @@ class UnitUserRepository:
         else:
             return await self.create(unit_id, user_id, role)
 
-    async def delete(self, unit_id: str, user_id: str) -> bool:
+    async def delete(self, unit_id: int, user_id: int) -> bool:
         """Delete a UnitUser association. Returns False if not found."""
         result = await self.session.exec(
             select(UnitUser).where(

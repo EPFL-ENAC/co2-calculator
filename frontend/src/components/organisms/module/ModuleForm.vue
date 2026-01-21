@@ -328,7 +328,7 @@ const props = withDefaults(
     hasStudentHelper?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
-    unitId?: string;
+    unitId?: number;
     year?: string | number;
   }>(),
   {

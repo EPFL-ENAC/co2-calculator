@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple, Union
 
+from backend.app.models.data_ingestion import IngestionMethod
 from sqlalchemy import and_, func, or_
 from sqlalchemy.sql import Select
 from sqlmodel import col, select
@@ -34,7 +35,7 @@ class ProfessionalTravelRepository:
 
     async def get_travels(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         user: User,
         limit: int,
@@ -280,10 +281,10 @@ class ProfessionalTravelRepository:
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,
-        provider_source: str,
-        user_id: str,
+        provider_source: IngestionMethod,
+        user_id: int,
         year: Optional[int] = None,
-        unit_id: Optional[str] = None,
+        unit_id: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -385,7 +386,7 @@ class ProfessionalTravelRepository:
             return db_obj
 
     async def update_travel(
-        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str, user: User
+        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: int, user: User
     ) -> Optional[ProfessionalTravel]:
         """
         Update an existing professional travel record.
@@ -474,7 +475,7 @@ class ProfessionalTravelRepository:
 
         return True
 
-    async def get_summary_stats(self, unit_id: str, year: int, user: User) -> dict:
+    async def get_summary_stats(self, unit_id: int, year: int, user: User) -> dict:
         """
         Get aggregated summary statistics for professional travels.
 
@@ -527,7 +528,7 @@ class ProfessionalTravelRepository:
         }
 
     async def get_stats_by_class(
-        self, unit_id: str, year: int, user: User
+        self, unit_id: int, year: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by transport mode and class.
@@ -661,7 +662,7 @@ class ProfessionalTravelRepository:
         return result_list
 
     async def get_evolution_over_time(
-        self, unit_id: str, user: User
+        self, unit_id: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by year and transport mode.

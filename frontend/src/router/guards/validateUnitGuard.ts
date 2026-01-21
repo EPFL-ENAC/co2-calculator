@@ -6,7 +6,8 @@ async function validateUnit() {
   const routeUnit = String(workspaceStore.selectedParams?.unit || '');
   const unitIdFromRoute = routeUnit.split('-')[0];
   const validUnit = workspaceStore.units.find(
-    (unit) => unit.id === unitIdFromRoute || unit.name === routeUnit,
+    (unit) =>
+      unit.id === parseInt(unitIdFromRoute, 10) || unit.name === routeUnit,
   );
 
   if (validUnit) {

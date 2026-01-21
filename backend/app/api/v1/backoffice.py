@@ -308,7 +308,7 @@ class UnitReportingData(BaseModel):
     id: int
     completion: dict[str, Any]
     completion_counts: CompletionCounts
-    unit: str
+    unit: int
     affiliation: str
     principal_user: str
     last_update: datetime
@@ -859,7 +859,7 @@ async def create_user(
     },
 )
 async def get_user(
-    user_id: str,
+    user_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
@@ -905,7 +905,7 @@ async def get_user(
     },
 )
 async def update_user(
-    user_id: str,
+    user_id: int,
     user_data: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "edit")),
@@ -951,7 +951,7 @@ async def update_user(
     },
 )
 async def delete_user(
-    user_id: str,
+    user_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "edit")),
 ):

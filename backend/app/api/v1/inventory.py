@@ -18,7 +18,7 @@ router = APIRouter()
 
 # List all inventories for a given unit
 @router.get("/unit/{unit_id}/", response_model=List[InventoryRead])
-async def list_inventories_by_unit(unit_id: str, db: AsyncSession = Depends(get_db)):
+async def list_inventories_by_unit(unit_id: int, db: AsyncSession = Depends(get_db)):
     service = InventoryService(db)
     return await service.list_inventories_by_unit(unit_id)
 
@@ -26,7 +26,7 @@ async def list_inventories_by_unit(unit_id: str, db: AsyncSession = Depends(get_
 # Return 404 if inventory not found retrieve inventory of a unit for a given year
 @router.get("/unit/{unit_id}/year/{year}/", response_model=InventoryRead)
 async def get_inventory_by_unit_and_year(
-    unit_id: str, year: int, db: AsyncSession = Depends(get_db)
+    unit_id: int, year: int, db: AsyncSession = Depends(get_db)
 ):
     service = InventoryService(db)
     inv = await service.get_inventory_by_unit_and_year(unit_id, year)

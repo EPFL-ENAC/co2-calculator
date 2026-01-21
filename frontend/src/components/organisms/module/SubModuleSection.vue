@@ -112,7 +112,7 @@ type CommonProps = {
   loading?: boolean;
   error?: string | null;
   data?: ModuleResponse | null;
-  unitId: string;
+  unitId: number;
   year: string | number;
   threshold: Threshold;
   disable: boolean;
@@ -166,7 +166,7 @@ function submitForm(payload: Record<string, FieldValue>) {
     return moduleStore.patchItem(
       props.moduleType,
       props.submoduleType,
-      String(props.unitId),
+      props.unitId,
       String(props.year),
       item.value.id,
       payload,

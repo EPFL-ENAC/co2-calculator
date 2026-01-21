@@ -33,7 +33,7 @@ router = APIRouter()
     },
 )
 async def create_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_data: HeadCountCreate,
     module_id: str = "not_defined",
@@ -71,6 +71,11 @@ async def create_headcount(
             f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
         )
 
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to create headcount",
+            )
         service = HeadcountService(db, user=current_user)
         headcount = await service.create_headcount(
             data=headcount_data,
@@ -106,7 +111,7 @@ async def create_headcount(
     },
 )
 async def get_headcounts(
-    unit_id: str,
+    unit_id: int,
     year: int,
     limit: int = 100,
     offset: int = 0,
@@ -189,7 +194,7 @@ async def get_headcounts(
     },
 )
 async def get_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
@@ -275,7 +280,7 @@ async def get_headcount(
     },
 )
 async def update_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     headcount_data: HeadCountUpdate,
@@ -368,7 +373,7 @@ async def update_headcount(
     },
 )
 async def delete_headcount(
-    unit_id: str,
+    unit_id: int,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",

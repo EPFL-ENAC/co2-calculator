@@ -7,7 +7,7 @@ from app.core.constants import ModuleStatus
 
 class InventoryBase(SQLModel):
     year: int
-    unit_id: str  # Assuming Unit.id is str as in your unit.py
+    unit_id: int  # Assuming Unit.id is str as in your unit.py
 
 
 class Inventory(InventoryBase, table=True):

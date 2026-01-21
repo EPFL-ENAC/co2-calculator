@@ -132,7 +132,6 @@ async def test_get_me_success(monkeypatch):
     mock_user = User(
         id="1",
         email="test@example.com",
-        is_active=True,
         display_name="Test User",
         provider="test",
         roles=mock_roles,
@@ -147,7 +146,6 @@ async def test_get_me_success(monkeypatch):
     mock_user_after_refresh = User(
         id="1",
         email="test@example.com",
-        is_active=True,
         display_name="Test User",
         provider="test",
         roles=mock_roles,
@@ -223,17 +221,16 @@ async def test_get_me_invalid_token(monkeypatch, payload):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("user_attr", ["is_active", "email", "user_id"])
+@pytest.mark.parametrize("user_attr", ["email", "user_id"])
 async def test_get_me_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "1"}))
     mock_user = MagicMock(
         id="1",
-        is_active=True,
         email="test@example.com",
         user_id="123456",
         roles=["user"],
     )
-    setattr(mock_user, user_attr, False if user_attr == "is_active" else None)
+    setattr(mock_user, user_attr, None)
 
     mock_get_user_by_user_id = AsyncMock(return_value=mock_user)
     monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
@@ -279,9 +276,7 @@ async def test_refresh_token_success(monkeypatch):
             }
         ),
     )
-    mock_user = MagicMock(
-        id="1", is_active=True, email="test@example.com", user_id="123456"
-    )
+    mock_user = MagicMock(id="1", email="test@example.com", user_id="123456")
     monkeypatch.setattr(
         auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
     )
