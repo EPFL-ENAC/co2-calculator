@@ -51,6 +51,10 @@ export default {
     en: 'Total unit carbon footprint',
     fr: "Empreinte carbone totale de l'unité",
   },
+  results_carbon_footprint_per_person_title: {
+    en: 'Carbon Footprint per FTE',
+    fr: 'Empreinte carbone par ETP',
+  },
   results_total_module_carbon_footprint: {
     en: 'Total {module} carbon footprint',
     fr: 'Empreinte carbone totale de {module}',
@@ -303,5 +307,17 @@ export default {
   'charts-scope': {
     en: 'Scope',
     fr: 'Scope',
+  },
+  'charts-my-unit-tick': {
+    en: 'My Unit',
+    fr: 'Mon unité',
+  },
+  'charts-epf-tick': {
+    en: 'EPFL',
+    fr: 'EPFL',
+  },
+  'charts-objective-tick': {
+    en: '2030 Objective',
+    fr: 'Objectif 2030',
   },
 } as const;
