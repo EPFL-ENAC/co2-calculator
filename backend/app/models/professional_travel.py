@@ -123,7 +123,7 @@ class ProfessionalTravel(ProfessionalTravelBase, AuditMixin, table=True):
 
     # Provider: Set by system/logic, not by user input directly
     provider: UserProvider = Field(
-        default=UserProvider.DEFAULT.value,
+        default=UserProvider.DEFAULT,
         sa_column=Column(
             SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
             nullable=False,
@@ -131,7 +131,7 @@ class ProfessionalTravel(ProfessionalTravelBase, AuditMixin, table=True):
         description="Sync source provider (accred, default, test)",
     )
     provider_source: IngestionMethod = Field(
-        default=IngestionMethod.manual.value,
+        default=IngestionMethod.manual,
         sa_column=Column(
             SAEnum(IngestionMethod, name="ingestion_method_enum", native_enum=True),
             nullable=False,
