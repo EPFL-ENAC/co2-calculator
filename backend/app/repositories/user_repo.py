@@ -60,6 +60,8 @@ class UserRepository:
             function=function,
             last_login=now,
         )
+        # ensure setter is called
+        entity.roles = roles or []
         self.session.add(entity)
         await self.session.commit()
         await self.session.refresh(entity)
