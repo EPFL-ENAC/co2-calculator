@@ -24,11 +24,13 @@
         :type="currentModuleType"
         :module-config="currentModuleConfig"
       />
-      <q-card class="container container--pa-none" flat style="padding: 0">
-        <module-charts
-          :type="currentModuleType"
-          :show-evolution-chart="false"
-        />
+      <q-card class="container container--pa-none" flat>
+        <div class="q-px-lg">
+          <module-charts
+            :type="currentModuleType"
+            :show-evolution-chart="false"
+          />
+        </div>
       </q-card>
       <!-- module tables iteration -->
       <module-table-section
