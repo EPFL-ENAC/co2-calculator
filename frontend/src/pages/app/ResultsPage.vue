@@ -6,7 +6,6 @@ import { MODULES_CONFIG } from 'src/constant/module-config';
 import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ChartContainer from 'src/components/molecules/ChartContainer.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import DistibutionsChart from 'src/components/charts/results/DistibutionsChart.vue';
@@ -220,11 +219,9 @@ const downloadPDF = () => {
       </q-card>
       <q-card flat class="grid-2-col">
         <ModuleCarbonFootprintChart :view-uncertainties="viewUncertainties" />
-
-        <ChartContainer :title="$t('results_carbon_footprint_per_person')">
-          <template #tooltip>tooltip</template>
-          <CarbonFootPrintPerPersonChart />
-        </ChartContainer>
+        <CarbonFootPrintPerPersonChart
+          :view-uncertainties="viewUncertainties"
+        />
       </q-card>
 
       <div class="q-mt-xl">

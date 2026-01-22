@@ -559,7 +559,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'scitas',
       },
       itemStyle: {
-        color: colors.value.paleYellowGreen.default,
+        color: colors.value.paleYellowGreen.darker,
       },
       label: {
         show: false,
@@ -574,7 +574,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'rcp',
       },
       itemStyle: {
-        color: colors.value.paleYellowGreen.light,
+        color: colors.value.paleYellowGreen.dark,
       },
       label: {
         show: false,
