@@ -32,9 +32,10 @@ class LocationRepository:
         - municipality column
         - name column
 
-        For flights (transport_mode='plane'), results are prioritized by:
-        1. large_airport first
-        2. Then by relevance (exact match, starts with, contains)
+        Results are prioritized by:
+        1. Switzerland (country_code == "CH") first
+        2. For flights (transport_mode='plane'): large_airport first
+        3. Then by relevance (exact match, starts with, contains)
 
         Results are ordered by relevance:
         1. Exact matches (field = query)
@@ -48,7 +49,8 @@ class LocationRepository:
             If None, returns both types.
 
         Returns:
-            List of Location objects ordered by relevance (and airport_size for flights)
+            List of Location objects ordered by country (Switzerland first),
+            relevance, and airport_size (for flights)
         """
         # Normalize query
         query = query.strip()
@@ -96,21 +98,34 @@ class LocationRepository:
             else_=3,
         )
 
+        # Prioritize Switzerland (country_code == "CH") first
+        switzerland_priority = case(
+            (col(Location.country_code) == "CH", 1),
+            else_=2,
+        )
+
         # For flights, prioritize large_airport first
         if transport_mode == "plane":
-            # Order by: airport_size (large_airport first), then relevance, then name
+            # Order by: Switzerland first, airport_size (large_airport first),
+            # then relevance, then name
             airport_priority = case(
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,
             )
             statement = statement.order_by(
+                switzerland_priority.asc(),
                 airport_priority.asc(),
                 relevance.asc(),
                 col(Location.name).asc(),
             )
         else:
-            # For trains or mixed results, order by relevance then name
-            statement = statement.order_by(relevance.asc(), col(Location.name).asc())
+            # For trains or mixed results, order by Switzerland first,
+            # then relevance, then name
+            statement = statement.order_by(
+                switzerland_priority.asc(),
+                relevance.asc(),
+                col(Location.name).asc(),
+            )
 
         statement = statement.limit(limit)
 
