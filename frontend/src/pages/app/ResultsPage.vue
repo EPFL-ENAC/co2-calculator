@@ -219,8 +219,9 @@ const downloadPDF = () => {
       </q-card>
       <q-card flat class="grid-2-col">
         <ModuleCarbonFootprintChart :view-uncertainties="viewUncertainties" />
-        <CarbonFootPrintPerPersonChart />
-        
+        <CarbonFootPrintPerPersonChart
+          :view-uncertainties="viewUncertainties"
+        />
       </q-card>
 
       <div class="q-mt-xl">
