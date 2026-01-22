@@ -5,10 +5,10 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth,
     backoffice,
+    carbon_report,
     data_sync,
     files,
     headcounts,
-    inventory,
     locations,
     modules,
     power_factors,
@@ -36,7 +36,9 @@ api_router.include_router(
     power_factors.router, prefix="/power-factors", tags=["power-factors"]
 )
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
-api_router.include_router(inventory.router, prefix="/inventories", tags=["inventories"])
+api_router.include_router(
+    carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
+)
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])

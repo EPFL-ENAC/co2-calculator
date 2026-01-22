@@ -2,6 +2,17 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
+  carbon_report_modules {
+    INTEGER carbon_report_id FK
+    INTEGER id PK
+    INTEGER module_type_id FK
+    INTEGER status
+  }
+  carbon_reports {
+    INTEGER id PK
+    INTEGER unit_id FK
+    INTEGER year
+  }
   data_ingestion_jobs {
     INTEGER entity_id
     VARCHAR entity_type
@@ -83,17 +94,6 @@ erDiagram
     DATETIME updated_at
     INTEGER updated_by "indexed"
   }
-  inventory {
-    INTEGER id PK
-    INTEGER unit_id
-    INTEGER year
-  }
-  inventory_module {
-    INTEGER id PK
-    INTEGER inventory_id FK
-    INTEGER module_type_id FK
-    INTEGER status
-  }
   locations {
     VARCHAR countrycode "indexed"
     DATETIME created_at
@@ -113,9 +113,9 @@ erDiagram
     VARCHAR name "indexed"
   }
   modules {
+    INTEGER carbon_report_module_id FK
     JSON data
     INTEGER id PK
-    INTEGER inventory_module_id FK
     INTEGER module_type_id FK
     INTEGER variant_type_id FK
   }
@@ -225,14 +225,14 @@ erDiagram
     INTEGER module_type_id FK
     VARCHAR name "indexed"
   }
+  carbon_report_modules ||--}o modules : "carbon_report_module_id"
+  carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   emission_factors ||--}o equipment_emissions : "emission_factor_id"
   equipment ||--}o equipment_emissions : "equipment_id"
-  inventory ||--}o inventory_module : "inventory_id"
-  inventory_module ||--}o modules : "inventory_module_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"
+  module_types ||--}o carbon_report_modules : "module_type_id"
   module_types ||--}o data_ingestion_jobs : "module_type_id"
-  module_types ||--}o inventory_module : "module_type_id"
   module_types ||--}o modules : "module_type_id"
   module_types ||--}o variant_types : "module_type_id"
   plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
@@ -240,6 +240,7 @@ erDiagram
   power_factors ||--}o equipment_emissions : "power_factor_id"
   professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
   train_impact_factors ||--}o professional_travel_emissions : "train_impact_factor_id"
+  units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
   users ||--}o unit_users : "user_id"
   users ||--}o units : "principal_user_provider_code"

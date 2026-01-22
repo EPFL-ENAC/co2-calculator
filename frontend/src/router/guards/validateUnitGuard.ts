@@ -31,21 +31,21 @@ export default async function validateUnitGuard(to) {
   const workspaceStore = useWorkspaceStore();
   await workspaceStore.getUnits();
   const response = await validateUnit();
-  // if unit is valid retrieve inventory!
-  let inventoryId = null;
+  // if unit is valid retrieve carbon report  !
+  let carbonReportId = null;
   if (response) {
-    await workspaceStore.selectInventoryForYear(
+    await workspaceStore.selectCarbonReportForYear(
       workspaceStore.selectedUnit.id,
       workspaceStore.selectedYear,
     );
-    inventoryId = workspaceStore.selectedInventory?.id;
-    if (inventoryId) {
+    carbonReportId = workspaceStore.selectedCarbonReport?.id;
+    if (carbonReportId) {
       const timelineStore = useTimelineStore();
-      await timelineStore.fetchModuleStates(inventoryId);
+      await timelineStore.fetchModuleStates(carbonReportId);
     }
   }
   // then we can retrieve modules
-  if (!response && !inventoryId) {
+  if (!response && !carbonReportId) {
     return {
       name: 'workspace-setup',
       params: {

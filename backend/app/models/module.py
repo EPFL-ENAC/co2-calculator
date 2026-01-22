@@ -5,6 +5,7 @@ from typing import Optional
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
+## Will be renamed to data_entries later
 class ModuleBase(SQLModel):
     """Base module model with shared fields."""
 
@@ -14,17 +15,18 @@ class ModuleBase(SQLModel):
         index=True,
         description="Reference to module type classification",
     )
+    # variant is  data_entry_types
     variant_type_id: Optional[int] = Field(
         default=None,
         foreign_key="variant_types.id",
         index=True,
         description="Reference to variant type within module",
     )
-    inventory_module_id: int = Field(
-        foreign_key="inventory_module.id",
+    carbon_report_module_id: int = Field(
+        foreign_key="carbon_report_modules.id",
         nullable=False,
         index=True,
-        description="Reference to parent inventory module instance",
+        description="Reference to parent carbon report module instance",
     )
     data: dict = Field(
         default_factory=dict,
@@ -40,7 +42,7 @@ class Module(ModuleBase, table=True):
     This table provides a flexible storage mechanism where:
     - module_type_id defines the category (headcount, equipment, travel)
     - variant_type_id defines the subcategory (student, member, etc.)
-    - inventory_module_id links to the specific inventory module instance
+    - carbon_report_module_id links to the specific carbon report module instance
     - data stores the actual row data as JSON
 
     Examples:
@@ -56,5 +58,5 @@ class Module(ModuleBase, table=True):
         return (
             f"<Module {self.id}: type={self.module_type_id} "
             f"variant={self.variant_type_id} "
-            f"inv_mod={self.inventory_module_id}>"
+            f"carbon_report_module={self.carbon_report_module_id}>"
         )
