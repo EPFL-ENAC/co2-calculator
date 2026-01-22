@@ -18,16 +18,19 @@ class LocationBase(SQLModel):
     """
 
     transport_mode: str = Field(
-        max_length=50,
         nullable=False,
         index=True,
-        description="Transport mode: 'train' or 'plane'",
+        description="Transport mode: 'plane' or 'train'",
     )
     name: str = Field(
         max_length=255,
         nullable=False,
         index=True,
         description="Location name (e.g., 'Lyndhurst Halt', 'Utirik Airport')",
+    )
+    airport_size: Optional[str] = Field(
+        default=None,
+        description="Airport size: 'medium_airport' or 'large_airport'",
     )
     latitude: float = Field(
         nullable=False,
@@ -37,17 +40,34 @@ class LocationBase(SQLModel):
         nullable=False,
         description="Longitude coordinate (decimal degrees)",
     )
+    continent: Optional[str] = Field(
+        default=None,
+        max_length=2,
+        index=True,
+        description="Continent (e.g., 'EU', 'NA', 'SA')",
+    )
+    country_code: Optional[str] = Field(
+        default=None,
+        max_length=2,
+        index=True,
+        description="ISO country code (e.g., 'AE', 'AL', 'AM')",
+    )
     iata_code: Optional[str] = Field(
         default=None,
-        max_length=10,
+        max_length=3,
         index=True,
         description="IATA airport code (e.g., 'UTK', 'OCA') - only for planes",
     )
-    countrycode: Optional[str] = Field(
+    municipality: Optional[str] = Field(
         default=None,
-        max_length=10,
+        max_length=255,
         index=True,
-        description="ISO country code (e.g., 'AE', 'AL', 'AM')",
+        description="Municipality (e.g., 'Dubai', 'Berlin')",
+    )
+    keywords: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Keywords (e.g., ['airport', 'train station'])",
     )
 
 
@@ -73,7 +93,7 @@ class Location(LocationBase, AuditMixin, table=True):
             f"mode={self.transport_mode} "
             f"name={self.name} "
             f"({self.latitude}, {self.longitude}) "
-            f"country={self.countrycode}>"
+            f"country={self.country_code}>"
         )
 
 

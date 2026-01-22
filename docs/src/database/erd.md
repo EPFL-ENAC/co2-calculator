@@ -129,13 +129,17 @@ erDiagram
     INTEGER updated_by "indexed"
   }
   locations {
-    VARCHAR countrycode "indexed"
+    VARCHAR airport_size
+    VARCHAR continent "indexed"
+    VARCHAR country_code "indexed"
     DATETIME created_at
     INTEGER created_by "indexed"
     VARCHAR iata_code "indexed"
     INTEGER id PK
+    VARCHAR keywords
     FLOAT latitude
     FLOAT longitude
+    VARCHAR municipality "indexed"
     VARCHAR name "indexed"
     VARCHAR transport_mode "indexed"
     DATETIME updated_at
