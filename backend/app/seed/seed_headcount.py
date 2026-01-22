@@ -212,7 +212,6 @@ async def seed_headcount(session: AsyncSession) -> None:
             else:
                 # check if unit_id is provided if not create unit with default values
                 if not unit_id:
-                    logger.warning(f"Missing unit_id in row: {row}")
                     new_unit = await unit_service.upsert(
                         unit_data=Unit(
                             provider_code=unit_provider_code or "unknown",
@@ -224,6 +223,7 @@ async def seed_headcount(session: AsyncSession) -> None:
                         ),
                     )
                     if new_unit is None or new_unit.id is None:
+                        logger.warning(f"Missing unit_id in row: {row}")
                         raise HTTPException(
                             status_code=HttpStatus.HTTP_400_BAD_REQUEST,
                             detail=f"Failed to create unit for row: {row}",
