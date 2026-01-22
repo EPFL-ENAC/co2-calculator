@@ -2,6 +2,7 @@
 
 from sqlmodel import Relationship
 
+from .carbon_report import CarbonReport, CarbonReportModule
 from .data_ingestion import DataIngestionJob
 from .emission_factor import (
     EmissionFactor,
@@ -22,7 +23,6 @@ from .headcount import (
     HeadCountRead,
     HeadCountUpdate,
 )
-from .inventory import Inventory, InventoryModule
 from .location import (
     Location,
     LocationBase,
@@ -61,13 +61,13 @@ UnitUser.unit = Relationship(back_populates="unit_users")
 User.unit_users = Relationship(back_populates="user")
 UnitUser.user = Relationship(back_populates="unit_users")
 
-# Inventory <-> InventoryModule relationships
-Inventory.modules = Relationship(back_populates="inventory")
-InventoryModule.inventory = Relationship(back_populates="modules")
+# CarbonReport <-> CarbonReportModule relationships
+CarbonReport.modules = Relationship(back_populates="carbon_report")
+CarbonReportModule.carbon_report = Relationship(back_populates="modules")
 
-# InventoryModule <-> Module relationships
-InventoryModule.module_rows = Relationship(back_populates="inventory_module")
-Module.inventory_module = Relationship(back_populates="module_rows")
+# CarbonReportModule <-> Module relationships
+CarbonReportModule.module_rows = Relationship(back_populates="carbon_report_module")
+Module.carbon_report_module = Relationship(back_populates="module_rows")
 
 # ModuleType <-> VariantType relationships
 ModuleType.variant_types = Relationship(back_populates="module_type")
@@ -101,8 +101,8 @@ __all__ = [
     "HeadCountCreate",
     "HeadCountRead",
     "HeadCountUpdate",
-    "Inventory",
-    "InventoryModule",
+    "CarbonReport",
+    "CarbonReportModule",
     "Location",
     "LocationBase",
     "LocationRead",
