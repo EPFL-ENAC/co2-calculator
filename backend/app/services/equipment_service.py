@@ -34,7 +34,7 @@ SUBMODULE_NAMES = {
 
 
 async def get_module_stats(
-    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+    session: AsyncSession, unit_id: int, aggregate_by: str = "submodule"
 ) -> dict[str, float]:
     """Get module statistics such as total items and submodules."""
     # GOAL return total items and submodules for equipment module
@@ -46,7 +46,7 @@ async def get_module_stats(
     )
 
 
-async def get_total_kg_co2eq(session: AsyncSession, unit_id: str, year: int) -> float:
+async def get_total_kg_co2eq(session: AsyncSession, unit_id: int, year: int) -> float:
     """
     Get total kg CO2eq for all equipment in a unit for a specific year.
 
@@ -72,7 +72,7 @@ async def get_total_kg_co2eq(session: AsyncSession, unit_id: str, year: int) -> 
 
 async def get_module_data(
     session: AsyncSession,
-    unit_id: str,
+    unit_id: int,
     year: int,
     preview_limit: Optional[int] = None,
 ) -> ModuleResponse:
@@ -203,6 +203,7 @@ async def get_module_data(
     module_response = ModuleResponse(
         module_type="equipment-electric-consumption",
         unit="kWh",
+        unit_id=unit_id,
         stats=None,
         year=year,
         retrieved_at=datetime.now(timezone.utc),
@@ -220,7 +221,7 @@ async def get_module_data(
 
 async def get_submodule_data(
     session: AsyncSession,
-    unit_id: str,
+    unit_id: int,
     submodule_key: str,
     limit: int = 100,
     offset: int = 0,
@@ -382,7 +383,7 @@ async def get_equipment_by_id(
 async def create_equipment(
     session: AsyncSession,
     equipment_data: EquipmentCreateRequest,
-    user_id: str,
+    user_id: int,
 ) -> EquipmentDetailResponse:
     """
     Create new equipment.
@@ -523,7 +524,7 @@ async def update_equipment(
     session: AsyncSession,
     item_id: int,
     item_data: EquipmentUpdateRequest,
-    user_id: str,
+    user_id: int,
 ) -> EquipmentDetailResponse:
     """
     Update existing equipment.
@@ -681,7 +682,7 @@ async def update_equipment(
 async def delete_equipment(
     session: AsyncSession,
     equipment_id: int,
-    user_id: str,
+    user_id: int,
 ) -> None:
     """
     Delete equipment.

@@ -100,11 +100,9 @@ async def get_current_user(
 async def get_current_active_user(
     user: User = Depends(get_current_user),
 ) -> User:
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
+    """Get the current active user.
+    Legacy code: used to check for is_active flag, but now all users are active.
+    """
     return user
 
 

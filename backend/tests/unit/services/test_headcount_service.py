@@ -37,8 +37,8 @@ async def test_get_module_stats_delegates(service):
     with patch.object(
         service.repo, "get_module_stats", new=AsyncMock(return_value={"foo": 1})
     ) as mock_stats:
-        stats = await service.get_module_stats("u1", 2025, aggregate_by="submodule")
-        mock_stats.assert_called_with(unit_id="u1", year=2025, aggregate_by="submodule")
+        stats = await service.get_module_stats(1, 2025, aggregate_by="submodule")
+        mock_stats.assert_called_with(unit_id=1, year=2025, aggregate_by="submodule")
         assert stats == {"foo": 1}
 
 
@@ -53,10 +53,8 @@ async def test_create_headcount_delegates(service):
         "create_headcount",
         new=AsyncMock(return_value=MagicMock(spec=HeadCount)),
     ) as mock_create:
-        result = await service.create_headcount(
-            data, provider_source="csv", user_id="u1"
-        )
-        mock_create.assert_called_with(data=data, provider_source="csv", user_id="u1")
+        result = await service.create_headcount(data, provider_source="csv", user_id=1)
+        mock_create.assert_called_with(data=data, provider_source="csv", user_id=1)
         assert result is not None
 
 
@@ -116,11 +114,9 @@ async def test_get_headcounts_delegates(service):
         "get_headcounts",
         new=AsyncMock(return_value=[MagicMock(spec=HeadCount)]),
     ) as mock_get:
-        result = await service.get_headcounts(
-            "u1", 2025, 10, 0, "id", "asc", filter=None
-        )
+        result = await service.get_headcounts(1, 2025, 10, 0, "id", "asc", filter=None)
         # Service adds filters=None when user context is not available
-        mock_get.assert_called_with("u1", 2025, 10, 0, "id", "asc", None, filters=None)
+        mock_get.assert_called_with(1, 2025, 10, 0, "id", "asc", None, filters=None)
         assert isinstance(result, list)
 
 
@@ -139,7 +135,7 @@ async def test_get_module_data_aggregates(service):
         "get_summary_by_submodule",
         new=AsyncMock(return_value=fake_summary),
     ):
-        resp = await service.get_module_data("u1", 2025)
+        resp = await service.get_module_data(1, 2025)
         assert resp.totals.total_items == 3
         assert resp.totals.total_annual_fte == 2.0
         assert set(resp.submodules.keys()) == {"member", "student"}
@@ -154,10 +150,10 @@ async def test_get_submodule_data_delegates(service):
         service.repo, "get_submodule_data", new=AsyncMock(return_value=MagicMock())
     ) as mock_get:
         result = await service.get_submodule_data(
-            "u1", 2025, "member", 10, 0, "date", "asc", filter=None
+            1, 2025, "member", 10, 0, "date", "asc", filter=None
         )
         mock_get.assert_called_with(
-            unit_id="u1",
+            unit_id=1,
             year=2025,
             submodule_key="member",
             limit=10,
@@ -179,6 +175,6 @@ async def test_get_by_unit_and_date_delegates(service):
         "get_by_unit_and_date",
         new=AsyncMock(return_value=MagicMock(spec=HeadCount)),
     ) as mock_get:
-        result = await service.get_by_unit_and_date("u1", "2025-01-01")
-        mock_get.assert_called_with("u1", "2025-01-01")
+        result = await service.get_by_unit_and_date(1, "2025-01-01")
+        mock_get.assert_called_with(1, "2025-01-01")
         assert result is not None

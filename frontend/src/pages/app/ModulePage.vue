@@ -118,7 +118,7 @@ const getData = () => {
   }
   moduleStore.getModuleTotals(
     currentModuleType.value,
-    String(workspaceStore.selectedUnit?.id),
+    workspaceStore.selectedUnit?.id,
     String(workspaceStore.selectedYear),
   );
 };

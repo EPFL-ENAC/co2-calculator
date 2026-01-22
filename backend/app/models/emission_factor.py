@@ -52,7 +52,6 @@ class EmissionFactorBase(SQLModel):
     )
     created_by: Optional[str] = Field(
         default=None,
-        foreign_key="users.id",
         index=True,
         description="User who created this factor version",
     )
@@ -142,7 +141,6 @@ class PowerFactorBase(SQLModel):
     )
     created_by: Optional[str] = Field(
         default=None,
-        foreign_key="users.id",
         index=True,
         description="User who created this power factor version",
     )

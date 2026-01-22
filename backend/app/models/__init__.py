@@ -53,13 +53,6 @@ from .user import User, UserBase
 from .variant_type import VariantType, VariantTypeBase
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
-User.model_rebuild()
-
-# Now add relationships after both classes exist
-User.resources = Relationship(
-    back_populates="user",
-)
-
 
 # After model_rebuild()
 Unit.unit_users = Relationship(back_populates="unit")

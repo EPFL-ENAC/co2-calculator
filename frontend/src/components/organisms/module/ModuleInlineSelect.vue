@@ -43,7 +43,7 @@ type CommonProps = {
   row: ModuleRow;
   fieldId: string;
 
-  unitId: string;
+  unitId: number;
   year: string | number;
   disable?: boolean;
 };

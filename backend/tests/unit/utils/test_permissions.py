@@ -7,9 +7,14 @@ Tests cover:
 - Edge cases and combinations
 """
 
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
-from app.utils.permissions import (
+from app.models.user import (
+    GlobalScope,
+    Role,
+    RoleName,
+    RoleScope,
     calculate_user_permissions,
+)
+from app.utils.permissions import (
     get_permission_value,
     has_permission,
 )
@@ -393,7 +398,9 @@ class TestGetPermissionValue:
 
     def test_calculate_user_permissions_superadmin_unit_scope(self):
         """Test superadmin with unit scope does not grant permissions."""
-        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
+        roles = [
+            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(provider_code="12345"))
+        ]
         result = calculate_user_permissions(roles)
         assert result["system.users"]["edit"] is False
 
@@ -413,7 +420,9 @@ class TestGetPermissionValue:
     def test_calculate_user_permissions_invalid_role_scope(self):
         """Test calculate_user_permissions with role that has wrong scope."""
         # Test that roles with wrong scope don't grant permissions
-        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(unit="12345"))]
+        roles = [
+            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(provider_code="12345"))
+        ]
         result = calculate_user_permissions(roles)
         # Superadmin with unit scope (not global) should not grant permissions
         assert result["system.users"]["edit"] is False
@@ -423,7 +432,7 @@ class TestGetPermissionValue:
     def test_calculate_user_permissions_multiple_units(self):
         """Test calculate_user_permissions with roles for multiple units."""
         roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")),
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="99999")),
         ]
         result = calculate_user_permissions(roles)

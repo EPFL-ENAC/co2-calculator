@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 CSV_PATH = (
-    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_destination.csv"
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_destinations.csv"
 )
 
 

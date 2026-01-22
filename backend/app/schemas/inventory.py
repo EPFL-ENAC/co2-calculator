@@ -8,7 +8,7 @@ from app.core.constants import ModuleStatus
 class InventoryBase(BaseModel):
     year: int
     # Assuming Unit.id is str as in your unit.py (will be int the future!)
-    unit_id: str
+    unit_id: int
 
 
 class InventoryCreate(InventoryBase):
@@ -24,7 +24,7 @@ class InventoryRead(InventoryBase):
 
 class InventoryUpdate(BaseModel):
     year: Optional[int] = None
-    unit_id: Optional[str] = None
+    unit_id: Optional[int] = None
 
 
 # InventoryModule schemas

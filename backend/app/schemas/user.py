@@ -6,7 +6,7 @@ from typing import List, Optional
 from pydantic import BaseModel, EmailStr, computed_field
 
 from app.models import UserBase
-from app.models.user import Role
+from app.models.user import Role, UserProvider
 
 
 class UserRead(UserBase):
@@ -16,13 +16,9 @@ class UserRead(UserBase):
     Permissions are calculated on-the-fly from roles, not stored in DB.
     """
 
-    id: str
+    id: int
     display_name: Optional[str] = None
     email: EmailStr
-    # roles_raw: List[Role] = []
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
     last_login: Optional[datetime] = None
 
     @computed_field
@@ -38,8 +34,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     display_name: Optional[str] = None
     roles: Optional[List[Role]] = None
-    provider: str = "default"
-    is_active: bool = True
+    provider: UserProvider = UserProvider.DEFAULT
 
 
 class UserUpdate(BaseModel):
@@ -47,4 +42,3 @@ class UserUpdate(BaseModel):
 
     display_name: Optional[str] = None
     roles: Optional[List[Role]] = None
-    is_active: Optional[bool] = None

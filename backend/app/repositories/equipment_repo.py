@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 async def get_module_stats(
-    session: AsyncSession, unit_id: str, aggregate_by: str = "submodule"
+    session: AsyncSession, unit_id: int, aggregate_by: str = "submodule"
 ) -> Dict[str, float]:
     """Aggregate equipment data by submodule or category."""
     return {"scientific": 42, "office": 15}  # Placeholder implementation
@@ -125,7 +125,7 @@ async def delete_equipment(
 
 async def get_equipment_with_emissions(
     session: AsyncSession,
-    unit_id: Optional[str] = None,
+    unit_id: Optional[int] = None,
     status: Optional[str] = "In service",
     submodule: Optional[str] = None,
     limit: Optional[int] = None,
@@ -248,7 +248,7 @@ async def get_equipment_with_emissions(
 
 async def get_equipment_summary_by_submodule(
     session: AsyncSession,
-    unit_id: Optional[str] = None,
+    unit_id: Optional[int] = None,
     status: Optional[str] = "In service",
     year: Optional[int] = None,
 ) -> Dict[str, Dict[str, Any]]:
@@ -320,7 +320,7 @@ async def get_equipment_summary_by_submodule(
 
 async def get_equipment_count(
     session: AsyncSession,
-    unit_id: Optional[str] = None,
+    unit_id: Optional[int] = None,
     status: Optional[str] = "In service",
     submodule: Optional[str] = None,
 ) -> int:

@@ -25,32 +25,32 @@ async def async_session():
 @pytest.mark.asyncio
 async def test_create_and_get_inventory(async_session):
     repo = InventoryRepository(async_session)
-    data = InventoryCreate(year=2025, unit_id="unit1")
+    data = InventoryCreate(year=2025, unit_id=1)
     inv = await repo.create_inventory(data)
     assert inv.id is not None
     fetched = await repo.get_inventory(inv.id)
     assert fetched is not None
-    assert fetched.unit_id == "unit1"
+    assert fetched.unit_id == 1
     assert fetched.year == 2025
 
 
 @pytest.mark.asyncio
 async def test_list_inventories_by_unit(async_session):
     repo = InventoryRepository(async_session)
-    await repo.create_inventory(InventoryCreate(year=2025, unit_id="unitA"))
-    await repo.create_inventory(InventoryCreate(year=2025, unit_id="unitA"))
-    await repo.create_inventory(InventoryCreate(year=2025, unit_id="unitB"))
-    items = await repo.list_inventories_by_unit("unitA")
+    await repo.create_inventory(InventoryCreate(year=2025, unit_id=1))
+    await repo.create_inventory(InventoryCreate(year=2025, unit_id=1))
+    await repo.create_inventory(InventoryCreate(year=2025, unit_id=2))
+    items = await repo.list_inventories_by_unit(1)
     assert len(items) == 2
 
 
 @pytest.mark.asyncio
 async def test_update_and_delete_inventory(async_session):
     repo = InventoryRepository(async_session)
-    data = InventoryCreate(year=2025, unit_id="unitX")
+    data = InventoryCreate(year=2025, unit_id=1)
     inv = await repo.create_inventory(data)
     # Update
-    update = InventoryUpdate(year=2026, unit_id="unitX")
+    update = InventoryUpdate(year=2026, unit_id=1)
     updated = await repo.update_inventory(inv.id, update)
     assert updated.year == 2026
     # Delete

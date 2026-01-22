@@ -59,7 +59,7 @@ async def test_get_module_stats_basic(repo, mock_session):
 async def test_create_headcount_sets_fields(repo, mock_session):
     data = HeadCountCreate(
         date=dt_date(2025, 1, 1),
-        unit_id="u1",
+        unit_id=1,
         unit_name="Unit",
         cf="cf1",
         cf_name="CF Name",
@@ -86,7 +86,7 @@ async def test_create_headcount_sets_fields(repo, mock_session):
 async def test_create_headcount_student_forces_role_student(repo, mock_session):
     data = HeadCountCreate(
         date=dt_date(2025, 1, 1),
-        unit_id="u1",
+        unit_id=1,
         unit_name="Unit",
         cf="cf1",
         cf_name="CF Name",
@@ -177,7 +177,7 @@ async def test_get_headcounts_orders_and_limits(repo, mock_session):
     result = MagicMock()
     result.scalars.return_value.all.return_value = [MagicMock(spec=HeadCount)]
     mock_session.execute.return_value = result
-    items = await repo.get_headcounts("u1", 2025, 10, 0, "id", "asc")
+    items = await repo.get_headcounts(1, 2025, 10, 0, "id", "asc")
     assert isinstance(items, list)
 
 
@@ -192,7 +192,7 @@ async def test_get_summary_by_submodule_basic(repo, mock_session):
         ("student", 1, 0.5),
     ]
     mock_session.execute.return_value = result
-    summary = await repo.get_summary_by_submodule("u1", 2025)
+    summary = await repo.get_summary_by_submodule(1, 2025)
     assert summary["member"]["total_items"] == 2
     assert summary["member"]["annual_fte"] == 1.5
 
@@ -214,7 +214,7 @@ async def test_get_submodule_data_basic(repo, mock_session):
             MagicMock(scalar_one=MagicMock(return_value=1)),
         ]
         repo_obj = HeadCountRepository(mock_session)
-        await repo_obj.get_submodule_data("u1", 2025, "member", 10, 0, "id", "asc")
+        await repo_obj.get_submodule_data(1, 2025, "member", 10, 0, "id", "asc")
         assert SubmoduleResponse.called
         assert SubmoduleSummary.called
 
@@ -232,7 +232,7 @@ async def test_get_submodule_data_with_filter(repo, mock_session):
         ]
         repo_obj = HeadCountRepository(mock_session)
         await repo_obj.get_submodule_data(
-            "u1", 2025, "member", 10, 0, "id", "asc", filter="foo"
+            1, 2025, "member", 10, 0, "id", "asc", filter="foo"
         )
         assert SubmoduleResponse.called
 
@@ -251,7 +251,7 @@ async def test_get_submodule_data_filter_too_long(repo, mock_session):
         repo_obj = HeadCountRepository(mock_session)
         long_filter = "x" * 200
         await repo_obj.get_submodule_data(
-            "u1", 2025, "member", 10, 0, "id", "asc", filter=long_filter
+            1, 2025, "member", 10, 0, "id", "asc", filter=long_filter
         )
         assert SubmoduleResponse.called
 
@@ -285,7 +285,7 @@ async def test_get_by_unit_and_date_found(repo, mock_session):
     result = MagicMock()
     result.scalar_one_or_none.return_value = MagicMock(spec=HeadCount)
     mock_session.execute.return_value = result
-    found = await repo.get_by_unit_and_date("u1", "2025-01-01")
+    found = await repo.get_by_unit_and_date(1, "2025-01-01")
     assert found is not None
 
 
@@ -294,5 +294,5 @@ async def test_get_by_unit_and_date_not_found(repo, mock_session):
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
     mock_session.execute.return_value = result
-    found = await repo.get_by_unit_and_date("u1", "2025-01-01")
+    found = await repo.get_by_unit_and_date(1, "2025-01-01")
     assert found is None

@@ -5,6 +5,10 @@ from sqlalchemy import JSON, Column
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
+from app.models.user import UserProvider
+
+# from app.models.user import UserProvider
+
 
 # ==========================================
 # 0. ENUMERATIONS
@@ -24,6 +28,7 @@ class FactorType(int, Enum):
 class IngestionMethod(int, Enum):
     api = 0
     csv = 1
+    manual = 2
 
 
 class TargetType(int, Enum):
@@ -90,8 +95,13 @@ class DataIngestionJobBase(SQLModel):
         description="Method used to ingest the data",
     )
 
-    provider: Optional[str] = Field(
-        default=None, max_length=50, description="User Provider (accred, default, etc.)"
+    provider: UserProvider = Field(
+        default=UserProvider.DEFAULT.value,
+        sa_column=Column(
+            SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Sync source provider (accred, default, test)",
     )
 
     status: IngestionStatus = Field(

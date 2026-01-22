@@ -1,84 +1,64 @@
-"""Resource model for CO2 calculation resources."""
+"""Unit model for CO2 calculation."""
 
-# from sqlalchemy import JSON, Column, Integer, String, Relationship
-
-from datetime import datetime
 from typing import Optional
 
-from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
+from sqlalchemy import Enum as SAEnum
+from sqlmodel import JSON, Column, Field, SQLModel
+
+from app.models.user import UserProvider
 
 
 class UnitBase(SQLModel):
-    """Base model for Units representing EPFL departments or organizational units."""
+    """Base model for Units representing EPFL units or organizational units."""
 
-    code: Optional[str] = Field(
-        default=None,
+    provider_code: str = Field(
+        nullable=False,
         unique=True,
         index=True,
-        description="Unique unit code/slug identifier",
+        description="Provider-assigned unit code (e.g., '10208' from accred)",
     )
     name: str = Field(nullable=False, index=True)
-    principal_user_id: str | None = Field(
-        default=None,  # Removed: foreign_key="users.id"
+    principal_user_provider_code: str | None = Field(
+        default=None,
+        foreign_key="users.provider_code",
         nullable=True,
         index=True,
-        description="Principal user SCIPER",
+        description="FK to users.provider_code for the principal investigator",
     )
-    principal_user_function: str | None = Field(
-        default=None,
-        nullable=True,
-        description="Function/title of the principal user",
-    )
-    principal_user_name: str | None = Field(
-        default=None,
-        nullable=True,
-        description="Name of the principal user",
-    )
-    principal_user_email: str | None = Field(
-        default=None,
-        nullable=True,
-        description="Email of the principal user",
+    cost_centers: list = Field(
+        default_factory=list,
+        sa_column=Column(JSON),
+        description="List of cost center codes (Finance IDs, e.g., ['C1348', 'C1349'])",
     )
     affiliations: list = Field(
-        default=list,
+        default_factory=list,
         sa_column=Column(JSON),
-        description="List of affiliations associated with the unit",
+        description="List of affiliations (e.g., ['SB', 'ISIC'])",
     )
-    visibility: str = Field(
-        default="private",
-        nullable=False,
-        description="Visibility level: public, private, or unit",
-    )
-    created_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(TIMESTAMP(timezone=True))
-    )
-    updated_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(TIMESTAMP(timezone=True))
-    )
-    created_by: Optional[str] = Field(default=None, index=True)
-    updated_by: Optional[str] = Field(default=None, index=True)
 
 
 class Unit(UnitBase, table=True):
     """
-    Unit model representing CO2 calculation resources.
+    Unit model representing organizational units for CO2 reporting.
+
+    Synced from third-party providers (accred, default, test).
 
     Units can be filtered based on:
-    - unit_id: EPFL unit/department
-    - visibility: public, private, unit
+    - id: Internal integer PK
+    - provider_code: Provider-assigned code (e.g., '10208')
+    - name: Human-readable name (e.g., 'LCBM')
     """
 
     __tablename__ = "units"
-    id: str | None = Field(default=None, primary_key=True, index=True)
-    cf: str | None = Field(
-        default=None,
-        nullable=True,
-        description="other id associated with the unit",
-    )
-    provider: str = Field(
-        nullable=False,
-        description="Authentication provider (e.g. default, test, accred, ...)",
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    provider: UserProvider = Field(
+        default=UserProvider.DEFAULT.value,
+        sa_column=Column(
+            SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Sync source provider (accred, default, test)",
     )
 
     def __repr__(self) -> str:
-        return f"<Unit {self.id}: {self.name}>"
+        return f"<Unit {self.id} ({self.provider_code}): {self.name}>"

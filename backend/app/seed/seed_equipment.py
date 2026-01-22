@@ -22,7 +22,9 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.equipment import Equipment, EquipmentEmission
+from app.models.unit import Unit
 from app.services import calculation_service
+from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -165,6 +167,22 @@ async def seed_equipment(session: AsyncSession) -> None:
     no_match_count = 0
     ambiguous_classes: Dict[str, int] = {}  # Track classes requiring sub-class
 
+    # upsert unit ids 10208 and 12345 for testing
+    logger.info("Seeding equipment records...")
+    unit_service = UnitService(session)
+    unit_test_12345 = await unit_service.upsert(
+        unit_data=Unit(
+            provider_code="12345",
+            name="test unit 12345",
+        )
+    )
+    unit_test_10208 = await unit_service.upsert(
+        unit_data=Unit(
+            provider_code="10208",
+            name="enac test 10208",
+        )
+    )
+
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader, start=1):
@@ -261,7 +279,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 active_power_w=active_power_w,
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
-                unit_id="10208",
+                unit_id=unit_test_10208.id,
                 equipment_metadata={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),
@@ -282,7 +300,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 active_power_w=active_power_w,
                 standby_power_w=standby_power_w,
                 power_factor_id=power_factor_id,
-                unit_id="12345",
+                unit_id=unit_test_12345.id,
                 equipment_metadata={
                     "source": "synth_data.csv",
                     "imported_at": datetime.utcnow().isoformat(),

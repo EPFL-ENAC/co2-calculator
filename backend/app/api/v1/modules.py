@@ -9,6 +9,7 @@ from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
+from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import (
     HeadCountCreate,
     HeadCountCreateRequest,
@@ -117,7 +118,7 @@ async def _check_module_permission(user: User, module_id: str, action: str) -> N
 
 @router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
 async def get_module_totals(
-    unit_id: str,
+    unit_id: int,
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -194,7 +195,7 @@ async def get_module_totals(
 
 @router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
 async def get_module_stats(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
@@ -255,7 +256,7 @@ async def get_module_stats(
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
 async def get_module(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     preview_limit: int = Query(
@@ -338,7 +339,7 @@ async def get_module(
     response_model=SubmoduleResponse,
 )
 async def get_submodule(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -446,7 +447,7 @@ async def get_submodule(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -490,7 +491,11 @@ async def create_item(
                 status_code=400,
                 detail=f"Invalid item_data for equipment creation: {str(e)}",
             )
-
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to delete item",
+            )
         item = await equipment_service.create_equipment(
             session=db,
             equipment_data=parsed_data,
@@ -517,9 +522,14 @@ async def create_item(
             status="unknown",
             sciper="unknown",
         )
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to delete item",
+            )
         headcount = await HeadcountService(db).create_headcount(
             data=headcount_create,
-            provider_source="manual",
+            provider_source=IngestionMethod.manual,
             user_id=current_user.id,
         )
         if headcount is None:
@@ -557,10 +567,11 @@ async def create_item(
         )
         travel_result = await ProfessionalTravelService(db).create_travel(
             data=parsed_travel,
-            provider_source="manual",
             user=current_user,
             year=year,
             unit_id=unit_id,
+            provider_source=IngestionMethod.manual,
+            provider=current_user.provider,
         )
         # Handle round trip (returns list) or single trip
         travel = travel_result[0] if isinstance(travel_result, list) else travel_result
@@ -601,7 +612,7 @@ async def create_item(
     ],
 )
 async def get_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -694,7 +705,7 @@ async def get_item(
     ],
 )
 async def update_equipment(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -739,6 +750,11 @@ async def update_equipment(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid item_data for equipment update: {str(e)}",
+            )
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to delete item",
             )
         item = await equipment_service.update_equipment(
             session=db,
@@ -804,7 +820,7 @@ async def update_equipment(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_item(
-    unit_id: str,
+    unit_id: int,
     year: int,
     module_id: str,
     submodule_id: str,
@@ -828,6 +844,11 @@ async def delete_item(
     """
     await _check_module_permission(current_user, module_id, "edit")
 
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current user ID is required to delete item",
+        )
     logger.info(
         f"DELETE item: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
