@@ -25,7 +25,7 @@ import {
 /**
  * API response for inventory module
  */
-interface InventoryModuleResponse {
+interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
@@ -46,33 +46,33 @@ export const useTimelineStore = defineStore('timeline', () => {
 
   const loading = ref(false);
   const error = ref<string | null>(null);
-  const currentInventoryId = ref<number | null>(null);
+  const currentCarbonReportId = ref<number | null>(null);
   const $route = useRoute();
   const currentModuleType = computed(() => $route.params.module as Module);
 
-  const currentInventoryModuleState = computed(() => {
+  const currentCarbonReportModuleState = computed(() => {
     return itemStates[currentModuleType.value];
   });
 
-  const currentInventoryModuleEdit = computed(() => {
+  const currentCarbonReportModuleEdit = computed(() => {
     return (
-      currentInventoryModuleState.value === MODULE_STATES.Default ||
-      currentInventoryModuleState.value === MODULE_STATES.InProgress
+      currentCarbonReportModuleState.value === MODULE_STATES.Default ||
+      currentCarbonReportModuleState.value === MODULE_STATES.InProgress
     );
   });
   /**
-   * Fetch module statuses from the API for a given inventory.
-   * This should be called when an inventory is selected.
+   * Fetch module statuses from the API for a given carbon report.
+   * This should be called when a carbon report is selected.
    */
-  async function fetchModuleStates(inventoryId: number) {
+  async function fetchModuleStates(carbonReportId: number) {
     loading.value = true;
     error.value = null;
-    currentInventoryId.value = inventoryId;
+    currentCarbonReportId.value = carbonReportId;
 
     try {
       const response = (await api
-        .get(`inventories/${inventoryId}/modules/`)
-        .json()) as InventoryModuleResponse[];
+        .get(`carbon-reports/${carbonReportId}/modules/`)
+        .json()) as CarbonReportModuleResponse[];
 
       // Update itemStates from API response
       for (const mod of response) {
@@ -98,8 +98,8 @@ export const useTimelineStore = defineStore('timeline', () => {
    * Displays error to user on failure (no retry).
    */
   async function setState(id: Module, state: ModuleState) {
-    if (!currentInventoryId.value) {
-      error.value = 'No inventory selected';
+    if (!currentCarbonReportId.value) {
+      error.value = 'No carbon report selected';
       return;
     }
 
@@ -113,13 +113,13 @@ export const useTimelineStore = defineStore('timeline', () => {
     try {
       await api
         .patch(
-          `inventories/${currentInventoryId.value}/modules/${moduleTypeId}/status`,
+          `carbon-reports/${currentCarbonReportId.value}/modules/${moduleTypeId}/status`,
           {
             json: { status: state },
           },
         )
         .json();
-      await fetchModuleStates(currentInventoryId.value);
+      await fetchModuleStates(currentCarbonReportId.value);
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -132,10 +132,10 @@ export const useTimelineStore = defineStore('timeline', () => {
   }
 
   /**
-   * Reset the store state (e.g., when changing inventory)
+   * Reset the store state (e.g., when changing carbon report)
    */
   function reset() {
-    currentInventoryId.value = null;
+    currentCarbonReportId.value = null;
     error.value = null;
     // Reset all states to default
     for (const key of Object.keys(itemStates) as Module[]) {
@@ -147,12 +147,12 @@ export const useTimelineStore = defineStore('timeline', () => {
     itemStates,
     loading,
     error,
-    currentInventoryId,
+    currentCarbonReportId,
     fetchModuleStates,
     setState,
     reset,
-    currentState: currentInventoryModuleState,
-    canEdit: currentInventoryModuleEdit,
+    currentState: currentCarbonReportModuleState,
+    canEdit: currentCarbonReportModuleEdit,
   };
 });
 

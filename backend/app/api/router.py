@@ -37,7 +37,7 @@ api_router.include_router(
 )
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(
-    carbon_report.router, prefix="/inventories", tags=["inventories"]
+    carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
 )
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
