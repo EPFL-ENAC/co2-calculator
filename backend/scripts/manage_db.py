@@ -26,17 +26,14 @@ def get_default_db_url():
     # Note: This assumes the password for 'postgres' is the same as in DB_URL.
     # Based on your Helm chart (adminPasswordKey matching userPasswordKey)
     #  this is correct.
-    url_obj = url_obj.set(username="postgres", database="postgres")
-
-    # Handle Async/Sync driver adjustment if needed (from your original logic)
+    port = url_obj.port
+    url_obj = url_obj.set(database="postgres", port=port)
     if url_obj.drivername in [
         "postgresql",
         "postgres",
         "postgresql+psycopg",
     ] and not url_obj.drivername.endswith("+asyncpg"):
         url_obj = url_obj.set(drivername="postgresql+psycopg")
-
-    # Return the OBJECT, not a string. create_engine handles URL objects correctly.
     return url_obj
 
 
