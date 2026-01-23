@@ -1,7 +1,7 @@
 export default {
   backoffice_reporting_year_title: {
     en: 'Reporting Year',
-    fr: 'Année de rapport',
+    fr: 'Année du rapport',
   },
   backoffice_reporting_year_description: {
     en: 'Select the year to view module completion data for that reporting period.',
