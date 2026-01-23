@@ -46,7 +46,7 @@ class LocationBase(SQLModel):
         index=True,
         description="Continent (e.g., 'EU', 'NA', 'SA')",
     )
-    country_code: Optional[str] = Field(
+    countrycode: Optional[str] = Field(
         default=None,
         max_length=2,
         index=True,
@@ -93,7 +93,7 @@ class Location(LocationBase, AuditMixin, table=True):
             f"mode={self.transport_mode} "
             f"name={self.name} "
             f"({self.latitude}, {self.longitude}) "
-            f"country={self.country_code}>"
+            f"country={self.countrycode}>"
         )
 
 

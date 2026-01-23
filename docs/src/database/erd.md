@@ -131,7 +131,7 @@ erDiagram
   locations {
     VARCHAR airport_size
     VARCHAR continent "indexed"
-    VARCHAR country_code "indexed"
+    VARCHAR countrycode "indexed"
     DATETIME created_at
     INTEGER created_by "indexed"
     VARCHAR iata_code "indexed"

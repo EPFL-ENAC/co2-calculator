@@ -131,7 +131,7 @@ class TravelCalculationService:
 
         # 2. Determine country factor to use
         # Rule: Always use destination country, fallback to RoW if not available
-        dest_country = dest_station.country_code
+        dest_country = dest_station.countrycode
         if dest_country:
             countrycode = dest_country
         else:

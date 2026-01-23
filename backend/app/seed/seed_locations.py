@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 CSV_PATH = (
-    Path(__file__).parent.parent.parent / "SEED_DATA" / "seed_travel_location.csv"
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_location.csv"
 )
 
 
@@ -98,7 +98,7 @@ async def seed_locations(session: AsyncSession) -> None:
 
                 # Parse optional fields (convert empty strings to None)
                 continent = row.get("continent", "").strip() or None
-                country_code = row.get("country_code", "").strip() or None
+                countrycode = row.get("countrycode", "").strip() or None
                 municipality = row.get("municipality", "").strip() or None
                 iata_code = row.get("iata_code", "").strip() or None
                 keywords = row.get("keywords", "").strip() or None
@@ -116,8 +116,8 @@ async def seed_locations(session: AsyncSession) -> None:
                     if existing_location.continent != continent:
                         existing_location.continent = continent
                         needs_update = True
-                    if existing_location.country_code != country_code:
-                        existing_location.country_code = country_code
+                    if existing_location.countrycode != countrycode:
+                        existing_location.countrycode = countrycode
                         needs_update = True
                     if existing_location.municipality != municipality:
                         existing_location.municipality = municipality
@@ -141,7 +141,7 @@ async def seed_locations(session: AsyncSession) -> None:
                         latitude=latitude,
                         longitude=longitude,
                         continent=continent,
-                        country_code=country_code,
+                        countrycode=countrycode,
                         municipality=municipality,
                         iata_code=iata_code,
                         keywords=keywords,
