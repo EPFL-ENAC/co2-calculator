@@ -1,7 +1,7 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Dict, Optional, Sequence
+from typing import Dict, Generic, Optional, Sequence, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -26,17 +26,17 @@ class SubmoduleSummary(BaseModel):
     )
 
 
-class SubmoduleResponse(BaseModel):
+T = TypeVar("T", bound=BaseModel)
+
+
+class SubmoduleResponse(BaseModel, Generic[T]):
     """Submodule data with items and summary."""
 
     id: int = Field(..., description="Submodule identifier")
     count: int = Field(..., description="Total number of items")
-    items: Sequence[
-        EquipmentItemResponse
-        | HeadcountItemResponse
-        | ProfessionalTravelItemResponse
-        | DataEntryResponse
-    ] = Field(..., description="Module items (equipment, headcount, or travel)")
+    items: Sequence[T] = Field(
+        ..., description="Module items (equipment, headcount, or travel)"
+    )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
 

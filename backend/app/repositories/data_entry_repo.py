@@ -2,6 +2,7 @@
 
 from typing import Dict, Optional
 
+from pydantic import BaseModel
 from sqlalchemy import Float, Select, cast, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,10 +10,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_type import DataEntryType, DataEntryTypeEnum
 from app.models.factor import Factor
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
-from app.schemas.data_entry import DataEntryUpdate
+from app.schemas.data_entry import FLATTENERS, DataEntryUpdate
 
 logger = get_logger(__name__)
 
@@ -226,14 +228,16 @@ class DataEntryRepository:
         rows = result.all()
         count = len(rows)
 
-        items = []
+        items: list[BaseModel] = []
+
         for data_entry, data_entry_emission, primary_factor in rows:
+            flattener = FLATTENERS[DataEntryTypeEnum(data_entry.data_entry_type_id)]
             data_entry.data = {
                 **data_entry.data,
                 "emission": data_entry_emission.kg_co2eq,
                 "primary_factor": primary_factor.values if primary_factor else None,
             }
-            items.append(data_entry)
+            items.append(flattener(data_entry))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
