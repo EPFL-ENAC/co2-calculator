@@ -1,6 +1,6 @@
 """Headcount repository for database operations."""
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from sqlalchemy import Float, Select, cast, func
 from sqlmodel import col, select
@@ -8,6 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.factor import Factor
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import DataEntryUpdate
@@ -179,9 +181,14 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        statement = select(DataEntry).where(
-            DataEntry.carbon_report_module_id == carbon_report_module_id,
-            DataEntry.data_entry_type_id == data_entry_type_id,
+        statement = (
+            select(DataEntry, DataEntryEmission, Factor)
+            .join(DataEntryEmission, DataEntry.id == DataEntryEmission.data_entry_id)
+            .outerjoin(Factor, DataEntryEmission.primary_factor_id == Factor.id)
+            .where(
+                DataEntry.carbon_report_module_id == carbon_report_module_id,
+                DataEntry.data_entry_type_id == data_entry_type_id,
+            )
         )
 
         filter_pattern = ""
@@ -216,8 +223,18 @@ class DataEntryRepository:
                 (col(DataEntry.data["name"]).ilike(filter_pattern))
             )
         total_items = (await self.session.execute(count_stmt)).scalar_one()
-        items = list(result.scalars().all())
-        count = len(items)
+        rows = result.all()
+        count = len(rows)
+
+        items = []
+        for data_entry, data_entry_emission, primary_factor in rows:
+            data_entry.data = {
+                **data_entry.data,
+                "emission": data_entry_emission.kg_co2eq,
+                "primary_factor": primary_factor.values if primary_factor else None,
+            }
+            items.append(data_entry)
+
         response = SubmoduleResponse(
             id=data_entry_type_id,
             count=count,

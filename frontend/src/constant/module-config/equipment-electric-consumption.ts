@@ -14,9 +14,26 @@ const powerTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.power`;
 
 const emissionTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.emission`;
 
+  // "items": [
+  //   {
+  //     "data_entry_type_id": 9,
+  //     "carbon_report_module_id": 11,
+  //     "data": {
+  //       "active_usage_hours": 35,
+  //       "passive_usage_hours": 65,
+  //       "power_factor_id": 104,
+  //       "emission": 1274,
+  //       "primary_factor": {
+  //         "active_power_w": 5600,
+  //         "standby_power_w": 0
+  //       }
+  //     },
+  //     "id": 2714
+  //   },
+
 const baseModuleFields: ModuleField[] = [
   {
-    id: 'name',
+    id: 'data.name',
     label: 'Equipment Name',
     labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.name`,
     type: 'text',

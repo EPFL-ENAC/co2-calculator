@@ -347,6 +347,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 data={
                     "active_usage_hours": active_usage_pct,
                     "passive_usage_hours": passive_usage_pct,
+                    "name": name,
                     "power_factor_id": power_factor_id,
                 },
             )
