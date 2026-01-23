@@ -43,11 +43,6 @@ class DataEntryService:
             carbon_report_module_id=carbon_report_module_id, aggregate_by=aggregate_by
         )
 
-    # carbon_report_module_id=carbon_report_module_id,
-    #         data_entry_type_id=data_entry_type_id,
-    #         user=current_user,
-    #         data=item_data,
-
     async def create(
         self,
         carbon_report_module_id: int,
@@ -132,75 +127,21 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
     ) -> ModuleResponse:
-        """
-        Get complete module data with all submodules.
-
-        Args:
-            session: Database session
-            unit_id: Unit ID to filter equipment
-            year: Year for the data (currently informational only)
-            preview_limit: Optional limit for items per submodule
-
-        Returns:
-            ModuleResponse with all submodules and their equipment
-        """
-        logger.info(
-            f"Fetching module data for module_id={sanitize(carbon_report_module_id)}, "
-            f"module=headcount"
-        )
-
-        # Get summary statistics by submodule
-        summary_by_submodule = await self.repo.get_summary_by_submodule(
+        data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id
         )
 
-        submodules = {}
-
-        # Process each submodule
-        for submodule_key in [
-            DataEntryTypeEnum.member.value,
-            DataEntryTypeEnum.student.value,
-        ]:
-            # Get summary for this submodule
-            submodule_summary_data = summary_by_submodule.get(
-                submodule_key,
-                {"total_items": 0, "annual_fte": 0.0},
-            )
-
-            summary = SubmoduleSummary(**submodule_summary_data)
-            total_count = submodule_summary_data["total_items"]
-
-            # Create submodule response
-            submodule_response = SubmoduleResponse(
-                id=submodule_key,
-                count=total_count,
-                items=[],  # Detailed items can be fetched separately
-                summary=summary,
-                has_more=False,
-            )
-
-            submodules[submodule_key] = submodule_response
-
-        # Calculate module totals using SQL summaries (not Python sums)
-        total_submodules = len(submodules)
-        total_items = sum(
-            summary_by_submodule.get(k, {}).get("total_items", 0)
-            for k in [
-                DataEntryTypeEnum.member.value,
-                DataEntryTypeEnum.student.value,
-            ]
-        )
-        total_annual_fte = sum(
-            summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
-            for k in [
-                DataEntryTypeEnum.member.value,
-                DataEntryTypeEnum.student.value,
-            ]
-        )
+        # total_annual_fte = sum(
+        #     summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
+        #     for k in [
+        #         DataEntryTypeEnum.member.value,
+        #         DataEntryTypeEnum.student.value,
+        #     ]
+        # )
+        # TBImplemented
+        total_annual_fte = 0.0
 
         totals = ModuleTotals(
-            total_submodules=total_submodules,
-            total_items=total_items,
             total_annual_fte=round(total_annual_fte, 2),
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
@@ -210,17 +151,11 @@ class DataEntryService:
         # Create module response
         module_response = ModuleResponse(
             carbon_report_module_id=carbon_report_module_id,
-            stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules=submodules,
+            data_entry_types_total_items=data_entry_types_total_items,
+            stats=None,
             totals=totals,
         )
-
-        logger.info(
-            f"Module data retrieved: {sanitize(total_items)} items across "
-            f"{sanitize(total_submodules)} submodules"
-        )
-
         return module_response
 
     async def get_submodule_data(

@@ -1,7 +1,10 @@
 """Policy evaluation module for authorization decisions."""
 
-from typing import Any
+from typing import Any, Optional
 
+from fastapi import HTTPException, status
+
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import (
     GlobalScope,
@@ -396,3 +399,81 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
         "reason": "Filtered query" if filters else "Policy evaluation",
         "filters": filters or {},
     }
+
+
+def _get_module_permission_path(module_id: str) -> Optional[str]:
+    """
+    Map module ID to permission path.
+
+    Args:
+        module_id: Module identifier
+            (e.g., "professional-travel", "equipment-electric-consumption")
+
+    Returns:
+        Permission path (e.g., "modules.professional_travel") or None
+        if module doesn't require permission
+    """
+    module_permission_map = {
+        "professional-travel": "modules.professional_travel",
+        "equipment-electric-consumption": "modules.equipment",
+        "infrastructure": "modules.infrastructure",
+        "purchase": "modules.purchase",
+        "internal-services": "modules.internal_services",
+        "external-cloud": "modules.external_cloud",
+        "my-lab": "modules.headcount",  # Headcount module
+    }
+    return module_permission_map.get(module_id)
+
+
+async def check_module_permission(user: User, module_id: str, action: str) -> None:
+    """
+    Check if user has permission for the module.
+
+    Args:
+        user: Current user
+        module_id: Module identifier
+        action: Permission action ("view" or "edit")
+
+    Raises:
+        HTTPException: 403 if permission denied
+    """
+    permission_path = _get_module_permission_path(module_id)
+    if not permission_path:
+        # Module doesn't require permission check, allow access
+        return
+
+    # Build OPA input with user context
+    input_data = {
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+        "path": permission_path,
+        "action": action,
+    }
+    decision = await query_policy("authz/permission/check", input_data)
+
+    logger.info(
+        "Module permission check",
+        extra={
+            "user_id": sanitize(user.id),
+            "module_id": sanitize(module_id),
+            "permission_path": permission_path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+
+    if not decision.get("allow", False):
+        reason = decision.get("reason", "Permission denied")
+        logger.warning(
+            "Module permission check denied",
+            extra={
+                "user_id": sanitize(user.id),
+                "module_id": sanitize(module_id),
+                "permission_path": permission_path,
+                "action": action,
+                "reason": reason,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: {reason}",
+        )

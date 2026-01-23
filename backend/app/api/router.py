@@ -6,11 +6,12 @@ from app.api.v1 import (
     auth,
     backoffice,
     carbon_report,
+    carbon_report_module,
+    carbon_report_module_stats,
     data_sync,
     files,
     headcounts,
     locations,
-    modules,
     power_factors,
     professional_travel,
     unit_results,
@@ -25,7 +26,14 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
 api_router.include_router(backoffice.router, prefix="/backoffice", tags=["backoffice"])
-api_router.include_router(modules.router, prefix="/modules", tags=["modules"])
+# TODO: rename /modules in the frontend!
+api_router.include_router(
+    carbon_report_module.router, prefix="/modules", tags=["modules"]
+)
+# TODO: rename /modules-stats in the frontend!
+api_router.include_router(
+    carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
+)
 api_router.include_router(
     professional_travel.router,
     prefix="/professional-travel",

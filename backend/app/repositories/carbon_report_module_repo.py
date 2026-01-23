@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.module_type import ModuleTypeEnum
 
 logger = get_logger(__name__)
 
@@ -57,7 +58,7 @@ class CarbonReportModuleRepository:
         return db_objects
 
     async def get_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: int
+        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
     ) -> Optional[CarbonReportModule]:
         statement = (
             select(CarbonReportModule)
@@ -79,6 +80,17 @@ class CarbonReportModuleRepository:
         statement = select(CarbonReportModule).where(CarbonReportModule.id == id)
         result = await self.session.exec(statement)
         return result.one_or_none()
+
+    async def get_module_type(self, carbon_report_module_id: int) -> Optional[int]:
+        """Get the module type ID for a given carbon report module ID."""
+        statement = select(CarbonReportModule.module_type_id).where(
+            CarbonReportModule.id == carbon_report_module_id
+        )
+        result = await self.session.exec(statement)
+        row = result.one_or_none()
+        if row is not None:
+            return row
+        return None
 
     async def get_by_report_and_module_type(
         self, carbon_report_id: int, module_type_id: int

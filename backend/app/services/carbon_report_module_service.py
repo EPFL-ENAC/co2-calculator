@@ -8,6 +8,7 @@ from app.core.constants import ALL_MODULE_TYPE_IDS, ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReportModule
+from app.models.module_type import ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 
 logger = get_logger(__name__)
@@ -42,7 +43,7 @@ class CarbonReportModuleService:
         )
 
     async def get_carbon_report_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: int
+        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
     ) -> Optional[CarbonReportModule]:
         """Get a carbon report module by year and unit."""
         return await self.repo.get_by_year_and_unit(year, unit_id, module_type_id)

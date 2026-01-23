@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
+from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import DataEntryUpdate
 
@@ -19,6 +20,7 @@ class DataEntryRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.carbon_report_module_repo = CarbonReportModuleRepository(session)
 
     async def get(self, id: int) -> Optional[DataEntry]:
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -95,59 +97,77 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def get_summary_by_submodule(
+    async def get_data_entry_type_ids_for_module_type(
+        self, module_type_id: int
+    ) -> list[int]:
+        # Example: adjust according to your actual model/table
+        from app.models.data_entry_type import DataEntryType
+
+        stmt = select(DataEntryType.id).where(
+            DataEntryType.module_type_id == module_type_id
+        )
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
-    ) -> Dict[int, Dict[str, Any]]:
+    ) -> Optional[int]:
+        return await self.carbon_report_module_repo.get_module_type(
+            carbon_report_module_id
+        )
+
+    async def get_total_count_by_submodule(
+        self, carbon_report_module_id: int
+    ) -> Dict[int, int]:
         """
-        Get aggregated summary statistics grouped by submodule.
+        Docstring for get_total_count_by_submodule
 
-        Args:
-            session: Database session
-            unit_id: Filter by unit ID
-            status: Filter by equipment status
+        :param self: Description
+        :param carbon_report_module_id: Description
+        :type carbon_report_module_id: int
+        :return: Description
+        :rtype: Dict[int, int]
 
-        Returns:
-            Dict mapping submodule to summary stats:
+        Dict mapping submodule (data_entry_type_id) to total item count:
             {
-                "scientific": {
-                    "total_items": 10,
-                    "annual_consumption_kwh": 1500.0,
-                    "total_kg_co2eq": 187.5
-                },
+                1: 10,
+                2: 5,
                 ...
             }
         """
-        # Build query with aggregation
-        query: Select = select(
-            col(DataEntry.data_entry_type_id).label("submodule"),
-            func.count(col(DataEntry.id)).label("total_items"),
-            func.sum(DataEntry.data["fte"]).label("annual_fte"),
-        ).group_by(col(DataEntry.data_entry_type_id))
+        # Determine module_type_id from carbon_report_module_id
 
-        # Apply filters
-        if carbon_report_module_id:
-            query = query.where(
-                col(DataEntry.carbon_report_module_id) == carbon_report_module_id
+        module_type_id = await self.get_module_type_id_for_carbon_report_module(
+            carbon_report_module_id
+        )
+        if module_type_id is None:
+            return {}
+        all_type_ids = await self.get_data_entry_type_ids_for_module_type(
+            module_type_id
+        )
+
+        # Get actual counts from DB
+        query: Select = (
+            select(
+                DataEntry.data_entry_type_id,
+                func.count().label("total_count"),
             )
-
-        # Execute query
+            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
+            .group_by(DataEntry.data_entry_type_id)
+        )
         result = await self.session.execute(query)
-        rows = result.all()
+        rows = list(result.all())
+        aggregation: Dict[int, int] = {
+            data_entry_type_id: int(total_count)
+            for data_entry_type_id, total_count in rows
+        }
 
-        # Convert to dict
-        summary: Dict[int, Dict[str, Any]] = {}
-        for submodule, total_items, annual_fte in rows:
-            key = submodule
-            summary[key] = {
-                "total_items": int(total_items),
-                "annual_fte": float(annual_fte or 0),
-                "annual_consumption_kwh": None,
-                "total_kg_co2eq": None,
-            }
+        # Fill in zeros for missing types
+        for type_id in all_type_ids:
+            if type_id not in aggregation:
+                aggregation[type_id] = 0
 
-        logger.debug(f"Retrieved summary for {len(summary)} submodules")
-
-        return summary
+        return aggregation
 
     async def get_submodule_data(
         self,

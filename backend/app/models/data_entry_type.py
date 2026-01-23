@@ -11,7 +11,7 @@ class DataEntryTypeEnum(int, Enum):
     student = 2
     scientific = 9
     it = 10
-    admin = 11
+    other = 11
     trips = 20
     building = 30
     energy_mix = 100

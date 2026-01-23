@@ -474,8 +474,8 @@ class ProfessionalTravelService:
 
         # Calculate module totals
         totals = ModuleTotals(
-            total_submodules=1,
-            total_items=stats["total_items"],
+            # total_submodules=1,
+            # total_items=stats["total_items"],
             total_annual_fte=None,
             total_kg_co2eq=stats["total_kg_co2eq"],
             total_tonnes_co2eq=(
@@ -502,6 +502,9 @@ class ProfessionalTravelService:
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
             submodules={DataEntryTypeEnum.trips.value: submodule_response},
+            data_entry_types_total_items={
+                DataEntryTypeEnum.trips.value: stats["total_items"]
+            },
             totals=totals,
         )
 

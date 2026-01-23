@@ -8,7 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.policy import query_policy
+from app.core.policy import check_module_permission as _check_module_permission
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import (
     HeadCountCreate,
@@ -17,6 +18,7 @@ from app.models.headcount import (
     HeadCountUpdate,
     HeadCountUpdateRequest,
 )
+from app.models.module_type import ModuleTypeEnum
 from app.models.professional_travel import (
     ProfessionalTravelCreate,
     ProfessionalTravelItemResponse,
@@ -30,6 +32,8 @@ from app.schemas.equipment import (
     EquipmentUpdateRequest,
 )
 from app.services import equipment_service
+from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
 
@@ -37,227 +41,37 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def _get_module_permission_path(module_id: str) -> Optional[str]:
-    """
-    Map module ID to permission path.
-
-    Args:
-        module_id: Module identifier
-            (e.g., "professional-travel", "equipment-electric-consumption")
-
-    Returns:
-        Permission path (e.g., "modules.professional_travel") or None
-        if module doesn't require permission
-    """
-    module_permission_map = {
-        "professional-travel": "modules.professional_travel",
-        "equipment-electric-consumption": "modules.equipment",
-        "infrastructure": "modules.infrastructure",
-        "purchase": "modules.purchase",
-        "internal-services": "modules.internal_services",
-        "external-cloud": "modules.external_cloud",
-        "my-lab": "modules.headcount",  # Headcount module
-    }
-    return module_permission_map.get(module_id)
-
-
-async def _check_module_permission(user: User, module_id: str, action: str) -> None:
-    """
-    Check if user has permission for the module.
-
-    Args:
-        user: Current user
-        module_id: Module identifier
-        action: Permission action ("view" or "edit")
-
-    Raises:
-        HTTPException: 403 if permission denied
-    """
-    permission_path = _get_module_permission_path(module_id)
-    if not permission_path:
-        # Module doesn't require permission check, allow access
-        return
-
-    # Build OPA input with user context
-    input_data = {
-        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
-        "path": permission_path,
-        "action": action,
-    }
-    decision = await query_policy("authz/permission/check", input_data)
-
-    logger.info(
-        "Module permission check",
-        extra={
-            "user_id": sanitize(user.id),
-            "module_id": sanitize(module_id),
-            "permission_path": permission_path,
-            "action": action,
-            "decision": decision,
-        },
-    )
-
-    if not decision.get("allow", False):
-        reason = decision.get("reason", "Permission denied")
-        logger.warning(
-            "Module permission check denied",
-            extra={
-                "user_id": sanitize(user.id),
-                "module_id": sanitize(module_id),
-                "permission_path": permission_path,
-                "action": action,
-                "reason": reason,
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Permission denied: {reason}",
-        )
-
-
-@router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
-async def get_module_totals(
+async def get_carbon_report_id(
     unit_id: int,
     year: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> dict[str, float]:
-    """
-    Get total tCO2eq for equipment-electric-consumption and professional-travel modules.
-
-    Args:
-        unit_id: Unit ID
-        year: Year for the data
-        db: Database session
-        current_user: Authenticated user
-    """
-    logger.info(
-        f"GET module totals: unit_id={sanitize(unit_id)}, year={sanitize(year)}"
-    )
-
-    totals: dict[str, float] = {
-        "total": 0.0,
-        "equipment-electric-consumption": 0.0,
-        "professional-travel": 0.0,
-    }
-
-    # Get equipment module totals
-    try:
-        await _check_module_permission(
-            current_user, "equipment-electric-consumption", "view"
-        )
-        equipment_kg_co2eq = await equipment_service.get_total_kg_co2eq(
-            session=db, unit_id=unit_id, year=year
-        )
-        equipment_tco2eq = round(float(equipment_kg_co2eq or 0.0) / 1000.0, 2)
-        totals["equipment-electric-consumption"] = equipment_tco2eq
-        logger.info(
-            f"Equipment module totals: {equipment_kg_co2eq} kg CO2eq = "
-            f"{equipment_tco2eq} tCO2eq for unit_id={sanitize(unit_id)}"
-        )
-    except HTTPException:
-        # Permission denied, skip this module
-        logger.warning("Permission denied for equipment module")
-    except Exception as e:
-        logger.error(f"Error getting equipment stats: {e}", exc_info=True)
-
-    # Get professional travel module totals
-    try:
-        await _check_module_permission(current_user, "professional-travel", "view")
-        travel_service = ProfessionalTravelService(db)
-        travel_stats = await travel_service.get_module_stats(
-            unit_id=unit_id, year=year, user=current_user
-        )
-        travel_kg_co2eq = travel_stats.get("total_kg_co2eq", 0.0)
-        travel_tco2eq = round(float(travel_kg_co2eq or 0.0) / 1000.0, 2)
-        totals["professional-travel"] = travel_tco2eq
-        logger.debug(f"Professional Travel module: {travel_tco2eq} tCO2eq")
-    except HTTPException:
-        # Permission denied, skip this module
-        logger.warning("Permission denied for professional travel module")
-    except Exception as e:
-        logger.error(f"Error getting professional travel stats: {e}", exc_info=True)
-
-    # Calculate total
-    totals["total"] = round(
-        totals["equipment-electric-consumption"] + totals["professional-travel"], 2
-    )
-
-    logger.info(
-        f"Module totals returned: total={totals['total']} tCO2eq "
-        f"(equipment: {totals['equipment-electric-consumption']}, "
-        f"travel: {totals['professional-travel']})"
-    )
-
-    return totals
-
-
-@router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
-async def get_module_stats(
-    unit_id: int,
-    year: int,
-    module_id: str,
-    aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> dict[str, float]:
-    """
-    Get module statistics such as total items and submodules.
-
-    Args:
-        module_id: Module identifier
-        unit_id: Unit ID to filter equipment
-        year: Year for the data
-        db: Database session
-        current_user: Authenticated user
-    Returns:
-        List of integers with statistics (e.g., total items, total submodules)
-    """
-    await _check_module_permission(current_user, module_id, "view")
-
-    logger.info(
-        f"GET module stats: module_id={sanitize(module_id)}, "
-        f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
-    )
-
-    stats: dict[str, float] = {}
-    if module_id == "equipment-electric-consumption":
-        stats = await equipment_service.get_module_stats(
-            session=db,
-            unit_id=unit_id,
-            aggregate_by=aggregate_by,
-        )
-    elif module_id == "my-lab":
-        stats = await HeadcountService(db).get_module_stats(
+    module_type_id: ModuleTypeEnum,
+    db: AsyncSession,
+) -> Optional[int]:
+    """Helper to get carbon report module ID from unit and year."""
+    # TODO: PLACEHOLDER UNTIL INTEGRATION WITH CARBON REPORT MODULE ID in frontend
+    # find carbon_report_module_id from year/unit_id mapping:
+    CarbonReportModuleService_instance = CarbonReportModuleService(db)
+    carbon_report_module = (
+        await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
             unit_id=unit_id,
             year=year,
-            aggregate_by=aggregate_by,
+            module_type_id=ModuleTypeEnum(module_type_id).value,
         )
-    elif module_id == "professional-travel":
-        # Get summary stats for professional travel
-        summary = await ProfessionalTravelService(db).get_module_stats(
-            unit_id=unit_id, year=year, user=current_user
-        )
-        stats = {
-            "total_items": float(summary["total_items"]),
-            "total_kg_co2eq": summary["total_kg_co2eq"],
-            "total_distance_km": summary["total_distance_km"],
-        }
-    else:
+    )
+    if not carbon_report_module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module {module_id} not found",
+            detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
-    logger.info(f"Module stats returned: {stats}")
-
-    return stats
+    carbon_report_module_id = carbon_report_module.id
+    return carbon_report_module_id
 
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
 async def get_module(
     unit_id: int,
     year: int,
-    module_id: str,
+    module_id: str,  # Module identifier
     preview_limit: int = Query(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
@@ -288,14 +102,18 @@ async def get_module(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
+    module_key = module_id.replace("-", "_")
+    # TODO: remove once migration done in frontend
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key].value,
+        db=db,
+    )
 
     if module_id == "equipment-electric-consumption":
-        # Fetch real data from database
-        module_data = await equipment_service.get_module_data(
-            session=db,
-            unit_id=unit_id,
-            year=year,
-            preview_limit=preview_limit,
+        module_data = await DataEntryService(db).get_module_data(
+            carbon_report_module_id=carbon_report_module_id,
         )
     elif module_id == "my-lab":
         # Fetch real data from database
@@ -308,9 +126,6 @@ async def get_module(
             year=year,
             aggregate_by="function_role",
         )
-        module_data.totals.total_items = int(stats.get("total_items", 0))
-        # Handle case where total_submodules is used in stats
-        module_data.totals.total_submodules = 0
         module_data.stats = stats
     elif module_id == "professional-travel":
         # Fetch real data from database
@@ -325,11 +140,6 @@ async def get_module(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Module {module_id} not found",
         )
-    logger.info(
-        f"Module data returned: {module_data.totals.total_items} items "
-        f"across {module_data.totals.total_submodules} submodules"
-    )
-
     return module_data
 
 
@@ -380,16 +190,36 @@ async def get_submodule(
         f"sort_order={sanitize(sort_order)}"
     )
 
+    module_key = module_id.replace("-", "_")
+    # TODO: remove once migration done in frontend
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key].value,
+        db=db,
+    )
+
     # Calculate offset from page number
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
     submodule_data = None
     if module_id == "equipment-electric-consumption":
-        submodule_data = await equipment_service.get_submodule_data(
-            session=db,
-            unit_id=unit_id,
-            submodule_key=submodule_id,
+        # submodule_data = await equipment_service.get_submodule_data(
+        #     session=db,
+        #     unit_id=unit_id,
+        #     submodule_key=submodule_id,
+        #     limit=limit,
+        #     offset=offset,
+        #     sort_by=sort_by,
+        #     sort_order=sort_order,
+        #     filter=filter,
+        # )
+        submodule_key = submodule_id.replace("-", "_")
+        data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+        submodule_data = await DataEntryService(db).get_submodule_data(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
             limit=limit,
             offset=offset,
             sort_by=sort_by,
@@ -445,7 +275,7 @@ async def get_submodule(
     ],
     status_code=status.HTTP_201_CREATED,
 )
-async def create_item(
+async def create(
     unit_id: int,
     year: int,
     module_id: str,
@@ -610,7 +440,7 @@ async def create_item(
         ProfessionalTravelItemResponse,
     ],
 )
-async def get_item(
+async def get(
     unit_id: int,
     year: int,
     module_id: str,
@@ -619,20 +449,6 @@ async def get_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Get equipment item by ID.
-
-    Args:
-        unit_id: Unit ID (for route consistency)
-        year: Year (informational)
-        module_id: Module identifier
-        equipment_id: Equipment ID
-        db: Database session
-        current_user: Authenticated user
-
-    Returns:
-        EquipmentDetailResponse
-    """
     await _check_module_permission(current_user, module_id, "view")
 
     logger.info(
@@ -703,7 +519,7 @@ async def get_item(
         ProfessionalTravelItemResponse,
     ],
 )
-async def update_equipment(
+async def update(
     unit_id: int,
     year: int,
     module_id: str,
@@ -713,21 +529,6 @@ async def update_equipment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Update equipment item.
-
-    Args:
-        unit_id: Unit ID (for route consistency)
-        year: Year (informational)
-        module_id: Module identifier
-        equipment_id: Equipment ID to update
-        equipment_data: Equipment update data
-        db: Database session
-        current_user: Authenticated user
-
-    Returns:
-        EquipmentDetailResponse with updated equipment
-    """
     await _check_module_permission(current_user, module_id, "edit")
 
     logger.info(
@@ -818,7 +619,7 @@ async def update_equipment(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_item(
+async def delete(
     unit_id: int,
     year: int,
     module_id: str,
@@ -827,20 +628,6 @@ async def delete_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Delete equipment item.
-
-    Args:
-        unit_id: Unit ID (for route consistency)
-        year: Year (informational)
-        module_id: Module identifier
-        equipment_id: Equipment ID to delete
-        db: Database session
-        current_user: Authenticated user
-
-    Returns:
-        No content (204)
-    """
     await _check_module_permission(current_user, module_id, "edit")
 
     if current_user.id is None:

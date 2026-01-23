@@ -3,6 +3,7 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 from app.core.constants import ModuleStatus
+from app.models.module_type import ModuleTypeEnum
 
 
 class CarbonReportBase(SQLModel):
@@ -33,6 +34,7 @@ class CarbonReport(CarbonReportBase, table=True):
 class CarbonReportModuleBase(SQLModel):
     """Base carbon report module model."""
 
+    # TODO: consider changing to ModuleTypeEnum
     module_type_id: int = Field(
         foreign_key="module_types.id",
         nullable=False,
