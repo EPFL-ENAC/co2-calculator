@@ -1,7 +1,5 @@
 """Unit Results API endpoints."""
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 

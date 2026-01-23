@@ -183,7 +183,7 @@ class HeadcountService:
             submodules[submodule_key] = submodule_response
 
         # Calculate module totals using SQL summaries (not Python sums)
-        total_submodules = len(submodules)
+        # total_submodules = len(submodules)
         # total_items = sum(
         #     summary_by_submodule.get(k, {}).get("total_items", 0)
         #     for k in [

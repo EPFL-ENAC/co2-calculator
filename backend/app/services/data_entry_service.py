@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
-from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.user import User
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -17,7 +16,6 @@ from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
-    SubmoduleSummary,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 
@@ -35,7 +33,7 @@ class DataEntryService:
         self, carbon_report_module_id: int, aggregate_by: str = "submodule"
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
-        # GOAL return total items and submodules for headcount module
+        # GOAL return total items and submodules for module
         # data should be aggregated by aggregate_by param
         # {"professor": 10, "researcher": 5, ...}
         # or {"member": 15, "student": 20, ...}
@@ -52,7 +50,7 @@ class DataEntryService:
         # provider_source: str,
         # user_id: str,
     ) -> DataEntry:
-        """Create a new headcount record."""
+        """Create a new record."""
         # check if user.permissions allow creation
 
         logger.info(
@@ -74,7 +72,7 @@ class DataEntryService:
         data: DataEntryUpdate,
         user: User,
     ) -> Optional[DataEntryResponse]:
-        """Update an existing headcount record."""
+        """Update an existing record."""
         if not user or not user.id:
             logger.error("User context is required for updating data entry")
             raise PermissionError("User context is required for updating data entry")
@@ -88,21 +86,11 @@ class DataEntryService:
         return DataEntryResponse.model_validate(entry)
 
     async def delete(self, id: int, current_user: User) -> bool:
-        """Delete a headcount record."""
-        if (
-            current_user.has_role("co2.backoffice.admin") is False
-            and current_user.has_role("co2.user.principal") is False
-            and current_user.has_role("co2.user.secondary") is False
-        ):
-            logger.warning(
-                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
-                f"for data_entry_id={sanitize(id)}"
-            )
-            raise PermissionError("User not authorized to delete headcount records.")
+        """Delete a record."""
         return await self.repo.delete(id)
 
     async def get(self, id: int) -> Optional[DataEntryResponse]:
-        """Get headcount record by ID."""
+        """Get record by ID."""
         entry = await self.repo.get(id)
         if entry is None:
             return None
@@ -117,7 +105,7 @@ class DataEntryService:
         sort_order: str = "asc",
         filter: Optional[str] = None,
     ) -> list[DataEntryResponse]:
-        """Get headcount record by carbon_report_module_id."""
+        """Get  record by carbon_report_module_id."""
         entries = await self.repo.get_list(
             carbon_report_module_id, limit, offset, sort_by, sort_order, filter
         )
@@ -168,7 +156,7 @@ class DataEntryService:
         sort_order: str = "asc",
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        """Get headcount module data for a unit and year."""
+        """Get module data for a unit and year."""
         return await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,

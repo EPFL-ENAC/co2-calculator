@@ -652,10 +652,9 @@ async def delete(
     )
     try:
         if module_id == "equipment-electric-consumption":
-            await equipment_service.delete_equipment(
-                session=db,
-                equipment_id=item_id,
-                user_id=current_user.id,
+            await DataEntryService(db).delete(
+                id=item_id,
+                current_user=current_user,
             )
         elif module_id == "my-lab":
             await HeadcountService(db).delete_headcount(

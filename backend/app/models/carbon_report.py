@@ -3,7 +3,6 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 from app.core.constants import ModuleStatus
-from app.models.module_type import ModuleTypeEnum
 
 
 class CarbonReportBase(SQLModel):

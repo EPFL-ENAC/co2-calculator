@@ -1,4 +1,4 @@
-"""Headcount repository for database operations."""
+"""Data entry repository for database operations."""
 
 from typing import Dict, Optional
 
@@ -14,6 +14,9 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
+from app.repositories.data_entry_emission_repo import (
+    DataEntryEmissionRepository,
+)
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import FLATTENERS, DataEntryUpdate
 
@@ -74,6 +77,10 @@ class DataEntryRepository:
 
         if not db_obj:
             return False
+
+        await DataEntryEmissionRepository(
+            self.session
+        ).delete_data_entry_emissions_by_data_entry_id(id)
 
         # 2. Delete
         await self.session.delete(db_obj)

@@ -5,11 +5,6 @@ from typing import Dict, Generic, Optional, Sequence, TypeVar
 
 from pydantic import BaseModel, Field
 
-from app.models.headcount import HeadcountItemResponse
-from app.models.professional_travel import ProfessionalTravelItemResponse
-from app.schemas.data_entry import DataEntryResponse
-from app.schemas.equipment import EquipmentItemResponse
-
 
 class SubmoduleSummary(BaseModel):
     """Summary statistics for a submodule."""

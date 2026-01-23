@@ -7,7 +7,6 @@ This script populates the emission_factors and power_factors tables with initial
 
 import asyncio
 import csv
-from datetime import datetime
 from pathlib import Path
 
 from sqlmodel import select
@@ -62,7 +61,8 @@ async def seed_emission_factors(session: AsyncSession) -> None:
     session.add(factor)
     await session.commit()
     logger.info(
-        f"Created emission factor: {factor.classification['description']} = {factor.values['kgco2eq_per_kwh']} kgCO2eq/kWh"
+        f"Created emission factor: {factor.classification['description']}"
+        f" = {factor.values['kgco2eq_per_kwh']} kgCO2eq/kWh"
     )
 
 

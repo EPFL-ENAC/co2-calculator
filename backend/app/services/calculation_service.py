@@ -34,7 +34,8 @@ def calculate_equipment_co2(
         pas_usage_hrs_wk: Passive/standby usage hours per week
         act_power_w: Active power consumption in Watts
         pas_power_w: Passive/standby power consumption in Watts
-        emission_electric_factor: Emission factor in kgCO2eq/kWh (e.g., 0.125 for Swiss mix)
+        emission_electric_factor: Emission factor in kgCO2eq/kWh
+        (e.g., 0.125 for Swiss mix)
 
     Returns:
         Annual CO2 emissions in kg CO2-equivalent
