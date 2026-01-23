@@ -1,4 +1,4 @@
-from typing import Optional, Protocol, TypeVar
+from typing import Any, Optional, Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -28,7 +28,9 @@ class DataEntryCreate(DataEntryBase):
 class DataEntryUpdate(DataEntryBase):
     """Schema for updating a DataEntry item."""
 
-    data: dict
+    data_entry_type_id: Optional[int] = None
+    carbon_report_module_id: Optional[int] = None
+    data: Optional[dict[str, Any]] = None
 
 
 # ============ DTO OUTPUT ================================= #
@@ -59,6 +61,19 @@ class EquipmentFlattenerResponse(DataEntryResponseGen):
     standby_power_w: int
     equipment_class: Optional[str]
     sub_class: Optional[str]
+
+
+# ---- Unflatteners DTO --------------------------------- #
+
+
+def unflatten_data_entry_payload(payload: dict) -> dict:
+    """Move non-meta fields into 'data' for DataEntry updates."""
+    meta_fields = {"data_entry_type_id", "carbon_report_module_id", "id"}
+    result = {k: v for k, v in payload.items() if k in meta_fields}
+    # Everything else goes into 'data'
+    data_fields = {k: v for k, v in payload.items() if k not in meta_fields}
+    result["data"] = data_fields
+    return result
 
 
 # ----------- Flatteners --------------------------------- #

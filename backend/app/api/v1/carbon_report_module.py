@@ -26,11 +26,15 @@ from app.models.professional_travel import (
 )
 from app.models.user import User
 from app.schemas.carbon_report_response import ModuleResponse, SubmoduleResponse
-from app.schemas.data_entry import DataEntryCreate, DataEntryResponse
+from app.schemas.data_entry import (
+    DataEntryCreate,
+    DataEntryResponse,
+    DataEntryUpdate,
+    unflatten_data_entry_payload,
+)
 from app.schemas.equipment import (
     EquipmentCreateRequest,
     EquipmentDetailResponse,
-    EquipmentUpdateRequest,
 )
 from app.services import equipment_service
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -263,6 +267,7 @@ async def get_submodule(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ],
     status_code=status.HTTP_201_CREATED,
 )
@@ -316,7 +321,8 @@ async def create(
     # Validate unit_id matches the one in request body
     if module_id == "equipment-electric-consumption":
         try:
-            parsed_record = EquipmentCreateRequest(**item_data)
+            unflatten_data = unflatten_data_entry_payload(item_data)
+            parsed_record = DataEntryCreate(**unflatten_data)
         except Exception as e:
             raise HTTPException(
                 status_code=400,
@@ -331,7 +337,7 @@ async def create(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
             user=current_user,
-            data=DataEntryCreate(**parsed_record.dict()),
+            data=parsed_record,
         )
         if item is None:
             raise HTTPException(
@@ -447,6 +453,7 @@ async def create(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ],
 )
 async def get(
@@ -468,6 +475,7 @@ async def get(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ]
     if module_id == "equipment-electric-consumption":
         if not isinstance(item_id, int):
@@ -526,6 +534,7 @@ async def get(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ],
 )
 async def update(
@@ -550,11 +559,14 @@ async def update(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ]
     if module_id == "equipment-electric-consumption":
         # Parse as EquipmentUpdateRequest
         try:
-            parsed_data = EquipmentUpdateRequest(**item_data)
+            # parsed_data = EquipmentUpdateRequest(**item_data)
+            transformed = unflatten_data_entry_payload(item_data)
+            parsed_data = DataEntryUpdate(**transformed)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -565,11 +577,10 @@ async def update(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to delete item",
             )
-        item = await equipment_service.update_equipment(
-            session=db,
-            item_id=item_id,
-            item_data=parsed_data,
-            user_id=current_user.id,
+        item = await DataEntryService(db).update(
+            id=item_id,
+            data=parsed_data,
+            user=current_user,
         )
     elif module_id == "my-lab":
         # Parse as HeadCountUpdateRequest

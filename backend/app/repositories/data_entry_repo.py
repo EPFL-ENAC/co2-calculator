@@ -61,7 +61,11 @@ class DataEntryRepository:
         # 2. Update fields from input model (only provided fields)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(db_obj, field, value)
+            if field == "data" and value is not None:
+                # Merge dicts instead of replacing
+                db_obj.data = {**db_obj.data, **value}
+            else:
+                setattr(db_obj, field, value)
 
         # 4. Save
         self.session.add(db_obj)
