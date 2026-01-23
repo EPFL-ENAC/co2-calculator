@@ -8,6 +8,7 @@ from sqlmodel import update as sqlmodel_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.equipment import Equipment, EquipmentEmission
 
@@ -127,7 +128,7 @@ async def get_equipment_with_emissions(
     session: AsyncSession,
     unit_id: Optional[int] = None,
     status: Optional[str] = "In service",
-    submodule: Optional[str] = None,
+    submodule_key: Optional[int] = None,
     limit: Optional[int] = None,
     offset: int = 0,
     sort_by: Optional[str] = None,
@@ -141,7 +142,7 @@ async def get_equipment_with_emissions(
         session: Database session
         unit_id: Filter by unit ID
         status: Filter by equipment status
-        submodule: Filter by submodule
+        submodule_key: Filter by submodule key
         limit: Maximum number of results
         offset: Number of results to skip
         sort_by: Field name to sort by (e.g., 'id', 'name', 'kg_co2eq', 'annual_kwh')
@@ -150,6 +151,7 @@ async def get_equipment_with_emissions(
     Returns:
         Tuple of (list of (Equipment, EquipmentEmission) tuples, total_count)
     """
+    submodule = DataEntryTypeEnum(submodule_key).name.lower() if submodule_key else None
     # Field mapping for sortable columns
     field_mapping: Dict[str, Any] = {
         "id": col(Equipment.id),
@@ -251,7 +253,7 @@ async def get_equipment_summary_by_submodule(
     unit_id: Optional[int] = None,
     status: Optional[str] = "In service",
     year: Optional[int] = None,
-) -> Dict[str, Dict[str, Any]]:
+) -> Dict[int, Dict[str, Any]]:
     """
     Get aggregated summary statistics grouped by submodule.
 
@@ -305,9 +307,13 @@ async def get_equipment_summary_by_submodule(
     rows = result.all()
 
     # Convert to dict
-    summary: Dict[str, Dict[str, Any]] = {}
+    summary: Dict[int, Dict[str, Any]] = {}
     for row in rows:
-        summary[row.submodule] = {
+        try:
+            summary_key = DataEntryTypeEnum[row.submodule].value
+        except (KeyError, AttributeError):
+            summary_key = row.submodule
+        summary[summary_key] = {
             "total_items": int(row.total_items),
             "annual_consumption_kwh": float(row.annual_consumption_kwh or 0),
             "total_kg_co2eq": float(row.total_kg_co2eq or 0),

@@ -1,21 +1,29 @@
 """Variant type model for defining subcategories within module types."""
 
+from enum import Enum
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
 
-class VariantTypeBase(SQLModel):
+class DataEntryTypeEnum(int, Enum):
+    member = 1
+    student = 2
+    scientific = 9
+    it = 10
+    admin = 11
+    trips = 20
+    building = 30
+    energy_mix = 100
+
+
+class DataEntryTypeBase(SQLModel):
     """Base variant type model with shared fields."""
 
     name: str = Field(
         nullable=False,
         index=True,
         description="Variant type name (e.g., 'student', 'member', 'scientific', 'it')",
-    )
-    description: Optional[str] = Field(
-        default=None,
-        description="Human-readable description of the variant type",
     )
     module_type_id: int = Field(
         foreign_key="module_types.id",
@@ -25,7 +33,7 @@ class VariantTypeBase(SQLModel):
     )
 
 
-class VariantType(VariantTypeBase, table=True):
+class DataEntryType(DataEntryTypeBase, table=True):
     """
     Variant type table for defining subcategories within module types.
 
@@ -35,10 +43,10 @@ class VariantType(VariantTypeBase, table=True):
     - For travel: flight, train, car
     """
 
-    __tablename__ = "variant_types"
+    __tablename__ = "data_entry_types"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
-        return f"""<VariantType {self.id}: {self.name}
+        return f"""<DataEntryType {self.id}: {self.name}
         "(module_type_id={self.module_type_id})>"""

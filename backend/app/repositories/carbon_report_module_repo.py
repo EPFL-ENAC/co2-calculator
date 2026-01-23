@@ -2,12 +2,12 @@
 
 from typing import List, Optional
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 
 logger = get_logger(__name__)
 
@@ -56,13 +56,29 @@ class CarbonReportModuleRepository:
             await self.session.refresh(obj)
         return db_objects
 
-    async def get(self, carbon_report_module_id: int) -> Optional[CarbonReportModule]:
-        """Get a carbon report module by ID."""
-        statement = select(CarbonReportModule).where(
-            CarbonReportModule.id == carbon_report_module_id
+    async def get_by_year_and_unit(
+        self, year: int, unit_id: int, module_type_id: int
+    ) -> Optional[CarbonReportModule]:
+        statement = (
+            select(CarbonReportModule)
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReport.year == year,
+                CarbonReport.unit_id == unit_id,
+                CarbonReportModule.module_type_id == module_type_id,
+            )
         )
-        result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
+        result = await self.session.exec(statement)
+        return result.one_or_none()
+
+    async def get(self, id: int) -> Optional[CarbonReportModule]:
+        """Get a carbon report module by ID."""
+        statement = select(CarbonReportModule).where(CarbonReportModule.id == id)
+        result = await self.session.exec(statement)
+        return result.one_or_none()
 
     async def get_by_report_and_module_type(
         self, carbon_report_id: int, module_type_id: int

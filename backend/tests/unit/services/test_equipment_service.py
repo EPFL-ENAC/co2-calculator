@@ -1,8 +1,9 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.services import equipment_service
 
 # --- Mocks for Repositories and Logic ---
@@ -25,6 +26,21 @@ def mock_equipment_repo():
         repo.retire_current_emission = AsyncMock()
         repo.get_current_emission_factor = AsyncMock()
         yield repo
+
+
+@pytest.fixture(autouse=True)
+def mock_carbon_report_module_service():
+    with patch(
+        "app.services.equipment_service.CarbonReportModuleService",
+        autospec=True,
+    ) as mock_service_class:
+        instance = mock_service_class.return_value
+        mock_module = MagicMock()
+        mock_module.id = 42  # or any test id you want
+        instance.get_carbon_report_by_year_and_unit = AsyncMock(
+            return_value=mock_module
+        )
+        yield instance
 
 
 @pytest.fixture
@@ -55,7 +71,7 @@ async def test_get_module_data_preview_limit_none(mock_session, mock_equipment_r
     # Setup
     mock_equipment_repo.get_equipment_summary_by_submodule = AsyncMock(
         return_value={
-            "scientific": {
+            DataEntryTypeEnum.scientific.value: {
                 "total_items": 5,
                 "annual_consumption_kwh": 100.0,
                 "total_kg_co2eq": 20.0,
@@ -71,8 +87,8 @@ async def test_get_module_data_preview_limit_none(mock_session, mock_equipment_r
     )
 
     # Assert
-    assert response.submodules["scientific"].items == []
-    assert response.submodules["scientific"].count == 5
+    assert response.submodules[DataEntryTypeEnum.scientific.value].items == []
+    assert response.submodules[DataEntryTypeEnum.scientific.value].count == 5
     # Verify summary logic
     assert response.totals.total_items == 5
 
@@ -89,9 +105,9 @@ async def test_get_module_data_empty_summary(mock_session, mock_equipment_repo):
     )
 
     # Assert
-    assert "scientific" in response.submodules
-    assert len(response.submodules["scientific"].items) == 0
-    assert response.submodules["scientific"].count == 5
+    assert DataEntryTypeEnum.scientific.value in response.submodules
+    assert len(response.submodules[DataEntryTypeEnum.scientific.value].items) == 0
+    assert response.submodules[DataEntryTypeEnum.scientific.value].count == 5
     # Verify summary logic
     assert response.totals.total_items == 0
 
@@ -114,11 +130,11 @@ async def test_get_module_data_nonexistent_submodule(mock_session, mock_equipmen
     )
 
     # Assert
-    assert "scientific" in response.submodules
-    assert "it" in response.submodules
-    assert "other" in response.submodules
-    assert len(response.submodules["it"].items) == 0
-    assert len(response.submodules["other"].items) == 0
+    assert DataEntryTypeEnum.scientific.value in response.submodules
+    assert DataEntryTypeEnum.it.value in response.submodules
+    assert DataEntryTypeEnum.admin.value in response.submodules
+    assert len(response.submodules[DataEntryTypeEnum.it.value].items) == 0
+    assert len(response.submodules[DataEntryTypeEnum.admin.value].items) == 0
 
 
 # --- Tests for get_submodule_data ---

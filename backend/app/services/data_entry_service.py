@@ -7,34 +7,32 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntry
 from app.models.data_entry_type import DataEntryTypeEnum
-from app.models.data_ingestion import IngestionMethod
-from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
-from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.repositories.headcount_repo import HeadCountRepository
+
+# from app.repositories.headcount_repo import HeadCountRepository
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
     SubmoduleSummary,
 )
-from app.services.authorization_service import get_data_filters
-from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 
 logger = get_logger(__name__)
 
 
-class HeadcountService:
-    """Service for headcount business logic with context injection."""
+class DataEntryService:
+    """Service for data entry business logic."""
 
-    def __init__(self, session: AsyncSession, user: Optional[User] = None):
+    def __init__(self, session: AsyncSession):
         self.session = session
-        self.repo = HeadCountRepository(session)
-        self.user = user
+        self.repo = DataEntryRepository(session)
 
     async def get_module_stats(
-        self, unit_id: int, year: int, aggregate_by: str = "submodule"
+        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
         # GOAL return total items and submodules for headcount module
@@ -42,95 +40,97 @@ class HeadcountService:
         # {"professor": 10, "researcher": 5, ...}
         # or {"member": 15, "student": 20, ...}
         return await self.repo.get_module_stats(
-            unit_id=unit_id, year=year, aggregate_by=aggregate_by
+            carbon_report_module_id=carbon_report_module_id, aggregate_by=aggregate_by
         )
 
-    async def create_headcount(
-        self,
-        data: HeadCountCreate,
-        provider_source: IngestionMethod,
-        user_id: int,
-    ) -> HeadCount:
-        """Create a new headcount record."""
-        return await self.repo.create_headcount(
-            data=data,
-            provider_source=provider_source,
-            user_id=user_id,
-        )
+    # carbon_report_module_id=carbon_report_module_id,
+    #         data_entry_type_id=data_entry_type_id,
+    #         user=current_user,
+    #         data=item_data,
 
-    async def update_headcount(
+    async def create(
         self,
-        headcount_id: int,
-        data: HeadCountUpdate,
+        carbon_report_module_id: int,
+        data_entry_type_id: str,
         user: User,
-    ) -> Optional[HeadCount]:
+        data: DataEntryCreate,
+        # provider_source: str,
+        # user_id: str,
+    ) -> DataEntry:
+        """Create a new headcount record."""
+        # check if user.permissions allow creation
+
+        logger.info(
+            f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
+            f"data_entry_type_id={sanitize(data_entry_type_id)} "
+            f"user_id={sanitize(user.id)}"
+        )
+        entry = DataEntry(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            data=data.model_dump(),
+        )
+
+        return await self.repo.create(entry)
+
+    async def update(
+        self,
+        id: int,
+        data: DataEntryUpdate,
+        user: User,
+    ) -> Optional[DataEntryResponse]:
         """Update an existing headcount record."""
         if not user or not user.id:
-            logger.error("User context is required for updating headcount")
-            return None
-        return await self.repo.update_headcount(
-            headcount_id=headcount_id,
+            logger.error("User context is required for updating data entry")
+            raise PermissionError("User context is required for updating data entry")
+        entry = await self.repo.update(
+            id=id,
             data=data,
             user_id=user.id,
         )
+        if entry is None:
+            return None
+        return DataEntryResponse.model_validate(entry)
 
-    async def delete_headcount(self, headcount_id: int) -> bool:
-        """Delete a headcount record.
+    async def delete(self, id: int, current_user: User) -> bool:
+        """Delete a headcount record."""
+        if (
+            current_user.has_role("co2.backoffice.admin") is False
+            and current_user.has_role("co2.user.principal") is False
+            and current_user.has_role("co2.user.secondary") is False
+        ):
+            logger.warning(
+                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
+                f"for data_entry_id={sanitize(id)}"
+            )
+            raise PermissionError("User not authorized to delete headcount records.")
+        return await self.repo.delete(id)
 
-        Authorization is handled at the API route level via require_permission().
-        This method focuses purely on the business logic of deletion.
+    async def get(self, id: int) -> Optional[DataEntryResponse]:
+        """Get headcount record by ID."""
+        entry = await self.repo.get(id)
+        if entry is None:
+            return None
+        return DataEntryResponse.model_validate(entry)
 
-        Args:
-            headcount_id: The ID of the headcount record to delete
-
-        Returns:
-            bool: True if deletion was successful
-        """
-        return await self.repo.delete_headcount(headcount_id)
-
-    async def get_by_id(self, item_id: int) -> Optional[HeadCount]:
-        """Get headcount record by ID with policy-based filtering."""
-        headcount = await self.repo.get_by_id(item_id)
-
-        # Apply policy-based access check if user context is available
-        if self.user and headcount:
-            from app.services.authorization_service import check_resource_access
-
-            resource_dict = {
-                "id": headcount.id,
-                "created_by": headcount.created_by,
-                "unit_id": headcount.unit_id,
-            }
-
-            if not await check_resource_access(self.user, "headcount", resource_dict):
-                return None
-
-        return headcount
-
-    async def get_headcounts(
+    async def get_list(
         self,
-        unit_id: int,
-        year: int,
+        carbon_report_module_id: int,
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "id",
         sort_order: str = "asc",
         filter: Optional[str] = None,
-    ) -> list[HeadCount]:
-        """Get headcount record by unit_id and year with policy-based filtering."""
-        # Get policy-based filters if user context is available
-        filters = None
-        if self.user:
-            filters = await get_data_filters(self.user, "headcount", "list")
-
-        return await self.repo.get_headcounts(
-            unit_id, year, limit, offset, sort_by, sort_order, filter, filters=filters
+    ) -> list[DataEntryResponse]:
+        """Get headcount record by carbon_report_module_id."""
+        entries = await self.repo.get_list(
+            carbon_report_module_id, limit, offset, sort_by, sort_order, filter
         )
+        return [DataEntryResponse.model_validate(entry) for entry in entries]
 
     async def get_module_data(
         self,
-        unit_id: int,
-        year: int,
+        carbon_report_module_id: int,
     ) -> ModuleResponse:
         """
         Get complete module data with all submodules.
@@ -145,14 +145,13 @@ class HeadcountService:
             ModuleResponse with all submodules and their equipment
         """
         logger.info(
-            f"Fetching module data for unit={sanitize(unit_id)}, "
-            f"year={sanitize(year)}, "
+            f"Fetching module data for module_id={sanitize(carbon_report_module_id)}, "
             f"module=headcount"
         )
 
         # Get summary statistics by submodule
         summary_by_submodule = await self.repo.get_summary_by_submodule(
-            unit_id=unit_id, year=year
+            carbon_report_module_id=carbon_report_module_id
         )
 
         submodules = {}
@@ -175,8 +174,8 @@ class HeadcountService:
             submodule_response = SubmoduleResponse(
                 id=submodule_key,
                 count=total_count,
-                summary=summary,
                 items=[],  # Detailed items can be fetched separately
+                summary=summary,
                 has_more=False,
             )
 
@@ -208,20 +207,9 @@ class HeadcountService:
             total_annual_consumption_kwh=None,
         )
 
-        # find carbon_report_module_id from year/unit_id mapping:
-        CarbonReportModuleService_instance = CarbonReportModuleService(self.session)
-        carbon_report_module = (
-            await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
-                unit_id=unit_id,
-                year=year,
-                module_type_id=ModuleTypeEnum.headcount.value,
-            )
-        )
         # Create module response
         module_response = ModuleResponse(
-            carbon_report_module_id=carbon_report_module.id
-            if carbon_report_module
-            else None,
+            carbon_report_module_id=carbon_report_module_id,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
             submodules=submodules,
@@ -237,9 +225,8 @@ class HeadcountService:
 
     async def get_submodule_data(
         self,
-        unit_id: int,
-        year: int,
-        submodule_key: str,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
         limit: int = 100,
         offset: int = 0,
         sort_by: str = "date",
@@ -248,9 +235,8 @@ class HeadcountService:
     ) -> SubmoduleResponse:
         """Get headcount module data for a unit and year."""
         return await self.repo.get_submodule_data(
-            unit_id=unit_id,
-            year=year,
-            submodule_key=submodule_key,
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
             limit=limit,
             offset=offset,
             sort_by=sort_by,
@@ -258,8 +244,6 @@ class HeadcountService:
             filter=filter,
         )
 
-    async def get_by_unit_and_date(
-        self, unit_id: int, date: str
-    ) -> Optional[HeadCount]:
-        """Get headcount record by unit_id and date."""
-        return await self.repo.get_by_unit_and_date(unit_id, date)
+    # async def get_by_workspace(self, unit_id: int, date: str) -> Optional[HeadCount]:
+    #     """Get headcount record by unit_id and date."""
+    #     return await self.repo.get_by_workspace(unit_id, date)

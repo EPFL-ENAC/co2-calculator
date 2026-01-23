@@ -41,6 +41,12 @@ class CarbonReportModuleService:
             status=ModuleStatus.NOT_STARTED,
         )
 
+    async def get_carbon_report_by_year_and_unit(
+        self, year: int, unit_id: int, module_type_id: int
+    ) -> Optional[CarbonReportModule]:
+        """Get a carbon report module by year and unit."""
+        return await self.repo.get_by_year_and_unit(year, unit_id, module_type_id)
+
     async def get_module(
         self, carbon_report_id: int, module_type_id: int
     ) -> Optional[CarbonReportModule]:
