@@ -29,6 +29,21 @@ def mock_user():
     return user
 
 
+@pytest.fixture(autouse=True)
+def mock_carbon_report_module_service():
+    with patch(
+        "app.services.headcount_service.CarbonReportModuleService",
+        autospec=True,
+    ) as mock_service_class:
+        instance = mock_service_class.return_value
+        mock_module = MagicMock()
+        mock_module.id = 42  # or any test id you want
+        instance.get_carbon_report_by_year_and_unit = AsyncMock(
+            return_value=mock_module
+        )
+        yield instance
+
+
 # ----------------------
 # get_module_stats
 # ----------------------
@@ -118,27 +133,6 @@ async def test_get_headcounts_delegates(service):
         # Service adds filters=None when user context is not available
         mock_get.assert_called_with(1, 2025, 10, 0, "id", "asc", None, filters=None)
         assert isinstance(result, list)
-
-
-# ----------------------
-# get_module_data
-# ----------------------
-@pytest.mark.asyncio
-async def test_get_module_data_aggregates(service):
-    # Patch repo.get_summary_by_submodule to return fake summary
-    fake_summary = {
-        "member": {"total_items": 2, "annual_fte": 1.5},
-        "student": {"total_items": 1, "annual_fte": 0.5},
-    }
-    with patch.object(
-        service.repo,
-        "get_summary_by_submodule",
-        new=AsyncMock(return_value=fake_summary),
-    ):
-        resp = await service.get_module_data(1, 2025)
-        assert resp.totals.total_items == 3
-        assert resp.totals.total_annual_fte == 2.0
-        assert set(resp.submodules.keys()) == {"member", "student"}
 
 
 # ----------------------

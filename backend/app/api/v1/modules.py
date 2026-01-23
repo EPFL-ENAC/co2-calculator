@@ -23,12 +23,11 @@ from app.models.professional_travel import (
     ProfessionalTravelUpdate,
 )
 from app.models.user import User
+from app.schemas.carbon_report_response import ModuleResponse, SubmoduleResponse
 from app.schemas.equipment import (
     EquipmentCreateRequest,
     EquipmentDetailResponse,
     EquipmentUpdateRequest,
-    ModuleResponse,
-    SubmoduleResponse,
 )
 from app.services import equipment_service
 from app.services.headcount_service import HeadcountService

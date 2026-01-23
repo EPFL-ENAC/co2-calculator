@@ -8,29 +8,26 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
 from app.repositories import equipment_repo
 from app.repositories.power_factor_repo import PowerFactorRepository
-from app.schemas.equipment import (
-    EquipmentCreateRequest,
-    EquipmentDetailResponse,
-    EquipmentItemResponse,
-    EquipmentUpdateRequest,
+from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
     SubmoduleSummary,
 )
+from app.schemas.equipment import (
+    EquipmentCreateRequest,
+    EquipmentDetailResponse,
+    EquipmentItemResponse,
+    EquipmentUpdateRequest,
+)
 from app.services.calculation_service import calculate_equipment_emission_versioned
+from app.services.carbon_report_module_service import CarbonReportModuleService
 
 logger = get_logger(__name__)
-
-
-# Submodule display names
-SUBMODULE_NAMES = {
-    "scientific": "Scientific",
-    "it": "IT",
-    "other": "Other",
-}
 
 
 async def get_module_stats(
@@ -65,7 +62,11 @@ async def get_total_kg_co2eq(session: AsyncSession, unit_id: int, year: int) -> 
     # Sum total_kg_co2eq from all submodules
     total_kg_co2eq = sum(
         summary_by_submodule.get(k, {}).get("total_kg_co2eq", 0.0)
-        for k in ["scientific", "it", "other"]
+        for k in [
+            DataEntryTypeEnum.scientific.value,
+            DataEntryTypeEnum.it.value,
+            DataEntryTypeEnum.admin.value,
+        ]
     )
     return float(total_kg_co2eq or 0.0)
 
@@ -98,11 +99,18 @@ async def get_module_data(
         session, unit_id=unit_id, status="In service", year=year
     )
 
-    submodules = {}
+    submodules: dict[int, SubmoduleResponse] = {}
 
     # Process each submodule
-    for submodule_key in ["scientific", "it", "other"]:
+    # for submodule_key in ["scientific", "it", "other"]:
+    submodule_keys = [
+        DataEntryTypeEnum.scientific.value,
+        DataEntryTypeEnum.it.value,
+        DataEntryTypeEnum.admin.value,
+    ]
+    for submodule_key in submodule_keys:
         # Get summary for this submodule
+        submodule_id = DataEntryTypeEnum(submodule_key).value
         submodule_summary_data = summary_by_submodule.get(
             submodule_key,
             {
@@ -128,7 +136,7 @@ async def get_module_data(
                 session,
                 unit_id=unit_id,
                 status="In service",
-                submodule=submodule_key,
+                submodule_key=submodule_id,
                 limit=preview_limit,
                 offset=0,
             )
@@ -163,10 +171,10 @@ async def get_module_data(
             has_more = preview_limit is not None and total_count > preview_limit
 
         # Create submodule response
-        submodule_id = f"{submodule_key}"
+        submodule_id = DataEntryTypeEnum(submodule_key).value
+
         submodule_response = SubmoduleResponse(
             id=submodule_id,
-            name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),
             count=total_count,
             items=items,
             summary=summary,
@@ -178,16 +186,15 @@ async def get_module_data(
     # Calculate module totals using SQL summaries (not Python sums)
     total_submodules = len(submodules)
     total_items = sum(
-        summary_by_submodule.get(k, {}).get("total_items", 0)
-        for k in ["scientific", "it", "other"]
+        summary_by_submodule.get(k, {}).get("total_items", 0) for k in submodule_keys
     )
     total_kwh = sum(
         summary_by_submodule.get(k, {}).get("annual_consumption_kwh", 0.0)
-        for k in ["scientific", "it", "other"]
+        for k in submodule_keys
     )
     total_co2 = sum(
         summary_by_submodule.get(k, {}).get("total_kg_co2eq", 0.0)
-        for k in ["scientific", "it", "other"]
+        for k in submodule_keys
     )
 
     totals = ModuleTotals(
@@ -199,13 +206,22 @@ async def get_module_data(
         total_annual_fte=None,  # FTE not applicable for equipment
     )
 
+    # find carbon_report_module_id from year/unit_id mapping:
+    CarbonReportModuleService_instance = CarbonReportModuleService(session)
+    carbon_report_module = (
+        await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        )
+    )
+
     # Create module response
     module_response = ModuleResponse(
-        module_type="equipment-electric-consumption",
-        unit="kWh",
-        unit_id=unit_id,
+        carbon_report_module_id=carbon_report_module.id
+        if carbon_report_module
+        else None,
         stats=None,
-        year=year,
         retrieved_at=datetime.now(timezone.utc),
         submodules=submodules,
         totals=totals,
@@ -252,7 +268,7 @@ async def get_submodule_data(
 
     if sort_order not in ("asc", "desc"):
         sort_order = "asc"
-
+    submodule_id = DataEntryTypeEnum[submodule_key].value
     # Get equipment for this submodule
     (
         equipment_emissions,
@@ -261,7 +277,7 @@ async def get_submodule_data(
         session,
         unit_id=unit_id,
         status="In service",
-        submodule=submodule_key,
+        submodule_key=submodule_id,
         limit=limit,
         offset=offset,
         sort_by=sanitize(sort_by),
@@ -297,7 +313,7 @@ async def get_submodule_data(
     )
 
     submodule_summary_data = summary_by_submodule.get(
-        submodule_key,
+        DataEntryTypeEnum[submodule_key],
         {
             "total_items": total_count,
             "annual_consumption_kwh": 0.0,
@@ -311,10 +327,8 @@ async def get_submodule_data(
     has_more = (offset + len(items)) < total_count
 
     # Create submodule response
-    submodule_id = f"{submodule_key}"
     submodule_response = SubmoduleResponse(
-        id=submodule_id,
-        name=SUBMODULE_NAMES.get(submodule_key, submodule_key.title()),
+        id=DataEntryTypeEnum[submodule_key].value,
         count=total_count,
         items=items,
         summary=summary,

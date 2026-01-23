@@ -8,9 +8,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
-from app.schemas.equipment import SubmoduleResponse, SubmoduleSummary
+from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 
 logger = get_logger(__name__)
 
@@ -279,7 +280,7 @@ class HeadCountRepository:
 
     async def get_summary_by_submodule(
         self, unit_id: int, year: int
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> Dict[int, Dict[str, Any]]:
         """
         Get aggregated summary statistics grouped by submodule.
 
@@ -315,7 +316,7 @@ class HeadCountRepository:
         rows = result.all()
 
         # Convert to dict
-        summary: Dict[str, Dict[str, Any]] = {}
+        summary: Dict[int, Dict[str, Any]] = {}
         for submodule, total_items, annual_fte in rows:
             summary[submodule] = {
                 "total_items": int(total_items),
@@ -381,8 +382,7 @@ class HeadCountRepository:
         items = list(result.scalars().all())
         count = len(items)
         response = SubmoduleResponse(
-            id=submodule_key,
-            name=submodule_key,
+            id=DataEntryTypeEnum[submodule_key].value,
             count=count,
             items=items,
             summary=SubmoduleSummary(

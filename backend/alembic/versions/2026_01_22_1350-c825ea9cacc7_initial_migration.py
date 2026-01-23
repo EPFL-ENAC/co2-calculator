@@ -1,8 +1,9 @@
-"""initial revision
+# codeql[py/unused-global-variable]
+"""initial migration
 
-Revision ID: a71717378e02
+Revision ID: c825ea9cacc7
 Revises:
-Create Date: 2026-01-22 11:41:39.301978
+Create Date: 2026-01-22 13:50:03.818215
 
 """
 
@@ -13,8 +14,15 @@ import sqlmodel
 
 from alembic import op
 
+__all__ = [
+    "revision",
+    "down_revision",
+    "branch_labels",
+    "depends_on",
+]
+
 # revision identifiers, used by Alembic.
-revision: str = "a71717378e02"  # noqa: F841
+revision: str = "c825ea9cacc7"  # noqa: F841
 down_revision: Union[str, Sequence[str], None] = None  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
@@ -61,6 +69,18 @@ def upgrade() -> None:
         "emission_factors",
         ["version"],
         unique=False,
+    )
+    op.create_table(
+        "emission_types",
+        sa.Column("code", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_emission_types_code"), "emission_types", ["code"], unique=True
+    )
+    op.create_index(
+        op.f("ix_emission_types_id"), "emission_types", ["id"], unique=False
     )
     op.create_table(
         "headcounts",
@@ -188,7 +208,6 @@ def upgrade() -> None:
     op.create_table(
         "module_types",
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -362,6 +381,29 @@ def upgrade() -> None:
     op.create_index(op.f("ix_users_id"), "users", ["id"], unique=False)
     op.create_index(
         op.f("ix_users_provider_code"), "users", ["provider_code"], unique=True
+    )
+    op.create_table(
+        "data_entry_types",
+        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("module_type_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["module_type_id"],
+            ["module_types.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_data_entry_types_id"), "data_entry_types", ["id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_data_entry_types_module_type_id"),
+        "data_entry_types",
+        ["module_type_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_data_entry_types_name"), "data_entry_types", ["name"], unique=False
     )
     op.create_table(
         "data_ingestion_jobs",
@@ -606,28 +648,6 @@ def upgrade() -> None:
         op.f("ix_units_provider_code"), "units", ["provider_code"], unique=True
     )
     op.create_table(
-        "variant_types",
-        sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column("module_type_id", sa.Integer(), nullable=False),
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["module_type_id"],
-            ["module_types.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_variant_types_id"), "variant_types", ["id"], unique=False)
-    op.create_index(
-        op.f("ix_variant_types_module_type_id"),
-        "variant_types",
-        ["module_type_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_variant_types_name"), "variant_types", ["name"], unique=False
-    )
-    op.create_table(
         "carbon_reports",
         sa.Column("year", sa.Integer(), nullable=False),
         sa.Column("unit_id", sa.Integer(), nullable=False),
@@ -701,6 +721,40 @@ def upgrade() -> None:
         "equipment_emissions",
         ["power_factor_id"],
         unique=False,
+    )
+    op.create_table(
+        "factors",
+        sa.Column("emission_type_id", sa.Integer(), nullable=False),
+        sa.Column("is_conversion", sa.Boolean(), nullable=False),
+        sa.Column("data_entry_type_id", sa.Integer(), nullable=True),
+        sa.Column("classification", sa.JSON(), nullable=True),
+        sa.Column("values", sa.JSON(), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["data_entry_type_id"],
+            ["data_entry_types.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["emission_type_id"],
+            ["emission_types.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_factors_data_entry_type_id"),
+        "factors",
+        ["data_entry_type_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_factors_emission_type_id"),
+        "factors",
+        ["emission_type_id"],
+        unique=False,
+    )
+    op.create_index(op.f("ix_factors_id"), "factors", ["id"], unique=False)
+    op.create_index(
+        op.f("ix_factors_is_conversion"), "factors", ["is_conversion"], unique=False
     )
     op.create_table(
         "professional_travel_emissions",
@@ -821,9 +875,8 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
-        "modules",
-        sa.Column("module_type_id", sa.Integer(), nullable=False),
-        sa.Column("variant_type_id", sa.Integer(), nullable=True),
+        "data_entries",
+        sa.Column("data_entry_type_id", sa.Integer(), nullable=True),
         sa.Column("carbon_report_module_id", sa.Integer(), nullable=False),
         sa.Column("data", sa.JSON(), nullable=True),
         sa.Column("id", sa.Integer(), nullable=False),
@@ -832,27 +885,75 @@ def upgrade() -> None:
             ["carbon_report_modules.id"],
         ),
         sa.ForeignKeyConstraint(
-            ["module_type_id"],
-            ["module_types.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["variant_type_id"],
-            ["variant_types.id"],
+            ["data_entry_type_id"],
+            ["data_entry_types.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
-        op.f("ix_modules_carbon_report_module_id"),
-        "modules",
+        op.f("ix_data_entries_carbon_report_module_id"),
+        "data_entries",
         ["carbon_report_module_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_modules_id"), "modules", ["id"], unique=False)
     op.create_index(
-        op.f("ix_modules_module_type_id"), "modules", ["module_type_id"], unique=False
+        op.f("ix_data_entries_data_entry_type_id"),
+        "data_entries",
+        ["data_entry_type_id"],
+        unique=False,
+    )
+    op.create_index(op.f("ix_data_entries_id"), "data_entries", ["id"], unique=False)
+    op.create_table(
+        "data_entry_emissions",
+        sa.Column("data_entry_id", sa.Integer(), nullable=False),
+        sa.Column("emission_type_id", sa.Integer(), nullable=False),
+        sa.Column("primary_factor_id", sa.Integer(), nullable=True),
+        sa.Column("subcategory", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("kg_co2eq", sa.Float(), nullable=False),
+        sa.Column("meta", sa.JSON(), nullable=True),
+        sa.Column("formula_version", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("computed_at", sa.TIMESTAMP(timezone=True), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["data_entry_id"],
+            ["data_entries.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["emission_type_id"],
+            ["emission_types.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["primary_factor_id"],
+            ["factors.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
-        op.f("ix_modules_variant_type_id"), "modules", ["variant_type_id"], unique=False
+        op.f("ix_data_entry_emissions_computed_at"),
+        "data_entry_emissions",
+        ["computed_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_data_entry_emissions_data_entry_id"),
+        "data_entry_emissions",
+        ["data_entry_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_data_entry_emissions_emission_type_id"),
+        "data_entry_emissions",
+        ["emission_type_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_data_entry_emissions_id"), "data_entry_emissions", ["id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_data_entry_emissions_primary_factor_id"),
+        "data_entry_emissions",
+        ["primary_factor_id"],
+        unique=False,
     )
     # ### end Alembic commands ###
 
@@ -860,11 +961,28 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f("ix_modules_variant_type_id"), table_name="modules")
-    op.drop_index(op.f("ix_modules_module_type_id"), table_name="modules")
-    op.drop_index(op.f("ix_modules_id"), table_name="modules")
-    op.drop_index(op.f("ix_modules_carbon_report_module_id"), table_name="modules")
-    op.drop_table("modules")
+    op.drop_index(
+        op.f("ix_data_entry_emissions_primary_factor_id"),
+        table_name="data_entry_emissions",
+    )
+    op.drop_index(op.f("ix_data_entry_emissions_id"), table_name="data_entry_emissions")
+    op.drop_index(
+        op.f("ix_data_entry_emissions_emission_type_id"),
+        table_name="data_entry_emissions",
+    )
+    op.drop_index(
+        op.f("ix_data_entry_emissions_data_entry_id"), table_name="data_entry_emissions"
+    )
+    op.drop_index(
+        op.f("ix_data_entry_emissions_computed_at"), table_name="data_entry_emissions"
+    )
+    op.drop_table("data_entry_emissions")
+    op.drop_index(op.f("ix_data_entries_id"), table_name="data_entries")
+    op.drop_index(op.f("ix_data_entries_data_entry_type_id"), table_name="data_entries")
+    op.drop_index(
+        op.f("ix_data_entries_carbon_report_module_id"), table_name="data_entries"
+    )
+    op.drop_table("data_entries")
     op.drop_index(
         op.f("ix_carbon_report_modules_module_type_id"),
         table_name="carbon_report_modules",
@@ -901,6 +1019,11 @@ def downgrade() -> None:
         table_name="professional_travel_emissions",
     )
     op.drop_table("professional_travel_emissions")
+    op.drop_index(op.f("ix_factors_is_conversion"), table_name="factors")
+    op.drop_index(op.f("ix_factors_id"), table_name="factors")
+    op.drop_index(op.f("ix_factors_emission_type_id"), table_name="factors")
+    op.drop_index(op.f("ix_factors_data_entry_type_id"), table_name="factors")
+    op.drop_table("factors")
     op.drop_index(
         op.f("ix_equipment_emissions_power_factor_id"), table_name="equipment_emissions"
     )
@@ -921,10 +1044,6 @@ def downgrade() -> None:
     op.drop_table("equipment_emissions")
     op.drop_index(op.f("ix_carbon_reports_unit_id"), table_name="carbon_reports")
     op.drop_table("carbon_reports")
-    op.drop_index(op.f("ix_variant_types_name"), table_name="variant_types")
-    op.drop_index(op.f("ix_variant_types_module_type_id"), table_name="variant_types")
-    op.drop_index(op.f("ix_variant_types_id"), table_name="variant_types")
-    op.drop_table("variant_types")
     op.drop_index(op.f("ix_units_provider_code"), table_name="units")
     op.drop_index(op.f("ix_units_principal_user_provider_code"), table_name="units")
     op.drop_index(op.f("ix_units_name"), table_name="units")
@@ -964,6 +1083,12 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_equipment_category"), table_name="equipment")
     op.drop_table("equipment")
     op.drop_table("data_ingestion_jobs")
+    op.drop_index(op.f("ix_data_entry_types_name"), table_name="data_entry_types")
+    op.drop_index(
+        op.f("ix_data_entry_types_module_type_id"), table_name="data_entry_types"
+    )
+    op.drop_index(op.f("ix_data_entry_types_id"), table_name="data_entry_types")
+    op.drop_table("data_entry_types")
     op.drop_index(op.f("ix_users_provider_code"), table_name="users")
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_index(op.f("ix_users_email"), table_name="users")
@@ -1015,6 +1140,9 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_headcounts_sciper"), table_name="headcounts")
     op.drop_index(op.f("ix_headcounts_created_by"), table_name="headcounts")
     op.drop_table("headcounts")
+    op.drop_index(op.f("ix_emission_types_id"), table_name="emission_types")
+    op.drop_index(op.f("ix_emission_types_code"), table_name="emission_types")
+    op.drop_table("emission_types")
     op.drop_index(op.f("ix_emission_factors_version"), table_name="emission_factors")
     op.drop_index(op.f("ix_emission_factors_region"), table_name="emission_factors")
     op.drop_index(op.f("ix_emission_factors_id"), table_name="emission_factors")

@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.equipment import Equipment, EquipmentEmission
 from app.repositories import equipment_repo
@@ -188,7 +189,7 @@ class TestGetEquipmentWithEmissions:
     ):
         """Test filtering equipment by submodule."""
         result, total = await equipment_repo.get_equipment_with_emissions(
-            db_session, submodule="scientific", status="In service"
+            db_session, submodule_key=DataEntryTypeEnum.scientific, status="In service"
         )
 
         assert total == 2  # 2 scientific items
@@ -241,7 +242,7 @@ class TestGetEquipmentWithEmissions:
         result, total = await equipment_repo.get_equipment_with_emissions(
             db_session,
             unit_id="TEST-UNIT-1",
-            submodule="scientific",
+            submodule_key=DataEntryTypeEnum.scientific.value,
             status="In service",
         )
 
@@ -290,10 +291,10 @@ class TestGetEquipmentSummaryBySubmodule:
             db_session, status="In service"
         )
 
-        assert "scientific" in summary
-        assert "it" in summary
-        assert summary["scientific"]["total_items"] == 2
-        assert summary["it"]["total_items"] == 1
+        assert DataEntryTypeEnum.scientific.value in summary
+        assert DataEntryTypeEnum.it.value in summary
+        assert summary[DataEntryTypeEnum.scientific.value]["total_items"] == 2
+        assert summary[DataEntryTypeEnum.it.value]["total_items"] == 1
 
     @pytest.mark.asyncio
     async def test_summary_aggregation(
@@ -322,9 +323,11 @@ class TestGetEquipmentSummaryBySubmodule:
             db_session, unit_id="TEST-UNIT-1", status="In service"
         )
 
-        assert "scientific" in summary
-        assert summary["scientific"]["total_items"] == 2
-        assert "it" not in summary  # IT equipment is in different unit
+        assert DataEntryTypeEnum.scientific.value in summary
+        assert summary[DataEntryTypeEnum.scientific.value]["total_items"] == 2
+        assert (
+            DataEntryTypeEnum.it.value not in summary
+        )  # IT equipment is in different unit
 
     @pytest.mark.asyncio
     async def test_summary_filter_by_status(
@@ -335,8 +338,8 @@ class TestGetEquipmentSummaryBySubmodule:
             db_session, status="Decommissioned"
         )
 
-        assert "scientific" in summary
-        assert summary["scientific"]["total_items"] == 1
+        assert DataEntryTypeEnum.scientific.value in summary
+        assert summary[DataEntryTypeEnum.scientific.value]["total_items"] == 1
 
     @pytest.mark.asyncio
     async def test_summary_empty_result(

@@ -11,8 +11,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.location import Location
+from app.models.module_type import ModuleTypeEnum
 from app.models.professional_travel import (
     ProfessionalTravel,
     ProfessionalTravelCreate,
@@ -22,12 +24,13 @@ from app.models.professional_travel import (
 )
 from app.models.user import User, UserProvider
 from app.repositories.professional_travel_repo import ProfessionalTravelRepository
-from app.schemas.equipment import (
+from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
     SubmoduleSummary,
 )
+from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.travel_calculation_service import TravelCalculationService
 
 logger = get_logger(__name__)
@@ -462,12 +465,11 @@ class ProfessionalTravelService:
 
         # Create submodule response
         submodule_response = SubmoduleResponse(
-            id="trips",
+            id=DataEntryTypeEnum.trips.value,
             count=stats["total_items"],
             summary=summary,
             items=item_responses,
             has_more=stats["total_items"] > limit,
-            name="Professional Travel",
         )
 
         # Calculate module totals
@@ -483,16 +485,23 @@ class ProfessionalTravelService:
             ),
             total_annual_consumption_kwh=None,
         )
-
+        # find carbon_report_module_id from year/unit_id mapping:
+        CarbonReportModuleService_instance = CarbonReportModuleService(self.session)
+        carbon_report_module = (
+            await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
+                unit_id=unit_id,
+                year=year,
+                module_type_id=ModuleTypeEnum.professional_travel.value,
+            )
+        )
         # Create module response
         module_response = ModuleResponse(
-            module_type="professional-travel",
-            unit="kg CO2eq",
-            unit_id=unit_id,
-            year=year,
+            carbon_report_module_id=carbon_report_module.id
+            if carbon_report_module
+            else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules={"trips": submodule_response},
+            submodules={DataEntryTypeEnum.trips.value: submodule_response},
             totals=totals,
         )
 
@@ -577,12 +586,11 @@ class ProfessionalTravelService:
 
         # Create submodule response
         submodule_response = SubmoduleResponse(
-            id="trips",
+            id=DataEntryTypeEnum.trips.value,
             count=total_count,
             summary=summary,
             items=item_responses,
             has_more=offset + limit < total_count,
-            name="Professional Travel",
         )
 
         return submodule_response

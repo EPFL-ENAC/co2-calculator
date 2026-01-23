@@ -6,21 +6,15 @@ from sqlmodel import JSON, Column, Field, SQLModel
 
 
 ## Will be renamed to data_entries later
-class ModuleBase(SQLModel):
+class DataEntryBase(SQLModel):
     """Base module model with shared fields."""
 
-    module_type_id: int = Field(
-        foreign_key="module_types.id",
-        nullable=False,
-        index=True,
-        description="Reference to module type classification",
-    )
     # variant is  data_entry_types
-    variant_type_id: Optional[int] = Field(
+    data_entry_type_id: Optional[int] = Field(
         default=None,
-        foreign_key="variant_types.id",
+        foreign_key="data_entry_types.id",
         index=True,
-        description="Reference to variant type within module",
+        description="Reference to data entry type within module",
     )
     carbon_report_module_id: int = Field(
         foreign_key="carbon_report_modules.id",
@@ -35,28 +29,28 @@ class ModuleBase(SQLModel):
     )
 
 
-class Module(ModuleBase, table=True):
+class DataEntry(DataEntryBase, table=True):
     """
     Generic module table for storing data across different module types.
 
     This table provides a flexible storage mechanism where:
     - module_type_id defines the category (headcount, equipment, travel)
-    - variant_type_id defines the subcategory (student, member, etc.)
+    - data_entry_type_id defines the subcategory (student, member, etc.)
     - carbon_report_module_id links to the specific carbon report module instance
     - data stores the actual row data as JSON
 
     Examples:
-    - Headcount student: module_type=1, variant_type=2, data={...}
-    - Equipment scientific: module_type=4, variant_type=9, data={...}
+    - Headcount student: module_type=1, data_entry_type=2, data={...}
+    - Equipment scientific: module_type=4, data_entry_type=9, data={...}
     """
 
-    __tablename__ = "modules"
+    __tablename__ = "data_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return (
-            f"<Module {self.id}: type={self.module_type_id} "
-            f"variant={self.variant_type_id} "
+            f"<DataEntry {self.id}>: "
+            f"data_entry_type={self.data_entry_type_id} "
             f"carbon_report_module={self.carbon_report_module_id}>"
         )

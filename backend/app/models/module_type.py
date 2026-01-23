@@ -41,10 +41,6 @@ class ModuleTypeBase(SQLModel):
         index=True,
         description="Module type name (e.g., 'headcount', 'equipment', 'travel')",
     )
-    description: Optional[str] = Field(
-        default=None,
-        description="Human-readable description of the module type",
-    )
 
 
 class ModuleType(ModuleTypeBase, table=True):
