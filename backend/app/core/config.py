@@ -245,6 +245,10 @@ class Settings(BaseSettings):
         default="http://localhost:9000",
         description="Frontend application URL for OAuth redirects",
     )
+    FORMULA_VERSION_SHA256_SHORT: str = Field(
+        default="",
+        description="SHA256 short hash of formula (e.g., git commit)",
+    )
 
     @computed_field
     def oauth_metadata_url(self) -> str:

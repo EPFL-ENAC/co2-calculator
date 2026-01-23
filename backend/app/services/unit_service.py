@@ -139,6 +139,10 @@ class UnitService:
             for unit, role, principal_user_name, principal_user_function in rows
         ]
 
+    async def get_by_provider_code(self, provider_code: str) -> Optional[Unit]:
+        """Get a unit by its provider code."""
+        return await self.unit_repo.get_by_code(provider_code)
+
     async def get_by_id(self, id: int, user: User) -> Unit:
         """
         Get a unit by ID with authorization.

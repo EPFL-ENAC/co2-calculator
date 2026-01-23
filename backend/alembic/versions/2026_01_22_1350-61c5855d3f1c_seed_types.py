@@ -42,7 +42,7 @@ def upgrade() -> None:
         (5, 'purchase'),
         (6, 'internal-services'),
         (7, 'external-cloud'),
-        (99, 'global')
+        (99, 'global-energy')
         ON CONFLICT (id) DO NOTHING;
     """)
 

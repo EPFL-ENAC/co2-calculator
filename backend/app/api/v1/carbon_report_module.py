@@ -26,6 +26,7 @@ from app.models.professional_travel import (
 )
 from app.models.user import User
 from app.schemas.carbon_report_response import ModuleResponse, SubmoduleResponse
+from app.schemas.data_entry import DataEntryCreate, DataEntryResponse
 from app.schemas.equipment import (
     EquipmentCreateRequest,
     EquipmentDetailResponse,
@@ -205,16 +206,6 @@ async def get_submodule(
     # Fetch submodule data from database
     submodule_data = None
     if module_id == "equipment-electric-consumption":
-        # submodule_data = await equipment_service.get_submodule_data(
-        #     session=db,
-        #     unit_id=unit_id,
-        #     submodule_key=submodule_id,
-        #     limit=limit,
-        #     offset=offset,
-        #     sort_by=sort_by,
-        #     sort_order=sort_order,
-        #     filter=filter,
-        # )
         submodule_key = submodule_id.replace("-", "_")
         data_entry_type_id = DataEntryTypeEnum[submodule_key].value
         submodule_data = await DataEntryService(db).get_submodule_data(
@@ -301,6 +292,17 @@ async def create(
     """
     await _check_module_permission(current_user, module_id, "edit")
 
+    module_key = module_id.replace("-", "_")
+    module_type_id = ModuleTypeEnum[module_key].value
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=module_type_id,
+        db=db,
+    )
+
     logger.info(
         f"POST item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
@@ -309,27 +311,34 @@ async def create(
         EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
+        DataEntryResponse,
     ]
     # Validate unit_id matches the one in request body
     if module_id == "equipment-electric-consumption":
-        # Parse as EquipmentCreateRequest
         try:
-            parsed_data = EquipmentCreateRequest(**item_data)
+            parsed_record = EquipmentCreateRequest(**item_data)
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid item_data for equipment creation: {str(e)}",
+                detail=f"Invalid item_data for creation: {str(e)}",
             )
         if current_user.id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to delete item",
             )
-        item = await equipment_service.create_equipment(
-            session=db,
-            equipment_data=parsed_data,
-            user_id=current_user.id,
+        item = await DataEntryService(db).create(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            user=current_user,
+            data=DataEntryCreate(**parsed_record.dict()),
         )
+        if item is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create headcount item",
+            )
+        item = DataEntryResponse.model_validate(item)
     elif module_id == "my-lab":
         # Parse as HeadCountCreateRequest
         try:
