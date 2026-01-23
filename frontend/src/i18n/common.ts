@@ -193,8 +193,8 @@ export default {
     fr: 'Documentation',
   },
   documentation_backoffice_button_label: {
-    en: 'Guidance',
-    fr: 'Guide',
+    en: 'Back-office Guidance',
+    fr: 'Back-office Guide',
   },
   documentation_dev_button_label: {
     en: 'Developer Documentation',
