@@ -24,7 +24,6 @@ from app.schemas.equipment import (
     EquipmentItemResponse,
     EquipmentUpdateRequest,
 )
-from app.services.calculation_service import calculate_equipment_emission_versioned
 from app.services.carbon_report_module_service import CarbonReportModuleService
 
 logger = get_logger(__name__)
@@ -517,19 +516,17 @@ async def create_equipment(
                     "not found for emission calculation"
                 ),
             )
-        calc_payload = calculate_equipment_emission_versioned(
-            {
-                "act_usage": equipment.active_usage_pct or 0,
-                "pas_usage": equipment.passive_usage_pct or 0,
-                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
-                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
-                "status": equipment.status,
-            },
-            emission_factor=ef_value,
-            emission_factor_id=ef_id,
-            power_factor_id=equipment.power_factor_id,
-        )
-        await equipment_repo.insert_emission(session, equipment.id, calc_payload)
+        # TODO: move to data_entry create/update
+        # calc_payload = calculate_equipment_emission(
+        #     {
+        #         "act_usage": equipment.active_usage_pct or 0,
+        #         "pas_usage": equipment.passive_usage_pct or 0,
+        #     },
+        #     emission_electric_factor=ef_value,
+        #     active_power_w=power_factor.active_power_w,
+        #     standby_power_w=power_factor.standby_power_w,
+        # )
+        # await equipment_repo.insert_emission(session, equipment.id, calc_payload)
 
     return EquipmentDetailResponse.model_validate(response_data)
 
@@ -672,23 +669,24 @@ async def update_equipment(
                     "not found for emission calculation"
                 ),
             )
-        calc_payload = calculate_equipment_emission_versioned(
-            {
-                "act_usage": updated_equipment.active_usage_pct or 0,
-                "pas_usage": updated_equipment.passive_usage_pct or 0,
-                "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
-                "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
-                "status": updated_equipment.status,
-            },
-            emission_factor=ef_value,
-            emission_factor_id=ef_id,
-            power_factor_id=updated_equipment.power_factor_id,
-        )
-        await equipment_repo.insert_emission(
-            session,
-            updated_equipment.id,
-            calc_payload,
-        )
+        # TODO: move to data_entry update
+        # calc_payload = calculate_equipment_emission(
+        #     {
+        #         "act_usage": updated_equipment.active_usage_pct or 0,
+        #         "pas_usage": updated_equipment.passive_usage_pct or 0,
+        #         "active_power_w": getattr(power_factor, "active_power_w", 0) or 0,
+        #         "standby_power_w": getattr(power_factor, "standby_power_w", 0) or 0,
+        #         "status": updated_equipment.status,
+        #     },
+        #     emission_factor=ef_value,
+        #     emission_factor_id=ef_id,
+        #     power_factor_id=updated_equipment.power_factor_id,
+        # )
+        # await equipment_repo.insert_emission(
+        #     session,
+        #     updated_equipment.id,
+        #     calc_payload,
+        # )
 
     return EquipmentDetailResponse.model_validate(response_data)
 

@@ -24,6 +24,7 @@ from app.db import SessionLocal
 # from app.models.equipment import Equipment, EquipmentEmission
 from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -463,9 +464,9 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 )
                 continue
             if pf:
-                active_power_w = pf.values.get("active_power_w")
-                standby_power_w = pf.values.get("standby_power_w")
                 power_factor_id = pf.id
+                active_power_w = pf.values.get("active_power_w", 0) or 0
+                standby_power_w = pf.values.get("standby_power_w", 0) or 0
             else:
                 logger.warning(f"not found for equipment {equipment.id}")
                 continue
@@ -479,10 +480,8 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
         # Prepare equipment data for calculation
         equipment_data = {
-            "act_usage_pct": equipment.data.get("active_usage_hours") or 0,
-            "pas_usage_pct": equipment.data.get("passive_usage_hours") or 0,
-            "act_power_w": active_power_w,
-            "pas_power_w": standby_power_w,
+            "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
+            "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
         }
 
         if (emission_factor.values is None) or (emission_factor.id is None):
@@ -494,12 +493,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         if mix_energy is None:
             raise ValueError("Emission factor missing 'kgco2eq_per_kwh' value")
         # Calculate emissions using the versioned calculation service
-        emission_result = calculation_service.calculate_equipment_emission_versioned(
+        emission_result = calculation_service.calculate_equipment_emission(
             equipment_data=equipment_data,
-            emission_factor=mix_energy,
-            emission_factor_id=emission_factor.id,
-            power_factor_id=power_factor_id,
-            formula_version="v1_linear",
+            emission_electric_factor=mix_energy,
+            active_power_w=active_power_w,
+            standby_power_w=standby_power_w,
         )
 
         # Create EquipmentEmission record
@@ -510,18 +508,18 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             data_entry_id=equipment.id,
             emission_type_id=EmissionTypeEnum.equipment,
             primary_factor_id=power_factor_id,
-            subcategory=equipment.data.get(
-                "submodule"
-            ),  # TODO: should be an enum somwhere
+            subcategory=DataEntryTypeEnum(
+                equipment.data_entry_type_id
+            ).name.title(),  # TODO: should be an enum somwhere
             kg_co2eq=emission_result["kg_co2eq"],
             meta={
                 "annual_kwh": emission_result["annual_kwh"],
-                "calculation_inputs": emission_result["calculation_inputs"],
-                "emission_factor_id": emission_result["emission_factor_id"],
-                "power_factor_id": emission_result["power_factor_id"],
-                "formula_version": emission_result["formula_version"],
+                "calculation_inputs": equipment.data,
+                "emission_factor_id": emission_factor.id,
+                # "power_factor_id": emission_result["power_factor_id"],
+                # "formula_version": emission_result["formula_version"],
             },
-            formula_version=emission_result["formula_version"],
+            formula_version=versionapi,
             computed_at=datetime.now(timezone.utc),
         )
         emissions_list.append(equipment_emission)
