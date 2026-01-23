@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.models.headcount import HeadcountItemResponse
 from app.models.professional_travel import ProfessionalTravelItemResponse
+from app.schemas.data_entry import DataEntryResponse
 from app.schemas.equipment import EquipmentItemResponse
 
 
@@ -31,7 +32,10 @@ class SubmoduleResponse(BaseModel):
     id: int = Field(..., description="Submodule identifier")
     count: int = Field(..., description="Total number of items")
     items: Sequence[
-        EquipmentItemResponse | HeadcountItemResponse | ProfessionalTravelItemResponse
+        EquipmentItemResponse
+        | HeadcountItemResponse
+        | ProfessionalTravelItemResponse
+        | DataEntryResponse
     ] = Field(..., description="Module items (equipment, headcount, or travel)")
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
