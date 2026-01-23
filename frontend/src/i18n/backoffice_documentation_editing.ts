@@ -1,7 +1,7 @@
 export default {
   documentation_editing_translation_title: {
-    en: 'Translation',
-    fr: 'Traduction',
+    en: 'Translations',
+    fr: 'Traductions',
   },
   documentation_editing_translation_description: {
     en: 'Link to the translation files in the repository of the CO₂ calculator application. Make your changes directly on GitHub and ask for a Pull Request. For more information see the backoffice documentation section; Changing translation.',
