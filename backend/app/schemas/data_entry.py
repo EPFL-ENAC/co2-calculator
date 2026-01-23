@@ -54,9 +54,11 @@ class EquipmentFlattenerResponse(DataEntryResponseGen):
     passive_usage_hours: int
     name: str
     power_factor_id: int
-    emission: float
+    kg_co2eq: float
     active_power_w: int
     standby_power_w: int
+    equipment_class: Optional[str]
+    sub_class: Optional[str]
 
 
 # ----------- Flatteners --------------------------------- #
@@ -88,6 +90,8 @@ class EquipmentFlattener:
                 **data_entry.data,
                 "active_power_w": data_entry.data["primary_factor"]["active_power_w"],
                 "standby_power_w": data_entry.data["primary_factor"]["standby_power_w"],
+                "equipment_class": data_entry.data["primary_factor"].get("class"),
+                "sub_class": data_entry.data["primary_factor"].get("sub_class"),
             }
         )
 

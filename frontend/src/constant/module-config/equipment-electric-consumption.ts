@@ -33,7 +33,7 @@ const emissionTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.emissi
 
 const baseModuleFields: ModuleField[] = [
   {
-    id: 'data.name',
+    id: 'name',
     label: 'Equipment Name',
     labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.name`,
     type: 'text',
@@ -73,7 +73,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_category',
   },
   {
-    id: 'act_usage',
+    id: 'active_usage_hours',
     label: 'Active usage',
     type: 'number',
     required: true,
@@ -87,7 +87,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_donut_large',
   },
   {
-    id: 'pas_usage',
+    id: 'passive_usage_hours',
     label: 'Standby usage',
     type: 'number',
     required: true,

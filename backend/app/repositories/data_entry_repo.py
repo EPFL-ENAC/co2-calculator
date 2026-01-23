@@ -3,14 +3,15 @@
 from typing import Dict, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import Float, Select, cast, func
+from sqlalchemy import Float, Select, asc, cast, desc, func
+from sqlalchemy.sql import ColumnElement
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import DataEntryEmission
-from app.models.data_entry_type import DataEntryType, DataEntryTypeEnum
+from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -173,6 +174,54 @@ class DataEntryRepository:
 
         return aggregation
 
+    equipment_map = {
+        "id": DataEntry.id,
+        "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
+        "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
+        "name": DataEntry.data["name"].as_string(),
+        "active_power_w": Factor.values["active_power_w"].as_float(),
+        "standby_power_w": Factor.values["standby_power_w"].as_float(),
+        "equipment_class": Factor.classification["class"].as_string(),
+        "sub_class": Factor.classification["sub_class"].as_string(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+    SORT_MAPS: dict[DataEntryTypeEnum, dict[str, ColumnElement]] = {
+        DataEntryTypeEnum.it: equipment_map,
+        DataEntryTypeEnum.scientific: equipment_map,
+        DataEntryTypeEnum.other: equipment_map,
+    }
+
+    def _apply_name_filter(self, statement, filter: Optional[str]):
+        """
+        Applies a name filter to the given SQLAlchemy statement if
+        a valid filter is provided.
+        """
+        filter_pattern = ""
+        if filter:
+            filter = filter.strip()
+            # max filter for security
+            if len(filter) > 100:
+                filter = filter[:100]
+            # check for empty or only-wildcard filters and handle accordingly.
+            if filter == "" or filter == "%" or filter == "*":
+                filter = None
+
+        if filter:
+            filter_pattern = f"%{filter}%"
+            statement = statement.where(
+                (col(DataEntry.data["name"]).ilike(filter_pattern))
+            )
+        return statement, filter_pattern
+
+    def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
+        sort_expr = sort_map.get(sort_by)
+        if sort_expr is None:
+            raise ValueError(f"Cannot sort by unknown field: {sort_by}")
+        if sort_order.lower() == "asc":
+            return statement.order_by(asc(sort_expr))
+        else:
+            return statement.order_by(desc(sort_expr))
+
     async def get_submodule_data(
         self,
         carbon_report_module_id: int,
@@ -193,25 +242,11 @@ class DataEntryRepository:
             )
         )
 
-        filter_pattern = ""
-        if filter:
-            filter = filter.strip()
-            # max filter for security
-            if len(filter) > 100:
-                filter = filter[:100]
-            # check for empty or only-wildcard filters and handle accordingly.
-            if filter == "" or filter == "%" or filter == "*":
-                filter = None
+        statement, filter_pattern = self._apply_name_filter(statement, filter)
 
-        if filter:
-            filter_pattern = f"%{filter}%"
-            statement = statement.where(
-                (col(DataEntry.data["name"]).ilike(filter_pattern))
-            )
-        if sort_order.lower() == "asc":
-            statement = statement.order_by(getattr(DataEntry, sort_by).asc())
-        else:
-            statement = statement.order_by(getattr(DataEntry, sort_by).desc())
+        sort_map = self.SORT_MAPS[DataEntryTypeEnum(data_entry_type_id)]
+        statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
+
         statement = statement.offset(offset).limit(limit)
         result = await self.session.execute(statement)
 
@@ -220,7 +255,7 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
-        if filter and filter_pattern != "":
+        if filter_pattern != "":
             count_stmt = count_stmt.where(
                 (col(DataEntry.data["name"]).ilike(filter_pattern))
             )
@@ -234,8 +269,13 @@ class DataEntryRepository:
             flattener = FLATTENERS[DataEntryTypeEnum(data_entry.data_entry_type_id)]
             data_entry.data = {
                 **data_entry.data,
-                "emission": data_entry_emission.kg_co2eq,
-                "primary_factor": primary_factor.values if primary_factor else None,
+                "kg_co2eq": data_entry_emission.kg_co2eq,
+                "primary_factor": {
+                    **primary_factor.values,
+                    **primary_factor.classification,
+                }
+                if primary_factor
+                else None,
             }
             items.append(flattener(data_entry))
 
