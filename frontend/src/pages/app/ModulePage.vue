@@ -11,15 +11,7 @@
       />
       <!-- module summary -->
       <module-total-result
-        v-if="
-          (
-            [
-              MODULES.EquipmentElectricConsumption,
-              MODULES.MyLab,
-              MODULES.ProfessionalTravel,
-            ] as Module[]
-          ).includes(currentModuleType)
-        "
+        v-if="!forbiddenModules.includes(currentModuleType)"
         :data="totalResult"
         :type="currentModuleType"
         :module-config="currentModuleConfig"
@@ -34,15 +26,7 @@
       </q-card>
       <!-- module tables iteration -->
       <module-table-section
-        v-if="
-          (
-            [
-              MODULES.EquipmentElectricConsumption,
-              MODULES.MyLab,
-              MODULES.ProfessionalTravel,
-            ] as Module[]
-          ).includes(currentModuleType)
-        "
+        v-if="!forbiddenModules.includes(currentModuleType)"
         :type="currentModuleType"
         :data="data"
         :loading="loading"
@@ -85,6 +69,12 @@ const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
+const forbiddenModules: Module[] = [
+  MODULES.Infrastructure,
+  MODULES.InternalServices,
+  MODULES.Purchase,
+];
+
 // COMPUTED
 const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
@@ -96,19 +86,13 @@ const totalResult = computed(() => {
   return moduleStore.state.data?.totals?.total_tonnes_co2eq;
 });
 
-const AuthorizedModules: Module[] = [
-  MODULES.EquipmentElectricConsumption,
-  MODULES.MyLab,
-  MODULES.ProfessionalTravel,
-];
-
 // ACTIONS
 // get data on mount and when route params change
 const getData = () => {
   if (!currentModuleType.value) return;
   if (
     currentModuleType.value &&
-    !AuthorizedModules.includes(currentModuleType.value)
+    forbiddenModules.includes(currentModuleType.value)
   ) {
     console.warn(
       `ModulePage: No data fetching implemented for module type ${currentModuleType.value}`,

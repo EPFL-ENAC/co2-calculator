@@ -47,7 +47,7 @@ export type PermissionPath =
   | 'modules.infrastructure'
   | 'modules.purchase'
   | 'modules.internal_services'
-  | 'modules.external_cloud'
+  | 'modules.external_cloud_and_ai'
   | 'system.users';
 
 /**

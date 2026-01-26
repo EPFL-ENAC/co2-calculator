@@ -32,22 +32,44 @@ const cloudFields: ModuleField[] = [
   },
 ];
 
-export const externalCloud: ModuleConfig = {
+const externalAIFields: ModuleField[] = [
+  {
+    id: 'ai_model',
+    label: 'AI Model',
+    type: 'text',
+    required: true,
+    hideIn: { table: true },
+  },
+  {
+    id: 'name',
+    label: 'Usage Name',
+    type: 'text',
+    required: true,
+    hideIn: { table: true },
+  }
+]
+
+export const externalCloudAndAi: ModuleConfig = {
   id: 'module_external_cloud_001',
-  type: 'external-cloud',
-  name: 'External Cloud',
+  type: 'external-cloud-and-ai',
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
-  description: 'Track external cloud services usage',
+  description: 'Track external cloud services and AI usage',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
   submodules: [
     {
-      id: 'sub_cloud_services',
-      type: SUBMODULE_EXTERNAL_CLOUD_TYPES.IaaS as ExternalCloudSubType,
-      name: 'Cloud Services',
+      id: 'external_clouds',
+      type: SUBMODULE_EXTERNAL_CLOUD_TYPES.external_cloud as ExternalCloudSubType,
+      tableNameKey: 'external-cloud-and-ai-cloud-services-table-title',
       moduleFields: cloudFields,
     },
+    {
+      id: 'external_ai',
+      type: SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai as ExternalCloudSubType,
+      tableNameKey: 'external-cloud-and-ai-ai-services-table-title',
+      moduleFields: externalAIFields,
+    }
   ],
 };
