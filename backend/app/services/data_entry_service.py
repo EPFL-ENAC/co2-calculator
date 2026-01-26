@@ -69,6 +69,17 @@ class DataEntryService:
 
         return DataEntryResponse.model_validate(created_entry)
 
+    async def bulk_create(
+        self, data_entries: list[DataEntry]
+    ) -> list[DataEntryResponse]:
+        """Bulk create data entries."""
+        logger.info(f"Bulk creating {len(data_entries)} data entries")
+        db_objs = await self.repo.bulk_create(data_entries)
+        await self.session.commit()
+        for obj in db_objs:
+            await self.session.refresh(obj)
+        return [DataEntryResponse.model_validate(obj) for obj in db_objs]
+
     async def update(
         self,
         id: int,

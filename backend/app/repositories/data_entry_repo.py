@@ -46,6 +46,12 @@ class DataEntryRepository:
         self.session.add(db_obj)
         return db_obj
 
+    async def bulk_create(self, data_entries: list[DataEntry]) -> list[DataEntry]:
+        """Bulk create data entries."""
+        db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
+        self.session.add_all(db_objs)
+        return db_objs
+
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> Optional[DataEntry]:
