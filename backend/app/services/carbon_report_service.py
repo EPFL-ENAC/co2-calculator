@@ -4,11 +4,13 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport
 from app.repositories.carbon_report_repo import CarbonReportRepository
-from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
+from app.schemas.carbon_report import (
+    CarbonReportCreate,
+    CarbonReportRead,
+    CarbonReportUpdate,
+)
 from app.services.carbon_report_module_service import CarbonReportModuleService
 
 logger = get_logger(__name__)
@@ -22,44 +24,48 @@ class CarbonReportService:
         self.repo = CarbonReportRepository(session)
         self.module_service = CarbonReportModuleService(session)
 
-    async def create(self, data: CarbonReportCreate) -> CarbonReport:
+    async def create(self, data: CarbonReportCreate) -> CarbonReportRead:
         """
         Create a new carbon report and auto-create all module records.
 
         After creating the report, this automatically creates one
         CarbonReportModule per module type (7 total) with status NOT_STARTED.
         """
-        report = await self.repo.create(data)
-        logger.info(
-            f"Created carbon report {sanitize(report.id)} for unit "
-            f"{sanitize(data.unit_id)} year {sanitize(data.year)}"
-        )
+        carbon_report = await self.repo.create(data)
+        carbon_report_read = CarbonReportRead.model_validate(carbon_report)
+        await self.module_service.create_all_modules_for_report(carbon_report_read.id)
 
-        # Auto-create all carbon report modules with default status
-        assert report.id is not None
-        await self.module_service.create_all_modules_for_report(report.id)
+        return carbon_report_read
 
-        return report
-
-    async def get(self, carbon_report_id: int) -> Optional[CarbonReport]:
+    async def get(self, carbon_report_id: int) -> Optional[CarbonReportRead]:
         """Get a carbon report by ID."""
-        return await self.repo.get(carbon_report_id)
+        carbon_report = await self.repo.get(carbon_report_id)
+        if carbon_report is None:
+            return None
+        return CarbonReportRead.model_validate(carbon_report)
 
-    async def list_by_unit(self, unit_id: int) -> List[CarbonReport]:
+    async def list_by_unit(self, unit_id: int) -> List[CarbonReportRead]:
         """List all carbon reports for a unit."""
-        return await self.repo.list_by_unit(unit_id)
+        carbon_reports = await self.repo.list_by_unit(unit_id)
+        return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
 
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
-    ) -> Optional[CarbonReport]:
+    ) -> Optional[CarbonReportRead]:
         """Get a carbon report by unit and year."""
-        return await self.repo.get_by_unit_and_year(unit_id, year)
+        carbon_report = await self.repo.get_by_unit_and_year(unit_id, year)
+        if carbon_report is None:
+            return None
+        return CarbonReportRead.model_validate(carbon_report)
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate
-    ) -> Optional[CarbonReport]:
+    ) -> Optional[CarbonReportRead]:
         """Update a carbon report."""
-        return await self.repo.update(carbon_report_id, data)
+        carbon_report = await self.repo.update(carbon_report_id, data)
+        if carbon_report is None:
+            return None
+        return CarbonReportRead.model_validate(carbon_report)
 
     async def delete(self, carbon_report_id: int) -> bool:
         """

@@ -172,7 +172,7 @@ class HeadcountService:
             total_count = submodule_summary_data["total_items"]
 
             # Create submodule response
-            submodule_response = SubmoduleResponse(
+            submodule_response: SubmoduleResponse = SubmoduleResponse(
                 id=submodule_key,
                 count=total_count,
                 summary=summary,
@@ -214,7 +214,7 @@ class HeadcountService:
             await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
                 unit_id=unit_id,
                 year=year,
-                module_type_id=ModuleTypeEnum.headcount.value,
+                module_type_id=ModuleTypeEnum.headcount,
             )
         )
         # Create module response
@@ -224,7 +224,6 @@ class HeadcountService:
             else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules=submodules,
             data_entry_types_total_items={k: 0 for k in submodules.keys()},
             totals=totals,
         )

@@ -169,7 +169,7 @@ class DataEntryRepository:
                 func.count().label("total_count"),
             )
             .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
-            .group_by(DataEntry.data_entry_type_id)
+            .group_by(col(DataEntry.data_entry_type_id))
         )
         result = await self.session.execute(query)
         rows = list(result.all())
@@ -245,8 +245,15 @@ class DataEntryRepository:
     ) -> SubmoduleResponse:
         statement = (
             select(DataEntry, DataEntryEmission, Factor)
-            .join(DataEntryEmission, DataEntry.id == DataEntryEmission.data_entry_id)
-            .outerjoin(Factor, DataEntryEmission.primary_factor_id == Factor.id)
+            .join(
+                DataEntryEmission,
+                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+            )
+            .join(
+                Factor,
+                col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                isouter=True,
+            )
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
                 DataEntry.data_entry_type_id == data_entry_type_id,

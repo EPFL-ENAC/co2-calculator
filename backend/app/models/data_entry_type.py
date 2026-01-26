@@ -45,7 +45,7 @@ class DataEntryType(DataEntryTypeBase, table=True):
 
     __tablename__ = "data_entry_types"
 
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    id: Optional[DataEntryTypeEnum] = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return f"""<DataEntryType {self.id}: {self.name}

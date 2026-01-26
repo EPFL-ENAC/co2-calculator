@@ -453,25 +453,6 @@ class ProfessionalTravelService:
             )
             item_responses.append(item_response)
 
-        # Create submodule summary
-        # (professional travel has no submodules, use single 'trips' key
-        # to match frontend)
-        summary = SubmoduleSummary(
-            total_items=stats["total_items"],
-            annual_fte=None,
-            annual_consumption_kwh=None,
-            total_kg_co2eq=stats["total_kg_co2eq"],
-        )
-
-        # Create submodule response
-        submodule_response = SubmoduleResponse(
-            id=DataEntryTypeEnum.trips.value,
-            count=stats["total_items"],
-            summary=summary,
-            items=item_responses,
-            has_more=stats["total_items"] > limit,
-        )
-
         # Calculate module totals
         totals = ModuleTotals(
             # total_submodules=1,
@@ -491,7 +472,7 @@ class ProfessionalTravelService:
             await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
                 unit_id=unit_id,
                 year=year,
-                module_type_id=ModuleTypeEnum.professional_travel.value,
+                module_type_id=ModuleTypeEnum.professional_travel,
             )
         )
         # Create module response
@@ -501,7 +482,6 @@ class ProfessionalTravelService:
             else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules={DataEntryTypeEnum.trips.value: submodule_response},
             data_entry_types_total_items={
                 DataEntryTypeEnum.trips.value: stats["total_items"]
             },

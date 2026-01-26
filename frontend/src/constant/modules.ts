@@ -39,7 +39,6 @@ export const enumSubmodule = {
 
 export type EnumSubmoduleType = keyof typeof enumSubmodule;
 
-
 export type EquipmentElectricConsumptionSubType =
   (typeof SUBMODULE_EQUIPMENT_TYPES)[keyof typeof SUBMODULE_EQUIPMENT_TYPES];
 

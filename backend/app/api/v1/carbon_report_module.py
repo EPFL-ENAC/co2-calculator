@@ -33,7 +33,6 @@ from app.schemas.data_entry import (
     unflatten_data_entry_payload,
 )
 from app.schemas.equipment import (
-    EquipmentCreateRequest,
     EquipmentDetailResponse,
 )
 from app.services import equipment_service
@@ -51,7 +50,7 @@ async def get_carbon_report_id(
     year: int,
     module_type_id: ModuleTypeEnum,
     db: AsyncSession,
-) -> Optional[int]:
+) -> int:
     """Helper to get carbon report module ID from unit and year."""
     # TODO: PLACEHOLDER UNTIL INTEGRATION WITH CARBON REPORT MODULE ID in frontend
     # find carbon_report_module_id from year/unit_id mapping:
@@ -60,16 +59,15 @@ async def get_carbon_report_id(
         await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
             unit_id=unit_id,
             year=year,
-            module_type_id=ModuleTypeEnum(module_type_id).value,
+            module_type_id=ModuleTypeEnum(module_type_id),
         )
     )
-    if not carbon_report_module:
+    if carbon_report_module is None or carbon_report_module.id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
-    carbon_report_module_id = carbon_report_module.id
-    return carbon_report_module_id
+    return carbon_report_module.id
 
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
@@ -112,10 +110,15 @@ async def get_module(
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
-        module_type_id=ModuleTypeEnum[module_key].value,
+        module_type_id=ModuleTypeEnum[module_key],
         db=db,
     )
 
+    if carbon_report_module_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Carbon report module ID could not be determined",
+        )
     if module_id == "equipment-electric-consumption":
         module_data = await DataEntryService(db).get_module_data(
             carbon_report_module_id=carbon_report_module_id,
@@ -200,7 +203,7 @@ async def get_submodule(
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
-        module_type_id=ModuleTypeEnum[module_key].value,
+        module_type_id=ModuleTypeEnum[module_key],
         db=db,
     )
 
@@ -212,6 +215,11 @@ async def get_submodule(
     if module_id == "equipment-electric-consumption":
         submodule_key = submodule_id.replace("-", "_")
         data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+        if carbon_report_module_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Carbon report module ID could not be determined",
+            )
         submodule_data = await DataEntryService(db).get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
@@ -304,7 +312,7 @@ async def create(
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
-        module_type_id=module_type_id,
+        module_type_id=ModuleTypeEnum(module_type_id),
         db=db,
     )
 
@@ -332,6 +340,11 @@ async def create(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to delete item",
+            )
+        if carbon_report_module_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Carbon report module ID could not be determined",
             )
         item = await DataEntryService(db).create(
             carbon_report_module_id=carbon_report_module_id,

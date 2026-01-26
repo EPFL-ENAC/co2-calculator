@@ -44,11 +44,9 @@ class DataEntryService:
     async def create(
         self,
         carbon_report_module_id: int,
-        data_entry_type_id: str,
+        data_entry_type_id: int,
         user: User,
         data: DataEntryCreate,
-        # provider_source: str,
-        # user_id: str,
     ) -> DataEntry:
         """Create a new record."""
         # check if user.permissions allow creation

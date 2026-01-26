@@ -82,9 +82,11 @@ async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int
                 f"{unit_provider_code} year {year} "
                 f"and module type {current_module_type_id}"
             )
+        if carbon_report_module.id is None:
+            raise ValueError(
+                f"Carbon report module ID is None for unit {unit_provider_code}"
+            )
         return carbon_report_module.id
-
-    return f"{unit_provider_code}:{year}"
 
 
 def parse_date(date_str: str) -> Optional[datetime]:
@@ -107,7 +109,7 @@ async def load_power_factors_map(session: AsyncSession) -> Dict[str, Factor]:
     logger.info("Loading power factors from database...")
 
     result = await session.exec(select(Factor).where(Factor.emission_type_id == 2))
-    power_factors_list: List[Factor] = result.all()
+    power_factors_list: List[Factor] = list(result.all())
 
     # Create lookup dictionary with multiple key strategies
     power_factors_map = {}
@@ -461,7 +463,8 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             if not isinstance(pf, Factor):
                 logger.error(
                     f"Invalid power factor record for ID "
-                    f"{equipment.power_factor_id} on equipment {equipment.id}"
+                    f"""{equipment.data.get("power_factor_id")}
+                        on equipment {equipment.id}"""
                 )
                 continue
             if pf:
@@ -469,12 +472,14 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 active_power_w = pf.values.get("active_power_w", 0) or 0
                 standby_power_w = pf.values.get("standby_power_w", 0) or 0
             else:
-                logger.warning(f"not found for equipment {equipment.id}")
+                logger.warning(f"""not found for equipment {equipment.id}
+                                ({equipment.data.get("name", "unknown")})""")
                 continue
         else:
             # No power factor assigned - likely requires sub-class selection
             logger.info(
-                f"Skipping emissions for data entry {equipment.id} ({equipment.name}): "
+                f"""Skipping emissions for data entry {equipment.id}
+                ({equipment.data.get("name", "unknown")}): """
                 f"require sub-class selection."
             )
             continue
@@ -504,6 +509,9 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         # Create EquipmentEmission record
         assert equipment.id is not None, (
             "Equipment must be saved before creating emission"
+        )
+        assert equipment.data_entry_type_id is not None, (
+            "Equipment must have data_entry_type_id"
         )
         equipment_emission = DataEntryEmission(
             data_entry_id=equipment.id,

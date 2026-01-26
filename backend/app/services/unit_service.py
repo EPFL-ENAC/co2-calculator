@@ -15,6 +15,7 @@ from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import User
 from app.repositories.unit_repo import UnitRepository
+from app.schemas.unit import UnitRead
 
 logger = get_logger(__name__)
 
@@ -139,9 +140,12 @@ class UnitService:
             for unit, role, principal_user_name, principal_user_function in rows
         ]
 
-    async def get_by_provider_code(self, provider_code: str) -> Optional[Unit]:
+    async def get_by_provider_code(self, provider_code: str) -> Optional[UnitRead]:
         """Get a unit by its provider code."""
-        return await self.unit_repo.get_by_code(provider_code)
+        unit = await self.unit_repo.get_by_code(provider_code)
+        if unit is None:
+            return None
+        return UnitRead.model_validate(unit)
 
     async def get_by_id(self, id: int, user: User) -> Unit:
         """

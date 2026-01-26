@@ -11,6 +11,8 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class Flattener(Protocol[T]):
+    def is_for(self, data_entry: T) -> bool: ...
+
     dto: type[T]
 
     def __call__(self, data_entry) -> T: ...
@@ -29,8 +31,8 @@ class DataEntryUpdate(DataEntryBase):
     """Schema for updating a DataEntry item."""
 
     data_entry_type_id: Optional[int] = None
-    carbon_report_module_id: Optional[int] = None
-    data: Optional[dict[str, Any]] = None
+    carbon_report_module_id: int
+    data: dict[Any, Any]
 
 
 # ============ DTO OUTPUT ================================= #
@@ -40,7 +42,7 @@ class DataEntryResponse(DataEntryBase):
     id: int
     data_entry_type_id: Optional[int]
     carbon_report_module_id: int
-    data: dict
+    data: dict[Any, Any]
 
 
 class DataEntryResponseGen(DataEntryBase):
@@ -96,6 +98,14 @@ def register_flattener(key: DataEntryTypeEnum):
 class EquipmentFlattener:
     dto = EquipmentFlattenerResponse
 
+    def is_for(self, data_entry) -> bool:
+        return data_entry.data_entry_type_id in {
+            DataEntryTypeEnum.it,
+            DataEntryTypeEnum.scientific,
+            DataEntryTypeEnum.other,
+        }
+
+    # rename to process or transform? we don't know what __call__ does
     def __call__(self, data_entry) -> EquipmentFlattenerResponse:
         return self.dto.model_validate(
             {
@@ -109,6 +119,3 @@ class EquipmentFlattener:
                 "sub_class": data_entry.data["primary_factor"].get("sub_class"),
             }
         )
-
-
-print(FLATTENERS)
