@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
 

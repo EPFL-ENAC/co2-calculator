@@ -23,7 +23,6 @@ class FactorBase(SQLModel):
     )
     data_entry_type_id: Optional[int] = Field(
         default=None,
-        foreign_key="data_entry_types.id",
         index=True,
         description="""Scope to specific data entry type (e.g., scientific, student)""",
     )

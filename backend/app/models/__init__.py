@@ -5,7 +5,6 @@ from sqlmodel import Relationship
 from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
-from .data_entry_type import DataEntryType
 from .data_ingestion import DataIngestionJob
 from .emission_type import EmissionType
 from .factor import Factor
@@ -62,11 +61,9 @@ DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
 
 # ModuleType <-> VariantType relationships
 ModuleType.variant_types = Relationship(back_populates="module_type")
-DataEntryType.module_type = Relationship(back_populates="variant_types")
 
 # Module <-> ModuleType/VariantType relationships
 DataEntry.module_type = Relationship()
-DataEntry.data_entry_type = Relationship()
 
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed
@@ -102,7 +99,6 @@ __all__ = [
     "ProfessionalTravelRead",
     "ProfessionalTravelUpdate",
     "DataEntry",
-    "DataEntryType",
     "DataEntryEmission",
     "PlaneImpactFactor",
     "PlaneImpactFactorBase",

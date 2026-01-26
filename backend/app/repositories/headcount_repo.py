@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary

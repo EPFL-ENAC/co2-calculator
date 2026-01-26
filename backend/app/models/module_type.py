@@ -29,7 +29,7 @@ class ModuleTypeEnum(int, Enum):
     equipment_electric_consumption = 4
     purchase = 5
     internal_services = 6
-    external_cloud = 7
+    external_cloud_and_ai = 7
     global_energy = 99
 
 

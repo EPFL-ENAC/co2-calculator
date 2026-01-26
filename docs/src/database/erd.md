@@ -16,7 +16,7 @@ erDiagram
   data_entries {
     INTEGER carbon_report_module_id FK
     JSON data
-    INTEGER data_entry_type_id FK
+    INTEGER data_entry_type_id "indexed"
     INTEGER id PK
   }
   data_entry_emissions {
@@ -29,11 +29,6 @@ erDiagram
     JSON meta
     INTEGER primary_factor_id FK
     VARCHAR subcategory
-  }
-  data_entry_types {
-    INTEGER id PK
-    INTEGER module_type_id FK
-    VARCHAR name "indexed"
   }
   data_ingestion_jobs {
     INTEGER entity_id
@@ -54,7 +49,7 @@ erDiagram
   }
   factors {
     JSON classification
-    INTEGER data_entry_type_id FK
+    INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id FK
     INTEGER id PK
     BOOLEAN is_conversion "indexed"
@@ -190,15 +185,12 @@ erDiagram
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
-  data_entry_types ||--}o data_entries : "data_entry_type_id"
-  data_entry_types ||--}o factors : "data_entry_type_id"
   emission_types ||--}o data_entry_emissions : "emission_type_id"
   emission_types ||--}o factors : "emission_type_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"
   module_types ||--}o carbon_report_modules : "module_type_id"
-  module_types ||--}o data_entry_types : "module_type_id"
   module_types ||--}o data_ingestion_jobs : "module_type_id"
   plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
   professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
