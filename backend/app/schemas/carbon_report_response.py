@@ -1,13 +1,9 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Dict, Optional, Sequence
+from typing import Dict, Generic, Optional, Sequence, TypeVar
 
 from pydantic import BaseModel, Field
-
-from app.models.headcount import HeadcountItemResponse
-from app.models.professional_travel import ProfessionalTravelItemResponse
-from app.schemas.equipment import EquipmentItemResponse
 
 
 class SubmoduleSummary(BaseModel):
@@ -25,14 +21,17 @@ class SubmoduleSummary(BaseModel):
     )
 
 
-class SubmoduleResponse(BaseModel):
+T = TypeVar("T", bound=BaseModel)
+
+
+class SubmoduleResponse(BaseModel, Generic[T]):
     """Submodule data with items and summary."""
 
     id: int = Field(..., description="Submodule identifier")
     count: int = Field(..., description="Total number of items")
-    items: Sequence[
-        EquipmentItemResponse | HeadcountItemResponse | ProfessionalTravelItemResponse
-    ] = Field(..., description="Module items (equipment, headcount, or travel)")
+    items: Sequence[T] = Field(
+        ..., description="Module items (equipment, headcount, or travel)"
+    )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
 
@@ -40,8 +39,8 @@ class SubmoduleResponse(BaseModel):
 class ModuleTotals(BaseModel):
     """Total statistics across all submodules."""
 
-    total_submodules: int = Field(..., description="Number of submodules")
-    total_items: int = Field(..., description="Total equipment count")
+    # total_submodules: int = Field(..., description="Number of submodules")
+    # total_items: int = Field(..., description="Total equipment count")
     total_annual_consumption_kwh: Optional[float] = Field(
         None, description="Total annual energy consumption"
     )
@@ -63,8 +62,11 @@ class ModuleResponse(BaseModel):
         None, description="Carbon report module ID"
     )
     retrieved_at: datetime = Field(..., description="Retrieval timestamp")
-    submodules: Dict[int, SubmoduleResponse] = Field(
-        ..., description="Submodule data keyed by data_entry_type_id (integer)"
+    # submodules: Dict[int, SubmoduleResponse] = Field(
+    #     ..., description="Submodule data keyed by data_entry_type_id (integer)"
+    # )
+    data_entry_types_total_items: Dict[int, int] = Field(
+        ..., description="Total items per data entry type ID"
     )
     stats: Optional[dict[str, float]] = Field(None, description="Module statistics")
     totals: ModuleTotals = Field(..., description="Module totals")

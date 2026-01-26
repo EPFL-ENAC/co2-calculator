@@ -38,13 +38,8 @@ class UnitBase(BaseModel):
     name: str = Field(
         ..., min_length=1, max_length=255, description="Unit name like 'ENAC-IT4R'"
     )
-    role: str = Field(..., description="User role within the unit")
     principal_user_provider_code: str = Field(
         ..., description="Principal user provider code"
-    )
-    principal_user_name: str = Field(..., description="Principal user full name")
-    principal_user_function: str = Field(
-        ..., description="Principal user function/title"
     )
     affiliations: Optional[list[str]] = Field(
         default_factory=list, description="List of affiliated units/units"
@@ -62,7 +57,6 @@ class UnitRead(UnitBase):
 
     id: int
     name: str
-    role: str
     principal_user_provider_code: str
 
     model_config = ConfigDict(from_attributes=True)

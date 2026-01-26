@@ -26,20 +26,22 @@ def get_default_db_url():
     # Note: This assumes the password for 'postgres' is the same as in DB_URL.
     # Based on your Helm chart (adminPasswordKey matching userPasswordKey)
     #  this is correct.
-    port = url_obj.port
-    url_obj = url_obj.set(database="postgres", port=port)
+    # port = url_obj.port
+    # url_obj = url_obj.set(database="postgres", port=port)
     if url_obj.drivername in [
         "postgresql",
         "postgres",
         "postgresql+psycopg",
     ] and not url_obj.drivername.endswith("+asyncpg"):
         url_obj = url_obj.set(drivername="postgresql+psycopg")
+    print(str(url_obj))
     return url_obj
 
 
 def drop_db(db_name):
     # This now returns a URL Object with the correct password and user 'postgres'
     default_db_url = get_default_db_url()
+    print(f"Dropping database using URL: {default_db_url}")
 
     # create_engine accepts the URL object directly
     engine = create_engine(default_db_url, isolation_level="AUTOCOMMIT")
@@ -62,7 +64,7 @@ def drop_db(db_name):
 
 def create_db(db_name):
     default_db_url = get_default_db_url()
-
+    print(f"Creating database using URL: {default_db_url}")
     # Get the app user (co2_user) from your config
     # We assume the username in settings.DB_URL is 'co2_user'
     app_user = make_url(settings.DB_URL).username

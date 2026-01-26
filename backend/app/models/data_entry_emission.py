@@ -73,7 +73,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
         [{id, role, factor_family, values}]
 
     Subcategory field for consistent grouping:
-    - Equipment: data_entry_type name (scientific, it, admin)
+    - Equipment: data_entry_type name (scientific, it, other)
     - Travel: data.travel_type (plane, train, car)
     - Headcount: emission_type code (food, waste, transport, grey_energy)
 
@@ -82,7 +82,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     - meta.factors_used → [{role: 'primary', ...power},
         {role: 'emission', ...energy_mix}]
     - Formula: kg_co2eq = annual_kwh x emission_factor.values.kg_co2eq_per_kwh
-    - subcategory: 'scientific', 'it', or 'admin'
+    - subcategory: 'scientific', 'it', or 'other'
 
     For headcount calculations (1 factor per emission):
     - primary_factor_id → headcount factor for that emission_type

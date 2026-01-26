@@ -7,19 +7,7 @@ from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_entry_type import DataEntryType
 from .data_ingestion import DataIngestionJob
-from .emission_factor import (
-    EmissionFactor,
-    EmissionFactorBase,
-    PowerFactor,
-    PowerFactorBase,
-)
 from .emission_type import EmissionType
-from .equipment import (
-    Equipment,
-    EquipmentBase,
-    EquipmentEmission,
-    EquipmentEmissionBase,
-)
 from .factor import Factor
 from .headcount import (
     HeadCount,
@@ -94,15 +82,6 @@ __all__ = [
     "Resource",
     "Factor",
     "EmissionType",
-    "ResourceBase",
-    "EmissionFactor",
-    "EmissionFactorBase",
-    "PowerFactor",
-    "PowerFactorBase",
-    "Equipment",
-    "EquipmentBase",
-    "EquipmentEmission",
-    "EquipmentEmissionBase",
     "HeadCount",
     "HeadCountBase",
     "HeadCountCreate",
@@ -129,6 +108,4 @@ __all__ = [
     "PlaneImpactFactorBase",
     "TrainImpactFactor",
     "TrainImpactFactorBase",
-    "VariantType",
-    "VariantTypeBase",
 ]

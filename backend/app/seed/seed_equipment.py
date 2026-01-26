@@ -10,7 +10,7 @@ This script populates the equipment table with real equipment data:
 
 import asyncio
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -20,17 +20,73 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.emission_factor import EmissionFactor, PowerFactor
-from app.models.equipment import Equipment, EquipmentEmission
+
+# from app.models.equipment import Equipment, EquipmentEmission
+from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.emission_type import EmissionTypeEnum
+from app.models.factor import Factor
+from app.models.module_type import ModuleTypeEnum
+
+# from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.unit import Unit
+from app.schemas.carbon_report import CarbonReportCreate
 from app.services import calculation_service
+from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.carbon_report_service import CarbonReportService
 from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
 settings = get_settings()
+versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
 
 CSV_PATH = Path(__file__).parent.parent.parent / "seed_data" / "seed_equipment_data.csv"
+
+
+async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int:
+    """Generate real carbon_report_module_id based on unit and year."""
+    # Get unit by provider code to find unit_id
+    current_module_type_id = ModuleTypeEnum.equipment_electric_consumption.value
+    async with SessionLocal() as session:
+        service = CarbonReportService(session)
+        unit_service = UnitService(session)
+        unit = await unit_service.get_by_provider_code(unit_provider_code)
+        if not unit:
+            raise ValueError(f"Unit with provider code {unit_provider_code} not found")
+        # Get or create carbon report for unit and year
+        carbon_report = await service.get_by_unit_and_year(unit_id=unit.id, year=year)
+        if not carbon_report:
+            # create carbon report if not exists
+            logger.info(
+                f"Creating carbon report for unit {unit_provider_code} year {year}"
+            )
+            carbon_report = await service.create(
+                data=CarbonReportCreate(unit_id=unit.id, year=year)
+            )
+            if not carbon_report:
+                raise ValueError(
+                    f"Could not create carbon report for unit "
+                    f"{unit_provider_code} year {year}"
+                )
+        # Get carbon_report_module_id for equipment module type
+        module_service = CarbonReportModuleService(session)
+        carbon_report_module = await module_service.get_module(
+            carbon_report_id=carbon_report.id,
+            module_type_id=current_module_type_id,
+        )
+        if not carbon_report_module:
+            raise ValueError(
+                f"Could not find carbon report module for unit "
+                f"{unit_provider_code} year {year} "
+                f"and module type {current_module_type_id}"
+            )
+        if carbon_report_module.id is None:
+            raise ValueError(
+                f"Carbon report module ID is None for unit {unit_provider_code}"
+            )
+        return carbon_report_module.id
 
 
 def parse_date(date_str: str) -> Optional[datetime]:
@@ -48,27 +104,30 @@ def parse_date(date_str: str) -> Optional[datetime]:
     return None
 
 
-async def load_power_factors_map(session: AsyncSession) -> Dict[str, PowerFactor]:
+async def load_power_factors_map(session: AsyncSession) -> Dict[str, Factor]:
     """Load power factors from database into a lookup dictionary."""
     logger.info("Loading power factors from database...")
 
-    result = await session.exec(select(PowerFactor))
-    power_factors_list = result.all()
+    result = await session.exec(select(Factor).where(Factor.emission_type_id == 2))
+    power_factors_list: List[Factor] = list(result.all())
 
     # Create lookup dictionary with multiple key strategies
     power_factors_map = {}
 
     for pf in power_factors_list:
         # Strategy 1: Full match with sub_class
-        if pf.sub_class:
+        if pf.classification:
             key_full = (
-                f"{pf.submodule.lower()}:"
-                f"{pf.equipment_class.lower()}:{pf.sub_class.lower()}"
+                f"{pf.data_entry_type_id}:"
+                f"{pf.classification.get('class', '').lower()}:"
+                f"{(pf.classification.get('sub_class') or '').lower()}"
             )
             power_factors_map[key_full] = pf
 
         # Strategy 2: Match without sub_class (fallback)
-        key_class = f"{pf.submodule.lower()}:{pf.equipment_class.lower()}"
+        key_class = (
+            f"{pf.data_entry_type_id}:{pf.classification.get('class', '').lower()}"
+        )
         if key_class not in power_factors_map:
             power_factors_map[key_class] = pf
 
@@ -88,8 +147,9 @@ def normalize_equipment_class(equipment_class: str) -> str:
 
 def lookup_power_factor(
     equipment_class: str,
-    power_factors_map: Dict[str, PowerFactor],
-) -> Optional[PowerFactor]:
+    equipment_subclass: Optional[str],
+    power_factors_map: Dict[str, Factor],
+) -> Optional[Factor]:
     """
     Lookup power factor for equipment by class name only.
 
@@ -107,9 +167,16 @@ def lookup_power_factor(
     matches = [
         pf
         for pf in power_factors_map.values()
-        if pf.equipment_class.lower() == normalized_class
+        if normalize_equipment_class(pf.classification.get("class", ""))
+        == normalized_class
+        and (
+            not equipment_subclass
+            or pf.classification.get("sub_class", "").lower()
+            == equipment_subclass.lower()
+        )
     ]
-
+    print("Matches found for class", equipment_class, "subclass", equipment_subclass)
+    print(len(matches))
     if len(matches) == 0:
         # No power factor found
         return None
@@ -117,15 +184,15 @@ def lookup_power_factor(
         # Unambiguous match
         return matches[0]
     else:
-        # Multiple matches - ambiguous, requires sub-class
-        # For testing purposes, return first match but log warning
-        sub_classes = [pf.sub_class for pf in matches if pf.sub_class]
+        # Ambiguous - multiple matches found
         logger.warning(
-            f"Class '{equipment_class}' has {len(matches)} power factors "
-            f"with different sub-classes: {sub_classes}. "
-            f"Sub-class selection required. Using first match for testing."
+            f"Ambiguous power factor lookup for class '{equipment_class}' "
+            f"and subclass '{equipment_subclass}': "
+            f"{len(matches)} matches found. "
+            f"Sub-class selection required for accurate matching."
         )
-        return matches[0]  # Temporary: return first match for testing
+        # For testing, return first match
+        return matches[0]
 
 
 async def seed_equipment(session: AsyncSession) -> None:
@@ -133,7 +200,7 @@ async def seed_equipment(session: AsyncSession) -> None:
     logger.info("Seeding equipment from CSV...")
 
     # Delete existing equipment emissions first (to avoid FK constraint violation)
-    result = await session.exec(select(EquipmentEmission))
+    result = await session.exec(select(DataEntryEmission))
     existing_emissions = result.all()
 
     if existing_emissions:
@@ -143,8 +210,8 @@ async def seed_equipment(session: AsyncSession) -> None:
         await session.commit()
 
     # Now delete existing equipment
-    eq_result = await session.exec(select(Equipment))
-    existing_equipment: List[Equipment] = list(eq_result.all())
+    eq_result = await session.exec(select(DataEntry))
+    existing_equipment: List[DataEntry] = list(eq_result.all())
 
     if existing_equipment:
         logger.info(f"Deleting {len(existing_equipment)} existing equipment records...")
@@ -162,7 +229,7 @@ async def seed_equipment(session: AsyncSession) -> None:
         return
 
     # Read and parse CSV
-    equipment_list: List[Equipment] = []
+    equipment_list: List[DataEntry] = []
     matched_count = 0
     no_match_count = 0
     ambiguous_classes: Dict[str, int] = {}  # Track classes requiring sub-class
@@ -170,13 +237,13 @@ async def seed_equipment(session: AsyncSession) -> None:
     # upsert unit ids 10208 and 12345 for testing
     logger.info("Seeding equipment records...")
     unit_service = UnitService(session)
-    unit_test_12345 = await unit_service.upsert(
+    await unit_service.upsert(
         unit_data=Unit(
             provider_code="12345",
             name="test unit 12345",
         )
     )
-    unit_test_10208 = await unit_service.upsert(
+    await unit_service.upsert(
         unit_data=Unit(
             provider_code="10208",
             name="enac test 10208",
@@ -186,8 +253,6 @@ async def seed_equipment(session: AsyncSession) -> None:
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader, start=1):
-            cost_center = row.get("Cost Center", "").strip()
-            cost_center_desc = row.get("Cost Center FR Description", "").strip()
             name = row.get("Name 1", "").strip()
             category = row.get("Category", "").strip()
             equipment_class = row.get("Class", "").strip()
@@ -195,24 +260,24 @@ async def seed_equipment(session: AsyncSession) -> None:
             all_matches = [
                 pf
                 for pf in power_factors_map.values()
-                if pf.equipment_class.lower() == equipment_class.lower()
+                if pf.classification.get("class", "").lower() == equipment_class.lower()
             ]
 
             # If class has multiple power factors,
             # assign first one's sub-class for testing
             if len(all_matches) > 1:
-                equipment_subclass = all_matches[0].sub_class
+                equipment_subclass = all_matches[0].classification.get("sub_class")
             else:
                 equipment_subclass = None
-            service_date_str = row.get("Service Date", "").strip()
-            status = row.get("Status", "In service").strip()
 
             if not name or not category or not equipment_class:
                 logger.warning(f"Skipping row {idx} with missing data: {row}")
                 continue
 
             # Lookup power factor - returns None if not found or ambiguous
-            power_factor = lookup_power_factor(equipment_class, power_factors_map)
+            power_factor = lookup_power_factor(
+                equipment_class, equipment_subclass, power_factors_map
+            )
 
             if power_factor is None:
                 # No power factor found
@@ -228,22 +293,19 @@ async def seed_equipment(session: AsyncSession) -> None:
                 matched_count += 1
                 power_factor_id = power_factor.id
                 # Derive submodule from the matched power factor
-                submodule = power_factor.submodule
+                submodule = power_factor.data_entry_type_id
 
                 # Check if this class has multiple power factors (ambiguous)
                 all_matches = [
                     pf
                     for pf in power_factors_map.values()
-                    if pf.equipment_class.lower() == equipment_class.lower()
+                    if pf.classification.get("class", "").lower()
+                    == equipment_class.lower()
                 ]
                 if len(all_matches) > 1:
                     ambiguous_classes[equipment_class] = (
                         ambiguous_classes.get(equipment_class, 0) + 1
                     )
-
-            # Use power_factor_id - actual values will be looked up at calculation time
-            active_power_w = None
-            standby_power_w = None
 
             # Generate realistic usage patterns based on equipment type
             # Use hash for deterministic but varied values
@@ -262,50 +324,55 @@ async def seed_equipment(session: AsyncSession) -> None:
             passive_usage_pct = 100.0 - active_usage_pct
 
             # Parse service date
-            service_date = parse_date(service_date_str)
 
-            equipment_local_10208 = Equipment(
-                cost_center=cost_center,
-                cost_center_description=cost_center_desc or None,
-                name=name,
-                category=category,
-                submodule=submodule,
-                equipment_class=equipment_class,
-                sub_class=equipment_subclass,
-                service_date=service_date,
-                status=status,
-                active_usage_pct=active_usage_pct,
-                passive_usage_pct=passive_usage_pct,
-                active_power_w=active_power_w,
-                standby_power_w=standby_power_w,
-                power_factor_id=power_factor_id,
-                unit_id=unit_test_10208.id,
-                equipment_metadata={
-                    "source": "synth_data.csv",
-                    "imported_at": datetime.utcnow().isoformat(),
+            # for 10208 and 12345 units for year 2025
+            carbon_report_module_id_10208 = await get_carbon_report_module_id(
+                unit_provider_code="10208", year=2025
+            )
+            equipment_local_10208 = DataEntry(
+                data_entry_type_id=submodule,
+                carbon_report_module_id=carbon_report_module_id_10208,
+                data={
+                    "active_usage_hours": active_usage_pct,
+                    "passive_usage_hours": passive_usage_pct,
+                    "name": name,
+                    "power_factor_id": power_factor_id,
                 },
             )
-            equipment_local_12345 = Equipment(
-                cost_center=cost_center,
-                cost_center_description=cost_center_desc or None,
-                name=name,
-                category=category,
-                submodule=submodule,
-                equipment_class=equipment_class,
-                sub_class=equipment_subclass,
-                service_date=service_date,
-                status=status,
-                active_usage_pct=active_usage_pct,
-                passive_usage_pct=passive_usage_pct,
-                active_power_w=active_power_w,
-                standby_power_w=standby_power_w,
-                power_factor_id=power_factor_id,
-                unit_id=unit_test_12345.id,
-                equipment_metadata={
-                    "source": "synth_data.csv",
-                    "imported_at": datetime.utcnow().isoformat(),
+
+            carbon_report_module_id_12345 = await get_carbon_report_module_id(
+                unit_provider_code="12345", year=2025
+            )
+            equipment_local_12345 = DataEntry(
+                data_entry_type_id=submodule,
+                carbon_report_module_id=carbon_report_module_id_12345,
+                data={
+                    "active_usage_hours": active_usage_pct,
+                    "passive_usage_hours": passive_usage_pct,
+                    "name": name,
+                    "power_factor_id": power_factor_id,
                 },
             )
+
+            # cost_center=cost_center,
+            # cost_center_description=cost_center_desc or None,
+            # "name": name,
+            # category=category,
+            # submodule=submodule,
+            # equipment_class=equipment_class,
+            # sub_class=equipment_subclass,
+            # service_date=service_date,
+            # status=status,
+            # active_usage_pct=active_usage_pct,
+            # passive_usage_pct=passive_usage_pct,
+            # active_power_w=active_power_w,
+            # standby_power_w=standby_power_w,
+            # power_factor_id=power_factor_id,
+            # unit_id=unit_test_10208.id,
+            # equipment_metadata={
+            #     "source": "synth_data.csv",
+            #     "imported_at": datetime.utcnow().isoformat(),
+            # },
             equipment_list.append(equipment_local_10208)
             equipment_list.append(equipment_local_12345)
     # Bulk insert
@@ -345,7 +412,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     logger.info("Calculating and seeding equipment emissions...")
 
     # Delete existing emissions
-    result = await session.exec(select(EquipmentEmission))
+    result = await session.exec(select(DataEntryEmission))
     existing_emissions = result.all()
 
     if existing_emissions:
@@ -356,102 +423,113 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
     # Get emission factor
     ef_result = await session.exec(
-        select(EmissionFactor)
-        .where(col(EmissionFactor.factor_name) == "swiss_electricity_mix")
-        .where(col(EmissionFactor.valid_to).is_(None))  # Current version
+        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.energy)
     )
     emission_factor = ef_result.one_or_none()
     if not emission_factor:
         logger.error("No emission factor found! Run seed_emission_factors first.")
         return
-    if not isinstance(emission_factor, EmissionFactor):
+    if not isinstance(emission_factor, Factor):
         logger.error("No valid emission factor found! Run seed_emission_factors first.")
         return
     # Get all equipment
-    eq_result = await session.exec(select(Equipment))
-    equipment_list: List[Equipment] = list(eq_result.all())
+    eq_result = await session.exec(select(DataEntry))
+    equipment_list: List[DataEntry] = list(eq_result.all())
 
     logger.info(f"Calculating emissions for {len(equipment_list)} equipment items...")
 
     # Get power factors map for lookup
     power_factors_map = {}
-    pf_result = await session.exec(select(PowerFactor))
+    pf_result = await session.exec(
+        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.equipment)
+    )
     for pf_ in pf_result.all():
         power_factors_map[pf_.id] = pf_
 
     # Calculate emissions for each equipment
-    emissions_list: List[EquipmentEmission] = []
+    emissions_list: List[DataEntryEmission] = []
 
     for equipment in equipment_list:
         # Get power values - either from equipment or from power factor
-        if not isinstance(equipment, Equipment):
+        if not isinstance(equipment, DataEntry):
             logger.error(f"Invalid equipment record: {equipment}")
             continue
 
-        if equipment.power_factor_id:
+        if equipment.data.get("power_factor_id"):
             # Lookup from power factor
-            pf: PowerFactor | None = power_factors_map.get(equipment.power_factor_id)
-            if not isinstance(pf, PowerFactor):
+            pf: Factor | None = power_factors_map.get(
+                equipment.data.get("power_factor_id")
+            )
+            if not isinstance(pf, Factor):
                 logger.error(
                     f"Invalid power factor record for ID "
-                    f"{equipment.power_factor_id} on equipment {equipment.id}"
+                    f"""{equipment.data.get("power_factor_id")}
+                        on equipment {equipment.id}"""
                 )
                 continue
             if pf:
-                active_power_w = pf.active_power_w
-                standby_power_w = pf.standby_power_w
                 power_factor_id = pf.id
+                active_power_w = pf.values.get("active_power_w", 0) or 0
+                standby_power_w = pf.values.get("standby_power_w", 0) or 0
             else:
-                logger.warning(
-                    f"Power factor {equipment.power_factor_id} "
-                    f"not found for equipment {equipment.id}"
-                )
+                logger.warning(f"""not found for equipment {equipment.id}
+                                ({equipment.data.get("name", "unknown")})""")
                 continue
         else:
             # No power factor assigned - likely requires sub-class selection
             logger.info(
-                f"Skipping emissions for equipment {equipment.id} ({equipment.name}): "
-                f"No power factor assigned. Class '{equipment.equipment_class}' may "
+                f"""Skipping emissions for data entry {equipment.id}
+                ({equipment.data.get("name", "unknown")}): """
                 f"require sub-class selection."
             )
             continue
 
         # Prepare equipment data for calculation
         equipment_data = {
-            "act_usage_pct": equipment.active_usage_pct or 0,
-            "pas_usage_pct": equipment.passive_usage_pct or 0,
-            "act_power_w": active_power_w,
-            "pas_power_w": standby_power_w,
-            "status": equipment.status,
+            "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
+            "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
         }
 
-        if (emission_factor.value is None) or (emission_factor.id is None):
+        if (emission_factor.values is None) or (emission_factor.id is None):
             logger.error(
                 "Emission factor is missing value or ID! Cannot calculate emissions."
             )
             continue
+        mix_energy = emission_factor.values.get("kgco2eq_per_kwh", None)
+        if mix_energy is None:
+            raise ValueError("Emission factor missing 'kgco2eq_per_kwh' value")
         # Calculate emissions using the versioned calculation service
-        emission_result = calculation_service.calculate_equipment_emission_versioned(
+        emission_result = calculation_service.calculate_equipment_emission(
             equipment_data=equipment_data,
-            emission_factor=emission_factor.value,
-            emission_factor_id=emission_factor.id,
-            power_factor_id=power_factor_id,
-            formula_version="v1_linear",
+            emission_electric_factor=mix_energy,
+            active_power_w=active_power_w,
+            standby_power_w=standby_power_w,
         )
 
         # Create EquipmentEmission record
         assert equipment.id is not None, (
             "Equipment must be saved before creating emission"
         )
-        equipment_emission = EquipmentEmission(
-            equipment_id=equipment.id,
-            annual_kwh=emission_result["annual_kwh"],
+        assert equipment.data_entry_type_id is not None, (
+            "Equipment must have data_entry_type_id"
+        )
+        equipment_emission = DataEntryEmission(
+            data_entry_id=equipment.id,
+            emission_type_id=EmissionTypeEnum.equipment,
+            primary_factor_id=power_factor_id,
+            subcategory=DataEntryTypeEnum(
+                equipment.data_entry_type_id
+            ).name.title(),  # TODO: should be an enum somwhere
             kg_co2eq=emission_result["kg_co2eq"],
-            emission_factor_id=emission_result["emission_factor_id"],
-            power_factor_id=emission_result["power_factor_id"],
-            formula_version=emission_result["formula_version"],
-            calculation_inputs=emission_result["calculation_inputs"],
-            is_current=True,
+            meta={
+                "annual_kwh": emission_result["annual_kwh"],
+                "calculation_inputs": equipment.data,
+                "emission_factor_id": emission_factor.id,
+                # "power_factor_id": emission_result["power_factor_id"],
+                # "formula_version": emission_result["formula_version"],
+            },
+            formula_version=versionapi,
+            computed_at=datetime.now(timezone.utc),
         )
         emissions_list.append(equipment_emission)
 
@@ -461,12 +539,12 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
     skipped_count = len(equipment_list) - len(emissions_list)
     logger.info(
-        f"Created {len(emissions_list)} equipment emission records "
-        f"({skipped_count} equipment skipped - no power factor assigned)"
+        f"Created {len(emissions_list)} data entry emission records "
+        f"({skipped_count} data entries skipped - no power factor assigned)"
     )
 
     # Calculate and log summary statistics
-    total_kwh = sum(e.annual_kwh for e in emissions_list)
+    total_kwh = sum(e.meta.get("annual_kwh", 0) for e in emissions_list)
     total_co2 = sum(e.kg_co2eq for e in emissions_list)
     logger.info(f"Total annual consumption: {total_kwh:.2f} kWh")
     logger.info(f"Total annual emissions: {total_co2:.2f} kg CO2eq")

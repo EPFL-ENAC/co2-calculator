@@ -48,55 +48,9 @@ erDiagram
     VARCHAR target_type
     INTEGER year
   }
-  emission_factors {
-    TIMESTAMP created_at
-    VARCHAR created_by "indexed"
-    JSON factor_metadata
-    VARCHAR factor_name "indexed"
-    INTEGER id PK
-    VARCHAR region "indexed"
-    VARCHAR source
-    TIMESTAMP valid_from
-    TIMESTAMP valid_to
-    FLOAT value
-    INTEGER version "indexed"
-  }
   emission_types {
     VARCHAR code "indexed"
     INTEGER id PK
-  }
-  equipment {
-    FLOAT active_usage_pct
-    VARCHAR category "indexed"
-    VARCHAR cost_center "indexed"
-    VARCHAR cost_center_description
-    TIMESTAMP created_at
-    VARCHAR created_by "indexed"
-    VARCHAR equipment_class "indexed"
-    JSON equipment_metadata
-    INTEGER id PK
-    VARCHAR name "indexed"
-    FLOAT passive_usage_pct
-    INTEGER power_factor_id FK
-    TIMESTAMP service_date
-    VARCHAR status "indexed"
-    VARCHAR sub_class
-    VARCHAR submodule "indexed"
-    INTEGER unit_id "indexed"
-    TIMESTAMP updated_at
-    VARCHAR updated_by "indexed"
-  }
-  equipment_emissions {
-    FLOAT annual_kwh
-    JSON calculation_inputs
-    TIMESTAMP computed_at "indexed"
-    INTEGER emission_factor_id FK
-    INTEGER equipment_id FK
-    VARCHAR formula_version
-    INTEGER id PK
-    BOOLEAN is_current "indexed"
-    FLOAT kg_co2eq
-    INTEGER power_factor_id FK
   }
   factors {
     JSON classification
@@ -164,22 +118,6 @@ erDiagram
     INTEGER updated_by "indexed"
     TIMESTAMP valid_from
     TIMESTAMP valid_to
-  }
-  power_factors {
-    FLOAT active_power_w
-    TIMESTAMP created_at
-    VARCHAR created_by "indexed"
-    VARCHAR equipment_class "indexed"
-    INTEGER id PK
-    JSON power_metadata
-    VARCHAR source
-    FLOAT standby_power_w
-    VARCHAR sub_category "indexed"
-    VARCHAR sub_class "indexed"
-    VARCHAR submodule "indexed"
-    TIMESTAMP valid_from
-    TIMESTAMP valid_to
-    INTEGER version "indexed"
   }
   professional_travel_emissions {
     JSON calculation_inputs
@@ -254,10 +192,8 @@ erDiagram
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_entry_types ||--}o data_entries : "data_entry_type_id"
   data_entry_types ||--}o factors : "data_entry_type_id"
-  emission_factors ||--}o equipment_emissions : "emission_factor_id"
   emission_types ||--}o data_entry_emissions : "emission_type_id"
   emission_types ||--}o factors : "emission_type_id"
-  equipment ||--}o equipment_emissions : "equipment_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"
@@ -265,8 +201,6 @@ erDiagram
   module_types ||--}o data_entry_types : "module_type_id"
   module_types ||--}o data_ingestion_jobs : "module_type_id"
   plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
-  power_factors ||--}o equipment : "power_factor_id"
-  power_factors ||--}o equipment_emissions : "power_factor_id"
   professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
   train_impact_factors ||--}o professional_travel_emissions : "train_impact_factor_id"
   units ||--}o carbon_reports : "unit_id"

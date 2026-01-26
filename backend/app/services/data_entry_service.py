@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry
-from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.user import User
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -17,7 +16,6 @@ from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
-    SubmoduleSummary,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 
@@ -35,7 +33,7 @@ class DataEntryService:
         self, carbon_report_module_id: int, aggregate_by: str = "submodule"
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
-        # GOAL return total items and submodules for headcount module
+        # GOAL return total items and submodules for module
         # data should be aggregated by aggregate_by param
         # {"professor": 10, "researcher": 5, ...}
         # or {"member": 15, "student": 20, ...}
@@ -43,21 +41,14 @@ class DataEntryService:
             carbon_report_module_id=carbon_report_module_id, aggregate_by=aggregate_by
         )
 
-    # carbon_report_module_id=carbon_report_module_id,
-    #         data_entry_type_id=data_entry_type_id,
-    #         user=current_user,
-    #         data=item_data,
-
     async def create(
         self,
         carbon_report_module_id: int,
-        data_entry_type_id: str,
+        data_entry_type_id: int,
         user: User,
         data: DataEntryCreate,
-        # provider_source: str,
-        # user_id: str,
-    ) -> DataEntry:
-        """Create a new headcount record."""
+    ) -> DataEntryResponse:
+        """Create a new record."""
         # check if user.permissions allow creation
 
         logger.info(
@@ -71,15 +62,20 @@ class DataEntryService:
             data=data.model_dump(),
         )
 
-        return await self.repo.create(entry)
+        created_entry = await self.repo.create(entry)
+
+        await self.session.commit()
+        await self.session.refresh(created_entry)
+
+        return DataEntryResponse.model_validate(created_entry)
 
     async def update(
         self,
         id: int,
         data: DataEntryUpdate,
         user: User,
-    ) -> Optional[DataEntryResponse]:
-        """Update an existing headcount record."""
+    ) -> DataEntryResponse:
+        """Update an existing record."""
         if not user or not user.id:
             logger.error("User context is required for updating data entry")
             raise PermissionError("User context is required for updating data entry")
@@ -88,29 +84,27 @@ class DataEntryService:
             data=data,
             user_id=user.id,
         )
+        await self.session.commit()
+        await self.session.refresh(entry)
         if entry is None:
-            return None
+            raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)
 
     async def delete(self, id: int, current_user: User) -> bool:
-        """Delete a headcount record."""
-        if (
-            current_user.has_role("co2.backoffice.admin") is False
-            and current_user.has_role("co2.user.principal") is False
-            and current_user.has_role("co2.user.secondary") is False
-        ):
-            logger.warning(
-                f"Unauthorized delete attempt by user={sanitize(current_user.id)} "
-                f"for data_entry_id={sanitize(id)}"
-            )
-            raise PermissionError("User not authorized to delete headcount records.")
-        return await self.repo.delete(id)
+        """Delete a record."""
+        result = await self.repo.delete(id)
+        await self.session.commit()
 
-    async def get(self, id: int) -> Optional[DataEntryResponse]:
-        """Get headcount record by ID."""
+        if result is None:
+            raise ValueError(f"Data entry with id={id} not found")
+        return True
+
+    async def get(self, id: int) -> DataEntryResponse:
+        """Get record by ID."""
         entry = await self.repo.get(id)
+        await self.session.commit()
         if entry is None:
-            return None
+            raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)
 
     async def get_list(
@@ -122,7 +116,7 @@ class DataEntryService:
         sort_order: str = "asc",
         filter: Optional[str] = None,
     ) -> list[DataEntryResponse]:
-        """Get headcount record by carbon_report_module_id."""
+        """Get  record by carbon_report_module_id."""
         entries = await self.repo.get_list(
             carbon_report_module_id, limit, offset, sort_by, sort_order, filter
         )
@@ -132,75 +126,21 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
     ) -> ModuleResponse:
-        """
-        Get complete module data with all submodules.
-
-        Args:
-            session: Database session
-            unit_id: Unit ID to filter equipment
-            year: Year for the data (currently informational only)
-            preview_limit: Optional limit for items per submodule
-
-        Returns:
-            ModuleResponse with all submodules and their equipment
-        """
-        logger.info(
-            f"Fetching module data for module_id={sanitize(carbon_report_module_id)}, "
-            f"module=headcount"
-        )
-
-        # Get summary statistics by submodule
-        summary_by_submodule = await self.repo.get_summary_by_submodule(
+        data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id
         )
 
-        submodules = {}
-
-        # Process each submodule
-        for submodule_key in [
-            DataEntryTypeEnum.member.value,
-            DataEntryTypeEnum.student.value,
-        ]:
-            # Get summary for this submodule
-            submodule_summary_data = summary_by_submodule.get(
-                submodule_key,
-                {"total_items": 0, "annual_fte": 0.0},
-            )
-
-            summary = SubmoduleSummary(**submodule_summary_data)
-            total_count = submodule_summary_data["total_items"]
-
-            # Create submodule response
-            submodule_response = SubmoduleResponse(
-                id=submodule_key,
-                count=total_count,
-                items=[],  # Detailed items can be fetched separately
-                summary=summary,
-                has_more=False,
-            )
-
-            submodules[submodule_key] = submodule_response
-
-        # Calculate module totals using SQL summaries (not Python sums)
-        total_submodules = len(submodules)
-        total_items = sum(
-            summary_by_submodule.get(k, {}).get("total_items", 0)
-            for k in [
-                DataEntryTypeEnum.member.value,
-                DataEntryTypeEnum.student.value,
-            ]
-        )
-        total_annual_fte = sum(
-            summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
-            for k in [
-                DataEntryTypeEnum.member.value,
-                DataEntryTypeEnum.student.value,
-            ]
-        )
+        # total_annual_fte = sum(
+        #     summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
+        #     for k in [
+        #         DataEntryTypeEnum.member.value,
+        #         DataEntryTypeEnum.student.value,
+        #     ]
+        # )
+        # TBImplemented
+        total_annual_fte = 0.0
 
         totals = ModuleTotals(
-            total_submodules=total_submodules,
-            total_items=total_items,
             total_annual_fte=round(total_annual_fte, 2),
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
@@ -210,17 +150,11 @@ class DataEntryService:
         # Create module response
         module_response = ModuleResponse(
             carbon_report_module_id=carbon_report_module_id,
-            stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules=submodules,
+            data_entry_types_total_items=data_entry_types_total_items,
+            stats=None,
             totals=totals,
         )
-
-        logger.info(
-            f"Module data retrieved: {sanitize(total_items)} items across "
-            f"{sanitize(total_submodules)} submodules"
-        )
-
         return module_response
 
     async def get_submodule_data(
@@ -233,7 +167,7 @@ class DataEntryService:
         sort_order: str = "asc",
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        """Get headcount module data for a unit and year."""
+        """Get module data for a unit and year."""
         return await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,

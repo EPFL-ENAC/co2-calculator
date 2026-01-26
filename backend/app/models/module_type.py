@@ -30,6 +30,7 @@ class ModuleTypeEnum(int, Enum):
     purchase = 5
     internal_services = 6
     external_cloud = 7
+    global_energy = 99
 
 
 class ModuleTypeBase(SQLModel):

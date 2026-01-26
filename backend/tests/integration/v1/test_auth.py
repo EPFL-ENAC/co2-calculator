@@ -1,18 +1,22 @@
 import pytest
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
 
 import app.core.config as config
+from app.main import app
 
 
-@pytest.mark.asyncio
-async def test_login_redirect_uri_https(client: AsyncClient, monkeypatch):
-    # Patch the authorize_redirect method to simulate OAuth provider redirect
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
+
+
+async def test_login_redirect_uri_https(client, monkeypatch):
     from starlette.responses import RedirectResponse
 
     import app.api.v1.auth as auth_module
 
     async def fake_authorize_redirect(request, redirect_uri):
-        # Simulate a redirect to the provider with the correct redirect_uri
         return RedirectResponse(url=f"https://fake-oauth?redirect_uri={redirect_uri}")
 
     monkeypatch.setattr(
@@ -24,7 +28,7 @@ async def test_login_redirect_uri_https(client: AsyncClient, monkeypatch):
     settings = config.get_settings()
     prefix = settings.API_VERSION
 
-    response = await client.get(
+    response = client.get(
         f"{prefix}/auth/login",
         headers={"X-Forwarded-Proto": "https"},
         follow_redirects=False,

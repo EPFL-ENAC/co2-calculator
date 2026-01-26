@@ -26,6 +26,19 @@ export const SUBMODULE_EQUIPMENT_TYPES = {
   Other: 'other',
 } as const;
 
+export const enumSubmodule = {
+  member: 1,
+  student: 2,
+  scientific: 9,
+  it: 10,
+  other: 11,
+  trips: 20,
+  building: 30,
+  energy_mix: 100,
+} as const;
+
+export type EnumSubmoduleType = keyof typeof enumSubmodule;
+
 export type EquipmentElectricConsumptionSubType =
   (typeof SUBMODULE_EQUIPMENT_TYPES)[keyof typeof SUBMODULE_EQUIPMENT_TYPES];
 
@@ -199,6 +212,7 @@ export interface ModuleResponse {
   module_type: string;
   unit: number;
   year: string;
+  data_entry_types_total_items: Record<number, number>;
   stats?: Record<string, number>;
   retrieved_at: string;
   submodules: Record<string, Submodule>;

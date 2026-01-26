@@ -42,7 +42,7 @@ def upgrade() -> None:
         (5, 'purchase'),
         (6, 'internal-services'),
         (7, 'external-cloud'),
-        (99, 'global')
+        (99, 'global-energy')
         ON CONFLICT (id) DO NOTHING;
     """)
 
@@ -60,7 +60,7 @@ def upgrade() -> None:
         -- Equipment (module_type_id=4) - Equipment variants
         (9, 'scientific', 4),
         (10, 'it', 4),
-        (11, 'admin', 4),
+        (11, 'other', 4),
         
         -- Professional Travel (module_type_id=2) - Travel variants
         (20, 'flight', 2),
