@@ -7,8 +7,11 @@ from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.services import equipment_service
+from app.schemas.carbon_report import CarbonReportModuleRead
+from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
 
@@ -47,15 +50,20 @@ async def get_module_totals(
         await _check_module_permission(
             current_user, "equipment-electric-consumption", "view"
         )
-        equipment_kg_co2eq = await equipment_service.get_total_kg_co2eq(
-            session=db, unit_id=unit_id, year=year
+        carbon_report_module = await CarbonReportModuleService(
+            db
+        ).get_carbon_report_by_year_and_unit(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum("equipment-electric-consumption"),
         )
+        module_stats = await DataEntryService(db).get_module_stats(
+            carbon_report_module_id=carbon_report_module.id,
+            aggregate_by="submodule",
+        )
+        equipment_kg_co2eq = module_stats.get("total_kg_co2eq", 0.0)
         equipment_tco2eq = round(float(equipment_kg_co2eq or 0.0) / 1000.0, 2)
         totals["equipment-electric-consumption"] = equipment_tco2eq
-        logger.info(
-            f"Equipment module totals: {equipment_kg_co2eq} kg CO2eq = "
-            f"{equipment_tco2eq} tCO2eq for unit_id={sanitize(unit_id)}"
-        )
     except HTTPException:
         # Permission denied, skip this module
         logger.warning("Permission denied for equipment module")
@@ -65,8 +73,7 @@ async def get_module_totals(
     # Get professional travel module totals
     try:
         await _check_module_permission(current_user, "professional-travel", "view")
-        travel_service = ProfessionalTravelService(db)
-        travel_stats = await travel_service.get_module_stats(
+        travel_stats = await ProfessionalTravelService(db).get_module_stats(
             unit_id=unit_id, year=year, user=current_user
         )
         travel_kg_co2eq = travel_stats.get("total_kg_co2eq", 0.0)
@@ -122,10 +129,15 @@ async def get_module_stats(
     )
 
     stats: dict[str, float] = {}
+    carbon_report_module: CarbonReportModuleRead = await CarbonReportModuleService(
+        db
+    ).get_carbon_report_by_year_and_unit(
+        unit_id=unit_id, year=year, module_type_id=ModuleTypeEnum(module_id)
+    )
+
     if module_id == "equipment-electric-consumption":
-        stats = await equipment_service.get_module_stats(
-            session=db,
-            unit_id=unit_id,
+        stats = await DataEntryService(db).get_module_stats(
+            carbon_report_module_id=carbon_report_module.id,
             aggregate_by=aggregate_by,
         )
     elif module_id == "my-lab":

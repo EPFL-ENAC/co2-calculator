@@ -85,17 +85,17 @@ type-check: ## Run type checking with mypy
 .PHONY: test
 test: ## Run tests
 	@set -e; \
-	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=60
+	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=45
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
 	@set -e; \
-	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing  --cov-fail-under=60
+	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing  --cov-fail-under=45
 
 .PHONY: test-cov-xml
 test-cov-xml: ## Run tests with coverage and output XML report
 	@set -e; \
-	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=60
+	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=45
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data

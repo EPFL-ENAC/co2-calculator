@@ -47,13 +47,16 @@ class CarbonReportModuleService:
 
     async def get_carbon_report_by_year_and_unit(
         self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
-    ) -> Optional[CarbonReportModuleRead]:
+    ) -> CarbonReportModuleRead:
         """Get a carbon report module by year and unit."""
         carbon_report_module = await self.repo.get_by_year_and_unit(
             year, unit_id, module_type_id
         )
         if carbon_report_module is None:
-            return None
+            raise ValueError(
+                f"Carbon report module not found for year={year}, "
+                f"unit_id={unit_id}, module_type_id={module_type_id}"
+            )
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def get_module(

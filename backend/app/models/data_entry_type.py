@@ -45,7 +45,11 @@ class DataEntryType(DataEntryTypeBase, table=True):
 
     __tablename__ = "data_entry_types"
 
-    id: Optional[DataEntryTypeEnum] = Field(default=None, primary_key=True, index=True)
+    # Primary key field is an integer ID that DataEntryTypeEnum can map to
+    # to avoid having SQL + code desync issues. let's keep it optional for SQLModel
+    # RULE of thumb: if generic code creates the object, make it optional to use Enum
+
+    id: Optional[int] = Field(default=None, primary_key=True, index=True)
 
     def __repr__(self) -> str:
         return f"""<DataEntryType {self.id}: {self.name}

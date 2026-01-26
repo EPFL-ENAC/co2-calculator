@@ -31,7 +31,7 @@ erDiagram
     VARCHAR subcategory
   }
   data_entry_types {
-    VARCHAR id PK
+    INTEGER id PK
     INTEGER module_type_id FK
     VARCHAR name "indexed"
   }

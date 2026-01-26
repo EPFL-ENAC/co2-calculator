@@ -32,10 +32,6 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     unflatten_data_entry_payload,
 )
-from app.schemas.equipment import (
-    EquipmentDetailResponse,
-)
-from app.services import equipment_service
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
@@ -272,7 +268,6 @@ async def get_submodule(
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
     response_model=Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,
@@ -301,7 +296,7 @@ async def create(
         current_user: Authenticated user
 
     Returns:
-        EquipmentDetailResponse with created equipment
+         with created equipment
     """
     await _check_module_permission(current_user, module_id, "edit")
 
@@ -321,7 +316,6 @@ async def create(
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
     item: Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,
@@ -463,7 +457,6 @@ async def create(
 @router.get(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     response_model=Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,
@@ -485,7 +478,6 @@ async def get(
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
     item: Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,
@@ -496,9 +488,8 @@ async def get(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid item_id type for equipment retrieval",
             )
-        item = await equipment_service.get_equipment_by_id(
-            session=db,
-            item_id=item_id,
+        item = await DataEntryService(db).get(
+            id=item_id,
         )
     elif module_id == "my-lab":
         if not isinstance(item_id, int):
@@ -544,7 +535,6 @@ async def get(
 @router.patch(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     response_model=Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,
@@ -569,7 +559,6 @@ async def update(
         f"user={sanitize(current_user.id)}"
     )
     item: Union[
-        EquipmentDetailResponse,
         HeadcountItemResponse,
         ProfessionalTravelItemResponse,
         DataEntryResponse,

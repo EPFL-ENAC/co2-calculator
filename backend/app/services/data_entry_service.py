@@ -47,7 +47,7 @@ class DataEntryService:
         data_entry_type_id: int,
         user: User,
         data: DataEntryCreate,
-    ) -> DataEntry:
+    ) -> DataEntryResponse:
         """Create a new record."""
         # check if user.permissions allow creation
 
@@ -62,14 +62,19 @@ class DataEntryService:
             data=data.model_dump(),
         )
 
-        return await self.repo.create(entry)
+        created_entry = await self.repo.create(entry)
+
+        await self.session.commit()
+        await self.session.refresh(created_entry)
+
+        return DataEntryResponse.model_validate(created_entry)
 
     async def update(
         self,
         id: int,
         data: DataEntryUpdate,
         user: User,
-    ) -> Optional[DataEntryResponse]:
+    ) -> DataEntryResponse:
         """Update an existing record."""
         if not user or not user.id:
             logger.error("User context is required for updating data entry")
@@ -79,19 +84,27 @@ class DataEntryService:
             data=data,
             user_id=user.id,
         )
+        await self.session.commit()
+        await self.session.refresh(entry)
         if entry is None:
-            return None
+            raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)
 
     async def delete(self, id: int, current_user: User) -> bool:
         """Delete a record."""
-        return await self.repo.delete(id)
+        result = await self.repo.delete(id)
+        await self.session.commit()
 
-    async def get(self, id: int) -> Optional[DataEntryResponse]:
+        if result is None:
+            raise ValueError(f"Data entry with id={id} not found")
+        return True
+
+    async def get(self, id: int) -> DataEntryResponse:
         """Get record by ID."""
         entry = await self.repo.get(id)
+        await self.session.commit()
         if entry is None:
-            return None
+            raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)
 
     async def get_list(

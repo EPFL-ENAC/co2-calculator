@@ -42,8 +42,6 @@ class DataEntryRepository:
 
         # 3. Save
         self.session.add(db_obj)
-        await self.session.commit()
-        await self.session.refresh(db_obj)
         return db_obj
 
     async def update(
@@ -69,27 +67,22 @@ class DataEntryRepository:
 
         # 4. Save
         self.session.add(db_obj)
-        await self.session.commit()
-        await self.session.refresh(db_obj)
         return db_obj
 
-    async def delete(self, id: int) -> bool:
+    async def delete(self, id: int) -> Optional[DataEntry]:
         # 1. Fetch the existing record
         statement = select(DataEntry).where(DataEntry.id == id)
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()
 
         if not db_obj:
-            return False
+            return None
 
         await DataEntryEmissionRepository(
             self.session
         ).delete_data_entry_emissions_by_data_entry_id(id)
 
-        # 2. Delete
-        await self.session.delete(db_obj)
-        await self.session.commit()
-        return True
+        return db_obj
 
     async def get_list(
         self,

@@ -9,10 +9,10 @@ from app.api.v1 import (
     carbon_report_module,
     carbon_report_module_stats,
     data_sync,
+    factors,
     files,
     headcounts,
     locations,
-    power_factors,
     professional_travel,
     unit_results,
     units,
@@ -41,7 +41,7 @@ api_router.include_router(
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(
-    power_factors.router, prefix="/power-factors", tags=["power-factors"]
+    factors.router, prefix="/power-factors", tags=["power-factors"]
 )
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(
