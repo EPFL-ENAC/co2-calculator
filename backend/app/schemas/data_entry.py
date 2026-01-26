@@ -1,21 +1,37 @@
-from typing import Any, Optional, Protocol, TypeVar
+from typing import Any, Dict, Optional, Protocol, Type, TypeVar
 
 from pydantic import BaseModel
 
 from app.models.data_entry import DataEntry, DataEntryBase, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 # == =========== DTO BASE ================================= #
 
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)  # Base DTO (SQLModel)
+C = TypeVar("C", bound=BaseModel)  # Create DTO
+U = TypeVar("U", bound=BaseModel)  # Update DTO
+R = TypeVar("R", bound=BaseModel)  # Response DTO
 
 
-class Flattener(Protocol[T]):
+class ModuleHandler(Protocol[T]):
+    # Type info
+    module_type: ModuleTypeEnum
+    data_entry_type: Optional[DataEntryTypeEnum] = None
+
+    # DTOs
+    create_dto: Type[C]
+    update_dto: Type[U]
+    response_dto: Type[R]
+
+    # Sort map for this type
+    sort_map: Optional[Dict[str, Any]] = None
+
     def is_for(self, data_entry: T) -> bool: ...
-
-    dto: type[T]
-
-    def __call__(self, data_entry: T) -> T: ...
+    def to_response(self, data_entry: T) -> R: ...
+    def validate_create(self, payload: dict) -> C: ...
+    def validate_update(self, payload: dict) -> U: ...
 
 
 # ============ DTO INPUT ================================= #
@@ -53,10 +69,10 @@ class DataEntryResponseGen(DataEntryBase):
     carbon_report_module_id: int
 
 
-# ---- Specific Flattener Responses DTO ------------------ #
+# ---- Specific ModuleHandler Responses DTO ------------------ #
 
 
-class EquipmentFlattenerResponse(DataEntryResponseGen):
+class EquipmentHandlerResponse(DataEntryResponseGen):
     active_usage_hours: int
     passive_usage_hours: int
     name: str
@@ -68,13 +84,13 @@ class EquipmentFlattenerResponse(DataEntryResponseGen):
     sub_class: Optional[str]
 
 
-class ExternalCloudFlattenerResponse(DataEntryResponseGen):
+class ExternalCloudHandlerResponse(DataEntryResponseGen):
     name: str
     usage_hours: int
     kg_co2eq: float
 
 
-class ExternalAIFlattenerResponse(DataEntryResponseGen):
+class ExternalAIHandlerResponse(DataEntryResponseGen):
     name: str
     usage_hours: int
     model_name: str
@@ -94,27 +110,42 @@ def unflatten_data_entry_payload(payload: dict) -> dict:
     return result
 
 
-# ----------- Flatteners --------------------------------- #
+# ----------- ModuleHandlers --------------------------------- #
 
 
-FLATTENERS: dict[DataEntryTypeEnum, Flattener] = {}
+MODULE_HANDLERS: dict[DataEntryTypeEnum, ModuleHandler] = {}
 
 
-def register_flattener(key: DataEntryTypeEnum):
+def register_module_handler(key: DataEntryTypeEnum):
     def decorator(cls):
-        FLATTENERS[key] = cls()
+        MODULE_HANDLERS[key] = cls()
         return cls
 
     return decorator
 
 
-@register_flattener(DataEntryTypeEnum.it)
-@register_flattener(DataEntryTypeEnum.scientific)
-@register_flattener(DataEntryTypeEnum.other)
-class EquipmentFlattener:
-    dto = EquipmentFlattenerResponse
-
+@register_module_handler(DataEntryTypeEnum.it)
+@register_module_handler(DataEntryTypeEnum.scientific)
+@register_module_handler(DataEntryTypeEnum.other)
+class EquipmentModuleHandler(ModuleHandler[DataEntry]):
     module_type: ModuleTypeEnum = ModuleTypeEnum.equipment_electric_consumption
+    data_entry_type: DataEntryTypeEnum | None = None
+    create_dto = DataEntryCreate
+    update_dto = DataEntryUpdate
+    response_dto = EquipmentHandlerResponse
+
+    # Add the sort_map here
+    sort_map = {
+        "id": DataEntry.id,
+        "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
+        "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
+        "name": DataEntry.data["name"].as_string(),
+        "active_power_w": Factor.values["active_power_w"].as_float(),
+        "standby_power_w": Factor.values["standby_power_w"].as_float(),
+        "equipment_class": Factor.classification["class"].as_string(),
+        "sub_class": Factor.classification["sub_class"].as_string(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
 
     def is_for(self, data_entry: DataEntry) -> bool:
         return data_entry.data_entry_type_id in {
@@ -124,8 +155,8 @@ class EquipmentFlattener:
         }
 
     # rename to process or transform? we don't know what __call__ does
-    def __call__(self, data_entry: DataEntry) -> EquipmentFlattenerResponse:
-        return self.dto.model_validate(
+    def to_response(self, data_entry: DataEntry) -> response_dto:
+        return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
@@ -138,20 +169,31 @@ class EquipmentFlattener:
             }
         )
 
+    def validate_create(self, payload: dict) -> C:
+        return self.create_dto.model_validate(unflatten_data_entry_payload(payload))
 
-@register_flattener(DataEntryTypeEnum.external_clouds)
-class ExternalCloudFlattener:
-    dto = ExternalCloudFlattenerResponse
+    def validate_update(self, payload: dict) -> U:
+        return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
 
-    module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
+
+@register_module_handler(DataEntryTypeEnum.external_clouds)
+class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.equipment_electric_consumption
+    data_entry_type: DataEntryTypeEnum | None = None
+    create_dto = DataEntryCreate
+    update_dto = DataEntryUpdate
+    response_dto = ExternalCloudHandlerResponse
+
+    sort_map = {
+        "id": DataEntry.id,
+    }
 
     def is_for(self, data_entry: DataEntry) -> bool:
         return data_entry.data_entry_type_id in {
             DataEntryTypeEnum.external_clouds,
         }
 
-    def __call__(self, data_entry: DataEntry) -> ExternalCloudFlattenerResponse:
+    def __call__(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
         return self.dto.model_validate(
             {
                 "id": data_entry.id,
@@ -161,19 +203,23 @@ class ExternalCloudFlattener:
         )
 
 
-@register_flattener(DataEntryTypeEnum.external_ai)
-class ExternalAIFlattener:
-    dto = ExternalAIFlattenerResponse
+@register_module_handler(DataEntryTypeEnum.external_ai)
+class ExternalAIModuleHandler(ModuleHandler[DataEntry]):
+    dto = ExternalAIHandlerResponse
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
 
+    sort_map = {
+        "id": DataEntry.id,
+    }
+
     def is_for(self, data_entry: DataEntry) -> bool:
-        return data_entry.data_entry_type_id in {
+        return DataEntryTypeEnum(data_entry.data_entry_type_id) in {
             DataEntryTypeEnum.external_ai,
         }
 
-    def __call__(self, data_entry: DataEntry) -> ExternalAIFlattenerResponse:
+    def __call__(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
         return self.dto.model_validate(
             {
                 "id": data_entry.id,
@@ -183,14 +229,46 @@ class ExternalAIFlattener:
         )
 
 
-def get_flattener_for_data_entry(data_entry: DataEntry) -> Flattener:
+def get_data_entry_handler(data_entry: DataEntry) -> ModuleHandler:
     """
-    Returns the first flattener instance that matches the data_entry.
+    Returns the first module handler instance that matches the data_entry.
     """
-    for flattener in FLATTENERS.values():
-        if flattener.is_for(data_entry):
-            return flattener
+    for handler in MODULE_HANDLERS.values():
+        if handler.is_for(data_entry):
+            return handler
     raise ValueError(
-        f"""No flattener found for
+        f"""No module handler found for
         data_entry_type_id={getattr(data_entry, "data_entry_type_id", None)}"""
     )
+
+
+def get_data_entry_handler_by_type(
+    data_entry_type: DataEntryTypeEnum,
+) -> ModuleHandler:
+    """
+    Returns the module handler instance for the given data_entry_type.
+    """
+    handler = MODULE_HANDLERS.get(data_entry_type)
+    if handler is None:
+        raise ValueError(
+            f"No module handler found for data_entry_type={data_entry_type}"
+        )
+    return handler
+
+
+## CREATE/UPDATE DTO above
+
+# # Optionally, you can create a registry for these DTOs as well:
+# CREATE_DTOS = {
+#     ModuleTypeEnum.equipment_electric_consumption: EquipmentCreate,
+#     ModuleTypeEnum.external_cloud_and_ai: ExternalCloudCreate,
+#  # or ExternalAICreate as needed
+#     # Add more as needed
+# }
+
+# UPDATE_DTOS = {
+#     ModuleTypeEnum.equipment_electric_consumption: EquipmentUpdate,
+#     ModuleTypeEnum.external_cloud_and_ai: ExternalCloudUpdate,
+# # or ExternalAIUpdate as needed
+#     # Add more as needed
+# }

@@ -419,7 +419,7 @@ def _get_module_permission_path(module_id: str) -> Optional[str]:
         "infrastructure": "modules.infrastructure",
         "purchase": "modules.purchase",
         "internal-services": "modules.internal_services",
-        "external-cloud": "modules.external_cloud",
+        "external-cloud-and-ai": "modules.external_cloud_and_ai",
         "my-lab": "modules.headcount",  # Headcount module
     }
     return module_permission_map.get(module_id)

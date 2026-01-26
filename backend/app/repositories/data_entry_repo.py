@@ -4,20 +4,24 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Float, Select, asc, cast, desc, func
-from sqlalchemy.sql import ColumnElement
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
-from app.schemas.data_entry import FLATTENERS, DataEntryUpdate
+from app.schemas.data_entry import (
+    DataEntryUpdate,
+    get_data_entry_handler,
+    get_data_entry_handler_by_type,
+)
 
 logger = get_logger(__name__)
 
@@ -105,18 +109,6 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def get_data_entry_type_ids_for_module_type(
-        self, module_type_id: int
-    ) -> list[int]:
-        # Example: adjust according to your actual model/table
-        from app.models.data_entry_type import DataEntryType
-
-        stmt = select(DataEntryType.id).where(
-            DataEntryType.module_type_id == module_type_id
-        )
-        result = await self.session.execute(stmt)
-        return [row[0] for row in result.all()]
-
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
     ) -> Optional[int]:
@@ -150,9 +142,8 @@ class DataEntryRepository:
         )
         if module_type_id is None:
             return {}
-        all_type_ids = await self.get_data_entry_type_ids_for_module_type(
-            module_type_id
-        )
+
+        all_type_ids = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type_id, [])
 
         # Get actual counts from DB
         query: Select = (
@@ -177,22 +168,22 @@ class DataEntryRepository:
 
         return aggregation
 
-    equipment_map = {
-        "id": DataEntry.id,
-        "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
-        "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
-        "name": DataEntry.data["name"].as_string(),
-        "active_power_w": Factor.values["active_power_w"].as_float(),
-        "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
-        "kg_co2eq": DataEntryEmission.kg_co2eq,
-    }
-    SORT_MAPS: dict[DataEntryTypeEnum, dict[str, ColumnElement]] = {
-        DataEntryTypeEnum.it: equipment_map,
-        DataEntryTypeEnum.scientific: equipment_map,
-        DataEntryTypeEnum.other: equipment_map,
-    }
+    # equipment_map = {
+    #     "id": DataEntry.id,
+    #     "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
+    #     "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
+    #     "name": DataEntry.data["name"].as_string(),
+    #     "active_power_w": Factor.values["active_power_w"].as_float(),
+    #     "standby_power_w": Factor.values["standby_power_w"].as_float(),
+    #     "equipment_class": Factor.classification["class"].as_string(),
+    #     "sub_class": Factor.classification["sub_class"].as_string(),
+    #     "kg_co2eq": DataEntryEmission.kg_co2eq,
+    # }
+    # SORT_MAPS: dict[DataEntryTypeEnum, dict[str, ColumnElement]] = {
+    #     DataEntryTypeEnum.it: equipment_map,
+    #     DataEntryTypeEnum.scientific: equipment_map,
+    #     DataEntryTypeEnum.other: equipment_map,
+    # }
 
     def _apply_name_filter(self, statement, filter: Optional[str]):
         """
@@ -254,7 +245,8 @@ class DataEntryRepository:
 
         statement, filter_pattern = self._apply_name_filter(statement, filter)
 
-        sort_map = self.SORT_MAPS[DataEntryTypeEnum(data_entry_type_id)]
+        handler = get_data_entry_handler_by_type(data_entry_type_id)
+        sort_map = handler.sort_map
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -276,7 +268,7 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for data_entry, data_entry_emission, primary_factor in rows:
-            flattener = FLATTENERS[DataEntryTypeEnum(data_entry.data_entry_type_id)]
+            handler = get_data_entry_handler(data_entry)
             data_entry.data = {
                 **data_entry.data,
                 "kg_co2eq": data_entry_emission.kg_co2eq,
@@ -287,7 +279,7 @@ class DataEntryRepository:
                 if primary_factor
                 else None,
             }
-            items.append(flattener(data_entry))
+            items.append(handler.to_response(data_entry))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
