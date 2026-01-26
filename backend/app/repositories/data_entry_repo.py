@@ -8,10 +8,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
@@ -19,7 +19,6 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
     DataEntryUpdate,
-    get_data_entry_handler,
     get_data_entry_handler_by_type,
 )
 
@@ -143,7 +142,9 @@ class DataEntryRepository:
         if module_type_id is None:
             return {}
 
-        all_type_ids = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type_id, [])
+        all_type_ids = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            ModuleTypeEnum(module_type_id), []
+        )
 
         # Get actual counts from DB
         query: Select = (
@@ -245,7 +246,7 @@ class DataEntryRepository:
 
         statement, filter_pattern = self._apply_name_filter(statement, filter)
 
-        handler = get_data_entry_handler_by_type(data_entry_type_id)
+        handler = get_data_entry_handler_by_type(DataEntryTypeEnum(data_entry_type_id))
         sort_map = handler.sort_map
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
@@ -268,7 +269,9 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for data_entry, data_entry_emission, primary_factor in rows:
-            handler = get_data_entry_handler(data_entry)
+            handler = get_data_entry_handler_by_type(
+                DataEntryTypeEnum(data_entry.data_entry_type_id)
+            )
             data_entry.data = {
                 **data_entry.data,
                 "kg_co2eq": data_entry_emission.kg_co2eq,

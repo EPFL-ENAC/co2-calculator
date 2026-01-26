@@ -9,10 +9,7 @@ from app.models.module_type import ModuleTypeEnum
 
 # == =========== DTO BASE ================================= #
 
-T = TypeVar("T", bound=BaseModel)  # Base DTO (SQLModel)
-C = TypeVar("C", bound=BaseModel)  # Create DTO
-U = TypeVar("U", bound=BaseModel)  # Update DTO
-R = TypeVar("R", bound=BaseModel)  # Response DTO
+T = TypeVar("T", bound=BaseModel, contravariant=True)
 
 
 class ModuleHandler(Protocol[T]):
@@ -21,17 +18,14 @@ class ModuleHandler(Protocol[T]):
     data_entry_type: Optional[DataEntryTypeEnum] = None
 
     # DTOs
-    create_dto: Type[C]
-    update_dto: Type[U]
-    response_dto: Type[R]
+    create_dto: Type[BaseModel]
+    update_dto: Type[BaseModel]
+    response_dto: Type[BaseModel]
+    sort_map: Dict[str, Any]
 
-    # Sort map for this type
-    sort_map: Optional[Dict[str, Any]] = None
-
-    def is_for(self, data_entry: T) -> bool: ...
-    def to_response(self, data_entry: T) -> R: ...
-    def validate_create(self, payload: dict) -> C: ...
-    def validate_update(self, payload: dict) -> U: ...
+    def to_response(self, data_entry: T) -> BaseModel: ...
+    def validate_create(self, payload: dict) -> BaseModel: ...
+    def validate_update(self, payload: dict) -> BaseModel: ...
 
 
 # ============ DTO INPUT ================================= #
@@ -147,15 +141,7 @@ class EquipmentModuleHandler(ModuleHandler[DataEntry]):
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
-    def is_for(self, data_entry: DataEntry) -> bool:
-        return data_entry.data_entry_type_id in {
-            DataEntryTypeEnum.it,
-            DataEntryTypeEnum.scientific,
-            DataEntryTypeEnum.other,
-        }
-
-    # rename to process or transform? we don't know what __call__ does
-    def to_response(self, data_entry: DataEntry) -> response_dto:
+    def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
@@ -169,17 +155,17 @@ class EquipmentModuleHandler(ModuleHandler[DataEntry]):
             }
         )
 
-    def validate_create(self, payload: dict) -> C:
+    def validate_create(self, payload: dict) -> DataEntryCreate:
         return self.create_dto.model_validate(unflatten_data_entry_payload(payload))
 
-    def validate_update(self, payload: dict) -> U:
+    def validate_update(self, payload: dict) -> DataEntryUpdate:
         return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
 
 
 @register_module_handler(DataEntryTypeEnum.external_clouds)
 class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
-    module_type: ModuleTypeEnum = ModuleTypeEnum.equipment_electric_consumption
-    data_entry_type: DataEntryTypeEnum | None = None
+    module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
     create_dto = DataEntryCreate
     update_dto = DataEntryUpdate
     response_dto = ExternalCloudHandlerResponse
@@ -188,58 +174,50 @@ class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
         "id": DataEntry.id,
     }
 
-    def is_for(self, data_entry: DataEntry) -> bool:
-        return data_entry.data_entry_type_id in {
-            DataEntryTypeEnum.external_clouds,
-        }
-
-    def __call__(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
-        return self.dto.model_validate(
+    def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
+        return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
             }
         )
+
+    def validate_create(self, payload: dict) -> DataEntryCreate:
+        return self.create_dto.model_validate(unflatten_data_entry_payload(payload))
+
+    def validate_update(self, payload: dict) -> DataEntryUpdate:
+        return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
 
 
 @register_module_handler(DataEntryTypeEnum.external_ai)
 class ExternalAIModuleHandler(ModuleHandler[DataEntry]):
-    dto = ExternalAIHandlerResponse
-
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
+    create_dto = DataEntryCreate
+    update_dto = DataEntryUpdate
+    response_dto = ExternalCloudHandlerResponse
 
     sort_map = {
         "id": DataEntry.id,
     }
 
-    def is_for(self, data_entry: DataEntry) -> bool:
-        return DataEntryTypeEnum(data_entry.data_entry_type_id) in {
-            DataEntryTypeEnum.external_ai,
-        }
-
-    def __call__(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
-        return self.dto.model_validate(
+    def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
+        return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
             }
         )
 
+    def validate_create(self, payload: dict) -> DataEntryCreate:
+        return self.create_dto.model_validate(unflatten_data_entry_payload(payload))
 
-def get_data_entry_handler(data_entry: DataEntry) -> ModuleHandler:
-    """
-    Returns the first module handler instance that matches the data_entry.
-    """
-    for handler in MODULE_HANDLERS.values():
-        if handler.is_for(data_entry):
-            return handler
-    raise ValueError(
-        f"""No module handler found for
-        data_entry_type_id={getattr(data_entry, "data_entry_type_id", None)}"""
-    )
+    def validate_update(self, payload: dict) -> DataEntryUpdate:
+        return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
 
 
 def get_data_entry_handler_by_type(
@@ -254,21 +232,3 @@ def get_data_entry_handler_by_type(
             f"No module handler found for data_entry_type={data_entry_type}"
         )
     return handler
-
-
-## CREATE/UPDATE DTO above
-
-# # Optionally, you can create a registry for these DTOs as well:
-# CREATE_DTOS = {
-#     ModuleTypeEnum.equipment_electric_consumption: EquipmentCreate,
-#     ModuleTypeEnum.external_cloud_and_ai: ExternalCloudCreate,
-#  # or ExternalAICreate as needed
-#     # Add more as needed
-# }
-
-# UPDATE_DTOS = {
-#     ModuleTypeEnum.equipment_electric_consumption: EquipmentUpdate,
-#     ModuleTypeEnum.external_cloud_and_ai: ExternalCloudUpdate,
-# # or ExternalAIUpdate as needed
-#     # Add more as needed
-# }

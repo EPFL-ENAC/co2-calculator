@@ -79,8 +79,8 @@ class TestCalculateUserPermissions:
         assert result["modules.purchase"]["edit"] is True
         assert result["modules.internal_services"]["view"] is True
         assert result["modules.internal_services"]["edit"] is True
-        assert result["modules.external_cloud"]["view"] is True
-        assert result["modules.external_cloud"]["edit"] is True
+        assert result["modules.external_cloud_and_ai"]["view"] is True
+        assert result["modules.external_cloud_and_ai"]["edit"] is True
         # Principal also gets backoffice.users.edit for unit-scoped role assignment
         assert result["backoffice.users"]["edit"] is True
 
@@ -101,8 +101,8 @@ class TestCalculateUserPermissions:
         assert result["modules.purchase"]["edit"] is False
         assert result["modules.internal_services"]["view"] is False
         assert result["modules.internal_services"]["edit"] is False
-        assert result["modules.external_cloud"]["view"] is False
-        assert result["modules.external_cloud"]["edit"] is False
+        assert result["modules.external_cloud_and_ai"]["view"] is False
+        assert result["modules.external_cloud_and_ai"]["edit"] is False
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
