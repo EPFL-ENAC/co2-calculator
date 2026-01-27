@@ -1,6 +1,3 @@
-from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal

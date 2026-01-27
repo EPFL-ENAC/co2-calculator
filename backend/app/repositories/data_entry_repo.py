@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Float, Select, asc, cast, desc, func
-from sqlmodel import col, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -51,6 +51,16 @@ class DataEntryRepository:
         db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
         self.session.add_all(db_objs)
         return db_objs
+
+    async def bulk_delete(
+        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete data entries by module and type."""
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+        await self.session.execute(statement)
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int

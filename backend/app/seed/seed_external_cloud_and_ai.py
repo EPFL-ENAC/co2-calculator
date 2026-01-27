@@ -37,6 +37,10 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
     """Seed External Cloud and AI data entries."""
     service = DataEntryService(session)
     data_entries = []
+    await service.bulk_delete(
+        carbon_report_module_id, DataEntryTypeEnum.external_clouds
+    )
+
     with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
@@ -60,16 +64,18 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     """Seed External AI data entries."""
     service = DataEntryService(session)
     data_entries = []
+    await service.bulk_delete(carbon_report_module_id, DataEntryTypeEnum.external_ai)
     with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            print(row)
             data_entry = DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
                 carbon_report_module_id=carbon_report_module_id,
                 data={
                     "ai_provider": row.get("ai_provider"),
                     "ai_use": row.get("ai_use"),
-                    "frequency_use": row.get("frequency_use"),
+                    "frequency_use_per_day": int(row.get("frequency_use_per_day", 0)),
                     "user_count": int(row.get("user_count", 0)),
                 },
             )

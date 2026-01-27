@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.user import User
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -79,6 +79,18 @@ class DataEntryService:
         for obj in db_objs:
             await self.session.refresh(obj)
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
+
+    async def bulk_delete(
+        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete data entries by module and type."""
+        logger.info(
+            f"Bulk deleting data entries\n"
+            f"for module_id={sanitize(carbon_report_module_id)}\n"
+            f"data_entry_type_id={sanitize(data_entry_type_id.value)}"
+        )
+        await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
+        await self.session.commit()
 
     async def update(
         self,
