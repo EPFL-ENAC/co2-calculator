@@ -6,13 +6,21 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+processors:
+  filter:
+    metrics:
+      datapoint:
+        - 'attributes["http.target"] == "/api/health"'
+
 exporters:
   prometheus:
     endpoint: 0.0.0.0:9464
-    enable_open_metrics: true
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   pipelines:
     metrics:
       receivers: [otlp]
+      processors: [filter]
       exporters: [prometheus]
