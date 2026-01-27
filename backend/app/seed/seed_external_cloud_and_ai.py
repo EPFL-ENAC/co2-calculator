@@ -2,7 +2,6 @@ import asyncio
 import csv
 from pathlib import Path
 
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -36,54 +35,47 @@ CSV_PATH_EXTERNAL_AI = (
 # -> Spending (€)  -> spending
 async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) -> None:
     """Seed External Cloud and AI data entries."""
-    async with session.begin():
-        service = DataEntryService(session)
-        # Read CSV data
-        data_entries = []
-        with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                # Create DataEntry
-                print(row)
-                data_entry = DataEntry(
-                    data_entry_type_id=DataEntryTypeEnum.external_clouds,
-                    carbon_report_module_id=carbon_report_module_id,
-                    data={
-                        "cloud_provider": row.get("cloud_provider"),
-                        "service_type": row.get("service_type"),
-                        "spending": float(row.get("spending", 0)),
-                        "region": row.get("region"),
-                    },
-                )
-                data_entries.append(data_entry)
-        await service.bulk_create(data_entries)
-        logger.info("Seeded External Cloud data entries.")
+    service = DataEntryService(session)
+    data_entries = []
+    with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            data_entry = DataEntry(
+                data_entry_type_id=DataEntryTypeEnum.external_clouds,
+                carbon_report_module_id=carbon_report_module_id,
+                data={
+                    "cloud_provider": row.get("cloud_provider"),
+                    "service_type": row.get("service_type"),
+                    "spending": float(row.get("spending", 0)),
+                    "region": row.get("region"),
+                },
+            )
+            data_entries.append(data_entry)
+    await service.bulk_create(data_entries)
+    logger.info("Seeded External Cloud data entries.")
 
 
 # input: Provider | Use | Number of users | Frequency (time/day)
 async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> None:
     """Seed External AI data entries."""
-    async with session.begin():
-        service = DataEntryService(session)
-        # Read CSV data
-        data_entries = []
-        with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                # Create DataEntry
-                data_entry = DataEntry(
-                    data_entry_type_id=DataEntryTypeEnum.external_ai,
-                    carbon_report_module_id=carbon_report_module_id,
-                    data={
-                        "ai_provider": row["ai_provider"],
-                        "ai_use": row["ai_use"],
-                        "frequency_use": row["frequency_use"],
-                        "user_count": int(row["user_count"]),
-                    },
-                )
-                data_entries.append(data_entry)
-        await service.bulk_create(data_entries)
-        logger.info("Seeded External AI data entries.")
+    service = DataEntryService(session)
+    data_entries = []
+    with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            data_entry = DataEntry(
+                data_entry_type_id=DataEntryTypeEnum.external_ai,
+                carbon_report_module_id=carbon_report_module_id,
+                data={
+                    "ai_provider": row.get("ai_provider"),
+                    "ai_use": row.get("ai_use"),
+                    "frequency_use": row.get("frequency_use"),
+                    "user_count": int(row.get("user_count", 0)),
+                },
+            )
+            data_entries.append(data_entry)
+    await service.bulk_create(data_entries)
+    logger.info("Seeded External AI data entries.")
 
 
 async def main() -> None:
@@ -95,6 +87,12 @@ async def main() -> None:
         )
         await seed_data_clouds(session, carbon_report_module_id_10208)
         await seed_data_ai(session, carbon_report_module_id_10208)
+
+        carbon_report_module_id_12345 = await get_carbon_report_module_id(
+            unit_provider_code="12345", year=2025
+        )
+        await seed_data_clouds(session, carbon_report_module_id_12345)
+        await seed_data_ai(session, carbon_report_module_id_12345)
 
 
 if __name__ == "__main__":
