@@ -61,10 +61,20 @@ lint: ## Check code formatting
 		fi; \
 	fi
 
+TSGO := $(shell which tsgo)
+
+
+# https://github.com/KazariEX/vue-tsgo
+.PHONY: type-check-go
+type-check-go: ## Run TypeScript type checking
+	@if [ -z "$(TSGO)" ]; then echo "Error: tsgo not found in PATH"; exit 1; fi
+	@$(TSGO) --noEmit -p tsconfig.typecheck.json
+
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
 	@set -e; \
 	npx vue-tsc --noEmit -p tsconfig.typecheck.json
+
 
 .PHONY: type-check-full
 type-check-full: ## Run TypeScript type checking
