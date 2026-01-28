@@ -41,7 +41,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.InternalServices]: MODULE_STATES.Default,
-    [MODULES.ExternalCloud]: MODULE_STATES.Default,
+    [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);

@@ -64,8 +64,14 @@ lint: ## Check code formatting
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
 	@set -e; \
-	npx tsc --noEmit && \
-	npx vue-tsc --noEmit
+	npx vue-tsc --noEmit -p tsconfig.typecheck.json
+
+.PHONY: type-check-full
+type-check-full: ## Run TypeScript type checking
+	@set -e; \
+	npx tsc --noEmit -p tsconfig.typecheck.json && \
+	npx vue-tsc --noEmit -p tsconfig.typecheck.json
+
 
 .PHONY: test
 test: ## Run tests (component + e2e)

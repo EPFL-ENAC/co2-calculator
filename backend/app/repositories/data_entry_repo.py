@@ -185,23 +185,6 @@ class DataEntryRepository:
 
         return aggregation
 
-    # equipment_map = {
-    #     "id": DataEntry.id,
-    #     "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
-    #     "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
-    #     "name": DataEntry.data["name"].as_string(),
-    #     "active_power_w": Factor.values["active_power_w"].as_float(),
-    #     "standby_power_w": Factor.values["standby_power_w"].as_float(),
-    #     "equipment_class": Factor.classification["class"].as_string(),
-    #     "sub_class": Factor.classification["sub_class"].as_string(),
-    #     "kg_co2eq": DataEntryEmission.kg_co2eq,
-    # }
-    # SORT_MAPS: dict[DataEntryTypeEnum, dict[str, ColumnElement]] = {
-    #     DataEntryTypeEnum.it: equipment_map,
-    #     DataEntryTypeEnum.scientific: equipment_map,
-    #     DataEntryTypeEnum.other: equipment_map,
-    # }
-
     def _apply_name_filter(self, statement, filter: Optional[str]):
         """
         Applies a name filter to the given SQLAlchemy statement if
@@ -248,6 +231,7 @@ class DataEntryRepository:
             .join(
                 DataEntryEmission,
                 col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                isouter=True,
             )
             .join(
                 Factor,
@@ -255,8 +239,8 @@ class DataEntryRepository:
                 isouter=True,
             )
             .where(
-                DataEntry.carbon_report_module_id == carbon_report_module_id,
-                DataEntry.data_entry_type_id == data_entry_type_id,
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
             )
         )
 
@@ -288,9 +272,12 @@ class DataEntryRepository:
             handler = get_data_entry_handler_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
+            kg_co2eq = None
+            if data_entry_emission is not None:
+                kg_co2eq = data_entry_emission.kg_co2eq
             data_entry.data = {
                 **data_entry.data,
-                "kg_co2eq": data_entry_emission.kg_co2eq,
+                "kg_co2eq": kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
                     **primary_factor.classification,

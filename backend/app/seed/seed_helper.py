@@ -15,7 +15,7 @@ versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int:
     """Generate real carbon_report_module_id based on unit and year."""
     # Get unit by provider code to find unit_id
-    current_module_type_id = ModuleTypeEnum.equipment_electric_consumption.value
+    current_module_type_id = ModuleTypeEnum.external_cloud_and_ai
     async with SessionLocal() as session:
         service = CarbonReportService(session)
         unit_service = UnitService(session)
@@ -39,10 +39,12 @@ async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int
                 )
         # Get carbon_report_module_id for equipment module type
         module_service = CarbonReportModuleService(session)
+        print(carbon_report)
         carbon_report_module = await module_service.get_module(
             carbon_report_id=carbon_report.id,
             module_type_id=current_module_type_id,
         )
+        print(carbon_report_module)
         if not carbon_report_module:
             raise ValueError(
                 f"Could not find carbon report module for unit "

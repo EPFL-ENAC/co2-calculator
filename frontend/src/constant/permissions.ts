@@ -180,7 +180,7 @@ export interface UserPermissions {
  * @property {ModulePermissions} ['modules.infrastructure'] - Infrastructure module permissions
  * @property {ModulePermissions} ['modules.purchase'] - Purchase module permissions
  * @property {ModulePermissions} ['modules.internal_services'] - Internal services module permissions
- * @property {ModulePermissions} ['modules.external_cloud'] - External cloud module permissions
+ * @property {ModulePermissions} ['modules.external_clouds'] - External cloud module permissions
  * @property {ModulePermissions} ['system.users'] - System users module permissions
  * @property {ModulePermissions | undefined} [key: string] - Allow for future extensions
  *
@@ -204,7 +204,7 @@ export interface FlatUserPermissions {
   'modules.infrastructure'?: ModulePermissions;
   'modules.purchase'?: ModulePermissions;
   'modules.internal_services'?: ModulePermissions;
-  'modules.external_cloud'?: ModulePermissions;
+  'modules.external_clouds'?: ModulePermissions;
   'system.users'?: ModulePermissions;
   [key: string]: ModulePermissions | undefined;
 }

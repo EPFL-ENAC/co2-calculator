@@ -5,7 +5,7 @@ export const MODULES = {
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
   InternalServices: 'internal-services',
-  ExternalCloud: 'external-cloud-and-ai',
+  ExternalCloudAndAI: 'external-cloud-and-ai',
 } as const;
 
 export const MODULES_DESCRIPTIONS = {
@@ -15,7 +15,7 @@ export const MODULES_DESCRIPTIONS = {
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
   Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
-  ExternalCloud: 'external-cloud-and-ai-description',
+  ExternalCloudAndAI: 'external-cloud-and-ai-description',
 } as const;
 
 // TODO: implement something like this
@@ -134,7 +134,7 @@ type InternalServicesProps = {
 };
 
 export const SUBMODULE_EXTERNAL_CLOUD_TYPES = {
-  external_cloud: 'external_cloud',
+  external_clouds: 'external_clouds',
   external_ai: 'external_ai',
 } as const;
 
@@ -142,7 +142,7 @@ export type ExternalCloudSubType =
   (typeof SUBMODULE_EXTERNAL_CLOUD_TYPES)[keyof typeof SUBMODULE_EXTERNAL_CLOUD_TYPES];
 
 type ExternalCloudProps = {
-  moduleType: typeof MODULES.ExternalCloud;
+  moduleType: typeof MODULES.ExternalCloudAndAI;
   submoduleType?: ExternalCloudSubType;
 };
 
@@ -242,7 +242,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',
-    [MODULES.ExternalCloud]: 'external_cloud_and_ai',
+    [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

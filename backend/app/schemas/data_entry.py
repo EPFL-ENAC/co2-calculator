@@ -79,16 +79,20 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
-    name: str
-    usage_hours: int
-    kg_co2eq: float
+    service_type: str
+    cloud_provider: str
+    region: str
+    spending: float
+    kg_co2eq: Optional[float]
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
-    name: str
-    usage_hours: int
-    model_name: str
-    kg_co2eq: float
+    # ai_provider,ai_use,frequency_use_per_day,user_count
+    ai_provider: str
+    ai_use: str
+    frequency_use_per_day: int
+    user_count: int
+    kg_co2eq: Optional[float]
 
 
 # ---- Unflatteners DTO --------------------------------- #
@@ -197,13 +201,13 @@ class ExternalAIModuleHandler(ModuleHandler[DataEntry]):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
     create_dto = DataEntryCreate
     update_dto = DataEntryUpdate
-    response_dto = ExternalCloudHandlerResponse
+    response_dto = ExternalAIHandlerResponse
 
     sort_map = {
         "id": DataEntry.id,
     }
 
-    def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
+    def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,

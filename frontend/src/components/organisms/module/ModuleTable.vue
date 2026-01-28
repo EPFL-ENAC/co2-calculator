@@ -306,7 +306,7 @@ import type {
   Threshold,
 } from 'src/constant/modules';
 
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
 import { nOrDash } from 'src/utils/number';
 
@@ -695,13 +695,47 @@ function isCompleteHeadcount(row: ModuleRow) {
   );
 }
 
+//  dependence on the submodule type
+function isCompleteExternalCloud(row: ModuleRow) {
+  const required = ['service_type', 'cloud_provider', 'spending'];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isCompleteExternalAI(row: ModuleRow) {
+  const required = [
+    'ai_provider',
+    'ai_use',
+    'frequency_use_per_day',
+    'user_count',
+  ];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
 function isComplete(row: ModuleRow) {
+  // # TODO : move isComplete to module definition
+
   if (props.moduleType === MODULES.MyLab) {
     // For MyLab (headcount), consider complete if name and status are set
     return isCompleteHeadcount(row);
   }
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
     return isCompleteEquipement(row);
+  }
+  if (
+    props.moduleType === MODULES.ExternalCloudAndAI &&
+    props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
+  ) {
+    return isCompleteExternalCloud(row);
+  }
+  if (
+    props.moduleType === MODULES.ExternalCloudAndAI &&
+    props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
+  ) {
+    return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
     // For Professional Travel, consider complete if origin, destination, and transport_mode are set
