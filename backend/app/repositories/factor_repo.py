@@ -196,44 +196,33 @@ class FactorRepository:
 
     #     return None
 
-    # async def get_power_factor(
-    #     self,
-    #     session: AsyncSession,
-    #     variant_type_id: int,
-    #     equipment_class: str,
-    #     sub_class: Optional[str] = None,
-    # ) -> Optional[Factor]:
-    #     """
-    #     Get power factor with classification matching (class/sub_class).
+    async def get_power_factor(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        kind: str,
+        subkind: Optional[str] = None,
+    ) -> Optional[Factor]:
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == data_entry_type.value,
+        )
 
-    #     Mimics the legacy PowerFactorRepository.get_power_factor behavior.
-    #     """
-    #     stmt = select(Factor).where(
-    #         col(Factor.factor_family) == "power",
-    #         col(Factor.variant_type_id) == variant_type_id,
-    #         col(Factor.valid_to).is_(None),
-    #     )
+        result = await self.session.exec(stmt)
+        factors = result.all()
 
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
+        # First try exact match with subkind
+        if subkind:
+            for factor in factors:
+                cls = factor.classification or {}
+                if cls.get("kind") == kind and cls.get("subkind") == subkind:
+                    return factor
 
-    #     # First try exact match with sub_class
-    #     if sub_class:
-    #         for factor in factors:
-    #             cls = factor.classification or {}
-    #             if (
-    #                 cls.get("class") == equipment_class
-    #                 and cls.get("sub_class") == sub_class
-    #             ):
-    #                 return factor
+        # Fallback to class-only match
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == kind and not cls.get("subkind"):
+                return factor
 
-    #     # Fallback to class-only match
-    #     for factor in factors:
-    #         cls = factor.classification or {}
-    #         if cls.get("class") == equipment_class and not cls.get("sub_class"):
-    #             return factor
-
-    #     return None
+        return None
 
     # async def get_emission_factor(
     #     self,

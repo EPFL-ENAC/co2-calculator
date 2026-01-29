@@ -197,7 +197,7 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  (inp.id === 'class' && loadingClasses) ||
+                  (inp.id === 'equipment_class' && loadingClasses) ||
                   (inp.id === 'sub_class' && loadingSubclasses)
                 "
                 :error="!!errors[inp.id]"

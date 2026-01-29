@@ -18,7 +18,7 @@ export function useEquipmentClassOptions<
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
 ) {
-  const classFieldId = config.classFieldId ?? 'class';
+  const classFieldId = config.classFieldId ?? 'equipment_class';
   const subClassFieldId = config.subClassFieldId ?? 'sub_class';
   const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
   const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
@@ -104,7 +104,6 @@ export function useEquipmentClassOptions<
     if (!cls) return;
 
     const subCls = normalizeValue(entity[subClassFieldId]);
-
     // Only load power factor if:
     // 1. Subclass is NOT required (no subclass options available), OR
     // 2. Subclass is required AND one has been selected

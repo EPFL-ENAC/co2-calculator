@@ -1,14 +1,15 @@
 import { api } from 'src/api/http';
 
-import type { AllSubmoduleTypes } from 'src/constant/modules';
+import type { AllSubmoduleTypes,  } from 'src/constant/modules';
+import  { enumSubmodule } from 'src/constant/modules';
 
 export async function getSubclassMap(
   submodule: AllSubmoduleTypes,
 ): Promise<Record<string, string[]>> {
   const res = await api
-    .get(`power-factors/${encodeURIComponent(submodule)}/class-subclass-map`)
-    .json<{ items: Record<string, string[]> }>();
-  return res.items ?? {};
+    .get(`factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map`)
+    .json<Record<string, string[]>>();
+  return res ?? {};
 }
 
 export interface PowerFactorResponse {
@@ -24,8 +25,8 @@ export async function getPowerFactor(
   equipmentClass: string,
   subClass?: string | null,
 ): Promise<PowerFactorResponse | null> {
-  let path = `power-factors/${encodeURIComponent(
-    submodule,
+  let path = `factors/${encodeURIComponent(
+    enumSubmodule[submodule],
   )}/classes/${encodeURIComponent(equipmentClass)}/power`;
   if (subClass) {
     path += `?sub_class=${encodeURIComponent(subClass)}`;

@@ -36,6 +36,19 @@ class FactorService:
         """Get factor by ID."""
         return await self.repo.get(id)
 
+    async def get_power_factor(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        kind: str,
+        subkind: Optional[str] = None,
+    ) -> Optional[Factor]:
+        """Get power factor for given equipment class and optional subclass."""
+        return await self.repo.get_power_factor(
+            data_entry_type=data_entry_type,
+            kind=kind,
+            subkind=subkind,
+        )
+
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -20,6 +22,13 @@ router = APIRouter()
 #     response_model=list[str],
 # )
 
+"""Would be a great idea to return directly
+ with value being the 'id ' from the power factor table
+ Example response for submodule = scientific equipment
+ [ { "label": "30 to 37°C incubators", "value": "30 to 37°C incubators" }
+
+ """
+
 
 @router.get(
     "/{data_entry_type}/class-subclass-map",
@@ -37,15 +46,27 @@ async def get_class_subclass_map(
     return response
 
 
+# example of call
+#
+# http://localhost:9000/api/v1/factors/scientific/classes/Milling%20machine/power
+# http://localhost:9000/api/v1/factors/scientific/classes/Agitator%20%2F%20Incubator/power?sub_class=Simple%20agitators%2Fincubators
 @router.get(
-    "/{data_entry_type_id}/classes/{equipment_class:path}/power",
-    response_model=dict[str, float],
+    "/{data_entry_type_id}/classes/{kind:path}/power",
+    response_model=Optional[dict[str, float]],
 )
 async def get_factor(
     data_entry_type_id: DataEntryTypeEnum,
-    equipment_class: str,
+    kind: str,
+    subkind: str = Query(default=None, alias="sub_class"),
     db: AsyncSession = Depends(get_db),
 ):
     """Get factor for a given equipment class in a submodule."""
-    # Implementation to be added later not sure how to implement
-    return None
+    if not kind:
+        return None
+    factor = await FactorService(db).get_power_factor(
+        data_entry_type=data_entry_type_id,
+        kind=kind,
+        subkind=subkind,
+    )
+    if factor:
+        return factor.values
