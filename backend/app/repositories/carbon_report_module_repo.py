@@ -36,7 +36,7 @@ class CarbonReportModuleRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
-    async def create_bulk(
+    async def bulk_create(
         self,
         carbon_report_id: int,
         module_type_ids: List[int],

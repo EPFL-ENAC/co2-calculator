@@ -1,4 +1,4 @@
-"""Headcount service for business logic."""
+"""DataEntry service for business logic."""
 
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,6 +18,7 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,7 @@ class DataEntryService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryRepository(session)
+        self.dataEntryEmissionService = DataEntryEmissionService(session)
 
     async def get_module_stats(
         self, carbon_report_module_id: int, aggregate_by: str = "submodule"
@@ -48,9 +50,6 @@ class DataEntryService:
         user: User,
         data: DataEntryCreate,
     ) -> DataEntryResponse:
-        """Create a new record."""
-        # check if user.permissions allow creation
-
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
             f"data_entry_type_id={sanitize(data_entry_type_id)} "
@@ -64,9 +63,12 @@ class DataEntryService:
 
         created_entry = await self.repo.create(entry)
 
+        # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
+        # top level domain)
         await self.session.commit()
         await self.session.refresh(created_entry)
 
+        # 5. return response
         return DataEntryResponse.model_validate(created_entry)
 
     async def bulk_create(
@@ -75,9 +77,7 @@ class DataEntryService:
         """Bulk create data entries."""
         logger.info(f"Bulk creating {len(data_entries)} data entries")
         db_objs = await self.repo.bulk_create(data_entries)
-        await self.session.commit()
-        for obj in db_objs:
-            await self.session.refresh(obj)
+        # await self.session.flush()  # Ensure data_entry IDs are populated
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
 
     async def bulk_delete(
@@ -90,7 +90,7 @@ class DataEntryService:
             f"data_entry_type_id={sanitize(data_entry_type_id.value)}"
         )
         await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
-        await self.session.commit()
+        await self.session.flush()
 
     async def update(
         self,

@@ -15,6 +15,18 @@ class DataEntryEmissionRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def create(self, obj: DataEntryEmission) -> DataEntryEmission:
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def bulk_create(
+        self, objs: list[DataEntryEmission]
+    ) -> list[DataEntryEmission]:
+        self.session.add_all(objs)
+        await self.session.flush()
+        return objs
+
     async def delete_data_entry_emissions_by_data_entry_id(
         self, data_entry_id: int
     ) -> None:

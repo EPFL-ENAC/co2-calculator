@@ -8,8 +8,18 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.seed.seed_helper import get_carbon_report_module_id
+from app.models.emission_type import EmissionTypeEnum
+
+# from app.models.emission_type import EmissionTypeEnum
+from app.seed.seed_helper import (
+    get_carbon_report_module_id,
+    load_factors_map,
+    lookup_factor,
+    normalize_kind,
+)
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
+from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -27,6 +37,19 @@ CSV_PATH_EXTERNAL_AI = (
 )
 
 
+CSV_PATH_EXTERNAL_CLOUDS_FACTOR = (
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_external_clouds_factors.csv"
+)
+
+CSV_PATH_EXTERNAL_AI_FACTOR = (
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_external_clouds_ai_factors.csv"
+)
+
+
 # OUTPUT # Provider | Service Type | Spending (€) | kg CO₂-eq
 # INPUT # Service Type | Provider | Spending
 # RENAMING COLUMNS
@@ -37,25 +60,49 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
     """Seed External Cloud and AI data entries."""
     service = DataEntryService(session)
     data_entries = []
+    #  bulk delete data entries
     await service.bulk_delete(
         carbon_report_module_id, DataEntryTypeEnum.external_clouds
     )
 
+    factors_map = await load_factors_map(session, DataEntryTypeEnum.external_clouds)
+
     with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            kind = normalize_kind(row.get("cloud_provider", ""))
+            subkind = normalize_kind(row.get("service_type", ""))
+            factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
-                data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 carbon_report_module_id=carbon_report_module_id,
                 data={
-                    "cloud_provider": row.get("cloud_provider"),
-                    "service_type": row.get("service_type"),
+                    "primary_factor_id": factor.id if factor else None,
                     "spending": float(row.get("spending", 0)),
                     "region": row.get("region"),
                 },
             )
+            data_entry.data_entry_type = DataEntryTypeEnum.external_clouds
             data_entries.append(data_entry)
-    await service.bulk_create(data_entries)
+    # 1. Bulk create all data entries first
+    data_entries = await service.bulk_create(data_entries)
+    # 2. Now, create the emissions for all of them using the service logic
+    print(f"Created {len(data_entries)} External Cloud data entries")
+    emissions_to_create = []
+    emission_service = DataEntryEmissionService(session)
+
+    for data_entry in data_entries:
+        # Use a method that PREPARES the model but doesn't commit yet
+        # service_type is stored in lower case in the CSV?
+        emission_obj = await emission_service.prepare_create(data_entry)
+        emissions_to_create.append(emission_obj)
+
+    # 3. Bulk create the emissions
+    print(f"Creating {len(emissions_to_create)} emissions for cloud data entries")
+    await emission_service.bulk_create(emissions_to_create)
+
+    # # 4. ONE final commit for the entire seed batch
+
+    await session.commit()
     logger.info("Seeded External Cloud data entries.")
 
 
@@ -65,33 +112,152 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     service = DataEntryService(session)
     data_entries = []
     await service.bulk_delete(carbon_report_module_id, DataEntryTypeEnum.external_ai)
+
+    factors_map = await load_factors_map(session, DataEntryTypeEnum.external_ai)
     with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            print(row)
+            kind = normalize_kind(row.get("ai_provider", ""))
+            subkind = normalize_kind(row.get("ai_use", ""))
+            factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
                 carbon_report_module_id=carbon_report_module_id,
                 data={
-                    "ai_provider": row.get("ai_provider"),
-                    "ai_use": row.get("ai_use"),
+                    "primary_factor_id": factor.id if factor else None,
                     "frequency_use_per_day": int(row.get("frequency_use_per_day", 0)),
                     "user_count": int(row.get("user_count", 0)),
                 },
             )
             data_entries.append(data_entry)
-    await service.bulk_create(data_entries)
+    # 1. Bulk create all data entries first
+    data_entries = await service.bulk_create(data_entries)
+    # 2. Now, create the emissions for all of them using the service logic
+    print(f"Created {len(data_entries)} External AI data entries")
+    emissions_to_create = []
+    emission_service = DataEntryEmissionService(session)
+
+    for data_entry in data_entries:
+        # Use a method that PREPARES the model but doesn't commit yet
+        # service_type is stored in lower case in the CSV?
+        emission_obj = await emission_service.prepare_create(data_entry)
+        if emission_obj is not None:
+            emissions_to_create.append(emission_obj)
+
+    # 3. Bulk create the emissions
+    print(f"Creating {len(emissions_to_create)} emissions for ai data entries")
+    await emission_service.bulk_create(emissions_to_create)
+
+    # # 4. ONE final commit for the entire seed batch
+
+    await session.commit()
     logger.info("Seeded External AI data entries.")
+
+
+def get_float_or_none(value: str) -> float | None:
+    """Convert string to float or return None if empty."""
+    if value == "":
+        return None
+    return float(value)
+
+
+async def seed_factor_clouds(session: AsyncSession) -> None:
+    """Seed factors for External Cloud.
+    1. bulk delete factors
+    2. bulk insert factors
+    """
+    service = FactorService(session)
+    factors = []
+    # 1. bulk delete factors
+    await service.bulk_delete_by_data_entry_type(DataEntryTypeEnum.external_clouds)
+    with open(CSV_PATH_EXTERNAL_CLOUDS_FACTOR, mode="r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            #  for cloud emission_type depends on service_type
+
+            factor = await service.prepare_create(
+                emission_type_id=EmissionTypeEnum[row.get("service_type").lower()],
+                is_conversion=False,
+                data_entry_type_id=DataEntryTypeEnum.external_clouds,
+                classification={
+                    "cloud_provider": row.get("cloud_provider").lower(),
+                    "service_type": row.get("service_type").lower(),
+                    "kind": row.get("cloud_provider").lower(),
+                    "subkind": row.get("service_type").lower(),
+                    "localisation": row.get("localisation").lower(),
+                },
+                values={
+                    "electricity_mix_intensity_kgco2_per_eur": get_float_or_none(
+                        row.get("electricity_mix_intensity_kgco2_per_eur")
+                    ),
+                    "cloud_provider_adjustment": get_float_or_none(
+                        row.get("cloud_provider_adjustment")
+                    ),
+                    "service_type_adjustment": get_float_or_none(
+                        row.get("service_type_adjustment")
+                    ),
+                    "final_factor_kgco2_per_eur": get_float_or_none(
+                        row.get("final_factor_kgco2_per_eur")
+                    ),
+                },
+            )
+            factors.append(factor)
+    await service.bulk_create(factors)
+    print(f"Created {len(factors)} External Cloud factors")
+    await session.commit()
+    logger.info("Seeded External Cloud factors.")
+
+
+async def seed_factor_ai(session: AsyncSession) -> None:
+    """Seed factors for External AI.
+    1. bulk delete factors
+    2. bulk insert factors
+    """
+    service = FactorService(session)
+    factors = []
+    # 1. bulk delete factors
+    await service.bulk_delete_by_data_entry_type(DataEntryTypeEnum.external_ai)
+    with open(CSV_PATH_EXTERNAL_AI_FACTOR, mode="r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            #  for cloud emission_type depends on service_type
+
+            factor = await service.prepare_create(
+                emission_type_id=EmissionTypeEnum.ai_provider,
+                is_conversion=False,
+                data_entry_type_id=DataEntryTypeEnum.external_ai,
+                # TODO: unify data model with kind/subkind so
+                # it corresponds to ai_provider/ai_use?
+                classification={
+                    "ai_provider": row.get("ai_provider").lower(),
+                    "ai_use": row.get("ai_use").lower(),
+                    "kind": row.get("ai_provider").lower(),
+                    "subkind": row.get("ai_use").lower(),
+                },
+                values={
+                    "factor_gCO2eq": get_float_or_none(row.get("factor_gCO2eq")),
+                },
+            )
+            factors.append(factor)
+    await service.bulk_create(factors)
+    print(f"Created {len(factors)} External AI factors")
+    await session.commit()
+    logger.info("Seeded External AI factors.")
 
 
 async def main() -> None:
     """Main seed function."""
 
     async with SessionLocal() as session:
+        # // clean emissions first
+        await seed_factor_clouds(session)
+        await seed_factor_ai(session)
+        # Seed for unit provider code 10208 and 12345 for year 2025
+        # DATA and EMISSIONS
         carbon_report_module_id_10208 = await get_carbon_report_module_id(
             unit_provider_code="10208", year=2025
         )
-        await seed_data_clouds(session, carbon_report_module_id_10208)
+        # await seed_data_clouds(session, carbon_report_module_id_10208)
         await seed_data_ai(session, carbon_report_module_id_10208)
 
         carbon_report_module_id_12345 = await get_carbon_report_module_id(

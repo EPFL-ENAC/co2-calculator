@@ -13,13 +13,16 @@ from app.models.factor import Factor
 class FactorRepository:
     """Repository for factor CRUD operations and lookups."""
 
-    # Data entry type ID for emission factors (energy_mix)
-    EMISSION_FACTOR_DATA_ENTRY_TYPE_ID = 100
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-    async def get(self, session: AsyncSession, id: int) -> Optional[Factor]:
+    # Data entry type ID for emission factors (energy_mix)
+    EMISSION_FACTOR_DATA_ENTRY_TYPE_ID = DataEntryTypeEnum.energy_mix.value
+
+    async def get(self, id: int) -> Optional[Factor]:
         """Get factor by ID."""
         stmt = select(Factor).where(col(Factor.id) == id)
-        result = await session.exec(stmt)
+        result = await self.session.exec(stmt)
         return result.one_or_none()
 
     async def get_current_factor(
@@ -41,40 +44,59 @@ class FactorRepository:
             col(Factor.data_entry_type_id) == data_entry_type_id,
         )
 
-        result = await session.exec(stmt)
+        result = await self.session.exec(stmt)
         return result.one_or_none()
 
-    async def create(self, session: AsyncSession, factor: Factor) -> Factor:
+    async def create(self, factor: Factor) -> Factor:
         """Create a new factor."""
-        session.add(factor)
-        await session.flush()
-        await session.refresh(factor)
+        self.session.add(factor)
+        await self.session.flush()
+        await self.session.refresh(factor)
         return factor
+
+    async def bulk_create(self, factors: List[Factor]) -> List[Factor]:
+        """Bulk create factors."""
+        self.session.add_all(factors)
+        await self.session.flush()
+        for factor in factors:
+            await self.session.refresh(factor)
+        return factors
 
     async def update(
         self, session: AsyncSession, factor_id: int, update_data: Dict
     ) -> Optional[Factor]:
         """Update an existing factor."""
-        factor = await self.get(session, factor_id)
+        factor = await self.get(factor_id)
         if not factor:
             return None
 
         for field, value in update_data.items():
             setattr(factor, field, value)
 
-        await session.flush()
-        await session.refresh(factor)
+        await self.session.flush()
+        await self.session.refresh(factor)
         return factor
 
-    async def delete(self, session: AsyncSession, factor_id: int) -> bool:
+    async def delete(self, factor_id: int) -> bool:
         """Delete a factor by ID."""
-        factor = await self.get(session, factor_id)
+        factor = await self.get(factor_id)
         if not factor:
             return False
 
-        await session.delete(factor)
-        await session.flush()
+        await self.session.delete(factor)
+        await self.session.flush()
         return True
+
+    async def bulk_delete(self, factor_ids: list[int]) -> None:
+        """Bulk delete factors by IDs."""
+        stmt = select(Factor).where(col(Factor.id).in_(factor_ids))
+        result = await self.session.exec(stmt)
+        factors_to_delete = result.all()
+
+        for factor in factors_to_delete:
+            await self.session.delete(factor)
+
+        await self.session.flush()
 
     # async def get_by_id(
     #     self, session: AsyncSession, factor_id: int
@@ -222,18 +244,28 @@ class FactorRepository:
     #         return factor.values.get("kg_co2eq_per_kwh")
     #     return None
 
+    async def list_id_by_data_entry_type(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+    ) -> List[int]:
+        """List all factors for a family."""
+        stmt = select(Factor.id).where(
+            col(Factor.data_entry_type_id) == data_entry_type_id
+        )
+
+        result = await self.session.exec(stmt)
+        return list(result.all())
+
     async def list_by_data_entry_type(
         self,
-        session: AsyncSession,
         data_entry_type_id: DataEntryTypeEnum,
-        include_expired: bool = False,
     ) -> List[Factor]:
         """List all factors for a family."""
         stmt = select(Factor).where(
             col(Factor.data_entry_type_id) == data_entry_type_id
         )
 
-        result = await session.exec(stmt)
+        result = await self.session.exec(stmt)
         return list(result.all())
 
     # async def list_power_classes(

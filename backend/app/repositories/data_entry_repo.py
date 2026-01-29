@@ -44,12 +44,14 @@ class DataEntryRepository:
 
         # 3. Save
         self.session.add(db_obj)
+        await self.session.flush()
         return db_obj
 
     async def bulk_create(self, data_entries: list[DataEntry]) -> list[DataEntry]:
         """Bulk create data entries."""
         db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
         self.session.add_all(db_objs)
+        await self.session.flush()
         return db_objs
 
     async def bulk_delete(
@@ -61,6 +63,7 @@ class DataEntryRepository:
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
         await self.session.execute(statement)
+        await self.session.flush()
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
@@ -85,6 +88,7 @@ class DataEntryRepository:
 
         # 4. Save
         self.session.add(db_obj)
+        await self.session.flush()
         return db_obj
 
     async def delete(self, id: int) -> Optional[DataEntry]:
@@ -100,6 +104,7 @@ class DataEntryRepository:
             self.session
         ).delete_data_entry_emissions_by_data_entry_id(id)
 
+        await self.session.flush()
         return db_obj
 
     async def get_list(

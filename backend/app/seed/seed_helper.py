@@ -1,10 +1,17 @@
+from typing import Dict, Optional
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.carbon_report import CarbonReportCreate
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
+from app.services.factor_service import FactorService
 from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
@@ -37,7 +44,7 @@ async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int
                     f"Could not create carbon report for unit "
                     f"{unit_provider_code} year {year}"
                 )
-        # Get carbon_report_module_id for equipment module type
+        # Get carbon_report_module_id for module type
         module_service = CarbonReportModuleService(session)
         print(carbon_report)
         carbon_report_module = await module_service.get_module(
@@ -56,3 +63,86 @@ async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int
                 f"Carbon report module ID is None for unit {unit_provider_code}"
             )
         return carbon_report_module.id
+
+
+async def load_factors_map(
+    session: AsyncSession, data_entry_type: DataEntryTypeEnum
+) -> Dict[str, Factor]:
+    """Load factors from database into a lookup dictionary."""
+    logger.info("Loading factors from database...")
+
+    service = FactorService(session)
+    factors: list[Factor] = await service.list_by_data_entry_type(data_entry_type)
+    factors_map: Dict[str, Factor] = {}
+
+    for pf in factors:
+        # Strategy 1: Full match with subkind
+        if pf.classification:
+            key_full = (
+                f"{pf.data_entry_type_id}:"
+                f"{pf.classification.get('kind', '').lower()}:"
+                f"{(pf.classification.get('subkind') or '').lower()}"
+            )
+            factors_map[key_full] = pf
+
+        # Strategy 2: Match without subkind (fallback)
+        key_kind = (
+            f"{pf.data_entry_type_id}:{pf.classification.get('kind', '').lower()}"
+        )
+        if key_kind not in factors_map:
+            factors_map[key_kind] = pf
+
+    # logger.info(f"Loaded {len(factors)} factors with {len(factors_map)} lookup keys")
+    return factors_map
+
+
+def normalize_kind(kind: str) -> str:
+    """Normalize kind for case-insensitive matching."""
+    # Class names are mostly unique in table_power.csv
+    # Just normalize to lowercase for matching
+    return kind.lower().strip()
+
+
+def lookup_factor(
+    kind: str,
+    subkind: Optional[str],
+    factors_map: Dict[str, Factor],
+) -> Optional[Factor]:
+    """
+    Lookup factor for data_entry by kind only.
+
+    Searches across all submodules since class names are mostly unique.
+    Returns None if no match found OR if multiple matches exist (ambiguous).
+
+    Logic:
+    - If 0 matches: Returns None (no factor available)
+    - If 1 match: Returns the factor (unambiguous)
+    - If >1 matches: Returns first match for testing, logs warning (sub-kind required)
+    """
+    normalized_kind = normalize_kind(kind)
+
+    # Find ALL matching factors across all submodul
+    matches = [
+        pf
+        for pf in factors_map.keys()
+        if pf.endswith(f"{normalized_kind}:{subkind or ''}")
+    ]
+    # print("Matches found for kind", kind, "subkind", subkind)
+    # print(len(matches))
+    if len(matches) == 0:
+        # No power factor found
+        return None
+    elif len(matches) == 1:
+        # Unambiguous match
+        return factors_map[matches[0]]
+    else:
+        # Ambiguous - multiple matches found
+        # print(matches)
+        logger.warning(
+            f"Ambiguous factor lookup for kind '{kind}' "
+            f"and subkind '{subkind}': "
+            f"{len(matches)} matches found. "
+            f"Sub-kind selection required for accurate matching."
+        )
+        # For testing, return first match
+        return matches[0]

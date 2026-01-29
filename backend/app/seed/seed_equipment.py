@@ -143,7 +143,7 @@ def lookup_power_factor(
             f"{len(matches)} matches found. "
             f"Sub-class selection required for accurate matching."
         )
-        # For testing, return first match
+        # For testing, retuprimary_factor_idrn first match
         return matches[0]
 
 
@@ -288,7 +288,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                     "active_usage_hours": active_usage_pct,
                     "passive_usage_hours": passive_usage_pct,
                     "name": name,
-                    "power_factor_id": power_factor_id,
+                    "primary_factor_id": power_factor_id,
                 },
             )
 
@@ -302,7 +302,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                     "active_usage_hours": active_usage_pct,
                     "passive_usage_hours": passive_usage_pct,
                     "name": name,
-                    "power_factor_id": power_factor_id,
+                    "primary_factor_id": power_factor_id,
                 },
             )
 
@@ -319,7 +319,7 @@ async def seed_equipment(session: AsyncSession) -> None:
             # passive_usage_pct=passive_usage_pct,
             # active_power_w=active_power_w,
             # standby_power_w=standby_power_w,
-            # power_factor_id=power_factor_id,
+            # primary_factor_id=power_factor_id,
             # unit_id=unit_test_10208.id,
             # equipment_metadata={
             #     "source": "synth_data.csv",

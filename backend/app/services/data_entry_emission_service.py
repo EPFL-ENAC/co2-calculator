@@ -1,0 +1,153 @@
+from venv import logger
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.emission_type import EmissionTypeEnum
+from app.models.factor import Factor
+from app.repositories.data_entry_emission_repo import (
+    DataEntryEmissionRepository,
+)
+from app.services.factor_service import FactorService
+
+
+class DataEntryEmissionService:
+    """Service for data entry business logic."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.repo = DataEntryEmissionRepository(session)
+
+    async def prepare_create(self, data_entry: DataEntry) -> DataEntryEmission | None:
+        """Prepare emissions for a data entry, if applicable."""
+        if not data_entry:
+            return None
+        # TODO: make generic in source csv!??
+        # for cloud it's this key
+        if data_entry.data_entry_type == DataEntryTypeEnum.external_clouds:
+            emission_type = EmissionTypeEnum[
+                data_entry.data.get("sub_kind") or "calcul"
+            ]
+        elif data_entry.data_entry_type == DataEntryTypeEnum.external_ai:
+            emission_type = EmissionTypeEnum.ai_provider
+        # for headcount?
+        # for travel?
+        # for equipment?
+
+        primary_factor_id = data_entry.data.get("primary_factor_id")
+        if not primary_factor_id:
+            return None
+
+        # retrieve factors based on data_entry info and type
+        factor_service = FactorService(self.session)
+        primary_factor = await factor_service.get(primary_factor_id)
+        if not primary_factor:
+            return None
+        factors = [primary_factor]
+        # Placeholder for actual emissions calculation logic
+        # returns the factors used
+        emissions_value = self._calculate_emissions(data_entry, factors=factors)
+        if data_entry.id is None:
+            logger.error("DataEntry must have an ID before creating emissions.")
+            return None
+        if emissions_value.get("kg_co2eq") is None:
+            logger.error(
+                "No emissions calculated for DataEntry ID "
+                f"{data_entry.id}. Skipping emission record creation"
+                f"{primary_factor}"
+            )
+            return None
+        emission_record = DataEntryEmission(
+            data_entry_id=data_entry.id,
+            emission_type_id=emission_type.value,
+            primary_factor_id=primary_factor_id,
+            subcategory=DataEntryTypeEnum(
+                data_entry.data_entry_type_id
+            ).name.title(),  # TODO: should be an enum somwhere
+            kg_co2eq=emissions_value.get("kg_co2eq"),
+            meta={**emissions_value},
+        )
+        return emission_record
+
+    async def create(
+        self, data_entry: DataEntry, emission_type: EmissionTypeEnum
+    ) -> DataEntryEmission | None:
+        """Create emissions for a data entry, if applicable."""
+        emission_record = await self.prepare_create(data_entry)
+        if not emission_record:
+            return None
+        created_emission = await self.repo.create(emission_record)
+        # await self.session.refresh(created_emission)
+
+        return created_emission
+
+    async def bulk_create(
+        self, emission_records: list[DataEntryEmission]
+    ) -> list[DataEntryEmission] | None:
+        """Create emissions for multiple data entries, if applicable."""
+        created_emissions = await self.repo.bulk_create(emission_records)
+        return created_emissions
+
+    # Dict of dataEntryTypeEnum , func to calculation formulas
+    FORMULAS: dict[DataEntryTypeEnum, callable] = {}
+
+    # create a decorator to register formulas
+    @classmethod
+    def register_formula(cls, name: DataEntryTypeEnum):
+        def decorator(func):
+            cls.FORMULAS[name] = func
+            return func
+
+        return decorator
+
+    def _calculate_emissions(
+        self, data_entry: DataEntry, factors: list[Factor]
+    ) -> dict:
+        """Placeholder method for emissions calculation logic."""
+        # Implement actual calculation based on data_entry data
+        formula_func = self.FORMULAS.get(data_entry.data_entry_type)
+        if formula_func:
+            return formula_func(self, data_entry, factors)
+        else:
+            raise ValueError(f"No formula registered for: {data_entry.data_entry_type}")
+
+
+# Register formulas for different DataEntryTypeEnum
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_clouds)
+def compute_external_clouds(self, data_entry: DataEntry, factors: list[Factor]) -> dict:
+    """Compute emissions for external clouds."""
+
+    kg_co2eq = None
+    # e.g {"electricity_mix_intensity_kgco2_per_eur": 0.1,
+    # "cloud_provider_adjustment": 0.2, "service_type_adjustment": 0.2
+    #  "final_factor_kgco2_per_eur": 0.144}
+    total_spending_eur = data_entry.data.get("spending", 0)
+    if not factors or len(factors) == 0:
+        return {"kg_co2eq": kg_co2eq}
+    factor = factors[0]
+    if total_spending_eur and factor.values:
+        kg_co2eq = (
+            factor.values.get("final_factor_kgco2_per_eur", 0) * total_spending_eur
+        )
+    return {"kg_co2eq": kg_co2eq}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_ai)
+def compute_external_ai(self, data_entry: DataEntry, factors: list[Factor]) -> dict:
+    """Compute emissions for external AI."""
+    # Implement actual calculation based on data_entry data
+    kg_co2eq = None
+    frequency = data_entry.data.get("frequency_use_per_day", 0)
+    number_of_users = data_entry.data.get("user_count", 0)
+    if not factors or len(factors) == 0:
+        return {"kg_co2eq": kg_co2eq}
+
+    factor = factors[0]
+    if frequency and number_of_users and factor.values:
+        kg_co2eq = (
+            (frequency * 5 * 46 * number_of_users)
+            * factor.values.get("factor_gCO2eq", 0)
+        ) / 1000
+    # return intermediary dict with calculation details alway kg_co2eq at least
+    return {"kg_co2eq": kg_co2eq}

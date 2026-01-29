@@ -33,6 +33,7 @@ from app.schemas.data_entry import (
     unflatten_data_entry_payload,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
@@ -436,6 +437,14 @@ async def create(
                 status_code=500,
                 detail="Failed to create headcount item",
             )
+
+        emission = await DataEntryEmissionService(db).create(item)
+        if emission is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create data entry emission",
+            )
+        await db.commit()
         item = DataEntryResponse.model_validate(item)
 
     if item is None:

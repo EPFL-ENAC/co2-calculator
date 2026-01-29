@@ -36,7 +36,7 @@ class CarbonReportModuleService:
             f"Creating {sanitize(len(module_type_ids))} report modules "
             f"for carbon report {sanitize(carbon_report_id)}"
         )
-        carbon_report_modules = await self.repo.create_bulk(
+        carbon_report_modules = await self.repo.bulk_create(
             carbon_report_id=carbon_report_id,
             module_type_ids=module_type_ids,
             status=ModuleStatus.NOT_STARTED,

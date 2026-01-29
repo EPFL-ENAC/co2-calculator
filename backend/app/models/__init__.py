@@ -6,7 +6,6 @@ from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
-from .emission_type import EmissionType
 from .factor import Factor
 from .headcount import (
     HeadCount,
@@ -78,7 +77,6 @@ __all__ = [
     "DataIngestionJob",
     "Resource",
     "Factor",
-    "EmissionType",
     "HeadCount",
     "HeadCountBase",
     "HeadCountCreate",
