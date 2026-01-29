@@ -9,7 +9,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -37,26 +36,6 @@ class FactorService:
         """Get factor by ID."""
         return await self.repo.get(id)
 
-    async def get_power_factor(
-        self,
-        variant_type_id: int,
-        equipment_class: str,
-        sub_class: Optional[str] = None,
-    ) -> Optional[Factor]:
-        """Get power factor for equipment classification."""
-        raise NotImplementedError
-
-    async def get_headcount_factor(
-        self,
-        data_entry_type_id: DataEntryTypeEnum,
-        emission_type_id: EmissionTypeEnum,
-    ) -> Optional[Factor]:
-        """Get headcount factor for variant (student/member)."""
-        return await self.repo.get_current_factor(
-            emission_type_id=emission_type_id,
-            data_entry_type_id=data_entry_type_id,
-        )
-
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
@@ -72,10 +51,13 @@ class FactorService:
         return await self.repo.list_by_data_entry_type(data_entry_type_id)
 
     async def get_class_subclass_map(
-        self, session: AsyncSession, variant_type_id: int
+        self, data_entry_type: DataEntryTypeEnum
     ) -> Dict[str, List[str]]:
         """Get class/subclass mapping for power factors."""
-        raise NotImplementedError
+        response = await self.repo.get_class_subclass_map(
+            data_entry_type=data_entry_type,
+        )
+        return response
 
     async def prepare_create(
         self,

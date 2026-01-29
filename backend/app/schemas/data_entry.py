@@ -70,8 +70,8 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     active_usage_hours: int
     passive_usage_hours: int
     name: str
-    power_factor_id: int
-    kg_co2eq: float
+    primary_factor_id: int
+    kg_co2eq: Optional[float]
     active_power_w: int
     standby_power_w: int
     equipment_class: Optional[str]
@@ -146,20 +146,22 @@ class EquipmentModuleHandler(ModuleHandler[DataEntry]):
     }
 
     def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
-        print("DATA ENTRY:", data_entry)
-        # ?  'primary_factor_id': 3983, 'kg_co2eq': None, 'primary_factor': None} ? why is it empty ?
-        return self.response_dto.model_validate(
-            {
-                "id": data_entry.id,
-                "data_entry_type_id": data_entry.data_entry_type_id,
-                "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "active_power_w": data_entry.data["primary_factor"]["active_power_w"],
-                "standby_power_w": data_entry.data["primary_factor"]["standby_power_w"],
-                "equipment_class": data_entry.data["primary_factor"].get("class"),
-                "sub_class": data_entry.data["primary_factor"].get("sub_class"),
-            }
-        )
+        new_entry = {
+            "id": data_entry.id,
+            "data_entry_type_id": data_entry.data_entry_type_id,
+            "carbon_report_module_id": data_entry.carbon_report_module_id,
+            **data_entry.data,
+            "active_power_w": data_entry.data.get("primary_factor", {}).get(
+                "active_power_w", None
+            ),
+            "standby_power_w": data_entry.data.get("primary_factor", {}).get(
+                "standby_power_w", None
+            ),
+            "equipment_class": data_entry.data.get("primary_factor", {}).get("class"),
+            "sub_class": data_entry.data.get("primary_factor", {}).get("sub_class"),
+            "kg_co2eq": 0,
+        }
+        return self.response_dto.model_validate(new_entry)
 
     def validate_create(self, payload: dict) -> DataEntryCreate:
         return self.create_dto.model_validate(unflatten_data_entry_payload(payload))

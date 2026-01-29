@@ -1,8 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-# from sqlmodel.ext.asyncio.session import AsyncSession
+from app.api.deps import get_db
+from app.models.data_entry import DataEntryTypeEnum
+from app.services.factor_service import FactorService
 
-# from app.api.deps import get_db
 # from app.schemas.factor import FactorRead
 
 router = APIRouter()
@@ -20,23 +22,30 @@ router = APIRouter()
 
 
 @router.get(
-    "/{submodule}/class-subclass-map",
+    "/{data_entry_type}/class-subclass-map",
     response_model=dict[str, list[str]],
 )
-async def get_class_subclass_map(submodule: str):
+async def get_class_subclass_map(
+    data_entry_type: DataEntryTypeEnum,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, list[str]]:
     """Get mapping of equipment classes to subclasses for a given submodule."""
-    # Implementation to be added later
-    return {}
+    print("DATA ENTRY TYPE:", data_entry_type)
+    response = await FactorService(db).get_class_subclass_map(
+        data_entry_type=data_entry_type
+    )
+    return response
 
 
 @router.get(
-    "/{submodule}/classes/{equipment_class:path}/power",
+    "/{data_entry_type_id}/classes/{equipment_class:path}/power",
     response_model=dict[str, float],
 )
-async def get_power_factor(
-    submodule: str,
+async def get_factor(
+    data_entry_type_id: DataEntryTypeEnum,
     equipment_class: str,
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get power factor for a given equipment class in a submodule."""
-    # Implementation to be added later
+    """Get factor for a given equipment class in a submodule."""
+    # Implementation to be added later not sure how to implement
     return None

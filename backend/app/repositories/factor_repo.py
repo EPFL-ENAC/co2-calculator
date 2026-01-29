@@ -94,13 +94,66 @@ class FactorRepository:
 
         await self.session.flush()
 
-    # async def get_by_id(
-    #     self, session: AsyncSession, factor_id: int
-    # ) -> Optional[Factor]:
-    #     """Get factor by ID."""
-    #     stmt = select(Factor).where(col(Factor.id) == factor_id)
-    #     result = await session.exec(stmt)
-    #     return result.one_or_none()
+    async def list_id_by_data_entry_type(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+    ) -> List[int]:
+        """List all factors for a family."""
+        stmt = select(Factor.id).where(
+            col(Factor.data_entry_type_id) == data_entry_type_id
+        )
+
+        result = await self.session.exec(stmt)
+        return [id for id in result.all() if id is not None]
+
+    async def list_by_data_entry_type(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+    ) -> List[Factor]:
+        """List all factors for a family."""
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == data_entry_type_id
+        )
+
+        result = await self.session.exec(stmt)
+        return list(result.all())
+
+    async def get_class_subclass_map(
+        self, data_entry_type: DataEntryTypeEnum
+    ) -> Dict[str, List[str]]:
+        """
+        Return a mapping of equipment_class -> list of subclasses.
+
+        Mimics legacy PowerFactorRepository.get_class_subclass_map.
+        """
+        stmt = select(
+            Factor.classification["kind"].as_string(),
+            Factor.classification["subkind"].as_string(),
+        ).where(col(Factor.data_entry_type_id) == data_entry_type.value)
+
+        result = await self.session.exec(stmt)
+        factors = result.all()
+
+        mapping: Dict[str, List[str]] = {}
+
+        for factor in factors:
+            equipment_class = factor[0]
+            sub_class = factor[1]
+
+            if not equipment_class:
+                continue
+
+            if equipment_class not in mapping:
+                mapping[equipment_class] = []
+
+            if sub_class and sub_class not in mapping[equipment_class]:
+                mapping[equipment_class].append(sub_class)
+
+        # Sort subclasses
+        for key in mapping:
+            mapping[key].sort()
+
+        return dict(sorted(mapping.items()))
 
     # async def get_current_factor(
     #     self,
@@ -240,30 +293,6 @@ class FactorRepository:
     #         return factor.values.get("kg_co2eq_per_kwh")
     #     return None
 
-    async def list_id_by_data_entry_type(
-        self,
-        data_entry_type_id: DataEntryTypeEnum,
-    ) -> List[int]:
-        """List all factors for a family."""
-        stmt = select(Factor.id).where(
-            col(Factor.data_entry_type_id) == data_entry_type_id
-        )
-
-        result = await self.session.exec(stmt)
-        return [id for id in result.all() if id is not None]
-
-    async def list_by_data_entry_type(
-        self,
-        data_entry_type_id: DataEntryTypeEnum,
-    ) -> List[Factor]:
-        """List all factors for a family."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == data_entry_type_id
-        )
-
-        result = await self.session.exec(stmt)
-        return list(result.all())
-
     # async def list_power_classes(
     #     self, session: AsyncSession, variant_type_id: int
     # ) -> List[str]:
@@ -307,109 +336,3 @@ class FactorRepository:
     #             subclasses.add(cls["sub_class"])
 
     #     return sorted(list(subclasses))
-
-    # async def get_class_subclass_map(
-    #     self, session: AsyncSession, variant_type_id: int
-    # ) -> Dict[str, List[str]]:
-    #     """
-    #     Return a mapping of equipment_class -> list of subclasses.
-
-    #     Mimics legacy PowerFactorRepository.get_class_subclass_map.
-    #     """
-    #     stmt = (
-    #         select(Factor)
-    #         .where(col(Factor.factor_family) == "power")
-    #         .where(col(Factor.variant_type_id) == variant_type_id)
-    #         .where(col(Factor.valid_to).is_(None))
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
-
-    #     mapping: Dict[str, List[str]] = {}
-
-    #     for factor in factors:
-    #         cls = factor.classification or {}
-    #         equipment_class = cls.get("class")
-    #         sub_class = cls.get("sub_class")
-
-    #         if not equipment_class:
-    #             continue
-
-    #         if equipment_class not in mapping:
-    #             mapping[equipment_class] = []
-
-    #         if sub_class and sub_class not in mapping[equipment_class]:
-    #             mapping[equipment_class].append(sub_class)
-
-    #     # Sort subclasses
-    #     for key in mapping:
-    #         mapping[key].sort()
-
-    #     return dict(sorted(mapping.items()))
-
-    # async def create(self, session: AsyncSession, factor: Factor) -> Factor:
-    #     """Create a new factor."""
-    #     session.add(factor)
-    #     await session.flush()
-    #     await session.refresh(factor)
-    #     return factor
-
-    # async def expire_factor(
-    #     self, session: AsyncSession, factor_id: int
-    # ) -> Optional[Factor]:
-    #     """Mark a factor as expired (set valid_to to now)."""
-    #     from datetime import datetime, timezone
-
-    #     factor = await self.get_by_id(session, factor_id)
-    #     if factor:
-    #         factor.valid_to = datetime.now(timezone.utc)
-    #         await session.flush()
-    #         await session.refresh(factor)
-    #     return factor
-
-    # async def find_affected_emissions(
-    #     self, session: AsyncSession, factor_id: int
-    # ) -> List[int]:
-    #     """
-    #     Find all current module_emission IDs that used this factor.
-
-    #     Used for batch recalculation when a factor changes.
-
-    #     Note: Uses primary_factor_id FK on module_emissions (no join table).
-    #     """
-    #     from app.models.module_emission import ModuleEmission
-
-    #     stmt = (
-    #         select(ModuleEmission.id)
-    #         .where(
-    #             ModuleEmission.primary_factor_id == factor_id,
-    #             ModuleEmission.is_current == True,  # noqa: E712
-    #         )
-    #         .distinct()
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     return list(result.all())
-
-    # async def find_modules_for_recalculation(
-    #     self, session: AsyncSession, factor_id: int
-    # ) -> List[int]:
-    #     """
-    #     Find all module IDs that need recalculation when a factor changes.
-
-    #     Note: Uses primary_factor_id FK on module_emissions (no join table).
-    #     """
-    #     from app.models.module_emission import ModuleEmission
-
-    #     stmt = (
-    #         select(ModuleEmission.module_id)
-    #         .where(
-    #             ModuleEmission.primary_factor_id == factor_id,
-    #             ModuleEmission.is_current == True,  # noqa: E712
-    #         )
-    #         .distinct()
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     return list(result.all())

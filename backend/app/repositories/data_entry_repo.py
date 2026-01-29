@@ -280,6 +280,15 @@ class DataEntryRepository:
             kg_co2eq = None
             if data_entry_emission is not None:
                 kg_co2eq = data_entry_emission.kg_co2eq
+            # If primary_factor is None, try to fetch it
+            # from DataEntry.data["primary_factor_id"]
+            if primary_factor is None:
+                primary_factor_id = data_entry.data.get("primary_factor_id")
+                if primary_factor_id:
+                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
+                    factor_result = await self.session.execute(factor_stmt)
+                    primary_factor = factor_result.scalar_one_or_none()
+
             data_entry.data = {
                 **data_entry.data,
                 "kg_co2eq": kg_co2eq,

@@ -24,7 +24,6 @@ class ModuleTypeEnum(int, Enum):
     - manual: manual user entry
     """
 
-    # todo: match with actual module types in db! (during seed?)
     headcount = 1
     professional_travel = 2
     infrastructure = 3
