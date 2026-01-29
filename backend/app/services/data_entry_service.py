@@ -18,7 +18,6 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
-from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
@@ -29,18 +28,18 @@ class DataEntryService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryRepository(session)
-        self.dataEntryEmissionService = DataEntryEmissionService(session)
 
-    async def get_module_stats(
-        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
+    async def get_stats(
+        self,
+        carbon_report_module_id: int,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
-        # GOAL return total items and submodules for module
-        # data should be aggregated by aggregate_by param
-        # {"professor": 10, "researcher": 5, ...}
-        # or {"member": 15, "student": 20, ...}
-        return await self.repo.get_module_stats(
-            carbon_report_module_id=carbon_report_module_id, aggregate_by=aggregate_by
+        return await self.repo.get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+            aggregate_by=aggregate_by,
+            aggregate_field=aggregate_field,
         )
 
     async def create(
@@ -152,19 +151,10 @@ class DataEntryService:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id
         )
-
-        # total_annual_fte = sum(
-        #     summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
-        #     for k in [
-        #         DataEntryTypeEnum.member.value,
-        #         DataEntryTypeEnum.student.value,
-        #     ]
-        # )
-        # TBImplemented
-        total_annual_fte = 0.0
-
+        # more info in routes carbon_report_module (cf DataEntryEmissionService)
+        # we just return empty stats and totals, it's computed in routes
         totals = ModuleTotals(
-            total_annual_fte=round(total_annual_fte, 2),
+            total_annual_fte=None,
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
             total_annual_consumption_kwh=None,

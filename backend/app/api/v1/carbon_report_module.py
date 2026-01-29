@@ -25,7 +25,11 @@ from app.models.professional_travel import (
     ProfessionalTravelUpdate,
 )
 from app.models.user import User
-from app.schemas.carbon_report_response import ModuleResponse, SubmoduleResponse
+from app.schemas.carbon_report_response import (
+    ModuleResponse,
+    ModuleTotals,
+    SubmoduleResponse,
+)
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
@@ -139,6 +143,18 @@ async def get_module(
     else:
         module_data = await DataEntryService(db).get_module_data(
             carbon_report_module_id=carbon_report_module_id,
+        )
+        module_data.stats = await DataEntryEmissionService(db).get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+        # if headcount compute FTE here
+        # if need other subtotal do it here
+        total_kg_co2eq = sum(module_data.stats.values())
+        module_data.totals = ModuleTotals(
+            total_kg_co2eq=total_kg_co2eq,
+            total_tonnes_co2eq=total_kg_co2eq / 1000.0,
+            total_annual_consumption_kwh=None,
+            total_annual_fte=None,
         )
     if not module_data:
         raise HTTPException(

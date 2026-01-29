@@ -108,6 +108,20 @@ class DataEntryEmissionService:
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
+    async def get_stats(
+        self,
+        carbon_report_module_id: int,
+        aggregate_by: str = "emission_type_id",
+        aggregate_field: str = "kg_co2eq",
+    ) -> dict[str, float]:
+        """Get aggregated emission statistics for a carbon report module."""
+        stats = await self.repo.get_stats(
+            carbon_report_module_id,
+            aggregate_by,
+            aggregate_field,
+        )
+        return stats
+
     # Dict of dataEntryTypeEnum , func to calculation formulas
     FORMULAS: dict[DataEntryTypeEnum, Callable] = {}
 

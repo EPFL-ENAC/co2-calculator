@@ -41,9 +41,8 @@ class UnitTotalsService:
                 year=year,
                 module_type_id=ModuleTypeEnum("equipment-electric-consumption"),
             )
-            equipment_stats = await DataEntryService(self.session).get_module_stats(
+            equipment_stats = await DataEntryService(self.session).get_stats(
                 carbon_report_module_id=carbon_report_module.id,
-                aggregate_by="submodule",
             )
             equipment_co2 = equipment_stats.get("total_kg_co2eq", 0.0)
             total_kg_co2eq += float(equipment_co2 or 0.0)

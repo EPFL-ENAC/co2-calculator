@@ -3,7 +3,7 @@
 from typing import Dict, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import Float, Select, asc, cast, desc, func
+from sqlalchemy import Select, asc, desc, func
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -306,17 +306,31 @@ class DataEntryRepository:
         )
         return response
 
-    async def get_module_stats(
-        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
+    async def get_stats(
+        self,
+        carbon_report_module_id,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
     ) -> Dict[str, float]:
-        """Aggregate headcount data by submodule or function."""
-        group_field = DataEntry.data[aggregate_by].astext
+        """Aggregate DataEntry data by submodule or function.
+                SELECT
+            dee.*
+        FROM
+            data_entry_emission dee
+        JOIN
+            data_entry de ON dee.data_entry_id = de.id
+        WHERE
+            de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
+        """
+        # 1. Get the model attributes dynamically
+        group_field = getattr(DataEntry, aggregate_by)
+        sum_field = getattr(DataEntry, aggregate_field)
 
-        # TODO MAKE module_type agnostic!
+        # 2. Build the query with the JOIN
         query = (
             select(
-                group_field.label(aggregate_by),
-                func.sum(cast(DataEntry.data["fte"].astext, Float)).label("annual_fte"),
+                group_field,
+                func.sum(sum_field).label("total"),
             )
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
@@ -324,16 +338,15 @@ class DataEntryRepository:
             .group_by(group_field)
         )
 
-        result = await self.session.exec(query)
-        rows = list(result.all())
+        result = await self.session.execute(
+            query
+        )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
+        rows = result.all()
 
+        # 3. Format the results
         aggregation: Dict[str, float] = {}
         for key, total_count in rows:
-            if key is None:
-                aggregation["unknown"] = float(total_count)
-            else:
-                aggregation[key] = float(total_count)
-
-        logger.debug(f"Aggregated headcount by {aggregate_by}: {aggregation}")
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total_count or 0.0)
 
         return aggregation
