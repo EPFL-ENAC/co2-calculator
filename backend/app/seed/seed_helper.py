@@ -19,10 +19,12 @@ settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
 
-async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int:
+async def get_carbon_report_module_id(
+    unit_provider_code: str, year: int, module_type_id: ModuleTypeEnum
+) -> int:
     """Generate real carbon_report_module_id based on unit and year."""
     # Get unit by provider code to find unit_id
-    current_module_type_id = ModuleTypeEnum.external_cloud_and_ai
+    current_module_type_id = module_type_id.value
     async with SessionLocal() as session:
         service = CarbonReportService(session)
         unit_service = UnitService(session)
@@ -46,12 +48,12 @@ async def get_carbon_report_module_id(unit_provider_code: str, year: int) -> int
                 )
         # Get carbon_report_module_id for module type
         module_service = CarbonReportModuleService(session)
-        print(carbon_report)
+        # print(carbon_report)
         carbon_report_module = await module_service.get_module(
             carbon_report_id=carbon_report.id,
             module_type_id=current_module_type_id,
         )
-        print(carbon_report_module)
+        # print(carbon_report_module)
         if not carbon_report_module:
             raise ValueError(
                 f"Could not find carbon report module for unit "
@@ -119,14 +121,21 @@ def lookup_factor(
     - If 1 match: Returns the factor (unambiguous)
     - If >1 matches: Returns first match for testing, logs warning (sub-kind required)
     """
-    normalized_kind = normalize_kind(kind)
+    normalized_kind_value = normalize_kind(kind)
+    subkind_value = normalize_kind(subkind) if subkind else None
 
     # Find ALL matching factors across all submodul
-    matches = [
-        pf
-        for pf in factors_map.keys()
-        if pf.endswith(f"{normalized_kind}:{subkind or ''}")
+    if subkind_value is None:
+        subkind_value = ""
+    keys = [
+        k for k in factors_map.keys() if k.__contains__(f":{normalized_kind_value}:")
     ]
+    search_pattern = f":{normalized_kind_value}:{subkind_value}"
+    # print(keys)
+    # print(subkind)
+    # print(normalized_kind_value, subkind)
+    matches = [pf for pf in keys if pf.endswith(search_pattern)]
+    # print(matches)
     # print("Matches found for kind", kind, "subkind", subkind)
     # print(len(matches))
     if len(matches) == 0:

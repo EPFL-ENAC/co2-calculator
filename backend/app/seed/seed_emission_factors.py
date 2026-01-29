@@ -131,7 +131,9 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 ].value,
                 classification={
                     "class": equipment_class,
+                    "kind": equipment_class,
                     "sub_class": sub_class or None,
+                    "subkind": sub_class or None,
                     "unit": "W",
                     "description": f"Power factor for {equipment_class}",
                 },

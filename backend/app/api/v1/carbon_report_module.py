@@ -275,6 +275,7 @@ async def get_submodule(
             sort_order=sort_order,
             filter=filter,
         )
+        print(submodule_data)
 
     if not submodule_data:
         raise HTTPException(

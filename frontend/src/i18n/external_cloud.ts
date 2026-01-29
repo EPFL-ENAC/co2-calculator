@@ -25,13 +25,14 @@ export default {
   },
   // external-cloud-and-ai.cloud_services_table_title
   [`${MODULES.ExternalCloudAndAI}.cloud_services_table_title`]: {
-    en: 'Cloud Services',
-    fr: 'Services Cloud',
+    en: 'Cloud Service ({count}) | Cloud Services ({count})',
+    fr: 'Service Cloud ({count}) | Services Cloud ({count})',
   },
+
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {
-    en: 'AI Usage',
-    fr: "Utilisation de l'IA",
+    en: 'AI Usage ({count}) | AI Usages ({count})',
+    fr: "Utilisation de l'IA ({count}) | Utilisations de l'IA ({count})",
   },
   // CLOUD SUBMODULE
   [`${MODULES.ExternalCloudAndAI}.inputs.service_type`]: {

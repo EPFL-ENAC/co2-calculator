@@ -42,14 +42,33 @@ export const SUBMODULE_EQUIPMENT_TYPES = {
   Other: 'other',
 } as const;
 
+
+
+export const SUBMODULE_EXTERNAL_CLOUD_TYPES = {
+  external_clouds: 'external_clouds',
+  external_ai: 'external_ai',
+} as const;
+
+export type ExternalCloudSubType =
+  (typeof SUBMODULE_EXTERNAL_CLOUD_TYPES)[keyof typeof SUBMODULE_EXTERNAL_CLOUD_TYPES];
+
+type ExternalCloudProps = {
+  moduleType: typeof MODULES.ExternalCloudAndAI;
+  submoduleType?: ExternalCloudSubType;
+};
+
+
 export const enumSubmodule = {
   member: 1,
   student: 2,
-  scientific: 9,
-  it: 10,
-  other: 11,
+  // todo replace with equipment types
+  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 9,
+  [SUBMODULE_EQUIPMENT_TYPES.IT]: 10,
+  [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
   trips: 20,
   building: 30,
+  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
+  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
   energy_mix: 100,
 } as const;
 
@@ -131,19 +150,6 @@ export type InternalServicesSubType =
 type InternalServicesProps = {
   moduleType: typeof MODULES.InternalServices;
   submoduleType?: InternalServicesSubType;
-};
-
-export const SUBMODULE_EXTERNAL_CLOUD_TYPES = {
-  external_clouds: 'external_clouds',
-  external_ai: 'external_ai',
-} as const;
-
-export type ExternalCloudSubType =
-  (typeof SUBMODULE_EXTERNAL_CLOUD_TYPES)[keyof typeof SUBMODULE_EXTERNAL_CLOUD_TYPES];
-
-type ExternalCloudProps = {
-  moduleType: typeof MODULES.ExternalCloudAndAI;
-  submoduleType?: ExternalCloudSubType;
 };
 
 export type AllSubmoduleTypes =

@@ -9,6 +9,7 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.emission_type import EmissionTypeEnum
+from app.models.module_type import ModuleTypeEnum
 
 # from app.models.emission_type import EmissionTypeEnum
 from app.seed.seed_helper import (
@@ -264,13 +265,17 @@ async def main() -> None:
         # Seed for unit provider code 10208 and 12345 for year 2025
         # DATA and EMISSIONS
         carbon_report_module_id_10208 = await get_carbon_report_module_id(
-            unit_provider_code="10208", year=2025
+            unit_provider_code="10208",
+            year=2025,
+            module_type_id=ModuleTypeEnum.external_cloud_and_ai,
         )
         # await seed_data_clouds(session, carbon_report_module_id_10208)
         await seed_data_ai(session, carbon_report_module_id_10208)
 
         carbon_report_module_id_12345 = await get_carbon_report_module_id(
-            unit_provider_code="12345", year=2025
+            unit_provider_code="12345",
+            year=2025,
+            module_type_id=ModuleTypeEnum.external_cloud_and_ai,
         )
         await seed_data_clouds(session, carbon_report_module_id_12345)
         await seed_data_ai(session, carbon_report_module_id_12345)

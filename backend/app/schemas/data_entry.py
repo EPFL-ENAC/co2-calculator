@@ -146,6 +146,8 @@ class EquipmentModuleHandler(ModuleHandler[DataEntry]):
     }
 
     def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
+        print("DATA ENTRY:", data_entry)
+        # ?  'primary_factor_id': 3983, 'kg_co2eq': None, 'primary_factor': None} ? why is it empty ?
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
