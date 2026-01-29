@@ -27,7 +27,6 @@ class FactorRepository:
 
     async def get_current_factor(
         self,
-        session: AsyncSession,
         emission_type_id: EmissionTypeEnum,
         data_entry_type_id: DataEntryTypeEnum,
     ) -> Optional[Factor]:
@@ -35,7 +34,6 @@ class FactorRepository:
         Get the current (valid_to IS NULL) factor for given criteria.
 
         Args:
-            session: Database session
             emission_type_id: Emission type filter
             data_entry_type_id: Data entry type filter
         """
@@ -62,9 +60,7 @@ class FactorRepository:
             await self.session.refresh(factor)
         return factors
 
-    async def update(
-        self, session: AsyncSession, factor_id: int, update_data: Dict
-    ) -> Optional[Factor]:
+    async def update(self, factor_id: int, update_data: Dict) -> Optional[Factor]:
         """Update an existing factor."""
         factor = await self.get(factor_id)
         if not factor:
@@ -254,7 +250,7 @@ class FactorRepository:
         )
 
         result = await self.session.exec(stmt)
-        return list(result.all())
+        return [id for id in result.all() if id is not None]
 
     async def list_by_data_entry_type(
         self,

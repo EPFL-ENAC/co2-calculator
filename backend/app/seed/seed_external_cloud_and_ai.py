@@ -84,17 +84,18 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
             data_entry.data_entry_type = DataEntryTypeEnum.external_clouds
             data_entries.append(data_entry)
     # 1. Bulk create all data entries first
-    data_entries = await service.bulk_create(data_entries)
+    data_entries_response = await service.bulk_create(data_entries)
     # 2. Now, create the emissions for all of them using the service logic
-    print(f"Created {len(data_entries)} External Cloud data entries")
+    print(f"Created {len(data_entries_response)} External Cloud data entries")
     emissions_to_create = []
     emission_service = DataEntryEmissionService(session)
 
-    for data_entry in data_entries:
+    for data_entry_response in data_entries_response:
         # Use a method that PREPARES the model but doesn't commit yet
         # service_type is stored in lower case in the CSV?
-        emission_obj = await emission_service.prepare_create(data_entry)
-        emissions_to_create.append(emission_obj)
+        emission_obj = await emission_service.prepare_create(data_entry_response)
+        if emission_obj is not None:
+            emissions_to_create.append(emission_obj)
 
     # 3. Bulk create the emissions
     print(f"Creating {len(emissions_to_create)} emissions for cloud data entries")
@@ -131,16 +132,16 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
             )
             data_entries.append(data_entry)
     # 1. Bulk create all data entries first
-    data_entries = await service.bulk_create(data_entries)
+    data_entries_response = await service.bulk_create(data_entries)
     # 2. Now, create the emissions for all of them using the service logic
-    print(f"Created {len(data_entries)} External AI data entries")
+    print(f"Created {len(data_entries_response)} External AI data entries")
     emissions_to_create = []
     emission_service = DataEntryEmissionService(session)
 
-    for data_entry in data_entries:
+    for data_entry_response in data_entries_response:
         # Use a method that PREPARES the model but doesn't commit yet
         # service_type is stored in lower case in the CSV?
-        emission_obj = await emission_service.prepare_create(data_entry)
+        emission_obj = await emission_service.prepare_create(data_entry_response)
         if emission_obj is not None:
             emissions_to_create.append(emission_obj)
 
@@ -154,8 +155,11 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     logger.info("Seeded External AI data entries.")
 
 
-def get_float_or_none(value: str) -> float | None:
+def get_float_or_none(value: str | None) -> float | None:
     """Convert string to float or return None if empty."""
+    if value is None:
+        return None
+
     if value == "":
         return None
     return float(value)
@@ -176,15 +180,17 @@ async def seed_factor_clouds(session: AsyncSession) -> None:
             #  for cloud emission_type depends on service_type
 
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum[row.get("service_type").lower()],
+                emission_type_id=EmissionTypeEnum[
+                    (row.get("service_type") or "").lower()
+                ],
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": row.get("cloud_provider").lower(),
-                    "service_type": row.get("service_type").lower(),
-                    "kind": row.get("cloud_provider").lower(),
-                    "subkind": row.get("service_type").lower(),
-                    "localisation": row.get("localisation").lower(),
+                    "cloud_provider": (row.get("cloud_provider") or "").lower(),
+                    "service_type": (row.get("service_type") or "").lower(),
+                    "kind": (row.get("cloud_provider") or "").lower(),
+                    "subkind": (row.get("service_type") or "").lower(),
+                    "localisation": (row.get("localisation") or "").lower(),
                 },
                 values={
                     "electricity_mix_intensity_kgco2_per_eur": get_float_or_none(
@@ -221,21 +227,24 @@ async def seed_factor_ai(session: AsyncSession) -> None:
         reader = csv.DictReader(csvfile)
         for row in reader:
             #  for cloud emission_type depends on service_type
-
+            factor_gCO2eq = get_float_or_none(row.get("factor_gCO2eq"))
+            if factor_gCO2eq is None:
+                # // skip rows without factor
+                continue
             factor = await service.prepare_create(
                 emission_type_id=EmissionTypeEnum.ai_provider,
                 is_conversion=False,
-                data_entry_type_id=DataEntryTypeEnum.external_ai,
+                data_entry_type_id=DataEntryTypeEnum.external_ai.value,
                 # TODO: unify data model with kind/subkind so
                 # it corresponds to ai_provider/ai_use?
                 classification={
-                    "ai_provider": row.get("ai_provider").lower(),
-                    "ai_use": row.get("ai_use").lower(),
-                    "kind": row.get("ai_provider").lower(),
-                    "subkind": row.get("ai_use").lower(),
+                    "ai_provider": (row.get("ai_provider") or "").lower(),
+                    "ai_use": (row.get("ai_use") or "").lower(),
+                    "kind": (row.get("ai_provider") or "").lower(),
+                    "subkind": (row.get("ai_use") or "").lower(),
                 },
                 values={
-                    "factor_gCO2eq": get_float_or_none(row.get("factor_gCO2eq")),
+                    "factor_gCO2eq": factor_gCO2eq,
                 },
             )
             factors.append(factor)

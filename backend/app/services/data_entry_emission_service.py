@@ -1,7 +1,8 @@
-from venv import logger
+from typing import Callable
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.emission_type import EmissionTypeEnum
@@ -9,7 +10,10 @@ from app.models.factor import Factor
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
+from app.schemas.data_entry import DataEntryResponse
 from app.services.factor_service import FactorService
+
+logger = get_logger(__name__)
 
 
 class DataEntryEmissionService:
@@ -19,11 +23,17 @@ class DataEntryEmissionService:
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
 
-    async def prepare_create(self, data_entry: DataEntry) -> DataEntryEmission | None:
+    async def prepare_create(
+        self, data_entry: DataEntryResponse | DataEntry
+    ) -> DataEntryEmission | None:
         """Prepare emissions for a data entry, if applicable."""
         if not data_entry:
             return None
-        # TODO: make generic in source csv!??
+        if data_entry.data_entry_type is None:
+            logger.error(
+                "DataEntry must have a data_entry_type before creating emissions."
+            )
+            return None
         # for cloud it's this key
         if data_entry.data_entry_type == DataEntryTypeEnum.external_clouds:
             emission_type = EmissionTypeEnum[
@@ -58,21 +68,20 @@ class DataEntryEmissionService:
                 f"{primary_factor}"
             )
             return None
+        subcategory = None  # TODO: should be an enum somwhere
+        if data_entry.data_entry_type is not None:
+            subcategory = DataEntryTypeEnum(data_entry.data_entry_type).name.title()
         emission_record = DataEntryEmission(
             data_entry_id=data_entry.id,
             emission_type_id=emission_type.value,
             primary_factor_id=primary_factor_id,
-            subcategory=DataEntryTypeEnum(
-                data_entry.data_entry_type_id
-            ).name.title(),  # TODO: should be an enum somwhere
+            subcategory=subcategory,  # TODO: should be an enum somwhere
             kg_co2eq=emissions_value.get("kg_co2eq"),
             meta={**emissions_value},
         )
         return emission_record
 
-    async def create(
-        self, data_entry: DataEntry, emission_type: EmissionTypeEnum
-    ) -> DataEntryEmission | None:
+    async def create(self, data_entry: DataEntryResponse) -> DataEntryEmission | None:
         """Create emissions for a data entry, if applicable."""
         emission_record = await self.prepare_create(data_entry)
         if not emission_record:
@@ -84,13 +93,13 @@ class DataEntryEmissionService:
 
     async def bulk_create(
         self, emission_records: list[DataEntryEmission]
-    ) -> list[DataEntryEmission] | None:
+    ) -> list[DataEntryEmission]:
         """Create emissions for multiple data entries, if applicable."""
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
     # Dict of dataEntryTypeEnum , func to calculation formulas
-    FORMULAS: dict[DataEntryTypeEnum, callable] = {}
+    FORMULAS: dict[DataEntryTypeEnum, Callable] = {}
 
     # create a decorator to register formulas
     @classmethod
@@ -102,10 +111,12 @@ class DataEntryEmissionService:
         return decorator
 
     def _calculate_emissions(
-        self, data_entry: DataEntry, factors: list[Factor]
+        self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
     ) -> dict:
         """Placeholder method for emissions calculation logic."""
         # Implement actual calculation based on data_entry data
+        if data_entry.data_entry_type is None:
+            raise ValueError("Data entry type is required for emissions calculation")
         formula_func = self.FORMULAS.get(data_entry.data_entry_type)
         if formula_func:
             return formula_func(self, data_entry, factors)
@@ -115,7 +126,9 @@ class DataEntryEmissionService:
 
 # Register formulas for different DataEntryTypeEnum
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_clouds)
-def compute_external_clouds(self, data_entry: DataEntry, factors: list[Factor]) -> dict:
+def compute_external_clouds(
+    data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
     """Compute emissions for external clouds."""
 
     kg_co2eq = None
@@ -134,7 +147,9 @@ def compute_external_clouds(self, data_entry: DataEntry, factors: list[Factor]) 
 
 
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_ai)
-def compute_external_ai(self, data_entry: DataEntry, factors: list[Factor]) -> dict:
+def compute_external_ai(
+    data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
     """Compute emissions for external AI."""
     # Implement actual calculation based on data_entry data
     kg_co2eq = None

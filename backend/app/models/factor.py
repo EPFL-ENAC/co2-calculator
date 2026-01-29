@@ -21,7 +21,8 @@ class FactorBase(SQLModel):
         description="""True for conversion factors (e.g., energy mix kWh→kgCO2eq),
           False for calculation factors""",
     )
-    data_entry_type_id: Optional[int] = Field(
+    # it used to be optional, but now all factors are scoped to a data entry type
+    data_entry_type_id: int = Field(
         default=None,
         index=True,
         description="""Scope to specific data entry type (e.g., scientific, student)""",

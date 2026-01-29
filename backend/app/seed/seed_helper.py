@@ -145,4 +145,4 @@ def lookup_factor(
             f"Sub-kind selection required for accurate matching."
         )
         # For testing, return first match
-        return matches[0]
+        return factors_map[matches[0]]

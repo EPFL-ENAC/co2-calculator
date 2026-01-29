@@ -77,10 +77,11 @@ type-check: ## Run TypeScript type checking
 
 
 .PHONY: type-check-full
-type-check-full: ## Run TypeScript type checking
+type-check-full:  ## Run TypeScript type checking
 	@set -e; \
-	npx tsc --noEmit -p tsconfig.typecheck.json && \
-	npx vue-tsc --noEmit -p tsconfig.typecheck.json
+	$(MAKE) type-check-go & \
+	$(MAKE) type-check & \
+	wait
 
 
 .PHONY: test

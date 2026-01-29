@@ -44,10 +44,7 @@ class FactorService:
         sub_class: Optional[str] = None,
     ) -> Optional[Factor]:
         """Get power factor for equipment classification."""
-        # TODO: implement
         raise NotImplementedError
-        # return await self.repo.get(session, variant_type_id,
-        # equipment_class, sub_class)
 
     async def get_headcount_factor(
         self,
@@ -79,15 +76,14 @@ class FactorService:
     ) -> Dict[str, List[str]]:
         """Get class/subclass mapping for power factors."""
         raise NotImplementedError
-        # return await self.repo.get_class_subclass_map(session, variant_type_id)
 
     async def prepare_create(
         self,
-        emission_type_id: EmissionTypeEnum,
+        emission_type_id: int,  # DataEntryTypeEnum, #
         is_conversion: bool,
-        data_entry_type_id: DataEntryTypeEnum,
+        data_entry_type_id: int,  # DataEntryTypeEnum,
         classification: Dict[str, Any],
-        values: Dict[str, float],
+        values: Dict[str, float | int | None],
     ) -> Factor:
         """Prepare a factor for creation."""
 
@@ -98,7 +94,6 @@ class FactorService:
             classification=classification,
             values=values,
         )
-
         return factor
 
     async def create(
@@ -114,7 +109,7 @@ class FactorService:
             factor.values,
         )
 
-        factor = await self.repo.create(session, factor)
+        factor = await self.repo.create(factor)
 
         return factor
 
@@ -147,16 +142,3 @@ class FactorService:
     async def find_modules_for_recalculation(self, factor_id: int) -> List[int]:
         """Find module IDs that need recalculation when factor changes."""
         raise NotImplementedError
-        # return await self.repo.find_modules_for_recalculation(session, factor_id)
-
-
-# Singleton instance
-_factor_service: Optional[FactorService] = None
-
-
-def get_factor_service() -> FactorService:
-    """Get or create the factor service singleton."""
-    global _factor_service
-    if _factor_service is None:
-        _factor_service = FactorService()
-    return _factor_service
