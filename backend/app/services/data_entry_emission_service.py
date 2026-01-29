@@ -16,6 +16,16 @@ from app.services.factor_service import FactorService
 logger = get_logger(__name__)
 
 
+# def prepare_emission_object(kg_co2eq: float) -> Decimal:
+#     # Convert result to Decimal and round it before saving
+#     raw_value = Decimal(str(kg_co2eq))
+
+#     # Round to 8 decimal places (standard for carbon accounting)
+#     clean_value = raw_value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+
+#     return clean_value
+
+
 class DataEntryEmissionService:
     """Service for data entry business logic."""
 
@@ -127,7 +137,7 @@ class DataEntryEmissionService:
 # Register formulas for different DataEntryTypeEnum
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_clouds)
 def compute_external_clouds(
-    data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
     """Compute emissions for external clouds."""
 
@@ -148,7 +158,7 @@ def compute_external_clouds(
 
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_ai)
 def compute_external_ai(
-    data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
     """Compute emissions for external AI."""
     # Implement actual calculation based on data_entry data

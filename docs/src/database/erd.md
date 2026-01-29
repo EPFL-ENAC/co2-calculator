@@ -21,8 +21,8 @@ erDiagram
   }
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
-    INTEGER data_entry_id FK
-    INTEGER emission_type_id FK
+    INTEGER data_entry_id "indexed"
+    INTEGER emission_type_id "indexed"
     VARCHAR formula_version
     INTEGER id PK
     FLOAT kg_co2eq
@@ -43,14 +43,10 @@ erDiagram
     VARCHAR target_type
     INTEGER year
   }
-  emission_types {
-    VARCHAR code "indexed"
-    INTEGER id PK
-  }
   factors {
     JSON classification
     INTEGER data_entry_type_id "indexed"
-    INTEGER emission_type_id FK
+    INTEGER emission_type_id "indexed"
     INTEGER id PK
     BOOLEAN is_conversion "indexed"
     JSON values
@@ -184,9 +180,6 @@ erDiagram
   }
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
-  data_entries ||--}o data_entry_emissions : "data_entry_id"
-  emission_types ||--}o data_entry_emissions : "emission_type_id"
-  emission_types ||--}o factors : "emission_type_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"

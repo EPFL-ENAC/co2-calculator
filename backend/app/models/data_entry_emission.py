@@ -37,6 +37,7 @@ class DataEntryEmissionBase(SQLModel):
         description="Subcategory for grouping emissions (scientific/it/other)"
         "for equipment, plane/train for travel, emission_type for headcount)",
     )
+    # TODO: move to Decimal! (precision issues)
     kg_co2eq: float = Field(
         nullable=False,
         description="Computed emission value in kg CO2 equivalent",
