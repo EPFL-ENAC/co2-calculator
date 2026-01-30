@@ -67,9 +67,9 @@ class DataIngestionJobBase(SQLModel):
         description="FK to carbon_report_modules.id. for module_unit_specific jobs",
     )
 
+    # consider changing to ModuleTypeEnum with setter getter conversion
     module_type_id: Optional[int] = Field(
         default=None,
-        foreign_key="module_types.id",
         description="For module_per_year/module_unit_specific",
     )
 

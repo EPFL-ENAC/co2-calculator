@@ -5,7 +5,7 @@ erDiagram
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
-    INTEGER module_type_id FK
+    INTEGER module_type_id "indexed"
     INTEGER status
   }
   carbon_reports {
@@ -21,7 +21,7 @@ erDiagram
   }
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
-    INTEGER data_entry_id "indexed"
+    INTEGER data_entry_id FK
     INTEGER emission_type_id "indexed"
     VARCHAR formula_version
     INTEGER id PK
@@ -36,7 +36,7 @@ erDiagram
     INTEGER id PK
     VARCHAR ingestion_method
     JSON meta
-    INTEGER module_type_id FK
+    INTEGER module_type_id
     VARCHAR provider
     VARCHAR status
     VARCHAR status_message
@@ -89,10 +89,6 @@ erDiagram
     VARCHAR transport_mode "indexed"
     DATETIME updated_at
     INTEGER updated_by "indexed"
-  }
-  module_types {
-    INTEGER id PK
-    VARCHAR name "indexed"
   }
   plane_impact_factors {
     VARCHAR category "indexed"
@@ -180,11 +176,10 @@ erDiagram
   }
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
+  data_entries ||--}o data_entry_emissions : "data_entry_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
   locations ||--}o professional_travels : "destination_location_id"
   locations ||--}o professional_travels : "origin_location_id"
-  module_types ||--}o carbon_report_modules : "module_type_id"
-  module_types ||--}o data_ingestion_jobs : "module_type_id"
   plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
   professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
   train_impact_factors ||--}o professional_travel_emissions : "train_impact_factor_id"

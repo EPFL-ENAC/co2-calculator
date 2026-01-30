@@ -33,9 +33,8 @@ class CarbonReport(CarbonReportBase, table=True):
 class CarbonReportModuleBase(SQLModel):
     """Base carbon report module model."""
 
-    # TODO: consider changing to ModuleTypeEnum
+    # TODO: consider changing to ModuleTypeEnum with setter getter conversion
     module_type_id: int = Field(
-        foreign_key="module_types.id",
         nullable=False,
         index=True,
         description="Reference to module type classification",

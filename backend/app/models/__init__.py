@@ -19,7 +19,6 @@ from .location import (
     LocationBase,
     LocationRead,
 )
-from .module_type import ModuleType
 from .professional_travel import (
     ProfessionalTravel,
     ProfessionalTravelBase,
@@ -42,6 +41,13 @@ from .unit_user import UnitUser
 from .user import User, UserBase
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
+Unit.model_rebuild()
+User.model_rebuild()
+UnitUser.model_rebuild()
+CarbonReport.model_rebuild()
+CarbonReportModule.model_rebuild()
+DataEntry.model_rebuild()
+DataEntryEmission.model_rebuild()
 
 # After model_rebuild()
 Unit.unit_users = Relationship(back_populates="unit")
@@ -57,12 +63,6 @@ CarbonReportModule.carbon_report = Relationship(back_populates="modules")
 # CarbonReportModule <-> Module relationships
 CarbonReportModule.module_rows = Relationship(back_populates="carbon_report_module")
 DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
-
-# ModuleType <-> VariantType relationships
-ModuleType.variant_types = Relationship(back_populates="module_type")
-
-# Module <-> ModuleType/VariantType relationships
-DataEntry.module_type = Relationship()
 
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed

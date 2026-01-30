@@ -11,9 +11,12 @@ class DataEntryEmissionBase(SQLModel):
     """Base data entry emission model with shared fields."""
 
     data_entry_id: int = Field(
-        ForeignKey("data_entries.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        sa_column=Column(
+            Integer,
+            ForeignKey("data_entries.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         description="Reference to the source data entry",
     )
     # EmissionTypeEnum value

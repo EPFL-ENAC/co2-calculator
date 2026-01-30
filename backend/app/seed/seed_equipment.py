@@ -29,14 +29,12 @@ from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
-from app.models.unit import Unit
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
     load_factors_map,
     lookup_factor,
 )
 from app.services import calculation_service
-from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -107,22 +105,6 @@ async def seed_equipment(session: AsyncSession) -> None:
     matched_count = 0
     no_match_count = 0
     ambiguous_classes: Dict[str, int] = {}  # Track classes requiring sub-class
-
-    # upsert unit ids 10208 and 12345 for testing
-    logger.info("Seeding equipment records...")
-    unit_service = UnitService(session)
-    await unit_service.upsert(
-        unit_data=Unit(
-            provider_code="12345",
-            name="test unit 12345",
-        )
-    )
-    await unit_service.upsert(
-        unit_data=Unit(
-            provider_code="10208",
-            name="enac test 10208",
-        )
-    )
 
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)

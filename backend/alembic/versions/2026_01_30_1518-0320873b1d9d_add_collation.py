@@ -1,8 +1,9 @@
-"""add icu collations for location search
+# codeql[py/unused-global-variable]
+"""add collation
 
-Revision ID: add_icu_collations
-Revises: 8b18929d56c9
-Create Date: 2026-01-22 16:00:00.000000
+Revision ID: 0320873b1d9d
+Revises: 792c440815df
+Create Date: 2026-01-30 15:18:55.353986
 
 """
 
@@ -10,9 +11,17 @@ from typing import Sequence, Union
 
 from alembic import op
 
+__all__ = [
+    "revision",
+    "down_revision",
+    "branch_labels",
+    "depends_on",
+]
+
+
 # revision identifiers, used by Alembic.
-revision: str = "add_icu_collations"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "8b18929d56c9"  # noqa: F841
+revision: str = "0320873b1d9d"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "792c440815df"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 

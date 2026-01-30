@@ -707,6 +707,7 @@ async def delete(
                 id=item_id,
                 current_user=current_user,
             )
+            await db.commit()
     except HTTPException:
         # Re-raise HTTP exceptions (404, 403, etc.) from services
         raise

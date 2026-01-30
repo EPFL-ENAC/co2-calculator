@@ -13,9 +13,6 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
-from app.repositories.data_entry_emission_repo import (
-    DataEntryEmissionRepository,
-)
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
     DataEntryUpdate,
@@ -91,21 +88,17 @@ class DataEntryRepository:
         await self.session.flush()
         return db_obj
 
-    async def delete(self, id: int) -> Optional[DataEntry]:
+    async def delete(self, id: int) -> bool:
         # 1. Fetch the existing record
-        statement = select(DataEntry).where(DataEntry.id == id)
+        statement = delete(DataEntry).where(DataEntry.id == id)
         result = await self.session.execute(statement)
-        db_obj = result.scalar_one_or_none()
 
-        if not db_obj:
-            return None
-
-        await DataEntryEmissionRepository(
-            self.session
-        ).delete_data_entry_emissions_by_data_entry_id(id)
+        # rowcount tells you if a row actually matched the ID
+        if result.rowcount == 0:
+            return False
 
         await self.session.flush()
-        return db_obj
+        return True
 
     async def get_list(
         self,

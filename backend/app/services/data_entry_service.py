@@ -115,9 +115,9 @@ class DataEntryService:
     async def delete(self, id: int, current_user: User) -> bool:
         """Delete a record."""
         result = await self.repo.delete(id)
-        await self.session.commit()
+        await self.session.flush()
 
-        if result is None:
+        if result is False:
             raise ValueError(f"Data entry with id={id} not found")
         return True
 

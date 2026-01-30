@@ -1,15 +1,12 @@
 """Module type model for classifying different module categories."""
 
-from enum import Enum
-from typing import Optional
-
-from sqlmodel import Field, SQLModel
+from enum import IntEnum
 
 from app.models.data_entry import DataEntryTypeEnum
 
 
 # enum - used in other files
-class ModuleTypeEnum(int, Enum):
+class ModuleTypeEnum(IntEnum):
     """
     How the data entered the system.
 
@@ -32,6 +29,9 @@ class ModuleTypeEnum(int, Enum):
     internal_services = 6
     external_cloud_and_ai = 7
     global_energy = 99
+
+
+ALL_MODULE_TYPE_IDS = list(ModuleTypeEnum)
 
 
 # corresponding data_entry_type enum for each module type
@@ -63,29 +63,3 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ],
     # Add more if needed for other modules
 }
-
-
-class ModuleTypeBase(SQLModel):
-    """Base module type model with shared fields."""
-
-    name: str = Field(
-        nullable=False,
-        unique=True,
-        index=True,
-        description="Module type name (e.g., 'headcount', 'equipment', 'travel')",
-    )
-
-
-class ModuleType(ModuleTypeBase, table=True):
-    """
-    Module type table for classifying different module categories.
-
-    Examples: headcount, equipment, travel, purchases, etc.
-    """
-
-    __tablename__ = "module_types"
-
-    id: Optional[int] = Field(default=None, primary_key=True, index=True)
-
-    def __repr__(self) -> str:
-        return f"<ModuleType {self.id}: {self.name}>"
