@@ -108,6 +108,25 @@ class DataEntryEmissionService:
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
+    async def update_by_data_entry(
+        self, data_entry_response: DataEntryResponse
+    ) -> DataEntryEmission | None:
+        """Update emissions for a data entry, if applicable."""
+        existing_emission = await self.repo.get_by_data_entry_id(data_entry_response.id)
+        if existing_emission is None:
+            return None
+        updated_emission = await self.prepare_create(data_entry_response)
+        if updated_emission is None:
+            return None
+        # Update fields
+        existing_emission.kg_co2eq = updated_emission.kg_co2eq
+        existing_emission.primary_factor_id = updated_emission.primary_factor_id
+        existing_emission.meta = updated_emission.meta
+
+        saved_emission = await self.repo.update(existing_emission)
+        # await self.session.refresh(saved_emission)
+        return saved_emission
+
     async def get_stats(
         self,
         carbon_report_module_id: int,

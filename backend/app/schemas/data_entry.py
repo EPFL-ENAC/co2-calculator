@@ -86,6 +86,13 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
     kg_co2eq: Optional[float]
 
 
+class ExternalCloudHandlerUpdate(BaseModel):
+    # service_type: Optional[str]
+    # cloud_provider: Optional[str]
+    # region: Optional[str]
+    spending: Optional[float]
+
+
 class ExternalAIHandlerResponse(DataEntryResponseGen):
     # ai_provider,ai_use,frequency_use_per_day,user_count
     ai_provider: str
@@ -176,6 +183,7 @@ class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
     create_dto = DataEntryCreate
     update_dto = DataEntryUpdate
+    update_dto = ExternalCloudHandlerUpdate
     response_dto = ExternalCloudHandlerResponse
 
     sort_map = {
@@ -202,7 +210,10 @@ class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
         return self.create_dto.model_validate(unflatten_data_entry_payload(payload))
 
     def validate_update(self, payload: dict) -> DataEntryUpdate:
-        return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
+        validated_payload = self.update_dto.model_validate(payload)
+        unflatten = unflatten_data_entry_payload(validated_payload.model_dump())
+        return unflatten
+        # return self.update_dto.model_validate(unflatten_data_entry_payload(payload))
 
 
 @register_module_handler(DataEntryTypeEnum.external_ai)

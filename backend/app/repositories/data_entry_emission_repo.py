@@ -23,6 +23,20 @@ class DataEntryEmissionRepository:
         await self.session.flush()
         return obj
 
+    async def update(self, obj: DataEntryEmission) -> DataEntryEmission:
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def get_by_data_entry_id(
+        self, data_entry_id: int
+    ) -> DataEntryEmission | None:
+        query = select(DataEntryEmission).where(
+            DataEntryEmission.data_entry_id == data_entry_id
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
     async def bulk_create(
         self, objs: list[DataEntryEmission]
     ) -> list[DataEntryEmission]:

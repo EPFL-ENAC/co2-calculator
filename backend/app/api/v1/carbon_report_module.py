@@ -34,6 +34,7 @@ from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
+    get_data_entry_handler_by_type,
     unflatten_data_entry_payload,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -275,7 +276,6 @@ async def get_submodule(
             sort_order=sort_order,
             filter=filter,
         )
-        print(submodule_data)
 
     if not submodule_data:
         raise HTTPException(
@@ -569,6 +569,7 @@ async def update(
     unit_id: int,
     year: int,
     module_id: str,
+    # submodule_id is dataEntryType e.g 'external_clouds' or 'it'
     submodule_id: str,
     item_id: int,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
@@ -588,11 +589,28 @@ async def update(
         ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
-    if ModuleTypeEnum[module_id.replace("-", "_")] is None:
+    submodule_key = submodule_id.replace("-", "_")
+    module_key = module_id.replace("-", "_")
+    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type_id = data_entry_type.value
+    if ModuleTypeEnum[module_key] is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module not supported for update",
         )
+    if DataEntryTypeEnum[submodule_key] is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodule not supported for update",
+        )
+    # TODO: remove once migration done in frontend
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key],
+        db=db,
+    )
+
     if module_id == "my-lab":
         # Parse as HeadCountUpdateRequest
         try:
@@ -639,8 +657,14 @@ async def update(
         item = await service._get_travel_item_response(travel, current_user)
     else:
         try:
-            transformed = unflatten_data_entry_payload(item_data)
-            parsed_data = DataEntryUpdate(**transformed)
+            # transformed = unflatten_data_entry_payload(item_data)
+            handler = get_data_entry_handler_by_type(data_entry_type)
+            validated_data = handler.validate_update(item_data)
+            data_entry_update = DataEntryUpdate(
+                **validated_data,
+                data_entry_type_id=data_entry_type_id,
+                carbon_report_module_id=carbon_report_module_id,
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -653,9 +677,24 @@ async def update(
             )
         item = await DataEntryService(db).update(
             id=item_id,
-            data=parsed_data,
+            data=data_entry_update,
             user=current_user,
         )
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Data entry item not found",
+            )
+        # Recalculate emission after update
+        emission = await DataEntryEmissionService(db).update_by_data_entry(
+            data_entry_response=item,
+        )
+        if emission is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update data entry emission",
+            )
+        await db.commit()
     logger.info(f"Updated item {sanitize(item_id)}")
     return item
 
