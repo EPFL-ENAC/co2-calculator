@@ -472,10 +472,25 @@ const emit = defineEmits<{
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
+
+const kindFieldId = computed(() => {
+  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  return kindField ? kindField.id : null;
+});
+
+const subkindFieldId = computed(() => {
+  const subkindField = visibleFields.value.find(
+    (f) => f.optionsId === 'subkind',
+  );
+  return subkindField ? subkindField.id : null;
+});
+
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
-    classFieldId: 'kind',
-    subClassFieldId: 'subkind',
+    // classFieldId: 'equipment_class',
+    // subClassFieldId: 'sub_class',
+    classFieldId: kindFieldId.value,
+    subClassFieldId: subkindFieldId.value,
   });
 
 // Use equipment options directly as dynamic options

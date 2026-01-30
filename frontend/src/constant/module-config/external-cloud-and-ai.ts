@@ -1,8 +1,11 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
-import { SUBMODULE_EXTERNAL_CLOUD_TYPES,  MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import {
+  SUBMODULE_EXTERNAL_CLOUD_TYPES,
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+} from 'src/constant/modules';
 import type { ExternalCloudSubType } from 'src/constant/modules';
 import type { Module } from 'src/constant/modules';
-
 
 const cloudFields: ModuleField[] = [
   {
@@ -23,9 +26,9 @@ const cloudFields: ModuleField[] = [
   },
   {
     id: 'service_type',
-    optionsId: 'subkind',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
+    optionsId: 'subkind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -54,7 +57,7 @@ const cloudFields: ModuleField[] = [
     id: 'kg_co2eq',
     label: 'kg CO₂-eq',
     type: 'number',
-    hideIn: { form: false },
+    hideIn: { form: true },
     sortable: true,
   },
 ];
@@ -71,18 +74,28 @@ const externalAIFields: ModuleField[] = [
   {
     id: 'ai_provider',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.ai_provider`,
-    type: 'text',
     required: true,
     ratio: '4/12',
     hideIn: { table: false },
+    editableInline: true,
+
+    optionsId: 'kind',
+    inputTypeName: 'QSelect',
+    sortable: true,
+    type: 'select',
   },
   {
     id: 'ai_use',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.ai_use`,
-    type: 'text',
     required: true,
     ratio: '4/12',
     hideIn: { table: false },
+    editableInline: true,
+
+    optionsId: 'subkind',
+    inputTypeName: 'QSelect',
+    sortable: true,
+    type: 'select',
   },
   {
     id: 'frequency_use_per_day',
@@ -90,6 +103,7 @@ const externalAIFields: ModuleField[] = [
     type: 'number',
     required: true,
     min: 1,
+    editableInline: true,
     step: 1,
     ratio: '4/12',
     hideIn: { table: false },
@@ -99,6 +113,7 @@ const externalAIFields: ModuleField[] = [
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.user_count`,
     type: 'number',
     required: true,
+    editableInline: true,
     min: 1,
     step: 1,
     ratio: '4/12',
@@ -108,7 +123,7 @@ const externalAIFields: ModuleField[] = [
     id: 'kg_co2eq',
     label: 'kg CO₂-eq',
     type: 'number',
-    hideIn: { form: false },
+    hideIn: { form: true },
     sortable: true,
     ratio: '4/12',
   },
@@ -123,7 +138,7 @@ export const externalCloudAndAi: ModuleConfig = {
   description: 'Track external cloud services and AI usage',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
-    threshold: {
+  threshold: {
     type: MODULES_THRESHOLD_TYPES[0],
     value: 1000000, // kg CO₂-eq; implicit coloring only
   },

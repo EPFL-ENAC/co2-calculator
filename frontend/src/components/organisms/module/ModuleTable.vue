@@ -119,6 +119,7 @@
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
+              :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
@@ -832,6 +833,9 @@ C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,C
 2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
+
+  // # TODO: add external cloud and ai
+  // Use backend-generated templates
 
   let csvContent: string;
   switch (props.moduleType) {
