@@ -82,7 +82,7 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
-    en: 'Estimate the impact of your professionnal travel ',
+    en: 'Estimate the impact of your professional travel ',
     fr: "Estimez l’impact de vos voyages professionnels",
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
