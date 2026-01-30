@@ -147,8 +147,8 @@ async def get_sync_jobs_by_year(
     # Initialize result structure with all module
     # types and both target types (0=data_entries, 1=factors)
     result = {}
-    for module_type_id in ALL_MODULE_TYPE_IDS:  # 1 to 7 inclusive
-        result[module_type_id.value] = {
+    for module_type_id_iter in ALL_MODULE_TYPE_IDS:  # 1 to 7 inclusive
+        result[module_type_id_iter.value] = {
             0: {"status": 0, "message": ""},  # data_entries default
             1: {"status": 0, "message": ""},  # factors default
         }

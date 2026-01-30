@@ -89,16 +89,14 @@ class DataEntryRepository:
         return db_obj
 
     async def delete(self, id: int) -> bool:
-        # 1. Fetch the existing record
-        statement = delete(DataEntry).where(DataEntry.id == id)
+        statement = delete(DataEntry).where(col(DataEntry.id) == id)
         result = await self.session.execute(statement)
 
         # rowcount tells you if a row actually matched the ID
-        if result.rowcount == 0:
-            return False
+        deleted = result.rowcount if hasattr(result, "rowcount") else None
 
         await self.session.flush()
-        return True
+        return bool(deleted)
 
     async def get_list(
         self,

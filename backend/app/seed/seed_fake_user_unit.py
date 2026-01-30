@@ -6,7 +6,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.unit import Unit
-from app.models.user import RoleName, UserProvider
+from app.models.user import RoleName, User, UserProvider
 from app.schemas.unit import UnitRead
 from app.schemas.user import UserRead
 from app.services.unit_service import UnitService
@@ -65,10 +65,23 @@ async def seed_unit_users(session: AsyncSession) -> None:
     logger.info("Seeding unit_user relationships...")
     unit_user_service = UnitUserService(session)
     # link user 44444 to unit 10208
-    unit_10208: UnitRead = await UnitService(session).get_by_provider_code("10208")
-    unit_12345: UnitRead = await UnitService(session).get_by_provider_code("12345")
-    user: UserRead = await UserService(session).get_by_code("44444")
-    user_principal: UserRead = await UserService(session).get_by_code("777777")
+    unit_10208: UnitRead | None = await UnitService(session).get_by_provider_code(
+        "10208"
+    )
+    unit_12345: UnitRead | None = await UnitService(session).get_by_provider_code(
+        "12345"
+    )
+    if unit_10208 is None or unit_12345 is None:
+        logger.error("Cannot seed unit_user relationships: missing unit")
+        return
+    user_row: User | None = await UserService(session).get_by_code("44444")
+    user: UserRead | None = None
+    if user_row:
+        user = UserRead(**user_row.model_dump())
+    user_principal_row: User | None = await UserService(session).get_by_code("777777")
+    user_principal: UserRead | None = None
+    if user_principal_row:
+        user_principal = UserRead(**user_principal_row.model_dump())
     if unit_10208 is None or user is None or user_principal is None:
         logger.error("Cannot seed unit_user relationships: missing unit or user")
         return
