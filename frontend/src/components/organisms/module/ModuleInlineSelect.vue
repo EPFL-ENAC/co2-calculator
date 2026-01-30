@@ -42,7 +42,7 @@ interface ModuleRow {
 type CommonProps = {
   row: ModuleRow;
   fieldId: string;
-
+  optionsId: string;
   unitId: number;
   year: string | number;
   disable?: boolean;
@@ -51,15 +51,17 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-
-const isClass = computed(() => props.fieldId === 'equipment_class');
-const isSubClass = computed(() => props.fieldId === 'sub_class');
+const isClass = computed(() => props.optionsId === 'kind');
+const isSubClass = computed(() => props.optionsId === 'subkind');
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'));
+  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'), {
+    classFieldId: 'kind',
+    subClassFieldId: 'subkind',
+  });
 
-const classOptions = computed(() => dynamicOptions['equipment_class'] ?? []);
-const subClassOptions = computed(() => dynamicOptions['sub_class'] ?? []);
+const classOptions = computed(() => dynamicOptions['kind'] ?? []);
+const subClassOptions = computed(() => dynamicOptions['subkind'] ?? []);
 
 const options = computed(() =>
   isClass.value ? classOptions.value : subClassOptions.value,

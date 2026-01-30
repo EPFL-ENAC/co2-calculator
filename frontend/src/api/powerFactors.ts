@@ -13,9 +13,11 @@ export async function getSubclassMap(
 }
 
 export interface PowerFactorResponse {
-  submodule: string;
-  equipment_class: string;
-  sub_class: string | null;
+  // submodule: string;
+  // equipment_class: string;
+  // sub_class: string | null;
+  // TODO: IMPROVE: change to optional?
+  // return generic for kind and subkind and values
   active_power_w: number;
   standby_power_w: number;
 }

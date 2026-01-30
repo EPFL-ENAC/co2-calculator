@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { reactive } from 'vue';
 import {
   getSubclassMap,
   getPowerFactor,
@@ -8,13 +9,14 @@ import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
-export const usePowerFactorsStore = defineStore('power-factors', () => {
+export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
-  const subclassOptionMapBySubmodule: Partial<
+  // Make these reactive
+  const subclassOptionMapBySubmodule = reactive<Partial<
     Record<AllSubmoduleTypes, Record<string, Option[]>>
-  > = {};
-  const subclassMapFetchedAt: Partial<Record<AllSubmoduleTypes, number>> = {};
+  >>({});
+  const subclassMapFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>({});
 
   async function ensureSubclassOptionMap(
     submodule: AllSubmoduleTypes,
@@ -64,6 +66,8 @@ export const usePowerFactorsStore = defineStore('power-factors', () => {
   }
 
   return {
+    subclassOptionMapBySubmodule,
+    subclassMapFetchedAt,
     fetchClassOptions,
     fetchSubclassOptions,
     fetchPowerFactor,

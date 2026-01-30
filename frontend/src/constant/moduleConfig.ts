@@ -55,6 +55,7 @@ export interface ModuleField {
   step?: number;
   default?: string | number | boolean;
   options?: Array<{ value: string; label: string }>;
+  optionsId?: string; // ID to fetch options from store (kind or subkind)
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
   tooltip?: string;

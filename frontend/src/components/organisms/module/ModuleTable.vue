@@ -115,9 +115,10 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.name === 'equipment_class' || col.name === 'sub_class'"
+              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
               :row="slotProps.row"
               :field-id="col.field"
+              :options-id="col.optionsId"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
@@ -392,6 +393,7 @@ type TableViewColumn = {
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
+  optionsId?: string;
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
@@ -466,6 +468,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           inputComponent,
           editableInline,
           options,
+          optionsId: f.optionsId,
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,

@@ -1,5 +1,5 @@
 import { reactive, ref, watch, type Ref } from 'vue';
-import { usePowerFactorsStore } from 'src/stores/powerFactors';
+import { useFactorsStore } from 'src/stores/powerFactors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
@@ -18,8 +18,9 @@ export function useEquipmentClassOptions<
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
 ) {
-  const classFieldId = config.classFieldId ?? 'equipment_class';
-  const subClassFieldId = config.subClassFieldId ?? 'sub_class';
+  const classFieldId = config.classFieldId ?? 'kind';
+  const subClassFieldId = config.subClassFieldId ?? 'subkind';
+  // #  TODO: make power field IDs configurable
   const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
   const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
 
@@ -29,7 +30,7 @@ export function useEquipmentClassOptions<
   const loadingPowerFactor = ref(false);
   const subclassLoadError = ref(false);
 
-  const store = usePowerFactorsStore();
+  const store = useFactorsStore();
 
   function normalizeValue(raw: unknown): string | null {
     if (raw === null || raw === undefined || raw === '') return null;
