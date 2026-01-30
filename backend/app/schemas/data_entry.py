@@ -140,8 +140,8 @@ class EquipmentModuleHandler(ModuleHandler[DataEntry]):
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": Factor.classification["kind"].as_string(),
+        "sub_class": Factor.classification["subkind"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 

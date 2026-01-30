@@ -37,7 +37,8 @@ const cloudFields: ModuleField[] = [
     align: 'left',
     readOnly: false,
     editableInline: true,
-    ratio: '1/1',
+    ratio: '1/2',
+    icon: 'o_category',
   },
   // {
   //   id: 'region',
@@ -50,6 +51,10 @@ const cloudFields: ModuleField[] = [
     id: 'spending',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.spending`,
     type: 'number',
+     editableInline: true,
+    min: 0,
+    step: 0.01,
+    ratio: '1/1',
     hideIn: { form: false },
     sortable: true,
   },
@@ -98,23 +103,23 @@ const externalAIFields: ModuleField[] = [
     type: 'select',
   },
   {
-    id: 'frequency_use_per_day',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.frequency_use_per_day`,
-    type: 'number',
-    required: true,
-    min: 1,
-    editableInline: true,
-    step: 1,
-    ratio: '4/12',
-    hideIn: { table: false },
-  },
-  {
     id: 'user_count',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.user_count`,
     type: 'number',
     required: true,
     editableInline: true,
     min: 1,
+    step: 1,
+    ratio: '4/12',
+    hideIn: { table: false },
+  },
+  {
+    id: 'frequency_use_per_day',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.frequency_use_per_day`,
+    type: 'number',
+    required: true,
+    min: 1,
+    editableInline: true,
     step: 1,
     ratio: '4/12',
     hideIn: { table: false },
@@ -140,7 +145,7 @@ export const externalCloudAndAi: ModuleConfig = {
   formStructure: 'perSubmodule',
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0],
-    value: 1000000, // kg CO₂-eq; implicit coloring only
+    value: 500, // kg CO₂-eq; implicit coloring only
   },
   submodules: [
     {
