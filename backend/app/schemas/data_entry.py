@@ -180,6 +180,10 @@ class ExternalCloudModuleHandler(ModuleHandler[DataEntry]):
 
     sort_map = {
         "id": DataEntry.id,
+        "service_type": Factor.classification["subkind"].as_string(),
+        "cloud_provider": Factor.classification["kind"].as_string(),
+        "spending": DataEntry.data["spending"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
@@ -211,6 +215,11 @@ class ExternalAIModuleHandler(ModuleHandler[DataEntry]):
 
     sort_map = {
         "id": DataEntry.id,
+        "ai_provider": Factor.classification["kind"].as_string(),
+        "ai_use": Factor.classification["subkind"].as_string(),
+        "frequency_use_per_day": DataEntry.data["frequency_use_per_day"].as_float(),
+        "user_count": DataEntry.data["user_count"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
