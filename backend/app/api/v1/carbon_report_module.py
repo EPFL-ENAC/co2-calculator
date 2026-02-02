@@ -435,7 +435,9 @@ async def create(
                 "carbon_report_module_id": carbon_report_module_id,
             }
             handler = get_data_entry_handler_by_type(data_entry_type)
-            create_payload = await handler.resolve_primary_factor_id(create_payload, db)
+            create_payload = await handler.resolve_primary_factor_id(
+                create_payload, data_entry_type, db
+            )
             validated_data = handler.validate_create(create_payload)
 
             data_entry_create = DataEntryCreate(
@@ -685,7 +687,7 @@ async def update(
             }
             handler = get_data_entry_handler_by_type(data_entry_type)
             update_payload = await handler.resolve_primary_factor_id(
-                update_payload, db, existing_data=existing_data
+                update_payload, data_entry_type, db, existing_data=existing_data
             )
             validated_data = handler.validate_update(update_payload)
 

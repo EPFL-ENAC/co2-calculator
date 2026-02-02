@@ -115,6 +115,9 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    hideIn: {
+      form: true,
+    },
     maxColumnWidth: 150,
   },
   {
@@ -128,6 +131,10 @@ const baseModuleFields: ModuleField[] = [
     align: 'left',
     tooltip: powerTooltip,
     readOnly: true,
+    hideIn: {
+      form: true,
+    },
+    editableInline: false,
     ratio: '3/12',
     icon: 'o_electric_bolt',
     maxColumnWidth: 150,

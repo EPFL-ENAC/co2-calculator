@@ -289,7 +289,7 @@ class DataEntryRepository:
                     **primary_factor.classification,
                 }
                 if primary_factor
-                else None,
+                else {},
             }
             items.append(handler.to_response(data_entry))
 

@@ -25,6 +25,15 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
+    async def get_electricity_factor(self) -> Optional[Factor]:
+        """Get the electricity factor."""
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.energy_mix.value,
+        )
+
+        result = await self.session.exec(stmt)
+        return result.one_or_none()
+
     async def get_current_factor(
         self,
         emission_type_id: EmissionTypeEnum,

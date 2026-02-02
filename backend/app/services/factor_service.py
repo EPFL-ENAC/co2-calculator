@@ -36,6 +36,10 @@ class FactorService:
         """Get factor by ID."""
         return await self.repo.get(id)
 
+    async def get_electricity_factor(self) -> Optional[Factor]:
+        """Get the electricity factor."""
+        return await self.repo.get_electricity_factor()
+
     async def get_by_classification(
         self,
         data_entry_type: DataEntryTypeEnum,

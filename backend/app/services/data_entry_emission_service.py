@@ -2,6 +2,7 @@ from typing import Callable
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
@@ -13,6 +14,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import DataEntryResponse
 from app.services.factor_service import FactorService
 
+settings = get_settings()
 logger = get_logger(__name__)
 
 
@@ -44,6 +46,7 @@ class DataEntryEmissionService:
                 "DataEntry must have a data_entry_type before creating emissions."
             )
             return None
+        # TODO: Make generic for all types!!!
         # for cloud it's this key
         if data_entry.data_entry_type == DataEntryTypeEnum.external_clouds:
             emission_type = EmissionTypeEnum[
@@ -54,6 +57,16 @@ class DataEntryEmissionService:
         # for headcount?
         # for travel?
         # for equipment?
+        elif (
+            data_entry.data_entry_type == DataEntryTypeEnum.scientific
+            or data_entry.data_entry_type == DataEntryTypeEnum.it
+            or data_entry.data_entry_type == DataEntryTypeEnum.other
+        ):
+            emission_type = EmissionTypeEnum.equipment
+        else:
+            d_type = data_entry.data_entry_type
+            logger.info(f"DataEntry type {d_type} not handled for emissions creation.")
+            return None
 
         primary_factor_id = data_entry.data.get("primary_factor_id")
         if not primary_factor_id:
@@ -66,6 +79,15 @@ class DataEntryEmissionService:
             return None
         factors = [primary_factor]
         # Placeholder for actual emissions calculation logic
+        if (
+            data_entry.data_entry_type == DataEntryTypeEnum.scientific
+            or data_entry.data_entry_type == DataEntryTypeEnum.it
+            or data_entry.data_entry_type == DataEntryTypeEnum.other
+        ):
+            # need also the electricity factor
+            electricity_factor = await factor_service.get_electricity_factor()
+            if electricity_factor:
+                factors.append(electricity_factor)
         # returns the factors used
         emissions_value = self._calculate_emissions(data_entry, factors=factors)
         if data_entry.id is None:
@@ -207,3 +229,52 @@ def compute_external_ai(
         ) / 1000
     # return intermediary dict with calculation details alway kg_co2eq at least
     return {"kg_co2eq": kg_co2eq}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.it)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.other)
+def compute_scientific_it_other(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute emissions for scientific, it, other."""
+    # Implement actual calculation based on data_entry data
+    kg_co2eq = None
+    if not factors or len(factors) == 0:
+        return {"kg_co2eq": kg_co2eq}
+
+    factor = factors[0]
+    active_usage_hours = data_entry.data.get("active_usage_hours", None)
+    if active_usage_hours is None:
+        raise ValueError("active_usage_hours is required for emissions calculation")
+    passive_usage_hours = data_entry.data.get("passive_usage_hours", None)
+    if passive_usage_hours is None:
+        raise ValueError("passive_usage_hours is required for emissions calculation")
+
+    active_power_w = factor.values.get("active_power_w", None)
+    if active_power_w is None:
+        raise ValueError("active_power_w is required for emissions calculation")
+    standby_power_w = factor.values.get("standby_power_w", None)
+    if standby_power_w is None:
+        raise ValueError("standby_power_w is required for emissions calculation")
+
+    # Calculate weekly energy consumption in Watt-hours
+    weekly_wh = (active_usage_hours * active_power_w) + (
+        passive_usage_hours * standby_power_w
+    )
+    # Convert to annual kWh: (Wh/week * 52 weeks) / 1000
+    annual_kwh = (weekly_wh * settings.WEEKS_PER_YEAR) / 1000
+
+    emission_electric_factor = factors[1].values.get("kgco2eq_per_kwh", None)
+    if emission_electric_factor is None:
+        raise ValueError("factor_kgco2_per_kwh is required for emissions calculation")
+    # Calculate CO2 emissions
+    kg_co2eq = annual_kwh * emission_electric_factor
+
+    logger.debug(
+        f"CO2 calculation: {active_usage_hours}hrs*{active_power_w}W + "
+        f"{passive_usage_hours}hrs*{standby_power_w}W = {annual_kwh:.2f} kWh/year * "
+        f"{emission_electric_factor} = {kg_co2eq:.2f} kgCO2eq"
+    )
+
+    return {"kg_co2eq": kg_co2eq, "weekly_wh": weekly_wh, "annual_kwh": annual_kwh}

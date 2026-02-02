@@ -109,13 +109,45 @@ class ModuleHandler(Protocol[T]):
 
     def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
     async def resolve_primary_factor_id(
-        self, payload: dict, db: AsyncSession, existing_data: Optional[dict] = None
+        self,
+        payload: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        db: AsyncSession,
+        existing_data: Optional[dict] = None,
     ) -> dict: ...
     def validate_create(self, payload: dict) -> BaseModel: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
 
 
-class BaseModuleHandler(ModuleHandler[DataEntry]):
+# ----------- ModuleHandlers --------------------------------- #
+
+
+MODULE_HANDLERS: dict[DataEntryTypeEnum, ModuleHandler] = {}
+
+
+class ModuleHandlerMeta(type):
+    def __new__(mcs, name, bases, namespace):
+        cls = super().__new__(mcs, name, bases, namespace)
+
+        # not BaseModuleHandler itself
+        if name != "BaseModuleHandler" and bases:
+            # Try registration_keys first (for multiple registrations)
+            keys = getattr(cls, "registration_keys", None)
+
+            # Fall back to data_entry_type (for single registration)
+            if keys is None and hasattr(cls, "data_entry_type"):
+                if cls.data_entry_type is not None:
+                    keys = [cls.data_entry_type]
+
+            # Register for all keys
+            if keys:
+                for key in keys:
+                    MODULE_HANDLERS[key] = cls()
+
+        return cls
+
+
+class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     """base ModuleHandler with common logic"""
 
     # kind/subkind resolution can be implemented here if needed
@@ -124,7 +156,11 @@ class BaseModuleHandler(ModuleHandler[DataEntry]):
     data_entry_type: Optional[DataEntryTypeEnum] = None
 
     async def resolve_primary_factor_id(
-        self, payload: dict, db: AsyncSession, existing_data: Optional[dict] = None
+        self,
+        payload: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        db: AsyncSession,
+        existing_data: Optional[dict] = None,
     ) -> dict:
         if self.kind_field is None or self.subkind_field is None:
             return payload
@@ -141,10 +177,9 @@ class BaseModuleHandler(ModuleHandler[DataEntry]):
         subkind = data.get(self.subkind_field)
         # Retrieve the factor
         factor_service = FactorService(db)
-        if self.data_entry_type is None:
-            raise ValueError("data_entry_type must be set to resolve primary factor")
+
         factor = await factor_service.get_by_classification(
-            data_entry_type=self.data_entry_type, kind=kind, subkind=subkind
+            data_entry_type=data_entry_type_id, kind=kind, subkind=subkind
         )
         payload["primary_factor_id"] = factor.id if factor else None
         return payload
@@ -154,25 +189,44 @@ class BaseModuleHandler(ModuleHandler[DataEntry]):
 
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
+    name: str
     active_usage_hours: int
     passive_usage_hours: int
-    name: str
-    primary_factor_id: int
+    primary_factor_id: Optional[int]
     kg_co2eq: Optional[float]
-    active_power_w: int
-    standby_power_w: int
+    active_power_w: Optional[int]
+    standby_power_w: Optional[int]
     equipment_class: Optional[str]
     sub_class: Optional[str]
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: str
-    cloud_provider: str
+    cloud_provider: Optional[str]
     spending: float
     kg_co2eq: Optional[float]
 
 
+class ExternalAIHandlerResponse(DataEntryResponseGen):
+    # ai_provider,ai_use,frequency_use_per_day,user_count
+    ai_provider: str
+    ai_use: str
+    frequency_use_per_day: int
+    user_count: int
+    kg_co2eq: Optional[float]
+
+
 # ---- CREATE DTO --------------------------------- #
+
+
+class EquipmentHandlerCreate(DataEntryCreate):
+    active_usage_hours: int
+    passive_usage_hours: int
+    name: str
+    equipment_class: str
+    sub_class: str
+
+
 class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     cloud_provider: Optional[str] = None
@@ -187,6 +241,14 @@ class ExternalAIHandlerCreate(DataEntryCreate):
 
 
 ## UPDATE DTO
+
+
+class EquipmentHandlerUpdate(DataEntryUpdate):
+    active_usage_hours: Optional[int] = None
+    passive_usage_hours: Optional[int] = None
+    name: Optional[str] = None
+    equipment_class: Optional[str] = None
+    sub_class: Optional[str] = None
 
 
 class ExternalCloudHandlerUpdate(DataEntryUpdate):
@@ -205,38 +267,19 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
 ## END UPDATE DTO
 
 
-class ExternalAIHandlerResponse(DataEntryResponseGen):
-    # ai_provider,ai_use,frequency_use_per_day,user_count
-    ai_provider: str
-    ai_use: str
-    frequency_use_per_day: int
-    user_count: int
-    kg_co2eq: Optional[float]
-
-
-# ----------- ModuleHandlers --------------------------------- #
-
-
-MODULE_HANDLERS: dict[DataEntryTypeEnum, ModuleHandler] = {}
-
-
-def register_module_handler(key: DataEntryTypeEnum):
-    def decorator(cls):
-        MODULE_HANDLERS[key] = cls()
-        return cls
-
-    return decorator
-
-
-@register_module_handler(DataEntryTypeEnum.it)
-@register_module_handler(DataEntryTypeEnum.scientific)
-@register_module_handler(DataEntryTypeEnum.other)
 class EquipmentModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.equipment_electric_consumption
     data_entry_type: DataEntryTypeEnum | None = None
-    create_dto = DataEntryCreate
-    update_dto = DataEntryUpdate
+    registration_keys = [
+        DataEntryTypeEnum.it,
+        DataEntryTypeEnum.scientific,
+        DataEntryTypeEnum.other,
+    ]
+
+    create_dto = EquipmentHandlerCreate
+    update_dto = EquipmentHandlerUpdate
     response_dto = EquipmentHandlerResponse
+
     kind_field: str = "equipment_class"
     subkind_field: str = "sub_class"
 
@@ -267,7 +310,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
             ),
             "equipment_class": data_entry.data.get("primary_factor", {}).get("class"),
             "sub_class": data_entry.data.get("primary_factor", {}).get("sub_class"),
-            "kg_co2eq": 0,
+            "kg_co2eq": data_entry.data.get("kg_co2eq", None),
         }
         return self.response_dto.model_validate(new_entry)
 
@@ -278,7 +321,6 @@ class EquipmentModuleHandler(BaseModuleHandler):
         return self.update_dto.model_validate(payload)
 
 
-@register_module_handler(DataEntryTypeEnum.external_clouds)
 class ExternalCloudModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
@@ -316,7 +358,6 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         return self.update_dto.model_validate(payload)
 
 
-@register_module_handler(DataEntryTypeEnum.external_ai)
 class ExternalAIModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
