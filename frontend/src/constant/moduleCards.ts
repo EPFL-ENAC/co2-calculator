@@ -46,7 +46,7 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: false,
   },
   {
-    module: MODULES.ExternalCloud,
+    module: MODULES.ExternalCloudAndAI,
     value: "8'250",
     active: false,
   },

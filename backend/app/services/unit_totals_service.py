@@ -5,7 +5,9 @@ from typing import Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.services import equipment_service
+from app.models.module_type import ModuleTypeEnum
+from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
 
@@ -31,10 +33,16 @@ class UnitTotalsService:
 
         # Equipment Electric Consumption
         try:
-            equipment_stats = await equipment_service.get_module_stats(
-                session=self.session,
+            # ? retrieve carbon_report_module_id
+            carbon_report_module = await CarbonReportModuleService(
+                self.session
+            ).get_carbon_report_by_year_and_unit(
                 unit_id=unit_id,
-                aggregate_by="submodule",
+                year=year,
+                module_type_id=ModuleTypeEnum["equipment_electric_consumption"],
+            )
+            equipment_stats = await DataEntryService(self.session).get_stats(
+                carbon_report_module_id=carbon_report_module.id,
             )
             equipment_co2 = equipment_stats.get("total_kg_co2eq", 0.0)
             total_kg_co2eq += float(equipment_co2 or 0.0)
@@ -45,10 +53,9 @@ class UnitTotalsService:
 
         # Professional Travel
         try:
-            travel_service = ProfessionalTravelService(self.session)
-            travel_stats = await travel_service.get_module_stats(
-                unit_id=unit_id, year=year, user=user
-            )
+            travel_stats = await ProfessionalTravelService(
+                self.session
+            ).get_module_stats(unit_id=unit_id, year=year, user=user)
             travel_co2 = travel_stats.get("total_kg_co2eq", 0.0)
             total_kg_co2eq += float(travel_co2 or 0.0)
             logger.debug(f"Professional Travel module: {travel_co2} kg CO2eq")

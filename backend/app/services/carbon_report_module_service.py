@@ -4,11 +4,12 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ALL_MODULE_TYPE_IDS, ModuleStatus
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule
+from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
+from app.schemas.carbon_report import CarbonReportModuleRead
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,7 @@ class CarbonReportModuleService:
 
     async def create_all_modules_for_report(
         self, carbon_report_id: int
-    ) -> List[CarbonReportModule]:
+    ) -> List[CarbonReportModuleRead]:
         """
         Create all module records for a new carbon report.
 
@@ -35,33 +36,50 @@ class CarbonReportModuleService:
             f"Creating {sanitize(len(module_type_ids))} report modules "
             f"for carbon report {sanitize(carbon_report_id)}"
         )
-        return await self.repo.create_bulk(
+        carbon_report_modules = await self.repo.bulk_create(
             carbon_report_id=carbon_report_id,
             module_type_ids=module_type_ids,
             status=ModuleStatus.NOT_STARTED,
         )
+        return [
+            CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
+        ]
 
     async def get_carbon_report_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: int
-    ) -> Optional[CarbonReportModule]:
+        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
+    ) -> CarbonReportModuleRead:
         """Get a carbon report module by year and unit."""
-        return await self.repo.get_by_year_and_unit(year, unit_id, module_type_id)
+        carbon_report_module = await self.repo.get_by_year_and_unit(
+            year, unit_id, module_type_id
+        )
+        if carbon_report_module is None:
+            raise ValueError(
+                f"Carbon report module not found for year={year}, "
+                f"unit_id={unit_id}, module_type_id={module_type_id}"
+            )
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def get_module(
         self, carbon_report_id: int, module_type_id: int
-    ) -> Optional[CarbonReportModule]:
+    ) -> Optional[CarbonReportModuleRead]:
         """Get a carbon report module by report and module type."""
-        return await self.repo.get_by_report_and_module_type(
+        carbon_report_module = await self.repo.get_by_report_and_module_type(
             carbon_report_id, module_type_id
         )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def list_modules(self, carbon_report_id: int) -> List[CarbonReportModule]:
+    async def list_modules(self, carbon_report_id: int) -> List[CarbonReportModuleRead]:
         """List all modules for a carbon report."""
-        return await self.repo.list_by_report(carbon_report_id)
+        carbon_report_modules = await self.repo.list_by_report(carbon_report_id)
+        return [
+            CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
+        ]
 
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
-    ) -> Optional[CarbonReportModule]:
+    ) -> Optional[CarbonReportModuleRead]:
         """
         Update the status of a carbon report module.
 
@@ -84,7 +102,12 @@ class CarbonReportModuleService:
             f"Updating report {sanitize(carbon_report_id)} module "
             f"status to {sanitize(ModuleStatus(status).name)}"
         )
-        return await self.repo.update_status(carbon_report_id, module_type_id, status)
+        carbon_report_module = await self.repo.update_status(
+            carbon_report_id, module_type_id, status
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""

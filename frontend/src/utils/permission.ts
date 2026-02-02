@@ -318,7 +318,7 @@ export function getModulePermissionPath(module: Module): string | null {
     [MODULES.Infrastructure]: 'modules.infrastructure',
     [MODULES.Purchase]: 'modules.purchase',
     [MODULES.InternalServices]: 'modules.internal_services',
-    [MODULES.ExternalCloud]: 'modules.external_cloud',
+    [MODULES.ExternalCloudAndAI]: 'modules.external_cloud_and_ai',
   };
   return modulePermissionMap[module] || null;
 }

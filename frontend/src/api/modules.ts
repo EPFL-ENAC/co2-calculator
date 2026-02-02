@@ -24,7 +24,7 @@ export async function getModuleTotals(
 ): Promise<ModuleTotalsResponse> {
   const unitEncoded = encodeURIComponent(unitId);
   const yearEncoded = encodeURIComponent(String(year));
-  const path = `modules/${unitEncoded}/${yearEncoded}/totals`;
+  const path = `modules-stats/${unitEncoded}/${yearEncoded}/totals`;
 
   const response = await api.get(path).json<ModuleTotalsResponse>();
   return response;

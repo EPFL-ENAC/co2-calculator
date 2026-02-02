@@ -14,7 +14,7 @@ from app.models.data_ingestion import (
     IngestionStatus,
     TargetType,
 )
-from app.models.module_type import ModuleTypeEnum
+from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
@@ -146,10 +146,9 @@ async def get_sync_jobs_by_year(
 
     # Initialize result structure with all module
     # types and both target types (0=data_entries, 1=factors)
-    # Using module_type_id from 1 to 7 as defined in module_types seed
     result = {}
-    for module_type_id in range(1, 8):  # 1 to 7 inclusive
-        result[module_type_id] = {
+    for module_type_id_iter in ALL_MODULE_TYPE_IDS:  # 1 to 7 inclusive
+        result[module_type_id_iter.value] = {
             0: {"status": 0, "message": ""},  # data_entries default
             1: {"status": 0, "message": ""},  # factors default
         }

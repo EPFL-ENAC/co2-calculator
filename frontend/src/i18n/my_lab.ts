@@ -6,8 +6,8 @@ export default {
     fr: 'Personnel',
   },
   [MODULES_DESCRIPTIONS.MyLab]: {
-    en: 'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',
-    fr: 'Saisissez et vérifiez les membres de l’équipe et leurs équivalents plein-temps (EPT) pour votre unité',
+    en: 'Verify team members and Full Time Equivalent (FTE) values for your unit',
+    fr: 'Vérifiez les membres de l’équipe et leurs équivalents plein-temps (EPT) pour votre unité',
   },
   [`${MODULES.MyLab}-title-subtext`]: {
     en: `This module automatically displays the names, roles, and FTE values of your unit’s personnel as of the end of the year. Review and make any necessary adjustments to ensure your team profile is complete. For student contributions, use the integrated Student FTE Calculator Helper to add their total FTE over the year.`,

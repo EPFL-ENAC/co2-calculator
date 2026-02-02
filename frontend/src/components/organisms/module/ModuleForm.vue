@@ -64,16 +64,16 @@
           <div class="form-grid">
             <div
               v-for="inp in visibleFieldsWithConditional"
-              :key="inp.id"
+              :key="inp.optionsId || inp.id"
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
                 v-if="
-                  inp.id === 'sub_class' &&
+                  inp.optionsId === 'subkind' &&
                   !loadingSubclasses &&
-                  (!dynamicOptions['sub_class'] ||
-                    dynamicOptions['sub_class'].length === 0) &&
-                  !form['sub_class']
+                  (!dynamicOptions['subkind'] ||
+                    dynamicOptions['subkind'].length === 0) &&
+                  !form['subkind']
                 "
               >
                 <div class="subclass-placeholder" />
@@ -197,8 +197,8 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  (inp.id === 'class' && loadingClasses) ||
-                  (inp.id === 'sub_class' && loadingSubclasses)
+                  (inp.optionsId === 'kind' && loadingClasses) ||
+                  (inp.optionsId === 'subkind' && loadingSubclasses)
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -407,7 +407,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp.id];
+    const dynamicOpts = dynamicOptions[inp?.optionsId ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -472,14 +472,28 @@ const emit = defineEmits<{
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
-const {
-  dynamicOptions: equipmentOptions,
-  loadingClasses,
-  loadingSubclasses,
-} = useEquipmentClassOptions(form, toRef(props, 'submoduleType'));
+
+const kindFieldId = computed(() => {
+  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  return kindField ? kindField.id : null;
+});
+
+const subkindFieldId = computed(() => {
+  const subkindField = visibleFields.value.find(
+    (f) => f.optionsId === 'subkind',
+  );
+  return subkindField ? subkindField.id : null;
+});
+
+const { dynamicOptions, loadingClasses, loadingSubclasses } =
+  useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
+    // classFieldId: 'equipment_class',
+    // subClassFieldId: 'sub_class',
+    classFieldId: kindFieldId.value,
+    subClassFieldId: subkindFieldId.value,
+  });
 
 // Use equipment options directly as dynamic options
-const dynamicOptions = equipmentOptions;
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -525,7 +539,7 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions[i.id] ??
+                dynamicOptions[i.optionsId] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -785,7 +799,7 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions[i.id] ??
+        dynamicOptions[i.optionsId] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,

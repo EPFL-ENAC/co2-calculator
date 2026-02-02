@@ -115,9 +115,11 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.name === 'equipment_class' || col.name === 'sub_class'"
+              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
               :row="slotProps.row"
               :field-id="col.field"
+              :options-id="col.optionsId"
+              :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
@@ -306,7 +308,7 @@ import type {
   Threshold,
 } from 'src/constant/modules';
 
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
 import { nOrDash } from 'src/utils/number';
 
@@ -392,6 +394,7 @@ type TableViewColumn = {
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
+  optionsId?: string;
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
@@ -466,6 +469,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           inputComponent,
           editableInline,
           options,
+          optionsId: f.optionsId,
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,
@@ -575,13 +579,14 @@ function validateNumberOfTrips(value: unknown) {
 
 async function commitInline(
   row: ModuleRow,
-  col: { name: string; field: string; editableInline?: boolean },
+  col: { name: string; field: string; editableInline?: boolean; type?: string },
 ) {
   if (!col.editableInline) return;
   // Only usage fields use the hours/week validation; other inline
   // fields (including selects) are patched as-is.
   const isUsageField = col.name === 'act_usage' || col.name === 'pas_usage';
   const isNumberOfTrips = col.name === 'number_of_trips';
+  const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
   const valueToSave = (() => {
     if (isUsageField) {
@@ -601,6 +606,15 @@ async function commitInline(
       }
       setError(row, col, null);
       return validation.parsed;
+    }
+    if (isNumeric) {
+      const n = Number(rawVal);
+      if (!Number.isFinite(n)) {
+        setError(row, col, 'Number required');
+        return null;
+      }
+      setError(row, col, null);
+      return n;
     }
     return rawVal;
   })();
@@ -695,13 +709,47 @@ function isCompleteHeadcount(row: ModuleRow) {
   );
 }
 
+//  dependence on the submodule type
+function isCompleteExternalCloud(row: ModuleRow) {
+  const required = ['service_type', 'cloud_provider', 'spending'];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isCompleteExternalAI(row: ModuleRow) {
+  const required = [
+    'ai_provider',
+    'ai_use',
+    'frequency_use_per_day',
+    'user_count',
+  ];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
 function isComplete(row: ModuleRow) {
+  // # TODO : move isComplete to module definition
+
   if (props.moduleType === MODULES.MyLab) {
     // For MyLab (headcount), consider complete if name and status are set
     return isCompleteHeadcount(row);
   }
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
     return isCompleteEquipement(row);
+  }
+  if (
+    props.moduleType === MODULES.ExternalCloudAndAI &&
+    props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
+  ) {
+    return isCompleteExternalCloud(row);
+  }
+  if (
+    props.moduleType === MODULES.ExternalCloudAndAI &&
+    props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
+  ) {
+    return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
     // For Professional Travel, consider complete if origin, destination, and transport_mode are set
@@ -795,6 +843,9 @@ C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,C
 2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
+
+  // # TODO: add external cloud and ai
+  // Use backend-generated templates
 
   let csvContent: string;
   switch (props.moduleType) {

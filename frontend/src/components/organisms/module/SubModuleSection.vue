@@ -9,11 +9,7 @@
     <template #header>
       <div class="row flex items-center full-width">
         <div class="col">
-          {{
-            $t(submodule.tableNameKey, {
-              count: submoduleCount || 0,
-            })
-          }}
+          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
         </div>
         <q-icon
           v-if="hasTableTooltip"
@@ -97,7 +93,9 @@ import type {
   ModuleResponse,
   Threshold,
   ConditionalSubmoduleProps,
+  EnumSubmoduleType,
 } from 'src/constant/modules';
+import { enumSubmodule } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
   label: string;
@@ -140,8 +138,9 @@ const canEdit = computed(() => {
 
 const submoduleCount = computed(
   () =>
-    moduleStore.state.data?.submodules?.[props.submodule.id]?.summary
-      ?.total_items || 0,
+    moduleStore.state.data?.data_entry_types_total_items?.[
+      enumSubmodule[props.submodule.id as EnumSubmoduleType]
+    ] || 0,
 );
 
 const item = computed(() => {

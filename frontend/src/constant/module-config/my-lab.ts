@@ -1,4 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import type { Module } from 'src/constant/modules';
 
 // Define an icon map to convert string keys to SVG icons
 import {
@@ -6,7 +8,6 @@ import {
   outlinedAssignmentInd,
   outlinedTimer,
 } from '@quasar/extras/material-icons-outlined';
-import { MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 
 export const iconMap: Record<string, string> = {
   o_filter_drama: outlinedFilterDrama,
@@ -72,8 +73,8 @@ const studentFields: ModuleField[] = [
 ];
 
 export const myLab: ModuleConfig = {
-  id: 'module_water_001',
-  type: 'my-lab',
+  id: 'module_my_lab_001',
+  type: MODULES.MyLab as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,

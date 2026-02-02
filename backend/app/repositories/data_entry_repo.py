@@ -1,15 +1,23 @@
-"""Headcount repository for database operations."""
+"""Data entry repository for database operations."""
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
-from sqlalchemy import Float, Select, cast, func
-from sqlmodel import col, select
+from pydantic import BaseModel
+from sqlalchemy import Select, asc, desc, func
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.factor import Factor
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
-from app.schemas.data_entry import DataEntryUpdate
+from app.schemas.data_entry import (
+    DataEntryUpdate,
+    get_data_entry_handler_by_type,
+)
 
 logger = get_logger(__name__)
 
@@ -19,6 +27,7 @@ class DataEntryRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.carbon_report_module_repo = CarbonReportModuleRepository(session)
 
     async def get(self, id: int) -> Optional[DataEntry]:
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -32,13 +41,31 @@ class DataEntryRepository:
 
         # 3. Save
         self.session.add(db_obj)
-        await self.session.commit()
-        await self.session.refresh(db_obj)
+        await self.session.flush()
         return db_obj
+
+    async def bulk_create(self, data_entries: list[DataEntry]) -> list[DataEntry]:
+        """Bulk create data entries."""
+        db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
+        self.session.add_all(db_objs)
+        await self.session.flush()
+        return db_objs
+
+    async def bulk_delete(
+        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete data entries by module and type."""
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+        await self.session.execute(statement)
+        await self.session.flush()
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> Optional[DataEntry]:
+        # POTENTIAL OPTIMIZATION: Use SQLAlchemy's update() for direct updates
         # 1. Fetch the existing record
 
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -51,27 +78,26 @@ class DataEntryRepository:
         # 2. Update fields from input model (only provided fields)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(db_obj, field, value)
+            if field == "data" and value is not None:
+                # Merge dicts instead of replacing
+                db_obj.data = {**db_obj.data, **value}
+            else:
+                setattr(db_obj, field, value)
 
         # 4. Save
         self.session.add(db_obj)
-        await self.session.commit()
-        await self.session.refresh(db_obj)
+        await self.session.flush()
         return db_obj
 
     async def delete(self, id: int) -> bool:
-        # 1. Fetch the existing record
-        statement = select(DataEntry).where(DataEntry.id == id)
+        statement = delete(DataEntry).where(col(DataEntry.id) == id)
         result = await self.session.execute(statement)
-        db_obj = result.scalar_one_or_none()
 
-        if not db_obj:
-            return False
+        # rowcount tells you if a row actually matched the ID
+        deleted = result.rowcount if hasattr(result, "rowcount") else None
 
-        # 2. Delete
-        await self.session.delete(db_obj)
-        await self.session.commit()
-        return True
+        await self.session.flush()
+        return bool(deleted)
 
     async def get_list(
         self,
@@ -95,75 +121,72 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def get_summary_by_submodule(
+    async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
-    ) -> Dict[int, Dict[str, Any]]:
+    ) -> Optional[int]:
+        return await self.carbon_report_module_repo.get_module_type(
+            carbon_report_module_id
+        )
+
+    async def get_total_count_by_submodule(
+        self, carbon_report_module_id: int
+    ) -> Dict[int, int]:
         """
-        Get aggregated summary statistics grouped by submodule.
+        Docstring for get_total_count_by_submodule
 
-        Args:
-            session: Database session
-            unit_id: Filter by unit ID
-            status: Filter by equipment status
+        :param self: Description
+        :param carbon_report_module_id: Description
+        :type carbon_report_module_id: int
+        :return: Description
+        :rtype: Dict[int, int]
 
-        Returns:
-            Dict mapping submodule to summary stats:
+        Dict mapping submodule (data_entry_type_id) to total item count:
             {
-                "scientific": {
-                    "total_items": 10,
-                    "annual_consumption_kwh": 1500.0,
-                    "total_kg_co2eq": 187.5
-                },
+                1: 10,
+                2: 5,
                 ...
             }
         """
-        # Build query with aggregation
-        query: Select = select(
-            col(DataEntry.data_entry_type_id).label("submodule"),
-            func.count(col(DataEntry.id)).label("total_items"),
-            func.sum(DataEntry.data["fte"]).label("annual_fte"),
-        ).group_by(col(DataEntry.data_entry_type_id))
+        # Determine module_type_id from carbon_report_module_id
 
-        # Apply filters
-        if carbon_report_module_id:
-            query = query.where(
-                col(DataEntry.carbon_report_module_id) == carbon_report_module_id
-            )
+        module_type_id = await self.get_module_type_id_for_carbon_report_module(
+            carbon_report_module_id
+        )
+        if module_type_id is None:
+            return {}
 
-        # Execute query
-        result = await self.session.execute(query)
-        rows = result.all()
-
-        # Convert to dict
-        summary: Dict[int, Dict[str, Any]] = {}
-        for submodule, total_items, annual_fte in rows:
-            key = submodule
-            summary[key] = {
-                "total_items": int(total_items),
-                "annual_fte": float(annual_fte or 0),
-                "annual_consumption_kwh": None,
-                "total_kg_co2eq": None,
-            }
-
-        logger.debug(f"Retrieved summary for {len(summary)} submodules")
-
-        return summary
-
-    async def get_submodule_data(
-        self,
-        carbon_report_module_id: int,
-        data_entry_type_id: int,
-        limit: int,
-        offset: int,
-        sort_by: str,
-        sort_order: str,
-        filter: Optional[str] = None,
-    ) -> SubmoduleResponse:
-        statement = select(DataEntry).where(
-            DataEntry.carbon_report_module_id == carbon_report_module_id,
-            DataEntry.data_entry_type_id == data_entry_type_id,
+        all_type_ids = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            ModuleTypeEnum(module_type_id), []
         )
 
+        # Get actual counts from DB
+        query: Select = (
+            select(
+                DataEntry.data_entry_type_id,
+                func.count().label("total_count"),
+            )
+            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
+            .group_by(col(DataEntry.data_entry_type_id))
+        )
+        result = await self.session.execute(query)
+        rows = list(result.all())
+        aggregation: Dict[int, int] = {
+            data_entry_type_id: int(total_count)
+            for data_entry_type_id, total_count in rows
+        }
+
+        # Fill in zeros for missing types
+        for type_id in all_type_ids:
+            if type_id not in aggregation:
+                aggregation[type_id] = 0
+
+        return aggregation
+
+    def _apply_name_filter(self, statement, filter: Optional[str]):
+        """
+        Applies a name filter to the given SQLAlchemy statement if
+        a valid filter is provided.
+        """
         filter_pattern = ""
         if filter:
             filter = filter.strip()
@@ -179,10 +202,51 @@ class DataEntryRepository:
             statement = statement.where(
                 (col(DataEntry.data["name"]).ilike(filter_pattern))
             )
+        return statement, filter_pattern
+
+    def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
+        sort_expr = sort_map.get(sort_by)
+        if sort_expr is None:
+            raise ValueError(f"Cannot sort by unknown field: {sort_by}")
         if sort_order.lower() == "asc":
-            statement = statement.order_by(getattr(DataEntry, sort_by).asc())
+            return statement.order_by(asc(sort_expr))
         else:
-            statement = statement.order_by(getattr(DataEntry, sort_by).desc())
+            return statement.order_by(desc(sort_expr))
+
+    async def get_submodule_data(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: str,
+        filter: Optional[str] = None,
+    ) -> SubmoduleResponse:
+        statement = (
+            select(DataEntry, DataEntryEmission, Factor)
+            .join(
+                DataEntryEmission,
+                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                isouter=True,
+            )
+            .join(
+                Factor,
+                col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                isouter=True,
+            )
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+            )
+        )
+
+        statement, filter_pattern = self._apply_name_filter(statement, filter)
+
+        handler = get_data_entry_handler_by_type(DataEntryTypeEnum(data_entry_type_id))
+        sort_map = handler.sort_map
+        statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
+
         statement = statement.offset(offset).limit(limit)
         result = await self.session.execute(statement)
 
@@ -191,13 +255,44 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
-        if filter and filter_pattern != "":
+        if filter_pattern != "":
             count_stmt = count_stmt.where(
                 (col(DataEntry.data["name"]).ilike(filter_pattern))
             )
         total_items = (await self.session.execute(count_stmt)).scalar_one()
-        items = list(result.scalars().all())
-        count = len(items)
+        rows = result.all()
+        count = len(rows)
+
+        items: list[BaseModel] = []
+
+        for data_entry, data_entry_emission, primary_factor in rows:
+            handler = get_data_entry_handler_by_type(
+                DataEntryTypeEnum(data_entry.data_entry_type_id)
+            )
+            kg_co2eq = None
+            if data_entry_emission is not None:
+                kg_co2eq = data_entry_emission.kg_co2eq
+            # If primary_factor is None, try to fetch it
+            # from DataEntry.data["primary_factor_id"]
+            if primary_factor is None:
+                primary_factor_id = data_entry.data.get("primary_factor_id")
+                if primary_factor_id:
+                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
+                    factor_result = await self.session.execute(factor_stmt)
+                    primary_factor = factor_result.scalar_one_or_none()
+
+            data_entry.data = {
+                **data_entry.data,
+                "kg_co2eq": kg_co2eq,
+                "primary_factor": {
+                    **primary_factor.values,
+                    **primary_factor.classification,
+                }
+                if primary_factor
+                else {},
+            }
+            items.append(handler.to_response(data_entry))
+
         response = SubmoduleResponse(
             id=data_entry_type_id,
             count=count,
@@ -212,17 +307,31 @@ class DataEntryRepository:
         )
         return response
 
-    async def get_module_stats(
-        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
+    async def get_stats(
+        self,
+        carbon_report_module_id,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
     ) -> Dict[str, float]:
-        """Aggregate headcount data by submodule or function."""
-        group_field = DataEntry.data[aggregate_by].astext
+        """Aggregate DataEntry data by submodule or function.
+                SELECT
+            dee.*
+        FROM
+            data_entry_emission dee
+        JOIN
+            data_entry de ON dee.data_entry_id = de.id
+        WHERE
+            de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
+        """
+        # 1. Get the model attributes dynamically
+        group_field = getattr(DataEntry, aggregate_by)
+        sum_field = getattr(DataEntry, aggregate_field)
 
-        # TODO MAKE module_type agnostic!
+        # 2. Build the query with the JOIN
         query = (
             select(
-                group_field.label(aggregate_by),
-                func.sum(cast(DataEntry.data["fte"].astext, Float)).label("annual_fte"),
+                group_field,
+                func.sum(sum_field).label("total"),
             )
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
@@ -230,16 +339,15 @@ class DataEntryRepository:
             .group_by(group_field)
         )
 
-        result = await self.session.exec(query)
-        rows = list(result.all())
+        result = await self.session.execute(
+            query
+        )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
+        rows = result.all()
 
+        # 3. Format the results
         aggregation: Dict[str, float] = {}
         for key, total_count in rows:
-            if key is None:
-                aggregation["unknown"] = float(total_count)
-            else:
-                aggregation[key] = float(total_count)
-
-        logger.debug(f"Aggregated headcount by {aggregate_by}: {aggregation}")
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total_count or 0.0)
 
         return aggregation

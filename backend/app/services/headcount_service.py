@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.models.module_type import ModuleTypeEnum
@@ -156,12 +156,12 @@ class HeadcountService:
         )
 
         submodules = {}
-
-        # Process each submodule
-        for submodule_key in [
+        submodule_keys = [
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
-        ]:
+        ]
+        # Process each submodule
+        for submodule_key in submodule_keys:
             # Get summary for this submodule
             submodule_summary_data = summary_by_submodule.get(
                 submodule_key,
@@ -172,7 +172,7 @@ class HeadcountService:
             total_count = submodule_summary_data["total_items"]
 
             # Create submodule response
-            submodule_response = SubmoduleResponse(
+            submodule_response: SubmoduleResponse = SubmoduleResponse(
                 id=submodule_key,
                 count=total_count,
                 summary=summary,
@@ -183,14 +183,14 @@ class HeadcountService:
             submodules[submodule_key] = submodule_response
 
         # Calculate module totals using SQL summaries (not Python sums)
-        total_submodules = len(submodules)
-        total_items = sum(
-            summary_by_submodule.get(k, {}).get("total_items", 0)
-            for k in [
-                DataEntryTypeEnum.member.value,
-                DataEntryTypeEnum.student.value,
-            ]
-        )
+        # total_submodules = len(submodules)
+        # total_items = sum(
+        #     summary_by_submodule.get(k, {}).get("total_items", 0)
+        #     for k in [
+        #         DataEntryTypeEnum.member.value,
+        #         DataEntryTypeEnum.student.value,
+        #     ]
+        # )
         total_annual_fte = sum(
             summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
             for k in [
@@ -200,8 +200,8 @@ class HeadcountService:
         )
 
         totals = ModuleTotals(
-            total_submodules=total_submodules,
-            total_items=total_items,
+            # total_submodules=total_submodules,
+            # total_items=,
             total_annual_fte=round(total_annual_fte, 2),
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
@@ -214,7 +214,7 @@ class HeadcountService:
             await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
                 unit_id=unit_id,
                 year=year,
-                module_type_id=ModuleTypeEnum.headcount.value,
+                module_type_id=ModuleTypeEnum.headcount,
             )
         )
         # Create module response
@@ -224,13 +224,8 @@ class HeadcountService:
             else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules=submodules,
+            data_entry_types_total_items={k: 0 for k in submodules.keys()},
             totals=totals,
-        )
-
-        logger.info(
-            f"Module data retrieved: {sanitize(total_items)} items across "
-            f"{sanitize(total_submodules)} submodules"
         )
 
         return module_response
