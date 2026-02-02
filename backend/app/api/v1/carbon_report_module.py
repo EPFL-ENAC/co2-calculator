@@ -346,7 +346,6 @@ async def create(
     ]
 
     submodule_key = submodule_id.replace("-", "_")
-    module_key = module_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
     # Validate unit_id matches the one in request body

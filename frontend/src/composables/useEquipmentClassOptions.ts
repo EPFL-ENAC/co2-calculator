@@ -33,13 +33,6 @@ export function useEquipmentClassOptions<
   const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
   const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
 
-  console.log(
-    'Using classFieldId:',
-    classFieldId,
-    'subClassFieldId:',
-    subClassFieldId,
-  );
-
   const dynamicOptions = reactive<Record<string, Option[]>>({});
   const loadingClasses = ref(false);
   const loadingSubclasses = ref(false);
@@ -191,14 +184,6 @@ export function useEquipmentClassOptions<
     async (newVal, oldVal) => {
       // maybe oldVal is undefined on first run, but we only want to
       // reset subclass if the class actually changed.
-      console.log(
-        'Class changed from',
-        oldVal,
-        'to',
-        newVal,
-        entity,
-        classFieldId,
-      );
       if (oldVal === newVal) {
         return;
       }

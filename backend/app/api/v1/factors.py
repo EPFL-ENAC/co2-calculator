@@ -12,21 +12,10 @@ from app.services.factor_service import FactorService
 router = APIRouter()
 
 
-# to be reimplemented later
-
-# @router.get("/{submodule}/classes", response_model=list[str])
-
-
-# @router.get(
-#     "/{submodule}/classes/{equipment_class:path}/subclasses",
-#     response_model=list[str],
-# )
-
 """Would be a great idea to return directly
  with value being the 'id ' from the power factor table
  Example response for submodule = scientific equipment
  [ { "label": "30 to 37°C incubators", "value": "30 to 37°C incubators" }
-
  """
 
 
@@ -39,7 +28,6 @@ async def get_class_subclass_map(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Get mapping of equipment classes to subclasses for a given submodule."""
-    print("DATA ENTRY TYPE:", data_entry_type)
     response = await FactorService(db).get_class_subclass_map(
         data_entry_type=data_entry_type
     )
@@ -70,3 +58,4 @@ async def get_factor(
     )
     if factor:
         return factor.values
+    return None
