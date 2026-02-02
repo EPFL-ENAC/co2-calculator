@@ -41,23 +41,24 @@ def drop_db(db_name):
     # This now returns a URL Object with the correct password and user 'postgres'
     default_db_url = get_default_db_url()
     print(f"Dropping database using URL: {default_db_url}")
+    print(f"Dropping database: {db_name}")
 
     # create_engine accepts the URL object directly
     engine = create_engine(default_db_url, isolation_level="AUTOCOMMIT")
 
     with engine.connect() as conn:
         # Terminate existing connections
-        conn.execute(
-            text(
-                """
-                SELECT pg_terminate_backend(pid)
-                FROM pg_stat_activity
-                WHERE datname = :db_name AND pid <> pg_backend_pid();
-                """
-            ),
-            {"db_name": db_name},
-        )
-        conn.execute(text(f"DROP DATABASE IF EXISTS {db_name}"))
+        # conn.execute(
+        #     text(
+        #         """
+        #         SELECT pg_terminate_backend(pid)
+        #         FROM pg_stat_activity
+        #         WHERE datname = :db_name AND pid <> pg_backend_pid();
+        #         """
+        #     ),
+        #     {"db_name": db_name},
+        # )
+        conn.execute(text(f"DROP DATABASE IF EXISTS {db_name} with (force);"))
     engine.dispose()
 
 
