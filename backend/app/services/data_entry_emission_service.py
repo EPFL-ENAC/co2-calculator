@@ -18,16 +18,6 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-# def prepare_emission_object(kg_co2eq: float) -> Decimal:
-#     # Convert result to Decimal and round it before saving
-#     raw_value = Decimal(str(kg_co2eq))
-
-#     # Round to 8 decimal places (standard for carbon accounting)
-#     clean_value = raw_value.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
-
-#     return clean_value
-
-
 class DataEntryEmissionService:
     """Service for data entry business logic."""
 
@@ -65,7 +55,7 @@ class DataEntryEmissionService:
             emission_type = EmissionTypeEnum.equipment
         else:
             d_type = data_entry.data_entry_type
-            logger.info(f"DataEntry type {d_type} not handled for emissions creation.")
+            logger.info(f"DataEntry type {d_type} not handled for ")
             return None
 
         primary_factor_id = data_entry.data.get("primary_factor_id")

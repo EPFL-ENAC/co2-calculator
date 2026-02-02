@@ -88,7 +88,6 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
     # 1. Bulk create all data entries first
     data_entries_response = await service.bulk_create(data_entries)
     # 2. Now, create the emissions for all of them using the service logic
-    print(f"Created {len(data_entries_response)} External Cloud data entries")
     emissions_to_create = []
     emission_service = DataEntryEmissionService(session)
 
@@ -100,7 +99,6 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
             emissions_to_create.append(emission_obj)
 
     # 3. Bulk create the emissions
-    print(f"Creating {len(emissions_to_create)} emissions for cloud data entries")
     await emission_service.bulk_create(emissions_to_create)
 
     # # 4. ONE final commit for the entire seed batch
@@ -138,7 +136,6 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     # 1. Bulk create all data entries first
     data_entries_response = await service.bulk_create(data_entries)
     # 2. Now, create the emissions for all of them using the service logic
-    print(f"Created {len(data_entries_response)} External AI data entries")
     emissions_to_create = []
     emission_service = DataEntryEmissionService(session)
 
@@ -150,7 +147,6 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
             emissions_to_create.append(emission_obj)
 
     # 3. Bulk create the emissions
-    print(f"Creating {len(emissions_to_create)} emissions for ai data entries")
     await emission_service.bulk_create(emissions_to_create)
 
     # # 4. ONE final commit for the entire seed batch
