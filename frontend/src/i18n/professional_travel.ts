@@ -82,8 +82,8 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
-    en: 'Record travel by plane and train, along with their associated emissions. ',
-    fr: 'Enregistrez les déplacements en avion et en train, ainsi que les émissions associées.',
+    en: 'Estimate the impact of your professional travel',
+    fr: 'Estimez l’impact de vos voyages professionnels',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
     en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane.",
