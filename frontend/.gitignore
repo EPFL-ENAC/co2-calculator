@@ -1,7 +1,7 @@
 .DS_Store
 .thumbs.db
 node_modules
-
+*.tsbuildinfo
 # Quasar core related directories
 .quasar
 /dist

@@ -82,6 +82,10 @@ export default {
     en: 'My Unit Carbon Footprint',
     fr: "Mon Empreinte Carbone de l'unité",
   },
+  common_this_item: {
+    en: 'this item',
+    fr: 'cet élément',
+  },
   module_total_result_title: {
     en: ({ named }) => {
       if (named('type') === MODULES.MyLab) {
