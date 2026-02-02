@@ -1,18 +1,37 @@
 """Generic module model for storing dynamic data across different module types."""
 
+from enum import Enum
 from typing import Optional
 
 from sqlmodel import JSON, Column, Field, SQLModel
+
+
+class DataEntryTypeEnum(int, Enum):
+    # headcount
+    member = 1
+    student = 2
+    # equipment
+    scientific = 9
+    it = 10
+    other = 11
+    # travel
+    trips = 20
+    #
+    building = 30
+    # external clouds and ai
+    external_clouds = 40
+    external_ai = 41
+    # energy mix
+    energy_mix = 100
 
 
 ## Will be renamed to data_entries later
 class DataEntryBase(SQLModel):
     """Base module model with shared fields."""
 
-    # variant is  data_entry_types
-    data_entry_type_id: Optional[int] = Field(
-        default=None,
-        foreign_key="data_entry_types.id",
+    # variant is data_entry_types
+    data_entry_type_id: int = Field(
+        nullable=False,
         index=True,
         description="Reference to data entry type within module",
     )
@@ -27,6 +46,19 @@ class DataEntryBase(SQLModel):
         sa_column=Column(JSON),
         description="Dynamic JSON storage for module-specific data",
     )
+
+    @property
+    def data_entry_type(self) -> DataEntryTypeEnum:
+        """Get the data entry type as an enum."""
+        return DataEntryTypeEnum(self.data_entry_type_id)
+
+    @data_entry_type.setter
+    def data_entry_type(self, value: DataEntryTypeEnum) -> None:
+        """Set the data entry type from an enum."""
+        self.data_entry_type_id = value.value
+
+
+# Database model
 
 
 class DataEntry(DataEntryBase, table=True):

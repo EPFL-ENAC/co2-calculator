@@ -1,12 +1,12 @@
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession as SAAsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
-from app.core.constants import ALL_MODULE_TYPE_IDS, ModuleStatus
+from app.core.constants import ModuleStatus
+from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
 from app.services.carbon_report_service import CarbonReportService
 
@@ -18,21 +18,6 @@ async def async_session():
     engine = create_async_engine(DATABASE_URL, echo=False, future=True)
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-        # Seed module_types table (required for auto-creating carbon_report modules)
-        await conn.execute(
-            text(
-                """
-                INSERT INTO module_types (id, name) VALUES
-                (1, 'my-lab'),
-                (2, 'professional-travel'),
-                (3, 'infrastructure'),
-                (4, 'equipment-electric-consumption'),
-                (5, 'purchase'),
-                (6, 'internal-services'),
-                (7, 'external-cloud')
-                """
-            )
-        )
     async_session = sessionmaker(engine, class_=SAAsyncSession, expire_on_commit=False)
     async with async_session() as session:
         yield session

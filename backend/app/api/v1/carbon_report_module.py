@@ -9,7 +9,7 @@ from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import (
     HeadCountCreate,
@@ -25,14 +25,19 @@ from app.models.professional_travel import (
     ProfessionalTravelUpdate,
 )
 from app.models.user import User
-from app.schemas.carbon_report_response import ModuleResponse, SubmoduleResponse
+from app.schemas.carbon_report_response import (
+    ModuleResponse,
+    ModuleTotals,
+    SubmoduleResponse,
+)
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
-    unflatten_data_entry_payload,
+    get_data_entry_handler_by_type,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
@@ -115,11 +120,7 @@ async def get_module(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
-    if module_id == "equipment-electric-consumption":
-        module_data = await DataEntryService(db).get_module_data(
-            carbon_report_module_id=carbon_report_module_id,
-        )
-    elif module_id == "my-lab":
+    if module_id == "my-lab":
         # Fetch real data from database
         module_data = await HeadcountService(db).get_module_data(
             unit_id=unit_id,
@@ -140,9 +141,25 @@ async def get_module(
             preview_limit=preview_limit,
         )
     else:
+        module_data = await DataEntryService(db).get_module_data(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+        module_data.stats = await DataEntryEmissionService(db).get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+        # if headcount compute FTE here
+        # if need other subtotal do it here
+        total_kg_co2eq = sum(module_data.stats.values())
+        module_data.totals = ModuleTotals(
+            total_kg_co2eq=total_kg_co2eq,
+            total_tonnes_co2eq=total_kg_co2eq / 1000.0,
+            total_annual_consumption_kwh=None,
+            total_annual_fte=None,
+        )
+    if not module_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Module {module_id} not found",
+            detail="Module not found",
         )
     return module_data
 
@@ -208,24 +225,7 @@ async def get_submodule(
 
     # Fetch submodule data from database
     submodule_data = None
-    if module_id == "equipment-electric-consumption":
-        submodule_key = submodule_id.replace("-", "_")
-        data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-        if carbon_report_module_id is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Carbon report module ID could not be determined",
-            )
-        submodule_data = await DataEntryService(db).get_submodule_data(
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-            limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            filter=filter,
-        )
-    elif module_id == "my-lab":
+    if module_id == "my-lab":
         submodule_data = await HeadcountService(db).get_submodule_data(
             unit_id=unit_id,
             year=year,
@@ -252,6 +252,30 @@ async def get_submodule(
             sort_order=sort_order,
             filter=filter,
         )
+    else:
+        # do the generic data-entry here
+        submodule_key = submodule_id.replace("-", "_")
+        data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+        if data_entry_type_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Submodule {submodule_id} not found",
+            )
+        if carbon_report_module_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Carbon report module ID could not be determined",
+            )
+        submodule_data = await DataEntryService(db).get_submodule_data(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter=filter,
+        )
+
     if not submodule_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -320,39 +344,13 @@ async def create(
         ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
+
+    submodule_key = submodule_id.replace("-", "_")
+    module_key = module_id.replace("-", "_")
+    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type_id = data_entry_type.value
     # Validate unit_id matches the one in request body
-    if module_id == "equipment-electric-consumption":
-        try:
-            unflatten_data = unflatten_data_entry_payload(item_data)
-            parsed_record = DataEntryCreate(**unflatten_data)
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid item_data for creation: {str(e)}",
-            )
-        if current_user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current user ID is required to delete item",
-            )
-        if carbon_report_module_id is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Carbon report module ID could not be determined",
-            )
-        item = await DataEntryService(db).create(
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-            user=current_user,
-            data=parsed_record,
-        )
-        if item is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create headcount item",
-            )
-        item = DataEntryResponse.model_validate(item)
-    elif module_id == "my-lab":
+    if module_id == "my-lab":
         # Parse as HeadCountCreateRequest
         try:
             parsed_headcount = HeadCountCreateRequest(**item_data)
@@ -430,10 +428,60 @@ async def create(
         service = ProfessionalTravelService(db)
         item = await service._get_travel_item_response(travel, current_user)
     else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported module_id: {sanitize(module_id)}",
+        try:
+            create_payload = {
+                **item_data,
+                "data_entry_type_id": data_entry_type_id,
+                "carbon_report_module_id": carbon_report_module_id,
+            }
+            handler = get_data_entry_handler_by_type(data_entry_type)
+            create_payload = await handler.resolve_primary_factor_id(create_payload, db)
+            validated_data = handler.validate_create(create_payload)
+
+            data_entry_create = DataEntryCreate(
+                **validated_data.model_dump(exclude_unset=True)
+            )
+
+        except Exception as e:
+            logger.error(
+                "Error validating item_data for data entry creation",
+                extra={"error": str(e), "item_data": sanitize(item_data)},
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid item_data for creation: {str(e)}",
+            )
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to delete item",
+            )
+        if carbon_report_module_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Carbon report module ID could not be determined",
+            )
+        item = await DataEntryService(db).create(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            user=current_user,
+            data=data_entry_create,
         )
+        if item is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create headcount item",
+            )
+
+        emission = await DataEntryEmissionService(db).create(item)
+        if emission is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create data entry emission",
+            )
+        await db.commit()
+        item = DataEntryResponse.model_validate(item)
+
     if item is None:
         logger.error(
             "Failed to create item in module",
@@ -482,16 +530,12 @@ async def get(
         ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
-    if module_id == "equipment-electric-consumption":
-        if not isinstance(item_id, int):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid item_id type for equipment retrieval",
-            )
-        item = await DataEntryService(db).get(
-            id=item_id,
+    if ModuleTypeEnum[module_id.replace("-", "_")] is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module not supported for retrieval",
         )
-    elif module_id == "my-lab":
+    if module_id == "my-lab":
         if not isinstance(item_id, int):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -523,9 +567,8 @@ async def get(
         service = ProfessionalTravelService(db)
         item = await service._get_travel_item_response(travel, current_user)
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Item not found",
+        item = await DataEntryService(db).get(
+            id=item_id,
         )
     logger.info(f"Retrieved item {sanitize(item_id)}")
 
@@ -544,6 +587,7 @@ async def update(
     unit_id: int,
     year: int,
     module_id: str,
+    # submodule_id is dataEntryType e.g 'external_clouds' or 'it'
     submodule_id: str,
     item_id: int,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
@@ -563,28 +607,29 @@ async def update(
         ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
-    if module_id == "equipment-electric-consumption":
-        # Parse as EquipmentUpdateRequest
-        try:
-            # parsed_data = EquipmentUpdateRequest(**item_data)
-            transformed = unflatten_data_entry_payload(item_data)
-            parsed_data = DataEntryUpdate(**transformed)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid item_data for equipment update: {str(e)}",
-            )
-        if current_user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current user ID is required to delete item",
-            )
-        item = await DataEntryService(db).update(
-            id=item_id,
-            data=parsed_data,
-            user=current_user,
+    submodule_key = submodule_id.replace("-", "_")
+    module_key = module_id.replace("-", "_")
+    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type_id = data_entry_type.value
+    if ModuleTypeEnum[module_key] is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module not supported for update",
         )
-    elif module_id == "my-lab":
+    if DataEntryTypeEnum[submodule_key] is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodule not supported for update",
+        )
+    # TODO: remove once migration done in frontend
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key],
+        db=db,
+    )
+
+    if module_id == "my-lab":
         # Parse as HeadCountUpdateRequest
         try:
             parsed_headcount = HeadCountUpdateRequest(**item_data)
@@ -629,10 +674,59 @@ async def update(
         service = ProfessionalTravelService(db)
         item = await service._get_travel_item_response(travel, current_user)
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not supported for update",
+        try:
+            existing_entry = await DataEntryService(db).get(id=item_id)
+            existing_data = existing_entry.data if existing_entry else None
+
+            update_payload = {
+                **item_data,
+                "data_entry_type_id": data_entry_type_id,
+                "carbon_report_module_id": carbon_report_module_id,
+            }
+            handler = get_data_entry_handler_by_type(data_entry_type)
+            update_payload = await handler.resolve_primary_factor_id(
+                update_payload, db, existing_data=existing_data
+            )
+            validated_data = handler.validate_update(update_payload)
+
+            data_entry_update = DataEntryUpdate(
+                **validated_data.model_dump(exclude_unset=True)
+            )
+        except Exception as e:
+            logger.error(
+                f"Error validating update data for item_id={sanitize(item_id)}: "
+                f"extra={str(e)}",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid item_data for equipment update: {str(e)}",
+            )
+        if current_user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current user ID is required to delete item",
+            )
+        item = await DataEntryService(db).update(
+            id=item_id,
+            data=data_entry_update,
+            user=current_user,
         )
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Data entry item not found",
+            )
+        # Recalculate emission after update
+        emission = await DataEntryEmissionService(db).update_by_data_entry(
+            data_entry_response=item,
+        )
+        if emission is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update data entry emission",
+            )
+        await db.commit()
     logger.info(f"Updated item {sanitize(item_id)}")
     return item
 
@@ -664,12 +758,13 @@ async def delete(
         f"user={sanitize(current_user.id)}"
     )
     try:
-        if module_id == "equipment-electric-consumption":
-            await DataEntryService(db).delete(
-                id=item_id,
-                current_user=current_user,
+        if ModuleTypeEnum[module_id.replace("-", "_")] is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Module not supported for deletion",
             )
-        elif module_id == "my-lab":
+
+        if module_id == "my-lab":
             await HeadcountService(db).delete_headcount(
                 headcount_id=item_id,
             )
@@ -679,10 +774,11 @@ async def delete(
                 user=current_user,
             )
         else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Module not supported for deletion",
+            await DataEntryService(db).delete(
+                id=item_id,
+                current_user=current_user,
             )
+            await db.commit()
     except HTTPException:
         # Re-raise HTTP exceptions (404, 403, etc.) from services
         raise

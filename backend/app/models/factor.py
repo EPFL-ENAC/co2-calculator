@@ -8,8 +8,8 @@ from sqlmodel import JSON, Column, Field, SQLModel
 class FactorBase(SQLModel):
     """Base factor model with shared fields."""
 
+    # EmissionTypeEnum value
     emission_type_id: int = Field(
-        foreign_key="emission_types.id",
         nullable=False,
         index=True,
         description="The emission type this factor produces or converts to",
@@ -21,9 +21,9 @@ class FactorBase(SQLModel):
         description="""True for conversion factors (e.g., energy mix kWh→kgCO2eq),
           False for calculation factors""",
     )
-    data_entry_type_id: Optional[int] = Field(
+    # it used to be optional, but now all factors are scoped to a data entry type
+    data_entry_type_id: int = Field(
         default=None,
-        foreign_key="data_entry_types.id",
         index=True,
         description="""Scope to specific data entry type (e.g., scientific, student)""",
     )

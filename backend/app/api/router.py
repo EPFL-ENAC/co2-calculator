@@ -40,9 +40,7 @@ api_router.include_router(
     tags=["professional-travel"],
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
-api_router.include_router(
-    factors.router, prefix="/power-factors", tags=["power-factors"]
-)
+api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
 api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
