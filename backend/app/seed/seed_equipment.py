@@ -146,10 +146,7 @@ async def seed_equipment(session: AsyncSession) -> None:
                 )
                 no_match_count += 1
                 power_factor_id = None
-                submodule = (
-                    DataEntryTypeEnum.other.value
-                )  # Fallback to original category
-                # fallback power_factor of class?!
+                submodule = DataEntryTypeEnum.other.value
                 continue
             else:
                 matched_count += 1
@@ -218,26 +215,6 @@ async def seed_equipment(session: AsyncSession) -> None:
                     "primary_factor_id": power_factor_id,
                 },
             )
-
-            # cost_center=cost_center,
-            # cost_center_description=cost_center_desc or None,
-            # "name": name,
-            # category=category,
-            # submodule=submodule,
-            # equipment_class=equipment_class,
-            # sub_class=equipment_subclass,
-            # service_date=service_date,
-            # status=status,
-            # active_usage_pct=active_usage_pct,
-            # passive_usage_pct=passive_usage_pct,
-            # active_power_w=active_power_w,
-            # standby_power_w=standby_power_w,
-            # primary_factor_id=power_factor_id,
-            # unit_id=unit_test_10208.id,
-            # equipment_metadata={
-            #     "source": "synth_data.csv",
-            #     "imported_at": datetime.utcnow().isoformat(),
-            # },
             equipment_list.append(equipment_local_10208)
             equipment_list.append(equipment_local_12345)
     # Bulk insert

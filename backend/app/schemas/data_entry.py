@@ -3,11 +3,14 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_o
 from pydantic import BaseModel, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryBase, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.services.factor_service import FactorService
+
+logger = get_logger(__name__)
 
 # ============ DTO INPUT ================================= #
 
@@ -55,7 +58,10 @@ class DataEntryPayloadMixin(BaseModel):
                     try:
                         payload[key] = float(payload[key])
                     except ValueError:
-                        pass
+                        logger.debug(
+                            f"Could not coerce field {key} "
+                            f"value '{payload[key]}' to float"
+                        )
             return payload
 
         if "data" in values and isinstance(values["data"], dict):
