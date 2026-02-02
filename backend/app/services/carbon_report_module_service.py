@@ -4,10 +4,10 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ALL_MODULE_TYPE_IDS, ModuleStatus
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.module_type import ModuleTypeEnum
+from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 
@@ -36,7 +36,7 @@ class CarbonReportModuleService:
             f"Creating {sanitize(len(module_type_ids))} report modules "
             f"for carbon report {sanitize(carbon_report_id)}"
         )
-        carbon_report_modules = await self.repo.create_bulk(
+        carbon_report_modules = await self.repo.bulk_create(
             carbon_report_id=carbon_report_id,
             module_type_ids=module_type_ids,
             status=ModuleStatus.NOT_STARTED,

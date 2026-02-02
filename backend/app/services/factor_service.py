@@ -3,14 +3,12 @@
 Manages factor lifecycle with full audit trail.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry_type import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -30,185 +28,116 @@ class FactorService:
 
     ENTITY_TYPE = "factors"
 
-    def __init__(
-        self,
-        repo: Optional[FactorRepository] = None,
-    ):
-        self.repo = repo or FactorRepository()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.repo = FactorRepository(session)
 
-    async def get(self, session: AsyncSession, factor_id: int) -> Optional[Factor]:
+    async def get(self, id: int) -> Optional[Factor]:
         """Get factor by ID."""
-        return await self.repo.get(session, factor_id)
+        return await self.repo.get(id)
 
-    async def get_power_factor(
-        self,
-        session: AsyncSession,
-        variant_type_id: int,
-        equipment_class: str,
-        sub_class: Optional[str] = None,
-    ) -> Optional[Factor]:
-        """Get power factor for equipment classification."""
-        # TODO: implement
-        raise NotImplementedError
-        # return await self.repo.get(session, variant_type_id,
-        # equipment_class, sub_class)
+    async def get_electricity_factor(self) -> Optional[Factor]:
+        """Get the electricity factor."""
+        return await self.repo.get_electricity_factor()
 
-    async def get_headcount_factor(
+    async def get_by_classification(
         self,
-        session: AsyncSession,
-        data_entry_type_id: DataEntryTypeEnum,
-        emission_type_id: EmissionTypeEnum,
+        data_entry_type: DataEntryTypeEnum,
+        kind: str,
+        subkind: Optional[str] = None,
     ) -> Optional[Factor]:
-        """Get headcount factor for variant (student/member)."""
-        return await self.repo.get_current_factor(
-            session,
-            emission_type_id=emission_type_id,
-            data_entry_type_id=data_entry_type_id,
+        """Get power factor for given equipment class and optional subclass."""
+        return await self.repo.get_by_classification(
+            data_entry_type=data_entry_type,
+            kind=kind,
+            subkind=subkind,
         )
 
-    async def list_by_family(
+    async def list_id_by_data_entry_type(
         self,
-        session: AsyncSession,
         data_entry_type_id: DataEntryTypeEnum,
-        include_expired: bool = False,
+    ) -> List[int]:
+        """List all factors for a data entry type and emission type."""
+        return await self.repo.list_id_by_data_entry_type(data_entry_type_id)
+
+    async def list_by_data_entry_type(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
     ) -> List[Factor]:
-        """List all factors for a family."""
-        return await self.repo.list_by_data_entry_type(
-            session, data_entry_type_id, include_expired
-        )
+        """List all factors for a data entry type and emission type."""
+        return await self.repo.list_by_data_entry_type(data_entry_type_id)
 
     async def get_class_subclass_map(
-        self, session: AsyncSession, variant_type_id: int
+        self, data_entry_type: DataEntryTypeEnum
     ) -> Dict[str, List[str]]:
         """Get class/subclass mapping for power factors."""
-        raise NotImplementedError
-        # return await self.repo.get_class_subclass_map(session, variant_type_id)
+        response = await self.repo.get_class_subclass_map(
+            data_entry_type=data_entry_type,
+        )
+        return response
 
-    async def create_factor(
+    async def prepare_create(
         self,
-        session: AsyncSession,
-        factor_family: str,
-        values: Dict[str, Any],
-        created_by: str,
-        variant_type_id: Optional[int] = None,
-        classification: Optional[Dict] = None,
-        value_units: Optional[Dict] = None,
-        source: Optional[str] = None,
-        meta: Optional[Dict] = None,
-        change_reason: Optional[str] = None,
+        emission_type_id: int,  # DataEntryTypeEnum, #
+        is_conversion: bool,
+        data_entry_type_id: int,  # DataEntryTypeEnum,
+        classification: Dict[str, Any],
+        values: Dict[str, float | int | None],
     ) -> Factor:
-        """
-        Create a new factor with document versioning.
-
-        Args:
-            session: Database session
-            factor_family: Factor family (e.g., 'power', 'headcount')
-            values: Factor values dict
-            created_by: User creating the factor
-            variant_type_id: Optional variant type scope
-            classification: Optional classification dict
-            value_units: Optional units dict for each value
-            source: Optional data source
-            meta: Optional additional metadata
-            change_reason: Optional reason for creation
-
-        Returns:
-            The created Factor
-        """
-        now = datetime.now(timezone.utc)
+        """Prepare a factor for creation."""
 
         factor = Factor(
-            factor_family=factor_family,
-            variant_type_id=variant_type_id,
-            classification=classification or {},
+            emission_type_id=emission_type_id,
+            is_conversion=is_conversion,
+            data_entry_type_id=data_entry_type_id,
+            classification=classification,
             values=values,
-            value_units=value_units,
-            valid_from=now,
-            source=source,
-            meta=meta or {},
-            created_at=now,
-            created_by=created_by,
         )
-
-        factor = await self.repo.create(session, factor)
-
-        logger.info(f"Created factor {factor.id} ({factor_family}) by {created_by}")
         return factor
 
-    async def update_factor(
+    async def create(
+        self,
+        session: AsyncSession,
+        factor: Factor,
+    ) -> Factor:
+        factor = await self.prepare_create(
+            factor.emission_type_id,
+            factor.is_conversion,
+            factor.data_entry_type_id,
+            factor.classification,
+            factor.values,
+        )
+
+        factor = await self.repo.create(factor)
+
+        return factor
+
+    async def update(
         self,
         session: AsyncSession,
         factor_id: int,
-        updated_by: str,
-        values: Optional[Dict[str, Any]] = None,
-        classification: Optional[Dict] = None,
-        source: Optional[str] = None,
-        meta: Optional[Dict] = None,
-        change_reason: Optional[str] = None,
+        new_factor: Factor,
     ) -> Optional[Factor]:
-        """
-        Update a factor with document.
+        """Update an existing factor."""
+        raise NotImplementedError
 
-        Creates a new version of the factor and expires the old one.
-        This triggers batch recalculation for affected emissions.
+    async def bulk_create(self, factors: List[Factor]) -> List[Factor]:
+        """Bulk create factors."""
+        return await self.repo.bulk_create(factors)
 
-        Args:
-            session: Database session
-            factor_id: ID of factor to update
-            updated_by: User making the update
-            values: New values dict (if changing)
-            classification: New classification (if changing)
-            value_units: New units dict (if changing)
-            source: New source (if changing)
-            meta: New metadata (if changing)
-            change_reason: Reason for the change
+    async def bulk_delete(self, factor_ids: list[int]) -> None:
+        """Bulk delete factors by family."""
+        return await self.repo.bulk_delete(factor_ids)
 
-        Returns:
-            The new factor version, or None if original not found
-        """
-        old_factor = await self.repo.get(session, factor_id)
-        if not old_factor:
-            logger.warning(f"Factor {factor_id} not found for update")
-            return None
-
-        now = datetime.now(timezone.utc)
-
-        # Expire old factor
-        old_factor.valid_to = now
-        session.add(old_factor)
-
-        # Create new version
-        new_factor = Factor(
-            emission_type_id=old_factor.emission_type_id,
-            data_entry_type_id=old_factor.data_entry_type_id,
-            classification=classification
-            if classification is not None
-            else old_factor.classification,
-            values=values if values is not None else old_factor.values,
-            valid_from=now,
-            created_at=now,
-            created_by=updated_by,
+    async def bulk_delete_by_data_entry_type(
+        self, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete factors by data entry type."""
+        factor_ids = await self.repo.list_id_by_data_entry_type(
+            data_entry_type_id=data_entry_type_id,
         )
+        await self.repo.bulk_delete(factor_ids)
 
-        new_factor = await self.repo.create(session, new_factor)
-
-        return new_factor
-
-    async def find_modules_for_recalculation(
-        self, session: AsyncSession, factor_id: int
-    ) -> List[int]:
+    async def find_modules_for_recalculation(self, factor_id: int) -> List[int]:
         """Find module IDs that need recalculation when factor changes."""
         raise NotImplementedError
-        # return await self.repo.find_modules_for_recalculation(session, factor_id)
-
-
-# Singleton instance
-_factor_service: Optional[FactorService] = None
-
-
-def get_factor_service() -> FactorService:
-    """Get or create the factor service singleton."""
-    global _factor_service
-    if _factor_service is None:
-        _factor_service = FactorService()
-    return _factor_service

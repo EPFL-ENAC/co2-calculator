@@ -5,9 +5,7 @@ from sqlmodel import Relationship
 from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
-from .data_entry_type import DataEntryType
 from .data_ingestion import DataIngestionJob
-from .emission_type import EmissionType
 from .factor import Factor
 from .headcount import (
     HeadCount,
@@ -21,7 +19,6 @@ from .location import (
     LocationBase,
     LocationRead,
 )
-from .module_type import ModuleType
 from .professional_travel import (
     ProfessionalTravel,
     ProfessionalTravelBase,
@@ -44,6 +41,13 @@ from .unit_user import UnitUser
 from .user import User, UserBase
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
+Unit.model_rebuild()
+User.model_rebuild()
+UnitUser.model_rebuild()
+CarbonReport.model_rebuild()
+CarbonReportModule.model_rebuild()
+DataEntry.model_rebuild()
+DataEntryEmission.model_rebuild()
 
 # After model_rebuild()
 Unit.unit_users = Relationship(back_populates="unit")
@@ -60,14 +64,6 @@ CarbonReportModule.carbon_report = Relationship(back_populates="modules")
 CarbonReportModule.module_rows = Relationship(back_populates="carbon_report_module")
 DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
 
-# ModuleType <-> VariantType relationships
-ModuleType.variant_types = Relationship(back_populates="module_type")
-DataEntryType.module_type = Relationship(back_populates="variant_types")
-
-# Module <-> ModuleType/VariantType relationships
-DataEntry.module_type = Relationship()
-DataEntry.data_entry_type = Relationship()
-
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed
 
@@ -81,7 +77,6 @@ __all__ = [
     "DataIngestionJob",
     "Resource",
     "Factor",
-    "EmissionType",
     "HeadCount",
     "HeadCountBase",
     "HeadCountCreate",
@@ -102,7 +97,6 @@ __all__ = [
     "ProfessionalTravelRead",
     "ProfessionalTravelUpdate",
     "DataEntry",
-    "DataEntryType",
     "DataEntryEmission",
     "PlaneImpactFactor",
     "PlaneImpactFactorBase",

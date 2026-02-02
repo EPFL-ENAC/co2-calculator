@@ -3,20 +3,24 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
+from sqlalchemy import ForeignKey
+from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
 
 
 class DataEntryEmissionBase(SQLModel):
     """Base data entry emission model with shared fields."""
 
     data_entry_id: int = Field(
-        foreign_key="data_entries.id",
-        nullable=False,
-        index=True,
+        sa_column=Column(
+            Integer,
+            ForeignKey("data_entries.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         description="Reference to the source data entry",
     )
+    # EmissionTypeEnum value
     emission_type_id: int = Field(
-        foreign_key="emission_types.id",
         nullable=False,
         index=True,
         description="Type of emission (equipment, food, waste, commute, etc.)",
@@ -24,10 +28,11 @@ class DataEntryEmissionBase(SQLModel):
     # Primary factor used for calculation (main factor for traceability)
     primary_factor_id: Optional[int] = Field(
         default=None,
-        foreign_key="factors.id",
-        index=True,
-        description="Primary factor used for calculation"
-        "   (power, headcount, flight, etc.)",
+        sa_column=Column(
+            Integer, ForeignKey("factors.id", ondelete="CASCADE"), index=True
+        ),
+        description="Primary factor used for calculation (power, headcount,"
+        "flight, etc.)",
     )
     # Subcategory for grouping (e.g., 'scientific', 'it', 'plane', 'food')
     subcategory: Optional[str] = Field(
@@ -35,6 +40,7 @@ class DataEntryEmissionBase(SQLModel):
         description="Subcategory for grouping emissions (scientific/it/other)"
         "for equipment, plane/train for travel, emission_type for headcount)",
     )
+    # TODO: move to Decimal! (precision issues)
     kg_co2eq: float = Field(
         nullable=False,
         description="Computed emission value in kg CO2 equivalent",

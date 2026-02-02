@@ -3,22 +3,21 @@
 from typing import Dict, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import Float, Select, asc, cast, desc, func
-from sqlalchemy.sql import ColumnElement
-from sqlmodel import col, select
+from sqlalchemy import Select, asc, desc, func
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
-from app.models.data_entry_type import DataEntryTypeEnum
 from app.models.factor import Factor
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
-from app.repositories.data_entry_emission_repo import (
-    DataEntryEmissionRepository,
-)
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
-from app.schemas.data_entry import FLATTENERS, DataEntryUpdate
+from app.schemas.data_entry import (
+    DataEntryUpdate,
+    get_data_entry_handler_by_type,
+)
 
 logger = get_logger(__name__)
 
@@ -42,11 +41,31 @@ class DataEntryRepository:
 
         # 3. Save
         self.session.add(db_obj)
+        await self.session.flush()
         return db_obj
+
+    async def bulk_create(self, data_entries: list[DataEntry]) -> list[DataEntry]:
+        """Bulk create data entries."""
+        db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
+        self.session.add_all(db_objs)
+        await self.session.flush()
+        return db_objs
+
+    async def bulk_delete(
+        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete data entries by module and type."""
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+        await self.session.execute(statement)
+        await self.session.flush()
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> Optional[DataEntry]:
+        # POTENTIAL OPTIMIZATION: Use SQLAlchemy's update() for direct updates
         # 1. Fetch the existing record
 
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -67,22 +86,18 @@ class DataEntryRepository:
 
         # 4. Save
         self.session.add(db_obj)
+        await self.session.flush()
         return db_obj
 
-    async def delete(self, id: int) -> Optional[DataEntry]:
-        # 1. Fetch the existing record
-        statement = select(DataEntry).where(DataEntry.id == id)
+    async def delete(self, id: int) -> bool:
+        statement = delete(DataEntry).where(col(DataEntry.id) == id)
         result = await self.session.execute(statement)
-        db_obj = result.scalar_one_or_none()
 
-        if not db_obj:
-            return None
+        # rowcount tells you if a row actually matched the ID
+        deleted = result.rowcount if hasattr(result, "rowcount") else None
 
-        await DataEntryEmissionRepository(
-            self.session
-        ).delete_data_entry_emissions_by_data_entry_id(id)
-
-        return db_obj
+        await self.session.flush()
+        return bool(deleted)
 
     async def get_list(
         self,
@@ -105,18 +120,6 @@ class DataEntryRepository:
         statement = statement.offset(offset).limit(limit)
         result = await self.session.execute(statement)
         return list(result.scalars().all())
-
-    async def get_data_entry_type_ids_for_module_type(
-        self, module_type_id: int
-    ) -> list[int]:
-        # Example: adjust according to your actual model/table
-        from app.models.data_entry_type import DataEntryType
-
-        stmt = select(DataEntryType.id).where(
-            DataEntryType.module_type_id == module_type_id
-        )
-        result = await self.session.execute(stmt)
-        return [row[0] for row in result.all()]
 
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
@@ -151,8 +154,9 @@ class DataEntryRepository:
         )
         if module_type_id is None:
             return {}
-        all_type_ids = await self.get_data_entry_type_ids_for_module_type(
-            module_type_id
+
+        all_type_ids = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            ModuleTypeEnum(module_type_id), []
         )
 
         # Get actual counts from DB
@@ -177,23 +181,6 @@ class DataEntryRepository:
                 aggregation[type_id] = 0
 
         return aggregation
-
-    equipment_map = {
-        "id": DataEntry.id,
-        "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
-        "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
-        "name": DataEntry.data["name"].as_string(),
-        "active_power_w": Factor.values["active_power_w"].as_float(),
-        "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
-        "kg_co2eq": DataEntryEmission.kg_co2eq,
-    }
-    SORT_MAPS: dict[DataEntryTypeEnum, dict[str, ColumnElement]] = {
-        DataEntryTypeEnum.it: equipment_map,
-        DataEntryTypeEnum.scientific: equipment_map,
-        DataEntryTypeEnum.other: equipment_map,
-    }
 
     def _apply_name_filter(self, statement, filter: Optional[str]):
         """
@@ -241,6 +228,7 @@ class DataEntryRepository:
             .join(
                 DataEntryEmission,
                 col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                isouter=True,
             )
             .join(
                 Factor,
@@ -248,14 +236,15 @@ class DataEntryRepository:
                 isouter=True,
             )
             .where(
-                DataEntry.carbon_report_module_id == carbon_report_module_id,
-                DataEntry.data_entry_type_id == data_entry_type_id,
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
             )
         )
 
         statement, filter_pattern = self._apply_name_filter(statement, filter)
 
-        sort_map = self.SORT_MAPS[DataEntryTypeEnum(data_entry_type_id)]
+        handler = get_data_entry_handler_by_type(DataEntryTypeEnum(data_entry_type_id))
+        sort_map = handler.sort_map
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -277,18 +266,32 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for data_entry, data_entry_emission, primary_factor in rows:
-            flattener = FLATTENERS[DataEntryTypeEnum(data_entry.data_entry_type_id)]
+            handler = get_data_entry_handler_by_type(
+                DataEntryTypeEnum(data_entry.data_entry_type_id)
+            )
+            kg_co2eq = None
+            if data_entry_emission is not None:
+                kg_co2eq = data_entry_emission.kg_co2eq
+            # If primary_factor is None, try to fetch it
+            # from DataEntry.data["primary_factor_id"]
+            if primary_factor is None:
+                primary_factor_id = data_entry.data.get("primary_factor_id")
+                if primary_factor_id:
+                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
+                    factor_result = await self.session.execute(factor_stmt)
+                    primary_factor = factor_result.scalar_one_or_none()
+
             data_entry.data = {
                 **data_entry.data,
-                "kg_co2eq": data_entry_emission.kg_co2eq,
+                "kg_co2eq": kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
                     **primary_factor.classification,
                 }
                 if primary_factor
-                else None,
+                else {},
             }
-            items.append(flattener(data_entry))
+            items.append(handler.to_response(data_entry))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
@@ -304,17 +307,31 @@ class DataEntryRepository:
         )
         return response
 
-    async def get_module_stats(
-        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
+    async def get_stats(
+        self,
+        carbon_report_module_id,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
     ) -> Dict[str, float]:
-        """Aggregate headcount data by submodule or function."""
-        group_field = DataEntry.data[aggregate_by].astext
+        """Aggregate DataEntry data by submodule or function.
+                SELECT
+            dee.*
+        FROM
+            data_entry_emission dee
+        JOIN
+            data_entry de ON dee.data_entry_id = de.id
+        WHERE
+            de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
+        """
+        # 1. Get the model attributes dynamically
+        group_field = getattr(DataEntry, aggregate_by)
+        sum_field = getattr(DataEntry, aggregate_field)
 
-        # TODO MAKE module_type agnostic!
+        # 2. Build the query with the JOIN
         query = (
             select(
-                group_field.label(aggregate_by),
-                func.sum(cast(DataEntry.data["fte"].astext, Float)).label("annual_fte"),
+                group_field,
+                func.sum(sum_field).label("total"),
             )
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
@@ -322,16 +339,15 @@ class DataEntryRepository:
             .group_by(group_field)
         )
 
-        result = await self.session.exec(query)
-        rows = list(result.all())
+        result = await self.session.execute(
+            query
+        )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
+        rows = result.all()
 
+        # 3. Format the results
         aggregation: Dict[str, float] = {}
         for key, total_count in rows:
-            if key is None:
-                aggregation["unknown"] = float(total_count)
-            else:
-                aggregation[key] = float(total_count)
-
-        logger.debug(f"Aggregated headcount by {aggregate_by}: {aggregation}")
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total_count or 0.0)
 
         return aggregation

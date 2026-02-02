@@ -3,7 +3,7 @@ import { equipmentElectricConsumption } from 'src/constant/module-config/equipme
 import { professionalTravel } from 'src/constant/module-config/professional-travel';
 import { myLab } from 'src/constant/module-config/my-lab';
 import { internalServices } from 'src/constant/module-config/internal-services';
-import { externalCloud } from 'src/constant/module-config/external-cloud';
+import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-and-ai';
 import { infrastructure } from 'src/constant/module-config/infrastructure';
 import { purchase } from 'src/constant/module-config/purchase';
 
@@ -14,7 +14,7 @@ export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   'internal-services': internalServices,
   infrastructure: infrastructure,
   purchase: purchase,
-  'external-cloud': externalCloud,
+  'external-cloud-and-ai': externalCloudAndAi,
 };
 
 export {
@@ -24,5 +24,5 @@ export {
   internalServices,
   infrastructure,
   purchase,
-  externalCloud,
+  externalCloudAndAi,
 };

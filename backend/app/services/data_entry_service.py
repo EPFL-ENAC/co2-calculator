@@ -1,4 +1,4 @@
-"""Headcount service for business logic."""
+"""DataEntry service for business logic."""
 
 from datetime import datetime, timezone
 from typing import Optional
@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.user import User
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -29,16 +29,17 @@ class DataEntryService:
         self.session = session
         self.repo = DataEntryRepository(session)
 
-    async def get_module_stats(
-        self, carbon_report_module_id: int, aggregate_by: str = "submodule"
+    async def get_stats(
+        self,
+        carbon_report_module_id: int,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
-        # GOAL return total items and submodules for module
-        # data should be aggregated by aggregate_by param
-        # {"professor": 10, "researcher": 5, ...}
-        # or {"member": 15, "student": 20, ...}
-        return await self.repo.get_module_stats(
-            carbon_report_module_id=carbon_report_module_id, aggregate_by=aggregate_by
+        return await self.repo.get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+            aggregate_by=aggregate_by,
+            aggregate_field=aggregate_field,
         )
 
     async def create(
@@ -48,9 +49,6 @@ class DataEntryService:
         user: User,
         data: DataEntryCreate,
     ) -> DataEntryResponse:
-        """Create a new record."""
-        # check if user.permissions allow creation
-
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
             f"data_entry_type_id={sanitize(data_entry_type_id)} "
@@ -59,15 +57,39 @@ class DataEntryService:
         entry = DataEntry(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
-            data=data.model_dump(),
+            data=data.data,
         )
 
         created_entry = await self.repo.create(entry)
 
+        # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
+        # top level domain)
         await self.session.commit()
         await self.session.refresh(created_entry)
 
+        # 5. return response
         return DataEntryResponse.model_validate(created_entry)
+
+    async def bulk_create(
+        self, data_entries: list[DataEntry]
+    ) -> list[DataEntryResponse]:
+        """Bulk create data entries."""
+        logger.info(f"Bulk creating {len(data_entries)} data entries")
+        db_objs = await self.repo.bulk_create(data_entries)
+        # await self.session.flush()  # Ensure data_entry IDs are populated
+        return [DataEntryResponse.model_validate(obj) for obj in db_objs]
+
+    async def bulk_delete(
+        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+    ) -> None:
+        """Bulk delete data entries by module and type."""
+        logger.info(
+            f"Bulk deleting data entries\n"
+            f"for module_id={sanitize(carbon_report_module_id)}\n"
+            f"data_entry_type_id={sanitize(data_entry_type_id.value)}"
+        )
+        await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
+        await self.session.flush()
 
     async def update(
         self,
@@ -93,9 +115,9 @@ class DataEntryService:
     async def delete(self, id: int, current_user: User) -> bool:
         """Delete a record."""
         result = await self.repo.delete(id)
-        await self.session.commit()
+        await self.session.flush()
 
-        if result is None:
+        if result is False:
             raise ValueError(f"Data entry with id={id} not found")
         return True
 
@@ -129,19 +151,10 @@ class DataEntryService:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
             carbon_report_module_id=carbon_report_module_id
         )
-
-        # total_annual_fte = sum(
-        #     summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
-        #     for k in [
-        #         DataEntryTypeEnum.member.value,
-        #         DataEntryTypeEnum.student.value,
-        #     ]
-        # )
-        # TBImplemented
-        total_annual_fte = 0.0
-
+        # more info in routes carbon_report_module (cf DataEntryEmissionService)
+        # we just return empty stats and totals, it's computed in routes
         totals = ModuleTotals(
-            total_annual_fte=round(total_annual_fte, 2),
+            total_annual_fte=None,
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
             total_annual_consumption_kwh=None,

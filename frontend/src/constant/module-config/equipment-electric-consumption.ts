@@ -46,6 +46,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'equipment_class',
+    optionsId: 'kind',
     label: 'Class',
     type: 'select',
     required: true,
@@ -60,6 +61,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'sub_class',
+    optionsId: 'subkind',
     label: 'Sub-class',
     type: 'select',
     required: true,
@@ -113,6 +115,9 @@ const baseModuleFields: ModuleField[] = [
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
+    hideIn: {
+      form: true,
+    },
     maxColumnWidth: 150,
   },
   {
@@ -126,6 +131,10 @@ const baseModuleFields: ModuleField[] = [
     align: 'left',
     tooltip: powerTooltip,
     readOnly: true,
+    hideIn: {
+      form: true,
+    },
+    editableInline: false,
     ratio: '3/12',
     icon: 'o_electric_bolt',
     maxColumnWidth: 150,
@@ -179,7 +188,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
 
   submodules: [
     {
-      id: 'scientific',
+      id: SUBMODULE_EQUIPMENT_TYPES.Scientific,
       type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
       // name: 'Scientific Equipment',
       tableNameKey:
@@ -188,7 +197,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       moduleFields: baseModuleFields,
     },
     {
-      id: 'it',
+      id: SUBMODULE_EQUIPMENT_TYPES.IT,
       type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
       // name: 'IT Equipment',
       tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
@@ -196,7 +205,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       moduleFields: itmodulefields,
     },
     {
-      id: 'other',
+      id: SUBMODULE_EQUIPMENT_TYPES.Other,
       type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
       // name: 'Other',
       tableNameKey:

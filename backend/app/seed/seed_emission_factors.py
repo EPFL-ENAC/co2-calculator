@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_entry_type import DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.emission_type import EmissionTypeEnum
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
@@ -131,7 +131,9 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 ].value,
                 classification={
                     "class": equipment_class,
+                    "kind": equipment_class,
                     "sub_class": sub_class or None,
+                    "subkind": sub_class or None,
                     "unit": "W",
                     "description": f"Power factor for {equipment_class}",
                 },

@@ -19,6 +19,9 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+# TODO: not implemented for other modules than equipment-electric-consumption
+# and professional-travel
+# TODO: make generic!
 @router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
 async def get_module_totals(
     unit_id: int,
@@ -55,11 +58,10 @@ async def get_module_totals(
         ).get_carbon_report_by_year_and_unit(
             unit_id=unit_id,
             year=year,
-            module_type_id=ModuleTypeEnum("equipment-electric-consumption"),
+            module_type_id=ModuleTypeEnum["equipment_electric_consumption"],
         )
-        module_stats = await DataEntryService(db).get_module_stats(
-            carbon_report_module_id=carbon_report_module.id,
-            aggregate_by="submodule",
+        module_stats = await DataEntryService(db).get_stats(
+            carbon_report_module_id=carbon_report_module.id
         )
         equipment_kg_co2eq = module_stats.get("total_kg_co2eq", 0.0)
         equipment_tco2eq = round(float(equipment_kg_co2eq or 0.0) / 1000.0, 2)
@@ -132,13 +134,12 @@ async def get_module_stats(
     carbon_report_module: CarbonReportModuleRead = await CarbonReportModuleService(
         db
     ).get_carbon_report_by_year_and_unit(
-        unit_id=unit_id, year=year, module_type_id=ModuleTypeEnum(module_id)
+        unit_id=unit_id, year=year, module_type_id=ModuleTypeEnum[module_id]
     )
 
     if module_id == "equipment-electric-consumption":
-        stats = await DataEntryService(db).get_module_stats(
+        stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module.id,
-            aggregate_by=aggregate_by,
         )
     elif module_id == "my-lab":
         stats = await HeadcountService(db).get_module_stats(

@@ -27,7 +27,7 @@ export const timelineItems = [
   },
   {
     icon: 'o_filter_drama',
-    link: MODULES.ExternalCloud,
+    link: MODULES.ExternalCloudAndAI,
   },
 ];
 
