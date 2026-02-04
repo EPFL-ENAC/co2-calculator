@@ -18,6 +18,7 @@ erDiagram
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
+    VARCHAR status
   }
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
@@ -31,6 +32,7 @@ erDiagram
     VARCHAR subcategory
   }
   data_ingestion_jobs {
+    INTEGER data_entry_type_id
     INTEGER entity_id
     VARCHAR entity_type
     INTEGER id PK

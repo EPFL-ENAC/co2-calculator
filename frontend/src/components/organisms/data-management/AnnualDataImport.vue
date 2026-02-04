@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
 import FilesUploadDialog from './FilesUploadDialog.vue';
 import { useFilesStore } from 'src/stores/files';
@@ -18,14 +18,47 @@ const onFilesUploaded = () => {
 };
 
 const dataEntrySync = async (moduleTypeId: number, year: number) => {
-  await dataManagementStore.initiateSync(
-    moduleTypeId,
+  await dataManagementStore.initiateSync({
+    module_type_id: moduleTypeId,
     year,
-    'api',
-    'data_entries',
-  );
-  // fetch status? // have sse ? how do we poll ?
+    provider_type: 'api',
+    target_type: 'data_entries',
+  });
 };
+
+/**
+ * Initiate CSV upload sync for a module.
+ * Requires at least one file to be uploaded in tempFiles.
+ */
+const csvUploadSync = async (moduleTypeId: number, year: number) => {
+  if (filesStore.tempFiles.length === 0) {
+    console.error('No files uploaded');
+    dataManagementStore.error = 'Please upload a CSV file first';
+    return;
+  }
+
+  // For now, use the first uploaded file
+  // TODO: Allow selection of specific file for each module
+  const filePath = filesStore.tempFiles[0].path;
+
+  await dataManagementStore.initiateSync({
+    module_type_id: moduleTypeId,
+    year,
+    provider_type: 'csv',
+    target_type: 'data_entries',
+    file_path: filePath,
+  });
+};
+
+// Subscribe to SSE updates when component mounts
+onMounted(() => {
+  dataManagementStore.subscribeToJobUpdates();
+});
+
+// Unsubscribe when component unmounts
+onUnmounted(() => {
+  dataManagementStore.unsubscribeFromJobUpdates();
+});
 </script>
 
 <template>
@@ -130,7 +163,7 @@ const dataEntrySync = async (moduleTypeId: number, year: number) => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
-                  @click="showUploadDialog = true"
+                  @click="csvUploadSync(MODULES_LIST.indexOf(module) + 1, year)"
                 />
                 <!-- TODO: use enum for data_module_type_id -->
                 <q-btn

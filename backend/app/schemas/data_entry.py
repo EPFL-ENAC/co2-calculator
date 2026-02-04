@@ -15,6 +15,9 @@ logger = get_logger(__name__)
 # ============ DTO INPUT ================================= #
 
 
+DATA_ENTRY_META_FIELDS = {"data_entry_type_id", "carbon_report_module_id", "id"}
+
+
 class DataEntryPayloadMixin(BaseModel):
     @classmethod
     def numeric_fields(cls) -> set[str]:
@@ -40,9 +43,10 @@ class DataEntryPayloadMixin(BaseModel):
             return values
         if "data" in values:
             return values
-        meta_fields = {"data_entry_type_id", "carbon_report_module_id", "id"}
         new_payload = dict(values)
-        new_payload["data"] = {k: v for k, v in values.items() if k not in meta_fields}
+        new_payload["data"] = {
+            k: v for k, v in values.items() if k not in DATA_ENTRY_META_FIELDS
+        }
         return new_payload
 
     @model_validator(mode="before")
@@ -106,12 +110,19 @@ class ModuleHandler(Protocol[T]):
     # Type info
     module_type: ModuleTypeEnum
     data_entry_type: Optional[DataEntryTypeEnum] = None
+    require_subkind_for_factor: bool = (
+        True  # default to True, can be overridden by specific handlers
+    )
 
     # DTOs
     create_dto: Type[DataEntryCreate]
     update_dto: Type[DataEntryUpdate]
     response_dto: Type[DataEntryResponseGen]
     sort_map: Dict[str, Any]
+
+    # kind/subkind fields
+    kind_field: Optional[str] = None
+    subkind_field: Optional[str] = None
 
     def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
     async def resolve_primary_factor_id(
@@ -121,7 +132,7 @@ class ModuleHandler(Protocol[T]):
         db: AsyncSession,
         existing_data: Optional[dict] = None,
     ) -> dict: ...
-    def validate_create(self, payload: dict) -> BaseModel: ...
+    def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
 
 
@@ -160,6 +171,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     kind_field: Optional[str] = None
     subkind_field: Optional[str] = None
     data_entry_type: Optional[DataEntryTypeEnum] = None
+    require_subkind_for_factor: bool = True
 
     async def resolve_primary_factor_id(
         self,
@@ -196,21 +208,21 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
     name: str
-    active_usage_hours: int
-    passive_usage_hours: int
-    primary_factor_id: Optional[int]
-    kg_co2eq: Optional[float]
-    active_power_w: Optional[int]
-    standby_power_w: Optional[int]
-    equipment_class: Optional[str]
-    sub_class: Optional[str]
+    active_usage_hours: Optional[int] = None
+    passive_usage_hours: Optional[int] = None
+    primary_factor_id: Optional[int] = None
+    kg_co2eq: Optional[float] = None
+    active_power_w: Optional[int] = None
+    standby_power_w: Optional[int] = None
+    equipment_class: Optional[str] = None
+    sub_class: Optional[str] = None
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: str
-    cloud_provider: Optional[str]
+    cloud_provider: Optional[str] = None
     spending: float
-    kg_co2eq: Optional[float]
+    kg_co2eq: Optional[float] = None
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
@@ -219,18 +231,18 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
     ai_use: str
     frequency_use_per_day: int
     user_count: int
-    kg_co2eq: Optional[float]
+    kg_co2eq: Optional[float] = None
 
 
 # ---- CREATE DTO --------------------------------- #
 
 
 class EquipmentHandlerCreate(DataEntryCreate):
-    active_usage_hours: int
-    passive_usage_hours: int
+    active_usage_hours: Optional[int] = None
+    passive_usage_hours: Optional[int] = None
     name: str
-    equipment_class: str
-    sub_class: str
+    equipment_class: Optional[str] = None
+    sub_class: Optional[str] = None
 
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
@@ -281,6 +293,8 @@ class EquipmentModuleHandler(BaseModuleHandler):
         DataEntryTypeEnum.scientific,
         DataEntryTypeEnum.other,
     ]
+    # Allow subkind to be optional for equipment
+    require_subkind_for_factor = False
 
     create_dto = EquipmentHandlerCreate
     update_dto = EquipmentHandlerUpdate
@@ -314,8 +328,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
             "standby_power_w": data_entry.data.get("primary_factor", {}).get(
                 "standby_power_w", None
             ),
-            "equipment_class": data_entry.data.get("primary_factor", {}).get("class"),
-            "sub_class": data_entry.data.get("primary_factor", {}).get("sub_class"),
+            "equipment_class": data_entry.data.get("primary_factor", {}).get("class")
+            or data_entry.data.get("equipment_class"),
+            "sub_class": data_entry.data.get("primary_factor", {}).get("sub_class")
+            or data_entry.data.get("sub_class"),
             "kg_co2eq": data_entry.data.get("kg_co2eq", None),
         }
         return self.response_dto.model_validate(new_entry)

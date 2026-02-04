@@ -37,6 +37,16 @@ class DataEntryEmissionRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def delete_by_data_entry_id(self, data_entry_id: int) -> None:
+        query = select(DataEntryEmission).where(
+            DataEntryEmission.data_entry_id == data_entry_id
+        )
+        result = await self.session.execute(query)
+        obj = result.scalar_one_or_none()
+        if obj:
+            await self.session.delete(obj)
+            await self.session.flush()
+
     async def bulk_create(
         self, objs: list[DataEntryEmission]
     ) -> list[DataEntryEmission]:

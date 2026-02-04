@@ -189,8 +189,8 @@ export interface ModuleItem {
   name: string;
   class?: string;
   sub_class?: string;
-  act_usage?: number;
-  pas_usage?: number;
+  active_usage_hours?: number;
+  passive_usage_hours?: number;
   act_power?: number;
   pas_power?: number;
   kg_co2eq?: number;
@@ -229,6 +229,7 @@ export interface ModuleResponse {
   unit: number;
   year: string;
   data_entry_types_total_items: Record<number, number>;
+  carbon_report_module_id: number;
   stats?: Record<string, number>;
   retrieved_at: string;
   submodules: Record<string, Submodule>;

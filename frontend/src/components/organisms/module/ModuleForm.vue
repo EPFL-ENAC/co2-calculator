@@ -655,7 +655,7 @@ function validateField(i: ModuleField) {
   const effectiveType = i.type;
   errors[i.id] = null;
 
-  if (i.id === 'act_usage' || i.id === 'pas_usage') {
+  if (i.id === 'active_usage_hours' || i.id === 'passive_usage_hours') {
     const validation = validateUsage(v);
     if (!validation.valid) {
       errors[i.id] = validation.error;

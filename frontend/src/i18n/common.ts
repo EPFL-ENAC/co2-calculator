@@ -185,8 +185,8 @@ export default {
     fr: 'Import CSV à venir (interface simulée)',
   },
   common_download_csv_template_mock: {
-    en: 'CSV template download (mocked)',
-    fr: 'Téléchargement du modèle CSV (simulé)',
+    en: 'CSV template download',
+    fr: 'Téléchargement du modèle CSV',
   },
   common_export_as_csv: {
     en: 'Export as CSV',
@@ -279,5 +279,65 @@ export default {
   evolution_over_time_requires_multiple_years: {
     en: 'Evolution over time requires data from multiple years',
     fr: "L'évolution dans le temps nécessite des données de plusieurs années",
+  },
+  csv_no_files_uploaded: {
+    en: 'No files uploaded',
+    fr: 'Aucun fichier téléchargé',
+  },
+  csv_sync_starting: {
+    en: 'Starting CSV sync...',
+    fr: 'Démarrage de la synchronisation CSV...',
+  },
+  csv_sync_completed: {
+    en: 'CSV sync completed.',
+    fr: 'Synchronisation CSV terminée.',
+  },
+  csv_sync_failed: {
+    en: 'CSV sync failed. Please check the logs for details.',
+    fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
+  },
+  csv_sync_initiated: {
+    en: 'CSV sync initiated',
+    fr: 'Synchronisation CSV lancée',
+  },
+  csv_sync_failed_to_initiate: {
+    en: 'Failed to initiate sync',
+    fr: "Échec de l'initialisation de la synchronisation",
+  },
+  common_no_items: {
+    en: 'No items',
+    fr: 'Aucun élément',
+  },
+  common_no_data_available: {
+    en: 'No data available',
+    fr: 'Aucune donnée disponible',
+  },
+  common_new: {
+    en: 'New',
+    fr: 'Nouveau',
+  },
+  validation_required: {
+    en: 'Required',
+    fr: 'Requis',
+  },
+  validation_number_required: {
+    en: 'Number required',
+    fr: 'Nombre requis',
+  },
+  validation_must_be_non_negative: {
+    en: 'Must be >= 0',
+    fr: 'Doit être >= 0',
+  },
+  validation_max_hours_per_week: {
+    en: 'Max 168 hrs/wk',
+    fr: 'Max 168 h/sem',
+  },
+  validation_must_be_at_least_one: {
+    en: 'Must be at least 1',
+    fr: 'Doit être au moins 1',
+  },
+  validation_save_failed: {
+    en: 'Save failed',
+    fr: "Échec de l'enregistrement",
   },
 };

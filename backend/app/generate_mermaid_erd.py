@@ -37,7 +37,12 @@ def generate_mermaid(base: Optional[DeclarativeMeta] = None) -> str:
             if is_indexed and not column.primary_key and len(column.foreign_keys) == 0:
                 metadata_key += ' "indexed"'
 
-            lines.append(f"    {col_type} {col_name}{metadata_key}")
+            # Add description if available
+            description = ""
+            if column.comment:
+                description = f' "{column.comment}"'
+
+            lines.append(f"    {col_type} {col_name}{metadata_key}{description}")
         lines.append("  }")
 
     relationship_lines = []

@@ -22,6 +22,11 @@
         class="text-weight-medium"
         @click="onDownloadTemplate"
       />
+
+      <files-upload-dialog
+        v-model="showUploadDialog"
+        @files-uploaded="onFilesUploaded"
+      />
     </div>
     <q-input
       v-model="filterTerm"
@@ -50,7 +55,7 @@
     dense
     flat
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
-    no-data-label="No items"
+    :no-data-label="$t('common_no_items')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -182,7 +187,7 @@
                 rounded
                 outline
                 dense
-                label="New"
+                :label="$t('common_new')"
               />
             </div>
           </template>
@@ -191,7 +196,9 @@
     </template>
 
     <template #no-data>
-      <div class="text-center q-pa-sm">No data available</div>
+      <div class="text-center q-pa-sm">
+        {{ $t('common_no_data_available') }}
+      </div>
     </template>
   </q-table>
 
@@ -291,7 +298,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted } from 'vue';
+import FilesUploadDialog from 'src/components/organisms//data-management/FilesUploadDialog.vue';
+
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
@@ -300,13 +309,17 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
+  EnumSubmoduleType,
 } from 'src/constant/modules';
+import { enumSubmodule } from 'src/constant/modules';
 
 import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
@@ -316,6 +329,93 @@ const { t: $t } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const dataManagementStore = useBackofficeDataManagement();
+
+const showUploadDialog = ref<boolean>(false);
+
+const onFilesUploaded = async (filePaths: string[]) => {
+  showUploadDialog.value = false;
+
+  if (!filePaths || filePaths.length === 0) {
+    $q.notify({
+      color: 'negative',
+      message: $t('csv_no_files_uploaded'),
+      position: 'top',
+    });
+    return;
+  }
+
+  const filePath = filePaths[0];
+  const moduleTypeId = dataManagementStore.getModuleTypeId(
+    props.moduleType as Module,
+  );
+
+  try {
+    $q.notify({
+      color: 'info',
+      message: $t('csv_sync_starting'),
+      position: 'top',
+    });
+    const carbonReportModuleId =
+      moduleStore.state.data?.carbon_report_module_id;
+    const jobId = await dataManagementStore.initiateSync({
+      module_type_id: moduleTypeId,
+      provider_type: 'csv',
+      target_type: 'data_entries',
+      file_path: filePath,
+      carbon_report_module_id: carbonReportModuleId,
+      config: {
+        carbon_report_module_id: carbonReportModuleId,
+        data_entry_type_id:
+          enumSubmodule[props.submoduleType as EnumSubmoduleType],
+      },
+    });
+
+    dataManagementStore.subscribeToJobUpdates(
+      jobId,
+      () => {
+        moduleStore.getSubmoduleData({
+          submoduleType: props.submoduleType,
+          moduleType: props.moduleType,
+          unit: props.unitId,
+          year: String(props.year),
+        });
+        // also call get module data to update overall stats
+        moduleStore.getModuleData(
+          props.moduleType as Module,
+          props.unitId,
+          String(props.year),
+        );
+        $q.notify({
+          color: 'positive',
+          message: `${$t('csv_sync_completed')}`,
+          position: 'top',
+        });
+      },
+      (payload: JobUpdatePayload) => {
+        $q.notify({
+          color: 'negative',
+          message: `${$t('csv_sync_failed')}: ${payload.status_message || ''}`,
+          position: 'top',
+        });
+        console.error('CSV sync job failed:', payload);
+      },
+    );
+    $q.notify({
+      color: 'positive',
+      message: $t('csv_sync_initiated'),
+      position: 'top',
+    });
+  } catch (err) {
+    console.error('Failed to initiate sync:', err);
+    $q.notify({
+      color: 'negative',
+      message:
+        err instanceof Error ? err.message : $t('csv_sync_failed_to_initiate'),
+      position: 'top',
+    });
+  }
+};
 
 const editDialogOpen = ref(false);
 const editInputs = ref<ModuleField[] | null>(null);
@@ -345,7 +445,6 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
-
 const moduleStore = useModuleStore();
 
 // Permission check: can user edit this module?
@@ -556,24 +655,47 @@ function getError(row: ModuleRow, col: { name: string }) {
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
+    return { valid: false, parsed: null, error: $t('validation_required') };
   }
   const n = Number(value);
   if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
-  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (n < 0)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_non_negative'),
+    };
+  if (n > 168)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_max_hours_per_week'),
+    };
   return { valid: true, parsed: n, error: null };
 }
 
 function validateNumberOfTrips(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
+    return { valid: false, parsed: null, error: $t('validation_required') };
   }
   const n = Number(value);
   if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 1) return { valid: false, parsed: null, error: 'Must be at least 1' };
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (n < 1)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_at_least_one'),
+    };
   return { valid: true, parsed: Math.floor(n), error: null };
 }
 
@@ -584,7 +706,8 @@ async function commitInline(
   if (!col.editableInline) return;
   // Only usage fields use the hours/week validation; other inline
   // fields (including selects) are patched as-is.
-  const isUsageField = col.name === 'act_usage' || col.name === 'pas_usage';
+  const isUsageField =
+    col.name === 'active_usage_hours' || col.name === 'passive_usage_hours';
   const isNumberOfTrips = col.name === 'number_of_trips';
   const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
@@ -610,7 +733,7 @@ async function commitInline(
     if (isNumeric) {
       const n = Number(rawVal);
       if (!Number.isFinite(n)) {
-        setError(row, col, 'Number required');
+        setError(row, col, $t('validation_number_required'));
         return null;
       }
       setError(row, col, null);
@@ -637,7 +760,11 @@ async function commitInline(
       },
     );
   } catch (err) {
-    setError(row, col, err instanceof Error ? err.message : 'Save failed');
+    setError(
+      row,
+      col,
+      err instanceof Error ? err.message : $t('validation_save_failed'),
+    );
   }
 }
 
@@ -682,8 +809,8 @@ function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'equipment_class',
-    'act_usage',
-    'pas_usage',
+    'active_usage_hours',
+    'passive_usage_hours',
     'active_power_w',
     'standby_power_w',
   ];
@@ -795,8 +922,8 @@ function onFormSubmit(
     if (moduleType === MODULES.EquipmentElectricConsumption) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
-      basePayload.act_usage = Number(payload.act_usage);
-      basePayload.pas_usage = Number(payload.pas_usage);
+      basePayload.active_usage_hours = Number(payload.active_usage_hours);
+      basePayload.passive_usage_hours = Number(payload.passive_usage_hours);
     }
 
     const p = isEdit
@@ -826,26 +953,21 @@ function onFormSubmit(
 }
 
 function onUploadCsv() {
-  $q.notify({
-    color: 'info',
-    message: $t('common_upload_csv_mock') || 'CSV upload coming soon (mocked)',
-    position: 'top',
-  });
+  showUploadDialog.value = true;
 }
 
 function onDownloadTemplate() {
-  // Mocked download
-  const csvEquipmentContent = `Cost Center,Cost Center FR Description,Name 1,Category,Class,Service Date,Status
-C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,Cameras,12/7/2024,In service`;
+  //
+  const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
 
-  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule
-2025-12-10,20001,SV-DEC,F1380,SV-DO,00000,UserName,Employé(e) / 13 NSS,Assistant-e administratif-ve,000000,1.00,member
-2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
+  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
 
-  // # TODO: add external cloud and ai
-  // Use backend-generated templates
+  const csvExternalCloudContent = `service_type,cloud_provider,spending`;
+  const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
+
+  const csvDefaultContent = `not_implemented_yet`;
 
   let csvContent: string;
   switch (props.moduleType) {
@@ -856,8 +978,23 @@ C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,C
       csvContent = csvProfessionalTravelContent;
       break;
     case MODULES.EquipmentElectricConsumption:
-    default:
       csvContent = csvEquipmentContent;
+      break;
+    case MODULES.ExternalCloudAndAI:
+      if (
+        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
+      ) {
+        csvContent = csvExternalCloudContent;
+      } else if (
+        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
+      ) {
+        csvContent = csvExternalAIContent;
+      } else {
+        csvContent = csvDefaultContent;
+      }
+      break;
+    default:
+      csvContent = csvDefaultContent;
       break;
   }
 
@@ -989,6 +1126,13 @@ onMounted(() => {
 
   // Clear inline errors on mount
   inlineErrors.value = {};
+
+  // SSE subscription is job-scoped and triggered on sync initiation
+});
+
+// Unsubscribe from SSE when component unmounts
+onUnmounted(() => {
+  dataManagementStore.unsubscribeFromJobUpdates();
 });
 </script>
 
