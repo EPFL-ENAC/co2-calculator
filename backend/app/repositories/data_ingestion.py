@@ -78,7 +78,10 @@ class DataIngestionRepository:
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        job = result.scalar_one_or_none()
+        if job:
+            await self.session.refresh(job)
+        return job
 
     async def get_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.year == year)

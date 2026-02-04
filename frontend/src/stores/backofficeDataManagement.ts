@@ -14,6 +14,15 @@ export interface DataIngestionJob {
   meta?: Record<string, unknown>;
 }
 
+export interface JobUpdatePayload {
+  job_id: number;
+  module_type_id: number;
+  target_type: number;
+  year: number | null;
+  status: string | number;
+  status_message: string;
+}
+
 export interface SyncJobStatus {
   module_type_id: number;
   year: number;
@@ -190,27 +199,49 @@ provider_type
      * Subscribe to SSE stream for real-time job status updates.
      * Maps updates to the appropriate module/target rows via job_id,
      * module_type_id, and year.
+     * payload will look like: {
+          "job_id": 94,
+          "module_type_id": 4,
+          "target_type": 0,
+          "year": null,
+          "status": 0,
+          "status_message": "Job created"
+      }
      */
-    function subscribeToJobUpdates(): void {
-      // Only create one SSE connection
-      if (sseConnection) {
+    function subscribeToJobUpdates(
+      jobId?: number,
+      onCompleted?: (payload?: JobUpdatePayload) => void,
+      onFail?: (payload?: JobUpdatePayload) => void,
+    ): void {
+      if (!jobId) {
         return;
       }
 
+      if (sseConnection) {
+        sseConnection.close();
+        sseConnection = null;
+      }
+
       try {
-        sseConnection = new EventSource('/api/v1/sync/jobs/stream');
+        sseConnection = new EventSource(`/api/v1/sync/jobs/${jobId}/stream`);
 
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
-            const update = JSON.parse(event.data);
-
+            // debugger;
+            const update: JobUpdatePayload = JSON.parse(event.data);
+            console.log(update);
             // Map status codes to numbers
-            // Assuming: 0=NOT_STARTED, 1=IN_PROGRESS, 2=COMPLETED, 3=FAILED
+            // NOT_STARTED = 0
+            // PENDING = 1
+            // IN_PROGRESS = 2
+            // COMPLETED = 3
+            // FAILED = 4
             const statusMap: Record<string, number> = {
               NOT_STARTED: 0,
-              IN_PROGRESS: 1,
-              COMPLETED: 2,
-              FAILED: 3,
+              PENDING: 1,
+              IN_PROGRESS: 2,
+              COMPLETED: 3,
+              FAILED: 4,
             };
 
             const status =
@@ -222,6 +253,9 @@ provider_type
             // const module_type_id = update.module_type_id;
             const year = update.year;
 
+            console.log(
+              `Received SSE update for job_id ${job_id}: status=${status}`,
+            );
             // Find and update the job in the store
             if (syncJobs[year]) {
               const jobIndex = syncJobs[year].findIndex(
@@ -234,6 +268,19 @@ provider_type
                   status_message: update.status_message || '',
                 };
               }
+            }
+
+            if (status === 3) {
+              console.log('Sync job completed: call onCompleted callback');
+              onCompleted?.(update);
+            }
+
+            if (status === 4) {
+              console.log('Sync job failed');
+              onFail?.(update);
+            }
+            if (status === 3 || status === 4) {
+              unsubscribeFromJobUpdates();
             }
           } catch (err) {
             console.error('Error parsing SSE message:', err);
@@ -254,6 +301,8 @@ provider_type
      */
     function unsubscribeFromJobUpdates(): void {
       if (sseConnection) {
+        // debugger;
+        console.log('Closing SSE connection');
         sseConnection.close();
         sseConnection = null;
       }

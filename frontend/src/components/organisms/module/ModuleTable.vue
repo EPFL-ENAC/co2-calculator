@@ -55,7 +55,7 @@
     dense
     flat
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
-    no-data-label="No items"
+    :no-data-label="$t('common_no_items')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -187,7 +187,7 @@
                 rounded
                 outline
                 dense
-                label="New"
+                :label="$t('common_new')"
               />
             </div>
           </template>
@@ -196,7 +196,9 @@
     </template>
 
     <template #no-data>
-      <div class="text-center q-pa-sm">No data available</div>
+      <div class="text-center q-pa-sm">
+        {{ $t('common_no_data_available') }}
+      </div>
     </template>
   </q-table>
 
@@ -308,6 +310,7 @@ import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
@@ -336,7 +339,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
   if (!filePaths || filePaths.length === 0) {
     $q.notify({
       color: 'negative',
-      message: 'No files uploaded',
+      message: $t('csv_no_files_uploaded'),
       position: 'top',
     });
     return;
@@ -350,12 +353,12 @@ const onFilesUploaded = async (filePaths: string[]) => {
   try {
     $q.notify({
       color: 'info',
-      message: 'Starting CSV sync...',
+      message: $t('csv_sync_starting'),
       position: 'top',
     });
     const carbonReportModuleId =
       moduleStore.state.data?.carbon_report_module_id;
-    await dataManagementStore.initiateSync({
+    const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
       provider_type: 'csv',
       target_type: 'data_entries',
@@ -368,16 +371,47 @@ const onFilesUploaded = async (filePaths: string[]) => {
       },
     });
 
+    dataManagementStore.subscribeToJobUpdates(
+      jobId,
+      () => {
+        moduleStore.getSubmoduleData({
+          submoduleType: props.submoduleType,
+          moduleType: props.moduleType,
+          unit: props.unitId,
+          year: String(props.year),
+        });
+        // also call get module data to update overall stats
+        moduleStore.getModuleData(
+          props.moduleType as Module,
+          props.unitId,
+          String(props.year),
+        );
+        $q.notify({
+          color: 'positive',
+          message: `${$t('csv_sync_completed')}`,
+          position: 'top',
+        });
+      },
+      (payload: JobUpdatePayload) => {
+        $q.notify({
+          color: 'negative',
+          message: `${$t('csv_sync_failed')}: ${payload.status_message || ''}`,
+          position: 'top',
+        });
+        console.error('CSV sync job failed:', payload);
+      },
+    );
     $q.notify({
       color: 'positive',
-      message: 'CSV sync initiated',
+      message: $t('csv_sync_initiated'),
       position: 'top',
     });
   } catch (err) {
     console.error('Failed to initiate sync:', err);
     $q.notify({
       color: 'negative',
-      message: err instanceof Error ? err.message : 'Failed to initiate sync',
+      message:
+        err instanceof Error ? err.message : $t('csv_sync_failed_to_initiate'),
       position: 'top',
     });
   }
@@ -621,24 +655,47 @@ function getError(row: ModuleRow, col: { name: string }) {
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
+    return { valid: false, parsed: null, error: $t('validation_required') };
   }
   const n = Number(value);
   if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
-  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (n < 0)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_non_negative'),
+    };
+  if (n > 168)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_max_hours_per_week'),
+    };
   return { valid: true, parsed: n, error: null };
 }
 
 function validateNumberOfTrips(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
+    return { valid: false, parsed: null, error: $t('validation_required') };
   }
   const n = Number(value);
   if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 1) return { valid: false, parsed: null, error: 'Must be at least 1' };
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (n < 1)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_at_least_one'),
+    };
   return { valid: true, parsed: Math.floor(n), error: null };
 }
 
@@ -676,7 +733,7 @@ async function commitInline(
     if (isNumeric) {
       const n = Number(rawVal);
       if (!Number.isFinite(n)) {
-        setError(row, col, 'Number required');
+        setError(row, col, $t('validation_number_required'));
         return null;
       }
       setError(row, col, null);
@@ -703,7 +760,11 @@ async function commitInline(
       },
     );
   } catch (err) {
-    setError(row, col, err instanceof Error ? err.message : 'Save failed');
+    setError(
+      row,
+      col,
+      err instanceof Error ? err.message : $t('validation_save_failed'),
+    );
   }
 }
 
@@ -1066,8 +1127,7 @@ onMounted(() => {
   // Clear inline errors on mount
   inlineErrors.value = {};
 
-  // Subscribe to SSE job updates
-  dataManagementStore.subscribeToJobUpdates();
+  // SSE subscription is job-scoped and triggered on sync initiation
 });
 
 // Unsubscribe from SSE when component unmounts

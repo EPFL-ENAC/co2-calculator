@@ -148,6 +148,64 @@ class DataEntriesCSVProvider(DataIngestionProvider):
         """Not used - loading is done in process_csv_in_batches"""
         return {"inserted": 0, "skipped": 0, "errors": 0}
 
+    async def _validate_csv_headers(
+        self,
+        csv_text: str,
+        expected_columns: set[str],
+        required_columns: set[str],
+    ) -> None:
+        """
+        Validate CSV headers by checking first 5 rows.
+        Fails if ALL first rows are missing required columns.
+        In strict mode, also fails if expected columns are missing.
+
+        Raises ValueError if validation fails.
+        """
+        strict_mode = self.config.get("strict_column_validation", False)
+        rows_to_check = 5
+
+        # Validate using a separate reader
+        validation_reader = csv.DictReader(io.StringIO(csv_text))
+        first_rows = []
+
+        try:
+            for idx, row in enumerate(validation_reader):
+                if idx >= rows_to_check:
+                    break
+                first_rows.append(row)
+        except Exception as e:
+            raise ValueError(f"Failed to read CSV: {str(e)}")
+
+        if not first_rows:
+            raise ValueError("CSV file is empty")
+
+        # Check required columns: fail if ALL first rows are missing them
+        if required_columns:
+            all_missing_required = all(
+                not required_columns.issubset(set(row.keys())) for row in first_rows
+            )
+
+            if all_missing_required:
+                missing_columns = required_columns - set(first_rows[0].keys())
+                raise ValueError(
+                    f"CSV is missing required columns: {
+                        ', '.join(sorted(missing_columns))
+                    }"
+                )
+
+        # In strict mode: fail if ALL first rows are missing any expected columns
+        if strict_mode and expected_columns:
+            all_missing_expected = all(
+                not expected_columns.issubset(set(row.keys())) for row in first_rows
+            )
+
+            if all_missing_expected:
+                missing_columns = expected_columns - set(first_rows[0].keys())
+                raise ValueError(
+                    f"""Strict mode: CSV is missing
+                    expected columns: {", ".join(sorted(missing_columns))}"""
+                )
+
     async def ingest(
         self,
         filters: Dict[str, Any] | None = None,
@@ -175,76 +233,12 @@ class DataEntriesCSVProvider(DataIngestionProvider):
             raise
 
     async def process_csv_in_batches(self) -> Dict[str, Any]:
-        """Process CSV file in batches with file movement and job status tracking"""
+        """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
-            # Update job status to PROCESSING
-            await self.repo.update_ingestion_job(
-                job_id=self.job_id,
-                status_message="Starting CSV processing",
-                status_code=IngestionStatus.IN_PROGRESS,
-                metadata={},
-            )
+            # Setup: validate, load factors, move file
+            setup_result = await self._setup_and_validate()
 
-            # Move file from source path to processing/
-            tmp_path = self.source_file_path
-            # Extract filename from source path
-            if not tmp_path:
-                raise ValueError("Missing file_path in config")
-            filename = tmp_path.split("/")[-1]
-            processing_path = f"processing/{self.job_id}/{filename}"
-
-            logger.info(f"Moving file from {tmp_path} to {processing_path}")
-            move_result = await self.files_store.move_file(tmp_path, processing_path)
-            if not move_result:
-                raise Exception(
-                    f"Failed to move file from {tmp_path} to {processing_path}"
-                )
-
-            # Download and decode CSV content
-            logger.info(f"Downloading CSV from {processing_path}")
-            file_content, mime_type = await self.files_store.get_file(processing_path)
-            csv_text = file_content.decode("utf-8")
-
-            entity_type_value = self.config.get("entity_type")
-            if entity_type_value is None:
-                entity_type = (
-                    EntityType.MODULE_UNIT_SPECIFIC
-                    if self.carbon_report_module_id
-                    else EntityType.MODULE_PER_YEAR
-                )
-            else:
-                entity_type = EntityType(entity_type_value)
-
-            configured_data_entry_type_id = self.config.get("data_entry_type_id")
-
-            # Load factors map
-            logger.info("Loading factors map")
-            factors_map: Dict[str, Any] = {}
-            if entity_type == EntityType.MODULE_UNIT_SPECIFIC:
-                if configured_data_entry_type_id is None:
-                    raise Exception(
-                        "data_entry_type must be specified for MODULE_UNIT_SPECIFIC"
-                    )
-                configured_data_entry_type = DataEntryTypeEnum(
-                    configured_data_entry_type_id
-                )
-                type_factors = await load_factors_map(
-                    self.session, configured_data_entry_type
-                )
-                factors_map.update(type_factors)
-                handler = get_data_entry_handler_by_type(configured_data_entry_type)
-                handlers = [handler]
-                expected_columns = _get_expected_columns_from_handlers(handlers)
-                required_columns = _get_required_columns_from_handler(handler)
-            else:
-                handlers = list(MODULE_HANDLERS.values())
-                expected_columns = _get_expected_columns_from_handlers(handlers)
-                required_columns = set()
-                for entry_type in DataEntryTypeEnum:
-                    type_factors = await load_factors_map(self.session, entry_type)
-                    factors_map.update(type_factors)
-
-            # Initialize statistics
+            # Initialize statistics and services
             max_row_errors = int(self.config.get("max_row_errors", 100))
             stats: StatsDict = {
                 "rows_processed": 0,
@@ -255,231 +249,371 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                 "row_errors": [],
                 "row_errors_count": 0,
             }
-
-            # Initialize services
             data_entry_service = DataEntryService(self.session)
             emission_service = DataEntryEmissionService(self.session)
 
-            # Process CSV in batches
+            # Process CSV rows
             batch: List[DataEntry] = []
-            csv_reader = csv.DictReader(io.StringIO(csv_text))
+            csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
 
             for row_idx, row in enumerate(csv_reader, start=1):
-                try:
-                    # Filter row to only include expected columns (discard extras)
-                    filtered_row = {
-                        k: v
-                        for k, v in row.items()
-                        if k in expected_columns and v is not None and v.strip() != ""
-                    }
+                # Process single row, returns (data_entry, error_msg, factor)
+                data_entry, error_msg, factor = await self._process_row(
+                    row, row_idx, setup_result, stats, max_row_errors
+                )
 
-                    if (
-                        entity_type == EntityType.MODULE_UNIT_SPECIFIC
-                        and required_columns
-                        and not required_columns.issubset(filtered_row.keys())
-                    ):
-                        missing_fields = required_columns - set(filtered_row.keys())
-                        self._record_row_error(
-                            stats,
-                            row_idx,
-                            f"Missing required fields {missing_fields}",
-                            max_row_errors,
-                        )
-                        continue
-
-                    factor = None
-                    # TODO: verify that it works with EntityType.MODULE_YEAR
-                    kind_value = (
-                        filtered_row.get(handler.kind_field)
-                        if handler.kind_field
-                        else ""
-                    )
-                    subkind_value = (
-                        filtered_row.get(handler.subkind_field)
-                        if handler.subkind_field
-                        else None
-                    )
-                    if kind_value:
-                        factor = lookup_factor(
-                            kind=kind_value,
-                            subkind=subkind_value,
-                            factors_map=factors_map,
-                        )
-
-                    if entity_type == EntityType.MODULE_PER_YEAR:
-                        if not factor:
-                            stats["rows_without_factors"] += 1
-                            self._record_row_error(
-                                stats,
-                                row_idx,
-                                "Missing factor for MODULE_PER_YEAR",
-                                max_row_errors,
-                            )
-                            continue
-                        data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
-                        handler = get_data_entry_handler_by_type(data_entry_type)
-                    else:
-                        if configured_data_entry_type_id is None:
-                            raise Exception(
-                                "data_entry_type must be specified for MODULE_UNIT"
-                            )
-                        data_entry_type = DataEntryTypeEnum(
-                            configured_data_entry_type_id
-                        )
-                        match_factors = is_in_factors_map(
-                            kind=filtered_row.get(handler.kind_field, ""),
-                            subkind=filtered_row.get(handler.subkind_field, None),
-                            factors_map=factors_map,
-                            require_subkind=handler.require_subkind_for_factor,
-                        )
-                        if factor is None and match_factors is False:
-                            # check is_in_factors_map
-                            self._record_row_error(
-                                stats,
-                                row_idx,
-                                "Probably not part of authorized data entries. "
-                                "No matching factor found for kind/subkind",
-                                max_row_errors,
-                            )
-                            continue
-                        if (
-                            factor
-                            and factor.data_entry_type_id != data_entry_type.value
-                        ):
-                            self._record_row_error(
-                                stats,
-                                row_idx,
-                                "Factor data_entry_type_id mismatch",
-                                max_row_errors,
-                            )
-                            continue
-
-                    if not self.carbon_report_module_id:
-                        self._record_row_error(
-                            stats,
-                            row_idx,
-                            "Missing carbon_report_module_id",
-                            max_row_errors,
-                        )
-                        continue
-
-                    payload = dict(filtered_row)
-                    payload["data_entry_type_id"] = data_entry_type.value
-                    payload["carbon_report_module_id"] = self.carbon_report_module_id
-
-                    try:
-                        validated = handler.validate_create(payload)
-                    except Exception as validation_error:
-                        self._record_row_error(
-                            stats,
-                            row_idx,
-                            f"Validation error: {validation_error}",
-                            max_row_errors,
-                        )
-                        continue
-
-                    primary_factor_id = factor.id if factor else None
-                    data = dict(validated.data)
-                    data["primary_factor_id"] = primary_factor_id
-
-                    if factor:
-                        stats["rows_with_factors"] += 1
-                    else:
-                        stats["rows_without_factors"] += 1
-
-                    data_entry = DataEntry(
-                        data_entry_type_id=data_entry_type,
-                        carbon_report_module_id=self.carbon_report_module_id,
-                        data=data,
-                    )
-                    batch.append(data_entry)
-                    stats["rows_processed"] += 1
-
-                    # Process batch when it reaches BATCH_SIZE
-                    if len(batch) >= BATCH_SIZE:
-                        await self._process_batch(
-                            batch, data_entry_service, emission_service
-                        )
-                        stats["batches_processed"] += 1
-                        logger.info(
-                            f"Processed batch {stats['batches_processed']}: "
-                            f"{stats['rows_processed']} rows total"
-                        )
-                        batch = []  # Reset batch
-
-                except Exception as row_error:
-                    logger.error(
-                        f"Row {row_idx}: Error processing row: {str(row_error)}"
-                    )
-                    self._record_row_error(
-                        stats,
-                        row_idx,
-                        f"Row processing error: {row_error}",
-                        max_row_errors,
-                    )
+                if error_msg:
+                    # Row had errors, already recorded in stats
                     continue
 
-            # Process final batch (remaining rows < BATCH_SIZE)
-            if batch:
-                await self._process_batch(batch, data_entry_service, emission_service)
-                stats["batches_processed"] += 1
-                logger.info(
-                    f"Processed final batch {stats['batches_processed']}: "
-                    f"{stats['rows_processed']} rows total"
-                )
+                assert (
+                    data_entry is not None
+                )  # Type guard: if no error, data_entry is valid
 
-            # Move file from processing/ to processed/
-            processed_path = f"processed/{self.job_id}/{filename}"
-            logger.info(f"Moving file from {processing_path} to {processed_path}")
-            move_result = await self.files_store.move_file(
-                processing_path, processed_path
-            )
-            if not move_result:
-                logger.warning(
-                    f"Failed to move file from {processing_path} to {processed_path}"
-                )
+                # Row processed successfully
+                batch.append(data_entry)
+                if factor:
+                    stats["rows_with_factors"] += 1
+                else:
+                    stats["rows_without_factors"] += 1
+                stats["rows_processed"] += 1
 
-            # Commit all changes
-            await self.session.commit()
-            logger.info(
-                "All changes committed successfully",
-                extra={"job_id": self.job_id, "length": stats["rows_processed"]},
-            )
+                # Process batch when it reaches BATCH_SIZE
+                if len(batch) >= BATCH_SIZE:
+                    await self._process_batch(
+                        batch, data_entry_service, emission_service
+                    )
+                    stats["batches_processed"] += 1
+                    logger.info(
+                        f"Processed batch {stats['batches_processed']}: "
+                        f"{stats['rows_processed']} rows total"
+                    )
+                    batch = []
+                    # Update job progress every 5 batches
+                    if stats["batches_processed"] % 5 == 0:
+                        await self.repo.update_ingestion_job(
+                            job_id=self.job_id,
+                            status_message=f"""Processing: {stats["rows_processed"]}
+                            rows""",
+                            status_code=IngestionStatus.IN_PROGRESS,
+                            metadata=stats,
+                        )
+                        await self.session.commit()
 
-            # Update job status to COMPLETED with summary
-            status_message = (
-                f"Processed {stats['rows_processed']} rows: "
-                f"{stats['rows_with_factors']} with factors, "
-                f"{stats['rows_without_factors']} without factors, "
-                f"{stats['rows_skipped']} skipped"
+            # Finalize: process remaining batch, move file, update job
+            return await self._finalize_and_commit(
+                batch, data_entry_service, emission_service, stats, setup_result
             )
-            await self.repo.update_ingestion_job(
-                job_id=self.job_id,
-                status_message=status_message,
-                status_code=IngestionStatus.COMPLETED,
-                metadata=stats,
-            )
-
-            return {
-                "status": "success",
-                "inserted": stats["rows_processed"],
-                "skipped": stats["rows_skipped"],
-                "stats": stats,
-            }
 
         except Exception as e:
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
-            # Rollback session on error
             await self.session.rollback()
-
-            # Update job status to FAILED
+            await self.session.commit()
             await self.repo.update_ingestion_job(
                 job_id=self.job_id,
                 status_message=f"Processing failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
                 metadata={"error": str(e)},
             )
+            await self.session.commit()
             raise
+
+    async def _setup_and_validate(
+        self,
+    ) -> Dict[str, Any]:
+        """
+        Setup phase: move file, download CSV, load factors, validate headers.
+        Returns context dict with all data needed for row processing.
+        """
+        # Update job status to PROCESSING
+        await self.repo.update_ingestion_job(
+            job_id=self.job_id,
+            status_message="Starting CSV processing",
+            status_code=IngestionStatus.IN_PROGRESS,
+            metadata={},
+        )
+        await self.session.commit()
+
+        # Move file from source path to processing/
+        tmp_path = self.source_file_path
+        if not tmp_path:
+            raise ValueError("Missing file_path in config")
+        filename = tmp_path.split("/")[-1]
+        processing_path = f"processing/{self.job_id}/{filename}"
+
+        logger.info(f"Moving file from {tmp_path} to {processing_path}")
+        move_result = await self.files_store.move_file(tmp_path, processing_path)
+        if not move_result:
+            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+
+        # Download and decode CSV content
+        logger.info(f"Downloading CSV from {processing_path}")
+        file_content, mime_type = await self.files_store.get_file(processing_path)
+        csv_text = file_content.decode("utf-8")
+
+        # Determine entity type
+        entity_type_value = self.config.get("entity_type")
+        if entity_type_value is None:
+            entity_type = (
+                EntityType.MODULE_UNIT_SPECIFIC
+                if self.carbon_report_module_id
+                else EntityType.MODULE_PER_YEAR
+            )
+        else:
+            entity_type = EntityType(entity_type_value)
+
+        configured_data_entry_type_id = self.config.get("data_entry_type_id")
+
+        # Load factors map and determine handlers
+        logger.info("Loading factors map")
+        factors_map: Dict[str, Any] = {}
+        if entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            if configured_data_entry_type_id is None:
+                raise Exception(
+                    "data_entry_type must be specified for MODULE_UNIT_SPECIFIC"
+                )
+            configured_data_entry_type = DataEntryTypeEnum(
+                configured_data_entry_type_id
+            )
+            type_factors = await load_factors_map(
+                self.session, configured_data_entry_type
+            )
+            factors_map.update(type_factors)
+            handler = get_data_entry_handler_by_type(configured_data_entry_type)
+            handlers = [handler]
+            expected_columns = _get_expected_columns_from_handlers(handlers)
+            required_columns = _get_required_columns_from_handler(handler)
+        else:
+            handlers = list(MODULE_HANDLERS.values())
+            expected_columns = _get_expected_columns_from_handlers(handlers)
+            required_columns = set()
+            for entry_type in DataEntryTypeEnum:
+                type_factors = await load_factors_map(self.session, entry_type)
+                factors_map.update(type_factors)
+
+        # Validate CSV headers upfront
+        logger.info("Validating CSV headers")
+        try:
+            await self._validate_csv_headers(
+                csv_text, expected_columns, required_columns
+            )
+            logger.info("CSV header validation passed")
+        except ValueError as validation_error:
+            error_message = str(validation_error)
+            logger.error(f"CSV validation failed: {error_message}")
+            await self.repo.update_ingestion_job(
+                job_id=self.job_id,
+                status_message=f"Column validation failed: {error_message}",
+                status_code=IngestionStatus.FAILED,
+                metadata={"validation_error": error_message},
+            )
+            await self.session.commit()
+            raise
+
+        return {
+            "csv_text": csv_text,
+            "entity_type": entity_type,
+            "configured_data_entry_type_id": configured_data_entry_type_id,
+            "handlers": handlers,
+            "factors_map": factors_map,
+            "expected_columns": expected_columns,
+            "required_columns": required_columns,
+            "processing_path": processing_path,
+            "filename": filename,
+        }
+
+    async def _process_row(
+        self,
+        row: Dict[str, str],
+        row_idx: int,
+        setup_result: Dict[str, Any],
+        stats: StatsDict,
+        max_row_errors: int,
+    ) -> tuple[DataEntry | None, str | None, Any | None]:
+        """
+        Process a single CSV row.
+        Returns (DataEntry, error_msg, factor) tuple.
+        If error_msg is not None, row processing failed and error was recorded.
+        """
+        try:
+            entity_type = setup_result["entity_type"]
+            configured_data_entry_type_id = setup_result[
+                "configured_data_entry_type_id"
+            ]
+            handlers = setup_result["handlers"]
+            factors_map = setup_result["factors_map"]
+            expected_columns = setup_result["expected_columns"]
+            required_columns = setup_result["required_columns"]
+
+            # Filter row to only include expected columns
+            filtered_row = {
+                k: v
+                for k, v in row.items()
+                if k in expected_columns and v is not None and v.strip() != ""
+            }
+
+            # Check required columns for MODULE_UNIT_SPECIFIC
+            if (
+                entity_type == EntityType.MODULE_UNIT_SPECIFIC
+                and required_columns
+                and not required_columns.issubset(filtered_row.keys())
+            ):
+                missing_fields = required_columns - set(filtered_row.keys())
+                error_msg = f"Missing required fields {missing_fields}"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None
+
+            # Get current handler
+            handler = handlers[0] if handlers else None
+            if not handler:
+                error_msg = "No handler available"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None
+
+            # Lookup factor
+            factor = None
+            kind_value = (
+                filtered_row.get(handler.kind_field) if handler.kind_field else ""
+            )
+            subkind_value = (
+                filtered_row.get(handler.subkind_field)
+                if handler.subkind_field
+                else None
+            )
+            if kind_value:
+                factor = lookup_factor(
+                    kind=kind_value,
+                    subkind=subkind_value,
+                    factors_map=factors_map,
+                )
+
+            # Resolve data_entry_type and handler based on entity type
+            if entity_type == EntityType.MODULE_PER_YEAR:
+                if not factor:
+                    error_msg = "Missing factor for MODULE_PER_YEAR"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
+                data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
+                handler = get_data_entry_handler_by_type(data_entry_type)
+            else:
+                # MODULE_UNIT_SPECIFIC
+                if configured_data_entry_type_id is None:
+                    raise Exception("data_entry_type must be specified for MODULE_UNIT")
+                data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
+                match_factors = is_in_factors_map(
+                    kind=filtered_row.get(handler.kind_field, ""),
+                    subkind=filtered_row.get(handler.subkind_field, None),
+                    factors_map=factors_map,
+                    require_subkind=handler.require_subkind_for_factor,
+                )
+                if factor is None and match_factors is False:
+                    error_msg = (
+                        "Probably not part of authorized data entries. "
+                        "No matching factor found for kind/subkind"
+                    )
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
+                if factor and factor.data_entry_type_id != data_entry_type.value:
+                    error_msg = "Factor data_entry_type_id mismatch"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
+
+            # Validate carbon_report_module_id
+            if not self.carbon_report_module_id:
+                error_msg = "Missing carbon_report_module_id"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None
+
+            # Validate payload with handler
+            payload: Dict[str, str | int] = dict(filtered_row)
+            payload["data_entry_type_id"] = data_entry_type.value
+            payload["carbon_report_module_id"] = self.carbon_report_module_id
+
+            try:
+                validated = handler.validate_create(payload)
+            except Exception as validation_error:
+                error_msg = f"Validation error: {validation_error}"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None
+
+            # Build DataEntry
+            primary_factor_id = factor.id if factor else None
+            data = dict(validated.data)
+            data["primary_factor_id"] = primary_factor_id
+
+            data_entry = DataEntry(
+                data_entry_type_id=data_entry_type,
+                carbon_report_module_id=self.carbon_report_module_id,
+                data=data,
+            )
+
+            return data_entry, None, factor
+
+        except Exception as row_error:
+            logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
+            error_msg = f"Row processing error: {row_error}"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, error_msg, None
+
+    async def _finalize_and_commit(
+        self,
+        batch: List[DataEntry],
+        data_entry_service: DataEntryService,
+        emission_service: DataEntryEmissionService,
+        stats: StatsDict,
+        setup_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Finalize: process remaining batch, move file to processed/, update job.
+        """
+        # Process final batch (remaining rows < BATCH_SIZE)
+        if batch:
+            await self._process_batch(batch, data_entry_service, emission_service)
+            stats["batches_processed"] += 1
+            logger.info(
+                f"Processed final batch {stats['batches_processed']}: "
+                f"{stats['rows_processed']} rows total"
+            )
+
+        # Move file from processing/ to processed/
+        processing_path = setup_result["processing_path"]
+        filename = setup_result["filename"]
+        processed_path = f"processed/{self.job_id}/{filename}"
+        logger.info(f"Moving file from {processing_path} to {processed_path}")
+        move_result = await self.files_store.move_file(processing_path, processed_path)
+        if not move_result:
+            logger.warning(
+                f"Failed to move file from {processing_path} to {processed_path}"
+            )
+
+        # Commit all changes
+        await self.session.commit()
+        logger.info(
+            "All changes committed successfully",
+            extra={"job_id": self.job_id, "length": stats["rows_processed"]},
+        )
+
+        # Update job status to COMPLETED with summary
+        status_message = (
+            f"Processed {stats['rows_processed']} rows: "
+            f"{stats['rows_with_factors']} with factors, "
+            f"{stats['rows_without_factors']} without factors, "
+            f"{stats['rows_skipped']} skipped"
+        )
+        await self.repo.update_ingestion_job(
+            job_id=self.job_id,
+            status_message=status_message,
+            status_code=IngestionStatus.COMPLETED,
+            metadata=stats,
+        )
+        await self.session.commit()
+
+        return {
+            "status": "success",
+            "inserted": stats["rows_processed"],
+            "skipped": stats["rows_skipped"],
+            "stats": stats,
+        }
 
     async def _process_batch(
         self,

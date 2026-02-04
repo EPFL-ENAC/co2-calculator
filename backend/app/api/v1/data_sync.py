@@ -244,3 +244,60 @@ async def job_stream(
             await asyncio.sleep(2)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
+@router.get("/jobs/{job_id}/stream")
+async def job_stream_by_id(
+    job_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Server-Sent Events endpoint to stream a single job update in real-time.
+    Polls the database for status changes and sends updates to the client.
+    Stream ends when the job is completed or failed.
+    """
+
+    async def event_generator():
+        last_status = None
+        last_message = None
+        polls_after_completion = 0
+
+        while True:
+            job = await DataIngestionRepository(db).get_job_by_id(job_id)
+            if not job:
+                not_found_status = {
+                    "job_id": job_id,
+                    "status_message": "Job not found",
+                }
+                yield f"data: {json.dumps(not_found_status)}\n\n"
+                break
+
+            current_status = {
+                "job_id": job.id,
+                "module_type_id": job.module_type_id,
+                "target_type": job.target_type,
+                "year": job.year,
+                "status": job.status,
+                "status_message": job.status_message,
+            }
+
+            # Yield if either status OR message changed
+            if last_status != current_status or last_message != job.status_message:
+                yield f"data: {json.dumps(current_status)}\n\n"
+                last_status = current_status
+                last_message = job.status_message
+
+            # If job is completed or failed...
+            if job.status in {IngestionStatus.COMPLETED, IngestionStatus.FAILED}:
+                polls_after_completion += 1
+                if polls_after_completion >= 2:
+                    # Send final completion message before closing stream
+                    final_status = {**current_status, "stream_closed": True}
+                    yield f"data: {json.dumps(final_status)}\n\n"
+                    break
+
+            await asyncio.sleep(2)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
