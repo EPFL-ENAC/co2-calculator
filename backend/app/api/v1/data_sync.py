@@ -132,12 +132,10 @@ async def sync_module_data_entries(
         factor_type_id=factor_type_id,
         config=config,
     )
-    # Enqueue background task
-    # run_ingestion.delay(
-    #     provider_name=provider.__class__.__name__,
-    #     job_id=job_id,
-    #     filters=request.filters,
-    # )
+    # Schedule the ingestion task in the background
+    # NOTE: file_path validation happens in provider.__init__()
+    #   via _validate_file_path()
+    # to prevent directory traversal attacks (e.g., /../../../etc/passwd)
     background_tasks.add_task(
         run_ingestion,
         provider_name=provider.__class__.__name__,
@@ -145,8 +143,6 @@ async def sync_module_data_entries(
         filters=request.filters or {},
     )
 
-    # TODO: return job status and status_code not custom message!
-    #  get Job ?
     return {
         "job_id": job_id,
         "status": "pending",

@@ -35,7 +35,7 @@ async def run_sync_task(
             job_config = job.meta["config"]
 
         provider = provider_class(
-            config={**job_config, "job_id": job.id, **job.__dict__},
+            config={**job.__dict__, **job_config, "job_id": job.id},
             user=job.user
             if hasattr(job, "user")
             else None,  # User info can be added if needed

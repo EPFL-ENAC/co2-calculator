@@ -29,6 +29,30 @@ logger = get_logger(__name__)
 BATCH_SIZE = 1000
 
 
+def _validate_file_path(file_path: str) -> None:
+    """
+    Validate file_path to prevent directory traversal attacks.
+    File should come from files_store and start with expected prefixes.
+    """
+    if not file_path:
+        raise ValueError("file_path cannot be empty")
+
+    # Prevent directory traversal
+    if ".." in file_path:
+        raise ValueError("Invalid file_path: directory traversal not allowed")
+
+    # Normalize path and check for absolute paths
+    if file_path.startswith("/"):
+        raise ValueError("Invalid file_path: absolute paths not allowed")
+
+    # Only allow files from tmp/ or similar temporary upload directories
+    allowed_prefixes = ("tmp/", "uploads/", "temporary/")
+    if not any(file_path.startswith(prefix) for prefix in allowed_prefixes):
+        raise ValueError(
+            f"Invalid file_path: must start with one of {allowed_prefixes}"
+        )
+
+
 class StatsDict(TypedDict):
     """Type definition for CSV processing statistics"""
 
@@ -74,6 +98,8 @@ class DataEntriesCSVProvider(DataIngestionProvider):
         ) or config.get("module_type_id")
         # Store the original file path from config
         self.source_file_path = config.get("file_path")
+        if self.source_file_path:
+            _validate_file_path(self.source_file_path)
         # Lazy initialization - will be created when needed
         self._session: Any = None
         self._files_store: Any = None
@@ -205,6 +231,60 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                     f"""Strict mode: CSV is missing
                     expected columns: {", ".join(sorted(missing_columns))}"""
                 )
+
+    def _extract_kind_subkind_values(
+        self,
+        filtered_row: Dict[str, str],
+        handlers: List[Any],
+        entity_type: EntityType,
+    ) -> tuple[str, str | None]:
+        """
+        Extract kind and subkind values from filtered row.
+        For MODULE_UNIT_SPECIFIC: uses the single handler's field names.
+        For MODULE_PER_YEAR: tries to find values across all handlers.
+        """
+        if entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            # For MODULE_UNIT_SPECIFIC, use the single handler's field names
+            handler = handlers[0] if handlers else None
+            if not handler:
+                return "", None
+            kind_value = (
+                filtered_row.get(handler.kind_field, "") if handler.kind_field else ""
+            )
+            subkind_value = (
+                filtered_row.get(handler.subkind_field)
+                if handler.subkind_field
+                else None
+            )
+            return kind_value, subkind_value
+        else:
+            # For MODULE_PER_YEAR: try to find kind/subkind across all handlers
+            # Loop through all handlers and find the first one that has kind_field
+            for handler in handlers:
+                if handler.kind_field and handler.kind_field in filtered_row:
+                    kind_value = filtered_row.get(handler.kind_field, "")
+                    subkind_value = (
+                        filtered_row.get(handler.subkind_field)
+                        if handler.subkind_field
+                        else None
+                    )
+                    return kind_value, subkind_value
+
+            # Fallback: try common field names across all handlers
+            for handler in handlers:
+                subkind_value = None
+                # Check if this handler has subkind_field and it exists in row
+                if handler.subkind_field and handler.subkind_field in filtered_row:
+                    subkind_value = filtered_row.get(handler.subkind_field)
+
+                # Try common kind field names
+                for kind_field_name in ("kind", "Kind", "KIND"):
+                    if kind_field_name in filtered_row:
+                        kind_value = filtered_row.get(kind_field_name, "")
+                        return kind_value, subkind_value
+
+            # Last resort: return empty if nothing found
+            return "", None
 
     async def ingest(
         self,
@@ -338,6 +418,7 @@ class DataEntriesCSVProvider(DataIngestionProvider):
         tmp_path = self.source_file_path
         if not tmp_path:
             raise ValueError("Missing file_path in config")
+        _validate_file_path(tmp_path)  # Extra safety check
         filename = tmp_path.split("/")[-1]
         processing_path = f"processing/{self.job_id}/{filename}"
 
@@ -463,23 +544,13 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
-            # Get current handler
-            handler = handlers[0] if handlers else None
-            if not handler:
-                error_msg = "No handler available"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+            # Extract kind/subkind values (handler-independent for MODULE_PER_YEAR)
+            kind_value, subkind_value = self._extract_kind_subkind_values(
+                filtered_row, handlers, entity_type
+            )
 
             # Lookup factor
             factor = None
-            kind_value = (
-                filtered_row.get(handler.kind_field) if handler.kind_field else ""
-            )
-            subkind_value = (
-                filtered_row.get(handler.subkind_field)
-                if handler.subkind_field
-                else None
-            )
             if kind_value:
                 factor = lookup_factor(
                     kind=kind_value,
@@ -500,6 +571,11 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                 if configured_data_entry_type_id is None:
                     raise Exception("data_entry_type must be specified for MODULE_UNIT")
                 data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
+                handler = handlers[0]
+                if not handler:
+                    error_msg = "No handler available"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
                 match_factors = is_in_factors_map(
                     kind=filtered_row.get(handler.kind_field, ""),
                     subkind=filtered_row.get(handler.subkind_field, None),
