@@ -896,18 +896,17 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  // Mocked download
-  const csvEquipmentContent = `Cost Center,Cost Center FR Description,Name 1,Category,Class,Service Date,Status
-C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,Cameras,12/7/2024,In service`;
+  //
+  const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
 
-  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule
-2025-12-10,20001,SV-DEC,F1380,SV-DO,00000,UserName,Employé(e) / 13 NSS,Assistant-e administratif-ve,000000,1.00,member
-2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
+  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
 
-  // # TODO: add external cloud and ai
-  // Use backend-generated templates
+  const csvExternalCloudContent = `service_type,cloud_provider,spending`;
+  const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
+
+  const csvDefaultContent = `not_implemented_yet`;
 
   let csvContent: string;
   switch (props.moduleType) {
@@ -918,8 +917,23 @@ C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,C
       csvContent = csvProfessionalTravelContent;
       break;
     case MODULES.EquipmentElectricConsumption:
-    default:
       csvContent = csvEquipmentContent;
+      break;
+    case MODULES.ExternalCloudAndAI:
+      if (
+        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
+      ) {
+        csvContent = csvExternalCloudContent;
+      } else if (
+        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
+      ) {
+        csvContent = csvExternalAIContent;
+      } else {
+        csvContent = csvDefaultContent;
+      }
+      break;
+    default:
+      csvContent = csvDefaultContent;
       break;
   }
 
