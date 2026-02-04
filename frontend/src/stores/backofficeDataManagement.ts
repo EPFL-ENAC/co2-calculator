@@ -227,15 +227,7 @@ provider_type
 
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
-            // debugger;
             const update: JobUpdatePayload = JSON.parse(event.data);
-            console.log(update);
-            // Map status codes to numbers
-            // NOT_STARTED = 0
-            // PENDING = 1
-            // IN_PROGRESS = 2
-            // COMPLETED = 3
-            // FAILED = 4
             const statusMap: Record<string, number> = {
               NOT_STARTED: 0,
               PENDING: 1,
@@ -253,9 +245,6 @@ provider_type
             // const module_type_id = update.module_type_id;
             const year = update.year;
 
-            console.log(
-              `Received SSE update for job_id ${job_id}: status=${status}`,
-            );
             // Find and update the job in the store
             if (syncJobs[year]) {
               const jobIndex = syncJobs[year].findIndex(
@@ -271,12 +260,10 @@ provider_type
             }
 
             if (status === 3) {
-              console.log('Sync job completed: call onCompleted callback');
               onCompleted?.(update);
             }
 
             if (status === 4) {
-              console.log('Sync job failed');
               onFail?.(update);
             }
             if (status === 3 || status === 4) {
@@ -288,7 +275,6 @@ provider_type
         };
 
         sseConnection.onerror = () => {
-          console.error('SSE connection error');
           unsubscribeFromJobUpdates();
         };
       } catch (err) {
@@ -301,8 +287,6 @@ provider_type
      */
     function unsubscribeFromJobUpdates(): void {
       if (sseConnection) {
-        // debugger;
-        console.log('Closing SSE connection');
         sseConnection.close();
         sseConnection = null;
       }
