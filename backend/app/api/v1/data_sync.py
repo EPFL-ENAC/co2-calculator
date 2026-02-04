@@ -16,7 +16,7 @@ from app.models.data_ingestion import (
     IngestionStatus,
     TargetType,
 )
-from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
@@ -187,68 +187,11 @@ async def get_jobs_by_status(
     return jobs
 
 
-# New endpoint to get all sync jobs for a specific year
-@router.get("/jobs/year/{year}", response_model=dict)
-async def get_sync_jobs_by_year(
-    year: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> dict:
-    ## maybe pass by service?
-    jobs = await DataIngestionRepository(db).get_jobs_by_year(year)
-
-    # Initialize result structure with all module
-    # types and both target types (0=data_entries, 1=factors)
-    result = {}
-    for module_type_id_iter in ALL_MODULE_TYPE_IDS:  # 1 to 7 inclusive
-        result[module_type_id_iter.value] = {
-            0: {"status": 0, "message": ""},  # data_entries default
-            1: {"status": 0, "message": ""},  # factors default
-        }
-
-    # Update with actual job data
-    for job in jobs:
-        if (job.module_type_id is None) or (job.target_type is None):
-            continue
-        module_type_id = job.module_type_id
-        target_type = job.target_type
-        if module_type_id in result and target_type in result[module_type_id]:
-            result[module_type_id][target_type] = {
-                "status": job.status,
-                "message": job.status_message or "",
-            }
-
-    return result
-
-
-@router.get("/jobs/{job_id}", response_model=SyncJobResponse)
-async def get_sync_job(
-    job_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> SyncJobResponse:
-    # should call the service!
-    job = await DataIngestionRepository(db).get_job_by_id(job_id)
-    if not job or job.id is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return SyncJobResponse(
-        job_id=job.id,
-        module_type_id=job.module_type_id,
-        year=job.year,
-        ingestion_method=job.ingestion_method,
-        target_type=job.target_type,
-        status=job.status,
-        status_message=job.status_message,
-        meta=job.meta,
-    )
-
-
-# SSE endpoint to stream job updates
+# SSE endpoint to stream job updates - MUST be before /jobs/{job_id}
 @router.get("/jobs/stream")
 async def job_stream(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Server-Sent Events endpoint to stream job updates in real-time.
@@ -270,7 +213,8 @@ async def job_stream(
 
         while True:
             # Fetch all active jobs (not completed or failed)
-            jobs = await DataIngestionRepository(db).get_active_jobs()
+            # jobs = await DataIngestionRepository(db).get_active_jobs()
+            jobs = await DataIngestionRepository(db).get_completed_jobs()
 
             # Compare with last state
             for job in jobs:
