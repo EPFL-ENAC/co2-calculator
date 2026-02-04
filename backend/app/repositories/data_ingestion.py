@@ -86,23 +86,43 @@ class DataIngestionRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def _get_jobs_by_status(
+        self, statuses: list[IngestionStatus], negate: bool = False
+    ) -> list[DataIngestionJob]:
+        """
+        Helper method to fetch jobs filtered by status.
+
+        Args:
+            statuses: List of IngestionStatus values to filter by
+            negate: If True, exclude jobs with these statuses (use notin_)
+
+        Returns:
+            List of DataIngestionJob objects ordered by id descending
+        """
+        status_filter = (
+            col(DataIngestionJob.status).notin_(statuses)
+            if negate
+            else col(DataIngestionJob.status).in_(statuses)
+        )
+        stmt = (
+            select(DataIngestionJob)
+            .where(status_filter)
+            .order_by(desc(DataIngestionJob.id))
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_completed_jobs(self) -> list[DataIngestionJob]:
+        """
+        Get all jobs that are in a final state (COMPLETED or FAILED).
+        """
+        final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
+        return await self._get_jobs_by_status(final_states)
+
     async def get_active_jobs(self) -> list[DataIngestionJob]:
         """
         Get all jobs that are not in a final state (not COMPLETED or FAILED).
         Used for SSE streaming of job updates.
         """
         final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-
-        stmt = (
-            select(DataIngestionJob)
-            .where(
-                # 1. Use 'col()' to satisfy Mypy
-                # 2. Use 'notin_' (with the underscore)
-                col(DataIngestionJob.status).notin_(final_states)
-            )
-            # 3. use desc(DataIngestionJob.id)
-            .order_by(desc(DataIngestionJob.id))
-        )
-
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return await self._get_jobs_by_status(final_states, negate=True)

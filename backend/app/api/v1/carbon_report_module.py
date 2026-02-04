@@ -34,6 +34,7 @@ from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
+    ModuleHandler,
     get_data_entry_handler_by_type,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -677,14 +678,22 @@ async def update(
     else:
         try:
             existing_entry = await DataEntryService(db).get(id=item_id)
-            existing_data = existing_entry.data if existing_entry else None
-
+            existing_data = existing_entry.data if existing_entry else {}
             update_payload = {
                 **item_data,
                 "data_entry_type_id": data_entry_type_id,
                 "carbon_report_module_id": carbon_report_module_id,
             }
-            handler = get_data_entry_handler_by_type(data_entry_type)
+            handler: ModuleHandler = get_data_entry_handler_by_type(data_entry_type)
+            handler_kind_field = handler.kind_field or ""
+            handler_subkind_field = handler.subkind_field or ""
+            if (handler_kind_field in item_data) and (
+                item_data[handler_kind_field] != existing_data.get(handler_kind_field)
+            ):
+                # If the kind field is being updated, we need to reset subkind and
+                # primary_factor_id to ensure data integrity
+                update_payload[handler_subkind_field] = None
+                update_payload["primary_factor_id"] = None
             update_payload = await handler.resolve_primary_factor_id(
                 update_payload, data_entry_type, db, existing_data=existing_data
             )
@@ -713,20 +722,18 @@ async def update(
             data=data_entry_update,
             user=current_user,
         )
+        await db.flush()
         if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Data entry item not found",
             )
         # Recalculate emission after update
-        emission = await DataEntryEmissionService(db).update_by_data_entry(
+        await DataEntryEmissionService(db).upsert_by_data_entry(
             data_entry_response=item,
         )
-        if emission is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update data entry emission",
-            )
+        # upsert could fail if emission factor lookup fails, but we still want to
+        # return the updated item
         await db.commit()
     logger.info(f"Updated item {sanitize(item_id)}")
     return item

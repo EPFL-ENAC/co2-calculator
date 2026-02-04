@@ -50,8 +50,9 @@ export const useFilesStore = defineStore(
     /**
      * Upload temporary files to the backend.
      * @param files The files to upload.
+     * @returns The uploaded FileNode array with paths
      */
-    async function uploadTempFiles(files: FileObject[]) {
+    async function uploadTempFiles(files: FileObject[]): Promise<FileNode[]> {
       const formData = new FormData();
       files.forEach((file) => {
         formData.append('files', file, file.name);
@@ -62,6 +63,7 @@ export const useFilesStore = defineStore(
       });
       const nodes = await response.json();
       tempFiles.value.push(...nodes);
+      return nodes;
     }
 
     /**

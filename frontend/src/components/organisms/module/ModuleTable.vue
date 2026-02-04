@@ -22,6 +22,11 @@
         class="text-weight-medium"
         @click="onDownloadTemplate"
       />
+
+      <files-upload-dialog
+        v-model="showUploadDialog"
+        @files-uploaded="onFilesUploaded"
+      />
     </div>
     <q-input
       v-model="filterTerm"
@@ -291,7 +296,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted } from 'vue';
+import FilesUploadDialog from 'src/components/organisms//data-management/FilesUploadDialog.vue';
+
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
@@ -300,13 +307,16 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
+  EnumSubmoduleType,
 } from 'src/constant/modules';
+import { enumSubmodule } from 'src/constant/modules';
 
 import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
@@ -316,6 +326,62 @@ const { t: $t } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
+const dataManagementStore = useBackofficeDataManagement();
+
+const showUploadDialog = ref<boolean>(false);
+
+const onFilesUploaded = async (filePaths: string[]) => {
+  showUploadDialog.value = false;
+
+  if (!filePaths || filePaths.length === 0) {
+    $q.notify({
+      color: 'negative',
+      message: 'No files uploaded',
+      position: 'top',
+    });
+    return;
+  }
+
+  const filePath = filePaths[0];
+  const moduleTypeId = dataManagementStore.getModuleTypeId(
+    props.moduleType as Module,
+  );
+
+  try {
+    $q.notify({
+      color: 'info',
+      message: 'Starting CSV sync...',
+      position: 'top',
+    });
+    const carbonReportModuleId =
+      moduleStore.state.data?.carbon_report_module_id;
+    await dataManagementStore.initiateSync({
+      module_type_id: moduleTypeId,
+      provider_type: 'csv',
+      target_type: 'data_entries',
+      file_path: filePath,
+      carbon_report_module_id: carbonReportModuleId,
+      config: {
+        carbon_report_module_id: carbonReportModuleId,
+        data_entry_type_id:
+          enumSubmodule[props.submoduleType as EnumSubmoduleType],
+      },
+    });
+
+    $q.notify({
+      color: 'positive',
+      message: 'CSV sync initiated',
+      position: 'top',
+    });
+  } catch (err) {
+    console.error('Failed to initiate sync:', err);
+    $q.notify({
+      color: 'negative',
+      message: err instanceof Error ? err.message : 'Failed to initiate sync',
+      position: 'top',
+    });
+  }
+};
 
 const editDialogOpen = ref(false);
 const editInputs = ref<ModuleField[] | null>(null);
@@ -345,7 +411,6 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
-
 const moduleStore = useModuleStore();
 
 // Permission check: can user edit this module?
@@ -584,7 +649,8 @@ async function commitInline(
   if (!col.editableInline) return;
   // Only usage fields use the hours/week validation; other inline
   // fields (including selects) are patched as-is.
-  const isUsageField = col.name === 'act_usage' || col.name === 'pas_usage';
+  const isUsageField =
+    col.name === 'active_usage_hours' || col.name === 'passive_usage_hours';
   const isNumberOfTrips = col.name === 'number_of_trips';
   const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
@@ -682,8 +748,8 @@ function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'equipment_class',
-    'act_usage',
-    'pas_usage',
+    'active_usage_hours',
+    'passive_usage_hours',
     'active_power_w',
     'standby_power_w',
   ];
@@ -795,8 +861,8 @@ function onFormSubmit(
     if (moduleType === MODULES.EquipmentElectricConsumption) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
-      basePayload.act_usage = Number(payload.act_usage);
-      basePayload.pas_usage = Number(payload.pas_usage);
+      basePayload.active_usage_hours = Number(payload.active_usage_hours);
+      basePayload.passive_usage_hours = Number(payload.passive_usage_hours);
     }
 
     const p = isEdit
@@ -826,11 +892,7 @@ function onFormSubmit(
 }
 
 function onUploadCsv() {
-  $q.notify({
-    color: 'info',
-    message: $t('common_upload_csv_mock') || 'CSV upload coming soon (mocked)',
-    position: 'top',
-  });
+  showUploadDialog.value = true;
 }
 
 function onDownloadTemplate() {
@@ -989,6 +1051,14 @@ onMounted(() => {
 
   // Clear inline errors on mount
   inlineErrors.value = {};
+
+  // Subscribe to SSE job updates
+  dataManagementStore.subscribeToJobUpdates();
+});
+
+// Unsubscribe from SSE when component unmounts
+onUnmounted(() => {
+  dataManagementStore.unsubscribeFromJobUpdates();
 });
 </script>
 

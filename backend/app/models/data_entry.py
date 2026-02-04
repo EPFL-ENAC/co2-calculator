@@ -6,6 +6,12 @@ from typing import Optional
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
+class DataEntryStatusEnum(int, Enum):
+    PENDING = 0
+    VALIDATED = 1
+    REJECTED = 2
+
+
 class DataEntryTypeEnum(int, Enum):
     # headcount
     member = 1
@@ -45,6 +51,11 @@ class DataEntryBase(SQLModel):
         default_factory=dict,
         sa_column=Column(JSON),
         description="Dynamic JSON storage for module-specific data",
+    )
+
+    status: Optional[DataEntryStatusEnum] = Field(
+        default=None,
+        description="Optional status field for additional state tracking",
     )
 
     @property

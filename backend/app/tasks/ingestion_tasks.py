@@ -28,12 +28,20 @@ async def run_sync_task(
         if not provider_class:
             logger.error(f"Provider class '{provider_class_name}' not found.")
             return
+
+        # Extract config from job.meta if available, otherwise use job.__dict__
+        job_config = {}
+        if hasattr(job, "meta") and job.meta and "config" in job.meta:
+            job_config = job.meta["config"]
+
         provider = provider_class(
-            config={**job.__dict__, "job_id": job.id},
+            config={**job_config, "job_id": job.id, **job.__dict__},
             user=job.user
             if hasattr(job, "user")
             else None,  # User info can be added if needed
         )
+        if hasattr(provider, "set_job_id") and job is not None and job.id is not None:
+            await provider.set_job_id(job.id)
         # Use job.meta as filters if present, else fallback to provided filters
         filters_to_use = (
             job.meta if hasattr(job, "meta") and job.meta else (filters or {})
@@ -41,8 +49,6 @@ async def run_sync_task(
         if not job.id:
             logger.error("Job ID is missing in the job record.")
             return
-        # Ensure job_id is set
-        await provider.set_job_id(job.id)
         # Run ingestion
         result = await provider.ingest(filters_to_use)
 

@@ -120,24 +120,31 @@ class DataEntryEmissionService:
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
 
-    async def update_by_data_entry(
+    async def upsert_by_data_entry(
         self, data_entry_response: DataEntryResponse
     ) -> DataEntryEmission | None:
-        """Update emissions for a data entry, if applicable."""
+        """Create or update emissions for a data entry, if applicable."""
+        # Prepare the emission record
+        prepared_emission = await self.prepare_create(data_entry_response)
+        if prepared_emission is None:
+            await self.repo.delete_by_data_entry_id(data_entry_response.id)
+            await self.session.flush()
+            return None
+
+        # Check if emission already exists
         existing_emission = await self.repo.get_by_data_entry_id(data_entry_response.id)
         if existing_emission is None:
-            return None
-        updated_emission = await self.prepare_create(data_entry_response)
-        if updated_emission is None:
-            return None
-        # Update fields
-        existing_emission.kg_co2eq = updated_emission.kg_co2eq
-        existing_emission.primary_factor_id = updated_emission.primary_factor_id
-        existing_emission.meta = updated_emission.meta
+            # Create new emission
+            created_emission = await self.repo.create(prepared_emission)
+            return created_emission
+        else:
+            # Update existing emission
+            existing_emission.kg_co2eq = prepared_emission.kg_co2eq
+            existing_emission.primary_factor_id = prepared_emission.primary_factor_id
+            existing_emission.meta = prepared_emission.meta
 
-        saved_emission = await self.repo.update(existing_emission)
-        # await self.session.refresh(saved_emission)
-        return saved_emission
+            updated_emission = await self.repo.update(existing_emission)
+            return updated_emission
 
     async def get_stats(
         self,
@@ -230,24 +237,28 @@ def compute_scientific_it_other(
     """Compute emissions for scientific, it, other."""
     # Implement actual calculation based on data_entry data
     kg_co2eq = None
+    response = {"kg_co2eq": kg_co2eq}
     if not factors or len(factors) == 0:
-        return {"kg_co2eq": kg_co2eq}
+        return response
 
     factor = factors[0]
     active_usage_hours = data_entry.data.get("active_usage_hours", None)
     if active_usage_hours is None:
-        raise ValueError("active_usage_hours is required for emissions calculation")
+        logger.warning("active_usage_hours is missing in data entry data")
+        return response
     passive_usage_hours = data_entry.data.get("passive_usage_hours", None)
     if passive_usage_hours is None:
-        raise ValueError("passive_usage_hours is required for emissions calculation")
+        logger.warning("passive_usage_hours is missing in data entry data")
+        return response
 
     active_power_w = factor.values.get("active_power_w", None)
     if active_power_w is None:
-        raise ValueError("active_power_w is required for emissions calculation")
+        logger.warning("active_power_w is missing in factor values")
+        return response
     standby_power_w = factor.values.get("standby_power_w", None)
     if standby_power_w is None:
-        raise ValueError("standby_power_w is required for emissions calculation")
-
+        logger.warning("standby_power_w is missing in factor values")
+        return response
     # Calculate weekly energy consumption in Watt-hours
     weekly_wh = (active_usage_hours * active_power_w) + (
         passive_usage_hours * standby_power_w

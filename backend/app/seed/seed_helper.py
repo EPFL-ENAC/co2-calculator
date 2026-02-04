@@ -105,6 +105,28 @@ def normalize_kind(kind: str) -> str:
     return kind.lower().strip()
 
 
+def is_in_factors_map(
+    kind: str,
+    subkind: Optional[str],
+    factors_map: Dict[str, Factor],
+    *,
+    require_subkind: bool = False,
+) -> bool:
+    normalized_kind_value = normalize_kind(kind)
+    subkind_value = normalize_kind(subkind) if subkind else None
+
+    if require_subkind and not subkind_value:
+        return False
+
+    if subkind_value:
+        pattern = f":{normalized_kind_value}:{subkind_value}"
+        return any(k.endswith(pattern) for k in factors_map.keys())
+
+    # kind-only check
+    kind_pattern = f":{normalized_kind_value}"
+    return any(k.endswith(kind_pattern) for k in factors_map.keys())
+
+
 def lookup_factor(
     kind: str,
     subkind: Optional[str],
@@ -113,7 +135,6 @@ def lookup_factor(
     """
     Lookup factor for data_entry by kind only.
 
-    Searches across all submodules since class names are mostly unique.
     Returns None if no match found OR if multiple matches exist (ambiguous).
 
     Logic:
@@ -131,13 +152,7 @@ def lookup_factor(
         k for k in factors_map.keys() if k.__contains__(f":{normalized_kind_value}:")
     ]
     search_pattern = f":{normalized_kind_value}:{subkind_value}"
-    # print(keys)
-    # print(subkind)
-    # print(normalized_kind_value, subkind)
     matches = [pf for pf in keys if pf.endswith(search_pattern)]
-    # print(matches)
-    # print("Matches found for kind", kind, "subkind", subkind)
-    # print(len(matches))
     if len(matches) == 0:
         # No power factor found
         return None
@@ -146,12 +161,10 @@ def lookup_factor(
         return factors_map[matches[0]]
     else:
         # Ambiguous - multiple matches found
-        # print(matches)
         logger.warning(
             f"Ambiguous factor lookup for kind '{kind}' "
             f"and subkind '{subkind}': "
             f"{len(matches)} matches found. "
             f"Sub-kind selection required for accurate matching."
         )
-        # For testing, return first match
         return factors_map[matches[0]]
