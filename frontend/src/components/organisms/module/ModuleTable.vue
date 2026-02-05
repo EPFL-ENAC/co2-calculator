@@ -54,6 +54,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
+    :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
     :filter="filterTerm"
@@ -330,6 +331,8 @@ const { t: $t } = useI18n();
 const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
+
+const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
 
