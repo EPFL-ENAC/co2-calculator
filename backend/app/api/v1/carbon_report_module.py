@@ -170,7 +170,7 @@ async def get_submodule(
     module_id: str,
     submodule_id: str,
     page: int = Query(default=1, ge=1, description="Page number"),
-    limit: int = Query(default=50, le=100, description="Items per page"),
+    limit: int = Query(default=50, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
     filter: Optional[str] = Query(
