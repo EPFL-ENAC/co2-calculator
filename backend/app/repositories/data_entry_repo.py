@@ -11,6 +11,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -287,8 +288,12 @@ class DataEntryRepository:
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
             kg_co2eq = None
+            emission_meta = {}
             if data_entry_emission is not None:
                 kg_co2eq = data_entry_emission.kg_co2eq
+                # Extract meta fields (e.g., distance_km for travel)
+                if data_entry_emission.meta:
+                    emission_meta = data_entry_emission.meta
             # If primary_factor is None, try to fetch it
             # from DataEntry.data["primary_factor_id"]
             if primary_factor is None:
@@ -300,6 +305,7 @@ class DataEntryRepository:
 
             data_entry.data = {
                 **data_entry.data,
+                **emission_meta,  # Include emission meta (e.g., distance_km for travel)
                 "kg_co2eq": kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
@@ -308,6 +314,22 @@ class DataEntryRepository:
                 if primary_factor
                 else {},
             }
+
+            # For trips, look up origin/destination names if not already present
+            if data_entry.data_entry_type_id == DataEntryTypeEnum.trips.value:
+                if not data_entry.data.get("origin"):
+                    origin_id = data_entry.data.get("origin_location_id")
+                    if origin_id:
+                        origin_loc = await self.session.get(Location, origin_id)
+                        if origin_loc:
+                            data_entry.data["origin"] = origin_loc.name
+                if not data_entry.data.get("destination"):
+                    dest_id = data_entry.data.get("destination_location_id")
+                    if dest_id:
+                        dest_loc = await self.session.get(Location, dest_id)
+                        if dest_loc:
+                            data_entry.data["destination"] = dest_loc.name
+
             items.append(handler.to_response(data_entry))
 
         response = SubmoduleResponse(

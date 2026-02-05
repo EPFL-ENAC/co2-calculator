@@ -8,6 +8,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryBase, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location
 from app.models.module_type import ModuleTypeEnum
 from app.services.factor_service import FactorService
 
@@ -665,6 +666,36 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
+
+    async def resolve_primary_factor_id(
+        self,
+        payload: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        db: AsyncSession,
+        existing_data: Optional[dict] = None,
+    ) -> dict:
+        """Look up origin and destination location names and store them."""
+        # Get location IDs from payload or existing data
+        origin_id = payload.get("origin_location_id")
+        dest_id = payload.get("destination_location_id")
+
+        if existing_data:
+            if origin_id is None:
+                origin_id = existing_data.get("origin_location_id")
+            if dest_id is None:
+                dest_id = existing_data.get("destination_location_id")
+
+        # Look up location names
+        if origin_id:
+            origin_loc = await db.get(Location, origin_id)
+            if origin_loc:
+                payload["origin"] = origin_loc.name
+        if dest_id:
+            dest_loc = await db.get(Location, dest_id)
+            if dest_loc:
+                payload["destination"] = dest_loc.name
+
+        return payload
 
     def to_response(self, data_entry: DataEntry) -> ProfessionalTravelHandlerResponse:
         return self.response_dto.model_validate(
