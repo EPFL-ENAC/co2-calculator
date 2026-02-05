@@ -11,6 +11,11 @@ from app.models.factor import Factor
 from app.models.location import Location
 from app.models.module_type import ModuleTypeEnum
 from app.services.factor_service import FactorService
+from app.utils.distance_geography import (
+    calculate_plane_distance,
+    calculate_train_distance,
+    get_haul_category,
+)
 
 logger = get_logger(__name__)
 
@@ -765,6 +770,60 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
+    async def _get_flight_factor(
+        self,
+        db: AsyncSession,
+        category: str,
+    ) -> Optional[Factor]:
+        """Look up flight emission factor by haul category."""
+        from sqlmodel import col, select
+
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await db.exec(stmt)
+        factors = result.all()
+
+        for factor in factors:
+            cls = factor.classification or {}
+            if (
+                cls.get("transport_mode") == "flight"
+                and cls.get("category") == category
+            ):
+                return factor
+        return None
+
+    async def _get_train_factor(
+        self,
+        db: AsyncSession,
+        countrycode: str,
+    ) -> Optional[Factor]:
+        """Look up train emission factor by country code."""
+        from sqlmodel import col, select
+
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await db.exec(stmt)
+        factors = result.all()
+
+        # Try exact country match first
+        for factor in factors:
+            cls = factor.classification or {}
+            if (
+                cls.get("transport_mode") == "train"
+                and cls.get("countrycode") == countrycode
+            ):
+                return factor
+
+        # Fallback to RoW (Rest of World)
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("transport_mode") == "train" and cls.get("countrycode") == "RoW":
+                return factor
+
+        return None
+
     async def resolve_primary_factor_id(
         self,
         payload: dict,
@@ -772,26 +831,95 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         db: AsyncSession,
         existing_data: Optional[dict] = None,
     ) -> dict:
-        """Look up origin and destination location names and store them."""
+        """Look up locations, calculate distance and emissions using factors table."""
         # Get location IDs from payload or existing data
         origin_id = payload.get("origin_location_id")
         dest_id = payload.get("destination_location_id")
+        transport_mode = payload.get("transport_mode")
+        number_of_trips = payload.get("number_of_trips", 1)
 
         if existing_data:
             if origin_id is None:
                 origin_id = existing_data.get("origin_location_id")
             if dest_id is None:
                 dest_id = existing_data.get("destination_location_id")
+            if transport_mode is None:
+                transport_mode = existing_data.get("transport_mode")
+            if number_of_trips is None:
+                number_of_trips = existing_data.get("number_of_trips", 1)
 
-        # Look up location names
-        if origin_id:
-            origin_loc = await db.get(Location, origin_id)
-            if origin_loc:
-                payload["origin"] = origin_loc.name
-        if dest_id:
-            dest_loc = await db.get(Location, dest_id)
-            if dest_loc:
-                payload["destination"] = dest_loc.name
+        # Look up locations
+        origin_loc = await db.get(Location, origin_id) if origin_id else None
+        dest_loc = await db.get(Location, dest_id) if dest_id else None
+
+        # Store location names
+        if origin_loc:
+            payload["origin"] = origin_loc.name
+        if dest_loc:
+            payload["destination"] = dest_loc.name
+
+        # Calculate distance and emissions if we have both locations
+        if origin_loc and dest_loc and transport_mode:
+            try:
+                if transport_mode == "flight":
+                    # Calculate distance and get haul category
+                    distance_km = calculate_plane_distance(origin_loc, dest_loc)
+                    category = get_haul_category(distance_km)
+
+                    # Look up factor by haul category
+                    factor = await self._get_flight_factor(db, category)
+                    if not factor:
+                        raise ValueError(
+                            f"No flight factor found for category: {category}"
+                        )
+
+                    # Calculate: distance × impact_score × rfi_adjustment × trips
+                    impact_score = factor.values.get("impact_score", 0)
+                    rfi_adjustment = factor.values.get("rfi_adjustment", 1)
+                    kg_co2eq = (
+                        distance_km * impact_score * rfi_adjustment * number_of_trips
+                    )
+
+                    payload["primary_factor_id"] = factor.id
+                    payload["distance_km"] = distance_km
+                    payload["category"] = category
+                    payload["kg_co2eq"] = round(kg_co2eq, 2)
+
+                    logger.debug(
+                        f"Flight: {distance_km}km × {impact_score} × {rfi_adjustment} "
+                        f"× {number_of_trips} = {kg_co2eq:.2f} kg CO2eq"
+                    )
+
+                elif transport_mode == "train":
+                    # Calculate distance
+                    distance_km = calculate_train_distance(origin_loc, dest_loc)
+
+                    # Get destination country for factor lookup
+                    dest_country = dest_loc.countrycode or "RoW"
+
+                    # Look up factor by country
+                    factor = await self._get_train_factor(db, dest_country)
+                    if not factor:
+                        raise ValueError(
+                            f"No train factor found for country: {dest_country}"
+                        )
+
+                    # Calculate: distance × impact_score × trips
+                    impact_score = factor.values.get("impact_score", 0)
+                    kg_co2eq = distance_km * impact_score * number_of_trips
+
+                    payload["primary_factor_id"] = factor.id
+                    payload["distance_km"] = distance_km
+                    payload["countrycode"] = dest_country
+                    payload["kg_co2eq"] = round(kg_co2eq, 2)
+
+                    logger.debug(
+                        f"Train ({dest_country}): {distance_km}km × {impact_score} "
+                        f"× {number_of_trips} = {kg_co2eq:.2f} kg CO2eq"
+                    )
+
+            except Exception as e:
+                logger.error(f"Error calculating travel emissions: {e}")
 
         return payload
 
