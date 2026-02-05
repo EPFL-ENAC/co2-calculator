@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -218,6 +219,23 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
 
 
 # ---- Specific ModuleHandler Responses DTO ------------------ #
+class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
+    traveler_name: str
+    traveler_id: Optional[int] = None
+    origin_location_id: int
+    destination_location_id: int
+    transport_mode: str  # "flight" or "train"
+    class_: Optional[str] = Field(
+        None, alias="class"
+    )  # eco, business, first, class_1, class_2
+    departure_date: Optional[date] = None
+    number_of_trips: int = 1
+    is_round_trip: bool = False
+    unit_id: int
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    distance_km: Optional[float] = None
+    kg_co2eq: Optional[float] = None
 
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
@@ -259,6 +277,21 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 
 # ---- CREATE DTO --------------------------------- #
+
+
+class ProfessionalTravelHandlerCreate(DataEntryCreate):
+    traveler_name: str
+    traveler_id: Optional[int] = None
+    origin_location_id: int
+    destination_location_id: int
+    transport_mode: str  # "flight" or "train"
+    class_: Optional[str] = Field(
+        None, alias="class"
+    )  # eco, business, first, class_1, class_2
+    departure_date: Optional[date] = None
+    number_of_trips: int = 1
+    is_round_trip: bool = False
+    unit_id: int
 
 
 class EquipmentHandlerCreate(DataEntryCreate):
@@ -336,6 +369,17 @@ class HeadCountStudentCreate(DataEntryCreate):
 
 
 ## UPDATE DTO
+
+
+class ProfessionalTravelHandlerUpdate(DataEntryUpdate):
+    traveler_name: Optional[str] = None
+    traveler_id: Optional[int] = None
+    origin_location_id: Optional[int] = None
+    destination_location_id: Optional[int] = None
+    transport_mode: Optional[str] = None
+    class_: Optional[str] = Field(None, alias="class")
+    departure_date: Optional[date] = None
+    number_of_trips: Optional[int] = None
 
 
 class HeadCountStudentUpdate(DataEntryUpdate):
@@ -647,3 +691,59 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> HeadCountStudentUpdate:
         return self.update_dto.model_validate(payload)
+
+
+# Professional Travel
+
+
+class ProfessionalTravelModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.professional_travel
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.trips
+    create_dto = ProfessionalTravelHandlerCreate
+    update_dto = ProfessionalTravelHandlerUpdate
+    response_dto = ProfessionalTravelHandlerResponse
+
+    kind_field = None
+    subkind_field = None
+    require_subkind_for_factor = False
+    require_factor_to_match = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "traveler_name": DataEntry.data["traveler_name"].as_string(),
+        "departure_date": DataEntry.data["departure_date"].as_string(),
+        "transport_mode": DataEntry.data["transport_mode"].as_string(),
+        "class": DataEntry.data["class"].as_string(),
+        "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    def to_response(self, data_entry: DataEntry) -> ProfessionalTravelHandlerResponse:
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+            }
+        )
+
+    def validate_create(self, payload: dict) -> ProfessionalTravelHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> ProfessionalTravelHandlerUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+def get_data_entry_handler_by_type(
+    data_entry_type: DataEntryTypeEnum,
+) -> ModuleHandler:
+    """
+    Returns the module handler instance for the given data_entry_type.
+    """
+    handler = MODULE_HANDLERS.get(data_entry_type)
+    if handler is None:
+        raise ValueError(
+            f"No module handler found for data_entry_type={data_entry_type}"
+        )
+    return handler
