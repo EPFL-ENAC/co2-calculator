@@ -94,7 +94,7 @@ export const OnModulePage: Story = {
         language: 'en',
         unit: 'unit-1',
         year: '2024',
-        module: 'my-lab',
+        module: 'headcount',
       },
     }),
   ],

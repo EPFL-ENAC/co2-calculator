@@ -144,7 +144,7 @@ const submoduleCount = computed(
 );
 
 const item = computed(() => {
-  if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
+  if (props.moduleType === 'headcount' && props.submoduleType === 'student') {
     return moduleStore.state.dataSubmodule?.[props.submodule.id]?.items[0];
   }
   return null;
@@ -160,7 +160,7 @@ const hasTableTooltip = computed(() => {
 // actions
 
 function submitForm(payload: Record<string, FieldValue>) {
-  // if update! (for my-lab student for instance)
+  // if update! (for headcount student for instance)
   if (item.value && item.value.id) {
     return moduleStore.patchItem(
       props.moduleType,

@@ -16,7 +16,7 @@ export interface ModuleCard {
 
 export const MODULE_CARDS: ModuleCard[] = [
   {
-    module: MODULES.MyLab,
+    module: MODULES.Headcount,
     value: '5',
     active: true,
   },

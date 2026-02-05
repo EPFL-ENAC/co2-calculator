@@ -1,8 +1,8 @@
 <template>
   <q-card-section class="text-left module-charts q-px-none">
-    <template v-if="type === 'my-lab'">
+    <template v-if="type === 'headcount'">
       <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
-        {{ $t('my-lab-charts-title') }}
+        {{ $t('headcount-charts-title') }}
       </h2>
       <headCountBarChart
         v-if="hasStats"

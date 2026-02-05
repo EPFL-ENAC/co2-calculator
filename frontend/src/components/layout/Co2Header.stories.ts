@@ -228,7 +228,7 @@ export const OnModuleAndResultsPage: Story = {
           language: 'en',
           unit: 'Research%20Unit',
           year: '2024',
-          module: 'my-lab',
+          module: 'headcount',
         },
         meta: {
           breadcrumb: true,

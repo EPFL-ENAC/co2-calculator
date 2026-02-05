@@ -3,7 +3,7 @@ import { MODULES } from 'src/constant/modules';
 export const timelineItems = [
   {
     icon: 'o_diversity_2',
-    link: MODULES.MyLab,
+    link: MODULES.Headcount,
   },
   {
     icon: 'o_flight',

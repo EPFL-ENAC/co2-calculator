@@ -12,11 +12,7 @@ from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import (
-    HeadCountCreate,
-    HeadCountCreateRequest,
     HeadcountItemResponse,
-    HeadCountUpdate,
-    HeadCountUpdateRequest,
 )
 from app.models.module_type import ModuleTypeEnum
 from app.models.professional_travel import (
@@ -40,7 +36,6 @@ from app.schemas.data_entry import (
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
-from app.services.headcount_service import HeadcountService
 from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
@@ -121,19 +116,7 @@ async def get_module(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
-    if module_id == "my-lab":
-        # Fetch real data from database
-        module_data = await HeadcountService(db).get_module_data(
-            unit_id=unit_id,
-            year=year,
-        )
-        stats = await HeadcountService(db).get_module_stats(
-            unit_id=unit_id,
-            year=year,
-            aggregate_by="function_role",
-        )
-        module_data.stats = stats
-    elif module_id == "professional-travel":
+    if module_id == "professional-travel":
         # Fetch real data from database
         module_data = await ProfessionalTravelService(db).get_module_data(
             unit_id=unit_id,
@@ -149,13 +132,25 @@ async def get_module(
             carbon_report_module_id=carbon_report_module_id,
         )
         # if headcount compute FTE here
+        total_annual_fte = None
+        if module_id == "headcount":
+            total_annual_fte = await DataEntryService(db).get_total_per_field(
+                field_name="fte",
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=None,
+            )
+            module_data.stats = await DataEntryService(db).get_stats(
+                carbon_report_module_id=carbon_report_module_id,
+                aggregate_by="function",
+                aggregate_field="fte",
+            )
         # if need other subtotal do it here
         total_kg_co2eq = sum(module_data.stats.values())
         module_data.totals = ModuleTotals(
             total_kg_co2eq=total_kg_co2eq,
             total_tonnes_co2eq=total_kg_co2eq / 1000.0,
             total_annual_consumption_kwh=None,
-            total_annual_fte=None,
+            total_annual_fte=total_annual_fte,
         )
     if not module_data:
         raise HTTPException(
@@ -226,18 +221,7 @@ async def get_submodule(
 
     # Fetch submodule data from database
     submodule_data = None
-    if module_id == "my-lab":
-        submodule_data = await HeadcountService(db).get_submodule_data(
-            unit_id=unit_id,
-            year=year,
-            submodule_key=submodule_id,
-            limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            filter=filter,
-        )
-    elif module_id == "professional-travel":
+    if module_id == "professional-travel":
         if submodule_id != "trips":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -350,44 +334,7 @@ async def create(
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
     # Validate unit_id matches the one in request body
-    if module_id == "my-lab":
-        # Parse as HeadCountCreateRequest
-        try:
-            parsed_headcount = HeadCountCreateRequest(**item_data)
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid item_data for headcount creation: {str(e)}",
-            )
-        headcount_create = HeadCountCreate(
-            **parsed_headcount.dict(),
-            unit_id=unit_id,
-            date="2024-12-31",
-            submodule=submodule_id,
-            unit_name=str(unit_id),
-            cf="unknown",
-            cf_name="unknown",
-            cf_user_id="unknown",
-            status="unknown",
-            sciper="unknown",
-        )
-        if current_user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current user ID is required to delete item",
-            )
-        headcount = await HeadcountService(db).create_headcount(
-            data=headcount_create,
-            provider_source=IngestionMethod.manual,
-            user_id=current_user.id,
-        )
-        if headcount is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create headcount item",
-            )
-        item = HeadcountItemResponse.model_validate(headcount)
-    elif module_id == "professional-travel":
+    if module_id == "professional-travel":
         # Parse as ProfessionalTravelCreate
         try:
             parsed_travel = ProfessionalTravelCreate(**item_data)
@@ -475,12 +422,9 @@ async def create(
                 detail="Failed to create headcount item",
             )
 
-        emission = await DataEntryEmissionService(db).create(item)
-        if emission is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create data entry emission",
-            )
+        await DataEntryEmissionService(db).create(item)
+        # upsert could fail if emission factor lookup fails, but we still want to
+        # return the updated item
         await db.commit()
         item = DataEntryResponse.model_validate(item)
 
@@ -537,22 +481,7 @@ async def get(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module not supported for retrieval",
         )
-    if module_id == "my-lab":
-        if not isinstance(item_id, int):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid item_id type for headcount retrieval",
-            )
-        headcount = await HeadcountService(db).get_by_id(
-            item_id=item_id,
-        )
-        if headcount is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Headcount item not found",
-            )
-        item = HeadcountItemResponse.model_validate(headcount)
-    elif module_id == "professional-travel":
+    if module_id == "professional-travel":
         if not isinstance(item_id, int):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -631,30 +560,7 @@ async def update(
         db=db,
     )
 
-    if module_id == "my-lab":
-        # Parse as HeadCountUpdateRequest
-        try:
-            parsed_headcount = HeadCountUpdateRequest(**item_data)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid item_data for headcount update: {str(e)}",
-            )
-        updateItem = HeadCountUpdate(
-            **parsed_headcount.model_dump(exclude_unset=True),
-        )
-        headcount = await HeadcountService(db).update_headcount(
-            headcount_id=item_id,
-            data=updateItem,
-            user=current_user,
-        )
-        if headcount is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Headcount item not found",
-            )
-        item = HeadcountItemResponse.model_validate(headcount)
-    elif module_id == "professional-travel":
+    if module_id == "professional-travel":
         # Parse as ProfessionalTravelUpdate
         try:
             parsed_travel = ProfessionalTravelUpdate(**item_data)
@@ -772,11 +678,7 @@ async def delete(
                 detail="Module not supported for deletion",
             )
 
-        if module_id == "my-lab":
-            await HeadcountService(db).delete_headcount(
-                headcount_id=item_id,
-            )
-        elif module_id == "professional-travel":
+        if module_id == "professional-travel":
             await ProfessionalTravelService(db).delete_travel(
                 travel_id=item_id,
                 user=current_user,

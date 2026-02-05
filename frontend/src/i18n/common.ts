@@ -88,7 +88,7 @@ export default {
   },
   module_total_result_title: {
     en: ({ named }) => {
-      if (named('type') === MODULES.MyLab) {
+      if (named('type') === MODULES.Headcount) {
         return 'Total FTE';
       }
       if (named('typeI18n')) {
@@ -97,7 +97,7 @@ export default {
       return 'Total Carbon Footprint';
     },
     fr: ({ named }) => {
-      if (named('type') === MODULES.MyLab) {
+      if (named('type') === MODULES.Headcount) {
         return 'Total ETP';
       }
       if (named('typeI18n')) {
@@ -108,13 +108,13 @@ export default {
   },
   module_total_result_title_unit: {
     en: ({ named }) => {
-      if (named('type') === MODULES.MyLab) {
+      if (named('type') === MODULES.Headcount) {
         return 'FTE';
       }
       return 't CO₂-eq';
     },
     fr: ({ named }) => {
-      if (named('type') === MODULES.MyLab) {
+      if (named('type') === MODULES.Headcount) {
         return 'ETP';
       }
       return 't CO₂-eq';

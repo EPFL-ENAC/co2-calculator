@@ -304,7 +304,7 @@ provider_type
     // Helper function to get module type ID from module
     function getModuleTypeId(module: Module): number {
       const moduleTypeIds: Record<Module, number> = {
-        'my-lab': 1,
+        headcount: 1,
         'professional-travel': 2,
         infrastructure: 3,
         'equipment-electric-consumption': 4,

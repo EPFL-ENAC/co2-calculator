@@ -41,7 +41,7 @@ type Story = StoryObj<typeof meta>;
  */
 export const Default: Story = {
   args: {
-    name: 'my-lab',
+    name: 'headcount',
     size: 'md',
     color: 'accent',
   },
@@ -52,7 +52,7 @@ export const Default: Story = {
  */
 export const AllIcons: Story = {
   args: {
-    name: 'my-lab',
+    name: 'headcount',
   },
   render: () => {
     const iconNames = Object.keys(icons);
@@ -78,7 +78,7 @@ export const AllIcons: Story = {
  */
 export const SizeVariants: Story = {
   args: {
-    name: 'my-lab',
+    name: 'headcount',
   },
   render: () => {
     const iconNames = Object.keys(icons);
@@ -108,7 +108,7 @@ export const SizeVariants: Story = {
  */
 export const ColorVariants: Story = {
   args: {
-    name: 'my-lab',
+    name: 'headcount',
   },
   render: () => {
     const iconNames = Object.keys(icons);

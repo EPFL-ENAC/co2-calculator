@@ -35,7 +35,7 @@ interface CarbonReportModuleResponse {
 export const useTimelineStore = defineStore('timeline', () => {
   // Initialize all modules with default status
   const itemStates = reactive<ModuleStates>({
-    [MODULES.MyLab]: MODULE_STATES.Default,
+    [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
     [MODULES.Infrastructure]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,

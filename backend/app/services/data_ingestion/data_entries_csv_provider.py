@@ -4,7 +4,7 @@ from typing import Any, Dict, List, TypedDict
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
@@ -582,7 +582,11 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                     factors_map=factors_map,
                     require_subkind=handler.require_subkind_for_factor,
                 )
-                if factor is None and match_factors is False:
+                if (
+                    factor is None
+                    and match_factors is False
+                    and handler.require_factor_to_match
+                ):
                     error_msg = (
                         "Probably not part of authorized data entries. "
                         "No matching factor found for kind/subkind"
@@ -604,6 +608,7 @@ class DataEntriesCSVProvider(DataIngestionProvider):
             payload: Dict[str, str | int] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = self.carbon_report_module_id
+            payload["status"] = DataEntryStatusEnum.VALIDATED.value
 
             try:
                 validated = handler.validate_create(payload)

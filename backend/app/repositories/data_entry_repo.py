@@ -22,6 +22,94 @@ from app.schemas.data_entry import (
 logger = get_logger(__name__)
 
 
+# Mapping from French HR roles to broad English categories (snake_case)
+ROLE_CATEGORY_MAPPING = {
+    # Professor roles
+    "Professeur titulaire": "professor",
+    "Professeur": "professor",
+    "Maître d'enseignement et de recherche": "professor",
+    # Scientific Collaborator roles
+    "Collaborateur scientifique": "scientific_collaborator",
+    "Collaborateur scientifique senior": "scientific_collaborator",
+    "Informaticien": "scientific_collaborator",
+    "Adjoint scientifique": "scientific_collaborator",
+    "Assistant scientifique": "scientific_collaborator",
+    # Student roles
+    "Étudiant-e": "student",
+    "Étudiant en échange": "student",
+    "Stagiaire étudiant": "student",
+    "Student": "student",  # English variant
+    # Postdoctoral Researcher
+    "Post-Doctorant": "postdoctoral_researcher",
+    # Doctoral Assistant
+    "Assistant-doctorant": "doctoral_assistant",
+    "Doctorant-e en échange": "doctoral_assistant",
+    # Trainee roles
+    "Apprenti": "trainee",
+    "Apprenti Interactive Media Designer": "trainee",
+    "Apprenti gardien d'animaux": "trainee",
+    "Apprenti informaticien": "trainee",
+    "Apprenti laborant en biologie": "trainee",
+    "Stagiaire": "trainee",
+    "Stagiare": "trainee",  # Typo variant
+    # Technical / Administrative Staff
+    "Assistant technique": "technical_administrative_staff",
+    "Chef de l'animalerie": "technical_administrative_staff",
+    "Chef du service technique": "technical_administrative_staff",
+    "Chef laborant": "technical_administrative_staff",
+    "Collaborateur administratif": "technical_administrative_staff",
+    "Assistant-e administratif-ve": "technical_administrative_staff",
+    "Secrétaire": "technical_administrative_staff",
+    "Chargé-e de communication": "technical_administrative_staff",
+    "Ingénieur": "technical_administrative_staff",
+    "Collaborateur technique": "technical_administrative_staff",
+    "Aide de Laboratoire": "technical_administrative_staff",
+    "Ingénieur Système": "technical_administrative_staff",
+    "Adjoint": "technical_administrative_staff",
+    "Adjoint au Chef du Département": "technical_administrative_staff",
+    "Adjoint de section": "technical_administrative_staff",
+    "Team Leader": "technical_administrative_staff",
+    "Responsable de la laverie": "technical_administrative_staff",
+    "Responsable des infrastructures": "technical_administrative_staff",
+    "Responsable informatique": "technical_administrative_staff",
+    "Responsable magasin principal": "technical_administrative_staff",
+    "Adjoint à la direction": "technical_administrative_staff",
+    "Animalier": "technical_administrative_staff",
+    "Assistant": "technical_administrative_staff",
+    "Coordinateur": "technical_administrative_staff",
+    "Electronicien": "technical_administrative_staff",
+    "Ingénieur Chimiste": "technical_administrative_staff",
+    "Journaliste": "technical_administrative_staff",
+    "Laborant-e senior": "technical_administrative_staff",
+    "Laborantin-e": "technical_administrative_staff",
+    "Magasinier": "technical_administrative_staff",
+    "Programmeur": "technical_administrative_staff",
+    "Spécialiste communication": "technical_administrative_staff",
+    "Spécialiste système": "technical_administrative_staff",
+    "Spécialiste technique": "technical_administrative_staff",
+    "Technicien": "technical_administrative_staff",
+    # Other roles
+    "Chargé-e de projet": "other",
+    "Vétérinaire": "other",
+    "Coordinateur-trice de Projets": "other",
+    "RSE": "other",
+    "Sciencepreneur": "other",
+}
+
+
+def get_function_role(function: str) -> str:
+    """
+    Get the English category for a French HR role.
+
+    Args:
+        french_role: The French HR role name
+
+    Returns:
+        The English category name (snake_case), or None if not found
+    """
+    return ROLE_CATEGORY_MAPPING.get(function, "other")
+
+
 class DataEntryRepository:
     """Repository for data entry database operations."""
 
@@ -307,6 +395,36 @@ class DataEntryRepository:
         )
         return response
 
+    async def get_total_per_field(
+        self,
+        field_name: str,
+        carbon_report_module_id: int,
+        data_entry_type_id: Optional[int] = None,
+    ) -> float:
+        """Get total sum for a specific field across data entries.
+
+        :param field_name: The field to sum (e.g., 'fte', 'kg_co2eq').
+        :param carbon_report_module_id: The carbon report module ID to filter by.
+        :param data_entry_type_id: Optional data entry type ID to filter by.
+        :return: The total sum as a float.
+        """
+        if hasattr(DataEntry, field_name):
+            sum_field = getattr(DataEntry, field_name)
+        else:
+            sum_field = DataEntry.data[field_name].as_float()
+
+        statement = select(func.sum(sum_field).label("total")).where(
+            DataEntry.carbon_report_module_id == carbon_report_module_id
+        )
+        if data_entry_type_id is not None:
+            statement = statement.where(
+                DataEntry.data_entry_type_id == data_entry_type_id
+            )
+
+        result = await self.session.execute(statement)
+        total = result.scalar_one()
+        return float(total or 0.0)
+
     async def get_stats(
         self,
         carbon_report_module_id,
@@ -324,8 +442,14 @@ class DataEntryRepository:
             de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
         """
         # 1. Get the model attributes dynamically
-        group_field = getattr(DataEntry, aggregate_by)
-        sum_field = getattr(DataEntry, aggregate_field)
+        if hasattr(DataEntry, aggregate_by):
+            group_field = getattr(DataEntry, aggregate_by)
+        else:
+            group_field = DataEntry.data[aggregate_by].as_string()
+        if hasattr(DataEntry, aggregate_field):
+            sum_field = getattr(DataEntry, aggregate_field)
+        else:
+            sum_field = DataEntry.data[aggregate_field].as_float()
 
         # 2. Build the query with the JOIN
         query = (
@@ -344,10 +468,17 @@ class DataEntryRepository:
         )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
         rows = result.all()
 
+        # TODO: get_function_role
+
         # 3. Format the results
         aggregation: Dict[str, float] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total_count or 0.0)
+            # special edge case for headcount : TO BE FIX by PM
+            if aggregate_by == "function":
+                label = get_function_role(label)
+            if label not in aggregation:
+                aggregation[label] = 0.0
+            aggregation[label] += float(total_count or 0.0)
 
         return aggregation

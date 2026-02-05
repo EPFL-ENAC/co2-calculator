@@ -24,7 +24,7 @@ MOCK_UNITS_REPORTING = [
         "id": 1,
         "completion": {
             "2024": {
-                "my_lab": {"status": "default", "outlier_values": 3},
+                "headcount": {"status": "default", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -36,7 +36,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
-                "my_lab": {"status": "in-progress", "outlier_values": 3},
+                "headcount": {"status": "in-progress", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -48,7 +48,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
-                "my_lab": {"status": "in-progress", "outlier_values": 3},
+                "headcount": {"status": "in-progress", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
                 "infrastructure": {"status": "default", "outlier_values": 4},
                 "equipment_electric_consumption": {
@@ -69,7 +69,7 @@ MOCK_UNITS_REPORTING = [
         "id": 2,
         "completion": {
             "2024": {
-                "my_lab": {"status": "in-progress", "outlier_values": 2},
+                "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -81,7 +81,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
-                "my_lab": {"status": "in-progress", "outlier_values": 2},
+                "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -93,7 +93,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
-                "my_lab": {"status": "in-progress", "outlier_values": 2},
+                "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -114,7 +114,7 @@ MOCK_UNITS_REPORTING = [
         "id": 3,
         "completion": {
             "2024": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -126,7 +126,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 8},
             },
             "2025": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -138,7 +138,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 8},
             },
             "2026": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -159,7 +159,7 @@ MOCK_UNITS_REPORTING = [
         "id": 4,
         "completion": {
             "2024": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
                 "infrastructure": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
@@ -171,7 +171,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 1},
             },
             "2025": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
                 "infrastructure": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
@@ -183,7 +183,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 1},
             },
             "2026": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
                 "infrastructure": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
@@ -204,7 +204,7 @@ MOCK_UNITS_REPORTING = [
         "id": 5,
         "completion": {
             "2024": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
                 "infrastructure": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -216,7 +216,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
                 "infrastructure": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -228,7 +228,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
-                "my_lab": {"status": "validated", "outlier_values": 0},
+                "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
                 "infrastructure": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -249,7 +249,7 @@ MOCK_UNITS_REPORTING = [
         "id": 6,
         "completion": {
             "2024": {
-                "my_lab": {"status": "default", "outlier_values": 0},
+                "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -261,7 +261,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "default", "outlier_values": 0},
             },
             "2025": {
-                "my_lab": {"status": "default", "outlier_values": 0},
+                "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -273,7 +273,7 @@ MOCK_UNITS_REPORTING = [
                 "external_cloud": {"status": "default", "outlier_values": 0},
             },
             "2026": {
-                "my_lab": {"status": "default", "outlier_values": 0},
+                "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
                 "infrastructure": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
@@ -514,7 +514,7 @@ async def list_backoffice_units(
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'my_lab:validated')""",
+        (e.g., 'headcount:validated')""",
     ),
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
