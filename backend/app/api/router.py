@@ -13,7 +13,6 @@ from app.api.v1 import (
     files,
     headcounts,
     locations,
-    professional_travel,
     unit_results,
     units,
     users,
@@ -33,11 +32,6 @@ api_router.include_router(
 # TODO: rename /modules-stats in the frontend!
 api_router.include_router(
     carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
-)
-api_router.include_router(
-    professional_travel.router,
-    prefix="/professional-travel",
-    tags=["professional-travel"],
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])

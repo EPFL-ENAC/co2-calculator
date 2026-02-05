@@ -9,7 +9,6 @@ from app.models.module_type import ModuleTypeEnum
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
-from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
 
@@ -49,18 +48,6 @@ class UnitTotalsService:
             logger.debug(f"Equipment module: {equipment_co2} kg CO2eq")
         except Exception as e:
             logger.warning(f"Error getting equipment stats: {e}")
-            # Continue with other modules
-
-        # Professional Travel
-        try:
-            travel_stats = await ProfessionalTravelService(
-                self.session
-            ).get_module_stats(unit_id=unit_id, year=year, user=user)
-            travel_co2 = travel_stats.get("total_kg_co2eq", 0.0)
-            total_kg_co2eq += float(travel_co2 or 0.0)
-            logger.debug(f"Professional Travel module: {travel_co2} kg CO2eq")
-        except Exception as e:
-            logger.warning(f"Error getting professional travel stats: {e}")
             # Continue with other modules
 
         # TODO: Add other modules as they become available:

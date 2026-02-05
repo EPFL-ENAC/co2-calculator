@@ -19,23 +19,6 @@ from .location import (
     LocationBase,
     LocationRead,
 )
-from .professional_travel import (
-    ProfessionalTravel,
-    ProfessionalTravelBase,
-    ProfessionalTravelCreate,
-    ProfessionalTravelEmission,
-    ProfessionalTravelEmissionBase,
-    ProfessionalTravelItemResponse,
-    ProfessionalTravelList,
-    ProfessionalTravelRead,
-    ProfessionalTravelUpdate,
-)
-from .travel_impact_factor import (
-    PlaneImpactFactor,
-    PlaneImpactFactorBase,
-    TrainImpactFactor,
-    TrainImpactFactorBase,
-)
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User, UserBase

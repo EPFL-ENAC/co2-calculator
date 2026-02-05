@@ -13,14 +13,12 @@ from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
 from app.services.headcount_service import HeadcountService
-from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
 # TODO: not implemented for other modules than equipment-electric-consumption
-# and professional-travel
 # TODO: make generic!
 @router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
 async def get_module_totals(
@@ -30,7 +28,7 @@ async def get_module_totals(
     current_user: User = Depends(get_current_active_user),
 ) -> dict[str, float]:
     """
-    Get total tCO2eq for equipment-electric-consumption and professional-travel modules.
+    Get total tCO2eq for equipment-electric-consumption module.
 
     Args:
         unit_id: Unit ID
@@ -45,7 +43,6 @@ async def get_module_totals(
     totals: dict[str, float] = {
         "total": 0.0,
         "equipment-electric-consumption": 0.0,
-        "professional-travel": 0.0,
     }
 
     # Get equipment module totals
@@ -72,31 +69,12 @@ async def get_module_totals(
     except Exception as e:
         logger.error(f"Error getting equipment stats: {e}", exc_info=True)
 
-    # Get professional travel module totals
-    try:
-        await _check_module_permission(current_user, "professional-travel", "view")
-        travel_stats = await ProfessionalTravelService(db).get_module_stats(
-            unit_id=unit_id, year=year, user=current_user
-        )
-        travel_kg_co2eq = travel_stats.get("total_kg_co2eq", 0.0)
-        travel_tco2eq = round(float(travel_kg_co2eq or 0.0) / 1000.0, 2)
-        totals["professional-travel"] = travel_tco2eq
-        logger.debug(f"Professional Travel module: {travel_tco2eq} tCO2eq")
-    except HTTPException:
-        # Permission denied, skip this module
-        logger.warning("Permission denied for professional travel module")
-    except Exception as e:
-        logger.error(f"Error getting professional travel stats: {e}", exc_info=True)
-
     # Calculate total
-    totals["total"] = round(
-        totals["equipment-electric-consumption"] + totals["professional-travel"], 2
-    )
+    totals["total"] = round(totals["equipment-electric-consumption"], 2)
 
     logger.info(
         f"Module totals returned: total={totals['total']} tCO2eq "
-        f"(equipment: {totals['equipment-electric-consumption']}, "
-        f"travel: {totals['professional-travel']})"
+        f"(equipment: {totals['equipment-electric-consumption']})"
     )
 
     return totals
@@ -147,16 +125,6 @@ async def get_module_stats(
             year=year,
             aggregate_by=aggregate_by,
         )
-    elif module_id == "professional-travel":
-        # Get summary stats for professional travel
-        summary = await ProfessionalTravelService(db).get_module_stats(
-            unit_id=unit_id, year=year, user=current_user
-        )
-        stats = {
-            "total_items": float(summary["total_items"]),
-            "total_kg_co2eq": summary["total_kg_co2eq"],
-            "total_distance_km": summary["total_distance_km"],
-        }
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
