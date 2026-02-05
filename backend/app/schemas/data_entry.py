@@ -360,6 +360,12 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
+    filter_map = {
+        "name": DataEntry.data["name"].as_string(),
+        "equipment_class": Factor.classification["kind"].as_string(),
+        "sub_class": Factor.classification["subkind"].as_string(),
+    }
+
     def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
         new_entry = {
             "id": data_entry.id,
@@ -405,6 +411,11 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
+    filter_map = {
+        "service_type": Factor.classification["subkind"].as_string(),
+        "cloud_provider": Factor.classification["kind"].as_string(),
+    }
+
     def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
         return self.response_dto.model_validate(
             {
@@ -433,7 +444,6 @@ class ExternalAIModuleHandler(BaseModuleHandler):
 
     kind_field: str = "ai_provider"
     subkind_field: str = "ai_use"
-
     sort_map = {
         "id": DataEntry.id,
         "ai_provider": Factor.classification["kind"].as_string(),
@@ -441,6 +451,11 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         "frequency_use_per_day": DataEntry.data["frequency_use_per_day"].as_float(),
         "user_count": DataEntry.data["user_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    filter_map = {
+        "ai_provider": Factor.classification["kind"].as_string(),
+        "ai_use": Factor.classification["subkind"].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
@@ -476,7 +491,10 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     subkind_field = None
     require_subkind_for_factor = False
     require_factor_to_match = False
-
+    filter_map: dict[str, Any] = {
+        "name": DataEntry.data["name"].as_string(),
+        "function": DataEntry.data["function"].as_string(),
+    }
     sort_map = {
         "id": DataEntry.id,
         "name": DataEntry.data["name"].as_string(),
@@ -517,6 +535,8 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
         "id": DataEntry.id,
         "fte": DataEntry.data["fte"].as_float(),
     }
+
+    filter_map: dict[str, Any] = {}
 
     def to_response(self, data_entry: DataEntry) -> HeadCountStudentResponse:
         return self.response_dto.model_validate(

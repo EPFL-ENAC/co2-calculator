@@ -3,7 +3,7 @@
 from typing import Dict, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import Select, asc, desc, func
+from sqlalchemy import Select, asc, desc, func, or_
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,97 +17,14 @@ from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSumma
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
+    ModuleHandler,
 )
+from app.utils.headcount_role_category import get_function_role
 
 logger = get_logger(__name__)
 
-
-# Mapping from French HR roles to broad English categories (snake_case)
-ROLE_CATEGORY_MAPPING = {
-    # Professor roles
-    "Professeur titulaire": "professor",
-    "Professeur": "professor",
-    "Maître d'enseignement et de recherche": "professor",
-    # Scientific Collaborator roles
-    "Collaborateur scientifique": "scientific_collaborator",
-    "Collaborateur scientifique senior": "scientific_collaborator",
-    "Informaticien": "scientific_collaborator",
-    "Adjoint scientifique": "scientific_collaborator",
-    "Assistant scientifique": "scientific_collaborator",
-    # Student roles
-    "Étudiant-e": "student",
-    "Étudiant en échange": "student",
-    "Stagiaire étudiant": "student",
-    "Student": "student",  # English variant
-    # Postdoctoral Researcher
-    "Post-Doctorant": "postdoctoral_researcher",
-    # Doctoral Assistant
-    "Assistant-doctorant": "doctoral_assistant",
-    "Doctorant-e en échange": "doctoral_assistant",
-    # Trainee roles
-    "Apprenti": "trainee",
-    "Apprenti Interactive Media Designer": "trainee",
-    "Apprenti gardien d'animaux": "trainee",
-    "Apprenti informaticien": "trainee",
-    "Apprenti laborant en biologie": "trainee",
-    "Stagiaire": "trainee",
-    "Stagiare": "trainee",  # Typo variant
-    # Technical / Administrative Staff
-    "Assistant technique": "technical_administrative_staff",
-    "Chef de l'animalerie": "technical_administrative_staff",
-    "Chef du service technique": "technical_administrative_staff",
-    "Chef laborant": "technical_administrative_staff",
-    "Collaborateur administratif": "technical_administrative_staff",
-    "Assistant-e administratif-ve": "technical_administrative_staff",
-    "Secrétaire": "technical_administrative_staff",
-    "Chargé-e de communication": "technical_administrative_staff",
-    "Ingénieur": "technical_administrative_staff",
-    "Collaborateur technique": "technical_administrative_staff",
-    "Aide de Laboratoire": "technical_administrative_staff",
-    "Ingénieur Système": "technical_administrative_staff",
-    "Adjoint": "technical_administrative_staff",
-    "Adjoint au Chef du Département": "technical_administrative_staff",
-    "Adjoint de section": "technical_administrative_staff",
-    "Team Leader": "technical_administrative_staff",
-    "Responsable de la laverie": "technical_administrative_staff",
-    "Responsable des infrastructures": "technical_administrative_staff",
-    "Responsable informatique": "technical_administrative_staff",
-    "Responsable magasin principal": "technical_administrative_staff",
-    "Adjoint à la direction": "technical_administrative_staff",
-    "Animalier": "technical_administrative_staff",
-    "Assistant": "technical_administrative_staff",
-    "Coordinateur": "technical_administrative_staff",
-    "Electronicien": "technical_administrative_staff",
-    "Ingénieur Chimiste": "technical_administrative_staff",
-    "Journaliste": "technical_administrative_staff",
-    "Laborant-e senior": "technical_administrative_staff",
-    "Laborantin-e": "technical_administrative_staff",
-    "Magasinier": "technical_administrative_staff",
-    "Programmeur": "technical_administrative_staff",
-    "Spécialiste communication": "technical_administrative_staff",
-    "Spécialiste système": "technical_administrative_staff",
-    "Spécialiste technique": "technical_administrative_staff",
-    "Technicien": "technical_administrative_staff",
-    # Other roles
-    "Chargé-e de projet": "other",
-    "Vétérinaire": "other",
-    "Coordinateur-trice de Projets": "other",
-    "RSE": "other",
-    "Sciencepreneur": "other",
-}
-
-
-def get_function_role(function: str) -> str:
-    """
-    Get the English category for a French HR role.
-
-    Args:
-        french_role: The French HR role name
-
-    Returns:
-        The English category name (snake_case), or None if not found
-    """
-    return ROLE_CATEGORY_MAPPING.get(function, "other")
+# Default filter map when handler doesn't provide one
+DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
 
 
 class DataEntryRepository:
@@ -270,10 +187,12 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(self, statement, filter: Optional[str]):
+    def _apply_name_filter(
+        self, statement, filter: Optional[str], handler: ModuleHandler
+    ):
         """
-        Applies a name filter to the given SQLAlchemy statement if
-        a valid filter is provided.
+        Applies a filter to the given SQLAlchemy statement based on
+        the handler's filter_map if a valid filter is provided.
         """
         filter_pattern = ""
         if filter:
@@ -287,9 +206,14 @@ class DataEntryRepository:
 
         if filter:
             filter_pattern = f"%{filter}%"
-            statement = statement.where(
-                (col(DataEntry.data["name"]).ilike(filter_pattern))
-            )
+            # Get filter map from handler, default to filtering by name
+            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
+
+            # Build OR conditions for all filter fields
+            conditions = [
+                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
+            ]
+            statement = statement.where(or_(*conditions))
         return statement, filter_pattern
 
     def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
@@ -329,9 +253,9 @@ class DataEntryRepository:
             )
         )
 
-        statement, filter_pattern = self._apply_name_filter(statement, filter)
-
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+        statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
+
         sort_map = handler.sort_map
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
@@ -344,9 +268,14 @@ class DataEntryRepository:
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
         if filter_pattern != "":
-            count_stmt = count_stmt.where(
-                (col(DataEntry.data["name"]).ilike(filter_pattern))
-            )
+            # Get filter map from handler, default to filtering by name
+            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
+
+            # Build OR conditions for all filter fields
+            conditions = [
+                filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
+            ]
+            count_stmt = count_stmt.where(or_(*conditions))
         total_items = (await self.session.execute(count_stmt)).scalar_one()
         rows = result.all()
         count = len(rows)
@@ -467,8 +396,6 @@ class DataEntryRepository:
             query
         )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
         rows = result.all()
-
-        # TODO: get_function_role
 
         # 3. Format the results
         aggregation: Dict[str, float] = {}
