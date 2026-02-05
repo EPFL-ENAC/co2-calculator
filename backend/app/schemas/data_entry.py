@@ -175,6 +175,18 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
 
+    @classmethod
+    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
+        """
+        Returns the module handler instance for the given data_entry_type.
+        """
+        handler = MODULE_HANDLERS.get(data_entry_type)
+        if handler is None:
+            raise ValueError(
+                f"No module handler found for data_entry_type={data_entry_type}"
+            )
+        return handler
+
     async def resolve_primary_factor_id(
         self,
         payload: dict,
@@ -521,17 +533,3 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> HeadCountStudentUpdate:
         return self.update_dto.model_validate(payload)
-
-
-def get_data_entry_handler_by_type(
-    data_entry_type: DataEntryTypeEnum,
-) -> ModuleHandler:
-    """
-    Returns the module handler instance for the given data_entry_type.
-    """
-    handler = MODULE_HANDLERS.get(data_entry_type)
-    if handler is None:
-        raise ValueError(
-            f"No module handler found for data_entry_type={data_entry_type}"
-        )
-    return handler

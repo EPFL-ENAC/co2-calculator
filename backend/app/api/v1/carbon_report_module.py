@@ -27,11 +27,11 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import (
+    BaseModuleHandler,
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
     ModuleHandler,
-    get_data_entry_handler_by_type,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -381,7 +381,7 @@ async def create(
                 "data_entry_type_id": data_entry_type_id,
                 "carbon_report_module_id": carbon_report_module_id,
             }
-            handler = get_data_entry_handler_by_type(data_entry_type)
+            handler = BaseModuleHandler.get_by_type(data_entry_type)
             create_payload = await handler.resolve_primary_factor_id(
                 create_payload, data_entry_type, db
             )
@@ -590,7 +590,7 @@ async def update(
                 "data_entry_type_id": data_entry_type_id,
                 "carbon_report_module_id": carbon_report_module_id,
             }
-            handler: ModuleHandler = get_data_entry_handler_by_type(data_entry_type)
+            handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_kind_field = handler.kind_field or ""
             handler_subkind_field = handler.subkind_field or ""
             if (handler_kind_field in item_data) and (

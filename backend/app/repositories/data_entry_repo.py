@@ -15,8 +15,8 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
+    BaseModuleHandler,
     DataEntryUpdate,
-    get_data_entry_handler_by_type,
 )
 
 logger = get_logger(__name__)
@@ -331,7 +331,7 @@ class DataEntryRepository:
 
         statement, filter_pattern = self._apply_name_filter(statement, filter)
 
-        handler = get_data_entry_handler_by_type(DataEntryTypeEnum(data_entry_type_id))
+        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         sort_map = handler.sort_map
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
@@ -354,7 +354,7 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for data_entry, data_entry_emission, primary_factor in rows:
-            handler = get_data_entry_handler_by_type(
+            handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
             kg_co2eq = None
