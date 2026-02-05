@@ -19,7 +19,7 @@ export type ModuleStates = { [K in Module]: ModuleState };
  * Used for API calls to identify modules.
  */
 export const MODULE_TYPE_IDS = {
-  'my-lab': 1,
+  headcount: 1,
   'professional-travel': 2,
   infrastructure: 3,
   'equipment-electric-consumption': 4,

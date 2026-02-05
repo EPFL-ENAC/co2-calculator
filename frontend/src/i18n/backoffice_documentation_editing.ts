@@ -101,11 +101,11 @@ export default {
     en: 'Find all common text used throughout the application, such as headers, footers, and navigation elements.',
     fr: "Trouvez tous les textes communs utilisés dans toute l'application, tels que les en-têtes, les pieds de page et les éléments de navigation.",
   },
-  documentation_editing_rows_my_lab_topic: {
+  documentation_editing_rows_headcount_topic: {
     en: 'Headcount',
     fr: 'Personnel',
   },
-  documentation_editing_rows_my_lab_description: {
+  documentation_editing_rows_headcount_description: {
     en: 'Find all text related to managing headcount and personnel information within the application.',
     fr: "Trouvez tous les textes liés à la gestion du personnel et des informations sur le personnel dans l'application.",
   },

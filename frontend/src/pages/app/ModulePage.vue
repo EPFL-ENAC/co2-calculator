@@ -80,7 +80,7 @@ const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);
 const totalResult = computed(() => {
-  if (currentModuleType.value === MODULES.MyLab) {
+  if (currentModuleType.value === MODULES.Headcount) {
     return moduleStore.state.data?.totals?.total_annual_fte;
   }
   return moduleStore.state.data?.totals?.total_tonnes_co2eq;

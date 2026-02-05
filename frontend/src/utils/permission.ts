@@ -295,12 +295,12 @@ function getPermissionValueByParts(
  * Maps frontend module names to backend permission paths.
  * Only modules with defined permissions are included.
  *
- * @param module - The frontend module identifier (e.g., 'my-lab', 'equipment-electric-consumption')
+ * @param module - The frontend module identifier (e.g., 'headcount', 'equipment-electric-consumption')
  * @returns The permission path (e.g., 'modules.headcount', 'modules.equipment') or null if not protected
  *
  * @example
  * ```typescript
- * const path = getModulePermissionPath('my-lab');
+ * const path = getModulePermissionPath('headcount');
  * // Returns: 'modules.headcount'
  *
  * const path = getModulePermissionPath('equipment-electric-consumption');
@@ -312,7 +312,7 @@ function getPermissionValueByParts(
  */
 export function getModulePermissionPath(module: Module): string | null {
   const modulePermissionMap: Record<Module, string | null> = {
-    [MODULES.MyLab]: 'modules.headcount',
+    [MODULES.Headcount]: 'modules.headcount',
     [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
     [MODULES.ProfessionalTravel]: 'modules.professional_travel',
     [MODULES.Infrastructure]: 'modules.infrastructure',

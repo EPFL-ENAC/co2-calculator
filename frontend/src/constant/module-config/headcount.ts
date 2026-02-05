@@ -20,8 +20,8 @@ export const iconMap: Record<string, string> = {
 // FR : Nom | Position | Équivalent plein-temps (EPT)
 const memberFields: ModuleField[] = [
   {
-    id: 'display_name',
-    labelKey: 'my-lab-member-form-field-name-label',
+    id: 'name',
+    labelKey: 'headcount-member-form-field-name-label',
     type: 'text',
     sortable: true,
     required: true,
@@ -30,7 +30,7 @@ const memberFields: ModuleField[] = [
   },
   {
     id: 'function',
-    labelKey: 'my-lab-member-form-field-position-label',
+    labelKey: 'headcount-member-form-field-position-label',
     type: 'text',
     sortable: true,
     ratio: '4/12',
@@ -39,7 +39,7 @@ const memberFields: ModuleField[] = [
   },
   {
     id: 'fte',
-    labelKey: 'my-lab-member-form-field-fte-label',
+    labelKey: 'headcount-member-form-field-fte-label',
     type: 'number',
     required: true,
     min: 0,
@@ -60,7 +60,7 @@ const memberFieldDynamicIcons = memberFields.map((field) => ({
 const studentFields: ModuleField[] = [
   {
     id: 'fte',
-    labelKey: 'my-lab-student_form_field_fte_label',
+    labelKey: 'headcount-student_form_field_fte_label',
     type: 'number',
     required: true,
     min: 0,
@@ -72,9 +72,9 @@ const studentFields: ModuleField[] = [
   },
 ];
 
-export const myLab: ModuleConfig = {
-  id: 'module_my_lab_001',
-  type: MODULES.MyLab as Module,
+export const headcount: ModuleConfig = {
+  id: 'module_headcount_001',
+  type: MODULES.Headcount as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
@@ -95,14 +95,14 @@ export const myLab: ModuleConfig = {
     {
       id: 'member',
       type: 'member',
-      tableNameKey: 'my-lab-member-table-title',
+      tableNameKey: 'headcount-member-table-title',
       moduleFields: memberFieldDynamicIcons,
       hasFormTooltip: false,
     },
     {
       id: 'student',
       type: 'student',
-      tableNameKey: 'my-lab-student-table-title',
+      tableNameKey: 'headcount-student-table-title',
       hasTableTopBar: false,
       hasFormTooltip: false,
       hasFormSubtitle: true,

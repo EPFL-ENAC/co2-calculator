@@ -1,5 +1,5 @@
 export const MODULES = {
-  MyLab: 'my-lab',
+  Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
   Infrastructure: 'infrastructure',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
@@ -9,7 +9,7 @@ export const MODULES = {
 } as const;
 
 export const MODULES_DESCRIPTIONS = {
-  MyLab: 'my-lab-description',
+  Headcount: 'headcount-description',
   ProfessionalTravel: 'professional-travel-description',
   Infrastructure: 'infrastructure-description',
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
@@ -20,7 +20,7 @@ export const MODULES_DESCRIPTIONS = {
 
 // TODO: implement something like this
 // export const MODULES: Record<string, string> = {
-//   my_lab: 'modules.headcount',
+//   headcount: 'modules.headcount',
 //   professional_travel: 'modules.professional_travel',
 //   infrastructure: 'modules.infrastructure',
 //   equipment_electric_consumption: 'modules.equipment',
@@ -78,7 +78,7 @@ export const SUBMODULE_HEADCOUNT_TYPES = {
   Student: 'student',
 } as const;
 
-// MyLab subtypes are the same as Headcount subtypes
+// Headcount subtypes are the same as Headcount subtypes
 export type HeadcountSubType =
   (typeof SUBMODULE_HEADCOUNT_TYPES)[keyof typeof SUBMODULE_HEADCOUNT_TYPES];
 
@@ -114,8 +114,8 @@ type EquipmentElectricConsumptionProps = {
   submoduleType?: EquipmentElectricConsumptionSubType;
 };
 
-export type MyLabProps = {
-  moduleType: typeof MODULES.MyLab;
+export type HeadcountProps = {
+  moduleType: typeof MODULES.Headcount;
   submoduleType?: HeadcountSubType;
 };
 
@@ -159,7 +159,7 @@ export type AllSubmoduleTypes =
 
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
-  | MyLabProps
+  | HeadcountProps
   | PurchaseProps
   | InfrastructureProps
   | ProfessionalTravelProps
@@ -196,7 +196,6 @@ export interface ModuleItem {
   kg_co2eq?: number;
   fte?: number;
   note?: string;
-  display_name?: string;
   position?: string;
   status?: string;
   is_new?: boolean;
@@ -239,7 +238,7 @@ export interface ModuleResponse {
 // TODO refactor: delete this vibe coded code and use your brain
 export function getBackendModuleName(frontendModule: Module): string {
   const moduleMap: Record<Module, string> = {
-    [MODULES.MyLab]: 'my_lab',
+    [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
     [MODULES.Infrastructure]: 'infrastructure',
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',

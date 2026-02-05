@@ -99,5 +99,5 @@ async def test_module_status_update(async_session):
 
     # Verify it persists
     modules = await service.module_service.list_modules(inv.id)
-    my_lab_mod = next(m for m in modules if m.module_type_id == module_type_id)
-    assert my_lab_mod.status == ModuleStatus.IN_PROGRESS
+    headcount_mod = next(m for m in modules if m.module_type_id == module_type_id)
+    assert headcount_mod.status == ModuleStatus.IN_PROGRESS

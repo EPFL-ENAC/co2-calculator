@@ -113,6 +113,7 @@ class ModuleHandler(Protocol[T]):
     require_subkind_for_factor: bool = (
         True  # default to True, can be overridden by specific handlers
     )
+    require_factor_to_match: bool = True
 
     # DTOs
     create_dto: Type[DataEntryCreate]
@@ -172,6 +173,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     subkind_field: Optional[str] = None
     data_entry_type: Optional[DataEntryTypeEnum] = None
     require_subkind_for_factor: bool = True
+    require_factor_to_match: bool = True
 
     async def resolve_primary_factor_id(
         self,
@@ -234,6 +236,12 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
     kg_co2eq: Optional[float] = None
 
 
+class HeadcountItemResponse(DataEntryResponseGen):
+    name: str
+    function: Optional[str] = None
+    fte: Optional[float] = None
+
+
 # ---- CREATE DTO --------------------------------- #
 
 
@@ -258,7 +266,19 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     user_count: int
 
 
+class HeadCountCreate(DataEntryCreate):
+    name: str
+    function: Optional[str] = None
+    fte: Optional[float] = None
+
+
 ## UPDATE DTO
+
+
+class HeadCountUpdate(DataEntryUpdate):
+    name: Optional[str] = None
+    function: Optional[str] = None
+    fte: Optional[float] = None
 
 
 class EquipmentHandlerUpdate(DataEntryUpdate):
@@ -415,6 +435,45 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         return self.create_dto.model_validate(payload)
 
     def validate_update(self, payload: dict) -> DataEntryUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+# Headcount
+
+
+class HeadcountMemberModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.member
+    create_dto = HeadCountCreate
+    update_dto = HeadCountUpdate
+    response_dto = HeadcountItemResponse
+
+    kind_field = None
+    subkind_field = None
+    require_subkind_for_factor = False
+    require_factor_to_match = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "name": DataEntry.data["name"].as_string(),
+        "function": DataEntry.data["function"].as_string(),
+        "fte": DataEntry.data["fte"].as_string(),
+    }
+
+    def to_response(self, data_entry: DataEntry) -> HeadcountItemResponse:
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+            }
+        )
+
+    def validate_create(self, payload: dict) -> HeadCountCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> HeadCountUpdate:
         return self.update_dto.model_validate(payload)
 
 

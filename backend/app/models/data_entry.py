@@ -54,7 +54,7 @@ class DataEntryBase(SQLModel):
     )
 
     status: Optional[DataEntryStatusEnum] = Field(
-        default=None,
+        default=DataEntryStatusEnum.PENDING,
         description="Optional status field for additional state tracking",
     )
 

@@ -632,7 +632,7 @@ function renderCell(
 }
 
 function getItemName(row: ModuleRow): string {
-  return String(row?.name ?? row?.display_name ?? $t('common_this_item'));
+  return String(row?.name ?? $t('common_this_item'));
 }
 
 function getRowId(row: ModuleRow): number | null {
@@ -821,7 +821,7 @@ function isCompleteEquipement(row: ModuleRow) {
 }
 
 function isCompleteHeadcount(row: ModuleRow) {
-  const requiredMember = ['display_name', 'fte', 'function'];
+  const requiredMember = ['name', 'fte', 'function'];
   const requiredStudent = ['fte'];
   // implicit behavior: if sciper is set, it's a member
   // todo: sciper field should not exist: maybe user_id to be agnostic
@@ -859,8 +859,8 @@ function isCompleteExternalAI(row: ModuleRow) {
 function isComplete(row: ModuleRow) {
   // # TODO : move isComplete to module definition
 
-  if (props.moduleType === MODULES.MyLab) {
-    // For MyLab (headcount), consider complete if name and status are set
+  if (props.moduleType === MODULES.Headcount) {
+    // For Headcount, consider complete if name and status are set
     return isCompleteHeadcount(row);
   }
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
@@ -960,7 +960,7 @@ function onDownloadTemplate() {
   //
   const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
 
-  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,display_name,status,function,sciper,fte,submodule`;
+  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,name,status,function,sciper,fte,submodule`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
 
@@ -971,7 +971,7 @@ function onDownloadTemplate() {
 
   let csvContent: string;
   switch (props.moduleType) {
-    case MODULES.MyLab:
+    case MODULES.Headcount:
       csvContent = csvHeadcountContent;
       break;
     case MODULES.ProfessionalTravel:
