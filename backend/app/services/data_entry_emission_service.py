@@ -8,11 +8,13 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
+from app.models.location import Location
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
 from app.schemas.data_entry import DataEntryResponse
 from app.services.factor_service import FactorService
+from app.services.travel_calculation_service import TravelCalculationService
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -45,7 +47,9 @@ class DataEntryEmissionService:
         elif data_entry.data_entry_type == DataEntryTypeEnum.external_ai:
             emission_type = EmissionTypeEnum.ai_provider
         # for headcount?
-        # for travel?
+        elif data_entry.data_entry_type == DataEntryTypeEnum.trips:
+            # Travel is handled specially - calculate emissions directly
+            return await self._prepare_travel_emission(data_entry)
         # for equipment?
         elif (
             data_entry.data_entry_type == DataEntryTypeEnum.scientific
@@ -100,6 +104,95 @@ class DataEntryEmissionService:
             subcategory=subcategory,  # TODO: should be an enum somwhere
             kg_co2eq=emissions_value.get("kg_co2eq"),
             meta={**emissions_value},
+        )
+        return emission_record
+
+    async def _prepare_travel_emission(
+        self, data_entry: DataEntryResponse | DataEntry
+    ) -> DataEntryEmission | None:
+        """
+        Prepare emission for professional travel (trips).
+
+        Travel emissions are calculated using TravelCalculationService based on:
+        - Origin and destination locations
+        - Transport mode (flight or train)
+        - Number of trips
+        """
+        if data_entry.id is None:
+            logger.error("DataEntry must have an ID before creating emissions.")
+            return None
+
+        # Extract travel data
+        origin_location_id = data_entry.data.get("origin_location_id")
+        destination_location_id = data_entry.data.get("destination_location_id")
+        transport_mode = data_entry.data.get("transport_mode")
+        number_of_trips = data_entry.data.get("number_of_trips", 1)
+        cabin_class = data_entry.data.get("cabin_class")
+
+        if not origin_location_id or not destination_location_id:
+            logger.error(
+                f"Missing location IDs for travel emission: "
+                f"origin={origin_location_id}, dest={destination_location_id}"
+            )
+            return None
+
+        if not transport_mode:
+            logger.error("Missing transport_mode for travel emission")
+            return None
+
+        # Fetch locations
+        origin_location = await self.session.get(Location, origin_location_id)
+        destination_location = await self.session.get(Location, destination_location_id)
+
+        if not origin_location or not destination_location:
+            logger.error(
+                f"Location not found: origin={origin_location_id}, "
+                f"dest={destination_location_id}"
+            )
+            return None
+
+        # Calculate emissions using TravelCalculationService
+        travel_service = TravelCalculationService(self.session)
+
+        try:
+            if transport_mode == "flight":
+                emission_type = EmissionTypeEnum.flight
+                distance_km, kg_co2eq = await travel_service.calculate_plane_emissions(
+                    origin_airport=origin_location,
+                    dest_airport=destination_location,
+                    class_=cabin_class,
+                    number_of_trips=number_of_trips,
+                )
+            elif transport_mode == "train":
+                emission_type = EmissionTypeEnum.train
+                distance_km, kg_co2eq = await travel_service.calculate_train_emissions(
+                    origin_station=origin_location,
+                    dest_station=destination_location,
+                    class_=cabin_class,
+                    number_of_trips=number_of_trips,
+                )
+            else:
+                logger.error(f"Unknown transport_mode: {transport_mode}")
+                return None
+        except Exception as e:
+            logger.error(f"Failed to calculate travel emissions: {e}")
+            return None
+
+        # Create emission record
+        emission_record = DataEntryEmission(
+            data_entry_id=data_entry.id,
+            emission_type_id=emission_type.value,
+            primary_factor_id=None,  # Travel doesn't use factor lookup
+            subcategory=transport_mode,  # "flight" or "train"
+            kg_co2eq=kg_co2eq,
+            meta={
+                "distance_km": distance_km,
+                "transport_mode": transport_mode,
+                "cabin_class": cabin_class,
+                "number_of_trips": number_of_trips,
+                "origin_location_id": origin_location_id,
+                "destination_location_id": destination_location_id,
+            },
         )
         return emission_record
 
@@ -226,6 +319,25 @@ def compute_external_ai(
         ) / 1000
     # return intermediary dict with calculation details alway kg_co2eq at least
     return {"kg_co2eq": kg_co2eq}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.trips)
+def compute_trips(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute emissions for professional travel (trips).
+
+    For trips, the emission is pre-calculated and stored in the data entry's
+    data field. The calculation is done via TravelCalculationService when
+    the trip is created/updated.
+    """
+    kg_co2eq = data_entry.data.get("kg_co2eq")
+    distance_km = data_entry.data.get("distance_km")
+
+    return {
+        "kg_co2eq": kg_co2eq,
+        "distance_km": distance_km,
+    }
 
 
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific)

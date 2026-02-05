@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -225,9 +225,7 @@ class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
     origin_location_id: int
     destination_location_id: int
     transport_mode: str  # "flight" or "train"
-    class_: Optional[str] = Field(
-        None, alias="class"
-    )  # eco, business, first, class_1, class_2
+    cabin_class: Optional[str] = None  # eco, business, first, class_1, class_2
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     is_round_trip: bool = False
@@ -236,6 +234,27 @@ class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
     destination: Optional[str] = None
     distance_km: Optional[float] = None
     kg_co2eq: Optional[float] = None
+
+    @field_validator("departure_date", mode="before")
+    @classmethod
+    def parse_departure_date(cls, v: Any) -> Optional[date]:
+        """Parse departure_date from various formats (date, datetime, string)."""
+        if v is None:
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, str):
+            # Handle empty strings as None
+            if not v.strip():
+                return None
+            # Handle ISO datetime strings like "2025-01-15T00:00:00"
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+            except ValueError:
+                return date.fromisoformat(v)
+        return v
 
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
@@ -280,18 +299,40 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 
 class ProfessionalTravelHandlerCreate(DataEntryCreate):
+    model_config = {"populate_by_name": True}
     traveler_name: str
     traveler_id: Optional[int] = None
     origin_location_id: int
     destination_location_id: int
     transport_mode: str  # "flight" or "train"
-    class_: Optional[str] = Field(
-        None, alias="class"
+    cabin_class: Optional[str] = Field(
+        None, alias="class_"
     )  # eco, business, first, class_1, class_2
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     is_round_trip: bool = False
     unit_id: int
+
+    @field_validator("departure_date", mode="before")
+    @classmethod
+    def parse_departure_date(cls, v: Any) -> Optional[date]:
+        """Parse departure_date from various formats (date, datetime, string)."""
+        if v is None:
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, str):
+            # Handle empty strings as None
+            if not v.strip():
+                return None
+            # Handle ISO datetime strings like "2025-01-15T00:00:00"
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+            except ValueError:
+                return date.fromisoformat(v)
+        return v
 
 
 class EquipmentHandlerCreate(DataEntryCreate):
@@ -372,12 +413,13 @@ class HeadCountStudentCreate(DataEntryCreate):
 
 
 class ProfessionalTravelHandlerUpdate(DataEntryUpdate):
+    model_config = {"populate_by_name": True}
     traveler_name: Optional[str] = None
     traveler_id: Optional[int] = None
     origin_location_id: Optional[int] = None
     destination_location_id: Optional[int] = None
     transport_mode: Optional[str] = None
-    class_: Optional[str] = Field(None, alias="class")
+    cabin_class: Optional[str] = Field(None, alias="class_")
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
 
@@ -713,7 +755,7 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         "traveler_name": DataEntry.data["traveler_name"].as_string(),
         "departure_date": DataEntry.data["departure_date"].as_string(),
         "transport_mode": DataEntry.data["transport_mode"].as_string(),
-        "class": DataEntry.data["class"].as_string(),
+        "cabin_class": DataEntry.data["cabin_class"].as_string(),
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
