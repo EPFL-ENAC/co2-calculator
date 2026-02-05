@@ -250,11 +250,13 @@ class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
             # Handle empty strings as None
             if not v.strip():
                 return None
+
+            normalized = v.replace("/", "-")
             # Handle ISO datetime strings like "2025-01-15T00:00:00"
             try:
-                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
             except ValueError:
-                return date.fromisoformat(v)
+                return date.fromisoformat(normalized)
         return v
 
 
@@ -328,11 +330,13 @@ class ProfessionalTravelHandlerCreate(DataEntryCreate):
             # Handle empty strings as None
             if not v.strip():
                 return None
+
+            normalized = v.replace("/", "-")
             # Handle ISO datetime strings like "2025-01-15T00:00:00"
             try:
-                return datetime.fromisoformat(v.replace("Z", "+00:00")).date()
+                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
             except ValueError:
-                return date.fromisoformat(v)
+                return date.fromisoformat(normalized)
         return v
 
 

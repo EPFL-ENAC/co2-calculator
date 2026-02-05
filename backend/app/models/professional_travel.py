@@ -61,7 +61,7 @@ class ProfessionalTravelBase(SQLModel):
             # Handle empty strings as None
             if not v.strip():
                 return None
-            # Replace slashes with dashes for ISO format parsing
+
             normalized = v.replace("/", "-")
             try:
                 return dt_date.fromisoformat(normalized)
@@ -191,7 +191,7 @@ class ProfessionalTravelUpdate(SQLModel):
             # Handle empty strings as None
             if not v.strip():
                 return None
-            # Replace slashes with dashes for ISO format parsing
+
             normalized = v.replace("/", "-")
             try:
                 return dt_date.fromisoformat(normalized)
