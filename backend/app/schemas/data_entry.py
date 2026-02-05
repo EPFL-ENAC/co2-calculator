@@ -224,8 +224,33 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         return payload
 
 
+# ---- Mixins ------------------------------------------------- #
+class DepartureDateMixin(BaseModel):
+    """Mixin for parsing departure_date from various formats."""
+
+    @field_validator("departure_date", mode="before", check_fields=False)
+    @classmethod
+    def parse_departure_date(cls, v: Any) -> Optional[date]:
+        """Parse departure_date from various formats (date, datetime, string)."""
+        if v is None:
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, str):
+            if not v.strip():
+                return None
+            normalized = v.replace("/", "-")
+            try:
+                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
+            except ValueError:
+                return date.fromisoformat(normalized)
+        return v
+
+
 # ---- Specific ModuleHandler Responses DTO ------------------ #
-class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
+class ProfessionalTravelHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
     traveler_name: str
     traveler_id: Optional[int] = None
     origin_location_id: int
@@ -240,29 +265,6 @@ class ProfessionalTravelHandlerResponse(DataEntryResponseGen):
     destination: Optional[str] = None
     distance_km: Optional[float] = None
     kg_co2eq: Optional[float] = None
-
-    @field_validator("departure_date", mode="before")
-    @classmethod
-    def parse_departure_date(cls, v: Any) -> Optional[date]:
-        """Parse departure_date from various formats (date, datetime, string)."""
-        if v is None:
-            return None
-        if isinstance(v, date) and not isinstance(v, datetime):
-            return v
-        if isinstance(v, datetime):
-            return v.date()
-        if isinstance(v, str):
-            # Handle empty strings as None
-            if not v.strip():
-                return None
-
-            normalized = v.replace("/", "-")
-            # Handle ISO datetime strings like "2025-01-15T00:00:00"
-            try:
-                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
-            except ValueError:
-                return date.fromisoformat(normalized)
-        return v
 
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
@@ -306,7 +308,7 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 # ---- CREATE DTO --------------------------------- #
 
 
-class ProfessionalTravelHandlerCreate(DataEntryCreate):
+class ProfessionalTravelHandlerCreate(DepartureDateMixin, DataEntryCreate):
     model_config = {"populate_by_name": True}
     traveler_name: str
     traveler_id: Optional[int] = None
@@ -320,29 +322,6 @@ class ProfessionalTravelHandlerCreate(DataEntryCreate):
     number_of_trips: int = 1
     is_round_trip: bool = False
     unit_id: int
-
-    @field_validator("departure_date", mode="before")
-    @classmethod
-    def parse_departure_date(cls, v: Any) -> Optional[date]:
-        """Parse departure_date from various formats (date, datetime, string)."""
-        if v is None:
-            return None
-        if isinstance(v, date) and not isinstance(v, datetime):
-            return v
-        if isinstance(v, datetime):
-            return v.date()
-        if isinstance(v, str):
-            # Handle empty strings as None
-            if not v.strip():
-                return None
-
-            normalized = v.replace("/", "-")
-            # Handle ISO datetime strings like "2025-01-15T00:00:00"
-            try:
-                return datetime.fromisoformat(normalized.replace("Z", "+00:00")).date()
-            except ValueError:
-                return date.fromisoformat(normalized)
-        return v
 
 
 class EquipmentHandlerCreate(DataEntryCreate):
@@ -692,10 +671,7 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
 
         for factor in factors:
             cls = factor.classification or {}
-            if (
-                cls.get("transport_mode") == "flight"
-                and cls.get("category") == category
-            ):
+            if cls.get("kind") == "flight" and cls.get("category") == category:
                 return factor
         return None
 
@@ -716,16 +692,13 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         # Try exact country match first
         for factor in factors:
             cls = factor.classification or {}
-            if (
-                cls.get("transport_mode") == "train"
-                and cls.get("countrycode") == countrycode
-            ):
+            if cls.get("kind") == "train" and cls.get("countrycode") == countrycode:
                 return factor
 
         # Fallback to RoW (Rest of World)
         for factor in factors:
             cls = factor.classification or {}
-            if cls.get("transport_mode") == "train" and cls.get("countrycode") == "RoW":
+            if cls.get("kind") == "train" and cls.get("countrycode") == "RoW":
                 return factor
 
         return None

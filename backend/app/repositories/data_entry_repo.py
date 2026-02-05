@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
+from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -236,8 +237,12 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
+        # Alias Location for origin/destination joins (used for trips)
+        OriginLocation = aliased(Location)
+        DestLocation = aliased(Location)
+
         statement = (
-            select(DataEntry, DataEntryEmission, Factor)
+            select(DataEntry, DataEntryEmission, Factor, OriginLocation, DestLocation)  # type: ignore[call-overload]
             .join(
                 DataEntryEmission,
                 col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
@@ -246,6 +251,17 @@ class DataEntryRepository:
             .join(
                 Factor,
                 col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                isouter=True,
+            )
+            .join(
+                OriginLocation,
+                DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,
+                isouter=True,
+            )
+            .join(
+                DestLocation,
+                DataEntry.data["destination_location_id"].as_integer()
+                == DestLocation.id,
                 isouter=True,
             )
             .where(
@@ -283,7 +299,13 @@ class DataEntryRepository:
 
         items: list[BaseModel] = []
 
-        for data_entry, data_entry_emission, primary_factor in rows:
+        for (
+            data_entry,
+            data_entry_emission,
+            primary_factor,
+            origin_loc,
+            dest_loc,
+        ) in rows:
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
@@ -315,20 +337,10 @@ class DataEntryRepository:
                 else {},
             }
 
-            # For trips, look up origin/destination names if not already present
-            if data_entry.data_entry_type_id == DataEntryTypeEnum.trips.value:
-                if not data_entry.data.get("origin"):
-                    origin_id = data_entry.data.get("origin_location_id")
-                    if origin_id:
-                        origin_loc = await self.session.get(Location, origin_id)
-                        if origin_loc:
-                            data_entry.data["origin"] = origin_loc.name
-                if not data_entry.data.get("destination"):
-                    dest_id = data_entry.data.get("destination_location_id")
-                    if dest_id:
-                        dest_loc = await self.session.get(Location, dest_id)
-                        if dest_loc:
-                            data_entry.data["destination"] = dest_loc.name
+            if origin_loc:
+                data_entry.data["origin"] = origin_loc.name
+            if dest_loc:
+                data_entry.data["destination"] = dest_loc.name
 
             items.append(handler.to_response(data_entry))
 

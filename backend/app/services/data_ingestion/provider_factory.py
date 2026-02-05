@@ -8,6 +8,9 @@ from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.data_entries_csv_provider import (
     DataEntriesCSVProvider,
 )
+from app.services.data_ingestion.professional_travel_api_provider import (
+    ProfessionalTravelApiProvider,
+)
 
 # from app.services.data_ingestion.csv_provider import (
 #     CSVDataEntriesProvider,
@@ -34,6 +37,12 @@ class ProviderFactory:
             ): DataEntriesCSVProvider
             for module_type in ModuleTypeEnum
         },
+        (
+            ModuleTypeEnum.professional_travel,
+            IngestionMethod.api,
+            TargetType.DATA_ENTRIES,
+            None,
+        ): ProfessionalTravelApiProvider,
         # TODO: Add more providers as needed
         # ("travel", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
