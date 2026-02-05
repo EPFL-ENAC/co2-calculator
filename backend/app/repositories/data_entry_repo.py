@@ -354,7 +354,10 @@ class DataEntryRepository:
             de.carbon_report_module_id = 'YOUR_REPORT_ID_HERE';
         """
         # 1. Get the model attributes dynamically
-        group_field = getattr(DataEntry, aggregate_by)
+        if hasattr(DataEntry, aggregate_by):
+            group_field = getattr(DataEntry, aggregate_by)
+        else:
+            group_field = DataEntry.data[aggregate_by].as_string()
         if hasattr(DataEntry, aggregate_field):
             sum_field = getattr(DataEntry, aggregate_field)
         else:
@@ -376,6 +379,8 @@ class DataEntryRepository:
             query
         )  # Changed .exec to .execute (Standard SQLAlchemy/SQLModel)
         rows = result.all()
+
+        # TODO: get_function_role
 
         # 3. Format the results
         aggregation: Dict[str, float] = {}

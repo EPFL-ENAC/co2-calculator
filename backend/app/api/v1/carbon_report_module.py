@@ -139,6 +139,11 @@ async def get_module(
                 carbon_report_module_id=carbon_report_module_id,
                 data_entry_type_id=None,
             )
+            module_data.stats = await DataEntryService(db).get_stats(
+                carbon_report_module_id=carbon_report_module_id,
+                aggregate_by="function",
+                aggregate_field="fte",
+            )
         # if need other subtotal do it here
         total_kg_co2eq = sum(module_data.stats.values())
         module_data.totals = ModuleTotals(
