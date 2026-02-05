@@ -106,7 +106,7 @@ seed-data: ## Seed the database with initial data
 # 	$(UV) run -m app.seed.seed_headcount
 	$(UV) run -m app.seed.seed_locations
 # 	TODO: seed_professionnal_travel should use current csv
-# 	$(UV) run -m app.seed.seed_professional_travel
+	$(UV) run -m app.seed.seed_professional_travel
 	$(UV) run -m app.seed.seed_travel_impact_factors
 	$(UV) run -m app.seed.seed_external_cloud_and_ai
 .PHONY: dev
