@@ -8,7 +8,6 @@ from app.core.logging import get_logger
 from app.models.module_type import ModuleTypeEnum
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
-from app.services.headcount_service import HeadcountService
 
 logger = get_logger(__name__)
 
@@ -19,20 +18,17 @@ class UnitTotalsService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def _calculate_totals_for_year(
-        self, unit_id: int, year: int, user
-    ) -> tuple[float, float]:
+    async def _calculate_totals_for_year(self, unit_id: int, year: int, user) -> float:
         """
         Calculate totals for a specific year without recursion.
 
         Returns:
-            Tuple of (total_kg_co2eq, total_fte)
+            Total kg CO2eq
         """
         total_kg_co2eq = 0.0
 
         # Equipment Electric Consumption
         try:
-            # ? retrieve carbon_report_module_id
             carbon_report_module = await CarbonReportModuleService(
                 self.session
             ).get_carbon_report_by_year_and_unit(
@@ -55,25 +51,9 @@ class UnitTotalsService:
         # - Purchase
         # - Internal Services
         # - External Cloud
+        # - Professional Travel
 
-        # Get FTE from headcount module
-        try:
-            headcount_service = HeadcountService(self.session, user=user)
-            headcount_stats = await headcount_service.get_module_stats(
-                unit_id=unit_id, year=year, aggregate_by="submodule"
-            )
-            # Sum all FTE values
-            total_fte = sum(
-                float(v)
-                for v in headcount_stats.values()
-                if isinstance(v, (int, float))
-            )
-            logger.debug(f"Total FTE: {total_fte}")
-        except Exception as e:
-            logger.warning(f"Error getting headcount stats: {e}")
-            total_fte = 0.0
-
-        return total_kg_co2eq, total_fte
+        return total_kg_co2eq
 
     async def get_unit_totals(
         self, unit_id: int, year: int, user
@@ -90,8 +70,6 @@ class UnitTotalsService:
             Dict with:
             - total_kg_co2eq: Total carbon footprint in kg CO2eq
             - total_tonnes_co2eq: Total carbon footprint in tonnes CO2eq
-            - total_fte: Total FTE count
-            - kg_co2eq_per_fte: Carbon footprint per FTE
             - previous_year_total_kg_co2eq: Previous year's total (if available)
             - previous_year_total_tonnes_co2eq: Previous year's total in tonnes
             - year_comparison_percentage: Percentage change from previous year
@@ -99,12 +77,9 @@ class UnitTotalsService:
         logger.info(f"Calculating unit totals for unit={unit_id}, year={year}")
 
         # Calculate current year totals
-        total_kg_co2eq, total_fte = await self._calculate_totals_for_year(
+        total_kg_co2eq = await self._calculate_totals_for_year(
             unit_id=unit_id, year=year, user=user
         )
-
-        # Calculate per FTE
-        kg_co2eq_per_fte = total_kg_co2eq / total_fte if total_fte > 0 else None
 
         # Get previous year's total for comparison
         previous_year = year - 1
@@ -112,7 +87,7 @@ class UnitTotalsService:
         year_comparison_percentage = None
 
         try:
-            previous_kg_co2eq, _ = await self._calculate_totals_for_year(
+            previous_kg_co2eq = await self._calculate_totals_for_year(
                 unit_id=unit_id, year=previous_year, user=user
             )
             previous_year_total_kg_co2eq = previous_kg_co2eq
@@ -129,10 +104,6 @@ class UnitTotalsService:
             "total_kg_co2eq": round(total_kg_co2eq, 2) if total_kg_co2eq else None,
             "total_tonnes_co2eq": round(total_kg_co2eq / 1000, 2)
             if total_kg_co2eq
-            else None,
-            "total_fte": round(total_fte, 2) if total_fte else None,
-            "kg_co2eq_per_fte": round(kg_co2eq_per_fte, 2)
-            if kg_co2eq_per_fte
             else None,
             "previous_year_total_kg_co2eq": (
                 round(previous_year_total_kg_co2eq, 2)
@@ -151,10 +122,6 @@ class UnitTotalsService:
             ),
         }
 
-        logger.info(
-            f"Unit totals calculated: {result['total_kg_co2eq']} kg CO2eq, "
-            f"{result['total_fte']} FTE, "
-            f"{result['kg_co2eq_per_fte']} kg CO2eq/FTE"
-        )
+        logger.info(f"Unit totals calculated: {result['total_kg_co2eq']} kg CO2eq")
 
         return result

@@ -7,13 +7,6 @@ from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
 from .factor import Factor
-from .headcount import (
-    HeadCount,
-    HeadCountBase,
-    HeadCountCreate,
-    HeadCountRead,
-    HeadCountUpdate,
-)
 from .location import (
     Location,
     LocationBase,
@@ -58,31 +51,12 @@ __all__ = [
     "UserBase",
     "UnitUser",
     "DataIngestionJob",
-    "Resource",
     "Factor",
-    "HeadCount",
-    "HeadCountBase",
-    "HeadCountCreate",
-    "HeadCountRead",
-    "HeadCountUpdate",
     "CarbonReport",
     "CarbonReportModule",
     "Location",
     "LocationBase",
     "LocationRead",
-    "ProfessionalTravel",
-    "ProfessionalTravelBase",
-    "ProfessionalTravelCreate",
-    "ProfessionalTravelEmission",
-    "ProfessionalTravelEmissionBase",
-    "ProfessionalTravelItemResponse",
-    "ProfessionalTravelList",
-    "ProfessionalTravelRead",
-    "ProfessionalTravelUpdate",
     "DataEntry",
     "DataEntryEmission",
-    "PlaneImpactFactor",
-    "PlaneImpactFactorBase",
-    "TrainImpactFactor",
-    "TrainImpactFactorBase",
 ]

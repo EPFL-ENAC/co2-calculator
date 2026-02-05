@@ -1,6 +1,6 @@
 """Unit Results API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -12,7 +12,6 @@ from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
-from app.services.headcount_service import HeadcountService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -85,7 +84,6 @@ async def get_module_stats(
     unit_id: int,
     year: int,
     module_id: str,
-    aggregate_by: str = Query(default="submodule", description="Aggregate by field"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict[str, float]:
@@ -99,7 +97,7 @@ async def get_module_stats(
         db: Database session
         current_user: Authenticated user
     Returns:
-        List of integers with statistics (e.g., total items, total submodules)
+        Dict with statistics (e.g., total items, total kg_co2eq)
     """
     await _check_module_permission(current_user, module_id, "view")
 
@@ -118,12 +116,6 @@ async def get_module_stats(
     if module_id == "equipment-electric-consumption":
         stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module.id,
-        )
-    elif module_id == "my-lab":
-        stats = await HeadcountService(db).get_module_stats(
-            unit_id=unit_id,
-            year=year,
-            aggregate_by=aggregate_by,
         )
     else:
         raise HTTPException(

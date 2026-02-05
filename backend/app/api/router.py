@@ -11,7 +11,6 @@ from app.api.v1 import (
     data_sync,
     factors,
     files,
-    headcounts,
     locations,
     unit_results,
     units,
@@ -35,7 +34,6 @@ api_router.include_router(
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
-api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
 )

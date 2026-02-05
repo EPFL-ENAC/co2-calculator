@@ -53,34 +53,10 @@ erDiagram
     BOOLEAN is_conversion "indexed"
     JSON values
   }
-  headcounts {
-    VARCHAR cf
-    VARCHAR cf_name
-    VARCHAR cf_user_id
-    DATETIME created_at
-    INTEGER created_by "indexed"
-    DATE date
-    VARCHAR display_name
-    FLOAT fte
-    VARCHAR function
-    VARCHAR function_role
-    INTEGER id PK
-    VARCHAR provider
-    VARCHAR provider_source
-    VARCHAR sciper "indexed"
-    VARCHAR status
-    VARCHAR submodule "indexed"
-    INTEGER unit_id "indexed"
-    VARCHAR unit_name
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-  }
   locations {
     VARCHAR airport_size
     VARCHAR continent "indexed"
     VARCHAR countrycode "indexed"
-    DATETIME created_at
-    INTEGER created_by "indexed"
     VARCHAR iata_code "indexed"
     INTEGER id PK
     VARCHAR keywords
@@ -89,8 +65,6 @@ erDiagram
     VARCHAR municipality "indexed"
     VARCHAR name "indexed"
     VARCHAR transport_mode "indexed"
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
   }
   unit_users {
     VARCHAR role "indexed"

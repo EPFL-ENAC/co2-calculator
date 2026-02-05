@@ -146,7 +146,7 @@ class DataEntryEmissionService:
         emission_record = DataEntryEmission(
             data_entry_id=data_entry.id,
             emission_type_id=emission_type.value,
-            primary_factor_id=None,  # Travel doesn't use factor lookup
+            primary_factor_id=data_entry.data.get("primary_factor_id"),
             subcategory=transport_mode,  # "flight" or "train"
             kg_co2eq=kg_co2eq,
             meta={

@@ -10,9 +10,6 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.headcount import (
-    HeadcountItemResponse,
-)
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.schemas.carbon_report_response import (
@@ -21,11 +18,12 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import (
-    BaseModuleHandler,
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
+    HeadcountItemResponse,
     ModuleHandler,
+    get_data_entry_handler_by_type,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -325,7 +323,7 @@ async def create(
     if current_user.id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current user ID is required to delete item",
+            detail="Current user ID is required to create item",
         )
     if carbon_report_module_id is None:
         raise HTTPException(

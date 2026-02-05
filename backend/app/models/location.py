@@ -4,8 +4,6 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
-from .headcount import AuditMixin
-
 # ==========================================
 # 1. BASE MODEL
 # ==========================================
@@ -76,7 +74,7 @@ class LocationBase(SQLModel):
 # ==========================================
 
 
-class Location(LocationBase, AuditMixin, table=True):
+class Location(LocationBase, table=True):
     """
     Database table for train stations and airports.
     Inherits Base fields + Audit fields + Adds ID.
@@ -102,7 +100,7 @@ class Location(LocationBase, AuditMixin, table=True):
 # ==========================================
 
 
-class LocationRead(LocationBase, AuditMixin):
+class LocationRead(LocationBase):
     """
     Response schema for GET requests.
     Returns Data + ID + Audit timestamps.
