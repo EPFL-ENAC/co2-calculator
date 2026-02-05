@@ -191,6 +191,15 @@ class DataEntryService:
             filter=filter,
         )
 
-    # async def get_by_workspace(self, unit_id: int, date: str) -> Optional[HeadCount]:
-    #     """Get headcount record by unit_id and date."""
-    #     return await self.repo.get_by_workspace(unit_id, date)
+    async def get_total_per_field(
+        self,
+        field_name: str,
+        carbon_report_module_id: int,
+        data_entry_type_id: Optional[int],
+    ) -> Optional[float]:
+        """Get total sum of a specific field for a given module and data entry type."""
+        return await self.repo.get_total_per_field(
+            field_name=field_name,
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+        )

@@ -307,6 +307,36 @@ class DataEntryRepository:
         )
         return response
 
+    async def get_total_per_field(
+        self,
+        field_name: str,
+        carbon_report_module_id: int,
+        data_entry_type_id: Optional[int] = None,
+    ) -> float:
+        """Get total sum for a specific field across data entries.
+
+        :param field_name: The field to sum (e.g., 'fte', 'kg_co2eq').
+        :param carbon_report_module_id: The carbon report module ID to filter by.
+        :param data_entry_type_id: Optional data entry type ID to filter by.
+        :return: The total sum as a float.
+        """
+        if hasattr(DataEntry, field_name):
+            sum_field = getattr(DataEntry, field_name)
+        else:
+            sum_field = DataEntry.data[field_name].as_float()
+
+        statement = select(func.sum(sum_field).label("total")).where(
+            DataEntry.carbon_report_module_id == carbon_report_module_id
+        )
+        if data_entry_type_id is not None:
+            statement = statement.where(
+                DataEntry.data_entry_type_id == data_entry_type_id
+            )
+
+        result = await self.session.execute(statement)
+        total = result.scalar_one()
+        return float(total or 0.0)
+
     async def get_stats(
         self,
         carbon_report_module_id,
@@ -325,7 +355,10 @@ class DataEntryRepository:
         """
         # 1. Get the model attributes dynamically
         group_field = getattr(DataEntry, aggregate_by)
-        sum_field = getattr(DataEntry, aggregate_field)
+        if hasattr(DataEntry, aggregate_field):
+            sum_field = getattr(DataEntry, aggregate_field)
+        else:
+            sum_field = DataEntry.data[aggregate_field].as_float()
 
         # 2. Build the query with the JOIN
         query = (

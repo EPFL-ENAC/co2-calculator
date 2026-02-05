@@ -132,13 +132,20 @@ async def get_module(
             carbon_report_module_id=carbon_report_module_id,
         )
         # if headcount compute FTE here
+        total_annual_fte = None
+        if module_id == "headcount":
+            total_annual_fte = await DataEntryService(db).get_total_per_field(
+                field_name="fte",
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=None,
+            )
         # if need other subtotal do it here
         total_kg_co2eq = sum(module_data.stats.values())
         module_data.totals = ModuleTotals(
             total_kg_co2eq=total_kg_co2eq,
             total_tonnes_co2eq=total_kg_co2eq / 1000.0,
             total_annual_consumption_kwh=None,
-            total_annual_fte=None,
+            total_annual_fte=total_annual_fte,
         )
     if not module_data:
         raise HTTPException(

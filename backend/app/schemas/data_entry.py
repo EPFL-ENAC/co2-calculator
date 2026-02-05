@@ -242,6 +242,10 @@ class HeadcountItemResponse(DataEntryResponseGen):
     fte: Optional[float] = None
 
 
+class HeadCountStudentResponse(DataEntryResponseGen):
+    fte: float
+
+
 # ---- CREATE DTO --------------------------------- #
 
 
@@ -272,7 +276,15 @@ class HeadCountCreate(DataEntryCreate):
     fte: Optional[float] = None
 
 
+class HeadCountStudentCreate(DataEntryCreate):
+    fte: float
+
+
 ## UPDATE DTO
+
+
+class HeadCountStudentUpdate(DataEntryUpdate):
+    fte: Optional[float] = None
 
 
 class HeadCountUpdate(DataEntryUpdate):
@@ -457,7 +469,7 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
         "id": DataEntry.id,
         "name": DataEntry.data["name"].as_string(),
         "function": DataEntry.data["function"].as_string(),
-        "fte": DataEntry.data["fte"].as_string(),
+        "fte": DataEntry.data["fte"].as_float(),
     }
 
     def to_response(self, data_entry: DataEntry) -> HeadcountItemResponse:
@@ -474,6 +486,40 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
         return self.create_dto.model_validate(payload)
 
     def validate_update(self, payload: dict) -> HeadCountUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+class HeadcountStudentModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.student
+    create_dto = HeadCountStudentCreate
+    update_dto = HeadCountStudentUpdate
+    response_dto = HeadCountStudentResponse
+
+    kind_field = None
+    subkind_field = None
+    require_subkind_for_factor = False
+    require_factor_to_match = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "fte": DataEntry.data["fte"].as_float(),
+    }
+
+    def to_response(self, data_entry: DataEntry) -> HeadCountStudentResponse:
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+            }
+        )
+
+    def validate_create(self, payload: dict) -> HeadCountStudentCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> HeadCountStudentUpdate:
         return self.update_dto.model_validate(payload)
 
 
