@@ -233,6 +233,42 @@ class FactorRepository:
 
         return None
 
+    async def get_flight_factor(self, category: str) -> Optional[Factor]:
+        """Look up flight emission factor by haul category."""
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await self.session.exec(stmt)
+        factors = result.all()
+
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "flight" and cls.get("category") == category:
+                return factor
+        return None
+
+    async def get_train_factor(self, countrycode: str) -> Optional[Factor]:
+        """Look up train emission factor by country code, with RoW fallback."""
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await self.session.exec(stmt)
+        factors = result.all()
+
+        # Try exact country match first
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "train" and cls.get("countrycode") == countrycode:
+                return factor
+
+        # Fallback to RoW (Rest of World)
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "train" and cls.get("countrycode") == "RoW":
+                return factor
+
+        return None
+
     # async def get_emission_factor(
     #     self,
     #     session: AsyncSession,
