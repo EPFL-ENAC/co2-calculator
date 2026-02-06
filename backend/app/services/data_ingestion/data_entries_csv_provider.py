@@ -463,7 +463,12 @@ class DataEntriesCSVProvider(DataIngestionProvider):
             handler = get_data_entry_handler_by_type(configured_data_entry_type)
             handlers = [handler]
             expected_columns = _get_expected_columns_from_handlers(handlers)
-            required_columns = _get_required_columns_from_handler(handler)
+            # Skip required column validation for handlers with preprocess_row
+            # (they do their own field mapping from CSV columns to DTO fields)
+            if hasattr(handler, "preprocess_row") and callable(handler.preprocess_row):
+                required_columns = set()
+            else:
+                required_columns = _get_required_columns_from_handler(handler)
         else:
             handlers = list(MODULE_HANDLERS.values())
             expected_columns = _get_expected_columns_from_handlers(handlers)
@@ -604,6 +609,26 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
+            # Call handler preprocessing if available (e.g., for travel module)
+            # This handles IATA code → location_id lookups and field normalization
+            if hasattr(handler, "preprocess_row") and callable(handler.preprocess_row):
+                try:
+                    preprocessed = await handler.preprocess_row(
+                        row,  # Pass original row for field mapping
+                        self.session,
+                        self.config,
+                    )
+                    if preprocessed is None:
+                        # Handler decided to skip this row
+                        stats["rows_skipped"] += 1
+                        return None, "Skipped by handler preprocessing", None
+                    # Use preprocessed data for validation
+                    filtered_row = preprocessed
+                except Exception as preprocess_error:
+                    error_msg = f"Preprocessing error: {preprocess_error}"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
+
             # Validate payload with handler
             payload: Dict[str, str | int] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
@@ -621,6 +646,20 @@ class DataEntriesCSVProvider(DataIngestionProvider):
             primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
             data["primary_factor_id"] = primary_factor_id
+
+            # Call resolve_primary_factor_id to calculate emissions
+            if hasattr(handler, "resolve_primary_factor_id"):
+                try:
+                    data = await handler.resolve_primary_factor_id(
+                        data,
+                        data_entry_type,
+                        self.session,
+                    )
+                except Exception as resolve_error:
+                    logger.warning(
+                        f"Row {row_idx}: Failed to resolve emissions: {resolve_error}"
+                    )
+                    # Continue without emissions - don't fail the row
 
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,

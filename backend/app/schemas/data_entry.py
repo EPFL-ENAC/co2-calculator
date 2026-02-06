@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -10,7 +11,15 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location
 from app.models.module_type import ModuleTypeEnum
+from app.repositories.factor_repo import FactorRepository
+from app.repositories.location_repo import LocationRepository
 from app.services.factor_service import FactorService
+from app.utils.distance_geography import (
+    calculate_plane_distance,
+    calculate_train_distance,
+    get_haul_category,
+)
+from app.utils.parsing import parse_bool, parse_date_str, parse_float, parse_int
 
 logger = get_logger(__name__)
 
@@ -637,6 +646,159 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
+
+    async def _get_flight_factor(
+        self,
+        db: AsyncSession,
+        category: str,
+    ) -> Optional[Factor]:
+        """Look up flight emission factor by haul category."""
+
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await db.exec(stmt)
+        factors = result.all()
+
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "flight" and cls.get("category") == category:
+                return factor
+        return None
+
+    async def _get_train_factor(
+        self,
+        db: AsyncSession,
+        countrycode: str,
+    ) -> Optional[Factor]:
+        """Look up train emission factor by country code."""
+
+        stmt = select(Factor).where(
+            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+        )
+        result = await db.exec(stmt)
+        factors = result.all()
+
+        # Try exact country match first
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "train" and cls.get("countrycode") == countrycode:
+                return factor
+
+        # Fallback to RoW (Rest of World)
+        for factor in factors:
+            cls = factor.classification or {}
+            if cls.get("kind") == "train" and cls.get("countrycode") == "RoW":
+                return factor
+
+        return None
+
+    async def _get_location_id_by_iata(
+        self,
+        db: AsyncSession,
+        iata_code: str,
+    ) -> Optional[int]:
+        """Lookup location ID by IATA code."""
+        repo = LocationRepository(db)
+        location = await repo.get_by_iata_code(iata_code)
+        return location.id if location else None
+
+    async def preprocess_row(
+        self,
+        row: Dict[str, Any],
+        db: AsyncSession,
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Shared transformation for both CSV and API data.
+        Resolves IATA codes to location IDs and normalizes field values.
+        Returns None if row should be skipped.
+        """
+        # Parse and validate departure date
+        departure_date = parse_date_str(
+            row.get("IN_Departure date") or row.get("departure_date") or ""
+        )
+        year_filter = config.get("year")
+        if year_filter and departure_date and departure_date.year != year_filter:
+            return None  # Skip records not in target year
+
+        # Validate traveler
+        sciper = row.get("SCIPER") or row.get("Sciper") or row.get("traveler_name")
+        if not sciper or str(sciper).strip() == "":
+            return None
+
+        # Resolve origin location from IATA code
+        origin_code = row.get("IN_Segment origin airport code") or row.get(
+            "origin_code"
+        )
+        origin_location_id = row.get("origin_location_id")
+        if origin_code and not origin_location_id:
+            origin_location_id = await self._get_location_id_by_iata(db, origin_code)
+        if origin_location_id is None:
+            return None  # Skip unknown origin
+
+        # Resolve destination location from IATA code
+        dest_code = row.get("IN_Segment destination airport code") or row.get(
+            "destination_code"
+        )
+        destination_location_id = row.get("destination_location_id")
+        if dest_code and not destination_location_id:
+            destination_location_id = await self._get_location_id_by_iata(db, dest_code)
+        if destination_location_id is None:
+            return None  # Skip unknown destination
+
+        # Build normalized entry matching ProfessionalTravelHandlerCreate fields
+        return {
+            "traveler_name": str(sciper),
+            "traveler_id": int(sciper) if str(sciper).isdigit() else None,
+            "origin_location_id": origin_location_id,
+            "destination_location_id": destination_location_id,
+            "transport_mode": self._normalize_transport(
+                row.get("TRANSPORT_TYPE") or row.get("transport_mode") or "flight"
+            ),
+            "cabin_class": self._normalize_cabin_class(
+                row.get("IN_Segment class") or row.get("cabin_class") or ""
+            ),
+            "departure_date": departure_date.isoformat() if departure_date else None,
+            "number_of_trips": parse_int(
+                row.get("Number of trips") or row.get("number_of_trips"), default=1
+            ),
+            "is_round_trip": parse_bool(
+                row.get("ROUND_TRIP") or row.get("is_round_trip")
+            ),
+            "unit_id": config.get("default_unit_id", 10208),
+            # Extra fields stored in data dict for reference
+            "origin_code": origin_code,
+            "destination_code": dest_code,
+            "distance_km": parse_float(row.get("OUT_DISTANCE_CORRECTED")),
+            "co2_kg": parse_float(row.get("OUT_CO2_CORRECTED")),
+            "centre_financier": row.get("Centre financier")
+            or row.get("IN_Centre financier"),
+            "supplier": row.get("IN_Supplier"),
+            "ticket_number": row.get("IN_Ticket number"),
+        }
+
+    def _normalize_transport(self, value: str) -> str:
+        """Normalize transport type to standard values."""
+        mapping = {
+            "Plane": "flight",
+            "PLANE": "flight",
+            "plane": "flight",
+            "Train": "train",
+            "TRAIN": "train",
+            "train": "train",
+        }
+        return mapping.get(value, value.lower() if value else "flight")
+
+    def _normalize_cabin_class(self, value: str) -> str:
+        """Normalize cabin class to standard values."""
+        mapping = {
+            "AIR ECONOMY CLASS": "eco",
+            "AIR BUSINESS CLASS": "business",
+            "AIR FIRST CLASS": "first",
+            "AIR PREMIUM ECONOMY": "premium_eco",
+        }
+        return mapping.get(value, value if value else "eco")
 
     async def resolve_primary_factor_id(
         self,

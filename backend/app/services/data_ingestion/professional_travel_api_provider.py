@@ -7,15 +7,14 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 from joserfc import jwt as JWT
 from joserfc.jwk import OctKey
-from sqlmodel import select
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionStatus
-from app.models.location import Location
 from app.models.user import User
+from app.schemas.data_entry import MODULE_HANDLERS
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
@@ -111,72 +110,27 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
     async def transform_data(
         self, raw_data: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
+        """Transform API data using shared handler preprocessing logic."""
         try:
+            handler = MODULE_HANDLERS[DataEntryTypeEnum.trips]
             transformed = []
 
-            async def get_location_id_by_code(code: str) -> Optional[int]:
-                async with SessionLocal() as db:
-                    result = await db.execute(
-                        select(Location).where(Location.iata_code == code)
+            async with SessionLocal() as db:
+                for record in raw_data:
+                    # Use handler preprocessing for IATA→location lookup
+                    entry = await handler.preprocess_row(  # type: ignore[attr-defined]
+                        record, db, self.config
                     )
-                    location = result.scalar_one_or_none()
-                return location.id if location else None
+                    if entry:
+                        # Add carbon_report_module_id for DataEntry creation
+                        entry["carbon_report_module_id"] = self.config.get(
+                            "carbon_report_module_id"
+                        )
+                        transformed.append(entry)
 
-            for record in raw_data:
-                # check date < 01.01.year+1
-                departure_date_str = record.get("IN_Departure date") or ""
-                departure_date = self._parse_date(departure_date_str)
-                if (not departure_date) or (departure_date.year != self.config["year"]):
-                    continue  # Skip records not in the target year
-                # In your transform_data method, before appending entry:
-                origin_code: str = record.get("IN_Segment origin airport code") or ""
-                destination_code: str = (
-                    record.get("IN_Segment destination airport code") or ""
-                )
-                origin_location_id = await get_location_id_by_code(origin_code)
-                destination_location_id = await get_location_id_by_code(
-                    destination_code
-                )
-                if (origin_location_id is None) or (destination_location_id is None):
-                    continue  # Skip records with unknown locations
-                sciper = record.get("SCIPER")
-                if not sciper or str(sciper).strip() == "":
-                    continue  # Skip records without valid sciper
-
-                traveler_name = sciper if sciper else "Unknown"
-
-                entry = {
-                    "sciper": sciper,
-                    "centre_financier": record.get("Centre financier"),
-                    "departure_date": self._parse_date(
-                        record.get("IN_Departure date") or ""
-                    ),
-                    "origin": record.get("IN_Segment origin"),
-                    "destination": record.get("IN_Segment destination"),
-                    "origin_code": record.get("IN_Segment origin airport code"),
-                    "destination_code": record.get(
-                        "IN_Segment destination airport code"
-                    ),
-                    "class_": self._normalize_class(
-                        record.get("IN_Segment class") or ""
-                    ),
-                    "supplier": record.get("IN_Supplier"),
-                    "ticket_number": record.get("IN_Ticket number"),
-                    "transport_type": record.get("TRANSPORT_TYPE"),
-                    "round_trip": record.get("ROUND_TRIP") == "YES",
-                    "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
-                    "co2_kg": record.get("OUT_CO2_CORRECTED"),
-                    "traveler_name": traveler_name,
-                    "traveler_id": sciper,
-                    "provider": self.config["provider"],
-                    "origin_location_id": origin_location_id,
-                    "destination_location_id": destination_location_id,
-                    "transport_mode": record.get("TRANSPORT_TYPE"),
-                    "unit_id": "10208",  # TODO: map from your context or record
-                    "year": self.config["year"],
-                }
-                transformed.append(entry)
-
+            logger.info(
+                f"Transformed {len(transformed)} records from {len(raw_data)} raw"
+            )
             return transformed
 
         except Exception as e:
@@ -339,19 +293,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         if response.status_code == HTTPStatus.OK:
             return response.json()
         raise Exception(f"Query failed: {response.status_code} {response.text}")
-
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
-        if not date_str or len(date_str) != 8:
-            return None
-        return datetime.strptime(date_str, "%Y%m%d")
-
-    def _normalize_class(self, class_str: str) -> str:
-        mapping = {
-            "AIR ECONOMY CLASS": "eco",
-            "AIR BUSINESS CLASS": "business",
-            "AIR FIRST CLASS": "first",
-        }
-        return mapping.get(class_str, "eco")
 
 
 def to_bool(value: str) -> bool:
