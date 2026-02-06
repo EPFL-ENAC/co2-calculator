@@ -16,7 +16,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.data_entry import (
     DATA_ENTRY_META_FIELDS,
     MODULE_HANDLERS,
-    BaseModuleHandler,
+    get_data_entry_handler_by_type,
 )
 from app.seed.seed_helper import is_in_factors_map, load_factors_map, lookup_factor
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -460,7 +460,7 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                 self.session, configured_data_entry_type
             )
             factors_map.update(type_factors)
-            handler = BaseModuleHandler.get_by_type(configured_data_entry_type)
+            handler = get_data_entry_handler_by_type(configured_data_entry_type)
             handlers = [handler]
             expected_columns = _get_expected_columns_from_handlers(handlers)
             required_columns = _get_required_columns_from_handler(handler)
@@ -565,7 +565,7 @@ class DataEntriesCSVProvider(DataIngestionProvider):
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
                 data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
-                handler = BaseModuleHandler.get_by_type(data_entry_type)
+                handler = get_data_entry_handler_by_type(data_entry_type)
             else:
                 # MODULE_UNIT_SPECIFIC
                 if configured_data_entry_type_id is None:
