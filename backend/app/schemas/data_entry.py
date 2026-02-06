@@ -10,13 +10,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location
 from app.models.module_type import ModuleTypeEnum
-from app.repositories.factor_repo import FactorRepository
 from app.services.factor_service import FactorService
-from app.utils.distance_geography import (
-    calculate_plane_distance,
-    calculate_train_distance,
-    get_haul_category,
-)
 
 logger = get_logger(__name__)
 
@@ -182,18 +176,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     data_entry_type: Optional[DataEntryTypeEnum] = None
     require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
-
-    @classmethod
-    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
-        """
-        Returns the module handler instance for the given data_entry_type.
-        """
-        handler = MODULE_HANDLERS.get(data_entry_type)
-        if handler is None:
-            raise ValueError(
-                f"No module handler found for data_entry_type={data_entry_type}"
-            )
-        return handler
 
     async def resolve_primary_factor_id(
         self,
@@ -757,8 +739,11 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         db: AsyncSession,
         existing_data: Optional[dict] = None,
     ) -> dict:
-        """Look up locations and resolve factor ID (no emission calculation)."""
-        # Get location IDs from payload or existing data
+        """
+        Resolve factor ID by classification (kind, subkind).
+        Does NOT calculate emissions - that happens in DataEntryEmissionService.
+        """
+        # Merge payload with existing data
         origin_id = payload.get("origin_location_id")
         dest_id = payload.get("destination_location_id")
         transport_mode = payload.get("transport_mode")
@@ -771,7 +756,7 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
             if transport_mode is None:
                 transport_mode = existing_data.get("transport_mode")
 
-        # Look up locations
+        # Look up locations for display names
         origin_loc = await db.get(Location, origin_id) if origin_id else None
         dest_loc = await db.get(Location, dest_id) if dest_id else None
 
@@ -780,32 +765,8 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         if dest_loc:
             payload["destination"] = dest_loc.name
 
-        # Resolve factor if we have both locations and mode
-        if origin_loc and dest_loc and transport_mode:
-            factor_repo = FactorRepository(db)
-
-            if transport_mode == "flight":
-                distance_km = calculate_plane_distance(origin_loc, dest_loc)
-                category = get_haul_category(distance_km)
-                factor = await factor_repo.get_factor(
-                    DataEntryTypeEnum.trips, kind="flight", category=category
-                )
-                payload["distance_km"] = distance_km
-                payload["category"] = category
-                payload["primary_factor_id"] = factor.id if factor else None
-
-            elif transport_mode == "train":
-                distance_km = calculate_train_distance(origin_loc, dest_loc)
-                dest_country = dest_loc.countrycode or "RoW"
-                factor = await factor_repo.get_factor(
-                    DataEntryTypeEnum.trips,
-                    fallbacks={"countrycode": "RoW"},
-                    kind="train",
-                    countrycode=dest_country,
-                )
-                payload["distance_km"] = distance_km
-                payload["countrycode"] = dest_country
-                payload["primary_factor_id"] = factor.id if factor else None
+        # For trips: factor resolution happens in DataEntryEmissionService
+        # because it requires distance calculation (flights need haul category)
 
         return payload
 

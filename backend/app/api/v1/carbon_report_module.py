@@ -348,19 +348,6 @@ async def create(
     await db.commit()
     item = DataEntryResponse.model_validate(item)
 
-    if item is None:
-        logger.error(
-            "Failed to create item in module",
-            extra={
-                "module_id": sanitize(module_id),
-                "unit_id": sanitize(unit_id),
-                "user_id": sanitize(current_user.id),
-            },
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create equipment item",
-        )
     logger.info(
         f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
     )
@@ -487,8 +474,7 @@ async def update(
         )
     except Exception as e:
         logger.error(
-            f"Error validating update data for item_id={sanitize(item_id)}: "
-            f"extra={str(e)}",
+            f"Error validating update data for item_id={sanitize(item_id)}: {str(e)}",
             exc_info=True,
         )
         raise HTTPException(
