@@ -285,24 +285,6 @@ def compute_external_ai(
     return {"kg_co2eq": kg_co2eq}
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.trips)
-def compute_trips(
-    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
-) -> dict:
-    """Compute emissions for professional travel (trips).
-
-    For trips, the emission is pre-calculated and stored in the data entry's
-    data field when the trip is created/updated.
-    """
-    kg_co2eq = data_entry.data.get("kg_co2eq")
-    distance_km = data_entry.data.get("distance_km")
-
-    return {
-        "kg_co2eq": kg_co2eq,
-        "distance_km": distance_km,
-    }
-
-
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific)
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.it)
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.other)
