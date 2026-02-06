@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -11,6 +11,7 @@ from app.models.factor import Factor
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
+from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import DataEntryResponse
 from app.services.factor_service import FactorService
 
@@ -111,43 +112,50 @@ class DataEntryEmissionService:
         """
         Prepare emission for professional travel (trips).
 
-        Travel emissions should be pre-calculated and stored in the data entry's
-        data field with kg_co2eq and distance_km values.
+        Calculates kg_co2eq from distance and factor.
         """
         if data_entry.id is None:
             logger.error("DataEntry must have an ID before creating emissions.")
             return None
 
-        # Extract travel data - emissions should be pre-calculated
+        # Extract travel data
         transport_mode = data_entry.data.get("transport_mode")
-        kg_co2eq = data_entry.data.get("kg_co2eq")
-        distance_km = data_entry.data.get("distance_km")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         cabin_class = data_entry.data.get("cabin_class")
         origin_location_id = data_entry.data.get("origin_location_id")
         destination_location_id = data_entry.data.get("destination_location_id")
+        primary_factor_id = data_entry.data.get("primary_factor_id")
+        distance_km = data_entry.data.get("distance_km")
 
-        if kg_co2eq is None:
+        if not transport_mode or not primary_factor_id:
             logger.warning(
-                f"No pre-calculated kg_co2eq for travel data entry {data_entry.id}"
+                f"Missing transport_mode or primary_factor_id for entry {data_entry.id}"
             )
             return None
 
-        # Determine emission type based on transport mode
-        if transport_mode == "flight":
-            emission_type = EmissionTypeEnum.flight
-        elif transport_mode == "train":
-            emission_type = EmissionTypeEnum.train
-        else:
-            # Default to flight if transport_mode not specified
-            emission_type = EmissionTypeEnum.flight
+        # Calculate kg_co2eq from factor
+        kg_co2eq = await self._calculate_travel_kg_co2eq(
+            primary_factor_id=primary_factor_id,
+            transport_mode=transport_mode,
+            distance_km=distance_km,
+            number_of_trips=number_of_trips,
+        )
 
-        # Create emission record
-        emission_record = DataEntryEmission(
+        if kg_co2eq is None:
+            return None
+
+        # Determine emission type based on transport mode
+        emission_type = (
+            EmissionTypeEnum.flight
+            if transport_mode == "flight"
+            else EmissionTypeEnum.train
+        )
+
+        return DataEntryEmission(
             data_entry_id=data_entry.id,
             emission_type_id=emission_type.value,
-            primary_factor_id=data_entry.data.get("primary_factor_id"),
-            subcategory=transport_mode,  # "flight" or "train"
+            primary_factor_id=primary_factor_id,
+            subcategory=transport_mode,
             kg_co2eq=kg_co2eq,
             meta={
                 "distance_km": distance_km,
@@ -158,7 +166,39 @@ class DataEntryEmissionService:
                 "destination_location_id": destination_location_id,
             },
         )
-        return emission_record
+
+    async def _calculate_travel_kg_co2eq(
+        self,
+        primary_factor_id: int,
+        transport_mode: str,
+        distance_km: Optional[float],
+        number_of_trips: int = 1,
+    ) -> Optional[float]:
+        """Calculate kg_co2eq for travel from factor and distance."""
+        if not distance_km:
+            logger.warning("Missing distance_km for travel emission calculation")
+            return None
+
+        factor_repo = FactorRepository(self.session)
+        factor = await factor_repo.get(primary_factor_id)
+        if not factor:
+            logger.warning(f"Factor {primary_factor_id} not found")
+            return None
+
+        impact_score = factor.values.get("impact_score", 0)
+
+        if transport_mode == "flight":
+            rfi_adjustment = factor.values.get("rfi_adjustment", 1)
+            kg_co2eq = distance_km * impact_score * rfi_adjustment * number_of_trips
+        else:
+            kg_co2eq = distance_km * impact_score * number_of_trips
+
+        logger.debug(
+            f"Travel ({transport_mode}): {distance_km}km × {impact_score} "
+            f"× {number_of_trips} = {kg_co2eq:.2f} kg CO2eq"
+        )
+
+        return round(kg_co2eq, 2)
 
     async def create(self, data_entry: DataEntryResponse) -> DataEntryEmission | None:
         """Create emissions for a data entry, if applicable."""

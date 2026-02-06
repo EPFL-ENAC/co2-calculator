@@ -241,59 +241,42 @@ class DataEntryRepository:
         is_trips = data_entry_type_id == DataEntryTypeEnum.trips.value
 
         # Build query based on entry type
-        statement: Select[Any]
+        entities: list[Any] = [DataEntry, DataEntryEmission, Factor]
+        OriginLocation = aliased(Location)
+        DestLocation = aliased(Location)
+
         if is_trips:
-            OriginLocation = aliased(Location)
-            DestLocation = aliased(Location)
-            statement = (
-                sa_select(
-                    DataEntry, DataEntryEmission, Factor, OriginLocation, DestLocation
-                )
-                .join(
-                    DataEntryEmission,
-                    col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
-                    isouter=True,
-                )
-                .join(
-                    Factor,
-                    col(DataEntryEmission.primary_factor_id) == col(Factor.id),
-                    isouter=True,
-                )
-                .join(
-                    OriginLocation,
-                    DataEntry.data["origin_location_id"].as_integer()
-                    == OriginLocation.id,
-                    isouter=True,
-                )
-                .join(
-                    DestLocation,
-                    DataEntry.data["destination_location_id"].as_integer()
-                    == DestLocation.id,
-                    isouter=True,
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-                    col(DataEntry.data_entry_type_id) == data_entry_type_id,
-                )
+            entities.extend([OriginLocation, DestLocation])
+        statement: Select[Any] = (
+            sa_select(*entities)
+            .join(
+                DataEntryEmission,
+                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                isouter=True,
             )
-        else:
-            statement = (
-                sa_select(DataEntry, DataEntryEmission, Factor)
-                .join(
-                    DataEntryEmission,
-                    col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
-                    isouter=True,
-                )
-                .join(
-                    Factor,
-                    col(DataEntryEmission.primary_factor_id) == col(Factor.id),
-                    isouter=True,
-                )
-                .where(
-                    col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-                    col(DataEntry.data_entry_type_id) == data_entry_type_id,
-                )
+            .join(
+                Factor,
+                col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                isouter=True,
             )
+        )
+
+        if is_trips:
+            statement = statement.join(
+                OriginLocation,
+                DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,
+                isouter=True,
+            ).join(
+                DestLocation,
+                DataEntry.data["destination_location_id"].as_integer()
+                == DestLocation.id,
+                isouter=True,
+            )
+
+        statement = statement.where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
 
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
