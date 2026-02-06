@@ -211,63 +211,78 @@ class FactorRepository:
         kind: str,
         subkind: Optional[str] = None,
     ) -> Optional[Factor]:
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == data_entry_type.value,
-        )
-
-        result = await self.session.exec(stmt)
-        factors = result.all()
-
         # First try exact match with subkind
         if subkind:
-            for factor in factors:
-                cls = factor.classification or {}
-                if cls.get("kind") == kind and cls.get("subkind") == subkind:
-                    return factor
-
-        # Fallback to class-only match
-        for factor in factors:
-            cls = factor.classification or {}
-            if cls.get("kind") == kind and not cls.get("subkind"):
+            stmt = select(Factor).where(
+                col(Factor.data_entry_type_id) == data_entry_type.value,
+                Factor.classification["kind"].as_string() == kind,
+                Factor.classification["subkind"].as_string() == subkind,
+            )
+            result = await self.session.exec(stmt)
+            factor = result.one_or_none()
+            if factor:
                 return factor
 
-        return None
-
-    async def get_flight_factor(self, category: str) -> Optional[Factor]:
-        """Look up flight emission factor by haul category."""
+        # Fallback to kind-only match (no subkind)
         stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
+            col(Factor.data_entry_type_id) == data_entry_type.value,
+            Factor.classification["kind"].as_string() == kind,
+            Factor.classification["subkind"].as_string().is_(None),
         )
         result = await self.session.exec(stmt)
-        factors = result.all()
+        return result.one_or_none()
 
-        for factor in factors:
-            cls = factor.classification or {}
-            if cls.get("kind") == "flight" and cls.get("category") == category:
-                return factor
-        return None
+    async def get_factor(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        fallbacks: Optional[dict[str, str]] = None,
+        **classification: str,
+    ) -> Optional[Factor]:
+        """
+        Generic factor lookup with dynamic classification filters.
 
-    async def get_train_factor(self, countrycode: str) -> Optional[Factor]:
-        """Look up train emission factor by country code, with RoW fallback."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value
-        )
+        Args:
+            data_entry_type: The data entry type to filter on
+            fallbacks: Optional dict of fallback values for classification keys
+                       e.g. {"countrycode": "RoW"} to try RoW if exact match fails
+            **classification: Classification filters (kind, subkind, category,
+                              countrycode, etc.)
+
+        Examples:
+            # Flight factor
+            get_factor(DataEntryTypeEnum.trips, kind="flight", category="short_haul")
+
+            # Train factor with RoW fallback
+            get_factor(
+                DataEntryTypeEnum.trips,
+                fallbacks={"countrycode": "RoW"},
+                kind="train",
+                countrycode="FR",
+            )
+        """
+        conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
+        for key, value in classification.items():
+            conditions.append(Factor.classification[key].as_string() == value)
+
+        stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
-        factors = result.all()
+        factor = result.one_or_none()
 
-        # Try exact country match first
-        for factor in factors:
-            cls = factor.classification or {}
-            if cls.get("kind") == "train" and cls.get("countrycode") == countrycode:
-                return factor
+        if factor or not fallbacks:
+            return factor
 
-        # Fallback to RoW (Rest of World)
-        for factor in factors:
-            cls = factor.classification or {}
-            if cls.get("kind") == "train" and cls.get("countrycode") == "RoW":
-                return factor
+        # Try with fallback values
+        for key, fallback_value in fallbacks.items():
+            if key in classification:
+                classification[key] = fallback_value
 
-        return None
+        conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
+        for key, value in classification.items():
+            conditions.append(Factor.classification[key].as_string() == value)
+
+        stmt = select(Factor).where(*conditions)
+        result = await self.session.exec(stmt)
+        return result.one_or_none()
 
     # async def get_emission_factor(
     #     self,
