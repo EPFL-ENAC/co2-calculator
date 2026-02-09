@@ -1,6 +1,6 @@
 """Unit Results API endpoints."""
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,12 +18,12 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import (
+    BaseModuleHandler,
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
     HeadcountItemResponse,
     ModuleHandler,
-    get_data_entry_handler_by_type,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -242,6 +242,7 @@ async def get_submodule(
     response_model=Union[
         HeadcountItemResponse,
         DataEntryResponse,
+        List[DataEntryResponse],
     ],
     status_code=status.HTTP_201_CREATED,
 )
@@ -295,13 +296,35 @@ async def create(
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
 
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current user ID is required to create item",
+        )
+    if carbon_report_module_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Carbon report module ID could not be determined",
+        )
+
+    # Check if this is a round trip for professional travel
+    is_round_trip = data_entry_type == DataEntryTypeEnum.trips and item_data.get(
+        "is_round_trip", False
+    )
+
     try:
+        # For round trips, mark outbound direction
+        outbound_data = {**item_data}
+        if is_round_trip:
+            outbound_data["trip_direction"] = "outbound"
+            outbound_data["is_round_trip"] = False
+
         create_payload = {
-            **item_data,
+            **outbound_data,
             "data_entry_type_id": data_entry_type_id,
             "carbon_report_module_id": carbon_report_module_id,
         }
-        handler = get_data_entry_handler_by_type(data_entry_type)
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
         create_payload = await handler.resolve_primary_factor_id(
             create_payload, data_entry_type, db
         )
@@ -320,16 +343,7 @@ async def create(
             status_code=400,
             detail=f"Invalid item_data for creation: {str(e)}",
         )
-    if current_user.id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current user ID is required to create item",
-        )
-    if carbon_report_module_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Carbon report module ID could not be determined",
-        )
+
     item = await DataEntryService(db).create(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_type_id=data_entry_type_id,
@@ -343,16 +357,63 @@ async def create(
         )
 
     await DataEntryEmissionService(db).create(item)
-    # upsert could fail if emission factor lookup fails, but we still want to
-    # return the updated item
+
+    items = [item]
+
+    # Create return trip if round trip
+    if is_round_trip:
+        try:
+            return_data = {
+                **item_data,
+                "origin_location_id": item_data["destination_location_id"],
+                "destination_location_id": item_data["origin_location_id"],
+                "trip_direction": "return",
+                "is_round_trip": False,
+            }
+            return_payload = {
+                **return_data,
+                "data_entry_type_id": data_entry_type_id,
+                "carbon_report_module_id": carbon_report_module_id,
+            }
+            return_payload = await handler.resolve_primary_factor_id(
+                return_payload, data_entry_type, db
+            )
+            validated_return = handler.validate_create(return_payload)
+            return_entry_create = DataEntryCreate(
+                **validated_return.model_dump(exclude_unset=True)
+            )
+
+            return_item = await DataEntryService(db).create(
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=data_entry_type_id,
+                user=current_user,
+                data=return_entry_create,
+            )
+            if return_item:
+                await DataEntryEmissionService(db).create(return_item)
+                items.append(return_item)
+
+        except Exception as e:
+            logger.error(
+                "Error creating return trip",
+                extra={"error": str(e)},
+            )
+            # Continue with outbound trip only
+
     await db.commit()
-    item = DataEntryResponse.model_validate(item)
 
-    logger.info(
-        f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
-    )
+    # Convert to response models
+    items = [DataEntryResponse.model_validate(i) for i in items]
 
-    return item
+    for i in items:
+        logger.info(
+            f"Created {sanitize(module_id)}:{sanitize(i.id)} for {sanitize(unit_id)}"
+        )
+
+    # Return single item or list based on round trip
+    if len(items) == 1:
+        return items[0]
+    return items
 
 
 @router.get(
@@ -454,7 +515,7 @@ async def update(
             "data_entry_type_id": data_entry_type_id,
             "carbon_report_module_id": carbon_report_module_id,
         }
-        handler: ModuleHandler = get_data_entry_handler_by_type(data_entry_type)
+        handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
         handler_kind_field = handler.kind_field or ""
         handler_subkind_field = handler.subkind_field or ""
         if (handler_kind_field in item_data) and (

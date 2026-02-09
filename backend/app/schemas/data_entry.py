@@ -2,6 +2,10 @@ from datetime import date, datetime
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import and_
+from sqlalchemy import select as sa_select
+from sqlalchemy.orm import aliased
+from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -11,6 +15,10 @@ from app.models.factor import Factor
 from app.models.location import Location
 from app.models.module_type import ModuleTypeEnum
 from app.services.factor_service import FactorService
+from app.utils.distance_geography import (
+    resolve_flight_factor,
+    resolve_train_factor,
+)
 
 logger = get_logger(__name__)
 
@@ -177,6 +185,18 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
 
+    @classmethod
+    def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
+        """
+        Returns the module handler instance for the given data_entry_type.
+        """
+        handler = MODULE_HANDLERS.get(data_entry_type)
+        if handler is None:
+            raise ValueError(
+                f"No module handler found for data_entry_type={data_entry_type}"
+            )
+        return handler
+
     async def resolve_primary_factor_id(
         self,
         payload: dict,
@@ -243,6 +263,7 @@ class ProfessionalTravelHandlerResponse(DepartureDateMixin, DataEntryResponseGen
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     is_round_trip: bool = False
+    trip_direction: Optional[str] = None  # "outbound" or "return"
     unit_id: int
     origin: Optional[str] = None
     destination: Optional[str] = None
@@ -304,6 +325,7 @@ class ProfessionalTravelHandlerCreate(DepartureDateMixin, DataEntryCreate):
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     is_round_trip: bool = False
+    trip_direction: Optional[str] = None  # "outbound" or "return"
     unit_id: int
 
 
@@ -740,8 +762,8 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
         existing_data: Optional[dict] = None,
     ) -> dict:
         """
-        Resolve factor ID by classification (kind, subkind).
-        Does NOT calculate emissions - that happens in DataEntryEmissionService.
+        Resolve factor ID and calculate distance for trips.
+        Sets primary_factor_id and distance_km in the payload.
         """
         # Merge payload with existing data
         origin_id = payload.get("origin_location_id")
@@ -756,17 +778,51 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
             if transport_mode is None:
                 transport_mode = existing_data.get("transport_mode")
 
-        # Look up locations for display names
-        origin_loc = await db.get(Location, origin_id) if origin_id else None
-        dest_loc = await db.get(Location, dest_id) if dest_id else None
+        if not origin_id or not dest_id:
+            logger.warning("Missing origin or destination location for trip")
+            return payload
 
-        if origin_loc:
-            payload["origin"] = origin_loc.name
-        if dest_loc:
-            payload["destination"] = dest_loc.name
+        if not transport_mode or transport_mode not in ("flight", "train"):
+            logger.warning(f"Unknown transport_mode: {transport_mode}")
+            return payload
 
-        # For trips: factor resolution happens in DataEntryEmissionService
-        # because it requires distance calculation (flights need haul category)
+        OriginLoc = aliased(Location, name="origin")
+        DestLoc = aliased(Location, name="dest")
+
+        stmt = (
+            sa_select(OriginLoc, DestLoc, Factor)
+            .select_from(OriginLoc)
+            .join(DestLoc, col(DestLoc.id) == dest_id)
+            .outerjoin(
+                Factor,
+                and_(
+                    col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value,
+                    Factor.classification["kind"].as_string() == transport_mode,
+                ),
+            )
+            .where(col(OriginLoc.id) == origin_id)
+        )
+
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        if not rows:
+            logger.warning("Missing origin or destination location for trip")
+            return payload
+
+        origin_loc, dest_loc = rows[0][0], rows[0][1]
+        factors = [row[2] for row in rows if row[2] is not None]
+
+        payload["origin"] = origin_loc.name
+        payload["destination"] = dest_loc.name
+
+        if transport_mode == "flight":
+            distance_km, factor = resolve_flight_factor(origin_loc, dest_loc, factors)
+        else:  # train
+            distance_km, factor = resolve_train_factor(origin_loc, dest_loc, factors)
+
+        payload["distance_km"] = distance_km
+        payload["primary_factor_id"] = factor.id if factor else None
 
         return payload
 
@@ -785,17 +841,3 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> ProfessionalTravelHandlerUpdate:
         return self.update_dto.model_validate(payload)
-
-
-def get_data_entry_handler_by_type(
-    data_entry_type: DataEntryTypeEnum,
-) -> ModuleHandler:
-    """
-    Returns the module handler instance for the given data_entry_type.
-    """
-    handler = MODULE_HANDLERS.get(data_entry_type)
-    if handler is None:
-        raise ValueError(
-            f"No module handler found for data_entry_type={data_entry_type}"
-        )
-    return handler

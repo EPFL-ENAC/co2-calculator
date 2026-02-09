@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -8,18 +8,11 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
-from app.models.location import Location
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
-from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import DataEntryResponse
 from app.services.factor_service import FactorService
-from app.utils.distance_geography import (
-    calculate_plane_distance,
-    calculate_train_distance,
-    get_haul_category,
-)
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -52,8 +45,6 @@ class DataEntryEmissionService:
         elif data_entry.data_entry_type == DataEntryTypeEnum.external_ai:
             emission_type = EmissionTypeEnum.ai_provider
         elif data_entry.data_entry_type == DataEntryTypeEnum.trips:
-            # Travel is handled specially - calculate emissions directly
-            # TODO: change enum to match transport_mode
             transport_mode = data_entry.data.get("transport_mode", "flight")
             emission_type = EmissionTypeEnum[transport_mode]
         # for equipment?
@@ -68,37 +59,26 @@ class DataEntryEmissionService:
             logger.info(f"DataEntry type {d_type} not handled for ")
             return None
 
-        if data_entry.data_entry_type == DataEntryTypeEnum.trips:
-            primary_factor, distance_km = await self._resolve_trip_factor(data_entry)
-            if not primary_factor:
-                logger.warning(
-                    f"Could not resolve factor for trip entry {data_entry.id}"
-                )
-                return None
-            primary_factor_id = primary_factor.id
-            data_entry.data["distance_km"] = distance_km
-            factors = [primary_factor]
-        else:
-            # Other types: factor already resolved by handler
-            primary_factor_id = data_entry.data.get("primary_factor_id")
-            if not primary_factor_id:
-                return None
+        # Factor already resolved by handler
+        primary_factor_id = data_entry.data.get("primary_factor_id")
+        if not primary_factor_id:
+            return None
 
-            factor_service = FactorService(self.session)
-            primary_factor = await factor_service.get(primary_factor_id)
-            if not primary_factor:
-                return None
-            factors = [primary_factor]
+        factor_service = FactorService(self.session)
+        primary_factor = await factor_service.get(primary_factor_id)
+        if not primary_factor:
+            return None
+        factors: list[Factor] = [primary_factor]
 
-            # Equipment types need electricity factor too
-            if (
-                data_entry.data_entry_type == DataEntryTypeEnum.scientific
-                or data_entry.data_entry_type == DataEntryTypeEnum.it
-                or data_entry.data_entry_type == DataEntryTypeEnum.other
-            ):
-                electricity_factor = await factor_service.get_electricity_factor()
-                if electricity_factor:
-                    factors.append(electricity_factor)
+        # Equipment types need electricity factor too
+        if data_entry.data_entry_type in (
+            DataEntryTypeEnum.scientific,
+            DataEntryTypeEnum.it,
+            DataEntryTypeEnum.other,
+        ):
+            electricity_factor = await factor_service.get_electricity_factor()
+            if electricity_factor:
+                factors.append(electricity_factor)
 
         # returns the factors used
         emissions_value = self._calculate_emissions(data_entry, factors=factors)
@@ -109,7 +89,7 @@ class DataEntryEmissionService:
             logger.error(
                 "No emissions calculated for DataEntry ID "
                 f"{data_entry.id}. Skipping emission record creation"
-                f"{primary_factor}"
+                f" (factor_id={primary_factor_id})"
             )
             return None
         subcategory = None  # TODO: should be an enum somwhere
@@ -126,58 +106,6 @@ class DataEntryEmissionService:
             meta={**emissions_value},
         )
         return emission_record
-
-    async def _resolve_trip_factor(
-        self, data_entry: DataEntryResponse | DataEntry
-    ) -> tuple[Optional[Factor], Optional[float]]:
-        """
-        Resolve factor and calculate distance for trips.
-        This is where 'Distance * Factor' calculation happens per the sequence.
-
-        Returns:
-            tuple of (factor, distance_km) or (None, None) if resolution fails
-        """
-        origin_id = data_entry.data.get("origin_location_id")
-        dest_id = data_entry.data.get("destination_location_id")
-        transport_mode = data_entry.data.get("transport_mode", "flight")
-
-        if not origin_id or not dest_id:
-            logger.warning("Missing origin or destination location for trip")
-            return None, None
-
-        origin_loc = await self.session.get(Location, origin_id)
-        dest_loc = await self.session.get(Location, dest_id)
-
-        if not origin_loc or not dest_loc:
-            logger.warning(
-                f"Could not find locations: origin={origin_id}, dest={dest_id}"
-            )
-            return None, None
-
-        factor_repo = FactorRepository(self.session)
-
-        if transport_mode == "flight":
-            distance_km = calculate_plane_distance(origin_loc, dest_loc)
-            category = get_haul_category(distance_km)
-            factor = await factor_repo.get_factor(
-                DataEntryTypeEnum.trips, kind="flight", category=category
-            )
-            return factor, distance_km
-
-        elif transport_mode == "train":
-            distance_km = calculate_train_distance(origin_loc, dest_loc)
-            dest_country = dest_loc.countrycode or "RoW"
-            factor = await factor_repo.get_factor(
-                DataEntryTypeEnum.trips,
-                fallbacks={"countrycode": "RoW"},
-                kind="train",
-                countrycode=dest_country,
-            )
-            return factor, distance_km
-
-        else:
-            logger.warning(f"Unknown transport_mode: {transport_mode}")
-            return None, None
 
     async def create(self, data_entry: DataEntryResponse) -> DataEntryEmission | None:
         """Create emissions for a data entry, if applicable."""
@@ -365,8 +293,6 @@ def compute_trips(
     transport_mode = data_entry.data.get("transport_mode", "flight")
     cabin_class = data_entry.data.get("cabin_class")
     number_of_trips = data_entry.data.get("number_of_trips", 1)
-    origin_location_id = data_entry.data.get("origin_location_id")
-    destination_location_id = data_entry.data.get("destination_location_id")
     distance_km = data_entry.data.get("distance_km")
 
     response = {
@@ -375,20 +301,24 @@ def compute_trips(
         "transport_mode": transport_mode,
         "cabin_class": cabin_class,
         "number_of_trips": number_of_trips,
-        "origin_location_id": origin_location_id,
-        "destination_location_id": destination_location_id,
+        "origin_location_id": data_entry.data.get("origin_location_id"),
+        "destination_location_id": data_entry.data.get("destination_location_id"),
     }
 
-    if not factors or len(factors) == 0:
-        logger.warning("No factors provided for trips emission calculation")
+    if not distance_km:
+        logger.warning("Missing distance_km for trip emission")
         return response
 
-    factor = factors[0]
+    if not factors:
+        logger.warning("No factor provided for trip emission calculation")
+        return response
+
+    factor_values = factors[0].values or {}
 
     if transport_mode == "flight":
-        result = compute_travel_plane(data_entry, factor)
+        result = compute_travel_plane(distance_km, number_of_trips, factor_values)
     elif transport_mode == "train":
-        result = compute_travel_train(data_entry, factor)
+        result = compute_travel_train(distance_km, number_of_trips, factor_values)
     else:
         logger.warning(f"Unknown transport_mode: {transport_mode}")
         return response
@@ -398,19 +328,13 @@ def compute_trips(
 
 
 def compute_travel_plane(
-    data_entry: DataEntry | DataEntryResponse,
-    factor: Factor,
+    distance_km: float,
+    number_of_trips: int,
+    factor_values: dict,
 ) -> dict:
     """Compute emissions for plane travel."""
-    distance_km = data_entry.data.get("distance_km")
-    number_of_trips = data_entry.data.get("number_of_trips", 1)
-
-    if not distance_km:
-        logger.warning("Missing distance_km for flight emission calculation")
-        return {"kg_co2eq": None}
-
-    impact_score = factor.values.get("impact_score", 0)
-    rfi_adjustment = factor.values.get("rfi_adjustment", 1)
+    impact_score = factor_values.get("impact_score", 0)
+    rfi_adjustment = factor_values.get("rfi_adjustment", 1)
     kg_co2eq = distance_km * impact_score * rfi_adjustment * number_of_trips
 
     logger.debug(
@@ -422,18 +346,12 @@ def compute_travel_plane(
 
 
 def compute_travel_train(
-    data_entry: DataEntry | DataEntryResponse,
-    factor: Factor,
+    distance_km: float,
+    number_of_trips: int,
+    factor_values: dict,
 ) -> dict:
     """Compute emissions for train travel."""
-    distance_km = data_entry.data.get("distance_km")
-    number_of_trips = data_entry.data.get("number_of_trips", 1)
-
-    if not distance_km:
-        logger.warning("Missing distance_km for train emission calculation")
-        return {"kg_co2eq": None}
-
-    impact_score = factor.values.get("impact_score", 0)
+    impact_score = factor_values.get("impact_score", 0)
     kg_co2eq = distance_km * impact_score * number_of_trips
 
     logger.debug(
