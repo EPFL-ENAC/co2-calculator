@@ -233,18 +233,18 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
-    service_type: str
+    service_type: Optional[str] = None
     cloud_provider: Optional[str] = None
-    spending: float
+    spending: Optional[float] = None
     kg_co2eq: Optional[float] = None
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
     # ai_provider,ai_use,frequency_use_per_day,user_count
-    ai_provider: str
-    ai_use: str
-    frequency_use_per_day: int
-    user_count: int
+    ai_provider: Optional[str] = None
+    ai_use: Optional[str] = None
+    frequency_use_per_day: Optional[int] = None
+    user_count: Optional[int] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -255,7 +255,7 @@ class HeadcountItemResponse(DataEntryResponseGen):
 
 
 class HeadCountStudentResponse(DataEntryResponseGen):
-    fte: float
+    fte: Optional[float] = None
 
 
 # ---- CREATE DTO --------------------------------- #
@@ -423,8 +423,10 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "service_type": data_entry.data["primary_factor"].get("subkind"),
-                "cloud_provider": data_entry.data["primary_factor"].get("kind"),
+                "service_type": data_entry.data["primary_factor"].get("subkind")
+                or data_entry.data.get("service_type"),
+                "cloud_provider": data_entry.data["primary_factor"].get("kind")
+                or data_entry.data.get("cloud_provider"),
             }
         )
 
@@ -465,8 +467,10 @@ class ExternalAIModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "ai_provider": data_entry.data["primary_factor"].get("kind"),
-                "ai_use": data_entry.data["primary_factor"].get("subkind"),
+                "ai_provider": data_entry.data["primary_factor"].get("kind")
+                or data_entry.data.get("ai_provider"),
+                "ai_use": data_entry.data["primary_factor"].get("subkind")
+                or data_entry.data.get("ai_use"),
             }
         )
 

@@ -106,7 +106,6 @@ class DataEntryService:
             data=data,
             user_id=user.id,
         )
-        await self.session.commit()
         await self.session.refresh(entry)
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
