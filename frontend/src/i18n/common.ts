@@ -2,6 +2,10 @@ import { ROLES } from 'src/constant/roles';
 import { MODULES } from 'src/constant/modules';
 
 export default {
+  validation_must_be_at_least: {
+    en: 'Must be at least {min}',
+    fr: 'Doit être au moins {min}',
+  },
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'Logo EPFL',

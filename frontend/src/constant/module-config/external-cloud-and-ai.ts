@@ -149,6 +149,10 @@ export const externalCloudAndAi: ModuleConfig = {
     type: MODULES_THRESHOLD_TYPES[0],
     value: 500, // kg CO₂-eq; implicit coloring only
   },
+  numberFormatOptions: {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  },
   submodules: [
     {
       id: SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds,

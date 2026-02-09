@@ -145,6 +145,7 @@
               :min="col.min"
               :max="col.max"
               :step="col.step"
+              :rules="col.type === 'number' ? getNumericRules(col) : []"
               class="inline-input"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
@@ -325,6 +326,30 @@ import { enumSubmodule } from 'src/constant/modules';
 import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
 import { nOrDash } from 'src/utils/number';
+
+function getNumericRules(col: TableViewColumn) {
+  const rules = [];
+
+  if (col.min !== undefined) {
+    rules.push((val: string | number | null) => {
+      const num = Number(val);
+      return (
+        num >= col.min! || $t('validation_must_be_at_least', { min: col.min })
+      );
+    });
+  }
+
+  if (col.max !== undefined) {
+    rules.push((val: string | number | null) => {
+      const num = Number(val);
+      return (
+        num <= col.max! || $t('validation_must_be_at_most', { max: col.max })
+      );
+    });
+  }
+
+  return rules;
+}
 
 const { t: $t } = useI18n();
 
@@ -704,16 +729,22 @@ function validateNumberOfTrips(value: unknown) {
 
 async function commitInline(
   row: ModuleRow,
-  col: { name: string; field: string; editableInline?: boolean; type?: string },
+  col: {
+    name: string;
+    field: string;
+    editableInline?: boolean;
+    type?: string;
+    min?: number;
+    max?: number;
+  },
 ) {
   if (!col.editableInline) return;
-  // Only usage fields use the hours/week validation; other inline
-  // fields (including selects) are patched as-is.
   const isUsageField =
     col.name === 'active_usage_hours' || col.name === 'passive_usage_hours';
   const isNumberOfTrips = col.name === 'number_of_trips';
   const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
+
   const valueToSave = (() => {
     if (isUsageField) {
       const validation = validateUsage(rawVal);
@@ -737,6 +768,15 @@ async function commitInline(
       const n = Number(rawVal);
       if (!Number.isFinite(n)) {
         setError(row, col, $t('validation_number_required'));
+        return null;
+      }
+      // NEW: Validate min/max constraints
+      if (col.min !== undefined && n < col.min) {
+        setError(row, col, $t('validation_must_be_at_least', { min: col.min }));
+        return null;
+      }
+      if (col.max !== undefined && n > col.max) {
+        setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
         return null;
       }
       setError(row, col, null);
