@@ -1003,7 +1003,7 @@ function onDownloadTemplate() {
   //
   const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
 
-  const csvHeadcountContent = `date,unit_id,unit_name,cf,cf_name,cf_user_id,name,status,function,sciper,fte,submodule`;
+  const csvHeadcountContent = `name,function,fte`;
 
   const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
 
