@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -268,11 +268,29 @@ class EquipmentHandlerCreate(DataEntryCreate):
     equipment_class: Optional[str] = None
     sub_class: Optional[str] = None
 
+    @field_validator("active_usage_hours", "passive_usage_hours", mode="after")
+    @classmethod
+    def validate_usage_hours(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Usage hours must be non-negative")
+        if v > 168:
+            raise ValueError("Usage hours cannot exceed 168 hours per week")
+        return v
+
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     cloud_provider: Optional[str] = None
     spending: float
+
+    @field_validator("spending", mode="after")
+    @classmethod
+    def validate_spending(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Spending must be non-negative")
+        return v
 
 
 class ExternalAIHandlerCreate(DataEntryCreate):
@@ -281,15 +299,40 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     frequency_use_per_day: Optional[int] = None
     user_count: int
 
+    @field_validator("frequency_use_per_day", "user_count", mode="after")
+    @classmethod
+    def validate_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
 
 class HeadCountCreate(DataEntryCreate):
     name: str
     function: Optional[str] = None
     fte: Optional[float] = None
 
+    @field_validator("fte", mode="after")
+    @classmethod
+    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("FTE must be non-negative")
+        return v
+
 
 class HeadCountStudentCreate(DataEntryCreate):
     fte: float
+
+    @field_validator("fte", mode="after")
+    @classmethod
+    def validate_fte(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("FTE must be non-negative")
+        return v
 
 
 ## UPDATE DTO
@@ -298,11 +341,29 @@ class HeadCountStudentCreate(DataEntryCreate):
 class HeadCountStudentUpdate(DataEntryUpdate):
     fte: Optional[float] = None
 
+    @field_validator("fte", mode="after")
+    @classmethod
+    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("FTE must be non-negative")
+        return v
+
 
 class HeadCountUpdate(DataEntryUpdate):
     name: Optional[str] = None
     function: Optional[str] = None
     fte: Optional[float] = None
+
+    @field_validator("fte", mode="after")
+    @classmethod
+    def validate_fte(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("FTE must be non-negative")
+        return v
 
 
 class EquipmentHandlerUpdate(DataEntryUpdate):
@@ -312,11 +373,31 @@ class EquipmentHandlerUpdate(DataEntryUpdate):
     equipment_class: Optional[str] = None
     sub_class: Optional[str] = None
 
+    @field_validator("active_usage_hours", "passive_usage_hours", mode="after")
+    @classmethod
+    def validate_usage_hours(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Usage hours must be non-negative")
+        if v > 168:
+            raise ValueError("Usage hours cannot exceed 168 hours per week")
+        return v
+
 
 class ExternalCloudHandlerUpdate(DataEntryUpdate):
     service_type: Optional[str] = None
     cloud_provider: Optional[str] = None
     spending: Optional[float] = None
+
+    @field_validator("spending", mode="after")
+    @classmethod
+    def validate_spending(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Spending must be non-negative")
+        return v
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):
@@ -324,6 +405,15 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
     ai_use: Optional[str] = None
     frequency_use_per_day: Optional[int] = None
     user_count: Optional[int] = None
+
+    @field_validator("frequency_use_per_day", "user_count", mode="after")
+    @classmethod
+    def validate_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
 
 
 ## END UPDATE DTO

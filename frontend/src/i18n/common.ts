@@ -6,6 +6,10 @@ export default {
     en: 'Must be at least {min}',
     fr: 'Doit être au moins {min}',
   },
+  validation_must_be_at_most: {
+    en: 'Must be at most {max}',
+    fr: 'Doit être au plus {max}',
+  },
   logo_alt: {
     en: 'Logo EPFL',
     fr: 'Logo EPFL',
