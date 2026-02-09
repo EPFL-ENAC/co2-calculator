@@ -623,24 +623,34 @@ async def update(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current user ID is required to delete item",
             )
-        item = await DataEntryService(db).update(
-            id=item_id,
-            data=data_entry_update,
-            user=current_user,
-        )
-        await db.flush()
-        if item is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Data entry item not found",
+        try:
+            item = await DataEntryService(db).update(
+                id=item_id,
+                data=data_entry_update,
+                user=current_user,
             )
-        # Recalculate emission after update
-        await DataEntryEmissionService(db).upsert_by_data_entry(
-            data_entry_response=item,
-        )
-        # upsert could fail if emission factor lookup fails, but we still want to
-        # return the updated item
-        await db.commit()
+            if item is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Data entry item not found",
+                )
+            # Recalculate emission after update
+            await DataEntryEmissionService(db).upsert_by_data_entry(
+                data_entry_response=item,
+            )
+            # upsert could fail if emission factor lookup fails, but we still want to
+            # return the updated item
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            logger.error(
+                f"Failed to update item_id={sanitize(item_id)}",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update data entry",
+            ) from e
     logger.info(f"Updated item {sanitize(item_id)}")
     return item
 
