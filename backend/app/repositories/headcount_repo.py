@@ -223,17 +223,56 @@ class HeadCountRepository:
         sort_by,
         sort_order,
         filter: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> list[HeadCount]:
-        """Get headcount record by unit_id and year."""
-        statement = select(HeadCount).where(
-            HeadCount.unit_id == unit_id,
-            # HeadCount.year == year,
-        )
+        """
+        Get headcount record by unit_id and year.
+
+        Args:
+            unit_id: Unit ID (legacy parameter, may be overridden by filters)
+            year: Year (legacy parameter)
+            limit: Maximum number of records
+            offset: Number of records to skip
+            sort_by: Field to sort by
+            sort_order: Sort order ("asc" or "desc")
+            filter: Optional text filter (legacy parameter)
+            filters: Optional filter dictionary with structure:
+                {
+                    "unit_ids": ["ENAC", "STI"],  # Filter by unit IDs
+                    "user_id": "user-123",         # Filter by creator user ID
+                    "scope": "global" | "unit" | "own"  # For logging
+                }
+
+        Returns:
+            List of HeadCount records matching filters
+        """
+        statement = select(HeadCount)
+
+        # Apply filters from policy (takes precedence over legacy unit_id)
+        if filters:
+            # Apply unit_ids filter (list of unit IDs)
+            if "unit_ids" in filters:
+                statement = statement.where(
+                    col(HeadCount.unit_id).in_(filters["unit_ids"])
+                )
+            # Apply user_id filter (filter by creator)
+            if "user_id" in filters:
+                statement = statement.where(HeadCount.created_by == filters["user_id"])
+
+        # Legacy unit_id parameter (only apply if no filters provided)
+        if not filters or ("unit_ids" not in filters and "user_id" not in filters):
+            if unit_id:
+                statement = statement.where(HeadCount.unit_id == unit_id)
+
+        # Apply sorting
         if sort_order.lower() == "asc":
             statement = statement.order_by(getattr(HeadCount, sort_by).asc())
         else:
             statement = statement.order_by(getattr(HeadCount, sort_by).desc())
+
+        # Apply pagination
         statement = statement.offset(offset).limit(limit)
+
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 

@@ -4,21 +4,25 @@ import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { useTimelineStore } from 'src/stores/modules';
-import { Module } from 'src/constant/modules';
-import { useI18n } from 'vue-i18n';
-import { ROLES } from 'src/constant/roles';
-import { isBackOfficeRoute } from 'src/router/routes';
+
+import { isBackOfficeRoute, isSystemRoute } from 'src/router/routes';
+import { hasPermission } from 'src/utils/permission';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const timelineStore = useTimelineStore();
-const { t } = useI18n();
 
 const unitName = computed(() => {
   if (!route.params.unit) return '';
-  return decodeURIComponent(route.params.unit as string);
+  const unit = decodeURIComponent(route.params.unit as string);
+  // Extract name from format: {id}-{name}
+  // The name part is everything after the first dash
+  const parts = unit.split('-');
+  if (parts.length > 1) {
+    // Join all parts except the first (which is the ID) and replace dashes with spaces
+    return parts.slice(1).join('-').replace(/-/g, ' ');
+  }
+  return unit;
 });
 
 const year = computed(() => {
@@ -30,41 +34,21 @@ const workspaceDisplay = computed(() => {
   return `${unitName.value} | ${year.value}`;
 });
 
-const currentModule = computed(() => route.params.module as string | undefined);
-const currentState = computed(() => {
-  if (!currentModule.value) return null;
-  return timelineStore.itemStates[currentModule.value];
-});
-const toggleLabel = computed(() =>
-  currentState.value === 'validated'
-    ? t('common_unvalidate')
-    : t('common_validate'),
-);
-const toggleColor = computed(() =>
-  currentState.value === 'validated' ? 'primary' : 'info',
-);
-
-function toggleState() {
-  if (!currentModule.value) return;
-  const newState =
-    currentState.value === 'validated' ? 'in-progress' : 'validated';
-  timelineStore.setState(currentModule.value as Module, newState);
-}
-
 const handleLogout = async () => {
   await authStore.logout(router);
 };
 
 const hasBackOfficeAccess = computed(() => {
-  if (!authStore.user) return false;
-  const userRoles = authStore.user?.roles_raw?.map((r) => r.role) ?? [];
-  return (
-    userRoles.includes(ROLES.BackOfficeAdmin) ||
-    userRoles.includes(ROLES.BackOfficeStandard)
-  );
+  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'view');
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const hasSystemAccess = computed(() => {
+  return hasPermission(authStore.user?.permissions, 'system.users', 'edit');
+});
+
+const isInSystemRoute = computed(() => isSystemRoute(route));
 </script>
 
 <template>
@@ -92,6 +76,37 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       <Co2LanguageSelector />
 
       <q-btn
+        v-if="hasBackOfficeAccess && isInBackOfficeRoute"
+        icon="o_article"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('documentation_backoffice_button_label')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :href="$t('header_backoffice_documentation_link')"
+        target="_blank"
+      />
+
+      <q-btn
+        v-if="hasSystemAccess && isInSystemRoute"
+        icon="o_article"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('documentation_dev_button_label')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :href="$t('header_dev_documentation_link')"
+        target="_blank"
+      />
+
+      <q-btn
+        v-if="!isInBackOfficeRoute && !isInSystemRoute"
         icon="o_article"
         color="grey-4"
         text-color="primary"
@@ -101,7 +116,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         outline
         size="sm"
         class="text-weight-medium q-ml-xl"
-        :href="$t('header_documentation_link')"
+        :href="$t('header_user_documentation_link')"
         target="_blank"
       />
 
@@ -119,6 +134,36 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
       />
       <q-btn
         v-if="hasBackOfficeAccess && isInBackOfficeRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('back_to_calculator_button')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{
+          name: 'workspace-setup',
+          params: {
+            language: route.params.language || 'en',
+          },
+        }"
+      />
+
+      <q-btn
+        v-if="hasSystemAccess && !isInSystemRoute"
+        color="grey-4"
+        text-color="primary"
+        :label="$t('user_management_system_button_label')"
+        unelevated
+        no-caps
+        outline
+        size="sm"
+        class="text-weight-medium q-ml-xl"
+        :to="{ name: 'system-user-management' }"
+      />
+      <q-btn
+        v-if="hasSystemAccess && isInSystemRoute"
         color="grey-4"
         text-color="primary"
         :label="$t('back_to_calculator_button')"
@@ -199,20 +244,6 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
             "
           />
         </q-breadcrumbs>
-
-        <q-space />
-
-        <q-btn
-          v-if="route.name === 'module'"
-          :outline="currentState === 'validated' ? true : false"
-          :label="toggleLabel"
-          :color="toggleColor"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium"
-          @click="toggleState"
-        />
       </q-toolbar>
       <q-separator />
     </template>

@@ -17,6 +17,7 @@ from app.core.security import (
     create_refresh_token,
     decode_jwt,
 )
+from app.models.user import RoleName
 from app.providers.role_provider import get_role_provider
 from app.schemas.user import UserRead
 from app.services.user_service import UserService
@@ -95,7 +96,7 @@ def _set_auth_cookies(
     "/login-test",
 )
 async def login_test(
-    role: str = "co2.user.std",
+    role: str = RoleName.CO2_USER_STD.value,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -300,7 +301,9 @@ async def get_me(
     """
     Get current authenticated user information.
 
-    Returns user details including id, email, roles.
+    Returns user details including id, email, roles, and calculated permissions.
+    Permissions are calculated dynamically from user roles using
+    calculate_user_permissions().
     Requires valid auth_token cookie.
     Refreshes roles from provider on each call.
     """
@@ -355,7 +358,7 @@ async def get_me(
         fresh_roles = await role_provider.get_roles_by_user_id(user.id)
 
         if fresh_roles != user.roles:
-            await UserService(db).upsert_user(
+            user = await UserService(db).upsert_user(
                 email=user.email,
                 display_name=user.display_name,
                 user_id=user.id,
@@ -367,8 +370,33 @@ async def get_me(
                 "Refreshed user roles",
                 extra={"user_id": user.id, "roles_count": len(fresh_roles)},
             )
+        else:
+            user = await UserService(db).get_by_id(user.id)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found after refresh",
+                )
 
-        return user
+        # Create UserRead instance - the @computed_field will automatically
+        # calculate permissions when serialized using calculate_user_permissions()
+        user_read = UserRead.model_validate(user)
+
+        # Verify permissions are calculated by accessing the computed field
+        # The computed field calls calculate_permissions() which internally
+        # calls calculate_user_permissions()
+        # Access via model_dump to get the actual dict value for type checking
+        permissions_dict = user_read.model_dump().get("permissions", {})
+
+        logger.debug(
+            "Returning user with calculated permissions",
+            extra={
+                "user_id": user.id,
+                "permissions_count": len(permissions_dict),
+                "roles_count": len(user.roles),
+            },
+        )
+        return user_read
 
     except HTTPException:
         raise

@@ -9,7 +9,7 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.models.resource import Resource
-from app.models.user import Role, RoleScope, User
+from app.models.user import RoleScope, User
 from app.repositories import resource_repo
 from app.schemas.resource import ResourceCreate, ResourceUpdate
 
@@ -205,20 +205,27 @@ async def create_resource(
             detail=f"Not authorized to create resource: {reason}",
         )
 
-    # Validate unit_id matches user's unit (unless superuser)
-    user_role = user.roles[0]
-    if isinstance(user_role, dict):
-        user_role = Role(**user_role)
-    if isinstance(user_role.on, dict):
-        user_role.on = RoleScope(**user_role.on)
-    unit_id = getattr(user_role.on, "unit", None)
-    if resource_in.unit_id != unit_id and not user.has_role_global(
-        "co2.backoffice.admin"
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot create resources for other units",
-        )
+    # Validate unit_id matches user's unit (unless global scope)
+    # Check if user has global scope (backoffice admin) or matching unit scope
+    permissions = user.calculate_permissions()
+    has_global_admin = permissions.get("backoffice.users", {}).get("edit", False)
+
+    if not has_global_admin:
+        # For non-global users, validate unit matches their role scope
+        user_unit_ids = set()
+        for role in user.roles:
+            role_scope = role.on
+            if isinstance(role_scope, RoleScope):
+                if role_scope.unit:
+                    user_unit_ids.add(role_scope.unit)
+            elif isinstance(role_scope, dict) and role_scope.get("unit"):
+                user_unit_ids.add(role_scope["unit"])
+
+        if resource_in.unit_id not in user_unit_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot create resources for other units",
+            )
 
     # Create resource
     resource = await resource_repo.create_resource(

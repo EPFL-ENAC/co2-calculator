@@ -17,7 +17,6 @@ logger = get_logger(__name__)
 # Valid roles for unit users
 VALID_ROLES = [
     RoleName.CO2_USER_PRINCIPAL,
-    RoleName.CO2_USER_SECONDARY,
     RoleName.CO2_USER_STD,
 ]
 

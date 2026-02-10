@@ -45,14 +45,14 @@
           :threshold="threshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
-          :submodule-type="submodule.type"
-          :moduleconfig="submodule"
+          :submodule-type="submodule.id"
           :module-config="moduleConfig"
           :submodule-config="submodule"
+          :disable="disable"
         />
       </div>
       <q-separator />
-      <div v-if="submodule.moduleFields">
+      <div v-if="submodule.moduleFields && !disable && canEdit" class="q-mx-lg">
         <module-form
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
@@ -63,8 +63,18 @@
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
           :has-tooltip="submodule.hasFormTooltip"
+          :unit-id="unitId"
+          :year="year"
           @submit="submitForm"
         />
+      </div>
+      <div
+        v-else-if="submodule.moduleFields && !disable && !canEdit"
+        class="q-mx-lg q-my-md"
+      >
+        <q-badge color="warning" class="q-px-md q-py-sm">
+          {{ $t('common_view_only') }}
+        </q-badge>
       </div>
     </q-card-section>
   </q-expansion-item>
@@ -80,6 +90,9 @@ import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
   Threshold,
@@ -102,21 +115,38 @@ type CommonProps = {
   unitId: string;
   year: string | number;
   threshold: Threshold;
+  disable: boolean;
 };
 
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<SubModuleSectionProps>();
 
+const authStore = useAuthStore();
+
+// Permission check: can user edit this module?
+const canEdit = computed(() => {
+  const permissionPath = getModulePermissionPath(props.moduleType);
+  if (!permissionPath) {
+    // Module doesn't require permission, allow editing (backward compatibility)
+    return true;
+  }
+  return hasPermission(
+    authStore.user?.permissions,
+    permissionPath,
+    PermissionAction.EDIT,
+  );
+});
+
 const submoduleCount = computed(
   () =>
-    moduleStore.state.data?.submodules?.[props.submodule.type]?.summary
+    moduleStore.state.data?.submodules?.[props.submodule.id]?.summary
       ?.total_items || 0,
 );
 
 const item = computed(() => {
   if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
-    return moduleStore.state.dataSubmodule?.[props.submodule.type]?.items[0];
+    return moduleStore.state.dataSubmodule?.[props.submodule.id]?.items[0];
   }
   return null;
 });

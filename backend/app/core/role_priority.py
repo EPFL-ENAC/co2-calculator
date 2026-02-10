@@ -6,8 +6,7 @@ from app.models.user import Role, RoleName, RoleScope
 
 ROLE_PRIORITY = {
     RoleName.CO2_USER_PRINCIPAL: 0,
-    RoleName.CO2_USER_SECONDARY: 1,
-    RoleName.CO2_USER_STD: 2,
+    RoleName.CO2_USER_STD: 1,
 }
 
 

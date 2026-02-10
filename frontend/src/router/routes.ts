@@ -4,6 +4,10 @@ import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
+import {
+  requirePermission,
+  requireModuleEditPermission,
+} from './guards/permissionGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -108,9 +112,10 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
+                beforeEnter: requireModuleEditPermission(),
                 meta: {
                   requiresAuth: true,
-                  note: 'Module - data entry',
+                  note: 'Module - data entry (edit permission required)',
                   breadcrumb: true,
                 },
               },
@@ -183,14 +188,16 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
+            beforeEnter: requirePermission('backoffice.users', 'view'),
           },
           {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'edit'),
             meta: {
               requiresAuth: true,
-              note: 'Back Office - User roles and permissions (view only)',
+              note: 'Back Office - User roles and permissions (admin only)',
               breadcrumb: false,
               isBackOffice: true,
             },
@@ -199,9 +206,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'edit'),
             meta: {
               requiresAuth: true,
-              note: 'Back Office - Data management',
+              note: 'Back Office - Data management (admin only)',
               breadcrumb: false,
               isBackOffice: true,
             },
@@ -211,6 +219,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
@@ -222,6 +231,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
 
@@ -234,6 +244,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',
@@ -246,11 +257,13 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
             },
+            beforeEnter: requirePermission('system.users', 'edit'),
           },
           {
             path: 'system/user-management',
             name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
             component: () => import('pages/system/UserManagementPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - User and role administration',
@@ -262,6 +275,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/module-management',
             name: SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName,
             component: () => import('pages/system/ModuleManagementPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - Global module enable/disable',
@@ -273,6 +287,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/logs',
             name: SYSTEM_NAV.SYSTEM_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'System Admin - System logs viewer',
@@ -284,6 +299,7 @@ const routes: RouteRecordRaw[] = [
             path: 'system/documentation',
             name: 'system-documentation',
             component: () => import('pages/system/DocumentationPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
             meta: {
               requiresAuth: true,
               note: 'Documentation - System Admin documentation',

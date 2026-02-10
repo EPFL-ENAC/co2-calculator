@@ -40,6 +40,7 @@
 @layer components {
   // example component imports
   @import './05-components/_atoms/icon';
+  @import './05-components/_atoms/link';
   @import './05-components/_organisms/navigation';
   @import './05-components/_organisms/login-card';
   @import './05-components/_organisms/timeline';

@@ -11,6 +11,12 @@ from sqlmodel import JSON, TIMESTAMP, Column, Field, SQLModel
 class UnitBase(SQLModel):
     """Base model for Units representing EPFL departments or organizational units."""
 
+    code: Optional[str] = Field(
+        default=None,
+        unique=True,
+        index=True,
+        description="Unique unit code/slug identifier",
+    )
     name: str = Field(nullable=False, index=True)
     principal_user_id: str | None = Field(
         default=None,  # Removed: foreign_key="users.id"

@@ -34,6 +34,69 @@ class Settings(BaseSettings):
             """,
     )
 
+    # Files Storage Configuration
+    # S3 if configured, or local filesystem otherwise
+    FILES_STORAGE_PATH: str = Field(
+        default="./files_storage",
+        description="Path to local file storage directory",
+    )
+    # Optional encryption for files, both key and salt must be set to enable
+    FILES_ENCRYPTION_KEY: str = Field(
+        default="",
+        description=(
+            "Encryption key for file storage (optional). "
+            "This MUST be a strong, randomly generated secret and must never be "
+            "committed to source control. Provide it via environment variables or "
+            "a secret manager only. The key is expected to be a URL-safe base64 "
+            "encoded value representing at least 32 bytes of cryptographic key "
+            "material."
+        ),
+    )
+    FILES_ENCRYPTION_SALT: str = Field(
+        default="",
+        description=(
+            "Salt for file encryption key derivation (required if key is set). "
+            "This should also be a strong, randomly generated secret value, kept "
+            "out of source control and provided via environment variables or a "
+            "secret manager. Use a URL-safe base64 encoded string (at least 16 "
+            "bytes) and keep it stable for the lifetime of the encrypted data."
+        ),
+    )
+    # S3 Configuration (optional, for using S3-compatible storage)
+    S3_ENDPOINT_PROTOCOL: str = Field(
+        default="https",
+        description="S3 endpoint protocol (e.g., https)",
+    )
+    S3_ENDPOINT_HOSTNAME: str = Field(
+        default="",
+        description="S3 endpoint hostname (leave empty if not using S3)",
+    )
+    S3_ACCESS_KEY_ID: str = Field(
+        default="",
+        description="S3 access key ID (leave empty if not using S3)",
+    )
+    S3_SECRET_ACCESS_KEY: str = Field(
+        default="",
+        description="S3 secret access key (leave empty if not using S3)",
+    )
+    S3_REGION: str = Field(
+        default="",
+        description="S3 region (leave empty if not using S3)",
+    )
+    S3_BUCKET: str = Field(
+        default="",
+        description="S3 bucket name (leave empty if not using S3)",
+    )
+    S3_PATH_PREFIX: str = Field(
+        default="",
+        description="S3 path prefix (leave empty if not using S3)",
+    )
+    # Maximum file size for uploads (in megabytes)
+    FILES_MAX_SIZE_MB: int = Field(
+        default=100,
+        description="Maximum file size in megabytes for uploads",
+    )
+
     # Security - REQUIRED in production
     SECRET_KEY: str = Field(
         default="CHANGE_ME_TO_A_SECURE_RANDOM_VALUE",
@@ -75,6 +138,19 @@ class Settings(BaseSettings):
     # default job label; falls back to APP_NAME
     LOKI_LABEL_JOB: Optional[str] = None
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
+
+    # TRAVEL API TABLEAU CONFIGURATION
+    TABLEAU_SERVER_URL: str = ""
+    TABLEAU_SITE_CONTENT_URL: Optional[str] = None
+    TABLEAU_DS_FLIGHTS_LUID: str = ""
+    TABLEAU_CONNECTED_APP_CLIENT_ID: str = ""
+    TABLEAU_CONNECTED_APP_SECRET_ID: str = ""
+    TABLEAU_CONNECTED_APP_SECRET_VALUE: str = ""
+    TABLEAU_USERNAME: str = ""
+    TABLEAU_VERIFY_SSL: str = "true"
+    TABLEAU_REQUEST_TIMEOUT_SECONDS: str = "300"
+    TABLEAU_REST_MIN_API_VERSION: str = "2.4"
+    TABLEAU_MAX_FIELDS: int = 50
 
     # Role Provider Plugin Configuration
     PROVIDER_PLUGIN: str = Field(

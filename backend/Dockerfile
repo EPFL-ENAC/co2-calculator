@@ -5,6 +5,9 @@ FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
 
 WORKDIR /app
 
+# Install git for dependencies from git repositories
+RUN apk add --no-cache git
+
 # Copy dependency manifests first
 COPY pyproject.toml uv.lock ./
 

@@ -17,6 +17,13 @@ interface User {
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
   }>;
+  permissions?: {
+    [key: string]: {
+      view?: boolean;
+      edit?: boolean;
+      export?: boolean;
+    };
+  };
 }
 
 export const useAuthStore = defineStore('auth', () => {

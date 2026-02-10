@@ -6,6 +6,7 @@
           :submodule="sub"
           :module-config="currentModuleConfig"
           :module-type="type"
+          :disable="disable"
           :submodule-type="sub.type as any"
           :data="data"
           :loading="loading"
@@ -36,6 +37,7 @@ const props = defineProps<{
   error: string | null;
   unitId: string;
   year: string | number;
+  disable: boolean;
 }>();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(

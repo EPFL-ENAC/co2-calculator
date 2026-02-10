@@ -8,12 +8,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.policy import query_policy
 from app.models.headcount import (
     HeadCountCreate,
     HeadCountCreateRequest,
     HeadcountItemResponse,
     HeadCountUpdate,
     HeadCountUpdateRequest,
+)
+from app.models.professional_travel import (
+    ProfessionalTravelCreate,
+    ProfessionalTravelItemResponse,
+    ProfessionalTravelUpdate,
 )
 from app.models.user import User
 from app.schemas.equipment import (
@@ -25,9 +31,165 @@ from app.schemas.equipment import (
 )
 from app.services import equipment_service
 from app.services.headcount_service import HeadcountService
+from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+def _get_module_permission_path(module_id: str) -> Optional[str]:
+    """
+    Map module ID to permission path.
+
+    Args:
+        module_id: Module identifier
+            (e.g., "professional-travel", "equipment-electric-consumption")
+
+    Returns:
+        Permission path (e.g., "modules.professional_travel") or None
+        if module doesn't require permission
+    """
+    module_permission_map = {
+        "professional-travel": "modules.professional_travel",
+        "equipment-electric-consumption": "modules.equipment",
+        "infrastructure": "modules.infrastructure",
+        "purchase": "modules.purchase",
+        "internal-services": "modules.internal_services",
+        "external-cloud": "modules.external_cloud",
+        "my-lab": "modules.headcount",  # Headcount module
+    }
+    return module_permission_map.get(module_id)
+
+
+async def _check_module_permission(user: User, module_id: str, action: str) -> None:
+    """
+    Check if user has permission for the module.
+
+    Args:
+        user: Current user
+        module_id: Module identifier
+        action: Permission action ("view" or "edit")
+
+    Raises:
+        HTTPException: 403 if permission denied
+    """
+    permission_path = _get_module_permission_path(module_id)
+    if not permission_path:
+        # Module doesn't require permission check, allow access
+        return
+
+    # Build OPA input with user context
+    input_data = {
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+        "path": permission_path,
+        "action": action,
+    }
+    decision = await query_policy("authz/permission/check", input_data)
+
+    logger.info(
+        "Module permission check",
+        extra={
+            "user_id": sanitize(user.id),
+            "module_id": sanitize(module_id),
+            "permission_path": permission_path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+
+    if not decision.get("allow", False):
+        reason = decision.get("reason", "Permission denied")
+        logger.warning(
+            "Module permission check denied",
+            extra={
+                "user_id": sanitize(user.id),
+                "module_id": sanitize(module_id),
+                "permission_path": permission_path,
+                "action": action,
+                "reason": reason,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: {reason}",
+        )
+
+
+@router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
+async def get_module_totals(
+    unit_id: str,
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, float]:
+    """
+    Get total tCO2eq for equipment-electric-consumption and professional-travel modules.
+
+    Args:
+        unit_id: Unit ID
+        year: Year for the data
+        db: Database session
+        current_user: Authenticated user
+    """
+    logger.info(
+        f"GET module totals: unit_id={sanitize(unit_id)}, year={sanitize(year)}"
+    )
+
+    totals: dict[str, float] = {
+        "total": 0.0,
+        "equipment-electric-consumption": 0.0,
+        "professional-travel": 0.0,
+    }
+
+    # Get equipment module totals
+    try:
+        await _check_module_permission(
+            current_user, "equipment-electric-consumption", "view"
+        )
+        equipment_kg_co2eq = await equipment_service.get_total_kg_co2eq(
+            session=db, unit_id=unit_id, year=year
+        )
+        equipment_tco2eq = round(float(equipment_kg_co2eq or 0.0) / 1000.0, 2)
+        totals["equipment-electric-consumption"] = equipment_tco2eq
+        logger.info(
+            f"Equipment module totals: {equipment_kg_co2eq} kg CO2eq = "
+            f"{equipment_tco2eq} tCO2eq for unit_id={sanitize(unit_id)}"
+        )
+    except HTTPException:
+        # Permission denied, skip this module
+        logger.warning("Permission denied for equipment module")
+    except Exception as e:
+        logger.error(f"Error getting equipment stats: {e}", exc_info=True)
+
+    # Get professional travel module totals
+    try:
+        await _check_module_permission(current_user, "professional-travel", "view")
+        travel_service = ProfessionalTravelService(db)
+        travel_stats = await travel_service.get_module_stats(
+            unit_id=unit_id, year=year, user=current_user
+        )
+        travel_kg_co2eq = travel_stats.get("total_kg_co2eq", 0.0)
+        travel_tco2eq = round(float(travel_kg_co2eq or 0.0) / 1000.0, 2)
+        totals["professional-travel"] = travel_tco2eq
+        logger.debug(f"Professional Travel module: {travel_tco2eq} tCO2eq")
+    except HTTPException:
+        # Permission denied, skip this module
+        logger.warning("Permission denied for professional travel module")
+    except Exception as e:
+        logger.error(f"Error getting professional travel stats: {e}", exc_info=True)
+
+    # Calculate total
+    totals["total"] = round(
+        totals["equipment-electric-consumption"] + totals["professional-travel"], 2
+    )
+
+    logger.info(
+        f"Module totals returned: total={totals['total']} tCO2eq "
+        f"(equipment: {totals['equipment-electric-consumption']}, "
+        f"travel: {totals['professional-travel']})"
+    )
+
+    return totals
 
 
 @router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
@@ -51,6 +213,8 @@ async def get_module_stats(
     Returns:
         List of integers with statistics (e.g., total items, total submodules)
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET module stats: module_id={sanitize(module_id)}, "
         f"unit_id={sanitize(unit_id)}, year={sanitize(year)}"
@@ -63,11 +227,26 @@ async def get_module_stats(
             unit_id=unit_id,
             aggregate_by=aggregate_by,
         )
-    if module_id == "my-lab":
+    elif module_id == "my-lab":
         stats = await HeadcountService(db).get_module_stats(
             unit_id=unit_id,
             year=year,
             aggregate_by=aggregate_by,
+        )
+    elif module_id == "professional-travel":
+        # Get summary stats for professional travel
+        summary = await ProfessionalTravelService(db).get_module_stats(
+            unit_id=unit_id, year=year, user=current_user
+        )
+        stats = {
+            "total_items": float(summary["total_items"]),
+            "total_kg_co2eq": summary["total_kg_co2eq"],
+            "total_distance_km": summary["total_distance_km"],
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module {module_id} not found",
         )
     logger.info(f"Module stats returned: {stats}")
 
@@ -103,6 +282,8 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
@@ -116,7 +297,7 @@ async def get_module(
             year=year,
             preview_limit=preview_limit,
         )
-    if module_id == "my-lab":
+    elif module_id == "my-lab":
         # Fetch real data from database
         module_data = await HeadcountService(db).get_module_data(
             unit_id=unit_id,
@@ -131,6 +312,19 @@ async def get_module(
         # Handle case where total_submodules is used in stats
         module_data.totals.total_submodules = 0
         module_data.stats = stats
+    elif module_id == "professional-travel":
+        # Fetch real data from database
+        module_data = await ProfessionalTravelService(db).get_module_data(
+            unit_id=unit_id,
+            year=year,
+            user=current_user,
+            preview_limit=preview_limit,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module {module_id} not found",
+        )
     logger.info(
         f"Module data returned: {module_data.totals.total_items} items "
         f"across {module_data.totals.total_submodules} submodules"
@@ -176,6 +370,8 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
         f"GET submodule: module_id={sanitize(module_id)}, "
         f"unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
@@ -200,13 +396,29 @@ async def get_submodule(
             sort_order=sort_order,
             filter=filter,
         )
-    if module_id == "my-lab":
+    elif module_id == "my-lab":
         submodule_data = await HeadcountService(db).get_submodule_data(
             unit_id=unit_id,
             year=year,
             submodule_key=submodule_id,
             limit=limit,
             offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filter=filter,
+        )
+    elif module_id == "professional-travel":
+        if submodule_id != "trips":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Submodule {submodule_id} not found for professional-travel",
+            )
+        submodule_data = await ProfessionalTravelService(db).get_submodule_data(
+            unit_id=unit_id,
+            year=year,
+            user=current_user,
+            page=page,
+            limit=limit,
             sort_by=sort_by,
             sort_order=sort_order,
             filter=filter,
@@ -226,7 +438,11 @@ async def get_submodule(
 
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
-    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
+    response_model=Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_item(
@@ -234,7 +450,7 @@ async def create_item(
     year: int,
     module_id: str,
     submodule_id: str,
-    item_data: Union[EquipmentCreateRequest, HeadCountCreateRequest],
+    item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -253,27 +469,44 @@ async def create_item(
     Returns:
         EquipmentDetailResponse with created equipment
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
-        f"POST equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"POST item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
-    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
+    item: Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ]
     # Validate unit_id matches the one in request body
     if module_id == "equipment-electric-consumption":
-        if not isinstance(item_data, EquipmentCreateRequest):
+        # Parse as EquipmentCreateRequest
+        try:
+            parsed_data = EquipmentCreateRequest(**item_data)
+        except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid item_data for equipment creation at api/v1/modules",
+                detail=f"Invalid item_data for equipment creation: {str(e)}",
             )
 
         item = await equipment_service.create_equipment(
             session=db,
-            equipment_data=item_data,
+            equipment_data=parsed_data,
             user_id=current_user.id,
         )
     elif module_id == "my-lab":
+        # Parse as HeadCountCreateRequest
+        try:
+            parsed_headcount = HeadCountCreateRequest(**item_data)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid item_data for headcount creation: {str(e)}",
+            )
         headcount_create = HeadCountCreate(
-            **item_data.dict(),
+            **parsed_headcount.dict(),
             unit_id=unit_id,
             date="2024-12-31",
             submodule=submodule_id,
@@ -295,6 +528,45 @@ async def create_item(
                 detail="Failed to create headcount item",
             )
         item = HeadcountItemResponse.model_validate(headcount)
+    elif module_id == "professional-travel":
+        # Parse as ProfessionalTravelCreate
+        try:
+            parsed_travel = ProfessionalTravelCreate(**item_data)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid item_data for professional travel creation: {str(e)}",
+            )
+        if submodule_id != "trips":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid submodule_id {submodule_id} for professional-travel",
+            )
+        # Ensure unit_id matches
+        if parsed_travel.unit_id != unit_id:
+            raise HTTPException(
+                status_code=400,
+                detail="unit_id in path must match unit_id in request body",
+            )
+        # Log user info for debugging
+        logger.info(
+            f"Creating professional travel: unit_id={sanitize(unit_id)}, "
+            f"year={year}, user_id={sanitize(current_user.id)}, "
+            f"user_email={sanitize(current_user.email)}, "
+            f"traveler_name={sanitize(parsed_travel.traveler_name)}"
+        )
+        travel_result = await ProfessionalTravelService(db).create_travel(
+            data=parsed_travel,
+            provider_source="manual",
+            user=current_user,
+            year=year,
+            unit_id=unit_id,
+        )
+        # Handle round trip (returns list) or single trip
+        travel = travel_result[0] if isinstance(travel_result, list) else travel_result
+        # Convert to item response with related data
+        service = ProfessionalTravelService(db)
+        item = await service._get_travel_item_response(travel, current_user)
     else:
         raise HTTPException(
             status_code=400,
@@ -322,7 +594,11 @@ async def create_item(
 
 @router.get(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
+    response_model=Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ],
 )
 async def get_item(
     unit_id: str,
@@ -347,11 +623,17 @@ async def get_item(
     Returns:
         EquipmentDetailResponse
     """
+    await _check_module_permission(current_user, module_id, "view")
+
     logger.info(
-        f"GET equipment: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
+        f"GET item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
-    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
+    item: Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ]
     if module_id == "equipment-electric-consumption":
         if not isinstance(item_id, int):
             raise HTTPException(
@@ -377,19 +659,39 @@ async def get_item(
                 detail="Headcount item not found",
             )
         item = HeadcountItemResponse.model_validate(headcount)
+    elif module_id == "professional-travel":
+        if not isinstance(item_id, int):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid item_id type for professional travel retrieval",
+            )
+        travel = await ProfessionalTravelService(db).repo.get_by_id(
+            travel_id=item_id, user=current_user
+        )
+        if travel is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Professional travel item not found",
+            )
+        service = ProfessionalTravelService(db)
+        item = await service._get_travel_item_response(travel, current_user)
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Equipment item not found",
+            detail="Item not found",
         )
-    logger.info(f"Retrieved equipment {sanitize(item_id)}")
+    logger.info(f"Retrieved item {sanitize(item_id)}")
 
     return item
 
 
 @router.patch(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
-    response_model=Union[EquipmentDetailResponse, HeadcountItemResponse],
+    response_model=Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ],
 )
 async def update_equipment(
     unit_id: str,
@@ -397,7 +699,7 @@ async def update_equipment(
     module_id: str,
     submodule_id: str,
     item_id: int,
-    item_data: Union[EquipmentUpdateRequest, HeadCountUpdateRequest],
+    item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -416,33 +718,45 @@ async def update_equipment(
     Returns:
         EquipmentDetailResponse with updated equipment
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
-        f"PATCH equipment: unit_id={sanitize(unit_id)}, "
+        f"PATCH item: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-    item: Union[EquipmentDetailResponse, HeadcountItemResponse]
+    item: Union[
+        EquipmentDetailResponse,
+        HeadcountItemResponse,
+        ProfessionalTravelItemResponse,
+    ]
     if module_id == "equipment-electric-consumption":
-        if not isinstance(item_data, EquipmentUpdateRequest):
+        # Parse as EquipmentUpdateRequest
+        try:
+            parsed_data = EquipmentUpdateRequest(**item_data)
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid item_data type for equipment update",
+                detail=f"Invalid item_data for equipment update: {str(e)}",
             )
         item = await equipment_service.update_equipment(
             session=db,
             item_id=item_id,
-            item_data=item_data,
+            item_data=parsed_data,
             user_id=current_user.id,
         )
     elif module_id == "my-lab":
-        if not isinstance(item_data, HeadCountUpdateRequest):
+        # Parse as HeadCountUpdateRequest
+        try:
+            parsed_headcount = HeadCountUpdateRequest(**item_data)
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid item_data type for equipment update",
+                detail=f"Invalid item_data for headcount update: {str(e)}",
             )
         updateItem = HeadCountUpdate(
-            **item_data.model_dump(exclude_unset=True),
+            **parsed_headcount.model_dump(exclude_unset=True),
         )
         headcount = await HeadcountService(db).update_headcount(
             headcount_id=item_id,
@@ -455,12 +769,33 @@ async def update_equipment(
                 detail="Headcount item not found",
             )
         item = HeadcountItemResponse.model_validate(headcount)
+    elif module_id == "professional-travel":
+        # Parse as ProfessionalTravelUpdate
+        try:
+            parsed_travel = ProfessionalTravelUpdate(**item_data)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid item_data for professional travel update: {str(e)}",
+            )
+        travel = await ProfessionalTravelService(db).update_travel(
+            travel_id=item_id,
+            data=parsed_travel,
+            user=current_user,
+        )
+        if travel is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Professional travel item not found",
+            )
+        service = ProfessionalTravelService(db)
+        item = await service._get_travel_item_response(travel, current_user)
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="module not supported for update",
+            detail="Module not supported for update",
         )
-    logger.info(f"Updated equipment {sanitize(item_id)}")
+    logger.info(f"Updated item {sanitize(item_id)}")
     return item
 
 
@@ -491,8 +826,10 @@ async def delete_item(
     Returns:
         No content (204)
     """
+    await _check_module_permission(current_user, module_id, "edit")
+
     logger.info(
-        f"DELETE equipment: unit_id={sanitize(unit_id)}, "
+        f"DELETE item: unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, module_id={sanitize(module_id)}, "
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
@@ -504,17 +841,23 @@ async def delete_item(
                 equipment_id=item_id,
                 user_id=current_user.id,
             )
-
         elif module_id == "my-lab":
             await HeadcountService(db).delete_headcount(
                 headcount_id=item_id,
-                current_user=current_user,
+            )
+        elif module_id == "professional-travel":
+            await ProfessionalTravelService(db).delete_travel(
+                travel_id=item_id,
+                user=current_user,
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="module not supported for deletion",
+                detail="Module not supported for deletion",
             )
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 403, etc.) from services
+        raise
     except PermissionError as e:
         logger.warning(
             f"Permission error during deletion of item_id={sanitize(item_id)}: {str(e)}"
@@ -523,6 +866,15 @@ async def delete_item(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
         ) from e
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during deletion of item_id={sanitize(item_id)}: "
+            f"{str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete item: {str(e)}",
+        ) from e
+    logger.info(f"Deleted item {sanitize(item_id)}")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    logger.info(f"Deleted equipment {sanitize(item_id)}")

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.config import get_settings
 from app.models.headcount import HeadcountItemResponse
+from app.models.professional_travel import ProfessionalTravelItemResponse
 
 settings = get_settings()
 
@@ -26,6 +27,9 @@ class EquipmentItemResponse(BaseModel):
     active_power_w: Optional[float] = Field(None, description="Active power in Watts")
     status: str = Field(..., description="Equipment status")
     kg_co2eq: float = Field(..., description="Annual CO2 emissions in kg CO2-eq")
+    t_co2eq: float = Field(
+        ..., description="Annual CO2 emissions in tonnes CO2-eq (rounded up)"
+    )
     annual_kwh: float = Field(..., description="Annual energy consumption in kWh")
 
     class Config:
@@ -55,9 +59,9 @@ class SubmoduleResponse(BaseModel):
     id: str = Field(..., description="Submodule identifier")
     name: str = Field(..., description="Submodule display name")
     count: int = Field(..., description="Total number of items")
-    items: Sequence[EquipmentItemResponse | HeadcountItemResponse] = Field(
-        ..., description="Equipment items"
-    )
+    items: Sequence[
+        EquipmentItemResponse | HeadcountItemResponse | ProfessionalTravelItemResponse
+    ] = Field(..., description="Module items (equipment, headcount, or travel)")
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
 
@@ -71,7 +75,10 @@ class ModuleTotals(BaseModel):
         None, description="Total annual energy consumption"
     )
     total_kg_co2eq: Optional[float] = Field(
-        None, description="Total annual CO2 emissions"
+        None, description="Total annual CO2 emissions in kg CO2-eq"
+    )
+    total_tonnes_co2eq: Optional[float] = Field(
+        None, description="Total annual CO2 emissions in tonnes CO2-eq"
     )
     total_annual_fte: Optional[float] = Field(
         None, description="Total full-time equivalent (FTE) associated"

@@ -9,12 +9,36 @@
         :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
         :has-tooltip="currentModuleConfig.hasTooltip"
       />
-      <module-charts :type="currentModuleType" />
+      <!-- module summary -->
+      <module-total-result
+        v-if="
+          (
+            [
+              MODULES.EquipmentElectricConsumption,
+              MODULES.MyLab,
+              MODULES.ProfessionalTravel,
+            ] as Module[]
+          ).includes(currentModuleType)
+        "
+        :data="totalResult"
+        :type="currentModuleType"
+        :module-config="currentModuleConfig"
+      />
+      <q-card class="container container--pa-none" flat style="padding: 0">
+        <module-charts
+          :type="currentModuleType"
+          :show-evolution-chart="false"
+        />
+      </q-card>
       <!-- module tables iteration -->
       <module-table-section
         v-if="
           (
-            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
+            [
+              MODULES.EquipmentElectricConsumption,
+              MODULES.MyLab,
+              MODULES.ProfessionalTravel,
+            ] as Module[]
           ).includes(currentModuleType)
         "
         :type="currentModuleType"
@@ -23,17 +47,7 @@
         :error="error"
         :unit-id="workspaceStore.selectedUnit?.id"
         :year="workspaceStore.selectedYear"
-      />
-      <!-- module summary -->
-      <module-total-result
-        v-if="
-          (
-            [MODULES.EquipmentElectricConsumption, MODULES.MyLab] as Module[]
-          ).includes(currentModuleType)
-        "
-        :data="totalResult"
-        :type="currentModuleType"
-        :module-config="currentModuleConfig"
+        :disable="timelineStore.canEdit === false"
       />
       <module-navigation :current-module="currentModuleType" />
     </div>
@@ -58,6 +72,8 @@ import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
+import { useTimelineStore } from 'src/stores/modules';
+const timelineStore = useTimelineStore();
 
 const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,
@@ -75,12 +91,13 @@ const totalResult = computed(() => {
   if (currentModuleType.value === MODULES.MyLab) {
     return moduleStore.state.data?.totals?.total_annual_fte;
   }
-  return moduleStore.state.data?.totals?.total_kg_co2eq;
+  return moduleStore.state.data?.totals?.total_tonnes_co2eq;
 });
 
 const AuthorizedModules: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.MyLab,
+  MODULES.ProfessionalTravel,
 ];
 
 // ACTIONS

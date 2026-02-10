@@ -1,10 +1,31 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
+import FilesUploadDialog from './FilesUploadDialog.vue';
+import { useFilesStore } from 'src/stores/files';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 
+const filesStore = useFilesStore();
+const dataManagementStore = useBackofficeDataManagement();
 interface Props {
   year: number;
 }
 defineProps<Props>();
+const showUploadDialog = ref<boolean>(false);
+
+const onFilesUploaded = () => {
+  showUploadDialog.value = false;
+};
+
+const dataEntrySync = async (moduleTypeId: number, year: number) => {
+  await dataManagementStore.initiateSync(
+    moduleTypeId,
+    year,
+    'api',
+    'data_entries',
+  );
+  // fetch status? // have sse ? how do we poll ?
+};
 </script>
 
 <template>
@@ -15,6 +36,31 @@ defineProps<Props>();
     </div>
     <div class="q-my-md">
       {{ $t('data_management_annual_data_import_hint') }}
+    </div>
+    <div>
+      <q-banner class="bg-grey-2 text-grey-8">
+        <q-icon name="info" size="xs" class="on-left" />
+        <span class="q-ml-sm">
+          {{
+            filesStore.tempFiles.length > 0
+              ? $t('data_management_temp_files_uploaded', {
+                  count: filesStore.tempFiles.length,
+                })
+              : $t('data_management_no_temp_files_uploaded')
+          }}
+        </span>
+        <q-btn
+          v-if="filesStore.tempFiles.length > 0"
+          no-caps
+          outline
+          color="negative"
+          icon="delete"
+          size="sm"
+          :label="$t('data_management_delete_temp_files')"
+          class="text-weight-medium on-right"
+          @click="filesStore.deleteTempFiles()"
+        />
+      </q-banner>
     </div>
     <div>
       <q-banner inline-actions class="q-px-none">
@@ -35,6 +81,7 @@ defineProps<Props>();
             size="sm"
             :label="$t('data_management_upload_csv_files')"
             class="text-weight-medium on-right"
+            @click="showUploadDialog = true"
           />
           <q-btn
             no-caps
@@ -83,7 +130,9 @@ defineProps<Props>();
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
+                  @click="showUploadDialog = true"
                 />
+                <!-- TODO: use enum for data_module_type_id -->
                 <q-btn
                   no-caps
                   color="accent"
@@ -91,6 +140,7 @@ defineProps<Props>();
                   size="sm"
                   :label="$t('data_management_connect_api')"
                   class="text-weight-medium on-right"
+                  @click="dataEntrySync(MODULES_LIST.indexOf(module) + 1, year)"
                 />
                 <q-btn
                   no-caps
@@ -140,5 +190,9 @@ defineProps<Props>();
         </tbody>
       </q-markup-table>
     </div>
+    <files-upload-dialog
+      v-model="showUploadDialog"
+      @files-uploaded="onFilesUploaded"
+    />
   </q-card>
 </template>

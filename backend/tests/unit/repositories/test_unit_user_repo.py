@@ -6,6 +6,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.unit_user import UnitUser
+from app.models.user import RoleName
 from app.repositories.unit_user_repo import UnitUserRepository
 
 
@@ -15,8 +16,8 @@ class DummyRole:
         self.value = value
 
 
-ROLE_STD = DummyRole("co2.user.std")
-ROLE_ADMIN = DummyRole("co2.user.admin")
+ROLE_STD = DummyRole(RoleName.CO2_USER_STD.value)
+ROLE_ADMIN = DummyRole(RoleName.CO2_SUPERADMIN.value)
 
 
 # ----------------------
@@ -212,8 +213,15 @@ async def test_count_no_filters(repo, mock_session):
     [
         ({"unit_id": "u1"}, 5),
         ({"user_id": "user1"}, 6),
-        ({"role": "co2.user.admin"}, 7),
-        ({"unit_id": "u1", "user_id": "user1", "role": "co2.user.admin"}, 8),
+        ({"role": RoleName.CO2_SUPERADMIN.value}, 7),
+        (
+            {
+                "unit_id": "u1",
+                "user_id": "user1",
+                "role": RoleName.CO2_SUPERADMIN.value,
+            },
+            8,
+        ),
     ],
 )
 async def test_count_with_filters(repo, mock_session, filters, expected):

@@ -184,6 +184,24 @@ def _sanitize_for_log(value):
     return str(value).replace("\n", "").replace("\r", "")
 
 
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the given name."""
-    return logging.getLogger(name)
+def _sanitize_extra(extra: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Recursively sanitize all values in the extra dictionary."""
+    if extra is None:
+        return None
+    return {k: _sanitize_for_log(v) for k, v in extra.items()}
+
+
+class SanitizingLoggerAdapter(logging.LoggerAdapter):
+    """Logger adapter that automatically sanitizes extra parameters."""
+
+    def process(self, msg, kwargs):
+        """Process the logging call to sanitize extra parameters."""
+        if "extra" in kwargs and kwargs["extra"]:
+            kwargs["extra"] = _sanitize_extra(kwargs["extra"])
+        return msg, kwargs
+
+
+def get_logger(name: str) -> logging.LoggerAdapter:
+    """Get a logger instance with automatic sanitization of extra parameters."""
+    logger = logging.getLogger(name)
+    return SanitizingLoggerAdapter(logger, {})

@@ -80,3 +80,28 @@ dev: ## Start development server
 .PHONY: build
 build: ## Build Docker image
 	docker build -t co2-calculator-frontend .
+
+# =============================================================================
+# Storybook Tasks
+# =============================================================================
+
+.PHONY: storybook
+storybook: ## Start Storybook development server
+	npm run storybook
+
+.PHONY: storybook-build
+storybook-build: ## Build static Storybook site
+	npm run storybook:build
+
+.PHONY: storybook-test
+storybook-test: ## Test Storybook stories
+	npm run storybook:test
+
+.PHONY: storybook-test-ci
+storybook-test-ci: ## Test Storybook stories in CI mode
+	npm run storybook:test-ci
+
+.PHONY: storybook-docker
+storybook-docker: ## Build and run Storybook in Docker
+	docker build -f Dockerfile.storybook -t storybook .
+	docker run -p 8080:8080 storybook

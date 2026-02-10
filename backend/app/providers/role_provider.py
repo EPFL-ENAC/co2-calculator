@@ -73,8 +73,10 @@ class DefaultRoleProvider(RoleProvider):
     """Default role provider that extracts roles from JWT claims.
 
     Expects roles in flat string format from JWT claims:
-    - "co2.user.std@unit:12345" → {"role": "co2.user.std", "on": {"unit": "12345"}}
-    - "co2.backoffice.admin@global" → {"role": "co2.backoffice.admin", "on": "global"}
+    - "calco2.user.standard@unit:12345" →
+        {"role": "calco2.user.standard", "on": {"unit": "12345"}}
+    - "calco2.backoffice.metier@global" →
+        {"role": "calco2.backoffice.metier", "on": "global"}
 
     Roles without scope (bare strings) will be skipped with a warning.
     """
@@ -206,7 +208,7 @@ class TestRoleProvider(RoleProvider):
         Returns:
             User ID as a string
         """
-        user_id = userinfo.get("requested_role", "co2.user.std")
+        user_id = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         return self._make_user_id(f"testuser_{user_id}")
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
@@ -218,45 +220,32 @@ class TestRoleProvider(RoleProvider):
         Returns:
             List of test Role objects
         """
-        requested_role = userinfo.get("requested_role", "co2.user.std")
+        requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         # Create roles based on requested role
         roles: List[Role] = []
-        if requested_role == "co2.user.std":
+        if requested_role == RoleName.CO2_USER_STD.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_STD,
                     on=RoleScope(unit="12345", affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.user.secondary":
-            roles = [
-                Role(
-                    role=RoleName.CO2_USER_SECONDARY,
-                    on=RoleScope(unit="12345", affiliation="testaffiliation"),
-                )
-            ]
-        elif requested_role == "co2.user.principal":
+        elif requested_role == RoleName.CO2_USER_PRINCIPAL.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_PRINCIPAL,
                     on=RoleScope(unit="12345", affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.backoffice.std":
+        elif requested_role == RoleName.CO2_BACKOFFICE_METIER.value:
             roles = [
                 Role(
-                    role=RoleName.CO2_BACKOFFICE_STD,
+                    role=RoleName.CO2_BACKOFFICE_METIER,
                     on=RoleScope(affiliation="testaffiliation"),
                 )
             ]
-        elif requested_role == "co2.backoffice.admin":
-            roles = [
-                Role(role=RoleName.CO2_BACKOFFICE_ADMIN, on=GlobalScope(scope="global"))
-            ]
-        elif requested_role == "co2.service.mgr":
-            roles = [
-                Role(role=RoleName.CO2_SERVICE_MGR, on=GlobalScope(scope="global"))
-            ]
+        elif requested_role == RoleName.CO2_SUPERADMIN.value:
+            roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope(scope="global"))]
         else:
             roles = []
 
@@ -369,7 +358,7 @@ class AccredRoleProvider(RoleProvider):
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
-                "searchauthorization": "co2.",
+                "searchauthorization": "calco2.",
             }
 
             # example using httpx for async HTTP requests
@@ -394,16 +383,23 @@ class AccredRoleProvider(RoleProvider):
 
             # Map authorizations to roles
             roles: List[Role] = []
-            # "co2.user.std", --> applied to unit
-            # "co2.user.principal", --> applied to unit
-            # "co2.user.secondary", --> applied to unit
-            # "co2.backoffice.admin", --> applied globally
-            # "co2.backoffice.std" --> applied to affiliation
+            # "calco2.user.standard"  # CO2 Calculator - User role.
+            # # For EPFL staff. Standard users can fill in a yearly
+            # # summary of their professional travel and view results.
+            # "calco2.user.principal" # CO2 Calculator - Unit Manager role.
+            # # For EPFL unit managers. They can fill in unit data
+            # # to other unit members.
+            # "calco2.backoffice.metier"  # CO2 Calculator - Backoffice Admin role.
+            # # For backoffice admins. They can report, monitor
+            # # usage and results, and update documentation/data.
+            # "calco2.superadmin"     # CO2 Calculator - Super Admin.
+            # # For service managers or business owners. They can
+            # # assign all roles and scopes, and access IT admin tools.
             for auth in authorizations:
                 auth_name = auth.get("name", "")
 
                 # Only process authorizations starting with "co2."
-                if not auth_name.startswith("co2."):
+                if not auth_name.startswith("calco2."):
                     continue
 
                 # Check if authorization is active
@@ -418,10 +414,10 @@ class AccredRoleProvider(RoleProvider):
                         extra={"auth_name": auth_name, "user_id": user_id},
                     )
                     continue
-                if auth_name == RoleName.CO2_BACKOFFICE_ADMIN:
-                    # Global admin role
+                if auth_name == RoleName.CO2_SUPERADMIN:
+                    # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
-                elif auth_name == RoleName.CO2_BACKOFFICE_STD:
+                elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
                     affiliations_names = (
                         auth.get("reason").get("resource").get("sortpath")
                     )

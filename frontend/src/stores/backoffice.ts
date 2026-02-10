@@ -33,7 +33,7 @@ interface UnitFilters {
   completion?: string;
   outlier_values?: boolean | null;
   search?: string;
-  modules?: Array<{ module: string; state: string }>;
+  modules?: Array<{ module: string; state: ModuleState }>;
 }
 
 export const useBackofficeStore = defineStore('backoffice', () => {
@@ -148,9 +148,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
         ? `backoffice/units?${queryString}`
         : 'backoffice/units';
 
-      console.log('Fetching units with url:', url);
       const data = await api.get(url).json<BackofficeUnitData[]>();
-      console.log('Received units:', data);
       units.value = data || [];
     } catch (error) {
       console.error('Error getting units:', error);

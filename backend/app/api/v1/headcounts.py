@@ -3,9 +3,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.security import require_permission
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
 from app.models.user import User
 from app.services.headcount_service import HeadcountService
@@ -14,39 +15,55 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def get_headcount_service(
-    db: AsyncSession = Depends(get_db),
-) -> HeadcountService:
-    """Dependency to get headcount service instance."""
-    return HeadcountService(db)
-
-
 @router.post(
     "/units/{unit_id}/years/{year}/headcounts",
     response_model=HeadCount,
     status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        }
+    },
 )
 async def create_headcount(
     unit_id: str,
     year: int,
     headcount_data: HeadCountCreate,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> HeadCount:
     """
     Create a new headcount record.
+
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can create for their assigned units
+    - Backoffice admin: Can create for all units
+    - Standard users: No access
 
     Args:
         unit_id: The unit identifier
         year: The year for the headcount
         headcount_data: The headcount data to create
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
         Created headcount record
+
+    Raises:
+        403: Missing required permission or insufficient scope
+        500: Failed to create headcount record
     """
     try:
         logger.info(
@@ -54,6 +71,7 @@ async def create_headcount(
             f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
         )
 
+        service = HeadcountService(db, user=current_user)
         headcount = await service.create_headcount(
             data=headcount_data,
             provider_source="api",
@@ -74,6 +92,18 @@ async def create_headcount(
 @router.get(
     "/units/{unit_id}/years/{year}/headcounts",
     response_model=list[HeadCount],
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.view required"
+                    }
+                }
+            },
+        }
+    },
 )
 async def get_headcounts(
     unit_id: str,
@@ -83,11 +113,20 @@ async def get_headcounts(
     sort_by: str = "id",
     sort_order: str = "asc",
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "view")),
 ) -> list[HeadCount]:
     """
     Get a list of headcount records for a specific unit and year.
+
+    **Required Permission**: `modules.headcount.view`
+
+    **Authorization**:
+    - Principals and secondaries: Can view headcounts for their assigned units
+    - Backoffice admin: Can view headcounts for all units
+    - Standard users: Can view only their own headcount data
+
+    Data is automatically filtered by user scope.
 
     Args:
         unit_id: The unit identifier
@@ -97,14 +136,18 @@ async def get_headcounts(
         sort_by: Field to sort by
         sort_order: Sort order ("asc" or "desc")
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
+
+    Raises:
+        403: Missing required permission
     """
     logger.info(
         f"Fetching headcounts for unit={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module={sanitize(module_id)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcounts = await service.get_headcounts(
         unit_id=unit_id,
         year=year,
@@ -124,37 +167,66 @@ async def get_headcounts(
 @router.get(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     response_model=HeadCount,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.view required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def get_headcount(
     unit_id: str,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "view")),
 ) -> HeadCount:
     """
     Get a specific headcount record by ID.
+
+    **Required Permission**: `modules.headcount.view`
+
+    **Authorization**:
+    - Principals and secondaries: Can view headcounts for their assigned units
+    - Backoffice admin: Can view headcounts for all units
+    - Standard users: Can view only their own headcount data
 
     Args:
         unit_id: The unit identifier
         year: The year for the headcount
         headcount_id: The headcount record ID
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
         Headcount record
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
     """
     logger.info(
         f"Fetching headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcount = await service.get_by_id(headcount_id)
 
     if not headcount:
@@ -181,6 +253,26 @@ async def get_headcount(
 @router.patch(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     response_model=HeadCount,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def update_headcount(
     unit_id: str,
@@ -188,11 +280,18 @@ async def update_headcount(
     headcount_id: int,
     headcount_data: HeadCountUpdate,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> HeadCount:
     """
     Update an existing headcount record.
+
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can update headcounts for their assigned units
+    - Backoffice admin: Can update headcounts for all units
+    - Standard users: No access
 
     Args:
         unit_id: The unit identifier
@@ -200,20 +299,22 @@ async def update_headcount(
         headcount_id: The headcount record ID to update
         headcount_data: The headcount data to update
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Returns:
         Updated headcount record
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
     """
     logger.info(
         f"Updating headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     headcount = await service.update_headcount(
         headcount_id=headcount_id,
         data=headcount_data,
@@ -245,34 +346,64 @@ async def update_headcount(
 @router.delete(
     "/units/{unit_id}/years/{year}/headcounts/{headcount_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        403: {
+            "description": "Permission denied",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Permission denied: modules.headcount.edit required"
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Headcount not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Headcount with id 123 not found"}
+                }
+            },
+        },
+    },
 )
 async def delete_headcount(
     unit_id: str,
     year: int,
     headcount_id: int,
     module_id: str = "not_defined",
-    service: HeadcountService = Depends(get_headcount_service),
-    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("modules.headcount", "edit")),
 ) -> None:
     """
     Delete a headcount record.
+
+    **Required Permission**: `modules.headcount.edit`
+
+    **Authorization**:
+    - Principals and secondaries: Can delete headcounts for their assigned units
+    - Backoffice admin: Can delete headcounts for all units
+    - Standard users: No access
 
     Args:
         unit_id: The unit identifier
         year: The year for the headcount
         headcount_id: The headcount record ID to delete
         module_id: Optional module identifier (default: "not_defined")
-        service: Headcount service instance
+        db: Database session
         current_user: Current authenticated user
 
     Raises:
-        HTTPException: 404 if headcount not found
+        403: Missing required permission or insufficient scope
+        404: Headcount not found or not accessible by user
+        500: Failed to delete headcount record
     """
     logger.info(
         f"Deleting headcount id={sanitize(headcount_id)} for unit={sanitize(unit_id)}, "
         f"year={sanitize(year)} by user={sanitize(current_user.id)}"
     )
 
+    service = HeadcountService(db, user=current_user)
     # First verify the headcount exists and belongs to the unit
     headcount = await service.get_by_id(headcount_id)
 
@@ -294,7 +425,8 @@ async def delete_headcount(
             detail="Headcount not found for this unit",
         )
 
-    success = await service.delete_headcount(headcount_id, current_user)
+    # Delete headcount via service (authorization already checked at route level)
+    success = await service.delete_headcount(headcount_id)
 
     if not success:
         logger.error(f"Failed to delete headcount id={sanitize(headcount_id)}")

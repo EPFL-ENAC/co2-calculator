@@ -1,0 +1,36 @@
+# https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action#readme
+name: deploy-quay
+
+"on":
+  push:
+    branches:
+      - dev
+      - stage
+      - "ci-test/**"
+    tags: ["v*.*.*"]
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      packages: write
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.7.0
+    secrets:
+      token: ${{ secrets.CD_TOKEN }}
+      registry_token: ${{ secrets.QUAY_TOKEN }}
+    with:
+      # Optional inputs can be passed here
+      ORG: epfl
+      REPO: co2-calculator
+      build_context: '[ "./frontend", "./backend" ]' # context paths to build
+      argo_repository: "['EPFL-ENAC/openshift-app-config']"
+      registry: quay-its.epfl.ch
+      registry_path: svc1751
+      registry_username: svc1751+ghaction
+  # publish-chart:
+  #   uses: ./.github/workflows/publish_chart.yaml
+  #   needs:
+  #     - deploy
+  #   with:
+  #     registry: "epfl-enac/co2-calculator"
+  #     name: "co2-calculator"

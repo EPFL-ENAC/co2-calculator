@@ -122,11 +122,13 @@
               :submodule-type="submoduleType as any"
               :unit-id="unitId"
               :year="year"
+              :disable="isDisabled"
             />
             <component
               :is="col.inputComponent"
               v-else
               v-model="slotProps.row[col.field]"
+              :disable="isDisabled"
               :type="col.type === 'number' ? 'number' : undefined"
               :options="col.options || []"
               :dense="true"
@@ -148,9 +150,11 @@
             "
           >
             <q-btn
+              v-if="canEdit"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
+              :disable="isDisabled"
               unelevated
               no-caps
               dense
@@ -293,6 +297,9 @@ import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore } from 'src/stores/modules';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -306,6 +313,7 @@ import { nOrDash } from 'src/utils/number';
 const { t: $t } = useI18n();
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 
 const editDialogOpen = ref(false);
 const editInputs = ref<ModuleField[] | null>(null);
@@ -327,6 +335,7 @@ type CommonProps = {
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
+  disable: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -336,6 +345,23 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 
 const moduleStore = useModuleStore();
+
+// Permission check: can user edit this module?
+const canEdit = computed(() => {
+  const permissionPath = getModulePermissionPath(props.moduleType);
+  if (!permissionPath) {
+    // Module doesn't require permission, allow editing (backward compatibility)
+    return true;
+  }
+  return hasPermission(
+    authStore.user?.permissions,
+    permissionPath,
+    PermissionAction.EDIT,
+  );
+});
+
+// Combine prop disable with permission check
+const isDisabled = computed(() => props.disable || !canEdit.value);
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
@@ -372,20 +398,13 @@ type TableViewColumn = {
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
-  const baseCols = (props.moduleFields ?? [])
+  const baseCols: TableViewColumn[] = [];
+
+  (props.moduleFields ?? [])
     .filter((f) => !f.hideIn?.table)
-    .map((f) => {
+    .forEach((f) => {
       const unit = f.unit;
-      let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
       const i18nLabelKey = f.labelKey ?? '';
-      if (i18nLabelKey) {
-        // Use i18n label if available
-        const translated = $t(i18nLabelKey);
-        if (translated && translated !== i18nLabelKey) {
-          // Only use if translation exists
-          labelText = translated;
-        }
-      }
       const sortable = f.sortable ?? false;
       const align = f.align ?? 'left';
       const tooltip = f.tooltip;
@@ -398,22 +417,60 @@ const qCols = computed<TableViewColumn[]>(() => {
       const options = f.options ?? undefined;
       const inputComponent: typeof QInput | typeof QSelect =
         f.type === 'select' ? QSelect : QInput;
-      return {
-        name: f.id,
-        label: labelText,
-        field: f.id,
-        sortable,
-        min: f.min,
-        max: f.max,
-        step: f.step,
-        align,
-        inputComponent,
-        editableInline,
-        options,
-        tooltip,
-        type: f.type,
-        maxColumnWidth: f.maxColumnWidth,
-      };
+
+      // If labelKey is an array, create one column per translation
+      if (Array.isArray(i18nLabelKey)) {
+        i18nLabelKey.forEach((labelKey, index) => {
+          let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+          const translated = $t(labelKey);
+          if (translated && translated !== labelKey) {
+            labelText = translated;
+          }
+
+          baseCols.push({
+            name: `${f.id}_${index}`,
+            label: labelText,
+            field: f.id, // All columns use the same field
+            sortable,
+            min: f.min,
+            max: f.max,
+            step: f.step,
+            align,
+            inputComponent,
+            editableInline,
+            options,
+            tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
+            type: f.type,
+            maxColumnWidth: f.maxColumnWidth,
+          });
+        });
+      } else {
+        // Single labelKey - create one column
+        let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
+        if (i18nLabelKey) {
+          const translated = $t(i18nLabelKey as string);
+          if (translated && translated !== i18nLabelKey) {
+            labelText = translated;
+          }
+        }
+
+        baseCols.push({
+          name: f.id,
+          label: labelText,
+          field: f.id,
+          sortable,
+          min: f.min,
+          max: f.max,
+          step: f.step,
+          align,
+          inputComponent,
+          editableInline,
+          options,
+          tooltip,
+          type: f.type,
+          maxColumnWidth: f.maxColumnWidth,
+        });
+      }
     });
 
   if (props.submoduleConfig.hasTableAction !== false) {
@@ -439,17 +496,29 @@ const qCols = computed<TableViewColumn[]>(() => {
 
 function renderCell(
   row: ModuleRow,
-  col: { field: string; name: string; maxColumnWidth?: number },
+  col: {
+    field: string;
+    name: string;
+    maxColumnWidth?: number;
+    options?: Array<{ value: string; label: string }>;
+  },
 ) {
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
-  if (col.name === 'kg_co2eq') {
+  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
     return nOrDash(val as number, {
       options: {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       },
     });
+  }
+  // If column has options, look up the label for the value
+  if (col.options && typeof val === 'string') {
+    const option = col.options.find((opt) => opt.value === val);
+    if (option) {
+      return option.label;
+    }
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
@@ -493,6 +562,17 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
+function validateNumberOfTrips(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return { valid: false, parsed: null, error: 'Required' };
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n))
+    return { valid: false, parsed: null, error: 'Number required' };
+  if (n < 1) return { valid: false, parsed: null, error: 'Must be at least 1' };
+  return { valid: true, parsed: Math.floor(n), error: null };
+}
+
 async function commitInline(
   row: ModuleRow,
   col: { name: string; field: string; editableInline?: boolean },
@@ -501,16 +581,28 @@ async function commitInline(
   // Only usage fields use the hours/week validation; other inline
   // fields (including selects) are patched as-is.
   const isUsageField = col.name === 'act_usage' || col.name === 'pas_usage';
+  const isNumberOfTrips = col.name === 'number_of_trips';
   const rawVal = row[col.field];
   const valueToSave = (() => {
-    if (!isUsageField) return rawVal;
-    const validation = validateUsage(rawVal);
-    if (!validation.valid) {
-      setError(row, col, validation.error);
-      return null;
+    if (isUsageField) {
+      const validation = validateUsage(rawVal);
+      if (!validation.valid) {
+        setError(row, col, validation.error);
+        return null;
+      }
+      setError(row, col, null);
+      return validation.parsed;
     }
-    setError(row, col, null);
-    return validation.parsed;
+    if (isNumberOfTrips) {
+      const validation = validateNumberOfTrips(rawVal);
+      if (!validation.valid) {
+        setError(row, col, validation.error);
+        return null;
+      }
+      setError(row, col, null);
+      return validation.parsed;
+    }
+    return rawVal;
   })();
 
   if (valueToSave === null) return;
@@ -611,6 +703,18 @@ function isComplete(row: ModuleRow) {
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
     return isCompleteEquipement(row);
   }
+  if (props.moduleType === MODULES.ProfessionalTravel) {
+    // For Professional Travel, consider complete if origin, destination, and transport_mode are set
+    const required = [
+      'origin',
+      'destination',
+      'transport_mode',
+      'traveler_name',
+    ];
+    return required.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+  }
   throw new Error(`Unknown module type: ${props.moduleType}`);
 }
 
@@ -639,10 +743,13 @@ function onFormSubmit(
   };
 
   const perform = async () => {
-    // Backend will auto-resolve power_factor_id and power values
-    // based on class/sub_class, so no need to fetch them here
-    basePayload.act_usage = Number(payload.act_usage);
-    basePayload.pas_usage = Number(payload.pas_usage);
+    // Module-specific payload adjustments
+    if (moduleType === MODULES.EquipmentElectricConsumption) {
+      // Backend will auto-resolve power_factor_id and power values
+      // based on class/sub_class, so no need to fetch them here
+      basePayload.act_usage = Number(payload.act_usage);
+      basePayload.pas_usage = Number(payload.pas_usage);
+    }
 
     const p = isEdit
       ? store.patchItem(
@@ -687,10 +794,21 @@ C1348,UP du Prof. Hummel,"GoPro Hero10 (60p, 4K, WiFi, Bluetooth)",Audiovisual,C
 2025-12-10,20001,SV-DEC,F1380,SV-DO,00000,UserName,Employé(e) / 13 NSS,Assistant-e administratif-ve,000000,1.00,member
 2025-12-10,20001,SV-DEC,F1380,SV-DO,,,,,,10.0,student`;
 
-  const csvContent =
-    props.moduleType === MODULES.MyLab
-      ? csvHeadcountContent
-      : csvEquipmentContent;
+  const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
+
+  let csvContent: string;
+  switch (props.moduleType) {
+    case MODULES.MyLab:
+      csvContent = csvHeadcountContent;
+      break;
+    case MODULES.ProfessionalTravel:
+      csvContent = csvProfessionalTravelContent;
+      break;
+    case MODULES.EquipmentElectricConsumption:
+    default:
+      csvContent = csvEquipmentContent;
+      break;
+  }
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const csvUrl = URL.createObjectURL(blob);
@@ -775,24 +893,49 @@ async function onRequest(request: {
 
 watch(
   () => moduleStore.state.expandedSubmodules[props.submoduleType],
-  (isExpanded) => {
+  (isExpanded, oldValue) => {
+    // Fetch data when expanded (either from undefined/false to true, or already true)
     if (isExpanded) {
-      moduleStore.initializeSubmoduleState(props.submoduleType);
+      // Only fetch if we haven't loaded yet OR if we just expanded from collapsed
+      const shouldFetch =
+        !moduleStore.state.loadedSubmodules[props.submoduleType] ||
+        oldValue === false;
 
-      // table-specific work
-      moduleStore.getSubmoduleData({
-        submoduleType: props.submoduleType,
-        moduleType: props.moduleType,
-        unit: props.unitId,
-        year: String(props.year),
-      });
-      // or recompute columns, resize, etc.
+      if (shouldFetch) {
+        moduleStore.initializeSubmoduleState(props.submoduleType);
+
+        // table-specific work
+        moduleStore.getSubmoduleData({
+          submoduleType: props.submoduleType,
+          moduleType: props.moduleType,
+          unit: props.unitId,
+          year: String(props.year),
+        });
+      }
     }
   },
+  { immediate: true },
+);
+
+watch(
+  () => moduleStore.state.dataSubmodule[props.submoduleType],
+  () => {},
+  { deep: true, immediate: true },
 );
 
 onMounted(() => {
   moduleStore.initializeSubmoduleState(props.submoduleType);
+
+  // Check if already expanded on mount and fetch data if so
+  if (moduleStore.state.expandedSubmodules[props.submoduleType]) {
+    moduleStore.getSubmoduleData({
+      submoduleType: props.submoduleType,
+      moduleType: props.moduleType,
+      unit: props.unitId,
+      year: String(props.year),
+    });
+  }
+
   // Clear inline errors on mount
   inlineErrors.value = {};
 });

@@ -46,6 +46,30 @@ async def get_module_stats(
     )
 
 
+async def get_total_kg_co2eq(session: AsyncSession, unit_id: str, year: int) -> float:
+    """
+    Get total kg CO2eq for all equipment in a unit for a specific year.
+
+    Args:
+        session: Database session
+        unit_id: Unit ID to filter equipment
+        year: Year to filter emissions by computed_at year
+
+    Returns:
+        Total kg CO2eq as float
+    """
+    # Get summary statistics by submodule
+    summary_by_submodule = await equipment_repo.get_equipment_summary_by_submodule(
+        session, unit_id=unit_id, status="In service", year=year
+    )
+    # Sum total_kg_co2eq from all submodules
+    total_kg_co2eq = sum(
+        summary_by_submodule.get(k, {}).get("total_kg_co2eq", 0.0)
+        for k in ["scientific", "it", "other"]
+    )
+    return float(total_kg_co2eq or 0.0)
+
+
 async def get_module_data(
     session: AsyncSession,
     unit_id: str,
@@ -58,7 +82,7 @@ async def get_module_data(
     Args:
         session: Database session
         unit_id: Unit ID to filter equipment
-        year: Year for the data (currently informational only)
+        year: Year to filter emissions by computed_at year
         preview_limit: Optional limit for items per submodule
 
     Returns:
@@ -71,7 +95,7 @@ async def get_module_data(
 
     # Get summary statistics by submodule
     summary_by_submodule = await equipment_repo.get_equipment_summary_by_submodule(
-        session, unit_id=unit_id, status="In service"
+        session, unit_id=unit_id, status="In service", year=year
     )
 
     submodules = {}
@@ -130,6 +154,7 @@ async def get_module_data(
                     else None,
                     status=equipment.status,
                     kg_co2eq=emission.kg_co2eq,
+                    t_co2eq=round(emission.kg_co2eq / 1000.0),
                     annual_kwh=emission.annual_kwh,
                 )
                 items.append(item)
@@ -170,6 +195,7 @@ async def get_module_data(
         total_items=total_items,
         total_annual_consumption_kwh=round(total_kwh, 2),
         total_kg_co2eq=round(total_co2, 2),
+        total_tonnes_co2eq=round(total_co2 / 1000, 2) if total_co2 else None,
         total_annual_fte=None,  # FTE not applicable for equipment
     )
 
@@ -259,6 +285,7 @@ async def get_submodule_data(
             active_power_w=power_factor.active_power_w if power_factor else None,
             status=equipment.status,
             kg_co2eq=emission.kg_co2eq,
+            t_co2eq=round(emission.kg_co2eq / 1000.0),
             annual_kwh=emission.annual_kwh,
         )
         items.append(item)

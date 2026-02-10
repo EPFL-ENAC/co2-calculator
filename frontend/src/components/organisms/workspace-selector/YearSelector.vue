@@ -6,7 +6,7 @@ import { nOrDash } from 'src/utils/number';
 
 const ROWS_PER_PAGE = 20;
 
-interface YearData {
+export interface YearData {
   year: number;
   progress: number;
   completed_modules: number;

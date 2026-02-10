@@ -38,7 +38,7 @@ final_db_url = url.render_as_string(hide_password=False)
 engine = create_async_engine(
     final_db_url,  # This has the actual password
     pool_pre_ping=True,  # Verify connections before using them
-    echo=settings.DEBUG,  # Log SQL queries in debug mode
+    # echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False} if is_sqlite else {},
 )
 
