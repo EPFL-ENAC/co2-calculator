@@ -18,7 +18,7 @@ interface BackofficeUnitData {
     in_progress: number;
     default: number;
   };
-  unit: string;
+  unit: number;
   affiliation: string;
   principal_user: string;
   last_update: string;
@@ -28,7 +28,7 @@ interface BackofficeUnitData {
 
 interface UnitFilters {
   affiliation?: string[];
-  units?: string[];
+  units?: number[];
   years?: string[];
   completion?: string;
   outlier_values?: boolean | null;
@@ -62,7 +62,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   });
 
   const availableUnits = computed(() => {
-    const uniqueUnits = new Set<string>();
+    const uniqueUnits = new Set<number>();
     allUnits.value.forEach((unit) => {
       if (unit.unit) {
         uniqueUnits.add(unit.unit);

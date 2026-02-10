@@ -52,25 +52,36 @@ class DataIngestionProvider(ABC):
     async def create_job(
         self,
         module_type_id: ModuleTypeEnum,
-        year: int,
+        data_entry_type_id: Optional[int],
         ingestion_method: IngestionMethod,
+        entity_type: EntityType,
         target_type: TargetType,
+        year: Optional[int] = None,
         factor_type_id: FactorType | None = None,
+        config: Dict[str, Any] | None = None,
     ) -> int:
         async with SessionLocal() as db:
             repo = DataIngestionRepository(db)
+            job_config = config or {}
+            job_config["entity_type"] = entity_type.value
+            # Merge config into self.config so it's preserved for later use
+            self.config.update(job_config)
+            meta = {
+                "factor_type_id": factor_type_id.value if factor_type_id else None,
+                "config": job_config,  # Store entire config in meta for job
+            }
+
             data = DataIngestionJob(
-                entity_type=EntityType.MODULE_PER_YEAR,
                 module_type_id=module_type_id,
-                year=year,
-                target_type=target_type,
                 ingestion_method=ingestion_method,
+                data_entry_type_id=data_entry_type_id,
+                entity_type=entity_type,
+                target_type=target_type,
                 status=IngestionStatus.NOT_STARTED,
                 status_message="Job created",
-                meta={
-                    "factor_type_id": factor_type_id.value if factor_type_id else None,
-                },
+                meta=meta,
                 provider=self.user.provider if self.user else None,
+                year=year,
             )
             job = await repo.create_ingestion_job(data)
             if not job:

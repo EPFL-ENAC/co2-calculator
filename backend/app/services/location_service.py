@@ -26,7 +26,7 @@ class LocationService:
     async def search_locations(
         self,
         query: str,
-        limit: int = 20,
+        limit: int = 10,
         transport_mode: Optional[str] = None,
     ) -> List[LocationRead]:
         """

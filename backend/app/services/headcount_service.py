@@ -7,16 +7,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.repositories.headcount_repo import HeadCountRepository
-from app.schemas.equipment import (
+from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
     SubmoduleSummary,
 )
 from app.services.authorization_service import get_data_filters
+from app.services.carbon_report_module_service import CarbonReportModuleService
 
 logger = get_logger(__name__)
 
@@ -30,7 +34,7 @@ class HeadcountService:
         self.user = user
 
     async def get_module_stats(
-        self, unit_id: str, year: int, aggregate_by: str = "submodule"
+        self, unit_id: int, year: int, aggregate_by: str = "submodule"
     ) -> dict[str, float]:
         """Get module statistics such as total items and submodules."""
         # GOAL return total items and submodules for headcount module
@@ -44,8 +48,8 @@ class HeadcountService:
     async def create_headcount(
         self,
         data: HeadCountCreate,
-        provider_source: str,
-        user_id: str,
+        provider_source: IngestionMethod,
+        user_id: int,
     ) -> HeadCount:
         """Create a new headcount record."""
         return await self.repo.create_headcount(
@@ -61,6 +65,9 @@ class HeadcountService:
         user: User,
     ) -> Optional[HeadCount]:
         """Update an existing headcount record."""
+        if not user or not user.id:
+            logger.error("User context is required for updating headcount")
+            return None
         return await self.repo.update_headcount(
             headcount_id=headcount_id,
             data=data,
@@ -102,7 +109,7 @@ class HeadcountService:
 
     async def get_headcounts(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         limit: int = 100,
         offset: int = 0,
@@ -122,7 +129,7 @@ class HeadcountService:
 
     async def get_module_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
     ) -> ModuleResponse:
         """
@@ -149,9 +156,12 @@ class HeadcountService:
         )
 
         submodules = {}
-
+        submodule_keys = [
+            DataEntryTypeEnum.member.value,
+            DataEntryTypeEnum.student.value,
+        ]
         # Process each submodule
-        for submodule_key in ["member", "student"]:
+        for submodule_key in submodule_keys:
             # Get summary for this submodule
             submodule_summary_data = summary_by_submodule.get(
                 submodule_key,
@@ -162,58 +172,67 @@ class HeadcountService:
             total_count = submodule_summary_data["total_items"]
 
             # Create submodule response
-            submodule_response = SubmoduleResponse(
+            submodule_response: SubmoduleResponse = SubmoduleResponse(
                 id=submodule_key,
                 count=total_count,
                 summary=summary,
                 items=[],  # Detailed items can be fetched separately
                 has_more=False,
-                name="DEPRECATED field",
             )
 
             submodules[submodule_key] = submodule_response
 
         # Calculate module totals using SQL summaries (not Python sums)
-        total_submodules = len(submodules)
-        total_items = sum(
-            summary_by_submodule.get(k, {}).get("total_items", 0)
-            for k in ["member", "student"]
-        )
+        # total_submodules = len(submodules)
+        # total_items = sum(
+        #     summary_by_submodule.get(k, {}).get("total_items", 0)
+        #     for k in [
+        #         DataEntryTypeEnum.member.value,
+        #         DataEntryTypeEnum.student.value,
+        #     ]
+        # )
         total_annual_fte = sum(
             summary_by_submodule.get(k, {}).get("annual_fte", 0.0)
-            for k in ["member", "student"]
+            for k in [
+                DataEntryTypeEnum.member.value,
+                DataEntryTypeEnum.student.value,
+            ]
         )
 
         totals = ModuleTotals(
-            total_submodules=total_submodules,
-            total_items=total_items,
+            # total_submodules=total_submodules,
+            # total_items=,
             total_annual_fte=round(total_annual_fte, 2),
             total_kg_co2eq=None,
             total_tonnes_co2eq=None,
             total_annual_consumption_kwh=None,
         )
 
+        # find carbon_report_module_id from year/unit_id mapping:
+        CarbonReportModuleService_instance = CarbonReportModuleService(self.session)
+        carbon_report_module = (
+            await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
+                unit_id=unit_id,
+                year=year,
+                module_type_id=ModuleTypeEnum.headcount,
+            )
+        )
         # Create module response
         module_response = ModuleResponse(
-            module_type="my-lab",
-            unit=unit_id,
-            year=year,
+            carbon_report_module_id=carbon_report_module.id
+            if carbon_report_module
+            else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules=submodules,
+            data_entry_types_total_items={k: 0 for k in submodules.keys()},
             totals=totals,
-        )
-
-        logger.info(
-            f"Module data retrieved: {sanitize(total_items)} items across "
-            f"{sanitize(total_submodules)} submodules"
         )
 
         return module_response
 
     async def get_submodule_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         submodule_key: str,
         limit: int = 100,
@@ -235,7 +254,7 @@ class HeadcountService:
         )
 
     async def get_by_unit_and_date(
-        self, unit_id: str, date: str
+        self, unit_id: int, date: str
     ) -> Optional[HeadCount]:
         """Get headcount record by unit_id and date."""
         return await self.repo.get_by_unit_and_date(unit_id, date)

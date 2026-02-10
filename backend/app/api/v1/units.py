@@ -51,7 +51,7 @@ async def list_units(
 
 @router.get("/{unit_id}", response_model=UnitRead)
 async def get_unit(
-    unit_id: str,
+    unit_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):

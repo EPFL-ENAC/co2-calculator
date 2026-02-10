@@ -1,7 +1,7 @@
 export default {
   documentation_editing_translation_title: {
-    en: 'Translation',
-    fr: 'Traduction',
+    en: 'Texts',
+    fr: 'Textes',
   },
   documentation_editing_translation_description: {
     en: 'Link to the translation files in the repository of the CO₂ calculator application. Make your changes directly on GitHub and ask for a Pull Request. For more information see the backoffice documentation section; Changing translation.',
@@ -12,8 +12,8 @@ export default {
     fr: 'Lien vers les fichiers de traduction dans le repository de l’application Calculateur CO₂. Effectuez vos modifications directement sur GitHub et demandez une Pull Request. Pour plus d’informations, consultez la section documentation du back-office ; ',
   },
   documentation_editing_translation_description_link_text: {
-    en: 'Update Translation',
-    fr: 'Mettre à jour les traductions',
+    en: 'Update Texts',
+    fr: 'Mettre à jour les textes',
   },
   documentation_editing_translation_description_link_url: {
     en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/translation-update/',
@@ -53,8 +53,8 @@ export default {
   },
 
   documentation_editing_calculator_backoffice_documentation_title: {
-    en: 'Backoffice Documentation',
-    fr: 'Documentation du back-office',
+    en: 'Backoffice Guide',
+    fr: 'Guide back-office',
   },
   documentation_editing_calculator_backoffice_documentation_description: {
     en: 'Repository link to the backoffice documentation of the CO₂ calculator application.',
@@ -101,11 +101,11 @@ export default {
     en: 'Find all common text used throughout the application, such as headers, footers, and navigation elements.',
     fr: "Trouvez tous les textes communs utilisés dans toute l'application, tels que les en-têtes, les pieds de page et les éléments de navigation.",
   },
-  documentation_editing_rows_my_lab_topic: {
+  documentation_editing_rows_headcount_topic: {
     en: 'Headcount',
     fr: 'Personnel',
   },
-  documentation_editing_rows_my_lab_description: {
+  documentation_editing_rows_headcount_description: {
     en: 'Find all text related to managing headcount and personnel information within the application.',
     fr: "Trouvez tous les textes liés à la gestion du personnel et des informations sur le personnel dans l'application.",
   },

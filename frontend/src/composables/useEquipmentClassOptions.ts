@@ -1,12 +1,18 @@
 import { reactive, ref, watch, type Ref } from 'vue';
-import { usePowerFactorsStore } from 'src/stores/powerFactors';
+import { useFactorsStore } from 'src/stores/powerFactors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
 interface FieldConfig {
+  // identifiers of the fields in the entity record (real value we want to use)
   classFieldId?: string;
   subClassFieldId?: string;
+  // identifiers of the power fields in the entity record
+  // (where to write the fetched power values)
+  classOptionId?: string;
+  subClassOptionId?: string;
+  // values of the fields in the entity record (real value we want to use)
   actPowerFieldId?: string;
   pasPowerFieldId?: string;
 }
@@ -18,8 +24,12 @@ export function useEquipmentClassOptions<
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
 ) {
-  const classFieldId = config.classFieldId ?? 'class';
-  const subClassFieldId = config.subClassFieldId ?? 'sub_class';
+  const classFieldId = config.classFieldId ?? '';
+  const subClassFieldId = config.subClassFieldId ?? '';
+
+  const classOptionId = config.classOptionId ?? 'kind';
+  const subClassOptionId = config.subClassOptionId ?? 'subkind';
+  // #  TODO: make power field IDs configurable
   const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
   const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
 
@@ -29,7 +39,7 @@ export function useEquipmentClassOptions<
   const loadingPowerFactor = ref(false);
   const subclassLoadError = ref(false);
 
-  const store = usePowerFactorsStore();
+  const store = useFactorsStore();
 
   function normalizeValue(raw: unknown): string | null {
     if (raw === null || raw === undefined || raw === '') return null;
@@ -44,9 +54,9 @@ export function useEquipmentClassOptions<
     if (!sub) return;
     loadingClasses.value = true;
     try {
-      dynamicOptions[classFieldId] = await store.fetchClassOptions(sub);
+      dynamicOptions[classOptionId] = await store.fetchClassOptions(sub);
     } catch {
-      dynamicOptions[classFieldId] = [];
+      dynamicOptions[classOptionId] = [];
     } finally {
       loadingClasses.value = false;
     }
@@ -56,7 +66,7 @@ export function useEquipmentClassOptions<
     const sub = submoduleType.value;
     const cls = normalizeValue(entity[classFieldId]);
     if (!sub || !cls) {
-      dynamicOptions[subClassFieldId] = [];
+      dynamicOptions[subClassOptionId] = [];
       subclassLoadError.value = false;
       return;
     }
@@ -64,7 +74,6 @@ export function useEquipmentClassOptions<
     subclassLoadError.value = false;
     try {
       const options = await store.fetchSubclassOptions(sub, cls);
-
       // Ensure the currently selected subclass (if any) is present in the
       // options, even if the backend map does not include it (for example
       // when legacy data has subclasses but no dedicated power-factor row).
@@ -76,14 +85,14 @@ export function useEquipmentClassOptions<
         options.push({ label: currentSub, value: currentSub });
       }
 
-      dynamicOptions[subClassFieldId] = options;
+      dynamicOptions[subClassOptionId] = options;
     } catch {
       const fallback: Option[] = [];
       const currentSub = normalizeValue(entity[subClassFieldId]);
       if (currentSub) {
         fallback.push({ label: currentSub, value: currentSub });
       }
-      dynamicOptions[subClassFieldId] = fallback;
+      dynamicOptions[subClassOptionId] = fallback;
       subclassLoadError.value = true;
     } finally {
       loadingSubclasses.value = false;
@@ -92,7 +101,7 @@ export function useEquipmentClassOptions<
 
   function subclassRequired(): boolean {
     // If subclass options exist and are non-empty, then a subclass is required
-    const options = dynamicOptions[subClassFieldId];
+    const options = dynamicOptions[subClassOptionId];
     return Array.isArray(options) && options.length > 0;
   }
 
@@ -104,7 +113,6 @@ export function useEquipmentClassOptions<
     if (!cls) return;
 
     const subCls = normalizeValue(entity[subClassFieldId]);
-
     // Only load power factor if:
     // 1. Subclass is NOT required (no subclass options available), OR
     // 2. Subclass is required AND one has been selected
@@ -174,7 +182,11 @@ export function useEquipmentClassOptions<
   watch(
     () => entity[classFieldId],
     async (newVal, oldVal) => {
-      await loadSubclassOptions();
+      // maybe oldVal is undefined on first run, but we only want to
+      // reset subclass if the class actually changed.
+      if (oldVal === newVal) {
+        return;
+      }
 
       // If the class has changed after initialization, clear
       // subclass so the user explicitly re-selects.
@@ -186,6 +198,8 @@ export function useEquipmentClassOptions<
       ) {
         resetSubclass();
       }
+
+      await loadSubclassOptions();
 
       await loadPowerFactor();
     },

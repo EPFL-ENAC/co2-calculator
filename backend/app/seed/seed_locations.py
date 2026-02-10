@@ -1,7 +1,7 @@
 """Seed locations (train stations and airports) from CSV data.
 
 This script populates the locations table with train stations and airports
-from travel_destination.csv file.
+from seed_travel_location.csv file.
 """
 
 import asyncio
@@ -19,12 +19,12 @@ logger = get_logger(__name__)
 
 
 CSV_PATH = (
-    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_destination.csv"
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_travel_location.csv"
 )
 
 
 async def seed_locations(session: AsyncSession) -> None:
-    """Seed locations from travel_destination.csv."""
+    """Seed locations from seed_travel_location.csv."""
     logger.info("Seeding locations from CSV...")
 
     # Find the CSV file
@@ -52,18 +52,15 @@ async def seed_locations(session: AsyncSession) -> None:
         for row_num, row in enumerate(reader, start=2):  # Start at 2 (row 1 is header)
             try:
                 # Parse transport mode
-                transport_mode_raw = row.get("type", "").strip().lower()
-                if transport_mode_raw == "train":
-                    transport_mode = "train"
-                elif transport_mode_raw == "plane":
-                    transport_mode = "plane"
-                else:
+                transport_mode_raw = row.get("transport_mode", "").strip().lower()
+                if transport_mode_raw not in ("plane", "train"):
                     logger.warning(
                         f"Row {row_num}: Invalid transport mode "
                         f"'{transport_mode_raw}', skipping"
                     )
                     skipped += 1
                     continue
+                transport_mode = transport_mode_raw
 
                 # Parse name
                 name = row.get("name", "").strip()
@@ -71,6 +68,20 @@ async def seed_locations(session: AsyncSession) -> None:
                     logger.warning(f"Row {row_num}: Missing name, skipping")
                     skipped += 1
                     continue
+
+                # Parse airport_size (optional, only for planes)
+                airport_size_raw = row.get("airport_size", "").strip()
+                airport_size = None
+                if airport_size_raw:
+                    airport_size_lower = airport_size_raw.lower()
+                    if airport_size_lower not in ("medium_airport", "large_airport"):
+                        logger.warning(
+                            f"Row {row_num}: Invalid airport_size "
+                            f"'{airport_size_raw}', skipping"
+                        )
+                        skipped += 1
+                        continue
+                    airport_size = airport_size_lower
 
                 # Parse coordinates
                 try:
@@ -85,24 +96,40 @@ async def seed_locations(session: AsyncSession) -> None:
                     skipped += 1
                     continue
 
-                # Parse IATA code (optional, only for planes)
-                iata_code = row.get("iata_code", "").strip()
-                if not iata_code:
-                    iata_code = None
-
-                # Parse country code (optional)
-                countrycode = row.get("country code", "").strip()
-                if not countrycode:
-                    countrycode = None
+                # Parse optional fields (convert empty strings to None)
+                continent = row.get("continent", "").strip() or None
+                countrycode = row.get("countrycode", "").strip() or None
+                municipality = row.get("municipality", "").strip() or None
+                iata_code = row.get("iata_code", "").strip() or None
+                keywords = row.get("keywords", "").strip() or None
 
                 # Check if location already exists
                 location_key = (name.lower(), transport_mode)
                 existing_location = existing_locations.get(location_key)
 
                 if existing_location:
-                    # Update existing location with countrycode if missing or different
+                    # Update existing location with new data
+                    needs_update = False
+                    if existing_location.airport_size != airport_size:
+                        existing_location.airport_size = airport_size
+                        needs_update = True
+                    if existing_location.continent != continent:
+                        existing_location.continent = continent
+                        needs_update = True
                     if existing_location.countrycode != countrycode:
                         existing_location.countrycode = countrycode
+                        needs_update = True
+                    if existing_location.municipality != municipality:
+                        existing_location.municipality = municipality
+                        needs_update = True
+                    if existing_location.iata_code != iata_code:
+                        existing_location.iata_code = iata_code
+                        needs_update = True
+                    if existing_location.keywords != keywords:
+                        existing_location.keywords = keywords
+                        needs_update = True
+
+                    if needs_update:
                         locations_to_update.append(existing_location)
                         updated_count += 1
                 else:
@@ -110,10 +137,14 @@ async def seed_locations(session: AsyncSession) -> None:
                     location = Location(
                         transport_mode=transport_mode,
                         name=name,
+                        airport_size=airport_size,
                         latitude=latitude,
                         longitude=longitude,
-                        iata_code=iata_code,
+                        continent=continent,
                         countrycode=countrycode,
+                        municipality=municipality,
+                        iata_code=iata_code,
+                        keywords=keywords,
                     )
                     locations_to_insert.append(location)
 
@@ -152,7 +183,7 @@ async def seed_locations(session: AsyncSession) -> None:
     logger.info(
         f"Location seeding complete! "
         f"Inserted {total_inserted} new locations, "
-        f"updated {updated_count} existing locations with countrycode, "
+        f"updated {updated_count} existing locations, "
         f"skipped {skipped} rows"
     )
 
@@ -168,5 +199,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Run script on /app/api/v1/travel_destination.csv
     asyncio.run(main())

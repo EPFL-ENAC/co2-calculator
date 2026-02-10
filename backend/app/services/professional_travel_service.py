@@ -11,7 +11,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionMethod
 from app.models.location import Location
+from app.models.module_type import ModuleTypeEnum
 from app.models.professional_travel import (
     ProfessionalTravel,
     ProfessionalTravelCreate,
@@ -19,14 +22,15 @@ from app.models.professional_travel import (
     ProfessionalTravelItemResponse,
     ProfessionalTravelUpdate,
 )
-from app.models.user import User
+from app.models.user import User, UserProvider
 from app.repositories.professional_travel_repo import ProfessionalTravelRepository
-from app.schemas.equipment import (
+from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
     SubmoduleSummary,
 )
+from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.travel_calculation_service import TravelCalculationService
 
 logger = get_logger(__name__)
@@ -82,8 +86,8 @@ class ProfessionalTravelService:
         return await self.repo.bulk_insert_travel_entries(entries)
 
     async def _validate_traveler(
-        self, traveler_id: Optional[str], traveler_name: str, unit_id: str
-    ) -> Optional[str]:
+        self, traveler_id: Optional[int], traveler_name: str, unit_id: int
+    ) -> Optional[int]:
         """
         Traveler name is a free-text field, no validation against headcount.
         Always returns None for traveler_id.
@@ -390,7 +394,7 @@ class ProfessionalTravelService:
 
     async def get_module_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         user: User,
         preview_limit: Optional[int] = None,
@@ -449,30 +453,10 @@ class ProfessionalTravelService:
             )
             item_responses.append(item_response)
 
-        # Create submodule summary
-        # (professional travel has no submodules, use single 'trips' key
-        # to match frontend)
-        summary = SubmoduleSummary(
-            total_items=stats["total_items"],
-            annual_fte=None,
-            annual_consumption_kwh=None,
-            total_kg_co2eq=stats["total_kg_co2eq"],
-        )
-
-        # Create submodule response
-        submodule_response = SubmoduleResponse(
-            id="trips",
-            count=stats["total_items"],
-            summary=summary,
-            items=item_responses,
-            has_more=stats["total_items"] > limit,
-            name="Professional Travel",
-        )
-
         # Calculate module totals
         totals = ModuleTotals(
-            total_submodules=1,
-            total_items=stats["total_items"],
+            # total_submodules=1,
+            # total_items=stats["total_items"],
             total_annual_fte=None,
             total_kg_co2eq=stats["total_kg_co2eq"],
             total_tonnes_co2eq=(
@@ -482,15 +466,25 @@ class ProfessionalTravelService:
             ),
             total_annual_consumption_kwh=None,
         )
-
+        # find carbon_report_module_id from year/unit_id mapping:
+        CarbonReportModuleService_instance = CarbonReportModuleService(self.session)
+        carbon_report_module = (
+            await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
+                unit_id=unit_id,
+                year=year,
+                module_type_id=ModuleTypeEnum.professional_travel,
+            )
+        )
         # Create module response
         module_response = ModuleResponse(
-            module_type="professional-travel",
-            unit=unit_id,
-            year=year,
+            carbon_report_module_id=carbon_report_module.id
+            if carbon_report_module
+            else None,
             stats=None,
             retrieved_at=datetime.now(timezone.utc),
-            submodules={"trips": submodule_response},
+            data_entry_types_total_items={
+                DataEntryTypeEnum.trips.value: stats["total_items"]
+            },
             totals=totals,
         )
 
@@ -503,7 +497,7 @@ class ProfessionalTravelService:
 
     async def get_submodule_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         user: User,
         page: int = 1,
@@ -575,18 +569,17 @@ class ProfessionalTravelService:
 
         # Create submodule response
         submodule_response = SubmoduleResponse(
-            id="trips",
+            id=DataEntryTypeEnum.trips.value,
             count=total_count,
             summary=summary,
             items=item_responses,
             has_more=offset + limit < total_count,
-            name="Professional Travel",
         )
 
         return submodule_response
 
     async def get_module_stats(
-        self, unit_id: str, year: int, user: User
+        self, unit_id: int, year: int, user: User
     ) -> dict[str, float]:
         """
         Get aggregated summary statistics for professional travels.
@@ -602,7 +595,7 @@ class ProfessionalTravelService:
         return await self.repo.get_summary_stats(unit_id=unit_id, year=year, user=user)
 
     async def get_stats_by_class(
-        self, unit_id: str, year: int, user: User
+        self, unit_id: int, year: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by transport mode and class.
@@ -620,7 +613,7 @@ class ProfessionalTravelService:
         return await self.repo.get_stats_by_class(unit_id=unit_id, year=year, user=user)
 
     async def get_evolution_over_time(
-        self, unit_id: str, user: User
+        self, unit_id: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by year and transport mode.
@@ -642,10 +635,11 @@ class ProfessionalTravelService:
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,
-        provider_source: str,
         user: User,
+        provider_source: IngestionMethod,
+        provider: UserProvider,
         year: Optional[int] = None,
-        unit_id: Optional[str] = None,
+        unit_id: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -666,10 +660,20 @@ class ProfessionalTravelService:
         """
         # Look up traveler_id from traveler_name if not provided,
         # or validate if provided
-        traveler_id = await self._validate_traveler(
-            data.traveler_id, data.traveler_name, data.unit_id
-        )
-        # Update the data object with the resolved/validated traveler_id
+        traveler_id = user.id
+        if traveler_id is None:
+            logger.warning(
+                f"Traveler validation failed: "
+                f"traveler_name={sanitize(data.traveler_name)}, "
+                f"unit_id={sanitize(data.unit_id)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Traveler '{data.traveler_name}' not found in headcount "
+                    f"for unit ID {data.unit_id}"
+                ),
+            )
         data.traveler_id = traveler_id
 
         logger.info(
@@ -682,10 +686,17 @@ class ProfessionalTravelService:
             f"year={year}"
         )
 
+        if user is None or user.id is None:
+            logger.error("User context is required for creating travel")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User context is required for creating travel",
+            )
         # Create travel record(s) via repository
         travel_records = await self.repo.create_travel(
             data=data,
             provider_source=provider_source,
+            provider=provider,
             user_id=user.id,
             year=year,
             unit_id=unit_id,
@@ -788,7 +799,12 @@ class ProfessionalTravelService:
                 "number_of_trips",
             ]
         )
-
+        if not user or not user.id:
+            logger.error("User context is required for updating travel")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User context is required for updating travel",
+            )
         # Update travel record via repository
         updated = await self.repo.update_travel(
             travel_id=travel_id, data=data, user_id=user.id, user=user

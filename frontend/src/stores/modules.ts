@@ -25,7 +25,7 @@ import {
 /**
  * API response for inventory module
  */
-interface InventoryModuleResponse {
+interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
@@ -35,44 +35,44 @@ interface InventoryModuleResponse {
 export const useTimelineStore = defineStore('timeline', () => {
   // Initialize all modules with default status
   const itemStates = reactive<ModuleStates>({
-    [MODULES.MyLab]: MODULE_STATES.Default,
+    [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
     [MODULES.Infrastructure]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.InternalServices]: MODULE_STATES.Default,
-    [MODULES.ExternalCloud]: MODULE_STATES.Default,
+    [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);
   const error = ref<string | null>(null);
-  const currentInventoryId = ref<number | null>(null);
+  const currentCarbonReportId = ref<number | null>(null);
   const $route = useRoute();
   const currentModuleType = computed(() => $route.params.module as Module);
 
-  const currentInventoryModuleState = computed(() => {
+  const currentCarbonReportModuleState = computed(() => {
     return itemStates[currentModuleType.value];
   });
 
-  const currentInventoryModuleEdit = computed(() => {
+  const currentCarbonReportModuleEdit = computed(() => {
     return (
-      currentInventoryModuleState.value === MODULE_STATES.Default ||
-      currentInventoryModuleState.value === MODULE_STATES.InProgress
+      currentCarbonReportModuleState.value === MODULE_STATES.Default ||
+      currentCarbonReportModuleState.value === MODULE_STATES.InProgress
     );
   });
   /**
-   * Fetch module statuses from the API for a given inventory.
-   * This should be called when an inventory is selected.
+   * Fetch module statuses from the API for a given carbon report.
+   * This should be called when a carbon report is selected.
    */
-  async function fetchModuleStates(inventoryId: number) {
+  async function fetchModuleStates(carbonReportId: number) {
     loading.value = true;
     error.value = null;
-    currentInventoryId.value = inventoryId;
+    currentCarbonReportId.value = carbonReportId;
 
     try {
       const response = (await api
-        .get(`inventories/${inventoryId}/modules/`)
-        .json()) as InventoryModuleResponse[];
+        .get(`carbon-reports/${carbonReportId}/modules/`)
+        .json()) as CarbonReportModuleResponse[];
 
       // Update itemStates from API response
       for (const mod of response) {
@@ -98,8 +98,8 @@ export const useTimelineStore = defineStore('timeline', () => {
    * Displays error to user on failure (no retry).
    */
   async function setState(id: Module, state: ModuleState) {
-    if (!currentInventoryId.value) {
-      error.value = 'No inventory selected';
+    if (!currentCarbonReportId.value) {
+      error.value = 'No carbon report selected';
       return;
     }
 
@@ -113,13 +113,13 @@ export const useTimelineStore = defineStore('timeline', () => {
     try {
       await api
         .patch(
-          `inventories/${currentInventoryId.value}/modules/${moduleTypeId}/status`,
+          `carbon-reports/${currentCarbonReportId.value}/modules/${moduleTypeId}/status`,
           {
             json: { status: state },
           },
         )
         .json();
-      await fetchModuleStates(currentInventoryId.value);
+      await fetchModuleStates(currentCarbonReportId.value);
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -132,10 +132,10 @@ export const useTimelineStore = defineStore('timeline', () => {
   }
 
   /**
-   * Reset the store state (e.g., when changing inventory)
+   * Reset the store state (e.g., when changing carbon report)
    */
   function reset() {
-    currentInventoryId.value = null;
+    currentCarbonReportId.value = null;
     error.value = null;
     // Reset all states to default
     for (const key of Object.keys(itemStates) as Module[]) {
@@ -147,12 +147,12 @@ export const useTimelineStore = defineStore('timeline', () => {
     itemStates,
     loading,
     error,
-    currentInventoryId,
+    currentCarbonReportId,
     fetchModuleStates,
     setState,
     reset,
-    currentState: currentInventoryModuleState,
-    canEdit: currentInventoryModuleEdit,
+    currentState: currentCarbonReportModuleState,
+    canEdit: currentCarbonReportModuleEdit,
   };
 });
 
@@ -207,7 +207,7 @@ export const useModuleStore = defineStore('modules', () => {
     loadingModuleTotals: false,
     errorModuleTotals: null,
   });
-  function modulePath(moduleType: Module, unit: string, year: string) {
+  function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
     const unitEncoded = encodeURIComponent(unit);
     const yearEncoded = encodeURIComponent(year);
@@ -242,7 +242,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleData(moduleType: Module, unit: string, year: string) {
+  async function getModuleData(moduleType: Module, unit: number, year: string) {
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -265,7 +265,7 @@ export const useModuleStore = defineStore('modules', () => {
 
   async function getModuleTotals(
     moduleType: Module,
-    unit: string,
+    unit: number,
     year: string,
   ) {
     state.loading = true;
@@ -292,7 +292,7 @@ export const useModuleStore = defineStore('modules', () => {
   }: {
     moduleType: Module;
     submoduleType: string;
-    unit: string;
+    unit: number;
     year: string;
   }) {
     state.loadingSubmodule[submoduleType] = true;
@@ -360,7 +360,7 @@ export const useModuleStore = defineStore('modules', () => {
   type FieldValue = string | number | boolean | null | Option;
   async function postItem(
     moduleType: Module,
-    unitId: string,
+    unitId: number,
     year: string | number,
     submoduleType: string,
     payload: Record<string, FieldValue>,
@@ -446,7 +446,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function patchItem(
     moduleType: Module,
     submoduleType: AllSubmoduleTypes,
-    unit: string,
+    unit: number,
     year: string,
     itemId: number,
     payload: Record<string, FieldValue>,
@@ -531,7 +531,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function deleteItem(
     moduleType: Module,
     submoduleType: AllSubmoduleTypes,
-    unit: string,
+    unit: number,
     year: string,
     itemId: number,
   ) {
@@ -568,7 +568,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelStatsByClass(unit: string, year: string) {
+  async function getTravelStatsByClass(unit: number, year: string) {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
@@ -588,7 +588,7 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelEvolutionOverTime(unit: string) {
+  async function getTravelEvolutionOverTime(unit: number) {
     state.loadingTravelEvolutionOverTime = true;
     state.errorTravelEvolutionOverTime = null;
     try {
@@ -609,7 +609,7 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   // Track which unit/year the current totals are for
-  const moduleTotalsUnitId = ref<string | null>(null);
+  const moduleTotalsUnitId = ref<number | null>(null);
   const moduleTotalsYear = ref<number | null>(null);
 
   /**
@@ -618,7 +618,7 @@ export const useModuleStore = defineStore('modules', () => {
    * @param unitId - Unit ID
    * @param year - Year for the data (must be a number)
    */
-  async function getModuleTotalsAggregated(unitId: string, year: number) {
+  async function getModuleTotalsAggregated(unitId: number, year: number) {
     state.loadingModuleTotals = true;
     state.errorModuleTotals = null;
     try {

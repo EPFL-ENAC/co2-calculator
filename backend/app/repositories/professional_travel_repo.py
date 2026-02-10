@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.data_ingestion import IngestionMethod
 from app.models.location import Location
 from app.models.professional_travel import (
     ProfessionalTravel,
@@ -17,7 +18,7 @@ from app.models.professional_travel import (
     ProfessionalTravelEmission,
     ProfessionalTravelUpdate,
 )
-from app.models.user import RoleName, User
+from app.models.user import RoleName, User, UserProvider
 
 logger = get_logger(__name__)
 
@@ -34,7 +35,7 @@ class ProfessionalTravelRepository:
 
     async def get_travels(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         user: User,
         limit: int,
@@ -280,10 +281,11 @@ class ProfessionalTravelRepository:
     async def create_travel(
         self,
         data: ProfessionalTravelCreate,
-        provider_source: str,
-        user_id: str,
+        provider_source: IngestionMethod,
+        provider: UserProvider,
+        user_id: int,
         year: Optional[int] = None,
-        unit_id: Optional[str] = None,
+        unit_id: Optional[int] = None,
     ) -> Union[ProfessionalTravel, List[ProfessionalTravel]]:
         """
         Create a new professional travel record.
@@ -292,7 +294,8 @@ class ProfessionalTravelRepository:
 
         Args:
             data: Travel data to create
-            provider_source: Provider source ('manual', 'api', 'csv')
+            provider_source: IngestionMethod source of the data
+            provider: UserProvider source of the data
             user_id: User ID who created the record
             year: Optional year from workspace setup. Used when departure_date is empty.
             unit_id: Optional unit_id from path. Validated against data.unit_id if
@@ -339,7 +342,7 @@ class ProfessionalTravelRepository:
             # Outbound trip
             outbound_data = data.model_dump()
             outbound_data["year"] = year
-            outbound_data["provider"] = provider_source
+            outbound_data["provider_source"] = provider_source
             outbound_data["created_by"] = user_id
             outbound_data["updated_by"] = user_id
             outbound_data["is_round_trip"] = False
@@ -356,7 +359,7 @@ class ProfessionalTravelRepository:
             return_data["year"] = (
                 data.departure_date.year if data.departure_date else year
             )
-            return_data["provider"] = provider_source
+            return_data["provider_source"] = provider_source
             return_data["created_by"] = user_id
             return_data["updated_by"] = user_id
             return_data["is_round_trip"] = False
@@ -374,7 +377,8 @@ class ProfessionalTravelRepository:
             db_obj = ProfessionalTravel.model_validate(
                 {**data.model_dump(), "year": year}
             )
-            db_obj.provider = provider_source
+            db_obj.provider_source = provider_source
+            db_obj.provider = provider
             db_obj.created_by = user_id
             db_obj.updated_by = user_id
 
@@ -385,7 +389,7 @@ class ProfessionalTravelRepository:
             return db_obj
 
     async def update_travel(
-        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: str, user: User
+        self, travel_id: int, data: ProfessionalTravelUpdate, user_id: int, user: User
     ) -> Optional[ProfessionalTravel]:
         """
         Update an existing professional travel record.
@@ -474,7 +478,7 @@ class ProfessionalTravelRepository:
 
         return True
 
-    async def get_summary_stats(self, unit_id: str, year: int, user: User) -> dict:
+    async def get_summary_stats(self, unit_id: int, year: int, user: User) -> dict:
         """
         Get aggregated summary statistics for professional travels.
 
@@ -527,7 +531,7 @@ class ProfessionalTravelRepository:
         }
 
     async def get_stats_by_class(
-        self, unit_id: str, year: int, user: User
+        self, unit_id: int, year: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by transport mode and class.
@@ -661,7 +665,7 @@ class ProfessionalTravelRepository:
         return result_list
 
     async def get_evolution_over_time(
-        self, unit_id: str, user: User
+        self, unit_id: int, user: User
     ) -> List[dict[str, Any]]:
         """
         Get professional travel statistics aggregated by year and transport mode.

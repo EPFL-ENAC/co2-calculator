@@ -14,12 +14,33 @@ export interface DataIngestionJob {
   meta?: Record<string, unknown>;
 }
 
+export interface JobUpdatePayload {
+  job_id: number;
+  module_type_id: number;
+  target_type: number;
+  year: number | null;
+  status: string | number;
+  status_message: string;
+}
+
 export interface SyncJobStatus {
   module_type_id: number;
   year: number;
   status: number; // 0: pending, 1: in_progress, 2: completed, 3: failed
   provider_type: string;
 }
+
+export type InitiateSyncParams = {
+  module_type_id: number;
+  year?: number;
+  provider_type: 'csv' | 'api';
+  target_type?: 'data_entries' | 'factors';
+  filters?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  file_path?: string;
+  data_entry_type_id?: number;
+  carbon_report_module_id?: number;
+};
 
 export const useBackofficeDataManagement = defineStore(
   'backofficeDataManagement',
@@ -29,6 +50,7 @@ export const useBackofficeDataManagement = defineStore(
     const error = ref<string | null>(null);
     const syncJobs = reactive<Record<string, DataIngestionJob[]>>({}); // Initialize as empty object
     const currentYear = ref<number | null>(null);
+    let sseConnection: EventSource | null = null;
 
     // Computed properties
     const syncJobStatuses = computed<SyncJobStatus[]>(() => {
@@ -94,48 +116,71 @@ target_type
 provider_type
   */
 
-    async function initiateSync(
-      module_type_id: number,
-      year: number,
-      // provider_type: 'csv_upload' | 'tableau_api' | 'manual_entry',
-      provider_type: 'csv' | 'api',
-      target_type: 'data_entries' | 'factors' = 'data_entries',
-      filters?: Record<string, unknown>,
-      config?: Record<string, unknown>,
-    ): Promise<number> {
+    async function initiateSync({
+      module_type_id,
+      year,
+      provider_type,
+      target_type = 'data_entries',
+      filters,
+      config,
+      file_path,
+      data_entry_type_id,
+      carbon_report_module_id,
+    }: InitiateSyncParams): Promise<number> {
       if (loading.value) throw new Error('Another operation is in progress');
 
       loading.value = true;
       error.value = null;
 
       try {
+        const mergedConfig: Record<string, unknown> = { ...(config || {}) };
+        if (data_entry_type_id !== undefined && data_entry_type_id !== null) {
+          mergedConfig.data_entry_type_id = data_entry_type_id;
+        }
+        if (
+          carbon_report_module_id !== undefined &&
+          carbon_report_module_id !== null
+        ) {
+          mergedConfig.carbon_report_module_id = carbon_report_module_id;
+        }
+
+        // Prepare request body
+        const requestBody: Record<string, unknown> = {
+          // to be aligned with backend enums // todo: retrieve enum from backend
+          ingestion_method: provider_type === 'api' ? 0 : 1, // 0: api, 1: csv
+          target_type: target_type === 'data_entries' ? 0 : 1,
+          year,
+          filters: filters || {},
+          config: mergedConfig,
+        };
+
+        // Add file_path if provided (for CSV uploads)
+        if (file_path) {
+          requestBody.file_path = file_path;
+        }
+
         const response = (await api
           .post(`sync/data-entries/${module_type_id}`, {
-            json: {
-              // to be aligned with backend enums // todo: retrieve enum from backend
-              ingestion_method: provider_type === 'api' ? 0 : 1, // 0: api, 1: csv
-              target_type: target_type === 'data_entries' ? 0 : 1,
-              year,
-              filters: filters || {},
-              config: config || {},
-            },
+            json: requestBody,
           })
           .json()) as { job_id: number };
 
         // Update local state with new job
-        if (!syncJobs[year]) {
-          syncJobs[year] = [];
+        if (year !== undefined) {
+          if (!syncJobs[year]) {
+            syncJobs[year] = [];
+          }
+          syncJobs[year].push({
+            job_id: response.job_id,
+            module_type_id,
+            year,
+            provider_type,
+            target_type: 0, // data_entries
+            status: 0, // pending
+            status_message: 'Sync initiated',
+            meta: {},
+          });
         }
-        syncJobs[year].push({
-          job_id: response.job_id,
-          module_type_id,
-          year,
-          provider_type,
-          target_type: 0, // data_entries
-          status: 0, // pending
-          status_message: 'Sync initiated',
-          meta: {},
-        });
 
         return response.job_id;
       } catch (err: unknown) {
@@ -150,24 +195,122 @@ provider_type
       }
     }
 
+    /**
+     * Subscribe to SSE stream for real-time job status updates.
+     * Maps updates to the appropriate module/target rows via job_id,
+     * module_type_id, and year.
+     * payload will look like: {
+          "job_id": 94,
+          "module_type_id": 4,
+          "target_type": 0,
+          "year": null,
+          "status": 0,
+          "status_message": "Job created"
+      }
+     */
+    function subscribeToJobUpdates(
+      jobId?: number,
+      onCompleted?: (payload?: JobUpdatePayload) => void,
+      onFail?: (payload?: JobUpdatePayload) => void,
+    ): void {
+      if (!jobId) {
+        return;
+      }
+
+      if (sseConnection) {
+        sseConnection.close();
+        sseConnection = null;
+      }
+
+      try {
+        sseConnection = new EventSource(`/api/v1/sync/jobs/${jobId}/stream`);
+
+        sseConnection.onmessage = (event: MessageEvent) => {
+          try {
+            const update: JobUpdatePayload = JSON.parse(event.data);
+            const statusMap: Record<string, number> = {
+              NOT_STARTED: 0,
+              PENDING: 1,
+              IN_PROGRESS: 2,
+              COMPLETED: 3,
+              FAILED: 4,
+            };
+
+            const status =
+              typeof update.status === 'number'
+                ? update.status
+                : (statusMap[update.status] ?? 0);
+
+            const job_id = update.job_id;
+            // const module_type_id = update.module_type_id;
+            const year = update.year;
+
+            // Find and update the job in the store
+            if (syncJobs[year]) {
+              const jobIndex = syncJobs[year].findIndex(
+                (j) => j.job_id === job_id,
+              );
+              if (jobIndex !== -1) {
+                syncJobs[year][jobIndex] = {
+                  ...syncJobs[year][jobIndex],
+                  status,
+                  status_message: update.status_message || '',
+                };
+              }
+            }
+
+            if (status === 3) {
+              onCompleted?.(update);
+            }
+
+            if (status === 4) {
+              onFail?.(update);
+            }
+            if (status === 3 || status === 4) {
+              unsubscribeFromJobUpdates();
+            }
+          } catch (err) {
+            console.error('Error parsing SSE message:', err);
+          }
+        };
+
+        sseConnection.onerror = () => {
+          unsubscribeFromJobUpdates();
+        };
+      } catch (err) {
+        console.error('Failed to establish SSE connection:', err);
+      }
+    }
+
+    /**
+     * Unsubscribe from SSE stream and close the connection.
+     */
+    function unsubscribeFromJobUpdates(): void {
+      if (sseConnection) {
+        sseConnection.close();
+        sseConnection = null;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
       // Reset syncJobs by clearing all properties
       Object.keys(syncJobs).forEach((key) => delete syncJobs[key]);
       currentYear.value = null;
+      unsubscribeFromJobUpdates();
     }
 
     // Helper function to get module type ID from module
     function getModuleTypeId(module: Module): number {
       const moduleTypeIds: Record<Module, number> = {
-        'my-lab': 1,
+        headcount: 1,
         'professional-travel': 2,
         infrastructure: 3,
         'equipment-electric-consumption': 4,
         purchase: 5,
         'internal-services': 6,
-        'external-cloud': 7,
+        'external-cloud-and-ai': 7,
       };
       return moduleTypeIds[module];
     }
@@ -181,6 +324,8 @@ provider_type
       getSyncStatusByModule,
       fetchSyncJobsByYear,
       initiateSync,
+      subscribeToJobUpdates,
+      unsubscribeFromJobUpdates,
       reset,
       getModuleTypeId,
     };

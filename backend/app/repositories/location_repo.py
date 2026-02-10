@@ -2,7 +2,8 @@
 
 from typing import List, Optional
 
-from sqlalchemy import case
+from sqlalchemy import bindparam, case, or_, text
+from sqlalchemy.sql.elements import BindParameter
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,12 +26,25 @@ class LocationRepository:
         transport_mode: Optional[str] = None,
     ) -> List[Location]:
         """
-        Search locations by name with relevance ordering.
+        Search locations by keywords, municipality, and name with relevance ordering.
+
+        Search is performed across:
+        - keywords column
+        - municipality column
+        - name column
+
+        Search is accent-insensitive and case-insensitive using PostgreSQL ICU
+        collations.
+
+        Results are prioritized by:
+        1. Switzerland (countrycode == "CH") first
+        2. For flights (transport_mode='plane'): large_airport first
+        3. Then by relevance (exact match, starts with, contains)
 
         Results are ordered by relevance:
-        1. Exact matches (name = query)
-        2. Starts with query (name ILIKE 'query%')
-        3. Contains query (name ILIKE '%query%')
+        1. Exact matches (field = query)
+        2. Starts with query (field ILIKE 'query%')
+        3. Contains query (field ILIKE '%query%')
 
         Args:
             query: Search query string
@@ -39,34 +53,141 @@ class LocationRepository:
             If None, returns both types.
 
         Returns:
-            List of Location objects ordered by relevance
+            List of Location objects ordered by country (Switzerland first),
+            relevance, and airport_size (for flights)
         """
-        # Normalize query
+
         query = query.strip()
         if not query:
             return []
 
-        # Build base query
-        statement = select(Location).where(col(Location.name).ilike(f"%{query}%"))
+        # Validate collation against whitelist to prevent injection
+        allowed_collations = {"ch_fr_ci_ai", "ch_de_ci_ai", "ch_it_ci_ai"}
+        collation = "ch_fr_ci_ai"
+        if collation not in allowed_collations:
+            raise ValueError(f"Invalid collation: {collation}")
+
+        statement = select(Location)
+
+        search_pattern = f"%{query}%".lower()
+        query_lower = query.lower()
+        query_starts_pattern = f"{query}%".lower()
+
+        table_name = Location.__tablename__
+
+        search_pattern_param: BindParameter[str] = bindparam(
+            "search_pattern", search_pattern
+        )
+        query_exact_param: BindParameter[str] = bindparam("query_exact", query_lower)
+        query_starts_param: BindParameter[str] = bindparam(
+            "query_starts", query_starts_pattern
+        )
+
+        search_condition = or_(
+            text(
+                f"LOWER({table_name}.name COLLATE {collation}) LIKE :search_pattern"
+            ).bindparams(search_pattern_param),
+            text(
+                f"LOWER({table_name}.municipality COLLATE {collation}) "
+                f"LIKE :search_pattern"
+            ).bindparams(search_pattern_param),
+            text(
+                f"LOWER({table_name}.keywords COLLATE {collation}) LIKE :search_pattern"
+            ).bindparams(search_pattern_param),
+        )
+
+        statement = statement.where(search_condition)
 
         # Filter by transport_mode if provided
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
-        # Order by relevance using CASE expression
-        # Priority: 1 = exact match, 2 = starts with, 3 = contains
+        # Build relevance scoring using parameterized queries with collations
+        # for accent-insensitive matching
         relevance = case(
-            (col(Location.name) == query, 1),
-            (col(Location.name).ilike(f"{query}%"), 2),
+            # Exact matches (highest priority) - accent-insensitive
+            (
+                or_(
+                    text(
+                        f"LOWER({table_name}.name COLLATE {collation}) = :query_exact"
+                    ).bindparams(query_exact_param),
+                    text(
+                        f"LOWER({table_name}.municipality COLLATE {collation}) "
+                        f"= :query_exact"
+                    ).bindparams(query_exact_param),
+                    text(
+                        f"LOWER({table_name}.keywords COLLATE {collation}) "
+                        f"= :query_exact"
+                    ).bindparams(query_exact_param),
+                ),
+                1,
+            ),
+            # Starts with (medium priority) - accent-insensitive
+            (
+                or_(
+                    text(
+                        f"LOWER({table_name}.name COLLATE {collation}) "
+                        f"LIKE :query_starts"
+                    ).bindparams(query_starts_param),
+                    text(
+                        f"LOWER({table_name}.municipality COLLATE {collation}) "
+                        f"LIKE :query_starts"
+                    ).bindparams(query_starts_param),
+                    text(
+                        f"LOWER({table_name}.keywords COLLATE {collation}) "
+                        f"LIKE :query_starts"
+                    ).bindparams(query_starts_param),
+                ),
+                2,
+            ),
+            # Contains (lowest priority)
             else_=3,
         )
 
-        statement = statement.order_by(relevance.asc(), col(Location.name).asc())
+        # Prioritize Switzerland
+        switzerland_priority = case(
+            (col(Location.countrycode) == "CH", 1),
+            else_=2,
+        )
+
+        # For flights, prioritize large_airport first
+        if transport_mode == "plane":
+            airport_priority = case(
+                (col(Location.airport_size) == "large_airport", 1),
+                else_=2,
+            )
+            statement = statement.order_by(
+                switzerland_priority.asc(),
+                airport_priority.asc(),
+                relevance.asc(),
+                col(Location.name).asc(),
+            )
+        else:
+            # For trains or mixed results, order by Switzerland first
+            statement = statement.order_by(
+                switzerland_priority.asc(),
+                relevance.asc(),
+                col(Location.name).asc(),
+            )
+
         statement = statement.limit(limit)
 
-        # Execute query
-        result = await self.session.execute(statement)
-        return list(result.scalars().all())
+        try:
+            compiled = statement.compile(compile_kwargs={"literal_binds": False})
+            logger.debug(f"Location search SQL: {compiled}")
+
+            result = await self.session.execute(statement)
+            locations = list(result.scalars().all())
+            logger.debug(f"Found {len(locations)} locations for query '{query}'")
+            return locations
+        except Exception as e:
+            logger.error(
+                f"Error executing location search query for '{query}'. "
+                f"Collation {collation} may not exist or query syntax error. "
+                f"Error: {e}",
+                exc_info=True,
+            )
+            raise
 
     async def get_by_id(self, location_id: int) -> Optional[Location]:
         """Get location by ID."""

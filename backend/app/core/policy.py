@@ -1,9 +1,19 @@
 """Policy evaluation module for authorization decisions."""
 
-from typing import Any
+from typing import Any, Optional
 
+from fastapi import HTTPException, status
+
+from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, User
+from app.models.user import (
+    GlobalScope,
+    Role,
+    RoleName,
+    RoleScope,
+    User,
+    calculate_user_permissions,
+)
 from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
@@ -44,9 +54,6 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
         permissions = user_data["permissions"]
     # Handle dict with roles (calculate permissions)
     elif isinstance(user_data, dict) and "roles" in user_data:
-        from app.models.user import Role
-        from app.utils.permissions import calculate_user_permissions
-
         # Convert role dicts to Role objects if needed
         roles_data = user_data["roles"]
         roles = [
@@ -129,7 +136,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
         return {"allow": False, "reason": "Missing resource"}
 
     # Extract roles and user_id
-    user_id: str | None = None
+    user_id: int | None = None
     if isinstance(user_data, User):
         roles = user_data.roles or []
         user_id = user_data.id
@@ -139,7 +146,7 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             Role(**r) if isinstance(r, dict) else r for r in roles_data if r is not None
         ]
         id_value = user_data.get("id")
-        user_id = id_value if isinstance(id_value, str) else None
+        user_id = id_value if isinstance(id_value, int) else None
     else:
         return {"allow": False, "reason": "Invalid user data format"}
 
@@ -176,10 +183,10 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
                 # Extract unit from scope
-                if isinstance(role_scope, RoleScope) and role_scope.unit:
-                    user_unit_ids.add(role_scope.unit)
-                elif isinstance(role_scope, dict) and role_scope.get("unit"):
-                    user_unit_ids.add(role_scope["unit"])
+                if isinstance(role_scope, RoleScope) and role_scope.provider_code:
+                    user_unit_ids.add(role_scope.provider_code)
+                elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
+                    user_unit_ids.add(role_scope["provider_code"])
 
         # Principals can edit manual/CSV trips in their units
         if principal_or_secondary and resource_unit_id in user_unit_ids:
@@ -252,7 +259,7 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
         }
 
     # Extract roles from user data
-    user_id: str | None = None
+    user_id: int | None = None
     if isinstance(user_data, User):
         roles = user_data.roles or []
         user_id = user_data.id
@@ -262,9 +269,9 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
         roles = [
             Role(**r) if isinstance(r, dict) else r for r in roles_data if r is not None
         ]
-        # Extract user_id from dict, ensuring it's str | None
+        # Extract user_id from dict, ensuring it's int | None
         id_value = user_data.get("id")
-        user_id = id_value if isinstance(id_value, str) else None
+        user_id = id_value if isinstance(id_value, int) else None
     else:
         logger.warning(
             "Data filter check failed: invalid user data format",
@@ -306,12 +313,11 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
         for role in roles:
             role_scope = role.on
             # Handle RoleScope objects
-            if isinstance(role_scope, RoleScope) and role_scope.unit:
-                unit_ids.add(role_scope.unit)
+            if isinstance(role_scope, RoleScope) and role_scope.provider_code:
+                unit_ids.add(role_scope.provider_code)
             # Handle dict format
-            elif isinstance(role_scope, dict) and role_scope.get("unit"):
-                unit_ids.add(role_scope["unit"])
-
+            elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
+                unit_ids.add(role_scope["provider_code"])
         if unit_ids:
             # Unit scope: filter by unit_ids
             scope = "unit"
@@ -393,3 +399,81 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
         "reason": "Filtered query" if filters else "Policy evaluation",
         "filters": filters or {},
     }
+
+
+def _get_module_permission_path(module_id: str) -> Optional[str]:
+    """
+    Map module ID to permission path.
+
+    Args:
+        module_id: Module identifier
+            (e.g., "professional-travel", "equipment-electric-consumption")
+
+    Returns:
+        Permission path (e.g., "modules.professional_travel") or None
+        if module doesn't require permission
+    """
+    module_permission_map = {
+        "professional-travel": "modules.professional_travel",
+        "equipment-electric-consumption": "modules.equipment",
+        "infrastructure": "modules.infrastructure",
+        "purchase": "modules.purchase",
+        "internal-services": "modules.internal_services",
+        "external-cloud-and-ai": "modules.external_cloud_and_ai",
+        "my-lab": "modules.headcount",  # Headcount module
+    }
+    return module_permission_map.get(module_id)
+
+
+async def check_module_permission(user: User, module_id: str, action: str) -> None:
+    """
+    Check if user has permission for the module.
+
+    Args:
+        user: Current user
+        module_id: Module identifier
+        action: Permission action ("view" or "edit")
+
+    Raises:
+        HTTPException: 403 if permission denied
+    """
+    permission_path = _get_module_permission_path(module_id)
+    if not permission_path:
+        # Module doesn't require permission check, allow access
+        return
+
+    # Build OPA input with user context
+    input_data = {
+        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
+        "path": permission_path,
+        "action": action,
+    }
+    decision = await query_policy("authz/permission/check", input_data)
+
+    logger.info(
+        "Module permission check",
+        extra={
+            "user_id": sanitize(user.id),
+            "module_id": sanitize(module_id),
+            "permission_path": permission_path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+
+    if not decision.get("allow", False):
+        reason = decision.get("reason", "Permission denied")
+        logger.warning(
+            "Module permission check denied",
+            extra={
+                "user_id": sanitize(user.id),
+                "module_id": sanitize(module_id),
+                "permission_path": permission_path,
+                "action": action,
+                "reason": reason,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: {reason}",
+        )

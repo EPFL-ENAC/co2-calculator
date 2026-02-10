@@ -7,7 +7,7 @@ import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
 import type { YearData } from 'src/components/organisms/workspace-selector/YearSelector.vue';
-import type { Inventory } from 'src/stores/workspace';
+import type { CarbonReport } from 'src/stores/workspace';
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const router = useRouter();
@@ -23,10 +23,10 @@ const workspaceNotSelected = computed(() => {
 });
 
 const yearsCount = computed(
-  () => workspaceStore.availableInventoryYears.length,
+  () => workspaceStore.availableCarbonReportYears.length,
 );
 const hasMultipleYears = computed(
-  () => workspaceStore.availableInventoryYears.length > 1,
+  () => workspaceStore.availableCarbonReportYears.length > 1,
 );
 
 const selectedUnitAffiliations = computed(() => {
@@ -49,14 +49,14 @@ const routeUnitParam = computed(
 const handleUnitSelect = async (unit: Unit) => {
   workspaceStore.setUnit(unit);
   workspaceStore.setYear(null);
-  await workspaceStore.fetchInventoriesForUnit(unit.id);
+  await workspaceStore.fetchCarbonReportsForUnit(unit.id);
 };
 
 const handleYearSelect = async (year: number) => {
   workspaceStore.setYear(year);
   if (workspaceStore.selectedUnit) {
-    const inv: Inventory =
-      await workspaceStore.selectWithoutFetchingInventoryForYear(
+    const inv: CarbonReport =
+      await workspaceStore.selectWithoutFetchingCarbonReportForYear(
         workspaceStore.selectedUnit.id,
         year,
       );
@@ -151,13 +151,13 @@ onMounted(async () => {
           count: yearsCount,
         })
       }}</span>
-      <div v-if="workspaceStore.inventoriesError" class="q-mt-sm">
+      <div v-if="workspaceStore.carbonReportsError" class="q-mt-sm">
         <q-banner class="container text-negative border-negative q-pa-lg">
           <template #avatar>
             <q-icon name="o_warning" color="grey-3" size="md" />
           </template>
           <p class="text-body2 text-weight-bold q-mt-sm">
-            {{ workspaceStore.inventoriesError.message }}
+            {{ workspaceStore.carbonReportsError.message }}
           </p>
         </q-banner>
       </div>
@@ -166,11 +166,11 @@ onMounted(async () => {
         class="q-mt-md"
         :selected-year="workspaceStore.selectedYear"
         :years="
-          workspaceStore.availableInventoryYears.map(
+          workspaceStore.availableCarbonReportYears.map(
             (year) =>
               ({
                 year,
-                status: workspaceStore.inventoryForYear(year)
+                status: workspaceStore.carbonReportForYear(year)
                   ? 'complete'
                   : 'missing',
               }) as YearData,

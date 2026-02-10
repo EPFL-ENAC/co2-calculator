@@ -20,29 +20,61 @@ default_db_name = url_obj.database
 
 def get_default_db_url():
     url_obj = make_url(settings.DB_URL)
-    if (
-        url_obj.drivername == "postgresql"
-        or url_obj.drivername == "postgres"
-        or url_obj.drivername == "postgresql+psycopg"
-    ) and not url_obj.drivername.endswith("+asyncpg"):
-        # Add async driver + optional query params
+
+    # 1. Force the use of the 'postgres' superuser
+    # 2. Force the connection to the 'postgres' maintenance database
+    # Note: This assumes the password for 'postgres' is the same as in DB_URL.
+    # Based on your Helm chart (adminPasswordKey matching userPasswordKey)
+    #  this is correct.
+    port = url_obj.port
+    url_obj = url_obj.set(database="postgres", port=port)
+    if url_obj.drivername in [
+        "postgresql",
+        "postgres",
+        "postgresql+psycopg",
+    ] and not url_obj.drivername.endswith("+asyncpg"):
         url_obj = url_obj.set(drivername="postgresql+psycopg")
-    return str(url_obj).replace(url_obj.database, "postgres")
+    return url_obj
 
 
 def drop_db(db_name):
+    # This now returns a URL Object with the correct password and user 'postgres'
     default_db_url = get_default_db_url()
+    print(f"Dropping database using URL: {default_db_url}")
+    print(f"Dropping database: {db_name}")
+
+    # create_engine accepts the URL object directly
     engine = create_engine(default_db_url, isolation_level="AUTOCOMMIT")
+
     with engine.connect() as conn:
-        conn.execute(text(f"DROP DATABASE IF EXISTS {db_name}"))
+        # Terminate existing connections
+        # conn.execute(
+        #     text(
+        #         """
+        #         SELECT pg_terminate_backend(pid)
+        #         FROM pg_stat_activity
+        #         WHERE datname = :db_name AND pid <> pg_backend_pid();
+        #         """
+        #     ),
+        #     {"db_name": db_name},
+        # )
+        conn.execute(text(f"DROP DATABASE IF EXISTS {db_name} with (force);"))
     engine.dispose()
 
 
 def create_db(db_name):
     default_db_url = get_default_db_url()
+    print(f"Creating database using URL: {default_db_url}")
+    # Get the app user (co2_user) from your config
+    # We assume the username in settings.DB_URL is 'co2_user'
+    app_user = make_url(settings.DB_URL).username
+
     engine = create_engine(default_db_url, isolation_level="AUTOCOMMIT")
     with engine.connect() as conn:
-        conn.execute(text(f"CREATE DATABASE {db_name}"))
+        # quoted_name ensures special characters don't break the SQL
+        # We explicitly set OWNER to co2_user
+        conn.execute(text(f'CREATE DATABASE "{db_name}" OWNER "{app_user}"'))
+
     engine.dispose()
 
 

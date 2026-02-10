@@ -73,7 +73,7 @@ const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
 const filters = ref({
   affiliation: [] as string[],
-  units: [] as string[],
+  units: [] as number[],
   completion: '',
   outlier_values: null as boolean | null,
   search: '',
@@ -81,7 +81,7 @@ const filters = ref({
 
 function handleFiltersUpdate(newFilters: {
   affiliation: string[];
-  units: string[];
+  units: number[];
   completion: string;
   outlier_values: boolean | null;
   search: string;
@@ -101,7 +101,7 @@ const availableUnits = computed(() => backofficeStore.availableUnits);
 async function fetchUnits() {
   const filtersToSend: {
     affiliation?: string[];
-    units?: string[];
+    units?: number[];
     years?: string[];
     completion?: string;
     outlier_values?: boolean | null;

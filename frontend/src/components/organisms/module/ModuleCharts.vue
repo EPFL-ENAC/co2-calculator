@@ -1,8 +1,8 @@
 <template>
-  <q-card-section class="text-left module-charts">
-    <template v-if="type === 'my-lab'">
+  <q-card-section class="text-left module-charts q-px-none">
+    <template v-if="type === 'headcount'">
       <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
-        {{ $t('my-lab-charts-title') }}
+        {{ $t('headcount-charts-title') }}
       </h2>
       <headCountBarChart
         v-if="hasStats"
@@ -20,7 +20,7 @@
           travelDatasetSource.length > 0
         "
         :show-evolution-dialog="showEvolutionChart"
-        :color-scheme="colors.blue"
+        :color-scheme="colors.babyBlue"
         :dataset-source="travelDatasetSource"
       />
       <div v-else-if="loadingTravelData" class="text-body2 text-secondary">
