@@ -89,6 +89,7 @@ nav:
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
       - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
+      - Location Search: backend/09-LOCATION-SEARCH.md
 
   - Database:
       - Overview: database/01-overview.md
