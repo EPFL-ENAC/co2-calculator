@@ -156,17 +156,43 @@ def resolve_flight_factor(
     return distance_km, factor
 
 
+def _determine_train_countrycode(origin: Location, dest: Location) -> str:
+    """
+    Determine which country's impact factor to use for a train trip.
+
+    Rule: Use CH factor only if BOTH origin AND destination are in Switzerland.
+    Otherwise, prefer the non-CH country's factor (destination first, then origin).
+    Falls back to 'RoW' if neither side has a usable non-CH country code.
+
+    See issue #357 for the rationale behind this country selection logic.
+    """
+    origin_country = origin.country_code
+    dest_country = dest.country_code
+
+    if origin_country == "CH" and dest_country == "CH":
+        return "CH"
+
+    # Prefer destination if it's a valid non-CH country, otherwise use origin;
+    # if neither side is a valid non-CH country, fall back to RoW.
+    if dest_country and dest_country != "CH":
+        return dest_country
+    if origin_country and origin_country != "CH":
+        return origin_country
+    return "RoW"
+
+
 def resolve_train_factor(
     origin: Location,
     dest: Location,
     factors: list[Factor],
 ) -> tuple[int, Optional[Factor]]:
     """
-    Compute train distance and select the matching factor by destination country.
+    Compute train distance and select the matching factor by country.
 
-    Distance is an intermediary value used alongside the destination's
-    country code to select the correct factor. Falls back to 'RoW' if
-    no country-specific factor is found.
+    Uses the country selection rule from issue #357: CH factor is used
+    only when both origin and destination are in Switzerland. Otherwise,
+    the non-CH country's factor is preferred (destination first, then
+    origin), with 'RoW' as a final fallback.
 
     Args:
         origin: Origin station Location
@@ -178,9 +204,9 @@ def resolve_train_factor(
     """
     DEFAULT_COUNTRY_CODE = "RoW"
     distance_km = calculate_train_distance(origin, dest)
-    dest_country = dest.country_code or DEFAULT_COUNTRY_CODE
+    countrycode = _determine_train_countrycode(origin, dest)
     factor = next(
-        (f for f in factors if f.classification.get("country_code") == dest_country),
+        (f for f in factors if f.classification.get("country_code") == countrycode),
         None,
     )
     if not factor:
