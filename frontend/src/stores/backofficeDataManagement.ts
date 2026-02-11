@@ -246,9 +246,9 @@ provider_type
             const year = update.year;
 
             // Find and update the job in the store
-            if (syncJobs[year]) {
+            if (year !== null && syncJobs[year]) {
               const jobIndex = syncJobs[year].findIndex(
-                (j) => j.job_id === job_id,
+                (j: DataIngestionJob) => j.job_id === job_id,
               );
               if (jobIndex !== -1) {
                 syncJobs[year][jobIndex] = {

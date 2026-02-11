@@ -81,6 +81,7 @@ class UnitRepository:
         principal_user_provider_code: Optional[str] = None,
         affiliations: Optional[List[str]] = None,
         provider: Optional[UserProvider] = None,
+        cost_centers: Optional[List[str]] = None,
     ) -> Unit:
         """Create a new unit."""
         entity = Unit(
@@ -89,9 +90,10 @@ class UnitRepository:
             principal_user_provider_code=principal_user_provider_code,
             affiliations=affiliations or [],
             provider=provider,
+            cost_centers=cost_centers or [],
         )
         self.session.add(entity)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -102,6 +104,7 @@ class UnitRepository:
         principal_user_provider_code: Optional[str] = None,
         affiliations: Optional[List[str]] = None,
         provider: Optional[UserProvider] = None,
+        cost_centers: Optional[List[str]] = None,
     ) -> Unit:
         """Update an existing unit."""
         result = await self.session.exec(select(Unit).where(Unit.id == id))
@@ -117,8 +120,9 @@ class UnitRepository:
             entity.affiliations = affiliations
 
         entity.provider = provider or entity.provider
-
-        await self.session.commit()
+        if cost_centers is not None:
+            entity.cost_centers = cost_centers
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -130,6 +134,8 @@ class UnitRepository:
         # Look up by code for upsert operations
         existing = await self.get_by_code(unit_data.provider_code)
 
+        # so provider is wrong
+        # And cost_centers are not updated
         if existing and existing.id:
             return await self.update(
                 id=existing.id,
@@ -137,6 +143,7 @@ class UnitRepository:
                 principal_user_provider_code=unit_data.principal_user_provider_code,
                 affiliations=unit_data.affiliations,
                 provider=unit_data.provider,
+                cost_centers=unit_data.cost_centers,
             )
         else:
             if not unit_data.provider_code:
@@ -148,6 +155,7 @@ class UnitRepository:
                 principal_user_provider_code=unit_data.principal_user_provider_code,
                 affiliations=unit_data.affiliations,
                 provider=unit_data.provider,
+                cost_centers=unit_data.cost_centers,
             )
 
     async def count(self, filters: Optional[dict] = None) -> int:

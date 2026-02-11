@@ -112,6 +112,7 @@ async def main() -> None:
         await seed_test_users(session)
         await seed_test_units(session)
         await seed_unit_users(session)
+        await session.commit()  # commit all changes at the end of the seeding process, after seeding users, units, and unit_user relationships
         # seed unit_users relationships
 
     logger.info("Equipment and emissions seeding complete!")

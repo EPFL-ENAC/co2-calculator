@@ -1,20 +1,128 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
+import { enumSubmodule } from 'src/constant/modules';
 import FilesUploadDialog from './FilesUploadDialog.vue';
 import { useFilesStore } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import type {
+  JobUpdatePayload,
+  InitiateSyncParams,
+} from 'src/stores/backofficeDataManagement';
+import { useQuasar } from 'quasar';
+import { useI18n } from 'vue-i18n';
 
 const filesStore = useFilesStore();
 const dataManagementStore = useBackofficeDataManagement();
+const $q = useQuasar();
+const { t: $t } = useI18n();
+
 interface Props {
   year: number;
 }
 defineProps<Props>();
 const showUploadDialog = ref<boolean>(false);
 
-const onFilesUploaded = () => {
+/**
+ * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
+ * For headcount: CSV contains unit_id (provider_code) column.
+ * Backend resolves unit -> carbon_report_module_id per row.
+ */
+const onFilesUploaded = async (filePaths: string[]) => {
   showUploadDialog.value = false;
+
+  if (!filePaths || filePaths.length === 0) {
+    $q.notify({
+      color: 'negative',
+      message: $t('csv_no_files_uploaded'),
+      position: 'top',
+    });
+  }
+
+  // retrieve moduleTypeId from clicked module's upload button (stored in filesStore) and initiate sync for that module
+  const module_type_id = filesStore.currentUploadModuleTypeId;
+  if (module_type_id === null) {
+    $q.notify({
+      color: 'negative',
+      message: `${$t('csv_sync_failed_to_initiate')}: missing moduleTypeId`,
+      position: 'top',
+    });
+    return;
+  }
+  const year = filesStore.currentUploadYear;
+  if (year === null) {
+    $q.notify({
+      color: 'negative',
+      message: `${$t('csv_sync_failed_to_initiate')}: missing year`,
+      position: 'top',
+    });
+    return;
+  }
+
+  // start initiating sync for the files
+  // subscribe to job updates and show notifications on completion/failure
+
+  const filePath = filePaths[0]; // use the path of the first uploaded file (assuming single file upload for now)
+
+  try {
+    $q.notify({
+      color: 'info',
+      message: $t('csv_sync_starting'),
+      position: 'top',
+    });
+
+    // For headcount (moduleTypeId=1): specify data_entry_type_id for members
+    const syncParams: InitiateSyncParams = {
+      module_type_id,
+      year,
+      provider_type: 'csv',
+      target_type: 'data_entries',
+      file_path: filePath,
+    };
+
+    // Add data_entry_type_id for headcount (members only)
+    // probably should be done in backend, but doing here for now to avoid changing existing backend endpoint signature
+    if (module_type_id === 1) {
+      syncParams.data_entry_type_id = enumSubmodule.member; // value: 1
+    }
+
+    const jobId = await dataManagementStore.initiateSync(syncParams);
+
+    // Subscribe to job-specific SSE stream
+    dataManagementStore.subscribeToJobUpdates(
+      jobId,
+      (payload?: JobUpdatePayload) => {
+        $q.notify({
+          color: 'positive',
+          message: $t('csv_sync_completed'),
+          position: 'top',
+        });
+        console.log('Sync completed:', payload);
+      },
+      (payload?: JobUpdatePayload) => {
+        $q.notify({
+          color: 'negative',
+          message: `${$t('csv_sync_failed')} ${payload?.status_message || ''}`,
+          position: 'top',
+        });
+        console.error('Sync failed:', payload);
+      },
+    );
+
+    $q.notify({
+      color: 'positive',
+      message: $t('csv_sync_initiated'),
+      position: 'top',
+    });
+  } catch (err) {
+    console.error('Failed to initiate sync:', err);
+    $q.notify({
+      color: 'negative',
+      message:
+        err instanceof Error ? err.message : $t('csv_sync_failed_to_initiate'),
+      position: 'top',
+    });
+  }
 };
 
 const dataEntrySync = async (moduleTypeId: number, year: number) => {
@@ -26,36 +134,15 @@ const dataEntrySync = async (moduleTypeId: number, year: number) => {
   });
 };
 
-/**
- * Initiate CSV upload sync for a module.
- * Requires at least one file to be uploaded in tempFiles.
- */
-const csvUploadSync = async (moduleTypeId: number, year: number) => {
-  if (filesStore.tempFiles.length === 0) {
-    console.error('No files uploaded');
-    dataManagementStore.error = 'Please upload a CSV file first';
-    return;
-  }
-
-  // For now, use the first uploaded file
-  // TODO: Allow selection of specific file for each module
-  const filePath = filesStore.tempFiles[0].path;
-
-  await dataManagementStore.initiateSync({
-    module_type_id: moduleTypeId,
-    year,
-    provider_type: 'csv',
-    target_type: 'data_entries',
-    file_path: filePath,
-  });
+const openUploadCsvDialog = (moduleTypeId: number, year: number) => {
+  // store moduleTypeId in filesStore to retrieve later when files are uploaded
+  // TODO: FORBID USER to CHANGE
+  filesStore.currentUploadModuleTypeId = moduleTypeId;
+  filesStore.currentUploadYear = year;
+  showUploadDialog.value = true;
 };
 
-// Subscribe to SSE updates when component mounts
-onMounted(() => {
-  dataManagementStore.subscribeToJobUpdates();
-});
-
-// Unsubscribe when component unmounts
+// Unsubscribe from SSE when component unmounts
 onUnmounted(() => {
   dataManagementStore.unsubscribeFromJobUpdates();
 });
@@ -107,7 +194,7 @@ onUnmounted(() => {
             :label="$t('data_management_download_csv_templates')"
             class="text-weight-medium"
           />
-          <q-btn
+          <!-- <q-btn
             no-caps
             color="accent"
             icon="file_upload"
@@ -123,7 +210,7 @@ onUnmounted(() => {
             size="sm"
             :label="$t('data_management_copy_previous_year')"
             class="text-weight-medium on-right"
-          />
+          /> -->
         </template>
         <div>
           {{
@@ -156,6 +243,7 @@ onUnmounted(() => {
                 }}</span>
               </div>
               <div>
+                <!-- DATA buttons -->
                 <q-btn
                   no-caps
                   color="accent"
@@ -163,7 +251,9 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
-                  @click="csvUploadSync(MODULES_LIST.indexOf(module) + 1, year)"
+                  @click="
+                    openUploadCsvDialog(MODULES_LIST.indexOf(module) + 1, year)
+                  "
                 />
                 <!-- TODO: use enum for data_module_type_id -->
                 <q-btn
@@ -193,6 +283,7 @@ onUnmounted(() => {
                 }}</span>
               </div>
               <div>
+                <!-- FACTORS buttons -->
                 <q-btn
                   no-caps
                   color="accent"

@@ -64,6 +64,9 @@ async def get_carbon_report_module_id(
             raise ValueError(
                 f"Carbon report module ID is None for unit {unit_provider_code}"
             )
+        await (
+            session.commit()
+        )  # commit to ensure carbon_report_module is saved and has an ID
         return carbon_report_module.id
 
 

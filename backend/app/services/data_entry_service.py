@@ -64,7 +64,7 @@ class DataEntryService:
 
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
         # top level domain)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(created_entry)
 
         # 5. return response
@@ -123,7 +123,6 @@ class DataEntryService:
     async def get(self, id: int) -> DataEntryResponse:
         """Get record by ID."""
         entry = await self.repo.get(id)
-        await self.session.commit()
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)

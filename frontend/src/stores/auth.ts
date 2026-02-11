@@ -80,9 +80,16 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
-      user.value = null;
-      loading.value = false;
-      router.replace({ name: 'login' });
+      if (user.value?.email.includes("testuser_")) {
+        // For test users, just go to home login-test page
+        user.value = null;
+        loading.value = false;
+        router.replace({ name: 'login-test' });
+      } else {
+        user.value = null;
+        loading.value = false;
+        router.replace({ name: 'login' });
+      }
     }
   }
 
