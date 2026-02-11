@@ -28,6 +28,7 @@ router = APIRouter()
 class SyncRequestConfig(BaseModel):
     carbon_report_module_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
+    factor_variant: Optional[str] = None
 
 
 class SyncRequest(BaseModel):
@@ -87,6 +88,12 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
+    if request.target_type == TargetType.FACTORS and request.year is None:
+        raise HTTPException(
+            status_code=400,
+            detail="year is required for factor CSV ingestion",
+        )
+
     # Prepare config with file_path and carbon_report_module_id if provided
     config = request.config.model_dump() if request.config else {}
     if request.file_path:

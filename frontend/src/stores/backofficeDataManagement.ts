@@ -170,12 +170,13 @@ provider_type
           if (!syncJobs[year]) {
             syncJobs[year] = [];
           }
+          const resolvedTargetType = target_type === 'data_entries' ? 0 : 1;
           syncJobs[year].push({
             job_id: response.job_id,
             module_type_id,
             year,
             provider_type,
-            target_type: 0, // data_entries
+            target_type: resolvedTargetType,
             status: 0, // pending
             status_message: 'Sync initiated',
             meta: {},

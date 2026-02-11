@@ -7,6 +7,7 @@ from app.models.user import User
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
+    ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
 )
 from app.services.data_ingestion.professional_travel_api_provider import (
@@ -42,6 +43,16 @@ class ProviderFactory:
                 TargetType.DATA_ENTRIES,
                 EntityType.MODULE_PER_YEAR,
             ): ModulePerYearCSVProvider
+            for module_type in ModuleTypeEnum
+        },
+        # MODULE_PER_YEAR factor CSV Providers
+        **{
+            (
+                module_type,
+                IngestionMethod.csv,
+                TargetType.FACTORS,
+                EntityType.MODULE_PER_YEAR,
+            ): ModulePerYearFactorCSVProvider
             for module_type in ModuleTypeEnum
         },
         # API Providers

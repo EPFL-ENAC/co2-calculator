@@ -22,6 +22,8 @@ interface Props {
 }
 defineProps<Props>();
 const showUploadDialog = ref<boolean>(false);
+const uploadTargetType = ref<'data_entries' | 'factors'>('data_entries');
+const uploadFactorVariant = ref<string | null>(null);
 
 /**
  * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
@@ -82,14 +84,21 @@ const onFilesUploaded = async (filePaths: string[]) => {
       module_type_id,
       year,
       provider_type: 'csv',
-      target_type: 'data_entries',
+      target_type: uploadTargetType.value,
       file_path: filePath,
     };
 
     // Add data_entry_type_id for headcount (members only)
     // probably should be done in backend, but doing here for now to avoid changing existing backend endpoint signature
-    if (module_type_id === 1) {
+    if (uploadTargetType.value === 'data_entries' && module_type_id === 1) {
       syncParams.data_entry_type_id = enumSubmodule.member; // value: 1
+    }
+
+    if (uploadTargetType.value === 'factors' && uploadFactorVariant.value) {
+      syncParams.config = {
+        ...(syncParams.config || {}),
+        factor_variant: uploadFactorVariant.value,
+      };
     }
 
     const jobId = await dataManagementStore.initiateSync(syncParams);
@@ -145,6 +154,45 @@ const openUploadCsvDialog = (moduleTypeId: number, year: number) => {
   // TODO: FORBID USER to CHANGE
   filesStore.currentUploadModuleTypeId = moduleTypeId;
   filesStore.currentUploadYear = year;
+  uploadTargetType.value = 'data_entries';
+  uploadFactorVariant.value = null;
+  showUploadDialog.value = true;
+};
+
+const openUploadFactorsDialog = async (moduleTypeId: number, year: number) => {
+  filesStore.currentUploadModuleTypeId = moduleTypeId;
+  filesStore.currentUploadYear = year;
+  uploadTargetType.value = 'factors';
+  uploadFactorVariant.value = null;
+
+  if (moduleTypeId === 2) {
+    const result = await new Promise<string | null>((resolve) => {
+      $q.dialog({
+        title: 'Select travel factor type',
+        message: 'Which travel factor CSV are you uploading?',
+        options: {
+          type: 'radio',
+          model: 'plane',
+          items: [
+            { label: 'Plane factors', value: 'plane' },
+            { label: 'Train factors', value: 'train' },
+          ],
+        },
+        cancel: true,
+        persistent: true,
+      })
+        .onOk((value: string) => resolve(value))
+        .onCancel(() => resolve(null))
+        .onDismiss(() => resolve(null));
+    });
+
+    if (!result) {
+      return;
+    }
+
+    uploadFactorVariant.value = result;
+  }
+
   showUploadDialog.value = true;
 };
 
@@ -297,6 +345,12 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
+                  @click="
+                    openUploadFactorsDialog(
+                      MODULES_LIST.indexOf(module) + 1,
+                      year,
+                    )
+                  "
                 />
                 <q-btn
                   no-caps
