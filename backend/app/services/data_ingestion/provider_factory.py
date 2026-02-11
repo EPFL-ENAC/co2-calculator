@@ -13,6 +13,9 @@ from app.services.data_ingestion.csv_providers import (
 from app.services.data_ingestion.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
 )
+from app.services.data_ingestion.professional_travel_csv_provider import (
+    ProfessionalTravelCSVProvider,
+)
 
 
 class ProviderFactory:
@@ -62,6 +65,18 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
+        (
+            ModuleTypeEnum.professional_travel,
+            IngestionMethod.csv,
+            TargetType.DATA_ENTRIES,
+            None,
+        ): ProfessionalTravelCSVProvider,
+        # TODO: Add more providers as needed
+        # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
+        # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
+        # # Factors providers
+        # ("travel", "csv_upload", "factors"): CSVFactorsProvider,
+        # ("headcount", "csv_upload", "factors"): CSVFactorsProvider,
     }
 
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
