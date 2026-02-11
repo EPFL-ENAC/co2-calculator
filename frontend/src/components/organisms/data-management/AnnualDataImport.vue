@@ -37,9 +37,15 @@ const onFilesUploaded = async (filePaths: string[]) => {
       message: $t('csv_no_files_uploaded'),
       position: 'top',
     });
+    return;
   }
 
   // retrieve moduleTypeId from clicked module's upload button (stored in filesStore) and initiate sync for that module
+  // Storing per-click UI context (moduleTypeId, year)
+  // in a global store makes the flow fragile (e.g., multiple dialogs, rapid clicks, navigation)
+  // and the TODO comment is unclear.
+  // Prefer passing moduleTypeId/year through the dialog component (props/events) or storing them as local refs in this component;
+  // also replace the TODO with an actionable comment (or enforce the restriction in code).
   const module_type_id = filesStore.currentUploadModuleTypeId;
   if (module_type_id === null) {
     $q.notify({
