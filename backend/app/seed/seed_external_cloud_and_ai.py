@@ -71,16 +71,16 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
     with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            kind = normalize_kind(row.get("cloud_provider", ""))
-            subkind = normalize_kind(row.get("service_type", ""))
+            kind = row.get("cloud_provider", "")
+            subkind = row.get("service_type", "")
             factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
                 data={
                     "primary_factor_id": factor.id if factor else None,
                     "spending": float(row.get("spending", 0)),
-                    "service_type": (row.get("service_type") or "").lower(),
-                    "cloud_provider": (row.get("cloud_provider") or "").lower(),
+                    "service_type": (row.get("service_type") or ""),
+                    "cloud_provider": (row.get("cloud_provider") or ""),
                 },
             )
             data_entry.data_entry_type = DataEntryTypeEnum.external_clouds
@@ -118,8 +118,8 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            kind = normalize_kind(row.get("ai_provider", ""))
-            subkind = normalize_kind(row.get("ai_use", ""))
+            kind = row.get("ai_provider", "")
+            subkind = row.get("ai_use", "")
             factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
@@ -128,8 +128,8 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
                     "primary_factor_id": factor.id if factor else None,
                     "frequency_use_per_day": int(row.get("frequency_use_per_day", 0)),
                     "user_count": int(row.get("user_count", 0)),
-                    "ai_provider": (row.get("ai_provider") or "").lower(),
-                    "ai_use": (row.get("ai_use") or "").lower(),
+                    "ai_provider": (row.get("ai_provider") or ""),
+                    "ai_use": (row.get("ai_use") or ""),
                 },
             )
             data_entries.append(data_entry)
@@ -179,17 +179,16 @@ async def seed_factor_clouds(session: AsyncSession) -> None:
         for row in reader:
             #  for cloud emission_type depends on service_type
 
+            emission_type = normalize_kind(row.get("service_type", ""))
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum[
-                    (row.get("service_type") or "").lower()
-                ],
+                emission_type_id=EmissionTypeEnum[emission_type],
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": (row.get("cloud_provider") or "").lower(),
-                    "service_type": (row.get("service_type") or "").lower(),
-                    "kind": (row.get("cloud_provider") or "").lower(),
-                    "subkind": (row.get("service_type") or "").lower(),
+                    "cloud_provider": (row.get("cloud_provider") or ""),
+                    "service_type": (row.get("service_type") or ""),
+                    "kind": (row.get("cloud_provider") or ""),
+                    "subkind": (row.get("service_type") or ""),
                 },
                 values={
                     "factor_kgco2_per_eur": get_float_or_none(
@@ -228,10 +227,10 @@ async def seed_factor_ai(session: AsyncSession) -> None:
                 # TODO: unify data model with kind/subkind so
                 # it corresponds to ai_provider/ai_use?
                 classification={
-                    "ai_provider": (row.get("ai_provider") or "").lower(),
-                    "ai_use": (row.get("ai_use") or "").lower(),
-                    "kind": (row.get("ai_provider") or "").lower(),
-                    "subkind": (row.get("ai_use") or "").lower(),
+                    "ai_provider": (row.get("ai_provider") or ""),
+                    "ai_use": (row.get("ai_use") or ""),
+                    "kind": (row.get("ai_provider") or ""),
+                    "subkind": (row.get("ai_use") or ""),
                 },
                 values={
                     "factor_gCO2eq": factor_gCO2eq,

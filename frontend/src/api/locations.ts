@@ -61,25 +61,20 @@ export async function searchRailwayStations(
 
 /**
  * Generic search for locations (airports or railway stations).
- * Maps 'flight' to 'plane' for API compatibility.
  *
  * @param query - Search query string (minimum 2 characters)
- * @param transportMode - Transport mode: 'flight' (maps to 'plane') or 'train'
+ * @param transportMode - Transport mode: 'plane' or 'train'
  * @param limit - Maximum number of results to return (default: 5, max: 20)
  * @returns Promise resolving to an array of locations
  */
 export async function searchLocations(
   query: string,
-  transportMode: 'flight' | 'train',
+  transportMode: TransportMode,
   limit?: number,
 ): Promise<Location[]> {
-  // Map 'flight' to 'plane' for API
-  const apiTransportMode: TransportMode =
-    transportMode === 'flight' ? 'plane' : 'train';
-
   const params = new URLSearchParams({
     query: query.trim(),
-    transport_mode: apiTransportMode,
+    transport_mode: transportMode,
   });
 
   if (limit !== undefined) {
@@ -95,18 +90,18 @@ export async function searchLocations(
 /**
  * Calculate distance between two locations based on transport mode.
  *
- * For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
+ * For planes: Haversine distance + 95 km (airport approaches, routing, taxiing)
  * For trains: Haversine distance × 1.2 (track routing, curves, detours)
  *
  * @param originLocationId - Origin location ID
  * @param destinationLocationId - Destination location ID
- * @param transportMode - Transport mode: 'flight' or 'train'
+ * @param transportMode - Transport mode: 'plane' or 'train'
  * @returns Promise resolving to distance in kilometers
  */
 export async function calculateDistance(
   originLocationId: number,
   destinationLocationId: number,
-  transportMode: 'flight' | 'train',
+  transportMode: TransportMode,
 ): Promise<number> {
   const params = new URLSearchParams({
     origin_location_id: originLocationId.toString(),

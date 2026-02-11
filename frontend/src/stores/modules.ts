@@ -400,6 +400,10 @@ export const useModuleStore = defineStore('modules', () => {
       }
 
       const body = normalized;
+
+      const isRoundTrip =
+        moduleType === MODULES.ProfessionalTravel && !!normalized.is_round_trip;
+
       try {
         await api.post(path, { json: body }).json();
       } catch (error: unknown) {
@@ -418,6 +422,35 @@ export const useModuleStore = defineStore('modules', () => {
         throw error;
       }
 
+      if (isRoundTrip) {
+        const returnBody = {
+          ...normalized,
+          origin_location_id: normalized.destination_location_id,
+          destination_location_id: normalized.origin_location_id,
+          is_round_trip: false,
+        };
+        try {
+          await api.post(path, { json: returnBody }).json();
+        } catch (error: unknown) {
+          if (
+            error &&
+            typeof error === 'object' &&
+            'response' in error &&
+            error.response &&
+            typeof error.response === 'object' &&
+            'json' in error.response &&
+            typeof error.response.json === 'function'
+          ) {
+            const errorBody = await error.response.json();
+            console.error(
+              '[ModuleStore] Backend error response (return leg):',
+              errorBody,
+            );
+          }
+          throw error;
+        }
+      }
+
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unitId, year);
 
@@ -431,11 +464,6 @@ export const useModuleStore = defineStore('modules', () => {
         year,
         submoduleType: submoduleType,
       });
-
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unitId, String(year));
-      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -516,11 +544,6 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
-
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unit, year);
-      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -556,11 +579,6 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
-
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unit, year);
-      }
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -572,7 +590,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
-      const path = `professional-travel/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/stats-by-class`;
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/stats-by-class`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelStatsByClass = data;
     } catch (err: unknown) {
@@ -592,7 +610,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelEvolutionOverTime = true;
     state.errorTravelEvolutionOverTime = null;
     try {
-      const path = `professional-travel/${encodeURIComponent(unit)}/evolution-over-time`;
+      const path = `modules/${encodeURIComponent(unit)}/evolution-over-time`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelEvolutionOverTime = data;
     } catch (err: unknown) {

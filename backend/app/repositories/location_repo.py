@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.location import Location
+from app.models.location import Location, TransportModeEnum
 
 logger = get_logger(__name__)
 
@@ -22,8 +22,8 @@ class LocationRepository:
     async def search_location(
         self,
         query: str,
+        transport_mode: TransportModeEnum,
         limit: int = 20,
-        transport_mode: Optional[str] = None,
     ) -> List[Location]:
         """
         Search locations by keywords, municipality, and name with relevance ordering.
@@ -37,7 +37,7 @@ class LocationRepository:
         collations.
 
         Results are prioritized by:
-        1. Switzerland (countrycode == "CH") first
+        1. Switzerland (country_code == "CH") first
         2. For flights (transport_mode='plane'): large_airport first
         3. Then by relevance (exact match, starts with, contains)
 
@@ -50,7 +50,6 @@ class LocationRepository:
             query: Search query string
             limit: Maximum number of results to return (default: 20)
             transport_mode: Filter by transport mode ('train' or 'plane').
-            If None, returns both types.
 
         Returns:
             List of Location objects ordered by country (Switzerland first),
@@ -146,12 +145,12 @@ class LocationRepository:
 
         # Prioritize Switzerland
         switzerland_priority = case(
-            (col(Location.countrycode) == "CH", 1),
+            (col(Location.country_code) == "CH", 1),
             else_=2,
         )
 
         # For flights, prioritize large_airport first
-        if transport_mode == "plane":
+        if transport_mode == TransportModeEnum.plane.value:
             airport_priority = case(
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,

@@ -12,11 +12,12 @@ from sqlmodel import select
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionStatus
 from app.models.location import Location
 from app.models.user import User
+from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
 
@@ -156,7 +157,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     "destination_code": record.get(
                         "IN_Segment destination airport code"
                     ),
-                    "class_": self._normalize_class(
+                    "cabin_class": self._normalize_class(
                         record.get("IN_Segment class") or ""
                     ),
                     "supplier": record.get("IN_Supplier"),
@@ -191,14 +192,17 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
     async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
         result = []
         async with SessionLocal() as db:
-            professional_travel_service = ProfessionalTravelService(db)
-            # data-entries bulk insert
-            result = await professional_travel_service.bulk_insert_travel_entries(data)
-            # emissions bulk insert
-            # professional_travel_emission_service = ProfessionalEmissionService(db)
-            # await professional_travel_emission_service.bulk_insert_travel_emissions(
-            #     data=Trave
-            # )
+            service = DataEntryService(db)
+            entries = [
+                DataEntry(
+                    carbon_report_module_id=item.get("carbon_report_module_id"),
+                    data_entry_type_id=DataEntryTypeEnum.trips.value,
+                    data=item,
+                )
+                for item in data
+            ]
+            result = await service.bulk_create(entries)
+            await db.commit()
         return {"inserted": len(result)}
 
     def _generate_jwt(self) -> str:

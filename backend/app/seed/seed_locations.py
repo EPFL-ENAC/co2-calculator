@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.location import Location
+from app.models.location import Location, TransportModeEnum
 
 logger = get_logger(__name__)
 
@@ -53,14 +53,17 @@ async def seed_locations(session: AsyncSession) -> None:
             try:
                 # Parse transport mode
                 transport_mode_raw = row.get("transport_mode", "").strip().lower()
-                if transport_mode_raw not in ("plane", "train"):
+                if transport_mode_raw not in (
+                    TransportModeEnum.plane.name,
+                    TransportModeEnum.train.name,
+                ):
                     logger.warning(
                         f"Row {row_num}: Invalid transport mode "
                         f"'{transport_mode_raw}', skipping"
                     )
                     skipped += 1
                     continue
-                transport_mode = transport_mode_raw
+                transport_mode = TransportModeEnum[transport_mode_raw]
 
                 # Parse name
                 name = row.get("name", "").strip()
@@ -98,7 +101,7 @@ async def seed_locations(session: AsyncSession) -> None:
 
                 # Parse optional fields (convert empty strings to None)
                 continent = row.get("continent", "").strip() or None
-                countrycode = row.get("countrycode", "").strip() or None
+                country_code = row.get("country_code", "").strip() or None
                 municipality = row.get("municipality", "").strip() or None
                 iata_code = row.get("iata_code", "").strip() or None
                 keywords = row.get("keywords", "").strip() or None
@@ -116,8 +119,8 @@ async def seed_locations(session: AsyncSession) -> None:
                     if existing_location.continent != continent:
                         existing_location.continent = continent
                         needs_update = True
-                    if existing_location.countrycode != countrycode:
-                        existing_location.countrycode = countrycode
+                    if existing_location.country_code != country_code:
+                        existing_location.country_code = country_code
                         needs_update = True
                     if existing_location.municipality != municipality:
                         existing_location.municipality = municipality
@@ -141,7 +144,7 @@ async def seed_locations(session: AsyncSession) -> None:
                         latitude=latitude,
                         longitude=longitude,
                         continent=continent,
-                        countrycode=countrycode,
+                        country_code=country_code,
                         municipality=municipality,
                         iata_code=iata_code,
                         keywords=keywords,

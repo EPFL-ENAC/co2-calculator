@@ -1,9 +1,11 @@
 """Data entry repository for database operations."""
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
+from sqlalchemy import select as sa_select
+from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -11,6 +13,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -235,8 +238,17 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        statement = (
-            select(DataEntry, DataEntryEmission, Factor)
+        is_trips = data_entry_type_id == DataEntryTypeEnum.trips.value
+
+        # Build query based on entry type
+        entities: list[Any] = [DataEntry, DataEntryEmission, Factor]
+        OriginLocation = aliased(Location)
+        DestLocation = aliased(Location)
+
+        if is_trips:
+            entities.extend([OriginLocation, DestLocation])
+        statement: Select[Any] = (
+            sa_select(*entities)
             .join(
                 DataEntryEmission,
                 col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
@@ -247,10 +259,23 @@ class DataEntryRepository:
                 col(DataEntryEmission.primary_factor_id) == col(Factor.id),
                 isouter=True,
             )
-            .where(
-                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+
+        if is_trips:
+            statement = statement.join(
+                OriginLocation,
+                DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,
+                isouter=True,
+            ).join(
+                DestLocation,
+                DataEntry.data["destination_location_id"].as_integer()
+                == DestLocation.id,
+                isouter=True,
             )
+
+        statement = statement.where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
 
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
@@ -282,13 +307,30 @@ class DataEntryRepository:
 
         items: list[BaseModel] = []
 
-        for data_entry, data_entry_emission, primary_factor in rows:
+        for row in rows:
+            # Unpack based on query shape
+            if is_trips:
+                (
+                    data_entry,
+                    data_entry_emission,
+                    primary_factor,
+                    origin_loc,
+                    dest_loc,
+                ) = row
+            else:
+                data_entry, data_entry_emission, primary_factor = row
+                origin_loc, dest_loc = None, None
+
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
             kg_co2eq = None
+            emission_meta = {}
             if data_entry_emission is not None:
                 kg_co2eq = data_entry_emission.kg_co2eq
+                # Extract meta fields (e.g., distance_km for travel)
+                if data_entry_emission.meta:
+                    emission_meta = data_entry_emission.meta
             # If primary_factor is None, try to fetch it
             # from DataEntry.data["primary_factor_id"]
             if primary_factor is None:
@@ -300,6 +342,9 @@ class DataEntryRepository:
 
             data_entry.data = {
                 **data_entry.data,
+                **emission_meta,
+                **({"origin": origin_loc.name} if origin_loc else {}),
+                **({"destination": dest_loc.name} if dest_loc else {}),
                 "kg_co2eq": kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
@@ -308,6 +353,7 @@ class DataEntryRepository:
                 if primary_factor
                 else {},
             }
+
             items.append(handler.to_response(data_entry))
 
         response = SubmoduleResponse(

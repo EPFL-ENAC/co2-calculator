@@ -10,7 +10,7 @@ class EmissionTypeEnum(int, Enum):
     waste = 4
     transport = 5
     grey_energy = 6
-    flight = 7
+    plane = 7
     train = 8
     car = 9
     # External Clouds:

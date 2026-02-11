@@ -108,9 +108,9 @@ async def get_data_filters(
 
     Example:
         ```python
-        filters = await get_data_filters(user, "headcount", "list")
+        filters = await get_data_filters(user, "equipment", "list")
         # Use filters in repository query
-        headcounts = await headcount_repo.get_headcounts(db, filters=filters)
+        entries = await data_entry_repo.get_entries(db, filters=filters)
         ```
     """
     input_data = _build_data_filter_input(user, resource_type, action)

@@ -95,17 +95,13 @@ async def seed_power_factors(session: AsyncSession) -> None:
         reader = csv.DictReader(f)
         for row in reader:
             # Track submodule and sub-category (they persist across rows when empty)
-            submodule_val = row.get("Submodule", "").strip()
+            submodule_val = row.get("data_entry_type", "").strip()
             if submodule_val:
                 current_submodule = submodule_val
 
-            # sub_category_val = row.get("Sub-category", "").strip()
-            # if sub_category_val:
-            #     current_sub_category = sub_category_val
-
             # Get class and sub-class
-            equipment_class = row.get("Class", "").strip()
-            sub_class = row.get("Sub-class", "").strip()
+            equipment_class = row.get("equipment_class", "").strip()
+            sub_class = row.get("sub_class", "").strip()
 
             # Skip if no class defined
             if not equipment_class:
@@ -113,12 +109,12 @@ async def seed_power_factors(session: AsyncSession) -> None:
 
             # Parse power values
             try:
-                active_power = float(
-                    row.get("Average power --Active mode (W)", "0") or "0"
-                )
-                standby_power = float(
-                    row.get("Average power --Stand-by mode (W)", "0") or "0"
-                )
+                active_power_raw = row.get("active_power_w", None)
+                standby_power_raw = row.get("standby_power_w", None)
+                if active_power_raw is None or standby_power_raw is None:
+                    raise ValueError("Missing power values")
+                active_power = float(active_power_raw)
+                standby_power = float(standby_power_raw)
             except ValueError:
                 logger.warning(f"Invalid power values in row: {row}")
                 continue
@@ -126,9 +122,11 @@ async def seed_power_factors(session: AsyncSession) -> None:
             power_factor = Factor(
                 emission_type_id=EmissionTypeEnum.equipment,
                 is_conversion=False,
-                data_entry_type_id=DataEntryTypeEnum[
-                    current_submodule or "other"
-                ].value,
+                data_entry_type_id=(
+                    DataEntryTypeEnum[current_submodule].value
+                    if current_submodule
+                    else DataEntryTypeEnum["other"].value
+                ),
                 classification={
                     "class": equipment_class,
                     "kind": equipment_class,

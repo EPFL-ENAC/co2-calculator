@@ -1,14 +1,24 @@
 """Location models for train stations and airports."""
 
+from enum import Enum
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
-from .headcount import AuditMixin
-
 # ==========================================
 # 1. BASE MODEL
 # ==========================================
+
+
+# enum - used in other files
+class TransportModeEnum(str, Enum):
+    """
+    Module types for travel data entries.
+    Used to differentiate between plane and train data entries.
+    """
+
+    plane = "plane"
+    train = "train"
 
 
 class LocationBase(SQLModel):
@@ -17,7 +27,7 @@ class LocationBase(SQLModel):
     Stores train stations and airports with their geographic coordinates.
     """
 
-    transport_mode: str = Field(
+    transport_mode: TransportModeEnum = Field(
         nullable=False,
         index=True,
         description="Transport mode: 'plane' or 'train'",
@@ -46,7 +56,7 @@ class LocationBase(SQLModel):
         index=True,
         description="Continent (e.g., 'EU', 'NA', 'SA')",
     )
-    countrycode: Optional[str] = Field(
+    country_code: Optional[str] = Field(
         default=None,
         max_length=2,
         index=True,
@@ -76,7 +86,7 @@ class LocationBase(SQLModel):
 # ==========================================
 
 
-class Location(LocationBase, AuditMixin, table=True):
+class Location(LocationBase, table=True):
     """
     Database table for train stations and airports.
     Inherits Base fields + Audit fields + Adds ID.
@@ -93,7 +103,7 @@ class Location(LocationBase, AuditMixin, table=True):
             f"mode={self.transport_mode} "
             f"name={self.name} "
             f"({self.latitude}, {self.longitude}) "
-            f"country={self.countrycode}>"
+            f"country={self.country_code}>"
         )
 
 
@@ -102,7 +112,7 @@ class Location(LocationBase, AuditMixin, table=True):
 # ==========================================
 
 
-class LocationRead(LocationBase, AuditMixin):
+class LocationRead(LocationBase):
     """
     Response schema for GET requests.
     Returns Data + ID + Audit timestamps.

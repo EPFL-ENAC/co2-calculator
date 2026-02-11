@@ -28,7 +28,6 @@ class ProviderFactory:
         type[DataIngestionProvider],
     ] = {
         # Data Entries providers
-        # ("travel", "tableau_api", "data_entries"): ProfessionalTravelApiProvider,
         **{
             (
                 module_type,
@@ -44,6 +43,7 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             None,
         ): ProfessionalTravelApiProvider,
+        # TODO: Add more providers as needed
         # ("travel", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,

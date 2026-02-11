@@ -11,9 +11,7 @@ from app.api.v1 import (
     data_sync,
     factors,
     files,
-    headcounts,
     locations,
-    professional_travel,
     unit_results,
     units,
     users,
@@ -34,14 +32,8 @@ api_router.include_router(
 api_router.include_router(
     carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
 )
-api_router.include_router(
-    professional_travel.router,
-    prefix="/professional-travel",
-    tags=["professional-travel"],
-)
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
-api_router.include_router(headcounts.router, prefix="/headcounts", tags=["headcounts"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
 )

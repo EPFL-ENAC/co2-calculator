@@ -48,12 +48,12 @@
                 <q-item-section>
                   <q-item-label>{{ scope.opt.name }}</q-item-label>
                   <q-item-label
-                    v-if="scope.opt.iata_code || scope.opt.countrycode"
+                    v-if="scope.opt.iata_code || scope.opt.country_code"
                     caption
                     class="text-grey"
                   >
                     {{
-                      [scope.opt.iata_code, scope.opt.countrycode]
+                      [scope.opt.iata_code, scope.opt.country_code]
                         .filter(Boolean)
                         .join(', ')
                     }}
@@ -119,12 +119,12 @@
                 <q-item-section>
                   <q-item-label>{{ scope.opt.name }}</q-item-label>
                   <q-item-label
-                    v-if="scope.opt.iata_code || scope.opt.countrycode"
+                    v-if="scope.opt.iata_code || scope.opt.country_code"
                     caption
                     class="text-grey"
                   >
                     {{
-                      [scope.opt.iata_code, scope.opt.countrycode]
+                      [scope.opt.iata_code, scope.opt.country_code]
                         .filter(Boolean)
                         .join(', ')
                     }}
@@ -193,7 +193,7 @@ const props = withDefaults(
       from?: string;
       to?: string;
     };
-    transportMode?: 'flight' | 'train';
+    transportMode?: 'plane' | 'train';
     disable?: boolean;
   }>(),
   {
