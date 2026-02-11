@@ -66,8 +66,9 @@ async def run_sync_task(
             logger.info("Sync completed successfully ")
         except Exception as e:
             logger.error(f"Sync failed for job ID {job.id}: {str(e)}")
-            # data_session auto-rolls back (context manager handles it)
-            # but job updates are preserved because they commit immediately
+            # Explicitly rollback data session to ensure no partial writes
+            await data_session.rollback()
+            # Job updates are preserved because they commit immediately
             await provider._update_job(
                 status_code=IngestionStatus.FAILED,
                 status_message=str(e),

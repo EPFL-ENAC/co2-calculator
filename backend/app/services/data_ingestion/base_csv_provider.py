@@ -335,7 +335,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         )
 
         # Get unit provider based on user's provider type
-        unit_provider = get_unit_provider(provider_type=job_user_provider)
+        unit_provider = get_unit_provider(
+            provider_type=job_user_provider, db_session=self.data_session
+        )
 
         # Process units in batches
         units_fetched = 0
@@ -655,14 +657,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     batch = []
                     # Update job progress every 5 batches
                     if stats["batches_processed"] % 5 == 0:
-                        await self._update_job_and_sync(
-                            repo=self.repo,
-                            job_id=self.job_id,
+                        await self._update_job(
                             status_message=f"Processing: {stats['rows_processed']}",
                             status_code=IngestionStatus.IN_PROGRESS,
-                            metadata=dict(stats),
+                            extra_metadata=dict(stats),
                         )
-                        await self.data_session.flush()
 
             # Finalize: process remaining batch, move file, update job
             return await self._finalize_and_commit(
@@ -672,12 +671,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         except Exception as e:
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
+            await self._update_job(
                 status_message=f"Processing failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
-                metadata={"error": str(e)},
+                extra_metadata={"error": str(e)},
             )
             raise
 
@@ -688,15 +685,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         Setup phase: move file, download CSV, load factors, validate headers.
         Returns context dict with all data needed for row processing.
         """
+        # Load job from database if not already loaded (needed for module_type_id, etc.)
+        if not self.job and self.job_id:
+            self.job = await self.repo.get_job_by_id(self.job_id)
+            if not self.job:
+                raise ValueError(f"Job {self.job_id} not found")
+
         # Update job status to PROCESSING
-        await self._update_job_and_sync(
-            repo=self.repo,
-            job_id=self.job_id,
+        await self._update_job(
             status_message="Starting CSV processing",
             status_code=IngestionStatus.IN_PROGRESS,
-            metadata={},
+            extra_metadata={},
         )
-        await self.data_session.flush()
 
         # Move file from source path to processing/
         tmp_path = self.source_file_path
@@ -734,14 +734,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         except ValueError as validation_error:
             error_message = str(validation_error)
             logger.error(f"CSV validation failed: {error_message}")
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
+            await self._update_job(
                 status_message=f"Column validation failed: {error_message}",
                 status_code=IngestionStatus.FAILED,
-                metadata={"validation_error": error_message},
+                extra_metadata={"validation_error": error_message},
             )
-            await self.data_session.flush()
             raise
 
         return {
@@ -908,7 +905,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Flush all changes
         await self.data_session.flush()
         logger.info(
-            "All changes committed successfully",
+            "All changes flushed successfully",
             extra={"job_id": self.job_id, "length": stats["rows_processed"]},
         )
 
@@ -919,14 +916,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
-        await self._update_job_and_sync(
-            repo=self.repo,
-            job_id=self.job_id,
+        await self._update_job(
             status_message=status_message,
             status_code=IngestionStatus.COMPLETED,
-            metadata=stats,
+            extra_metadata=stats,
         )
-        await self.data_session.flush()
 
         return {
             "status": "success",

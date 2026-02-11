@@ -101,13 +101,24 @@ class ProviderFactory:
         Determines entity_type from config (carbon_report_module_id presence)
         and uses it to select the correct provider class.
         """
+        # Safely extract and validate entity_type from config
+        entity_type_value = config.get("entity_type")
+        if not entity_type_value:
+            return None
+
+        try:
+            entity_type = EntityType(entity_type_value)
+        except (ValueError, KeyError):
+            # Invalid entity_type value - return None to signal configuration error
+            return None
+
         # Fetch the provider class using the entity_type directly from config
         provider_class = cls.PROVIDERS.get(
             (
                 module_type_id,
                 ingestion_method,
                 target_type,
-                EntityType(config.get("entity_type", "")),
+                entity_type,
             )
         )
 

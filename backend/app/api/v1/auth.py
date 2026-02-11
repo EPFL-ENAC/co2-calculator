@@ -326,7 +326,7 @@ async def auth_callback(
             )
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=UserRead, response_model_exclude_none=True)
 async def get_me(
     auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
