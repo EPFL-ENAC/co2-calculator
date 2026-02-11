@@ -26,8 +26,13 @@ from app.services.data_ingestion.data_entries_csv_provider import (
 logger = get_logger(__name__)
 
 # Columns the user provides in the travel CSV
-TRAVEL_CSV_REQUIRED_COLUMNS = {"transport_mode", "from", "to", "traveler_name"}
-TRAVEL_CSV_OPTIONAL_COLUMNS = {"departure_date", "sciper", "number_of_trips"}
+TRAVEL_CSV_REQUIRED_COLUMNS = {"transport_mode", "from", "to"}
+TRAVEL_CSV_OPTIONAL_COLUMNS = {
+    "departure_date",
+    "sciper",
+    "number_of_trips",
+    "traveler_name",
+}
 TRAVEL_CSV_ALL_COLUMNS = TRAVEL_CSV_REQUIRED_COLUMNS | TRAVEL_CSV_OPTIONAL_COLUMNS
 
 
@@ -53,7 +58,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
         )
         result = await self.session.execute(stmt)
         cache = {row.iata_code.upper(): row.id for row in result.all()}
-        logger.info(f"Built IATA cache with {len(cache)} entries")
+        logger.info("Built IATA cache with %d entries", len(cache))
         return cache
 
     async def _setup_and_validate(self) -> Dict[str, Any]:
@@ -98,7 +103,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
 
         tmp_path = self.source_file_path
         if not tmp_path:
-            raise ValueError("Missing file_path in config")
+            raise ValueError("Missing source_file_path in config")
         filename = tmp_path.split("/")[-1]
         processing_path = f"processing/{self.job_id}/{filename}"
 
@@ -203,9 +208,13 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
         }
 
         # Map traveler_name (optional)
+        # Map traveler_name (required)
         traveler_name = (row.get("traveler_name") or "").strip()
-        if traveler_name:
-            transformed_row["traveler_name"] = traveler_name
+        if not traveler_name:
+            error_msg = "Missing required value for 'traveler_name'"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, error_msg, None
+        transformed_row["traveler_name"] = traveler_name
 
         # Map sciper (optional → traveler_id)
         sciper = (row.get("sciper") or "").strip()
@@ -232,7 +241,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
                 "number_of_trips",
             ):
                 val = data_entry.data.get(key)
-                if isinstance(val, float):
+                if isinstance(val, float) and val.is_integer():
                     data_entry.data[key] = int(val)
 
         return data_entry, err, factor
