@@ -135,6 +135,7 @@ class TravelCalculationService:
         # 2. Determine country factor to use
         # Rule: Use CH factor only if BOTH origin AND destination are in CH
         # Otherwise, prefer the non-CH country's factor (or RoW as fallback)
+        # See issue #357 for the rationale behind this country selection logic
         origin_country = origin_station.countrycode
         dest_country = dest_station.countrycode
 
