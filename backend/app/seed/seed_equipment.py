@@ -109,9 +109,8 @@ async def seed_equipment(session: AsyncSession) -> None:
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader, start=1):
-            name = row.get("Name 1", "").strip()
-            category = row.get("Category", "").strip()
-            equipment_class = row.get("Class", "").strip()
+            name = row.get("name", "").strip()
+            equipment_class = row.get("equipment_class", "").strip()
             # Find all matching power factors for this class
             all_matches = [
                 pf
@@ -126,7 +125,7 @@ async def seed_equipment(session: AsyncSession) -> None:
             else:
                 equipment_subclass = None
 
-            if not name or not category or not equipment_class:
+            if not name or not equipment_class:
                 logger.warning(f"Skipping row {idx} with missing data: {row}")
                 continue
 
@@ -367,8 +366,6 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 "annual_kwh": emission_result["annual_kwh"],
                 "calculation_inputs": equipment.data,
                 "emission_factor_id": emission_factor.id,
-                # "power_factor_id": emission_result["power_factor_id"],
-                # "formula_version": emission_result["formula_version"],
             },
             formula_version=versionapi,
             computed_at=datetime.now(timezone.utc),

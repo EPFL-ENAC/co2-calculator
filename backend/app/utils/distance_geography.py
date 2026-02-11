@@ -4,9 +4,15 @@ This module provides functions for calculating distances between locations
 and determining travel categories based on distance.
 """
 
+from typing import Optional
+
 from haversine import Unit, haversine
 
+from app.models.factor import Factor
 from app.models.location import Location
+
+FLIGHT_APPROACH_KM: int = 95
+TRAIN_ROUTING_FACTOR: float = 1.2
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
@@ -66,7 +72,7 @@ def calculate_plane_distance(origin_airport: Location, dest_airport: Location) -
         dest_airport.longitude,
     )
     # Add 95 km for airport approaches, routing, and taxiing
-    adjusted_distance = great_circle_distance + 95.0
+    adjusted_distance = great_circle_distance + FLIGHT_APPROACH_KM
     return round(adjusted_distance)
 
 
@@ -91,7 +97,7 @@ def calculate_train_distance(origin_station: Location, dest_station: Location) -
         dest_station.longitude,
     )
     # Multiply by 1.2 to account for track routing
-    adjusted_distance = great_circle_distance * 1.2
+    adjusted_distance = great_circle_distance * TRAIN_ROUTING_FACTOR
     return round(adjusted_distance)
 
 
@@ -120,3 +126,71 @@ def get_haul_category(distance_km: float) -> str:
         return "medium_haul"
     else:
         return "long_haul"
+
+
+def resolve_flight_factor(
+    origin: Location,
+    dest: Location,
+    factors: list[Factor],
+) -> tuple[int, Optional[Factor]]:
+    """
+    Compute flight distance and select the matching factor by haul category.
+
+    Distance is an intermediary value: it determines the haul category,
+    which in turn selects the correct factor from the candidates.
+
+    Args:
+        origin: Origin airport Location
+        dest: Destination airport Location
+        factors: Candidate flight factors (pre-filtered by kind='plane')
+
+    Returns:
+        Tuple of (distance_km, matched factor or None)
+    """
+    distance_km = calculate_plane_distance(origin, dest)
+    category = get_haul_category(distance_km)
+    factor = next(
+        (f for f in factors if f.classification.get("category") == category),
+        None,
+    )
+    return distance_km, factor
+
+
+def resolve_train_factor(
+    origin: Location,
+    dest: Location,
+    factors: list[Factor],
+) -> tuple[int, Optional[Factor]]:
+    """
+    Compute train distance and select the matching factor by destination country.
+
+    Distance is an intermediary value used alongside the destination's
+    country code to select the correct factor. Falls back to 'RoW' if
+    no country-specific factor is found.
+
+    Args:
+        origin: Origin station Location
+        dest: Destination station Location
+        factors: Candidate train factors (pre-filtered by kind='train')
+
+    Returns:
+        Tuple of (distance_km, matched factor or None)
+    """
+    DEFAULT_COUNTRY_CODE = "RoW"
+    distance_km = calculate_train_distance(origin, dest)
+    dest_country = dest.country_code or DEFAULT_COUNTRY_CODE
+    factor = next(
+        (f for f in factors if f.classification.get("country_code") == dest_country),
+        None,
+    )
+    if not factor:
+        # Fallback to RoW
+        factor = next(
+            (
+                f
+                for f in factors
+                if f.classification.get("country_code") == DEFAULT_COUNTRY_CODE
+            ),
+            None,
+        )
+    return distance_km, factor

@@ -165,7 +165,7 @@ export default {
     en: 'Train',
     fr: 'Train',
   },
-  flight: {
+  plane: {
     en: 'Flight',
     fr: 'Vol',
   },

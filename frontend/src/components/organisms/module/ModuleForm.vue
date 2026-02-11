@@ -165,7 +165,7 @@
                   :error-message="errors.origin || errors.destination || ''"
                   :transport-mode="
                     !rowData && form.transport_mode
-                      ? (form.transport_mode as 'flight' | 'train')
+                      ? (form.transport_mode as 'plane' | 'train')
                       : undefined
                   "
                   :disable="inp.disable"
@@ -630,7 +630,7 @@ watch(
     form.distance_km = calculateDistance(
       form.origin_location_id as number,
       form.destination_location_id as number,
-      form.transport_mode as 'flight' | 'train',
+      form.transport_mode as 'plane' | 'train',
     );
   },
 );
@@ -776,13 +776,6 @@ function onSubmit() {
     payload.destination_location_id = form.destination_location_id as number;
   }
 
-  // Backend expects 'class_' (with underscore) for Python compatibility
-  // Rename 'class' to 'class_' before sending to backend
-  if ('class' in payload) {
-    payload.class_ = payload.class;
-    delete payload.class;
-  }
-
   emit('submit', payload);
   reset();
 }
@@ -845,7 +838,7 @@ async function handleFromLocationSelected(location: {
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'flight' | 'train',
+    form.transport_mode as 'plane' | 'train',
   );
 }
 
@@ -859,7 +852,7 @@ async function handleToLocationSelected(location: {
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'flight' | 'train',
+    form.transport_mode as 'plane' | 'train',
   );
 }
 
@@ -873,7 +866,7 @@ async function handleSwapLocations() {
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'flight' | 'train',
+    form.transport_mode as 'plane' | 'train',
   );
 }
 

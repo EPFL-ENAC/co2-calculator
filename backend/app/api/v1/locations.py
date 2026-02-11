@@ -2,13 +2,13 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.location import LocationRead
+from app.models.location import LocationRead, TransportModeEnum
 from app.models.user import User
 from app.services.location_service import LocationService
 
@@ -29,7 +29,7 @@ async def search_locations(
         le=20,
         description="Maximum number of results to return (default: 5, max: 20)",
     ),
-    transport_mode: Optional[str] = Query(
+    transport_mode: Optional[TransportModeEnum] = Query(
         None,
         description=(
             "Filter by transport mode: 'train' or 'plane'. "
@@ -58,6 +58,19 @@ async def search_locations(
     Returns:
         List of LocationRead DTOs ordered by relevance
     """
+    if transport_mode is None:
+        logger.warning(
+            "Search locations without transport_mode filter",
+            extra={
+                "user_id": current_user.id,
+                "query": sanitize(query),
+                "limit": limit,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="transport_mode must be either 'train' or 'plane'",
+        )
     service = LocationService(db)
     locations = await service.search_locations(
         query=query,
@@ -83,9 +96,9 @@ async def search_locations(
 async def calculate_distance(
     origin_location_id: int = Query(..., description="Origin location ID"),
     destination_location_id: int = Query(..., description="Destination location ID"),
-    transport_mode: str = Query(
+    transport_mode: TransportModeEnum = Query(
         ...,
-        description="Transport mode: 'flight' (for plane) or 'train'",
+        description="Transport mode: 'plane' or 'train'",
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -99,7 +112,7 @@ async def calculate_distance(
     Args:
         origin_location_id: Origin location ID
         destination_location_id: Destination location ID
-        transport_mode: 'flight' or 'train'
+        transport_mode: 'plane' or 'train'
         db: Database session
         current_user: Authenticated user
 

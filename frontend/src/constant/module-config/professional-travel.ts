@@ -12,7 +12,7 @@ const moduleFields: ModuleField[] = [
     ratio: '2/12',
     options: [
       { value: 'train', label: 'Train' },
-      { value: 'flight', label: 'Flight' },
+      { value: 'plane', label: 'Flight' },
     ],
     editableInline: false,
   },
@@ -121,7 +121,7 @@ const moduleFields: ModuleField[] = [
     },
   },
   {
-    id: 'class',
+    id: 'cabin_class',
     labelKey: `${MODULES.ProfessionalTravel}-field-class`,
     type: 'select',
     required: true,
@@ -147,9 +147,9 @@ const moduleFields: ModuleField[] = [
         when: { fieldId: 'transport_mode', value: 'train' },
         showOptions: ['class_2', 'class_1'],
       },
-      // Show plane classes when transport_mode is 'flight'
+      // Show plane classes when transport_mode is 'plane'
       {
-        when: { fieldId: 'transport_mode', value: 'flight' },
+        when: { fieldId: 'transport_mode', value: 'plane' },
         showOptions: ['eco', 'eco_plus', 'business', 'first'],
       },
     ],
