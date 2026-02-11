@@ -9,7 +9,6 @@ from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.location import TransportModeEnum
 
-
 FACTOR_META_FIELDS = {
     "id",
     "classification",

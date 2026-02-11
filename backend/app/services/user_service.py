@@ -110,9 +110,11 @@ class UserService:
             provider: The user provider type (e.g., UserProvider.ACCRED)
             provider_unit_codes: List of unit codes to sync
             skip_principal_user_for_provider_code: Optional - skip upserting
-                                                 the principal user if it matches
-                                                 this provider_code. Used to avoid
-                                                 upserting the current user.
+                                                 the principal user
+                                                 if it matches this
+                                                 provider_code.
+                                                 Used to avoid upserting the
+                                                 current user.
         """
         # Fetch full unit details from provider
         unit_provider = get_unit_provider(provider_type=provider)

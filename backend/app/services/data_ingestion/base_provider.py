@@ -193,7 +193,8 @@ class DataIngestionProvider(ABC):
     ) -> Optional[DataIngestionJob]:
         """
         Update ingestion job and keep self.job in sync.
-        Use when working with an existing repository/session.
+        Use when working with an existing repository/session
+        (e.g., in self.data_session).
         Returns the updated job object.
         """
         updated_job = await repo.update_ingestion_job(
