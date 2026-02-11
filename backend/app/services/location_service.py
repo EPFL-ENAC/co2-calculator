@@ -85,6 +85,7 @@ class LocationService:
         origin_location_id: int,
         destination_location_id: int,
         transport_mode: TransportModeEnum,
+        number_of_trips: int = 1,
     ) -> dict[str, float]:
         """
         Calculate distance between two locations based on transport mode.
@@ -92,10 +93,13 @@ class LocationService:
         For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
         For trains: Haversine distance × 1.2 (track routing, curves, detours)
 
+        Total distance = per-trip distance × number_of_trips.
+
         Args:
             origin_location_id: Origin location ID
             destination_location_id: Destination location ID
             transport_mode: 'plane' or 'train'
+            number_of_trips: Number of trips (default: 1)
 
         Returns:
             Dict with distance_km in kilometers
@@ -165,7 +169,7 @@ class LocationService:
                 detail=f"Distance calculation failed: {str(e)}",
             )
 
-        return {"distance_km": round(distance_km, 2)}
+        return {"distance_km": round(distance_km * number_of_trips, 2)}
 
     def _validate_and_correct_coordinates(
         self, location: Location, location_type: str

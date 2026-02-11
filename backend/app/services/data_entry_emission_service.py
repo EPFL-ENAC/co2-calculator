@@ -414,7 +414,7 @@ async def compute_trips(
         logger.warning(f"Unknown transport_mode: {transport_mode}")
         return response
 
-    response["distance_km"] = distance_km
+    response["distance_km"] = distance_km * number_of_trips
     response["kg_co2eq"] = result.get("kg_co2eq")
     return response
 
