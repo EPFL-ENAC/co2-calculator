@@ -399,8 +399,9 @@ async def compute_trips(
         if not distance_km or not matched_factor:
             logger.warning("Could not resolve flight distance or factor")
             return response
+        distance_km = distance_km * number_of_trips
         factor_values = matched_factor.values or {}
-        result = compute_travel_plane(distance_km, number_of_trips, factor_values)
+        result = compute_travel_plane(distance_km, factor_values)
     elif transport_mode == TransportModeEnum.train:
         distance_km, matched_factor = resolve_train_factor(
             origin_loc, dest_loc, factors
@@ -408,30 +409,35 @@ async def compute_trips(
         if not distance_km or not matched_factor:
             logger.warning("Could not resolve train distance or factor")
             return response
+        distance_km = distance_km * number_of_trips
         factor_values = matched_factor.values or {}
-        result = compute_travel_train(distance_km, number_of_trips, factor_values)
+        result = compute_travel_train(distance_km, factor_values)
     else:
         logger.warning(f"Unknown transport_mode: {transport_mode}")
         return response
 
-    response["distance_km"] = distance_km * number_of_trips
+    response["distance_km"] = distance_km
     response["kg_co2eq"] = result.get("kg_co2eq")
     return response
 
 
 def compute_travel_plane(
     distance_km: float,
-    number_of_trips: int,
     factor_values: dict,
 ) -> dict:
-    """Compute emissions for plane travel."""
+    """Compute emissions for plane travel.
+
+    Args:
+        distance_km: Total distance.
+        factor_values: Factor values containing impact_score and rfi_adjustment.
+    """
     impact_score = factor_values.get("impact_score", 0)
     rfi_adjustment = factor_values.get("rfi_adjustment", 1)
-    kg_co2eq = distance_km * impact_score * rfi_adjustment * number_of_trips
+    kg_co2eq = distance_km * impact_score * rfi_adjustment
 
     logger.debug(
         f"Flight: {distance_km}km × {impact_score} × {rfi_adjustment} "
-        f"× {number_of_trips} = {kg_co2eq:.2f} kg CO2eq"
+        f"= {kg_co2eq:.2f} kg CO2eq"
     )
 
     return {"kg_co2eq": kg_co2eq}
@@ -439,16 +445,17 @@ def compute_travel_plane(
 
 def compute_travel_train(
     distance_km: float,
-    number_of_trips: int,
     factor_values: dict,
 ) -> dict:
-    """Compute emissions for train travel."""
-    impact_score = factor_values.get("impact_score", 0)
-    kg_co2eq = distance_km * impact_score * number_of_trips
+    """Compute emissions for train travel.
 
-    logger.debug(
-        f"Train: {distance_km}km × {impact_score} "
-        f"× {number_of_trips} = {kg_co2eq:.2f} kg CO2eq"
-    )
+    Args:
+        distance_km: Total distance.
+        factor_values: Factor values containing impact_score.
+    """
+    impact_score = factor_values.get("impact_score", 0)
+    kg_co2eq = distance_km * impact_score
+
+    logger.debug(f"Train: {distance_km}km × {impact_score} = {kg_co2eq:.2f} kg CO2eq")
 
     return {"kg_co2eq": kg_co2eq}

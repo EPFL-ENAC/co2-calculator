@@ -169,7 +169,7 @@ class LocationService:
                 detail=f"Distance calculation failed: {str(e)}",
             )
 
-        return {"distance_km": round(distance_km * number_of_trips, 2)}
+        return {"distance_km": distance_km * number_of_trips}
 
     def _validate_and_correct_coordinates(
         self, location: Location, location_type: str
