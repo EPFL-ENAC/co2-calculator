@@ -10,6 +10,7 @@
         no-caps
         size="sm"
         class="text-weight-medium"
+        :disable="isDisabled"
         @click="onUploadCsv"
       />
       <q-btn
@@ -309,7 +310,7 @@ import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
@@ -324,7 +325,7 @@ import type {
 import { enumSubmodule } from 'src/constant/modules';
 
 import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
-
+import { MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
 function getNumericRules(col: TableViewColumn) {
@@ -512,6 +513,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
 const moduleStore = useModuleStore();
+const timelineStore = useTimelineStore();
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
@@ -527,8 +529,11 @@ const canEdit = computed(() => {
   );
 });
 
-// Combine prop disable with permission check
-const isDisabled = computed(() => props.disable || !canEdit.value);
+const isDisabled = computed(
+  () =>
+    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+    !canEdit.value,
+);
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
