@@ -311,7 +311,6 @@ class ProfessionalTravelHandlerResponse(DepartureDateMixin, DataEntryResponseGen
     number_of_trips: int = 1
     is_round_trip: bool = False
     trip_direction: Optional[str] = None  # "outbound" or "return"
-    unit_id: int
     origin: Optional[str] = None
     destination: Optional[str] = None
     distance_km: Optional[float] = None
@@ -370,7 +369,6 @@ class ProfessionalTravelHandlerCreate(DepartureDateMixin, DataEntryCreate):
     number_of_trips: int = 1
     is_round_trip: bool = False
     trip_direction: Optional[str] = None  # "outbound" or "return"
-    unit_id: int
 
 
 class EquipmentHandlerCreate(DataEntryCreate):

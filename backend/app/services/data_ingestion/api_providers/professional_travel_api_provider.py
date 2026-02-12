@@ -175,7 +175,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     "origin_location_id": origin_location_id,
                     "destination_location_id": destination_location_id,
                     "transport_mode": record.get("TRANSPORT_TYPE"),
-                    "unit_id": "10208",  # TODO: map from your context or record
                     "year": self.config["year"],
                 }
                 transformed.append(entry)

@@ -300,6 +300,18 @@ export default {
     en: 'CSV sync completed.',
     fr: 'Synchronisation CSV terminée.',
   },
+  csv_sync_completed_with_errors: {
+    en: 'CSV sync completed with {count} row error(s).',
+    fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
+  },
+  csv_sync_row_error: {
+    en: 'Row {row}: {reason}',
+    fr: 'Ligne {row} : {reason}',
+  },
+  csv_sync_and_more_errors: {
+    en: '... and {count} more error(s)',
+    fr: '... et {count} autre(s) erreur(s)',
+  },
   csv_sync_failed: {
     en: 'CSV sync failed. Please check the logs for details.',
     fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',

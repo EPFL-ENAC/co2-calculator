@@ -240,6 +240,7 @@ async def job_stream(
                     "year": job.year,
                     "status": job.status,
                     "status_message": job.status_message,
+                    "meta": job.meta if job.meta else None,
                     "updated_at": job.updated_at.isoformat()
                     if job.updated_at
                     else None,
@@ -295,6 +296,7 @@ async def job_stream_by_id(
                 "year": job.year,
                 "status": job.status,
                 "status_message": job.status_message,
+                "meta": job.meta if job.meta else None,
             }
 
             # Yield if either status OR message changed

@@ -361,6 +361,25 @@ const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
 
+const MAX_DISPLAYED_ROW_ERRORS = 5;
+
+const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
+  const rowErrors = payload?.meta?.row_errors ?? [];
+  if (rowErrors.length === 0) return undefined;
+  const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
+  const lines = rowErrors
+    .slice(0, MAX_DISPLAYED_ROW_ERRORS)
+    .map((e) => $t('csv_sync_row_error', { row: e.row, reason: e.reason }));
+  if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
+    lines.push(
+      $t('csv_sync_and_more_errors', {
+        count: totalErrorCount - MAX_DISPLAYED_ROW_ERRORS,
+      }),
+    );
+  }
+  return lines.join('\n');
+};
+
 const onFilesUploaded = async (filePaths: string[]) => {
   showUploadDialog.value = false;
 
@@ -401,30 +420,49 @@ const onFilesUploaded = async (filePaths: string[]) => {
 
     dataManagementStore.subscribeToJobUpdates(
       jobId,
-      () => {
+      (payload?: JobUpdatePayload) => {
         moduleStore.getSubmoduleData({
           submoduleType: props.submoduleType,
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
         });
-        // also call get module data to update overall stats
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
         );
-        $q.notify({
-          color: 'positive',
-          message: `${$t('csv_sync_completed')}`,
-          position: 'top',
-        });
+
+        const errorCaption = formatRowErrors(payload);
+        if (errorCaption) {
+          const totalErrorCount =
+            payload?.meta?.row_errors_count ??
+            payload?.meta?.row_errors?.length ??
+            0;
+          $q.notify({
+            color: 'negative',
+            message: $t('csv_sync_completed_with_errors', {
+              count: totalErrorCount,
+            }),
+            caption: errorCaption,
+            position: 'top',
+            multiLine: true,
+          });
+        } else {
+          $q.notify({
+            color: 'positive',
+            message: $t('csv_sync_completed'),
+            position: 'top',
+          });
+        }
       },
-      (payload: JobUpdatePayload) => {
+      (payload?: JobUpdatePayload) => {
         $q.notify({
           color: 'negative',
-          message: `${$t('csv_sync_failed')}: ${payload.status_message || ''}`,
+          message: $t('csv_sync_failed'),
+          caption: formatRowErrors(payload) || payload?.status_message || '',
           position: 'top',
+          multiLine: true,
         });
         console.error('CSV sync job failed:', payload);
       },

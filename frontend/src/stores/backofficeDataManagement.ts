@@ -14,6 +14,11 @@ export interface DataIngestionJob {
   meta?: Record<string, unknown>;
 }
 
+export interface JobRowError {
+  row: number;
+  reason: string;
+}
+
 export interface JobUpdatePayload {
   job_id: number;
   module_type_id: number;
@@ -21,6 +26,14 @@ export interface JobUpdatePayload {
   year: number | null;
   status: string | number;
   status_message: string;
+  meta?: {
+    row_errors?: JobRowError[];
+    row_errors_count?: number;
+    rows_processed?: number;
+    rows_skipped?: number;
+    rows_with_factors?: number;
+    rows_without_factors?: number;
+  };
 }
 
 export interface SyncJobStatus {
