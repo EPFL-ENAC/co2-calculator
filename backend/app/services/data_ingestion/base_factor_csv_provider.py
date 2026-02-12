@@ -61,7 +61,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         job_session: Any = None,
         data_session: Any = None,
     ):
-        super().__init__(config, user, job_session, data_session)
+        super().__init__(config, user, job_session, data_session=data_session)
         self.job_id = config.get("job_id")
         self.module_type_id = config.get("module_type_id")
         self.data_entry_type_id = config.get("data_entry_type_id")
@@ -202,7 +202,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     )
                     batch = []
 
-                    if stats["batches_processed"] % 5 == 0:
+                    if stats["batches_processed"] % 5 == 0 and self.job_id is not None:
                         await self._update_job_and_sync(
                             repo=self.repo,
                             job_id=self.job_id,
@@ -218,25 +218,27 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         except Exception as e:
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
-                status_message=f"Processing failed: {str(e)}",
-                status_code=IngestionStatus.FAILED,
-                metadata={"error": str(e)},
-            )
+            if self.job_id is not None:
+                await self._update_job_and_sync(
+                    repo=self.repo,
+                    job_id=self.job_id,
+                    status_message=f"Processing failed: {str(e)}",
+                    status_code=IngestionStatus.FAILED,
+                    metadata={"error": str(e)},
+                )
             raise
 
     async def _setup_and_validate(self) -> Dict[str, Any]:
         if self.year is None:
             raise ValueError("year is required for factor CSV ingestion")
-        await self._update_job_and_sync(
-            repo=self.repo,
-            job_id=self.job_id,
-            status_message="Starting CSV processing",
-            status_code=IngestionStatus.IN_PROGRESS,
-            metadata={},
-        )
+        if self.job_id is not None:
+            await self._update_job_and_sync(
+                repo=self.repo,
+                job_id=self.job_id,
+                status_message="Starting CSV processing",
+                status_code=IngestionStatus.IN_PROGRESS,
+                metadata={},
+            )
         await self.data_session.flush()
 
         tmp_path = self.source_file_path
@@ -356,7 +358,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     return None, error_msg
 
             handler = BaseFactorHandler.get_by_type(data_entry_type, variant)
-            payload = dict(filtered_row)
+            payload: Dict[str, Any] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
 
             try:
@@ -450,13 +452,14 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
         await self.data_session.flush()
 
-        await self._update_job_and_sync(
-            repo=self.repo,
-            job_id=self.job_id,
-            status_message="CSV processing completed",
-            status_code=IngestionStatus.COMPLETED,
-            metadata=dict(stats),
-        )
+        if self.job_id is not None:
+            await self._update_job_and_sync(
+                repo=self.repo,
+                job_id=self.job_id,
+                status_message="CSV processing completed",
+                status_code=IngestionStatus.COMPLETED,
+                metadata=dict(stats),
+            )
 
         return dict(stats)
 

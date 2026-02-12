@@ -181,6 +181,11 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
     emission_type: Optional[EmissionTypeEnum] = None
     is_conversion: bool = False
 
+    # These must be overridden in subclasses
+    create_dto: Type[FactorCreate]
+    update_dto: Type[FactorUpdate]
+    response_dto: Type[FactorResponseGen]
+
     @classmethod
     def get_by_type(
         cls, data_entry_type: DataEntryTypeEnum, variant: Optional[str] = None
@@ -259,11 +264,11 @@ class EquipmentFactorCreate(FactorCreate):
     active_power_w: float
     standby_power_w: float
 
-    classification_field_map = {
+    classification_field_map: dict[str, str] = {
         "equipment_class": "class",
         "sub_class": "sub_class",
     }
-    value_field_map = {
+    value_field_map: dict[str, str] = {
         "active_power_w": "active_power_w",
         "standby_power_w": "standby_power_w",
     }
@@ -284,8 +289,14 @@ class EquipmentFactorUpdate(FactorUpdate):
     active_power_w: Optional[float] = None
     standby_power_w: Optional[float] = None
 
-    classification_field_map = EquipmentFactorCreate.classification_field_map
-    value_field_map = EquipmentFactorCreate.value_field_map
+    classification_field_map: dict[str, str] = {
+        "equipment_class": "class",
+        "sub_class": "sub_class",
+    }
+    value_field_map: dict[str, str] = {
+        "active_power_w": "active_power_w",
+        "standby_power_w": "standby_power_w",
+    }
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -297,11 +308,11 @@ class ExternalCloudFactorCreate(FactorCreate):
     service_type: str
     factor_kgco2_per_eur: float
 
-    classification_field_map = {
+    classification_field_map: dict[str, str] = {
         "cloud_provider": "cloud_provider",
         "service_type": "service_type",
     }
-    value_field_map = {"factor_kgco2_per_eur": "factor_kgco2_per_eur"}
+    value_field_map: dict[str, str] = {"factor_kgco2_per_eur": "factor_kgco2_per_eur"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -316,8 +327,11 @@ class ExternalCloudFactorUpdate(FactorUpdate):
     service_type: Optional[str] = None
     factor_kgco2_per_eur: Optional[float] = None
 
-    classification_field_map = ExternalCloudFactorCreate.classification_field_map
-    value_field_map = ExternalCloudFactorCreate.value_field_map
+    classification_field_map: dict[str, str] = {
+        "cloud_provider": "cloud_provider",
+        "service_type": "service_type",
+    }
+    value_field_map: dict[str, str] = {"factor_kgco2_per_eur": "factor_kgco2_per_eur"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -329,11 +343,11 @@ class ExternalAIFactorCreate(FactorCreate):
     ai_use: str
     factor_gCO2eq: float
 
-    classification_field_map = {
+    classification_field_map: dict[str, str] = {
         "ai_provider": "ai_provider",
         "ai_use": "ai_use",
     }
-    value_field_map = {"factor_gCO2eq": "factor_gCO2eq"}
+    value_field_map: dict[str, str] = {"factor_gCO2eq": "factor_gCO2eq"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -348,8 +362,11 @@ class ExternalAIFactorUpdate(FactorUpdate):
     ai_use: Optional[str] = None
     factor_gCO2eq: Optional[float] = None
 
-    classification_field_map = ExternalAIFactorCreate.classification_field_map
-    value_field_map = ExternalAIFactorCreate.value_field_map
+    classification_field_map: dict[str, str] = {
+        "ai_provider": "ai_provider",
+        "ai_use": "ai_use",
+    }
+    value_field_map: dict[str, str] = {"factor_gCO2eq": "factor_gCO2eq"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -363,8 +380,8 @@ class TravelPlaneFactorCreate(FactorCreate):
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
-    classification_field_map = {"category": "category"}
-    value_field_map = {
+    classification_field_map: dict[str, str] = {"category": "category"}
+    value_field_map: dict[str, str] = {
         "impact_score": "impact_score",
         "rfi_adjustment": "rfi_adjustment",
         "min_distance": "min_distance",
@@ -386,8 +403,13 @@ class TravelPlaneFactorUpdate(FactorUpdate):
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
-    classification_field_map = TravelPlaneFactorCreate.classification_field_map
-    value_field_map = TravelPlaneFactorCreate.value_field_map
+    classification_field_map: dict[str, str] = {"category": "category"}
+    value_field_map: dict[str, str] = {
+        "impact_score": "impact_score",
+        "rfi_adjustment": "rfi_adjustment",
+        "min_distance": "min_distance",
+        "max_distance": "max_distance",
+    }
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -398,8 +420,8 @@ class TravelTrainFactorCreate(FactorCreate):
     country_code: str
     impact_score: float
 
-    classification_field_map = {"country_code": "country_code"}
-    value_field_map = {"impact_score": "impact_score"}
+    classification_field_map: dict[str, str] = {"country_code": "country_code"}
+    value_field_map: dict[str, str] = {"impact_score": "impact_score"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -413,8 +435,8 @@ class TravelTrainFactorUpdate(FactorUpdate):
     country_code: Optional[str] = None
     impact_score: Optional[float] = None
 
-    classification_field_map = TravelTrainFactorCreate.classification_field_map
-    value_field_map = TravelTrainFactorCreate.value_field_map
+    classification_field_map: dict[str, str] = {"country_code": "country_code"}
+    value_field_map: dict[str, str] = {"impact_score": "impact_score"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
