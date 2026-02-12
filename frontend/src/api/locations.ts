@@ -93,20 +93,25 @@ export async function searchLocations(
  * For planes: Haversine distance + 95 km (airport approaches, routing, taxiing)
  * For trains: Haversine distance × 1.2 (track routing, curves, detours)
  *
+ * The returned distance is the total distance (per-trip distance × number_of_trips).
+ *
  * @param originLocationId - Origin location ID
  * @param destinationLocationId - Destination location ID
  * @param transportMode - Transport mode: 'plane' or 'train'
- * @returns Promise resolving to distance in kilometers
+ * @param numberOfTrips - Number of trips (default: 1)
+ * @returns Promise resolving to total distance in kilometers
  */
 export async function calculateDistance(
   originLocationId: number,
   destinationLocationId: number,
   transportMode: TransportMode,
+  numberOfTrips: number = 1,
 ): Promise<number> {
   const params = new URLSearchParams({
     origin_location_id: originLocationId.toString(),
     destination_location_id: destinationLocationId.toString(),
     transport_mode: transportMode,
+    number_of_trips: numberOfTrips.toString(),
   });
 
   const res = await api

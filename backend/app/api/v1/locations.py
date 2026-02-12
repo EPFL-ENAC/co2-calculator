@@ -100,6 +100,11 @@ async def calculate_distance(
         ...,
         description="Transport mode: 'plane' or 'train'",
     ),
+    number_of_trips: int = Query(
+        1,
+        ge=1,
+        description="Number of trips (default: 1).",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -109,10 +114,13 @@ async def calculate_distance(
     For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
     For trains: Haversine distance × 1.2 (track routing, curves, detours)
 
+    The returned distance is multiplied by number_of_trips to give the total distance.
+
     Args:
         origin_location_id: Origin location ID
         destination_location_id: Destination location ID
         transport_mode: 'plane' or 'train'
+        number_of_trips: Number of trips (default: 1)
         db: Database session
         current_user: Authenticated user
 
@@ -128,6 +136,7 @@ async def calculate_distance(
         origin_location_id=origin_location_id,
         destination_location_id=destination_location_id,
         transport_mode=transport_mode,
+        number_of_trips=number_of_trips,
     )
 
     logger.info(
@@ -137,6 +146,7 @@ async def calculate_distance(
             "origin_location_id": origin_location_id,
             "destination_location_id": destination_location_id,
             "transport_mode": transport_mode,
+            "number_of_trips": number_of_trips,
             "distance_km": result["distance_km"],
         },
     )

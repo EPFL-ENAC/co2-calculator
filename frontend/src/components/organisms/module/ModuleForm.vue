@@ -618,19 +618,20 @@ watch(
     }
   },
 );
-
-// Watch for changes to location IDs and transport mode to calculate distance
+// Watch for changes to location IDs, transport mode, and number of trips to calculate distance
 watch(
   () => [
     form.origin_location_id,
     form.destination_location_id,
     form.transport_mode,
+    form.number_of_trips,
   ],
-  () => {
-    form.distance_km = calculateDistance(
+  async () => {
+    form.distance_km = await calculateDistance(
       form.origin_location_id as number,
       form.destination_location_id as number,
       form.transport_mode as 'plane' | 'train',
+      (form.number_of_trips as number) || 1,
     );
   },
 );
@@ -839,6 +840,7 @@ async function handleFromLocationSelected(location: {
     form.origin_location_id as number,
     form.destination_location_id as number,
     form.transport_mode as 'plane' | 'train',
+    (form.number_of_trips as number) || 1,
   );
 }
 
@@ -853,6 +855,7 @@ async function handleToLocationSelected(location: {
     form.origin_location_id as number,
     form.destination_location_id as number,
     form.transport_mode as 'plane' | 'train',
+    (form.number_of_trips as number) || 1,
   );
 }
 
@@ -867,6 +870,7 @@ async function handleSwapLocations() {
     form.origin_location_id as number,
     form.destination_location_id as number,
     form.transport_mode as 'plane' | 'train',
+    (form.number_of_trips as number) || 1,
   );
 }
 
