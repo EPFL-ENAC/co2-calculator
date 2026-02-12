@@ -7,7 +7,7 @@ from pathlib import Path
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionTypeEnum
 from app.models.location import TransportModeEnum
 from app.services.factor_service import FactorService
 

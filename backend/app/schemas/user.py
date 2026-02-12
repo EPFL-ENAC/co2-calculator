@@ -5,8 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, computed_field
 
-from app.models import UserBase
-from app.models.user import Role, UserProvider
+from app.models.user import Role, UserBase, UserProvider
 
 
 class UserRead(UserBase):

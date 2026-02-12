@@ -2,6 +2,26 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
+  audit {
+    VARCHAR change_reason
+    VARCHAR change_type
+    DATETIME changed_at
+    VARCHAR changed_by
+    VARCHAR current_hash
+    JSON data_diff
+    JSON data_snapshot
+    INTEGER entity_id "indexed"
+    VARCHAR entity_type "indexed"
+    JSON handled_it
+    VARCHAR handler_id
+    INTEGER id PK
+    VARCHAR ip_address
+    BOOLEAN is_current
+    VARCHAR previous_hash
+    VARCHAR route_path
+    JSON route_payload
+    INTEGER version "indexed"
+  }
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK

@@ -4,9 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from app.models.emission_type import EmissionTypeEnum
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
