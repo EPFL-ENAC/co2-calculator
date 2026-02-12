@@ -1,6 +1,6 @@
 """Travel CSV provider for professional travel data ingestion (planes and trains).
 
-Extends the generic DataEntriesCSVProvider with:
+Extends the generic BaseCSVProvider with:
 - IATA code → location ID resolution (planes)
 - Exact name → location ID resolution (trains)
 - Column mapping: from/to → origin_location_id/destination_location_id
@@ -8,7 +8,7 @@ Extends the generic DataEntriesCSVProvider with:
 - Injection of unit_id from config
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from sqlmodel import col, select
 
@@ -18,9 +18,9 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionStatus
 from app.models.location import Location, TransportModeEnum
 from app.models.user import User
-from app.schemas.data_entry import BaseModuleHandler
-from app.services.data_ingestion.data_entries_csv_provider import (
-    DataEntriesCSVProvider,
+from app.schemas.data_entry import BaseModuleHandler, ModuleHandler
+from app.services.data_ingestion.base_csv_provider import (
+    BaseCSVProvider,
     StatsDict,
 )
 
@@ -36,7 +36,7 @@ TRAVEL_CSV_OPTIONAL_COLUMNS = {
 TRAVEL_CSV_ALL_COLUMNS = TRAVEL_CSV_REQUIRED_COLUMNS | TRAVEL_CSV_OPTIONAL_COLUMNS
 
 
-class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
+class ProfessionalTravelCSVProvider(BaseCSVProvider):
     """Provider to ingest professional travel data from CSV files (planes and trains).
 
     Overrides the generic CSV provider to:
@@ -49,11 +49,65 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
 
     SUPPORTED_TRANSPORT_MODES = {mode.value for mode in TransportModeEnum}
 
-    def __init__(self, config: Dict[str, Any], user: User | None = None):
-        super().__init__(config, user)
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        user: User | None = None,
+        job_session: Any = None,
+        *,
+        data_session: Any,
+    ):
+        super().__init__(config, user, job_session, data_session=data_session)
         self.unit_id: int | None = config.get("unit_id")
         self._iata_cache: Dict[str, int] = {}
         self._train_name_cache: Dict[str, int] = {}
+
+    @property
+    def entity_type(self) -> EntityType:
+        return EntityType.MODULE_UNIT_SPECIFIC
+
+    async def _setup_handlers_and_factors(self) -> Dict[str, Any]:
+        """Not used — _setup_and_validate is fully overridden."""
+        raise NotImplementedError(
+            "ProfessionalTravelCSVProvider overrides _setup_and_validate directly"
+        )
+
+    def _extract_kind_subkind_values(
+        self,
+        filtered_row: Dict[str, str],
+        handlers: List[Any],
+    ) -> tuple[str, str | None]:
+        """Extract kind/subkind for the single travel handler."""
+        handler = handlers[0] if handlers else None
+        if not handler:
+            return "", None
+        kind_value = (
+            filtered_row.get(handler.kind_field, "") if handler.kind_field else ""
+        )
+        subkind_value = (
+            filtered_row.get(handler.subkind_field) if handler.subkind_field else None
+        )
+        return kind_value, subkind_value
+
+    async def _resolve_handler_and_validate(
+        self,
+        filtered_row: Dict[str, str],
+        factor: Any | None,
+        stats: StatsDict,
+        row_idx: int,
+        max_row_errors: int,
+        setup_result: Dict[str, Any],
+    ) -> tuple[DataEntryTypeEnum | None, ModuleHandler | None, str | None]:
+        """Resolve handler for travel rows (single handler, no factor validation)."""
+        handlers = setup_result["handlers"]
+        configured_data_entry_type_id = int(self.config["data_entry_type_id"])
+        data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
+        handler = handlers[0] if handlers else None
+        if not handler:
+            error_msg = "No handler available"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+        return data_entry_type, handler, None
 
     async def _build_iata_cache(self) -> Dict[str, int]:
         """Build in-memory IATA code → location ID lookup for planes."""
@@ -61,7 +115,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
             Location.transport_mode == TransportModeEnum.plane,
             col(Location.iata_code).isnot(None),
         )
-        result = await self.session.execute(stmt)
+        result = await self.data_session.execute(stmt)
         cache = {row.iata_code.upper(): row.id for row in result.all()}
         logger.info("Built IATA cache with %d entries", len(cache))
         return cache
@@ -71,7 +125,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
         stmt = select(col(Location.name), col(Location.id)).where(
             Location.transport_mode == TransportModeEnum.train,
         )
-        result = await self.session.execute(stmt)
+        result = await self.data_session.execute(stmt)
         cache = {row.name: row.id for row in result.all()}
         logger.info("Built train name cache with %d entries", len(cache))
         return cache
@@ -94,7 +148,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
                 )
                 .where(CarbonReportModule.id == self.carbon_report_module_id)
             )
-            result = await self.session.execute(stmt)
+            result = await self.data_session.execute(stmt)
             row = result.first()
             if row:
                 self.unit_id = row[0]
@@ -114,7 +168,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
             status_code=IngestionStatus.IN_PROGRESS,
             metadata={},
         )
-        await self.session.commit()
+        await self.data_session.commit()
 
         tmp_path = self.source_file_path
         if not tmp_path:
@@ -155,7 +209,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
                 status_code=IngestionStatus.FAILED,
                 metadata={"validation_error": error_message},
             )
-            await self.session.commit()
+            await self.data_session.commit()
             raise
 
         # --- Build location caches ---
@@ -181,6 +235,7 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
         setup_result: Dict[str, Any],
         stats: StatsDict,
         max_row_errors: int,
+        unit_to_module_map: Dict[str, int] | None = None,
     ) -> tuple[DataEntry | None, str | None, Any | None]:
         """Transform a travel CSV row then delegate to parent.
 
@@ -251,7 +306,12 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
 
         # Delegate to parent with the transformed row
         data_entry, err, factor = await super()._process_row(
-            transformed_row, row_idx, setup_result, stats, max_row_errors
+            transformed_row,
+            row_idx,
+            setup_result,
+            stats,
+            max_row_errors,
+            unit_to_module_map,
         )
 
         if data_entry and data_entry.data:

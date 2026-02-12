@@ -4,16 +4,16 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    ProfessionalTravelApiProvider,
+)
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
 )
-from app.services.data_ingestion.professional_travel_api_provider import (
-    ProfessionalTravelApiProvider,
-)
-from app.services.data_ingestion.professional_travel_csv_provider import (
+from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
     ProfessionalTravelCSVProvider,
 )
 
@@ -69,7 +69,7 @@ class ProviderFactory:
             ModuleTypeEnum.professional_travel,
             IngestionMethod.csv,
             TargetType.DATA_ENTRIES,
-            None,
+            EntityType.MODULE_UNIT_SPECIFIC,
         ): ProfessionalTravelCSVProvider,
         # TODO: Add more providers as needed
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,

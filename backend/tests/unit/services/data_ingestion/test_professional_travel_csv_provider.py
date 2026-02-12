@@ -6,8 +6,8 @@ import pytest
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
-from app.services.data_ingestion.data_entries_csv_provider import StatsDict
-from app.services.data_ingestion.professional_travel_csv_provider import (
+from app.services.data_ingestion.base_csv_provider import StatsDict
+from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
     ProfessionalTravelCSVProvider,
 )
 
@@ -62,10 +62,10 @@ def base_config():
 @pytest.fixture
 def provider(base_config):
     """Create provider with mocked lazy properties."""
-    prov = ProfessionalTravelCSVProvider(base_config, user=None)
-    prov._session = MagicMock()
-    prov._session.execute = AsyncMock()
-    prov._session.commit = AsyncMock()
+    mock_session = AsyncMock()
+    prov = ProfessionalTravelCSVProvider(
+        base_config, user=None, data_session=mock_session
+    )
     prov._files_store = MagicMock()
     prov._repo = MagicMock()
     prov._repo.update_ingestion_job = AsyncMock()
@@ -82,18 +82,18 @@ class TestBuildIataCache:
         row_jfk = MagicMock(iata_code="jfk", id=2)  # lowercase
         mock_result = MagicMock()
         mock_result.all.return_value = [row_gva, row_jfk]
-        provider._session.execute = AsyncMock(return_value=mock_result)
+        provider.data_session.execute = AsyncMock(return_value=mock_result)
 
         cache = await provider._build_iata_cache()
 
         assert cache == {"GVA": 1, "JFK": 2}
-        provider._session.execute.assert_awaited_once()
+        provider.data_session.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_empty_cache_when_no_locations(self, provider):
         mock_result = MagicMock()
         mock_result.all.return_value = []
-        provider._session.execute = AsyncMock(return_value=mock_result)
+        provider.data_session.execute = AsyncMock(return_value=mock_result)
 
         cache = await provider._build_iata_cache()
 
@@ -113,18 +113,18 @@ class TestBuildTrainNameCache:
         row_zurich.name = "Zürich HB"
         mock_result = MagicMock()
         mock_result.all.return_value = [row_lausanne, row_zurich]
-        provider._session.execute = AsyncMock(return_value=mock_result)
+        provider.data_session.execute = AsyncMock(return_value=mock_result)
 
         cache = await provider._build_train_name_cache()
 
         assert cache == {"Lausanne": 10, "Zürich HB": 20}
-        provider._session.execute.assert_awaited_once()
+        provider.data_session.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_empty_cache_when_no_stations(self, provider):
         mock_result = MagicMock()
         mock_result.all.return_value = []
-        provider._session.execute = AsyncMock(return_value=mock_result)
+        provider.data_session.execute = AsyncMock(return_value=mock_result)
 
         cache = await provider._build_train_name_cache()
 
@@ -393,10 +393,10 @@ class TestSetupAndValidate:
             "carbon_report_module_id": None,
             "data_entry_type_id": DataEntryTypeEnum.trips.value,
         }
-        prov = ProfessionalTravelCSVProvider(config, user=None)
-        prov._session = MagicMock()
-        prov._session.execute = AsyncMock()
-        prov._session.commit = AsyncMock()
+        mock_session = AsyncMock()
+        prov = ProfessionalTravelCSVProvider(
+            config, user=None, data_session=mock_session
+        )
         prov._files_store = MagicMock()
         prov._repo = MagicMock()
         prov._repo.update_ingestion_job = AsyncMock()
@@ -412,9 +412,10 @@ class TestSetupAndValidate:
             "data_entry_type_id": DataEntryTypeEnum.trips.value,
             "unit_id": 42,
         }
-        prov = ProfessionalTravelCSVProvider(config, user=None)
-        prov._session = MagicMock()
-        prov._session.commit = AsyncMock()
+        mock_session = AsyncMock()
+        prov = ProfessionalTravelCSVProvider(
+            config, user=None, data_session=mock_session
+        )
         prov._files_store = MagicMock()
         prov._repo = MagicMock()
         prov._repo.update_ingestion_job = AsyncMock()
@@ -435,7 +436,7 @@ class TestSetupAndValidate:
             MagicMock(iata_code="GVA", id=1),
             MagicMock(iata_code="SFO", id=2),
         ]
-        provider._session.execute = AsyncMock(return_value=mock_result)
+        provider.data_session.execute = AsyncMock(return_value=mock_result)
 
         result = await provider._setup_and_validate()
 
@@ -465,9 +466,10 @@ class TestSetupAndValidate:
             "data_entry_type_id": DataEntryTypeEnum.trips.value,
             # no unit_id — should be resolved
         }
-        prov = ProfessionalTravelCSVProvider(config, user=None)
-        prov._session = MagicMock()
-        prov._session.commit = AsyncMock()
+        mock_session = AsyncMock()
+        prov = ProfessionalTravelCSVProvider(
+            config, user=None, data_session=mock_session
+        )
         prov._files_store = MagicMock()
         prov._repo = MagicMock()
         prov._repo.update_ingestion_job = AsyncMock()
@@ -490,7 +492,7 @@ class TestSetupAndValidate:
         train_result = MagicMock()
         train_result.all.return_value = []
 
-        prov._session.execute = AsyncMock(
+        prov.data_session.execute = AsyncMock(
             side_effect=[unit_id_result, iata_result, train_result]
         )
 
