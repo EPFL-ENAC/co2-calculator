@@ -1,10 +1,13 @@
 """Unit tests for BaseCSVProvider."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
+from app.services.data_ingestion import base_csv_provider
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
     BaseCSVProvider,
@@ -145,8 +148,9 @@ class ConcreteCSVProvider(BaseCSVProvider):
 @pytest.mark.asyncio
 async def test_validate_csv_headers_valid():
     """Test that valid CSV with all required columns passes validation."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider.carbon_report_module_id = 99
 
     csv_text = "col1,col2,col3\nval1,val2,val3\nval4,val5,val6"
     expected_columns = {"col1", "col2", "col3"}
@@ -159,7 +163,7 @@ async def test_validate_csv_headers_valid():
 @pytest.mark.asyncio
 async def test_validate_csv_headers_empty_file():
     """Test that empty CSV file is rejected."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     csv_text = ""
@@ -171,7 +175,7 @@ async def test_validate_csv_headers_empty_file():
 @pytest.mark.asyncio
 async def test_validate_csv_headers_only_header():
     """Test that CSV with only header row is rejected."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     csv_text = "col1,col2,col3\n"
@@ -183,7 +187,7 @@ async def test_validate_csv_headers_only_header():
 @pytest.mark.asyncio
 async def test_validate_csv_headers_missing_required_all_rows():
     """Test that CSV with ALL rows missing required columns is rejected."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     # All 5 rows have col1, col2 but not col3
@@ -197,7 +201,7 @@ async def test_validate_csv_headers_missing_required_all_rows():
 @pytest.mark.asyncio
 async def test_validate_csv_headers_some_rows_have_required():
     """Test that CSV with SOME rows having required columns passes."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     # Row 3 has col3, so not ALL rows are missing it
@@ -228,7 +232,7 @@ async def test_validate_csv_headers_strict_mode_missing_expected():
 @pytest.mark.asyncio
 async def test_validate_csv_headers_malformed_csv():
     """Test that malformed CSV raises appropriate error."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     # Most CSV readers are lenient with unclosed quotes, so test with truly invalid CSV
@@ -419,3 +423,201 @@ async def test_load_data_default():
 def test_batch_size_constant():
     """Test that BATCH_SIZE is set to expected value."""
     assert BATCH_SIZE == 1000
+
+
+# ======================================================================
+# Row Processing Tests
+# ======================================================================
+
+
+def _build_stats() -> StatsDict:
+    return {
+        "rows_processed": 0,
+        "rows_with_factors": 0,
+        "rows_without_factors": 0,
+        "rows_skipped": 0,
+        "batches_processed": 0,
+        "row_errors": [],
+        "row_errors_count": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_process_row_success_with_unit_mapping(monkeypatch):
+    """Test _process_row builds data entry when mapping is present."""
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={"amount": 10, "label": "x"}
+    )
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.student, handler, None)
+
+    provider._resolve_handler_and_validate = AsyncMock(side_effect=resolve_handler)
+
+    factor = SimpleNamespace(id=77)
+    monkeypatch.setattr(base_csv_provider, "lookup_factor", lambda **_kwargs: factor)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {"x": []},
+        "expected_columns": {"unit_id", "amount", "label"},
+    }
+    row = {"unit_id": "U1", "amount": "10", "label": "x"}
+    stats = _build_stats()
+
+    data_entry, error_msg, result_factor = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map={"U1": 123},
+    )
+
+    assert error_msg is None
+    assert result_factor == factor
+    assert data_entry is not None
+    assert data_entry.carbon_report_module_id == 123
+    assert data_entry.data.get("primary_factor_id") == 77
+
+
+@pytest.mark.asyncio
+async def test_process_row_missing_unit_mapping_records_error():
+    """Test _process_row records error when unit mapping is missing."""
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.student, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"unit_id", "amount"},
+    }
+    row = {"unit_id": "UNKNOWN", "amount": "10"}
+    stats = _build_stats()
+
+    data_entry, error_msg, result_factor = await provider._process_row(
+        row,
+        row_idx=2,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map={"U1": 123},
+    )
+
+    assert data_entry is None
+    assert result_factor is None
+    assert error_msg is not None
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors_count"] == 1
+    assert stats["row_errors"][0]["row"] == 2
+
+
+@pytest.mark.asyncio
+async def test_process_row_validation_error_records_error():
+    """Test _process_row records handler validation errors."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.side_effect = ValueError("bad payload")
+
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.student, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"amount"},
+    }
+    row = {"amount": "10"}
+    stats = _build_stats()
+
+    data_entry, error_msg, result_factor = await provider._process_row(
+        row,
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert result_factor is None
+    assert "Validation error" in error_msg
+    assert stats["rows_skipped"] == 1
+
+
+# ======================================================================
+# Batch Processing Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_batch_creates_emissions():
+    """Test _process_batch creates emissions from prepared objects."""
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    data_entry_service = MagicMock()
+    emission_service = MagicMock()
+
+    created_entry = SimpleNamespace(id=1)
+    data_entry_service.bulk_create = AsyncMock(return_value=[created_entry])
+    emission_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=9))
+    emission_service.bulk_create = AsyncMock()
+
+    batch = [MagicMock()]
+
+    await provider._process_batch(batch, data_entry_service, emission_service)
+
+    data_entry_service.bulk_create.assert_awaited_once()
+    emission_service.prepare_create.assert_awaited_once_with(created_entry)
+    emission_service.bulk_create.assert_awaited_once()
+
+
+# ======================================================================
+# Finalization Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_moves_file_and_updates_job():
+    """Test _finalize_and_commit updates job and moves file."""
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 2
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    result = await provider._finalize_and_commit(
+        batch=[MagicMock()],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+    )
+
+    provider._process_batch.assert_awaited_once()
+    provider._files_store.move_file.assert_awaited_once_with(
+        "processing/7/test.csv", "processed/7/test.csv"
+    )
+    provider._update_job.assert_awaited_once()
+    assert result["status"] == "success"
+    assert result["inserted"] == 2
