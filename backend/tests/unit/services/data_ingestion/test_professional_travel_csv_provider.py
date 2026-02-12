@@ -55,7 +55,6 @@ def base_config():
         "file_path": "tmp/travel.csv",
         "carbon_report_module_id": 10,
         "data_entry_type_id": DataEntryTypeEnum.trips.value,
-        "unit_id": 42,
     }
 
 
@@ -153,7 +152,6 @@ class TestProcessRow:
         assert isinstance(entry, DataEntry)
         assert entry.data["origin_location_id"] == 100
         assert entry.data["destination_location_id"] == 200
-        assert entry.data["unit_id"] == 42
         assert entry.data["traveler_name"] == "Alice"
         assert stats["rows_skipped"] == 0
 
@@ -247,7 +245,6 @@ class TestProcessRow:
         assert isinstance(entry, DataEntry)
         assert entry.data["origin_location_id"] == 300
         assert entry.data["destination_location_id"] == 400
-        assert entry.data["unit_id"] == 42
         assert entry.data["traveler_name"] == "Fiona"
         assert stats["rows_skipped"] == 0
 
@@ -378,7 +375,6 @@ class TestProcessRow:
         # These should all be int, not float
         assert isinstance(entry.data["origin_location_id"], int)
         assert isinstance(entry.data["destination_location_id"], int)
-        assert isinstance(entry.data["unit_id"], int)
 
 
 # ── _setup_and_validate ─────────────────────────────────────────
@@ -386,31 +382,11 @@ class TestProcessRow:
 
 class TestSetupAndValidate:
     @pytest.mark.asyncio
-    async def test_raises_without_unit_id(self):
-        config = {
-            "job_id": 1,
-            "file_path": "tmp/travel.csv",
-            "carbon_report_module_id": None,
-            "data_entry_type_id": DataEntryTypeEnum.trips.value,
-        }
-        mock_session = AsyncMock()
-        prov = ProfessionalTravelCSVProvider(
-            config, user=None, data_session=mock_session
-        )
-        prov._files_store = MagicMock()
-        prov._repo = MagicMock()
-        prov._repo.update_ingestion_job = AsyncMock()
-
-        with pytest.raises(ValueError, match="unit_id could not be resolved"):
-            await prov._setup_and_validate()
-
-    @pytest.mark.asyncio
     async def test_raises_without_file_path(self):
         config = {
             "job_id": 1,
             "carbon_report_module_id": 10,
             "data_entry_type_id": DataEntryTypeEnum.trips.value,
-            "unit_id": 42,
         }
         mock_session = AsyncMock()
         prov = ProfessionalTravelCSVProvider(
@@ -456,47 +432,3 @@ class TestSetupAndValidate:
 
         with pytest.raises(ValueError, match="missing required columns"):
             await provider._setup_and_validate()
-
-    @pytest.mark.asyncio
-    async def test_resolves_unit_id_from_carbon_report(self):
-        config = {
-            "job_id": 1,
-            "file_path": "tmp/travel.csv",
-            "carbon_report_module_id": 10,
-            "data_entry_type_id": DataEntryTypeEnum.trips.value,
-            # no unit_id — should be resolved
-        }
-        mock_session = AsyncMock()
-        prov = ProfessionalTravelCSVProvider(
-            config, user=None, data_session=mock_session
-        )
-        prov._files_store = MagicMock()
-        prov._repo = MagicMock()
-        prov._repo.update_ingestion_job = AsyncMock()
-
-        csv_content = "transport_mode,from,to,traveler_name\nplane,GVA,SFO,Alice\n"
-        prov._files_store.move_file = AsyncMock(return_value=True)
-        prov._files_store.get_file = AsyncMock(
-            return_value=(csv_content.encode("utf-8"), "text/csv")
-        )
-
-        # execute returns: unit_id, IATA cache, train cache
-        unit_id_result = MagicMock()
-        unit_id_result.first.return_value = (99,)
-
-        iata_result = MagicMock()
-        iata_result.all.return_value = [
-            MagicMock(iata_code="GVA", id=1),
-        ]
-
-        train_result = MagicMock()
-        train_result.all.return_value = []
-
-        prov.data_session.execute = AsyncMock(
-            side_effect=[unit_id_result, iata_result, train_result]
-        )
-
-        result = await prov._setup_and_validate()
-
-        assert prov.unit_id == 99
-        assert result["entity_type"] == EntityType.MODULE_UNIT_SPECIFIC

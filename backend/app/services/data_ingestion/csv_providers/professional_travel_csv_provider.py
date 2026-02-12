@@ -5,7 +5,7 @@ Extends the generic BaseCSVProvider with:
 - Exact name → location ID resolution (trains)
 - Column mapping: from/to → origin_location_id/destination_location_id
 - Column mapping: sciper → traveler_id
-- Injection of unit_id from config
+
 """
 
 from typing import Any, Dict, List
@@ -13,7 +13,6 @@ from typing import Any, Dict, List
 from sqlmodel import col, select
 
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionStatus
 from app.models.location import Location, TransportModeEnum
@@ -58,7 +57,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         data_session: Any,
     ):
         super().__init__(config, user, job_session, data_session=data_session)
-        self.unit_id: int | None = config.get("unit_id")
         self._iata_cache: Dict[str, int] = {}
         self._train_name_cache: Dict[str, int] = {}
 
@@ -77,17 +75,8 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         filtered_row: Dict[str, str],
         handlers: List[Any],
     ) -> tuple[str, str | None]:
-        """Extract kind/subkind for the single travel handler."""
-        handler = handlers[0] if handlers else None
-        if not handler:
-            return "", None
-        kind_value = (
-            filtered_row.get(handler.kind_field, "") if handler.kind_field else ""
-        )
-        subkind_value = (
-            filtered_row.get(handler.subkind_field) if handler.subkind_field else None
-        )
-        return kind_value, subkind_value
+        """Travel has a single handler — kind/subkind extraction is not needed."""
+        return "", None
 
     async def _resolve_handler_and_validate(
         self,
@@ -136,31 +125,8 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         Overrides parent to:
         - Validate against travel CSV columns (from/to) instead of schema columns
         - Build IATA location cache
-        - Carry unit_id through to row processing
-        """
 
-        if not self.unit_id and self.carbon_report_module_id:
-            stmt = (
-                select(col(CarbonReport.unit_id))
-                .join(
-                    CarbonReportModule,
-                    col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
-                )
-                .where(CarbonReportModule.id == self.carbon_report_module_id)
-            )
-            result = await self.data_session.execute(stmt)
-            row = result.first()
-            if row:
-                self.unit_id = row[0]
-                logger.info(
-                    f"Resolved unit_id={self.unit_id} from "
-                    f"carbon_report_module_id={self.carbon_report_module_id}"
-                )
-        if not self.unit_id:
-            raise ValueError(
-                "unit_id could not be resolved. Provide it in the sync config "
-                "or ensure carbon_report_module_id is valid."
-            )
+        """
 
         await self.repo.update_ingestion_job(
             job_id=self.job_id,
@@ -282,7 +248,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
             "transport_mode": transport_mode,
             "origin_location_id": str(origin_location_id),
             "destination_location_id": str(destination_location_id),
-            "unit_id": str(self.unit_id),
         }
 
         # Map traveler_name (required)
@@ -318,7 +283,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
             for key in (
                 "origin_location_id",
                 "destination_location_id",
-                "unit_id",
                 "traveler_id",
                 "number_of_trips",
             ):
