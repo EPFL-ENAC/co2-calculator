@@ -25,16 +25,18 @@ async def test_setup_handlers_and_context_single_type(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "factor_variant": "v1",
         },
         data_session=MagicMock(),
     )
 
     handler = _make_handler()
 
+    get_by_type = MagicMock(return_value=handler)
     monkeypatch.setattr(
         csv_providers_module.factors.BaseFactorHandler,
         "get_by_type",
-        MagicMock(return_value=handler),
+        get_by_type,
     )
     monkeypatch.setattr(
         provider,
@@ -46,6 +48,7 @@ async def test_setup_handlers_and_context_single_type(monkeypatch):
 
     assert setup["handlers"] == [handler]
     assert setup["required_columns"] == {"value"}
+    get_by_type.assert_called_once_with(DataEntryTypeEnum.member, "v1")
 
 
 @pytest.mark.asyncio
