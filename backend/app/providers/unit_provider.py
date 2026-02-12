@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import httpx
 from sqlmodel import Session, col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -28,7 +29,7 @@ settings = get_settings()
 class UnitProvider(ABC):
     """Abstract base class for unit providers."""
 
-    type: str = "abstract"
+    type: UserProvider = UserProvider.DEFAULT
 
     @abstractmethod
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
@@ -58,23 +59,28 @@ class UnitProvider(ABC):
 
 
 class DefaultUnitProvider(UnitProvider):
-    type: str = "default"
+    type: UserProvider = UserProvider.DEFAULT
     """Default unit provider that reads from the database."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session | AsyncSession):
         self.db_session = db_session
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
         statement = select(Unit)
         if unit_ids:
             statement = statement.where(col(Unit.id).in_(unit_ids))
-        results = self.db_session.exec(statement)
+        if isinstance(self.db_session, AsyncSession):
+            results = await self.db_session.exec(statement)
+        else:
+            results = self.db_session.exec(statement)
         units = results.all()
         return list(units)
 
 
 class AccredUnitProvider(UnitProvider):
-    type: str = "accred"
+    type: UserProvider = UserProvider.ACCRED
     """Accred unit provider that fetches units from EPFL Accred API.
 
     Calls the EPFL Accred units endpoint to fetch unit details
@@ -166,7 +172,7 @@ class AccredUnitProvider(UnitProvider):
                         provider_code=unit_id,
                         name=unit_name,
                         principal_user_provider_code=principal_user_code,
-                        cost_centers=[cf] if cf else [],
+                        cost_centers=[cf] if (cf is not None) else [],
                         affiliations=affiliations,
                     )
                 )
@@ -213,7 +219,7 @@ class AccredUnitProvider(UnitProvider):
 class TestUnitProvider(UnitProvider):
     """Test unit provider for development."""
 
-    type: str = "test"
+    type: UserProvider = UserProvider.TEST
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
         """Return test units for development."""
@@ -237,12 +243,22 @@ class TestUnitProvider(UnitProvider):
         ]
 
         if unit_ids:
-            return [d for d in all_test_units if d.provider_code in unit_ids]
+            return [
+                Unit(
+                    provider_code=str(provider_code),
+                    name=f"I-{provider_code}-TEST",
+                    cost_centers=[f"cf-{provider_code}-001"],
+                    principal_user_provider_code="testuser_co2.user.principal",
+                    affiliations=["TEST-AFFILIATION"],
+                )
+                for provider_code in unit_ids
+            ]
         return all_test_units
 
 
 def get_unit_provider(
-    provider_type: UserProvider | None = None, db_session: Session | None = None
+    provider_type: UserProvider | None = None,
+    db_session: Session | AsyncSession | None = None,
 ) -> UnitProvider:
     """Factory function to get the configured unit provider.
 

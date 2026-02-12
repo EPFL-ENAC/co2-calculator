@@ -27,6 +27,9 @@ export const useFilesStore = defineStore(
   () => {
     const tempFiles = ref<FileNode[]>([]);
 
+    const currentUploadModuleTypeId = ref<number | null>(null);
+    const currentUploadYear = ref<number | null>(null);
+
     /**
      * List files and directories at a given path (backend admin only).
      * @param path The path to list files from.
@@ -122,6 +125,8 @@ export const useFilesStore = defineStore(
 
     return {
       tempFiles,
+      currentUploadModuleTypeId,
+      currentUploadYear,
       listFiles,
       listTempFiles,
       uploadTempFiles,

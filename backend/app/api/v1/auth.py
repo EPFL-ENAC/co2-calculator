@@ -4,6 +4,7 @@ import logging
 from datetime import timedelta
 from typing import Optional
 
+from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -18,7 +19,7 @@ from app.core.security import (
     decode_jwt,
 )
 from app.models.user import UserProvider
-from app.providers.role_provider import get_role_provider
+from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.schemas.user import UserRead
 from app.services.user_service import UserService
 
@@ -148,6 +149,7 @@ async def login_test(
         roles=roles,
         provider=UserProvider.TEST,
     )
+    await db.commit()
 
     # Create response
     response = RedirectResponse(
@@ -233,7 +235,17 @@ async def auth_callback(
         role_provider = get_role_provider()
         provider_code = role_provider.get_user_id(user_info)
         # fetch user and roles?
-        provider_user = await role_provider.get_user_by_user_id(provider_code)
+        try:
+            provider_user = await role_provider.get_user_by_user_id(provider_code)
+        except RoleProviderNetworkError as e:
+            logger.error(
+                "Cannot authenticate: external service unavailable",
+                extra={"error": str(e)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth service unavailable. Please check your VPN.",
+            )
 
         logger.info(
             "User info retrieved from OAuth2",
@@ -256,6 +268,7 @@ async def auth_callback(
             function=provider_user.get("function", None),
             provider=role_provider.type,
         )
+        await db.commit()
 
         # Redirect to frontend with httpOnly cookies
         response = RedirectResponse(
@@ -280,6 +293,14 @@ async def auth_callback(
         )
         return response
 
+    except MismatchingStateError:
+        logger.warning(
+            "OAuth state mismatch - session loss or multiple tabs",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authentication session expired. Please start the login flow again.",
+        )
     except HTTPException:
         logger.error("OAuth callback HTTP exception", exc_info=True)
         raise
@@ -305,7 +326,7 @@ async def auth_callback(
             )
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=UserRead, response_model_exclude_none=True)
 async def get_me(
     auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),

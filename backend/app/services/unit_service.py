@@ -209,6 +209,9 @@ class UnitService:
         - System operations
 
         NO policy checks - this is internal.
+
+        NOTE: Caller is responsible for committing the transaction.
+        (This allows batching multiple upserts in a single transaction)
         """
         # Upsert unit
         unit = await self.unit_repo.upsert(unit_data)

@@ -63,7 +63,7 @@ const chartOptions = computed<EChartsOption>(() => {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
         category: t(`app_headcount_${key}`),
-        value: props.stats?.[key] ?? 0,
+        value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },
     xAxis: {

@@ -55,7 +55,9 @@ async def create_carbon_report(
 ):
     """Create a new carbon report for a given unit and year."""
     service = CarbonReportService(db)
-    return await service.create(report)
+    result = await service.create(report)
+    await db.commit()
+    return result
 
 
 @router.get("/{carbon_report_id}", response_model=CarbonReportRead)
@@ -133,4 +135,6 @@ async def update_carbon_report_module_status(
                 carbon report {carbon_report_id}"""
             ),
         )
+
+    await db.commit()
     return result

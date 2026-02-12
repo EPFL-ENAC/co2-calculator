@@ -63,7 +63,7 @@ class UserRepository:
         # ensure setter is called
         entity.roles = roles or []
         self.session.add(entity)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -91,7 +91,7 @@ class UserRepository:
         entity.provider = provider or entity.provider
         entity.function = function or entity.function
         # force revalidation
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -136,5 +136,5 @@ class UserRepository:
             return False
 
         await self.session.delete(entity)
-        await self.session.commit()
+        await self.session.flush()
         return True

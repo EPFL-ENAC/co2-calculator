@@ -835,6 +835,7 @@ async def create_user(
     """
     user_service = UserService(db)
     user = await user_service.create_user(user_data.model_dump(), current_user)
+    await db.commit()
     return user
 
 
@@ -927,6 +928,7 @@ async def update_user(
     user = await user_service.update_user(
         user_id, user_data.model_dump(exclude_unset=True), current_user
     )
+    await db.commit()
     return user
 
 
@@ -974,6 +976,7 @@ async def delete_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
+    await db.commit()
 
 
 @router.post(

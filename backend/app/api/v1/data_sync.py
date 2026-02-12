@@ -28,6 +28,7 @@ router = APIRouter()
 class SyncRequestConfig(BaseModel):
     carbon_report_module_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
+    factor_variant: Optional[str] = None
 
 
 class SyncRequest(BaseModel):
@@ -64,6 +65,7 @@ async def sync_module_data_entries(
     request: SyncRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     example of request body for module_type_year:
@@ -86,10 +88,25 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
+    if request.target_type == TargetType.FACTORS and request.year is None:
+        raise HTTPException(
+            status_code=400,
+            detail="year is required for factor CSV ingestion",
+        )
+
     # Prepare config with file_path and carbon_report_module_id if provided
     config = request.config.model_dump() if request.config else {}
     if request.file_path:
         config["file_path"] = request.file_path
+
+    # Determine entity_type early based on carbon_report_module_id presence
+    entity_type = (
+        EntityType.MODULE_UNIT_SPECIFIC
+        if config.get("carbon_report_module_id") is not None
+        else EntityType.MODULE_PER_YEAR
+    )
+    config["entity_type"] = entity_type.value
+    config["year"] = request.year
 
     provider = await ProviderFactory.create_provider(
         module_type_id=ModuleTypeEnum(module_type_id),
@@ -97,6 +114,8 @@ async def sync_module_data_entries(
         target_type=request.target_type,
         config=config,
         user=current_user,
+        job_session=db,  # Use same session for both during validation
+        data_session=db,  # Actual work happens in background task
     )
 
     if not provider:
@@ -117,11 +136,6 @@ async def sync_module_data_entries(
     data_entry_type_id = config.get("data_entry_type_id") or getattr(
         request, "data_entry_type_id", None
     )
-    entity_type = (
-        EntityType.MODULE_UNIT_SPECIFIC
-        if config.get("carbon_report_module_id") is not None
-        else EntityType.MODULE_PER_YEAR
-    )
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),
         data_entry_type_id=data_entry_type_id,
@@ -131,7 +145,11 @@ async def sync_module_data_entries(
         target_type=request.target_type,
         factor_type_id=factor_type_id,
         config=config,
+        db=db,
     )
+    # Commit job creation to database
+    await db.commit()
+
     # Schedule the ingestion task in the background
     # NOTE: file_path validation happens in provider.__init__()
     #   via _validate_file_path()

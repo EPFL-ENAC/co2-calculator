@@ -3,7 +3,8 @@ from asyncio.log import logger
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.db import SessionLocal
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -22,11 +23,16 @@ class DataIngestionProvider(ABC):
         self,
         config: Dict[str, Any],
         user: User | None = None,
-        # add other params only if needed for provider logic
+        job_session: AsyncSession | None = None,
+        *,
+        data_session: AsyncSession,
     ):
         self.config = config or {}
         self.user = user
+        self.job_session = job_session  # For job status updates (frequent commits)
+        self.data_session = data_session  # For data operations (atomic commit)
         self.job_id: Optional[int] = None
+        self.job: Optional[DataIngestionJob] = None
 
     async def set_job_id(self, job_id: int):
         self.job_id = job_id
@@ -59,36 +65,47 @@ class DataIngestionProvider(ABC):
         year: Optional[int] = None,
         factor_type_id: FactorType | None = None,
         config: Dict[str, Any] | None = None,
+        db: AsyncSession | None = None,
     ) -> int:
-        async with SessionLocal() as db:
-            repo = DataIngestionRepository(db)
-            job_config = config or {}
-            job_config["entity_type"] = entity_type.value
-            # Merge config into self.config so it's preserved for later use
-            self.config.update(job_config)
-            meta = {
-                "factor_type_id": factor_type_id.value if factor_type_id else None,
-                "config": job_config,  # Store entire config in meta for job
-            }
+        """Create an ingestion job.
 
-            data = DataIngestionJob(
-                module_type_id=module_type_id,
-                ingestion_method=ingestion_method,
-                data_entry_type_id=data_entry_type_id,
-                entity_type=entity_type,
-                target_type=target_type,
-                status=IngestionStatus.NOT_STARTED,
-                status_message="Job created",
-                meta=meta,
-                provider=self.user.provider if self.user else None,
-                year=year,
-            )
-            job = await repo.create_ingestion_job(data)
-            if not job:
-                raise Exception("Failed to create ingestion job")
-            self.job_id = job.id
-            if self.job_id is None:
-                raise Exception("Failed to create ingestion job id")
+        Args:
+            db: Optional database session. If provided, uses this session and caller
+                is responsible for committing. If not provided, creates a new session
+                and commits within this method.
+        """
+        if db is None:
+            raise ValueError("Database session is required to create ingestion job")
+        # Use provided session - caller is responsible for commit
+        repo = DataIngestionRepository(db)
+        job_config = config or {}
+        job_config["entity_type"] = entity_type.value
+        # Merge config into self.config so it's preserved for later use
+        self.config.update(job_config)
+        meta = {
+            "factor_type_id": factor_type_id.value if factor_type_id else None,
+            "config": job_config,  # Store entire config in meta for job
+        }
+
+        data = DataIngestionJob(
+            module_type_id=module_type_id,
+            ingestion_method=ingestion_method,
+            data_entry_type_id=data_entry_type_id,
+            entity_type=entity_type,
+            target_type=target_type,
+            status=IngestionStatus.NOT_STARTED,
+            status_message="Job created",
+            meta=meta,
+            provider=self.user.provider if self.user else None,
+            year=year,
+        )
+        job = await repo.create_ingestion_job(data)
+        if not job:
+            raise Exception("Failed to create ingestion job")
+        self.job_id = job.id
+        self.job = job
+        if self.job_id is None:
+            raise Exception("Failed to create ingestion job id")
 
         return self.job_id
 
@@ -148,14 +165,45 @@ class DataIngestionProvider(ABC):
         if not self.job_id:
             logger.warning("Job ID is not set. Cannot update ingestion job.")
             return
-        async with SessionLocal() as db:
-            repo = DataIngestionRepository(db)
-            await repo.update_ingestion_job(
-                job_id=self.job_id,
-                status_message=status_message,
-                status_code=status_code,
-                metadata=metadata,
-                completed_at=datetime.utcnow()
-                if status_code in [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-                else None,
-            )
+        if not self.job_session:
+            logger.warning("No job session available. Cannot update ingestion job.")
+            return
+
+        repo = DataIngestionRepository(self.job_session)
+        await repo.update_ingestion_job(
+            job_id=self.job_id,
+            status_message=status_message,
+            status_code=status_code,
+            metadata=metadata,
+            completed_at=datetime.utcnow()
+            if status_code in [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
+            else None,
+        )
+        # Commit immediately so SSE endpoints can see the update
+        await self.job_session.commit()
+
+    async def _update_job_and_sync(
+        self,
+        repo: DataIngestionRepository,
+        job_id: int,
+        status_message: str,
+        status_code: IngestionStatus,
+        metadata: dict | None = None,
+        completed_at: datetime | None = None,
+    ) -> Optional[DataIngestionJob]:
+        """
+        Update ingestion job and keep self.job in sync.
+        Use when working with an existing repository/session
+        (e.g., in self.data_session).
+        Returns the updated job object.
+        """
+        updated_job = await repo.update_ingestion_job(
+            job_id=job_id,
+            status_message=status_message,
+            status_code=status_code,
+            metadata=metadata or {},
+            completed_at=completed_at,
+        )
+        if updated_job:
+            self.job = updated_job
+        return updated_job

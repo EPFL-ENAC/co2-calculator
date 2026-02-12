@@ -170,12 +170,13 @@ provider_type
           if (!syncJobs[year]) {
             syncJobs[year] = [];
           }
+          const resolvedTargetType = target_type === 'data_entries' ? 0 : 1;
           syncJobs[year].push({
             job_id: response.job_id,
             module_type_id,
             year,
             provider_type,
-            target_type: 0, // data_entries
+            target_type: resolvedTargetType,
             status: 0, // pending
             status_message: 'Sync initiated',
             meta: {},
@@ -246,9 +247,9 @@ provider_type
             const year = update.year;
 
             // Find and update the job in the store
-            if (syncJobs[year]) {
+            if (year !== null && syncJobs[year]) {
               const jobIndex = syncJobs[year].findIndex(
-                (j) => j.job_id === job_id,
+                (j: DataIngestionJob) => j.job_id === job_id,
               );
               if (jobIndex !== -1) {
                 syncJobs[year][jobIndex] = {

@@ -32,7 +32,7 @@ class CarbonReportModuleRepository:
             status=status,
         )
         self.session.add(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(db_obj)
         return db_obj
 
@@ -52,7 +52,7 @@ class CarbonReportModuleRepository:
             for module_type_id in module_type_ids
         ]
         self.session.add_all(db_objects)
-        await self.session.commit()
+        await self.session.flush()
         for obj in db_objects:
             await self.session.refresh(obj)
         return db_objects
@@ -127,7 +127,7 @@ class CarbonReportModuleRepository:
             return None
         db_obj.status = status
         self.session.add(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(db_obj)
         return db_obj
 
@@ -141,7 +141,7 @@ class CarbonReportModuleRepository:
         if not db_obj:
             return False
         await self.session.delete(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         return True
 
     async def delete_by_report(self, carbon_report_id: int) -> int:
@@ -154,5 +154,5 @@ class CarbonReportModuleRepository:
         count = len(db_objects)
         for obj in db_objects:
             await self.session.delete(obj)
-        await self.session.commit()
+        await self.session.flush()
         return count
