@@ -34,7 +34,9 @@ from app.seed.seed_helper import (
     load_factors_map,
     lookup_factor,
 )
-from app.services import calculation_service
+
+# from app.services import calculation_service
+from app.services.data_entry_emission_service import compute_scientific_it_other
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -310,8 +312,6 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 continue
             if pf:
                 power_factor_id = pf.id
-                active_power_w = pf.values.get("active_power_w", 0) or 0
-                standby_power_w = pf.values.get("standby_power_w", 0) or 0
             else:
                 logger.warning(f"""not found for equipment {equipment.id}
                                 ({equipment.data.get("name", "unknown")})""")
@@ -340,11 +340,10 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         if mix_energy is None:
             raise ValueError("Emission factor missing 'kgco2eq_per_kwh' value")
         # Calculate emissions using the versioned calculation service
-        emission_result = calculation_service.calculate_equipment_emission(
-            equipment_data=equipment_data,
-            emission_electric_factor=mix_energy,
-            active_power_w=active_power_w,
-            standby_power_w=standby_power_w,
+        emission_result = compute_scientific_it_other(
+            self=None,
+            data_entry=equipment_data,
+            factors=[pf, emission_factor],
         )
 
         # Create EquipmentEmission record
