@@ -1,7 +1,8 @@
-"""Travel CSV provider for professional travel data ingestion (planes only).
+"""Travel CSV provider for professional travel data ingestion (planes and trains).
 
 Extends the generic DataEntriesCSVProvider with:
-- IATA code → location ID resolution
+- IATA code → location ID resolution (planes)
+- Exact name → location ID resolution (trains)
 - Column mapping: from/to → origin_location_id/destination_location_id
 - Column mapping: sciper → traveler_id
 - Injection of unit_id from config
@@ -26,29 +27,33 @@ from app.services.data_ingestion.data_entries_csv_provider import (
 logger = get_logger(__name__)
 
 # Columns the user provides in the travel CSV
-TRAVEL_CSV_REQUIRED_COLUMNS = {"transport_mode", "from", "to"}
+TRAVEL_CSV_REQUIRED_COLUMNS = {"transport_mode", "from", "to", "traveler_name"}
 TRAVEL_CSV_OPTIONAL_COLUMNS = {
     "departure_date",
     "sciper",
     "number_of_trips",
-    "traveler_name",
 }
 TRAVEL_CSV_ALL_COLUMNS = TRAVEL_CSV_REQUIRED_COLUMNS | TRAVEL_CSV_OPTIONAL_COLUMNS
 
 
 class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
-    """Provider to ingest professional travel data from CSV files (planes only).
+    """Provider to ingest professional travel data from CSV files (planes and trains).
 
     Overrides the generic CSV provider to:
-    1. Accept user-friendly columns (from/to as IATA codes, sciper)
-    2. Resolve IATA codes to location IDs via an in-memory cache
+    1. Accept user-friendly columns (from/to as IATA codes for planes,
+       exact station names for trains, sciper)
+    2. Resolve IATA codes (planes) or exact names (trains) to location IDs
+       via in-memory caches
     3. Transform rows into the format expected by ProfessionalTravelHandlerCreate
     """
+
+    SUPPORTED_TRANSPORT_MODES = {mode.value for mode in TransportModeEnum}
 
     def __init__(self, config: Dict[str, Any], user: User | None = None):
         super().__init__(config, user)
         self.unit_id: int | None = config.get("unit_id")
         self._iata_cache: Dict[str, int] = {}
+        self._train_name_cache: Dict[str, int] = {}
 
     async def _build_iata_cache(self) -> Dict[str, int]:
         """Build in-memory IATA code → location ID lookup for planes."""
@@ -59,6 +64,16 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
         result = await self.session.execute(stmt)
         cache = {row.iata_code.upper(): row.id for row in result.all()}
         logger.info("Built IATA cache with %d entries", len(cache))
+        return cache
+
+    async def _build_train_name_cache(self) -> Dict[str, int]:
+        """Build in-memory exact name → location ID lookup for train stations."""
+        stmt = select(col(Location.name), col(Location.id)).where(
+            Location.transport_mode == TransportModeEnum.train,
+        )
+        result = await self.session.execute(stmt)
+        cache = {row.name: row.id for row in result.all()}
+        logger.info("Built train name cache with %d entries", len(cache))
         return cache
 
     async def _setup_and_validate(self) -> Dict[str, Any]:
@@ -143,16 +158,15 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
             await self.session.commit()
             raise
 
-        # --- Build IATA cache ---
+        # --- Build location caches ---
         self._iata_cache = await self._build_iata_cache()
+        self._train_name_cache = await self._build_train_name_cache()
 
         return {
             "csv_text": csv_text,
             "entity_type": EntityType.MODULE_UNIT_SPECIFIC,
             "configured_data_entry_type_id": configured_data_entry_type_id,
             "handlers": [handler],
-            # Travel handler has kind_field=None and require_factor_to_match=False,
-            # so factors_map is never queried — skip the DB call entirely.
             "factors_map": {},
             "expected_columns": expected_columns,
             "required_columns": set(),
@@ -172,42 +186,52 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
 
         Resolves IATA codes to location IDs and maps CSV columns to schema fields.
         """
-        origin_iata = (row.get("from") or "").strip().upper()
-        destination_iata = (row.get("to") or "").strip().upper()
+        origin_raw = (row.get("from") or "").strip()
+        destination_raw = (row.get("to") or "").strip()
         transport_mode = (row.get("transport_mode") or "").strip().lower()
 
-        # Validate transport_mode is plane
-        if transport_mode != "plane":
+        # Validate transport_mode
+        if transport_mode not in self.SUPPORTED_TRANSPORT_MODES:
             error_msg = (
                 f"Unsupported transport_mode '{transport_mode}': "
-                "only 'plane' is supported"
+                f"only {sorted(self.SUPPORTED_TRANSPORT_MODES)} are supported"
             )
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
-        # Resolve origin IATA code
-        origin_location_id = self._iata_cache.get(origin_iata)
+        # Resolve origin and destination based on transport mode
+        if transport_mode == TransportModeEnum.plane:
+            origin_location_id = self._iata_cache.get(origin_raw.upper())
+            destination_location_id = self._iata_cache.get(destination_raw.upper())
+            origin_label, destination_label = (
+                origin_raw.upper(),
+                destination_raw.upper(),
+            )
+        elif transport_mode == TransportModeEnum.train:
+            origin_location_id = self._train_name_cache.get(origin_raw)
+            destination_location_id = self._train_name_cache.get(destination_raw)
+            origin_label, destination_label = origin_raw, destination_raw
+        else:
+            raise ValueError(f"Unsupported transport_mode: {transport_mode}")
+
         if not origin_location_id:
-            error_msg = f"Origin '{origin_iata}' not found in locations"
+            error_msg = f"Origin '{origin_label}' not found in locations"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
-        # Resolve destination IATA code
-        destination_location_id = self._iata_cache.get(destination_iata)
         if not destination_location_id:
-            error_msg = f"Destination '{destination_iata}' not found in locations"
+            error_msg = f"Destination '{destination_label}' not found in locations"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
         # Build transformed row with schema field names
         transformed_row: Dict[str, str] = {
-            "transport_mode": "plane",
+            "transport_mode": transport_mode,
             "origin_location_id": str(origin_location_id),
             "destination_location_id": str(destination_location_id),
             "unit_id": str(self.unit_id),
         }
 
-        # Map traveler_name (optional)
         # Map traveler_name (required)
         traveler_name = (row.get("traveler_name") or "").strip()
         if not traveler_name:
