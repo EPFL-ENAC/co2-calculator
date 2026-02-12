@@ -100,6 +100,37 @@ class TestBuildIataCache:
         assert cache == {}
 
 
+# ── _build_train_name_cache ──────────────────────────────────────
+
+
+class TestBuildTrainNameCache:
+    @pytest.mark.asyncio
+    async def test_builds_cache_from_query(self, provider):
+        row_lausanne = MagicMock(name="Lausanne", id=10)
+        row_zurich = MagicMock(name="Zürich HB", id=20)
+        # MagicMock uses 'name' as a constructor kwarg, so set it explicitly
+        row_lausanne.name = "Lausanne"
+        row_zurich.name = "Zürich HB"
+        mock_result = MagicMock()
+        mock_result.all.return_value = [row_lausanne, row_zurich]
+        provider._session.execute = AsyncMock(return_value=mock_result)
+
+        cache = await provider._build_train_name_cache()
+
+        assert cache == {"Lausanne": 10, "Zürich HB": 20}
+        provider._session.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_empty_cache_when_no_stations(self, provider):
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        provider._session.execute = AsyncMock(return_value=mock_result)
+
+        cache = await provider._build_train_name_cache()
+
+        assert cache == {}
+
+
 # ── _process_row ────────────────────────────────────────────────
 
 
@@ -196,6 +227,64 @@ class TestProcessRow:
 
         assert entry is None
         assert "Unsupported transport_mode" in err
+        assert stats["rows_skipped"] == 1
+
+    @pytest.mark.asyncio
+    async def test_valid_train_row_creates_data_entry(self, provider):
+        provider._train_name_cache = {"Lausanne": 300, "Zürich HB": 400}
+        row = {
+            "transport_mode": "train",
+            "from": "Lausanne",
+            "to": "Zürich HB",
+            "traveler_name": "Fiona",
+        }
+        stats = _make_stats()
+        setup = _make_setup_result()
+
+        entry, err, factor = await provider._process_row(row, 1, setup, stats, 100)
+
+        assert err is None
+        assert isinstance(entry, DataEntry)
+        assert entry.data["origin_location_id"] == 300
+        assert entry.data["destination_location_id"] == 400
+        assert entry.data["unit_id"] == 42
+        assert entry.data["traveler_name"] == "Fiona"
+        assert stats["rows_skipped"] == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_train_origin_skips_row(self, provider):
+        provider._train_name_cache = {"Zürich HB": 400}
+        row = {
+            "transport_mode": "train",
+            "from": "Unknown Station",
+            "to": "Zürich HB",
+            "traveler_name": "George",
+        }
+        stats = _make_stats()
+        setup = _make_setup_result()
+
+        entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
+
+        assert entry is None
+        assert "Origin 'Unknown Station' not found" in err
+        assert stats["rows_skipped"] == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_train_destination_skips_row(self, provider):
+        provider._train_name_cache = {"Lausanne": 300}
+        row = {
+            "transport_mode": "train",
+            "from": "Lausanne",
+            "to": "Nowhere",
+            "traveler_name": "Hannah",
+        }
+        stats = _make_stats()
+        setup = _make_setup_result()
+
+        entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
+
+        assert entry is None
+        assert "Destination 'Nowhere' not found" in err
         assert stats["rows_skipped"] == 1
 
     @pytest.mark.asyncio
