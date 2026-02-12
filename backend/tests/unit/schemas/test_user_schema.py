@@ -1,6 +1,5 @@
 """Tests for user schemas."""
 
-
 from app.models.user import User, UserProvider
 from app.schemas.user import UserRead
 

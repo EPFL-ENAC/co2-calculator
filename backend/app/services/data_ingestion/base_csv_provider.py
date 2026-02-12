@@ -364,7 +364,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                 logger.info(
                                     "Creating minimal principal user record",
                                     extra={
-                                        "provider_code": unit.principal_user_provider_code
+                                        "provider_code": unit.principal_user_provider_code  # noqa: E501
                                     },
                                 )
                                 await self.user_service.upsert_user(
@@ -408,9 +408,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
         """
-        Pre-scan CSV to extract unique unit_ids (provider_codes) and resolve carbon_report_module_id.
+        Pre-scan CSV to extract unique unit_ids and resolve carbon_report_module_id.
 
-        Note: CSV column is named 'unit_id' but contains provider_codes (strings), not DB IDs.
+        Note: CSV column is named 'unit_id' but contains provider_codes (strings).
 
         For each unique provider_code:
         - Check if carbon_report exists for (unit_id, year)
@@ -449,7 +449,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
         logger.info(
-            f"Found {len(unit_codes)} unique unit provider_codes in CSV: {sorted(unit_codes)}"
+            f"Found {len(unit_codes)} unique unit provider_codes in CSV: "
+            f"{sorted(unit_codes)}"
         )
 
         # Validate unit provider_codes exist to avoid FK violations
@@ -476,7 +477,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Create a NEW repository instance after commit to get fresh data
             unit_repo = UnitRepository(self.data_session)
             logger.info(
-                f"Reloading units after upsert - checking for {len(unit_codes)} provider_codes"
+                f"Reloading units after upsert - checking for "
+                f"{len(unit_codes)} provider_codes"
             )
 
             existing_units = await unit_repo.get_by_codes(list(unit_codes))
@@ -509,7 +511,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             unit_id = unit_code_to_id.get(provider_code)
             if not unit_id:
                 raise ValueError(
-                    f"Unit with provider_code={provider_code} not found after validation"
+                    f"Unit with provider_code={provider_code} not found after "
+                    f"validation"
                 )
 
             # Check if carbon report exists
@@ -520,7 +523,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if not carbon_report:
                 # Create new carbon report (auto-creates all 7 modules)
                 logger.info(
-                    f"Creating carbon_report for provider_code={provider_code} (unit_id={unit_id}), year={self.year}"
+                    f"Creating carbon_report for provider_code={provider_code} "
+                    f"(unit_id={unit_id}), year={self.year}"
                 )
                 carbon_report = await carbon_report_service.create(
                     CarbonReportCreate(unit_id=unit_id, year=self.year)
@@ -767,8 +771,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         If error_msg is not None, row processing failed and error was recorded.
 
         Args:
-            unit_to_module_map: Optional mapping of provider_code to carbon_report_module_id
-                               for MODULE_PER_YEAR imports
+            unit_to_module_map: Optional mapping of provider_code to
+                               carbon_report_module_id for MODULE_PER_YEAR
         """
         try:
             handlers = setup_result["handlers"]
@@ -817,7 +821,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             carbon_report_module_id = None
 
             if unit_to_module_map is not None:
-                # MODULE_PER_YEAR: resolve from unit_id (which is actually provider_code)
+                # MODULE_PER_YEAR: resolve from unit_id (provider_code)
                 provider_code = row.get("unit_id")
                 if provider_code is None or str(provider_code).strip() == "":
                     error_msg = "Missing unit_id in row"
@@ -827,7 +831,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 provider_code = str(provider_code).strip()
                 carbon_report_module_id = unit_to_module_map.get(provider_code)
                 if not carbon_report_module_id:
-                    error_msg = f"No carbon_report_module_id mapped for provider_code={provider_code}"
+                    error_msg = "No carbon_report_module_id mapped for "
+                    error_msg += f"provider_code={provider_code}"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
             elif self.carbon_report_module_id:

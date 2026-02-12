@@ -399,7 +399,8 @@ async def main() -> None:
             session.commit()
         )  # commit after seeding equipment before calculating emissions
         await seed_equipment_emissions(session)
-        await session.commit()  # commit all changes at the end of the seeding process, after seeding equipment and emissions
+        await session.commit()
+        # commit all changes at the end of seeding equipment and emissions
 
     logger.info("Equipment and emissions seeding complete!")
 

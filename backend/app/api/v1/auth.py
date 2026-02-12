@@ -244,7 +244,7 @@ async def auth_callback(
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Authentication service temporarily unavailable. Please check your VPN connection.",
+                detail="Auth service unavailable. Please check your VPN.",
             )
 
         logger.info(
@@ -295,7 +295,7 @@ async def auth_callback(
 
     except MismatchingStateError:
         logger.warning(
-            "OAuth callback state mismatch - likely due to session loss or multiple tabs",
+            "OAuth state mismatch - session loss or multiple tabs",
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
