@@ -2,7 +2,7 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
-  audit {
+  audit_documents {
     VARCHAR change_reason
     VARCHAR change_type
     DATETIME changed_at

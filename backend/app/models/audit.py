@@ -96,15 +96,14 @@ class AuditDocumentBase(SQLModel):
 class AuditDocument(AuditDocumentBase, table=True):
     """Audit table storing versioned documents.
 
-    Postgres placement: `audit`.
-    SQLite (tests/local): `audit` in default schema.
+    Postgres placement: `audit_documents`.
+    SQLite (tests/local): `audit_documents` in default schema.
     Indexes and constraints are created via Alembic migrations.
     Store one row per versioned document. a document being any entity that requires
     versioning (e.g., modules, resources). (CRUD operations are tracked via change_type
     and the actual data is stored as JSON snapshots/diffs.
     """
 
-    __tablename__ = "audit"
-    __table_args__ = _TABLE_ARGS
+    __tablename__ = "audit_documents"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
