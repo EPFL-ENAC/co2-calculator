@@ -211,8 +211,6 @@ class ProfessionalTravelCSVProvider(DataEntriesCSVProvider):
             origin_location_id = self._train_name_cache.get(origin_raw)
             destination_location_id = self._train_name_cache.get(destination_raw)
             origin_label, destination_label = origin_raw, destination_raw
-        else:
-            raise ValueError(f"Unsupported transport_mode: {transport_mode}")
 
         if not origin_location_id:
             error_msg = f"Origin '{origin_label}' not found in locations"
