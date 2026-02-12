@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import httpx
 from sqlmodel import Session, col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -61,14 +62,19 @@ class DefaultUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.DEFAULT
     """Default unit provider that reads from the database."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session | AsyncSession):
         self.db_session = db_session
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
+        from sqlmodel.ext.asyncio.session import AsyncSession
+
         statement = select(Unit)
         if unit_ids:
             statement = statement.where(col(Unit.id).in_(unit_ids))
-        results = self.db_session.exec(statement)
+        if isinstance(self.db_session, AsyncSession):
+            results = await self.db_session.exec(statement)
+        else:
+            results = self.db_session.exec(statement)
         units = results.all()
         return list(units)
 
@@ -251,7 +257,8 @@ class TestUnitProvider(UnitProvider):
 
 
 def get_unit_provider(
-    provider_type: UserProvider | None = None, db_session: Session | None = None
+    provider_type: UserProvider | None = None,
+    db_session: Session | AsyncSession | None = None,
 ) -> UnitProvider:
     """Factory function to get the configured unit provider.
 

@@ -23,7 +23,6 @@ class UserRead(UserBase):
     provider: UserProvider
 
     @computed_field
-    @property
     def is_user_test(self) -> Optional[bool]:
         """Indicates if user is a test user (from test login endpoint).
 
@@ -36,7 +35,6 @@ class UserRead(UserBase):
         return None
 
     @computed_field
-    @property
     def permissions(self) -> dict:
         """Calculate permissions dynamically from roles on every /auth/me call."""
         return self.calculate_permissions()

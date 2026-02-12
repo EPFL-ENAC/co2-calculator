@@ -14,7 +14,7 @@ from app.models.data_ingestion import (
 from app.models.user import User
 from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.schemas.data_entry import BaseModuleHandler
+from app.schemas.data_entry import ModuleHandler
 from app.seed.seed_helper import lookup_factor
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -90,9 +90,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         config: Dict[str, Any],
         user: User | None = None,
         job_session: Any = None,
-        data_session: Any = None,
+        *,
+        data_session: Any,
     ):
-        super().__init__(config, user, job_session, data_session)
+        super().__init__(config, user, job_session, data_session=data_session)
         # Extract job_id from config (will be set after create_job)
         self.job_id = config.get("job_id")
         # Extract carbon_report_module_id from config
@@ -290,7 +291,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         row_idx: int,
         max_row_errors: int,
         setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, BaseModuleHandler | None, str | None]:
+    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
         """
         Resolve the handler and validate the row.
 
@@ -924,7 +925,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         await self._update_job(
             status_message=status_message,
             status_code=IngestionStatus.COMPLETED,
-            extra_metadata=stats,
+            extra_metadata=dict(stats),
         )
 
         return {

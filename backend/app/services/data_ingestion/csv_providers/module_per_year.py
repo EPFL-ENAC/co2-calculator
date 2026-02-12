@@ -4,7 +4,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
-from app.schemas.data_entry import BaseModuleHandler
+from app.schemas.data_entry import BaseModuleHandler, ModuleHandler
 from app.seed.seed_helper import load_factors_map
 from app.services.data_ingestion.base_csv_provider import (
     BaseCSVProvider,
@@ -165,7 +165,7 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
         row_idx: int,
         max_row_errors: int,
         setup_result: Dict[str, Any],
-    ) -> tuple[DataEntryTypeEnum | None, BaseModuleHandler | None, str | None]:
+    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None", str | None]:
         """
         Resolve handler and validate for MODULE_PER_YEAR.
 

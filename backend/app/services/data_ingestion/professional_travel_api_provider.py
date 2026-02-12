@@ -54,9 +54,10 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         config: Dict[str, Any],
         user: User,
         job_session=None,
-        data_session=None,
+        *,
+        data_session,
     ):
-        super().__init__(config, user, job_session, data_session)
+        super().__init__(config, user, job_session, data_session=data_session)
         self.settings = get_settings()
         self.server_url = self.settings.TABLEAU_SERVER_URL
         self.site_content_url = self.settings.TABLEAU_SITE_CONTENT_URL

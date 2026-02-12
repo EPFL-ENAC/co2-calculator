@@ -24,7 +24,8 @@ class DataIngestionProvider(ABC):
         config: Dict[str, Any],
         user: User | None = None,
         job_session: AsyncSession | None = None,
-        data_session: AsyncSession | None = None,
+        *,
+        data_session: AsyncSession,
     ):
         self.config = config or {}
         self.user = user
