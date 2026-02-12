@@ -7,6 +7,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
+from app.models.user import UserProvider
 from app.services.data_ingestion import base_csv_provider
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
@@ -577,8 +578,14 @@ async def test_process_batch_creates_emissions():
     emission_service.bulk_create = AsyncMock()
 
     batch = [MagicMock()]
+    user = SimpleNamespace(
+        id=1,
+        email="test@example.com",
+        display_name="Test User",
+        provider=UserProvider.DEFAULT,
+    )
 
-    await provider._process_batch(batch, data_entry_service, emission_service)
+    await provider._process_batch(batch, data_entry_service, emission_service, user)
 
     data_entry_service.bulk_create.assert_awaited_once()
     emission_service.prepare_create.assert_awaited_once_with(created_entry)

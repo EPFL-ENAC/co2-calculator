@@ -26,6 +26,7 @@ from app.schemas.data_entry import (
     ModuleHandler,
     resolve_primary_factor_if_kind_or_subkind_changed,
 )
+from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -401,7 +402,7 @@ async def create(
     item = await DataEntryService(db).create(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_type_id=data_entry_type_id,
-        user=current_user,
+        user=UserRead.model_validate(current_user),
         data=data_entry_create,
     )
     if item is None:
@@ -557,7 +558,7 @@ async def update(
         item = await DataEntryService(db).update(
             id=item_id,
             data=data_entry_update,
-            user=current_user,
+            user=UserRead.model_validate(current_user),
         )
         await db.flush()
         if item is None:
@@ -621,7 +622,7 @@ async def delete(
 
         await DataEntryService(db).delete(
             id=item_id,
-            current_user=current_user,
+            current_user=UserRead.model_validate(current_user),
         )
         await db.commit()
     except HTTPException:

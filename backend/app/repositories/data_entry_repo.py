@@ -35,6 +35,7 @@ class DataEntryRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.entity_type = DataEntry.__name__
         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
 
     async def get(self, id: int) -> Optional[DataEntry]:

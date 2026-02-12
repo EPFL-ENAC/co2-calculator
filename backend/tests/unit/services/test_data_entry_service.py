@@ -253,6 +253,9 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
     db_session.add(module)
     await db_session.flush()
 
+    # Create user
+    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+
     # Create multiple entries
     entries = [
         DataEntry(
@@ -264,7 +267,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
         for i in range(5)
     ]
 
-    result = await service.bulk_create(entries)
+    result = await service.bulk_create(entries, user)
 
     assert len(result) == 5
     assert all(r.id is not None for r in result)
@@ -285,6 +288,9 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     )
     db_session.add(module)
     await db_session.flush()
+
+    # Create user
+    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
 
     # Create entries of different types
     trips = [
@@ -308,7 +314,7 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     await db_session.flush()
 
     # Bulk delete only trips
-    await service.bulk_delete(module.id, DataEntryTypeEnum.trips)
+    await service.bulk_delete(module.id, DataEntryTypeEnum.trips, user)
 
     # Verify trips are deleted
     from sqlmodel import select
