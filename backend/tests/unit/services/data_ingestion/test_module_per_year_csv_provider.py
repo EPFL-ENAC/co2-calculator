@@ -7,10 +7,10 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.services.data_ingestion import csv_providers as csv_providers_module
 from app.services.data_ingestion.csv_providers.module_per_year import (
     ModulePerYearCSVProvider,
 )
-from app.services.data_ingestion import csv_providers as csv_providers_module
 
 
 def _build_stats():

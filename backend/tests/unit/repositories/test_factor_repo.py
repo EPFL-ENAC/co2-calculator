@@ -1,7 +1,7 @@
 """Tests for FactorRepository."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
