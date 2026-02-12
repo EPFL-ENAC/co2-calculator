@@ -524,6 +524,7 @@ const downloadPDF = () => {
   min-height: 200px;
   background-color: rgba(0, 0, 0, 0.02);
   border: 1px dashed rgba(0, 0, 0, 0.12);
+  margin: 1rem 0;
 
   &__content {
     display: flex;
