@@ -8,7 +8,7 @@ class EmissionTypeEnum(int, Enum):
     equipment = 2
     food = 3
     waste = 4
-    transport = 5
+    commuting = 5
     grey_energy = 6
     plane = 7
     train = 8

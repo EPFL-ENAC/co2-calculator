@@ -20,6 +20,19 @@ class UserRead(UserBase):
     display_name: Optional[str] = None
     email: EmailStr
     last_login: Optional[datetime] = None
+    provider: UserProvider
+
+    @computed_field
+    def is_user_test(self) -> Optional[bool]:
+        """Indicates if user is a test user (from test login endpoint).
+
+        Computed from the provider field - returns True if provider is TEST,
+        None otherwise (omitted from response for production users).
+        This is the authoritative way to check test users, not email patterns.
+        """
+        if self.provider == UserProvider.TEST:
+            return True
+        return None
 
     @computed_field
     def permissions(self) -> dict:

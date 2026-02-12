@@ -236,19 +236,27 @@ class TestRoleProvider(RoleProvider):
         """
         requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         # Create roles based on requested role
+        TEST_UNIT_PROVIDER_CODE = "12345"
+        # TEST_UNIT_PROVIDER_CODE = "10446"
         roles: List[Role] = []
         if requested_role == RoleName.CO2_USER_STD.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_STD,
-                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
+                    on=RoleScope(
+                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        affiliation="testaffiliation",
+                    ),
                 )
             ]
         elif requested_role == RoleName.CO2_USER_PRINCIPAL.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_PRINCIPAL,
-                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
+                    on=RoleScope(
+                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        affiliation="testaffiliation",
+                    ),
                 )
             ]
         elif requested_role == RoleName.CO2_BACKOFFICE_METIER.value:
@@ -420,6 +428,14 @@ class AccredRoleProvider(RoleProvider):
             user_insert["roles"] = roles
             return user_insert
 
+        except httpx.ConnectError as e:
+            logger.error(
+                "Cannot connect to Accred API - network unavailable",
+                extra={"user_id": user_id, "error": str(e)},
+            )
+            raise RoleProviderNetworkError(
+                f"Cannot connect to Accred API: {str(e)}"
+            ) from e
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Accred API HTTP error",
@@ -614,3 +630,9 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
             extra={"provider_type": provider_type},
         )
         return DefaultRoleProvider()
+
+
+class RoleProviderNetworkError(Exception):
+    """Raised when role provider cannot connect to external service."""
+
+    pass

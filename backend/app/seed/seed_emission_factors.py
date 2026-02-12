@@ -155,6 +155,8 @@ async def main() -> None:
     async with SessionLocal() as session:
         await seed_emission_factors(session)
         await seed_power_factors(session)
+        await session.commit()
+        # commit all changes at the end of seeding emission factors and power factors
 
     logger.info("Emission factors seeding complete!")
 

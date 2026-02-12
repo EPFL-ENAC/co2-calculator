@@ -20,7 +20,7 @@ class DataIngestionRepository:
     ) -> DataIngestionJob:
         job = DataIngestionJob.model_validate(data)
         self.session.add(job)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(job)
         return job
 
@@ -71,7 +71,7 @@ class DataIngestionRepository:
                 ),
             }
             result_job.meta = merged_meta
-            await self.session.commit()
+            await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
 

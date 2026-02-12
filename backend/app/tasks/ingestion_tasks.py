@@ -17,10 +17,13 @@ async def run_sync_task(
 ):
     """
     Async helper function to run ingestion with database operations.
+    Uses two separate sessions:
+    - job_session: For job status updates (commits immediately, visible to SSE)
+    - data_session: For data operations (single atomic commit at the end)
     """
-    async with SessionLocal() as db:
-        # retrieve job from db, then init provider!
-        job = await DataIngestionRepository(db).get_job_by_id(job_id)
+    async with SessionLocal() as job_session, SessionLocal() as data_session:
+        # Retrieve job from db
+        job = await DataIngestionRepository(job_session).get_job_by_id(job_id)
         if not job:
             logger.error(f"Job ID {job_id} not found.")
             return
@@ -36,9 +39,9 @@ async def run_sync_task(
 
         provider = provider_class(
             config={**job.__dict__, **job_config, "job_id": job.id},
-            user=job.user
-            if hasattr(job, "user")
-            else None,  # User info can be added if needed
+            user=job.user if hasattr(job, "user") else None,
+            job_session=job_session,  # For status updates (frequent commits)
+            data_session=data_session,  # For data operations (atomic)
         )
         if hasattr(provider, "set_job_id") and job is not None and job.id is not None:
             await provider.set_job_id(job.id)
@@ -52,16 +55,20 @@ async def run_sync_task(
         # Run ingestion
         try:
             result = await provider.ingest(filters_to_use)
-            # Update module's last_sync_status
+            # Commit the data transaction atomically (all or nothing)
+            await data_session.commit()
+            # Update final job status
             await provider._update_job(
                 status_code=result["status_code"],
                 status_message=result["status_message"],
                 extra_metadata=result.get("data", {}),
             )
-
             logger.info("Sync completed successfully ")
         except Exception as e:
             logger.error(f"Sync failed for job ID {job.id}: {str(e)}")
+            # Explicitly rollback data session to ensure no partial writes
+            await data_session.rollback()
+            # Job updates are preserved because they commit immediately
             await provider._update_job(
                 status_code=IngestionStatus.FAILED,
                 status_message=str(e),
@@ -78,20 +85,5 @@ def run_ingestion(provider_name: str, job_id: int, filters: dict):
         asyncio.run(run_sync_task(provider_name, job_id, filters))
     except Exception as e:
         logger.error(f"Sync failed for job ID {job_id}: {str(e)}")
-
-        provider_class = ProviderFactory.get_provider_class(provider_name)
-        if not provider_class:
-            raise ValueError(f"Provider class '{provider_name}' not found")
-
-        provider = provider_class(config={}, user=None)
-
-        # Use asyncio.run here because _update_job is async
-        asyncio.run(
-            provider._update_job(
-                status_code=IngestionStatus.FAILED,
-                status_message=str(e),
-                extra_metadata={"message": "background_tasks: run_sync_task failure"},
-            )
-        )
-
+        # Error already logged and job status updated in run_sync_task
         raise  # propagate exception for Celery retry
