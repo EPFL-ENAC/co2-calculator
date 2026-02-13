@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useTimelineStore } from 'src/stores/modules';
+import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import type { Unit } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
@@ -10,6 +10,7 @@ import type { YearData } from 'src/components/organisms/workspace-selector/YearS
 import type { CarbonReport } from 'src/stores/workspace';
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
+const moduleStore = useModuleStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -28,6 +29,20 @@ const yearsCount = computed(
 const hasMultipleYears = computed(
   () => workspaceStore.availableCarbonReportYears.length > 1,
 );
+
+const yearRows = computed<YearData[]>(() => {
+  const emissionsMap = new Map<number, number>();
+  for (const row of moduleStore.state.yearlyValidatedEmissions) {
+    const year = row.year as number;
+    const tonnes = row.total_tonnes_co2eq as number;
+    emissionsMap.set(year, tonnes);
+  }
+  return workspaceStore.availableCarbonReportYears.map((year) => ({
+    year,
+    tco2eq: emissionsMap.get(year) ?? null,
+    status: workspaceStore.carbonReportForYear(year) ? 'complete' : 'missing',
+  }));
+});
 
 const selectedUnitAffiliations = computed(() => {
   const unit = workspaceStore.selectedUnit;
@@ -49,7 +64,10 @@ const routeUnitParam = computed(
 const handleUnitSelect = async (unit: Unit) => {
   workspaceStore.setUnit(unit);
   workspaceStore.setYear(null);
-  await workspaceStore.fetchCarbonReportsForUnit(unit.id);
+  await Promise.all([
+    workspaceStore.fetchCarbonReportsForUnit(unit.id),
+    moduleStore.getYearlyValidatedEmissions(unit.id),
+  ]);
 };
 
 const handleYearSelect = async (year: number) => {
@@ -165,17 +183,7 @@ onMounted(async () => {
         v-else
         class="q-mt-md"
         :selected-year="workspaceStore.selectedYear"
-        :years="
-          workspaceStore.availableCarbonReportYears.map(
-            (year) =>
-              ({
-                year,
-                status: workspaceStore.carbonReportForYear(year)
-                  ? 'complete'
-                  : 'missing',
-              }) as YearData,
-          )
-        "
+        :years="yearRows"
         @select="handleYearSelect"
       />
     </q-card>

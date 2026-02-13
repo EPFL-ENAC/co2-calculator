@@ -196,6 +196,9 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
+    yearlyValidatedEmissions: Array<Record<string, unknown>>;
+    loadingYearlyValidatedEmissions: boolean;
+    errorYearlyValidatedEmissions: string | null;
   }>({
     loading: false,
     error: null,
@@ -216,6 +219,9 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
+    yearlyValidatedEmissions: [],
+    loadingYearlyValidatedEmissions: false,
+    errorYearlyValidatedEmissions: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -635,8 +641,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.errorValidatedTotals = null;
     try {
       const path = `modules-stats/${encodeURIComponent(carbonReportId)}/validated-totals`;
-      const data =
-        await api.get(path).json<ValidatedTotalsResponse>();
+      const data = await api.get(path).json<ValidatedTotalsResponse>();
       state.validatedTotals = data;
       validatedTotalsCarbonReportId.value = carbonReportId;
     } catch (err: unknown) {
@@ -653,6 +658,26 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getYearlyValidatedEmissions(unitId: number) {
+    state.loadingYearlyValidatedEmissions = true;
+    state.errorYearlyValidatedEmissions = null;
+    try {
+      const path = `unit/${encodeURIComponent(unitId)}/yearly-validated-emissions`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.yearlyValidatedEmissions = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorYearlyValidatedEmissions = err.message ?? 'Unknown error';
+        state.yearlyValidatedEmissions = [];
+      } else {
+        state.errorYearlyValidatedEmissions = 'Unknown error';
+        state.yearlyValidatedEmissions = [];
+      }
+    } finally {
+      state.loadingYearlyValidatedEmissions = false;
+    }
+  }
+
   return {
     initializeSubmoduleState,
     getModuleData,
@@ -664,6 +689,7 @@ export const useModuleStore = defineStore('modules', () => {
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
     getValidatedTotals,
+    getYearlyValidatedEmissions,
     validatedTotalsCarbonReportId,
     state,
   };
