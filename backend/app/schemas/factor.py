@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_o
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.location import TransportModeEnum
 

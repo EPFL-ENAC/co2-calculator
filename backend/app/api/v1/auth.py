@@ -2,7 +2,7 @@
 
 import logging
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
@@ -18,10 +18,13 @@ from app.core.security import (
     create_refresh_token,
     decode_jwt,
 )
+from app.models.audit import AuditChangeTypeEnum
 from app.models.user import UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.schemas.user import UserRead
+from app.services.audit_service import AuditDocumentService
 from app.services.user_service import UserService
+from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -93,10 +96,88 @@ def _set_auth_cookies(
     )
 
 
+def _sanitize_route_payload(payload: Optional[dict]) -> Optional[dict]:
+    if not payload:
+        return payload
+
+    redacted_keys = {
+        "code",
+        "state",
+        "id_token",
+        "access_token",
+        "refresh_token",
+        "token",
+        "authorization",
+    }
+
+    def scrub(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                k: ("[redacted]" if k in redacted_keys else scrub(v))
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [scrub(item) for item in value]
+        return value
+
+    return scrub(payload)
+
+
+async def _build_request_context(request: Request) -> dict:
+    try:
+        route_payload = await extract_route_payload(request)
+    except Exception:
+        route_payload = None
+
+    return {
+        "ip_address": extract_ip_address(request),
+        "route_path": request.url.path,
+        "route_payload": _sanitize_route_payload(route_payload),
+    }
+
+
+async def _log_auth_audit_event(
+    *,
+    db: AsyncSession,
+    request: Request,
+    change_type: AuditChangeTypeEnum,
+    change_reason: str,
+    handler_id: str,
+    changed_by: Optional[int],
+    data_snapshot: Optional[dict] = None,
+    handled_ids: Optional[list[str]] = None,
+    entity_id: Optional[int] = None,
+) -> None:
+    try:
+        request_context = await _build_request_context(request)
+        audit_service = AuditDocumentService(db)
+
+        await audit_service.create_version(
+            entity_type="User",
+            entity_id=entity_id if entity_id is not None else 0,
+            data_snapshot=data_snapshot or {},
+            change_type=change_type,
+            changed_by=changed_by,
+            change_reason=change_reason,
+            handler_id=handler_id,
+            handled_ids=handled_ids or [],
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.warning(
+            "Auth audit log failed",
+            extra={"error": str(exc), "change_type": change_type},
+        )
+
+
 @router.get(
     "/login-test",
 )
 async def login_test(
+    request: Request,
     role: str = "co2.user.std",
     db: AsyncSession = Depends(get_db),
 ):
@@ -166,6 +247,23 @@ async def login_test(
         sub=user_info.get("sub", ""),
         user_id=user.id,
         email=user.email,
+    )
+
+    await _log_auth_audit_event(
+        db=db,
+        request=request,
+        change_type=AuditChangeTypeEnum.CREATE,
+        change_reason="User login (test)",
+        handler_id=user.provider_code or str(user.id),
+        changed_by=user.id,
+        handled_ids=[user.provider_code] if user.provider_code else [],
+        data_snapshot={
+            "event": "login_test",
+            "user_id": user.id,
+            "email": user.email,
+            "provider_code": user.provider_code,
+        },
+        entity_id=user.id or 0,
     )
 
     return response
@@ -291,11 +389,38 @@ async def auth_callback(
             "User authenticated successfully",
             extra={"user_id": user.id, "redirect_to": "/"},
         )
+
+        await _log_auth_audit_event(
+            db=db,
+            request=request,
+            change_type=AuditChangeTypeEnum.CREATE,
+            change_reason="User login",
+            handler_id=user.provider_code or str(user.id),
+            changed_by=user.id,
+            handled_ids=[user.provider_code] if user.provider_code else [],
+            data_snapshot={
+                "event": "login",
+                "user_id": user.id,
+                "email": user.email,
+                "provider_code": user.provider_code,
+            },
+            entity_id=user.id or 0,
+        )
         return response
 
     except MismatchingStateError:
         logger.warning(
             "OAuth state mismatch - session loss or multiple tabs",
+        )
+        await _log_auth_audit_event(
+            db=db,
+            request=request,
+            change_type=AuditChangeTypeEnum.CREATE,
+            change_reason="Login failed: OAuth state mismatch",
+            handler_id="unknown",
+            changed_by=None,
+            data_snapshot={"event": "login_failed", "reason": "state_mismatch"},
+            entity_id=0,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -303,12 +428,35 @@ async def auth_callback(
         )
     except HTTPException:
         logger.error("OAuth callback HTTP exception", exc_info=True)
+        await _log_auth_audit_event(
+            db=db,
+            request=request,
+            change_type=AuditChangeTypeEnum.CREATE,
+            change_reason="Login failed: HTTPException",
+            handler_id="unknown",
+            changed_by=None,
+            data_snapshot={"event": "login_failed", "reason": "http_exception"},
+            entity_id=0,
+        )
         raise
     except Exception as e:
         logger.error(
             "OAuth callback failed",
             extra={"error": str(e), "type": type(e).__name__},
             exc_info=settings.DEBUG,
+        )
+        await _log_auth_audit_event(
+            db=db,
+            request=request,
+            change_type=AuditChangeTypeEnum.CREATE,
+            change_reason="Login failed: unexpected error",
+            handler_id="unknown",
+            changed_by=None,
+            data_snapshot={
+                "event": "login_failed",
+                "reason": type(e).__name__,
+            },
+            entity_id=0,
         )
         if settings.DEBUG:
             import traceback
@@ -392,6 +540,7 @@ async def get_me(
 
 @router.post("/refresh")
 async def refresh_token(
+    request: Request,
     refresh_token: Optional[str] = Cookie(None),
     response: Response = Response(),
     db: AsyncSession = Depends(get_db),
@@ -456,6 +605,24 @@ async def refresh_token(
         )
 
         logger.info("Token refreshed successfully", extra={"user_id": user.id})
+
+        if request is not None:
+            await _log_auth_audit_event(
+                db=db,
+                request=request,
+                change_type=AuditChangeTypeEnum.UPDATE,
+                change_reason="Token refreshed",
+                handler_id=user.provider_code or str(user.id),
+                changed_by=user.id,
+                handled_ids=[user.provider_code] if user.provider_code else [],
+                data_snapshot={
+                    "event": "refresh",
+                    "user_id": user.id,
+                    "email": user.email,
+                    "provider_code": user.provider_code,
+                },
+                entity_id=user.id or 0,
+            )
         return {"message": "Token refreshed successfully"}
 
     except HTTPException:
@@ -469,7 +636,12 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(
+    response: Response,
+    request: Request,
+    auth_token: Optional[str] = Cookie(None),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Logout the current user.
 
@@ -495,4 +667,34 @@ async def logout(response: Response):
     )
 
     logger.info("User logged out")
+
+    if auth_token:
+        try:
+            payload = decode_jwt(auth_token)
+            user_id = payload.get("user_id")
+            user_email = payload.get("email")
+
+            handler_id = "unknown"
+            if user_id:
+                user = await UserService(db).get_by_id(user_id)
+                if user and user.provider_code:
+                    handler_id = user.provider_code
+
+            await _log_auth_audit_event(
+                db=db,
+                request=request,
+                change_type=AuditChangeTypeEnum.DELETE,
+                change_reason="User logout",
+                handler_id=handler_id,
+                changed_by=user_id,
+                handled_ids=[handler_id] if handler_id != "unknown" else [],
+                data_snapshot={
+                    "event": "logout",
+                    "user_id": user_id,
+                    "email": user_email,
+                },
+                entity_id=user_id or 0,
+            )
+        except Exception as exc:
+            logger.warning("Failed to log logout audit", extra={"error": str(exc)})
     return {"message": "Logged out successfully"}

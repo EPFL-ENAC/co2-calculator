@@ -1,7 +1,7 @@
 import csv
 import io
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
@@ -15,6 +15,7 @@ from app.models.user import User
 from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.data_entry import ModuleHandler
+from app.schemas.user import UserRead
 from app.seed.seed_helper import lookup_factor
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -656,7 +657,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Process batch when it reaches BATCH_SIZE
                 if len(batch) >= BATCH_SIZE:
                     await self._process_batch(
-                        batch, data_entry_service, emission_service
+                        batch, data_entry_service, emission_service, self.user
                     )
                     stats["batches_processed"] += 1
                     logger.info(
@@ -898,7 +899,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         # Process final batch (remaining rows < BATCH_SIZE)
         if batch:
-            await self._process_batch(batch, data_entry_service, emission_service)
+            await self._process_batch(
+                batch, data_entry_service, emission_service, self.user
+            )
             stats["batches_processed"] += 1
             logger.info(
                 f"Processed final batch {stats['batches_processed']}: "
@@ -948,6 +951,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         batch: List[DataEntry],
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
+        user: Optional[User],
     ) -> None:
         """Process a batch of data entries: bulk insert entries and emissions"""
         if not batch:
@@ -956,7 +960,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         logger.info(f"Processing batch of {len(batch)} entries")
 
         # 1. Bulk create data entries
-        data_entries_response = await data_entry_service.bulk_create(batch)
+        data_entries_response = await data_entry_service.bulk_create(
+            batch,
+            UserRead.model_validate(user) if user else None,
+            job_id=self.job_id,
+        )
 
         # 2. Prepare emissions for all created data entries
         emissions_to_create = []

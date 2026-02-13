@@ -30,7 +30,12 @@ async def test_create_data_entry_success(db_session: AsyncSession):
     await db_session.flush()
 
     # Create user
-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
 
     # Create data
     data = DataEntryCreate(
@@ -83,7 +88,12 @@ async def test_update_data_entry_success(db_session: AsyncSession):
     await db_session.flush()
 
     # Create user
-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
 
     # Update data
     update_data = DataEntryUpdate(
@@ -115,11 +125,7 @@ async def test_update_data_entry_without_user_raises_error(db_session: AsyncSess
         await service.update(id=1, data=update_data, user=None)
 
     with pytest.raises(PermissionError, match="User context is required"):
-        await service.update(
-            id=1,
-            data=update_data,
-            user=User(email="test@example.com", provider=UserProvider.DEFAULT),
-        )
+        await service.update(id=1, data=update_data, user=User(id=None, email=""))
 
 
 @pytest.mark.asyncio
@@ -127,7 +133,12 @@ async def test_update_data_entry_not_found_raises_error(db_session: AsyncSession
     """Test that updating non-existent entry raises ValueError."""
     service = DataEntryService(db_session)
 
-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
     update_data = DataEntryUpdate(
         data_entry_type_id=DataEntryTypeEnum.trips.value,
         carbon_report_module_id=1,
@@ -168,7 +179,12 @@ async def test_delete_data_entry_success(db_session: AsyncSession):
     await db_session.flush()
 
     # Create user
-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
 
     result = await service.delete(id=entry.id, current_user=user)
 
@@ -184,7 +200,12 @@ async def test_delete_data_entry_not_found_raises_error(db_session: AsyncSession
     """Test that deleting non-existent entry raises ValueError."""
     service = DataEntryService(db_session)
 
-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
 
     with pytest.raises(ValueError, match="not found"):
         await service.delete(id=99999, current_user=user)
@@ -253,6 +274,14 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
     db_session.add(module)
     await db_session.flush()
 
+    # Create user
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
+
     # Create multiple entries
     entries = [
         DataEntry(
@@ -264,7 +293,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
         for i in range(5)
     ]
 
-    result = await service.bulk_create(entries)
+    result = await service.bulk_create(entries, user)
 
     assert len(result) == 5
     assert all(r.id is not None for r in result)
@@ -285,6 +314,14 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     )
     db_session.add(module)
     await db_session.flush()
+
+    # Create user
+    user = User(
+        id=1,
+        email="test@example.com",
+        provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
+    )
 
     # Create entries of different types
     trips = [
@@ -308,7 +345,7 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     await db_session.flush()
 
     # Bulk delete only trips
-    await service.bulk_delete(module.id, DataEntryTypeEnum.trips)
+    await service.bulk_delete(module.id, DataEntryTypeEnum.trips, user)
 
     # Verify trips are deleted
     from sqlmodel import select

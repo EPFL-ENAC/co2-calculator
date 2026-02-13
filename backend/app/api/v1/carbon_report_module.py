@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -26,9 +26,11 @@ from app.schemas.data_entry import (
     ModuleHandler,
     resolve_primary_factor_if_kind_or_subkind_changed,
 )
+from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
+from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -204,6 +206,7 @@ async def get_submodule(
     year: int,
     module_id: str,
     submodule_id: str,
+    request: Request,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
@@ -275,6 +278,12 @@ async def get_submodule(
         sort_by=sort_by,
         sort_order=sort_order,
         filter=filter,
+        current_user=UserRead.model_validate(current_user),
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
     )
 
     if not submodule_data:
@@ -305,6 +314,7 @@ async def create(
     module_id: str,
     submodule_id: str,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -401,8 +411,13 @@ async def create(
     item = await DataEntryService(db).create(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_type_id=data_entry_type_id,
-        user=current_user,
+        user=UserRead.model_validate(current_user),
         data=data_entry_create,
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
     )
     if item is None:
         raise HTTPException(
@@ -483,6 +498,7 @@ async def update(
     submodule_id: str,
     item_id: int,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -557,7 +573,12 @@ async def update(
         item = await DataEntryService(db).update(
             id=item_id,
             data=data_entry_update,
-            user=current_user,
+            user=UserRead.model_validate(current_user),
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
         )
         await db.flush()
         if item is None:
@@ -596,6 +617,7 @@ async def delete(
     module_id: str,
     submodule_id: str,
     item_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -621,7 +643,12 @@ async def delete(
 
         await DataEntryService(db).delete(
             id=item_id,
-            current_user=current_user,
+            current_user=UserRead.model_validate(current_user),
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
         )
         await db.commit()
     except HTTPException:

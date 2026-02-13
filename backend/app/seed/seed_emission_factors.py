@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionTypeEnum
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor

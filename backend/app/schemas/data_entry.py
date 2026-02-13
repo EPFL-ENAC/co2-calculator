@@ -349,6 +349,7 @@ class HeadcountItemResponse(DataEntryResponseGen):
     name: str
     function: Optional[str] = None
     fte: Optional[float] = None
+    sciper: Optional[str] = None
 
 
 class HeadCountStudentResponse(DataEntryResponseGen):
@@ -423,6 +424,7 @@ class HeadCountCreate(DataEntryCreate):
     name: str
     function: Optional[str] = None
     fte: Optional[float] = None
+    sciper: Optional[str] = None
 
     @field_validator("fte", mode="after")
     @classmethod
