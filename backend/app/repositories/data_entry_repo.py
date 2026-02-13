@@ -9,7 +9,9 @@ from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -128,6 +130,64 @@ class DataEntryRepository:
         statement = statement.offset(offset).limit(limit)
         result = await self.session.execute(statement)
         return list(result.scalars().all())
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+        aggregate_by: str = "module_type_id",
+        aggregate_field: str = "fte",
+    ) -> Dict[str, float]:
+        """Aggregate DataEntry data across validated modules for a carbon report.
+
+        Joins DataEntry → CarbonReportModule and returns
+        SUM(DataEntry.data[aggregate_field]) grouped by aggregate_by,
+        filtered to validated modules only.
+
+        Args:
+            carbon_report_id: The carbon report to aggregate across.
+            aggregate_by: Column to group by. Resolves from CarbonReportModule
+                first, then DataEntry, then DataEntry.data JSON.
+            aggregate_field: JSON data key to sum (default: fte).
+
+        Returns:
+            Dict keyed by aggregate_by value, e.g. {"1": 25.5}
+        """
+        if hasattr(CarbonReportModule, aggregate_by):
+            group_field = getattr(CarbonReportModule, aggregate_by)
+        elif hasattr(DataEntry, aggregate_by):
+            group_field = getattr(DataEntry, aggregate_by)
+        else:
+            group_field = DataEntry.data[aggregate_by].as_string()
+
+        sum_field = DataEntry.data[aggregate_field].as_float()
+
+        query = (
+            select(
+                group_field,
+                func.sum(sum_field).label("total"),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+            )
+            .group_by(group_field)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        aggregation: Dict[str, float] = {}
+        for key, total in rows:
+            if total is None:
+                continue
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total)
+
+        return aggregation
 
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
