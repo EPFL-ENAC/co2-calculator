@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import status
+from fastapi import Response, status
 from fastapi.testclient import TestClient
 
 import app.api.v1.auth as auth_module
@@ -141,8 +141,14 @@ async def test_refresh_token_invalid_payload(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
     response = MagicMock()
+    request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
+        await auth_module.refresh_token(
+            refresh_token="token",
+            response=response,
+            request=request,
+            db=db,
+        )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -157,8 +163,14 @@ async def test_refresh_token_user_missing(monkeypatch):
     )
     db = MagicMock()
     response = MagicMock()
+    request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
+        await auth_module.refresh_token(
+            refresh_token="token",
+            response=response,
+            request=request,
+            db=db,
+        )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -166,8 +178,14 @@ async def test_refresh_token_user_missing(monkeypatch):
 async def test_refresh_token_no_token():
     db = MagicMock()
     response = MagicMock()
+    request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(refresh_token=None, response=response, db=db)
+        await auth_module.refresh_token(
+            refresh_token=None,
+            response=response,
+            request=request,
+            db=db,
+        )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -178,12 +196,83 @@ async def test_refresh_token_exception(monkeypatch):
     )
     db = MagicMock()
     response = MagicMock()
+    request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
+        await auth_module.refresh_token(
+            refresh_token="token",
+            response=response,
+            request=request,
+            db=db,
+        )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
+@pytest.mark.asyncio
+async def test_refresh_token_logs_audit_event(monkeypatch):
+    monkeypatch.setattr(
+        auth_module,
+        "decode_jwt",
+        MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 42}),
+    )
+    mock_user = MagicMock(id=42, email="test@example.com", provider_code="123456")
+    monkeypatch.setattr(
+        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
+    )
+    log_mock = AsyncMock()
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)
+
+    db = MagicMock()
+    response = Response()
+    request = MagicMock()
+
+    result = await auth_module.refresh_token(
+        refresh_token="token",
+        response=response,
+        request=request,
+        db=db,
+    )
+
+    assert result["message"] == "Token refreshed successfully"
+    log_mock.assert_awaited_once()
+
+
 def test_logout(client):
-    response = client.post("/api/v1/auth/logout")
+    async def override_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[auth_module.get_db] = override_get_db
+    try:
+        response = client.post("/api/v1/auth/logout")
+    finally:
+        app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["message"] == "Logged out successfully"
+
+
+@pytest.mark.asyncio
+async def test_logout_logs_audit_event(monkeypatch):
+    monkeypatch.setattr(
+        auth_module,
+        "decode_jwt",
+        MagicMock(return_value={"user_id": 7, "email": "test@example.com"}),
+    )
+    mock_user = MagicMock(id=7, provider_code="987654")
+    monkeypatch.setattr(
+        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
+    )
+    log_mock = AsyncMock()
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)
+
+    response = Response()
+    request = MagicMock()
+    db = MagicMock()
+
+    result = await auth_module.logout(
+        response=response,
+        request=request,
+        auth_token="token",
+        db=db,
+    )
+
+    assert result["message"] == "Logged out successfully"
+    log_mock.assert_awaited_once()

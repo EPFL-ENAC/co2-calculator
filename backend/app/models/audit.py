@@ -59,7 +59,11 @@ class AuditDocumentBase(SQLModel):
     change_reason: Optional[str] = Field(
         default=None, description="Optional human-readable reason for change"
     )
-    changed_by: str = Field(description="Actor identifier (username/email)")
+    changed_by: Optional[int] = Field(
+        default=None,
+        nullable=True,
+        description="Actor identifier (user_id or job_id)",
+    )
     changed_at: datetime = Field(
         default_factory=datetime.utcnow, description="Timestamp of change (UTC)"
     )

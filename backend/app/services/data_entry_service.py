@@ -87,7 +87,7 @@ class DataEntryService:
             entity_id=created_entry.id or 0,
             data_snapshot=created_entry.model_dump(),
             change_type=AuditChangeTypeEnum.CREATE,
-            changed_by=str(user.id),
+            changed_by=user.id,
             change_reason="Initial creation",
             handler_id=user.provider_code,
             handled_ids=handled_ids,
@@ -114,7 +114,12 @@ class DataEntryService:
         # Create versions for all entries (only if user context available)
         if user or job_id:
             request_context = request_context or {}
-            changed_by = str(user.id) if user else str(job_id)
+            changed_by = user.id if user else None
+            if changed_by is None and job_id is not None:
+                try:
+                    changed_by = int(job_id)
+                except (TypeError, ValueError):
+                    changed_by = None
             handler_id = user.provider_code if user else "csv_ingestion"
 
             # Build list of version metadata for bulk creation
@@ -201,7 +206,7 @@ class DataEntryService:
                     "entity_id": entry.id or 0,
                     "data_snapshot": snapshots[entry.id],
                     "change_type": AuditChangeTypeEnum.DELETE,
-                    "changed_by": str(user.id),
+                    "changed_by": user.id,
                     "change_reason": "Bulk data entry deletion",
                     "handler_id": user.provider_code,
                     "handled_ids": handled_ids_map.get(entry.id, []),
@@ -249,7 +254,7 @@ class DataEntryService:
             entity_id=entry.id or 0,
             data_snapshot=entry.model_dump(),
             change_type=AuditChangeTypeEnum.UPDATE,
-            changed_by=str(user.id),
+            changed_by=user.id,
             change_reason="Data entry updated",
             handler_id=user.provider_code,
             handled_ids=handled_ids,
@@ -290,7 +295,7 @@ class DataEntryService:
             entity_id=id,
             data_snapshot=snapshot,
             change_type=AuditChangeTypeEnum.DELETE,
-            changed_by=str(current_user.id),
+            changed_by=current_user.id,
             change_reason="Data entry deleted",
             handler_id=current_user.provider_code,
             handled_ids=handled_ids,
@@ -392,7 +397,7 @@ class DataEntryService:
                 entity_id=-1,
                 data_snapshot={},  # No snapshot for read operations
                 change_type=AuditChangeTypeEnum.READ,
-                changed_by=str(current_user.id),
+                changed_by=current_user.id,
                 change_reason=(
                     f"Data entry read for "
                     f"carbon_report_module_id {carbon_report_module_id} "

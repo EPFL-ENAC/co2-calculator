@@ -164,7 +164,7 @@ class AuditDocumentService:
         entity_id: int,
         data_snapshot: Dict,
         change_type: AuditChangeTypeEnum,
-        changed_by: str,
+        changed_by: Optional[int],
         handler_id: str,
         change_reason: Optional[str] = None,
         ip_address: Optional[str] = None,
@@ -181,7 +181,7 @@ class AuditDocumentService:
             entity_id: Entity primary key
             data_snapshot: Full document snapshot as dict
             change_type: One of 'CREATE', 'UPDATE', 'DELETE', 'ROLLBACK'
-            changed_by: User identifier
+            changed_by: User or job identifier
             handler_id: User ID who performed the action
             change_reason: Optional reason for the change
             ip_address: IP address of the requester (defaults to 'unknown')
@@ -246,7 +246,7 @@ class AuditDocumentService:
 
         logger.info(
             f"Created version {new_version} for {entity_type}:{entity_id} "
-            f"({change_type}) by {changed_by}"
+            f"({change_type}) by {changed_by or 'unknown'}"
         )
 
         return doc_version
@@ -270,7 +270,7 @@ class AuditDocumentService:
                 - entity_id: int
                 - data_snapshot: Dict
                 - change_type: AuditChangeTypeEnum
-                - changed_by: str
+                - changed_by: Optional[int]
                 - handler_id: str
                 - change_reason: Optional[str]
                 - ip_address: Optional[str]
@@ -365,7 +365,7 @@ class AuditDocumentService:
         # Log bulk operation
         logger.info(
             f"Bulk created {len(created_docs)} versions for {entity_type} "
-            f"by {versions_data[0].get('changed_by', 'unknown')}"
+            f"by {versions_data[0].get('changed_by') or 'unknown'}"
         )
 
         return created_docs
@@ -375,7 +375,7 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         target_version: int,
-        changed_by: str,
+        changed_by: Optional[int],
         handler_id: str,
         change_reason: Optional[str] = None,
         ip_address: Optional[str] = None,

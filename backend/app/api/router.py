@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    audit,
     auth,
     backoffice,
     carbon_report,
@@ -40,3 +41,4 @@ api_router.include_router(
 api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])
+api_router.include_router(audit.router, prefix="/audit", tags=["audit"])

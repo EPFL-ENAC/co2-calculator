@@ -6,7 +6,7 @@ erDiagram
     VARCHAR change_reason
     VARCHAR change_type
     DATETIME changed_at
-    VARCHAR changed_by
+    INTEGER changed_by
     VARCHAR current_hash
     JSON data_diff
     JSON data_snapshot

@@ -112,7 +112,7 @@ class DataIngestionProvider(ABC):
         from app.services.audit_service import AuditDocumentService
 
         audit_service = AuditDocumentService(db)
-        changed_by = str(self.user.id) if self.user else "system"
+        changed_by = self.user.id if self.user else self.job_id
         handler_id = self.user.provider_code if self.user else "csv_ingestion"
 
         await audit_service.create_version(

@@ -139,24 +139,7 @@ Add audit events for user authentication:
 
 Query the **AUDIT logs** to answer Service Manager questions:
 
-- [ ] **Query Endpoints**
-  ```
-  GET /api/v1/audit/activity
-    - ?user_id=123              # Who did this user affect?
-    - ?entity_type=DataEntry    # All changes to data entries
-    - ?date_range=2026-01-01:2026-02-01
-    - ?action=CREATE|UPDATE|DELETE|READ
-    - ?entity_id=456            # History of specific entry
-  ```
-- [ ] **Dashboard Views**
-  - "Who did what when?" timeline for selected user
-  - Change history viewer (before/after diffs)
-  - Bulk operation tracking (CSV imports)
-  - Login/logout history
-- [ ] **Export Functionality**
-  - CSV export of audit logs filtered by date/user/action
-  - Compliance reports
-  - Evidence for investigations
+cf [240-feat-interface-service-mgr](./240-feat-service-mgr-audit-ui.md)
 
 ### 5. **Data Retention & Compliance (MEDIUM PRIORITY) - AUDIT LOGS ONLY**
 
