@@ -23,8 +23,7 @@ from app.db import SessionLocal
 
 # from app.models.equipment import Equipment, EquipmentEmission
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
