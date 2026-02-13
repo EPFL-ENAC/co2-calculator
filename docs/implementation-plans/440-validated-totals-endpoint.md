@@ -15,7 +15,7 @@ The existing aggregation endpoints only handle equipment and don't filter by val
 
 ## Endpoint 1: Workspace — yearly totals
 
-**Route:** `GET /unit/{unit_id}/validated-emissions`
+**Route:** `GET /unit/{unit_id}/yearly-validated-emissions`
 
 **Purpose:** Feed the YearSelector with total tCO2eq per year.
 
@@ -53,7 +53,7 @@ Add `get_validated_emissions_by_unit(unit_id: int) -> list[dict]`
 
 ### 1c. Endpoint: [unit_results.py](backend/app/api/v1/unit_results.py)
 
-Add `GET /{unit_id}/validated-emissions` endpoint. Already mounted at `/unit` prefix (line 25 of `router.py`).
+Add `GET /{unit_id}/yearly-validated-emissions` endpoint. Already mounted at `/unit` prefix (line 25 of `router.py`).
 
 ---
 
@@ -124,7 +124,7 @@ The endpoint:
 
 ### API functions: [modules.ts](frontend/src/api/modules.ts)
 
-**Function 1:** `getValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/validated-emissions`, returns `{ emissions_data: Array<{year, total_tonnes_co2eq}> }`
+**Function 1:** `getValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, returns `{ emissions_data: Array<{year, total_tonnes_co2eq}> }`
 
 **Function 2:** `getValidatedTotals(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/validated-totals`, returns `{ modules, total_tonnes_co2eq, total_fte }`
 
@@ -147,13 +147,13 @@ Use `getValidatedTotals` to display per-module validated emissions and the year 
 | `backend/app/services/unit_totals_service.py`          | Add `get_validated_emissions_by_unit()`                                  |
 | `backend/app/services/data_entry_emission_service.py`  | Add `get_stats_by_carbon_report_id()` (delegates to repo)                |
 | `backend/app/services/data_entry_service.py`           | Add `get_stats_by_carbon_report_id()` (delegates to repo)                |
-| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/validated-emissions` endpoint                        |
+| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/yearly-validated-emissions` endpoint                 |
 | `backend/app/api/v1/carbon_report_module_stats.py`     | Add `GET /{carbon_report_id}/validated-totals` endpoint                  |
 | `frontend/src/api/modules.ts`                          | Add `getValidatedEmissions()` + `getValidatedTotals()` + interfaces      |
 
 ## Verification
 
-1. Call `GET /api/v1/unit/{id}/validated-emissions` — verify response contains per-year totals from validated modules only
+1. Call `GET /api/v1/unit/{id}/yearly-validated-emissions` — verify response contains per-year totals from validated modules only
 2. Call `GET /api/v1/modules-stats/{carbon_report_id}/validated-totals` — verify per-module breakdown with correct module_type_id keys
 3. Non-validated modules (status 0 or 1) must not appear in either endpoint
 4. Headcount FTE must come from `DataEntry.data["fte"]`, not from `DataEntryEmission`

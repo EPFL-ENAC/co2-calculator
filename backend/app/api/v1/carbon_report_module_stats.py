@@ -33,12 +33,7 @@ async def get_validated_totals(
 
     Returns:
         {
-            "modules": [
-                {"module_type_id": 1, "total_fte": 25.5},
-                {"module_type_id": 2, "total_tonnes_co2eq": 15.0},
-                {"module_type_id": 4, "total_tonnes_co2eq": 41.7},
-                {"module_type_id": 7, "total_tonnes_co2eq": 5.0}
-            ],
+            "modules": {1: 25.5, 2: 15.0, 4: 41.7, 7: 5.0},
             "total_tonnes_co2eq": 61.7,
             "total_fte": 25.5
         }
@@ -57,20 +52,17 @@ async def get_validated_totals(
 
     # Collect all module_type_ids from both queries
     all_module_ids = set(emission_stats.keys()) | set(fte_stats.keys())
+    headcount_type_id = str(ModuleTypeEnum.headcount.value)
 
-    modules = []
+    modules: dict[int, float] = {}
     for module_type_id in sorted(all_module_ids, key=int):
-        entry: dict = {"module_type_id": int(module_type_id)}
-        if module_type_id in emission_stats:
-            entry["total_tonnes_co2eq"] = round(
-                emission_stats[module_type_id] / 1000.0, 2
-            )
-        if module_type_id in fte_stats:
-            entry["total_fte"] = round(fte_stats[module_type_id], 2)
-        modules.append(entry)
+        if module_type_id == headcount_type_id and module_type_id in fte_stats:
+            modules[int(module_type_id)] = fte_stats[module_type_id]
+        elif module_type_id in emission_stats:
+            modules[int(module_type_id)] = emission_stats[module_type_id] / 1000.0
 
-    total_tonnes_co2eq = round(sum(kg / 1000.0 for kg in emission_stats.values()), 2)
-    total_fte = round(sum(fte_stats.values()), 2)
+    total_tonnes_co2eq = sum(kg / 1000.0 for kg in emission_stats.values())
+    total_fte = sum(fte_stats.values())
 
     return {
         "modules": modules,

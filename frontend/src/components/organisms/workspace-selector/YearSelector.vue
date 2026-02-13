@@ -8,11 +8,8 @@ const ROWS_PER_PAGE = 20;
 
 export interface YearData {
   year: number;
-  progress: number;
-  completed_modules: number;
-  comparison: number | null;
-  kgco2: number;
-  status: 'future' | 'current' | 'complete';
+  tco2eq: number | null;
+  status: string;
 }
 
 interface Props {
@@ -41,9 +38,9 @@ const columns = computed<QTableColumn[]>(() => [
     sortable: true,
   },
   {
-    name: 'kgco2',
-    label: t('workspace_setup_year_table_header_kgco2'),
-    field: 'kgco2',
+    name: 'tco2eq',
+    label: t('tco2eq'),
+    field: 'tco2eq',
     align: 'right',
     sortable: true,
   },
@@ -75,11 +72,9 @@ const columns = computed<QTableColumn[]>(() => [
           <span class="text-h6 text-weight-medium">{{ props.row.year }}</span>
         </q-td>
 
-        <!-- kg CO2 -->
-        <q-td key="kgco2" :props="props" class="text-center">
-          <span class="text-weight-medium"
-            >{{ nOrDash(props.row.kgco2) }}kg</span
-          >
+        <!-- tCO2-eq -->
+        <q-td key="tco2eq" :props="props" class="text-center">
+          <span class="text-weight-bold">{{ nOrDash(props.row.tco2eq) }}</span>
         </q-td>
       </q-tr>
     </template>

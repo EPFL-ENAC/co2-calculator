@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
+import { MODULES_CONFIG } from 'src/constant/module-config';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { ModuleCard } from 'src/constant/moduleCards';
 import {
@@ -39,21 +40,15 @@ const validatedTotals = computed(() => {
   return moduleStore.state.validatedTotals;
 });
 
-/**
- * Get the display total for a module card.
- * Headcount shows total_fte, other modules show total_tonnes_co2eq.
- */
-function getModuleCardTotal(module: Module): number | null {
-  const totals = validatedTotals.value;
-  if (!totals) return null;
-  const typeId = getModuleTypeId(module);
-  const entry = totals.modules.find((m) => m.module_type_id === typeId);
-  if (!entry) return null;
-  if (module === MODULES.Headcount) {
-    return entry.total_fte ?? null;
-  }
-  return entry.total_tonnes_co2eq ?? null;
-}
+const moduleCardTotals = computed(() => {
+  const modules = validatedTotals.value?.modules;
+  return Object.fromEntries(
+    MODULE_CARDS.map(({ module }) => [
+      module,
+      modules?.[getModuleTypeId(module)] ?? null,
+    ]),
+  );
+});
 
 function hasModulePermission(
   module: Module,
@@ -258,11 +253,9 @@ const modulesCounterText = computed(() =>
             >
               <p class="text-weight-medium q-mb-none">
                 {{
-                  nOrDash(getModuleCardTotal(moduleCard.module), {
-                    options: {
-                      maximumFractionDigits:
-                        moduleCard.module === MODULES.Headcount ? 1 : 0,
-                    },
+                  nOrDash(moduleCardTotals[moduleCard.module], {
+                    options:
+                      MODULES_CONFIG[moduleCard.module]?.numberFormatOptions,
                   })
                 }}
               </p>

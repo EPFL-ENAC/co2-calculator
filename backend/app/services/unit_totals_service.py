@@ -125,3 +125,17 @@ class UnitTotalsService:
         logger.info(f"Unit totals calculated: {result['total_kg_co2eq']} kg CO2eq")
 
         return result
+
+    async def get_validated_emissions_by_unit(self, unit_id: int) -> list[dict]:
+        """Get validated emission totals per year for a unit.
+
+        Returns:
+            [{"year": 2023, "kg_co2eq": 61700.0}, ...]
+        """
+        from app.repositories.data_entry_emission_repo import (
+            DataEntryEmissionRepository,
+        )
+
+        return await DataEntryEmissionRepository(
+            self.session
+        ).get_validated_totals_by_unit(unit_id=unit_id)
