@@ -17,6 +17,7 @@
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
     "build": "quasar build",
+    "postinstall": "quasar prepare",
     "mock:auth": "node src/mock/mockauth.js",
     "storybook": "storybook dev -p 6006 --config-dir storybook/.storybook",
     "storybook:build": "storybook build --config-dir storybook/.storybook",
