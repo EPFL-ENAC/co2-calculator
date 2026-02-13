@@ -96,6 +96,10 @@ backend:
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
 
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -208,6 +212,10 @@ frontend:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
   nodeSelector: {}
   tolerations: []
