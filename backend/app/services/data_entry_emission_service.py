@@ -182,6 +182,15 @@ class DataEntryEmissionService:
         )
         return stats
 
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+    ) -> dict[str, float]:
+        """Get validated emission totals per module for a carbon report."""
+        return await self.repo.get_stats_by_carbon_report_id(
+            carbon_report_id=carbon_report_id,
+        )
+
     async def get_travel_stats_by_class(
         self,
         carbon_report_module_id: int,

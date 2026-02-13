@@ -6,6 +6,7 @@ from sqlalchemy import Select
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -100,6 +101,102 @@ class DataEntryEmissionRepository:
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
             aggregation[label] = float(total_count or 0.0)
+
+        return aggregation
+
+    async def get_validated_totals_by_unit(
+        self,
+        unit_id: int,
+    ) -> List[Dict[str, Any]]:
+        """Aggregate validated emission totals by year for a unit.
+
+        Joins CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission
+        and sums kg_co2eq across ALL validated modules, grouped by year.
+
+        Returns:
+            [{"year": 2023, "kg_co2eq": 61700.0}, {"year": 2024, "kg_co2eq": 45000.0}]
+        """
+        year_expr = col(CarbonReport.year)
+
+        query: Select[Any] = (
+            select(
+                year_expr.label("year"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(year_expr)
+            .order_by(year_expr.asc())
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            {
+                "year": int(row.year),
+                "kg_co2eq": float(row.kg_co2eq or 0.0),
+            }
+            for row in rows
+        ]
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+    ) -> Dict[str, float]:
+        """Aggregate validated emission totals per module for a carbon report.
+
+        Joins DataEntryEmission → DataEntry → CarbonReportModule and returns
+        SUM(kg_co2eq) grouped by module_type_id, filtered to validated modules
+        only.
+
+        Returns:
+            Dict keyed by module_type_id (as string), e.g.:
+            {"2": 15000.0, "4": 41700.0, "7": 5000.0}
+        """
+        query = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(col(CarbonReportModule.module_type_id))
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        aggregation: Dict[str, float] = {}
+        for module_type_id, total in rows:
+            label = str(module_type_id) if module_type_id is not None else "unknown"
+            aggregation[label] = float(total or 0.0)
 
         return aggregation
 
