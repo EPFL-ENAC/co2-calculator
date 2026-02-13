@@ -20,7 +20,7 @@ from app.schemas.carbon_report_response import (
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
-from app.utils.audit_helpers import extract_handled_ids
+from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
 
 logger = get_logger(__name__)
 
@@ -104,6 +104,7 @@ class DataEntryService:
         data_entries: list[DataEntry],
         user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
+        job_id: Optional[str | int] = None,
     ) -> list[DataEntryResponse]:
         """Bulk create data entries."""
         logger.info(f"Bulk creating {len(data_entries)} data entries")
@@ -111,8 +112,11 @@ class DataEntryService:
         await self.session.flush()  # Ensure data_entry IDs are populated
 
         # Create version for each created entry (only if user context available)
-        if user:
+        if user or job_id:
             request_context = request_context or {}
+            changed_by = str(user.id) if user else str(job_id)
+            handler_id = user.provider_code if user else "csv_ingestion"
+
             for obj in db_objs:
                 handled_ids = extract_handled_ids(
                     obj, DataEntryTypeEnum(obj.data_entry_type_id)
@@ -123,9 +127,11 @@ class DataEntryService:
                     entity_id=obj.id or 0,
                     data_snapshot=obj.model_dump(),
                     change_type=AuditChangeTypeEnum.CREATE,
-                    changed_by=str(user.id),
-                    change_reason="Bulk data entry creation",
-                    handler_id=user.provider_code,
+                    changed_by=changed_by,
+                    change_reason="Bulk data entry creation"
+                    if user
+                    else f"Imported via CSV job {job_id}",
+                    handler_id=handler_id,
                     handled_ids=handled_ids,
                     ip_address=request_context.get("ip_address"),
                     route_path=request_context.get("route_path"),
@@ -335,9 +341,11 @@ class DataEntryService:
         sort_by: str = "date",
         sort_order: str = "asc",
         filter: Optional[str] = None,
+        current_user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
     ) -> SubmoduleResponse:
         """Get module data for a unit and year."""
-        return await self.repo.get_submodule_data(
+        response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
             limit=limit,
@@ -346,6 +354,42 @@ class DataEntryService:
             sort_order=sort_order,
             filter=filter,
         )
+
+        if (
+            (current_user is not None and current_user.id is not None)
+            and (request_context is not None)
+            and (
+                response is not None
+                and data_entry_type_id == DataEntryTypeEnum.trips.value
+            )
+            or (data_entry_type_id == DataEntryTypeEnum.member.value)
+        ):
+            # for headcount and trips we need for OPDO to have a record of READ
+            # Create version record for read
+            extract_handled_ids = extract_handled_ids_from_list(
+                response.items, DataEntryTypeEnum(data_entry_type_id)
+            )
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=-1,
+                data_snapshot=None,  # No snapshot for read operations
+                change_type=AuditChangeTypeEnum.READ,
+                changed_by=str(current_user.id),
+                change_reason=(
+                    f"Data entry read for "
+                    f"carbon_report_module_id {carbon_report_module_id} "
+                    f"and data_entry_type_id {data_entry_type_id}"
+                ),
+                handler_id=current_user.provider_code,
+                handled_ids=extract_handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+            )
+            # special case, we want to commit here, cause we don't commit in READ routes
+            await self.session.commit()
+
+        return response
 
     async def get_total_per_field(
         self,

@@ -206,6 +206,7 @@ async def get_submodule(
     year: int,
     module_id: str,
     submodule_id: str,
+    request: Request,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
@@ -277,6 +278,12 @@ async def get_submodule(
         sort_by=sort_by,
         sort_order=sort_order,
         filter=filter,
+        current_user=UserRead.model_validate(current_user),
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
     )
 
     if not submodule_data:

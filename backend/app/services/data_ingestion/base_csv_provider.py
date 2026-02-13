@@ -959,12 +959,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         logger.info(f"Processing batch of {len(batch)} entries")
 
-        if user is None:
-            logger.warning("No user context available for batch processing")
-            raise ValueError("User context is required for batch processing")
         # 1. Bulk create data entries
         data_entries_response = await data_entry_service.bulk_create(
-            batch, UserRead.model_validate(user)
+            batch,
+            UserRead.model_validate(user) if user else None,
+            job_id=self.job_id,
         )
 
         # 2. Prepare emissions for all created data entries

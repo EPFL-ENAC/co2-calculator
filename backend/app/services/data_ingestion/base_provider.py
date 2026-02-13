@@ -107,6 +107,28 @@ class DataIngestionProvider(ABC):
         if self.job_id is None:
             raise Exception("Failed to create ingestion job id")
 
+        # Create audit record for job creation
+        from app.models.audit import AuditChangeTypeEnum
+        from app.services.audit_service import AuditDocumentService
+
+        audit_service = AuditDocumentService(db)
+        changed_by = str(self.user.id) if self.user else "system"
+        handler_id = self.user.provider_code if self.user else "csv_ingestion"
+
+        await audit_service.create_version(
+            entity_type="DataIngestionJob",
+            entity_id=self.job_id,
+            data_snapshot=job.model_dump(),
+            change_type=AuditChangeTypeEnum.CREATE,
+            changed_by=changed_by,
+            change_reason=f"Data ingestion job created via {ingestion_method.value}",
+            handler_id=handler_id,
+            handled_ids=[],  # No specific handled IDs for job creation
+            ip_address=None,
+            route_path=None,
+            route_payload=None,
+        )
+
         return self.job_id
 
     async def ingest(
