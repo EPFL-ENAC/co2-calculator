@@ -17,6 +17,10 @@ from app.repositories.audit_repo import AuditDocumentRepository
 
 logger = get_logger(__name__)
 
+HANDLED_IDS_MAX_LENGTH = (
+    20  # Max number of handled_ids to store for safety and performance
+)
+
 
 class AuditDocumentService:
     """
@@ -213,6 +217,8 @@ class AuditDocumentService:
             current.is_current = False
             self.session.add(current)
 
+        # for safety version make sure we don' push more than 20 handled_ids
+        final_handled_ids = handled_ids[:HANDLED_IDS_MAX_LENGTH] if handled_ids else []
         # Create new version
         doc_version = AuditDocument(
             entity_type=entity_type,
@@ -228,7 +234,7 @@ class AuditDocumentService:
             previous_hash=previous_hash,
             current_hash=current_hash,
             handler_id=handler_id,
-            handled_ids=handled_ids or [],
+            handled_ids=final_handled_ids,
             ip_address=ip_address or "unknown",
             route_path=route_path,
             route_payload=route_payload,
@@ -244,6 +250,125 @@ class AuditDocumentService:
         )
 
         return doc_version
+
+    async def bulk_create_versions(
+        self,
+        entity_type: str,
+        versions_data: List[Dict[str, Any]],
+    ) -> List[AuditDocument]:
+        """
+        Efficiently bulk create versions for multiple entities.
+
+        Much more efficient than calling create_version in a loop because:
+        - Queries all current versions in a single batch query
+        - Computes all diffs and hashes in memory
+        - Inserts all documents in one flush
+
+        Args:
+            entity_type: Entity table name (applies to all versions)
+            versions_data: List of dicts, each containing:
+                - entity_id: int
+                - data_snapshot: Dict
+                - change_type: AuditChangeTypeEnum
+                - changed_by: str
+                - handler_id: str
+                - change_reason: Optional[str]
+                - ip_address: Optional[str]
+                - route_path: Optional[str]
+                - route_payload: Optional[Dict]
+                - handled_ids: Optional[List[str]]
+
+        Returns:
+            List of created AuditDocument objects
+        """
+        if not versions_data:
+            return []
+
+        # Extract all entity IDs
+        entity_ids = [v["entity_id"] for v in versions_data]
+
+        # Query all current versions in one batch
+        stmt = select(AuditDocument).where(
+            col(AuditDocument.entity_type) == entity_type,
+            col(AuditDocument.entity_id).in_(entity_ids),
+            col(AuditDocument.is_current) == True,  # noqa: E712
+        )
+        result = await self.session.exec(stmt)
+        current_versions = {v.entity_id: v for v in result.all()}
+
+        # Build all new version documents
+        new_docs = []
+        prev_versions_to_mark = []
+
+        for version_data in versions_data:
+            entity_id = version_data["entity_id"]
+            data_snapshot = version_data["data_snapshot"]
+            current = current_versions.get(entity_id)
+
+            # Compute version number and hash chain
+            if current:
+                new_version = current.version + 1
+                previous_hash = current.current_hash
+                old_data = current.data_snapshot
+            else:
+                new_version = 1
+                previous_hash = None
+                old_data = None
+
+            # Compute diff
+            data_diff = self._compute_diff(old_data, data_snapshot)
+
+            # Compute hash
+            current_hash = self._compute_hash(
+                entity_type, entity_id, new_version, data_snapshot, previous_hash
+            )
+
+            # Track previous versions to mark as not current
+            if current:
+                prev_versions_to_mark.append(current)
+
+            # Build new version document
+            final_handled_ids = (
+                version_data.get("handled_ids", [])[:HANDLED_IDS_MAX_LENGTH]
+                if version_data.get("handled_ids")
+                else []
+            )
+            doc_version = AuditDocument(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                version=new_version,
+                is_current=True,
+                data_snapshot=data_snapshot,
+                data_diff=data_diff,
+                change_type=version_data["change_type"],
+                change_reason=version_data.get("change_reason"),
+                changed_by=version_data["changed_by"],
+                changed_at=datetime.now(timezone.utc),
+                previous_hash=previous_hash,
+                current_hash=current_hash,
+                handler_id=version_data["handler_id"],
+                handled_ids=final_handled_ids,
+                ip_address=version_data.get("ip_address") or "unknown",
+                route_path=version_data.get("route_path"),
+                route_payload=version_data.get("route_payload"),
+            )
+            new_docs.append(doc_version)
+
+        # Mark all previous versions as not current
+        for prev in prev_versions_to_mark:
+            prev.is_current = False
+            self.session.add(prev)
+
+        # Bulk create all new documents
+        created_docs = await self.repo.bulk_create(new_docs)
+
+        # Log bulk operation
+        logger.info(
+            f"Bulk created {len(created_docs)} versions for {entity_type} "
+            f"by {versions_data[0].get('changed_by', 'unknown')}"
+        )
+
+        return created_docs
 
     async def rollback_to_version(
         self,

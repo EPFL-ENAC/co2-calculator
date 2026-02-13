@@ -24,7 +24,7 @@ def extract_handled_ids(
     - Equipment/Cloud/AI: No user-specific data (returns empty list)
 
     Args:
-        data_entry: DataEntry object or dict containing the data field
+        data_entry: DataEntry object, dict, or Pydantic model containing the data
         data_entry_type_id: The type of data entry (from DataEntryTypeEnum)
 
     Returns:
@@ -37,8 +37,12 @@ def extract_handled_ids(
         elif isinstance(data_entry, dict):
             data = data_entry.get("data", data_entry)
         else:
-            logger.warning(f"Unexpected data_entry type: {type(data_entry)}")
-            return []
+            # Handle Pydantic models (response DTOs)
+            if hasattr(data_entry, "model_dump"):
+                data = data_entry.model_dump()
+            else:
+                logger.warning(f"Unexpected data_entry type: {type(data_entry)}")
+                return []
 
         if not data or not isinstance(data, dict):
             return []

@@ -111,32 +111,40 @@ class DataEntryService:
         db_objs = await self.repo.bulk_create(data_entries)
         await self.session.flush()  # Ensure data_entry IDs are populated
 
-        # Create version for each created entry (only if user context available)
+        # Create versions for all entries (only if user context available)
         if user or job_id:
             request_context = request_context or {}
             changed_by = str(user.id) if user else str(job_id)
             handler_id = user.provider_code if user else "csv_ingestion"
 
+            # Build list of version metadata for bulk creation
+            versions_data = []
             for obj in db_objs:
                 handled_ids = extract_handled_ids(
                     obj, DataEntryTypeEnum(obj.data_entry_type_id)
                 )
-
-                await self.versioning.create_version(
-                    entity_type=self.repo.entity_type,
-                    entity_id=obj.id or 0,
-                    data_snapshot=obj.model_dump(),
-                    change_type=AuditChangeTypeEnum.CREATE,
-                    changed_by=changed_by,
-                    change_reason="Bulk data entry creation"
-                    if user
-                    else f"Imported via CSV job {job_id}",
-                    handler_id=handler_id,
-                    handled_ids=handled_ids,
-                    ip_address=request_context.get("ip_address"),
-                    route_path=request_context.get("route_path"),
-                    route_payload=request_context.get("route_payload"),
+                versions_data.append(
+                    {
+                        "entity_id": obj.id or 0,
+                        "data_snapshot": obj.model_dump(),
+                        "change_type": AuditChangeTypeEnum.CREATE,
+                        "changed_by": changed_by,
+                        "change_reason": "Bulk data entry creation"
+                        if user
+                        else f"Imported via CSV job {job_id}",
+                        "handler_id": handler_id,
+                        "handled_ids": handled_ids,
+                        "ip_address": request_context.get("ip_address"),
+                        "route_path": request_context.get("route_path"),
+                        "route_payload": request_context.get("route_payload"),
+                    }
                 )
+
+            # Bulk create all versions at once
+            await self.versioning.bulk_create_versions(
+                entity_type=self.repo.entity_type,
+                versions_data=versions_data,
+            )
 
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
 
@@ -183,23 +191,32 @@ class DataEntryService:
         await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
         await self.session.flush()
 
-        # Create version for each deleted entry (only if user context available)
+        # Create versions for all deleted entries (only if user context available)
         if user and entries_to_delete:
             request_context = request_context or {}
-            for entry in entries_to_delete:
-                await self.versioning.create_version(
-                    entity_type=self.repo.entity_type,
-                    entity_id=entry.id or 0,
-                    data_snapshot=snapshots[entry.id],
-                    change_type=AuditChangeTypeEnum.DELETE,
-                    changed_by=str(user.id),
-                    change_reason="Bulk data entry deletion",
-                    handler_id=user.provider_code,
-                    handled_ids=handled_ids_map.get(entry.id, []),
-                    ip_address=request_context.get("ip_address"),
-                    route_path=request_context.get("route_path"),
-                    route_payload=request_context.get("route_payload"),
-                )
+
+            # Build list of version metadata for bulk creation
+            versions_data = [
+                {
+                    "entity_id": entry.id or 0,
+                    "data_snapshot": snapshots[entry.id],
+                    "change_type": AuditChangeTypeEnum.DELETE,
+                    "changed_by": str(user.id),
+                    "change_reason": "Bulk data entry deletion",
+                    "handler_id": user.provider_code,
+                    "handled_ids": handled_ids_map.get(entry.id, []),
+                    "ip_address": request_context.get("ip_address"),
+                    "route_path": request_context.get("route_path"),
+                    "route_payload": request_context.get("route_payload"),
+                }
+                for entry in entries_to_delete
+            ]
+
+            # Bulk create all versions at once
+            await self.versioning.bulk_create_versions(
+                entity_type=self.repo.entity_type,
+                versions_data=versions_data,
+            )
 
     async def update(
         self,
@@ -358,21 +375,22 @@ class DataEntryService:
         if (
             (current_user is not None and current_user.id is not None)
             and (request_context is not None)
+            and (response is not None)
             and (
-                response is not None
-                and data_entry_type_id == DataEntryTypeEnum.trips.value
+                data_entry_type_id == DataEntryTypeEnum.trips.value
+                or data_entry_type_id == DataEntryTypeEnum.member.value
             )
-            or (data_entry_type_id == DataEntryTypeEnum.member.value)
         ):
             # for headcount and trips we need for OPDO to have a record of READ
             # Create version record for read
             extract_handled_ids = extract_handled_ids_from_list(
-                response.items, DataEntryTypeEnum(data_entry_type_id)
+                list(response.items), DataEntryTypeEnum(data_entry_type_id)
             )
+            #
             await self.versioning.create_version(
                 entity_type=self.repo.entity_type,
                 entity_id=-1,
-                data_snapshot=None,  # No snapshot for read operations
+                data_snapshot={},  # No snapshot for read operations
                 change_type=AuditChangeTypeEnum.READ,
                 changed_by=str(current_user.id),
                 change_reason=(

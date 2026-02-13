@@ -59,3 +59,16 @@ class AuditDocumentRepository:
         stmt = stmt.limit(limit) if limit is not None else stmt
         result = await self.session.exec(stmt)
         return list(result.all())
+
+    async def bulk_create(
+        self,
+        documents: List[AuditDocument],
+    ) -> List[AuditDocument]:
+        """Bulk create multiple audit documents."""
+        for doc in documents:
+            self.session.add(doc)
+        await self.session.flush()
+        # Refresh all documents to populate IDs
+        for doc in documents:
+            await self.session.refresh(doc)
+        return documents
