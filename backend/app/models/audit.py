@@ -4,31 +4,22 @@ Defines a generic append-only `document_versions` table under the `audit` schema
 for Postgres, with dialect-aware fallback for SQLite in tests/local dev.
 """
 
-import os
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Column
-from sqlalchemy.engine.url import make_url
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
 
-def _get_table_args():
-    """Determine table args based on database dialect.
-
-    Uses environment variable directly to avoid circular import with settings,
-    and to ensure test configurations are properly detected.
-    """
-    db_url = os.environ.get("DB_URL", "sqlite+aiosqlite:///./co2_calculator.db")
-    try:
-        url = make_url(db_url)
-        is_sqlite = url.drivername.startswith("sqlite")
-    except Exception:
-        is_sqlite = True  # Default to SQLite behavior for safety
-    return {"schema": "audit"} if not is_sqlite else {}
-
-
-_TABLE_ARGS = _get_table_args()
+class AuditChangeTypeEnum(str, Enum):
+    CREATE = "CREATE"
+    READ = "READ"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    ROLLBACK = "ROLLBACK"
+    TRANSFER = "TRANSFER"
 
 
 # RENAME: audit -> document_versions
@@ -56,8 +47,14 @@ class AuditDocumentBase(SQLModel):
     )
 
     # Audit metadata
-    change_type: str = Field(
-        description="CREATE/UPDATE/DELETE/ROLLBACK; enforced by DB check constraint"
+    change_type: AuditChangeTypeEnum = Field(
+        sa_column=Column(
+            SAEnum(
+                AuditChangeTypeEnum, name="audit_change_type_enum", native_enum=True
+            ),
+            nullable=False,
+        ),
+        description="CREATE/UPDATE/DELETE/ROLLBACK; enforced by DB check constraint",
     )
     change_reason: Optional[str] = Field(
         default=None, description="Optional human-readable reason for change"
@@ -71,7 +68,7 @@ class AuditDocumentBase(SQLModel):
     handler_id: str = Field(
         description="User provider code of who performed the action"
     )
-    handled_it: list[str] = Field(
+    handled_ids: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON),
         description="List of user provider codes whose data was affected",

@@ -12,7 +12,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.audit import AuditDocument
+from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.repositories.audit_repo import AuditDocumentRepository
 
 logger = get_logger(__name__)
@@ -159,14 +159,14 @@ class AuditDocumentService:
         entity_type: str,
         entity_id: int,
         data_snapshot: Dict,
-        change_type: str,
+        change_type: AuditChangeTypeEnum,
         changed_by: str,
-        handler_id: int,
+        handler_id: str,
         change_reason: Optional[str] = None,
         ip_address: Optional[str] = None,
         route_path: Optional[str] = None,
         route_payload: Optional[Dict] = None,
-        handled_it: Optional[List[str]] = None,
+        handled_ids: Optional[List[str]] = None,
     ) -> AuditDocument:
         """
         Create a new version for an entity.
@@ -183,7 +183,7 @@ class AuditDocumentService:
             ip_address: IP address of the requester (defaults to 'unknown')
             route_path: API route path that triggered the change
             route_payload: Route payload/parameters
-            handled_it: List of user provider codes whose data was affected
+            handled_ids: List of user provider codes whose data was affected
 
         Returns:
             The newly created AuditDocument
@@ -227,8 +227,8 @@ class AuditDocumentService:
             changed_at=datetime.now(timezone.utc),
             previous_hash=previous_hash,
             current_hash=current_hash,
-            handler_id=str(handler_id),
-            handled_it=handled_it or [],
+            handler_id=handler_id,
+            handled_ids=handled_ids or [],
             ip_address=ip_address or "unknown",
             route_path=route_path,
             route_payload=route_payload,
@@ -251,7 +251,7 @@ class AuditDocumentService:
         entity_id: int,
         target_version: int,
         changed_by: str,
-        handler_id: int,
+        handler_id: str,
         change_reason: Optional[str] = None,
         ip_address: Optional[str] = None,
         route_path: Optional[str] = None,
@@ -281,7 +281,7 @@ class AuditDocumentService:
             entity_type=entity_type,
             entity_id=entity_id,
             data_snapshot=target.data_snapshot,
-            change_type="ROLLBACK",
+            change_type=AuditChangeTypeEnum.ROLLBACK,
             changed_by=changed_by,
             handler_id=handler_id,
             change_reason=reason,

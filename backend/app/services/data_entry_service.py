@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.audit import AuditChangeTypeEnum
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
@@ -19,6 +20,7 @@ from app.schemas.carbon_report_response import (
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
+from app.utils.audit_helpers import extract_handled_ids
 
 logger = get_logger(__name__)
 
@@ -54,6 +56,7 @@ class DataEntryService:
         data_entry_type_id: int,
         user: UserRead,
         data: DataEntryCreate,
+        request_context: Optional[dict] = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -71,24 +74,36 @@ class DataEntryService:
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
         # top level domain)
         await self.session.flush()
+        await self.session.refresh(created_entry)
+
+        # Extract context information
+        request_context = request_context or {}
+        handled_ids = extract_handled_ids(
+            created_entry, DataEntryTypeEnum(data_entry_type_id)
+        )
 
         await self.versioning.create_version(
             entity_type=self.repo.entity_type,
             entity_id=created_entry.id or 0,
             data_snapshot=created_entry.model_dump(),
-            change_type="CREATE",
+            change_type=AuditChangeTypeEnum.CREATE,
             changed_by=str(user.id),
             change_reason="Initial creation",
-            handler_id=user.id,
+            handler_id=user.provider_code,
+            handled_ids=handled_ids,
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
         )
-
-        await self.session.refresh(created_entry)
 
         # 5. return response
         return DataEntryResponse.model_validate(created_entry)
 
     async def bulk_create(
-        self, data_entries: list[DataEntry], user: Optional[UserRead] = None
+        self,
+        data_entries: list[DataEntry],
+        user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
     ) -> list[DataEntryResponse]:
         """Bulk create data entries."""
         logger.info(f"Bulk creating {len(data_entries)} data entries")
@@ -97,15 +112,24 @@ class DataEntryService:
 
         # Create version for each created entry (only if user context available)
         if user:
+            request_context = request_context or {}
             for obj in db_objs:
+                handled_ids = extract_handled_ids(
+                    obj, DataEntryTypeEnum(obj.data_entry_type_id)
+                )
+
                 await self.versioning.create_version(
                     entity_type=self.repo.entity_type,
                     entity_id=obj.id or 0,
                     data_snapshot=obj.model_dump(),
-                    change_type="CREATE",
+                    change_type=AuditChangeTypeEnum.CREATE,
                     changed_by=str(user.id),
                     change_reason="Bulk data entry creation",
-                    handler_id=user.id,
+                    handler_id=user.provider_code,
+                    handled_ids=handled_ids,
+                    ip_address=request_context.get("ip_address"),
+                    route_path=request_context.get("route_path"),
+                    route_payload=request_context.get("route_payload"),
                 )
 
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
@@ -115,6 +139,7 @@ class DataEntryService:
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
         user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
     ) -> None:
         """Bulk delete data entries by module and type."""
         logger.info(
@@ -126,6 +151,7 @@ class DataEntryService:
         # Fetch entries before deletion to capture snapshots (only if versioning needed)
         entries_to_delete = []
         snapshots = {}
+        handled_ids_map = {}
         if user:
             entries_to_delete = await self.repo.get_list(
                 carbon_report_module_id=carbon_report_module_id,
@@ -141,23 +167,32 @@ class DataEntryService:
                 if e.data_entry_type_id == data_entry_type_id
             ]
 
-            # Capture snapshots before deletion
-            snapshots = {e.id: e.model_dump() for e in entries_to_delete}
+            # Capture snapshots and handled_ids before deletion
+            for e in entries_to_delete:
+                snapshots[e.id] = e.model_dump()
+                handled_ids_map[e.id] = extract_handled_ids(
+                    e, DataEntryTypeEnum(e.data_entry_type_id)
+                )
 
         await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
         await self.session.flush()
 
         # Create version for each deleted entry (only if user context available)
         if user and entries_to_delete:
+            request_context = request_context or {}
             for entry in entries_to_delete:
                 await self.versioning.create_version(
                     entity_type=self.repo.entity_type,
                     entity_id=entry.id or 0,
                     data_snapshot=snapshots[entry.id],
-                    change_type="DELETE",
+                    change_type=AuditChangeTypeEnum.DELETE,
                     changed_by=str(user.id),
                     change_reason="Bulk data entry deletion",
-                    handler_id=user.id,
+                    handler_id=user.provider_code,
+                    handled_ids=handled_ids_map.get(entry.id, []),
+                    ip_address=request_context.get("ip_address"),
+                    route_path=request_context.get("route_path"),
+                    route_payload=request_context.get("route_payload"),
                 )
 
     async def update(
@@ -165,6 +200,7 @@ class DataEntryService:
         id: int,
         data: DataEntryUpdate,
         user: UserRead,
+        request_context: Optional[dict] = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
         if not user or not user.id:
@@ -179,27 +215,42 @@ class DataEntryService:
             raise ValueError(f"Data entry with id={id} not found")
         await self.session.refresh(entry)
 
+        # Extract context information
+        request_context = request_context or {}
+        handled_ids = extract_handled_ids(
+            entry, DataEntryTypeEnum(entry.data_entry_type_id)
+        )
+
         await self.versioning.create_version(
             entity_type=self.repo.entity_type,
             entity_id=entry.id or 0,
             data_snapshot=entry.model_dump(),
-            change_type="UPDATE",
+            change_type=AuditChangeTypeEnum.UPDATE,
             changed_by=str(user.id),
             change_reason="Data entry updated",
-            handler_id=user.id,
+            handler_id=user.provider_code,
+            handled_ids=handled_ids,
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
         )
 
         return DataEntryResponse.model_validate(entry)
 
-    async def delete(self, id: int, current_user: UserRead) -> bool:
+    async def delete(
+        self, id: int, current_user: UserRead, request_context: Optional[dict] = None
+    ) -> bool:
         """Delete a record."""
         # Fetch entry before deletion to capture snapshot
         entry = await self.repo.get(id)
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
 
-        # Capture snapshot before deletion
+        # Capture snapshot and handled_ids before deletion
         snapshot = entry.model_dump()
+        handled_ids = extract_handled_ids(
+            entry, DataEntryTypeEnum(entry.data_entry_type_id)
+        )
 
         result = await self.repo.delete(id)
         await self.session.flush()
@@ -207,15 +258,22 @@ class DataEntryService:
         if result is False:
             raise ValueError(f"Data entry with id={id} not found")
 
+        # Extract context information
+        request_context = request_context or {}
+
         # Create version record for deletion
         await self.versioning.create_version(
             entity_type=self.repo.entity_type,
             entity_id=id,
             data_snapshot=snapshot,
-            change_type="DELETE",
+            change_type=AuditChangeTypeEnum.DELETE,
             changed_by=str(current_user.id),
             change_reason="Data entry deleted",
-            handler_id=current_user.id,
+            handler_id=current_user.provider_code,
+            handled_ids=handled_ids,
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
         )
 
         return True

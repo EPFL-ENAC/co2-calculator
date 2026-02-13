@@ -12,7 +12,7 @@ erDiagram
     JSON data_snapshot
     INTEGER entity_id "indexed"
     VARCHAR entity_type "indexed"
-    JSON handled_it
+    JSON handled_ids
     VARCHAR handler_id
     INTEGER id PK
     VARCHAR ip_address

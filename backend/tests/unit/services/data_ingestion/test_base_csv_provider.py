@@ -583,6 +583,7 @@ async def test_process_batch_creates_emissions():
         email="test@example.com",
         display_name="Test User",
         provider=UserProvider.DEFAULT,
+        provider_code="default-1441",
     )
 
     await provider._process_batch(batch, data_entry_service, emission_service, user)

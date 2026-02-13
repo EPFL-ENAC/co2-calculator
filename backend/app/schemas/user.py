@@ -20,6 +20,7 @@ class UserRead(UserBase):
     email: EmailStr
     last_login: Optional[datetime] = None
     provider: UserProvider
+    provider_code: str
 
     @computed_field
     def is_user_test(self) -> Optional[bool]:
