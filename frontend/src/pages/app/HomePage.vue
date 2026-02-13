@@ -4,7 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { ModuleCard } from 'src/constant/moduleCards';
-import { getBadgeForStatus, MODULE_STATES } from 'src/constant/moduleStates';
+import {
+  getBadgeForStatus,
+  getModuleTypeId,
+  MODULE_STATES,
+} from 'src/constant/moduleStates';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
@@ -24,19 +28,32 @@ const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
 );
 
-const moduleTotals = computed(() => {
+const validatedTotals = computed(() => {
+  const carbonReportId = timelineStore.currentCarbonReportId;
   if (
-    workspaceStore.selectedUnit?.id &&
-    currentYear.value &&
-    !moduleStore.state.moduleTotals
+    carbonReportId &&
+    carbonReportId !== moduleStore.validatedTotalsCarbonReportId
   ) {
-    moduleStore.getModuleTotalsAggregated(
-      workspaceStore.selectedUnit.id,
-      currentYear.value,
-    );
+    moduleStore.getValidatedTotals(carbonReportId);
   }
-  return moduleStore.state.moduleTotals;
+  return moduleStore.state.validatedTotals;
 });
+
+/**
+ * Get the display total for a module card.
+ * Headcount shows total_fte, other modules show total_tonnes_co2eq.
+ */
+function getModuleCardTotal(module: Module): number | null {
+  const totals = validatedTotals.value;
+  if (!totals) return null;
+  const typeId = getModuleTypeId(module);
+  const entry = totals.modules.find((m) => m.module_type_id === typeId);
+  if (!entry) return null;
+  if (module === MODULES.Headcount) {
+    return entry.total_fte ?? null;
+  }
+  return entry.total_tonnes_co2eq ?? null;
+}
 
 function hasModulePermission(
   module: Module,
@@ -130,7 +147,7 @@ const modulesCounterText = computed(() =>
           />
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">
-              {{ nOrDash(moduleTotals?.total) }}
+              {{ nOrDash(validatedTotals?.total_tonnes_co2eq) }}
             </p>
             <p class="text-secondary text-body2 q-mb-none">
               {{ $t('tco2eq') }}
@@ -240,10 +257,21 @@ const modulesCounterText = computed(() =>
               class="row q-gutter-xs text-body1 items-baseline"
             >
               <p class="text-weight-medium q-mb-none">
-                {{ nOrDash(moduleStore.getModuleTotal(moduleCard.module)) }}
+                {{
+                  nOrDash(getModuleCardTotal(moduleCard.module), {
+                    options: {
+                      maximumFractionDigits:
+                        moduleCard.module === MODULES.Headcount ? 1 : 0,
+                    },
+                  })
+                }}
               </p>
               <p class="text-body2 text-secondary q-mb-none">
-                {{ $t('module_total_result_title_unit') }}
+                {{
+                  $t('module_total_result_title_unit', {
+                    type: moduleCard.module,
+                  })
+                }}
               </p>
             </div>
             <div

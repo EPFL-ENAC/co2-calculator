@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
-import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   MODULE_STATES,
   ModuleState,
@@ -17,10 +16,21 @@ import type {
   Submodule,
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
-import {
-  getModuleTotals as fetchModuleTotals,
-  type ModuleTotalsResponse,
-} from 'src/api/modules';
+
+/**
+ * API response for validated totals endpoint
+ */
+interface ValidatedTotalsModuleEntry {
+  module_type_id: number;
+  total_tonnes_co2eq?: number;
+  total_fte?: number;
+}
+
+interface ValidatedTotalsResponse {
+  modules: ValidatedTotalsModuleEntry[];
+  total_tonnes_co2eq: number;
+  total_fte: number;
+}
 
 /**
  * API response for inventory module
@@ -183,9 +193,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: Array<Record<string, unknown>>;
     loadingTravelEvolutionOverTime: boolean;
     errorTravelEvolutionOverTime: string | null;
-    moduleTotals: ModuleTotalsResponse | null;
-    loadingModuleTotals: boolean;
-    errorModuleTotals: string | null;
+    validatedTotals: ValidatedTotalsResponse | null;
+    loadingValidatedTotals: boolean;
+    errorValidatedTotals: string | null;
   }>({
     loading: false,
     error: null,
@@ -203,9 +213,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: [],
     loadingTravelEvolutionOverTime: false,
     errorTravelEvolutionOverTime: null,
-    moduleTotals: null,
-    loadingModuleTotals: false,
-    errorModuleTotals: null,
+    validatedTotals: null,
+    loadingValidatedTotals: false,
+    errorValidatedTotals: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -454,9 +464,6 @@ export const useModuleStore = defineStore('modules', () => {
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unitId, year);
 
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unitId, Number(year));
-
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
         moduleType,
@@ -535,9 +542,6 @@ export const useModuleStore = defineStore('modules', () => {
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unit, year);
 
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unit, Number(year));
-
       await getSubmoduleData({
         submoduleType,
         moduleType,
@@ -568,9 +572,6 @@ export const useModuleStore = defineStore('modules', () => {
 
       // Refresh module totals
       await getModuleTotals(moduleType, unit, year);
-
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unit, Number(year));
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -626,65 +627,31 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  // Track which unit/year the current totals are for
-  const moduleTotalsUnitId = ref<number | null>(null);
-  const moduleTotalsYear = ref<number | null>(null);
+  // Track which carbon report the cached validated totals belong to
+  const validatedTotalsCarbonReportId = ref<number | null>(null);
 
-  /**
-   * Fetch module totals (aggregated across equipment and professional-travel modules).
-   *
-   * @param unitId - Unit ID
-   * @param year - Year for the data (must be a number)
-   */
-  async function getModuleTotalsAggregated(unitId: number, year: number) {
-    state.loadingModuleTotals = true;
-    state.errorModuleTotals = null;
+  async function getValidatedTotals(carbonReportId: number) {
+    state.loadingValidatedTotals = true;
+    state.errorValidatedTotals = null;
     try {
-      state.moduleTotals = await fetchModuleTotals(unitId, year);
-      moduleTotalsUnitId.value = unitId;
-      moduleTotalsYear.value = year;
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/validated-totals`;
+      const data =
+        await api.get(path).json<ValidatedTotalsResponse>();
+      state.validatedTotals = data;
+      validatedTotalsCarbonReportId.value = carbonReportId;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        state.errorModuleTotals = err.message ?? 'Unknown error';
-        state.moduleTotals = null;
+        state.errorValidatedTotals = err.message ?? 'Unknown error';
+        state.validatedTotals = null;
       } else {
-        state.errorModuleTotals = 'Unknown error';
-        state.moduleTotals = null;
+        state.errorValidatedTotals = 'Unknown error';
+        state.validatedTotals = null;
       }
-      moduleTotalsUnitId.value = null;
-      moduleTotalsYear.value = null;
+      validatedTotalsCarbonReportId.value = null;
     } finally {
-      state.loadingModuleTotals = false;
+      state.loadingValidatedTotals = false;
     }
   }
-
-  /**
-   * Get module total for a specific module.
-   *
-   * @param module - Module name (e.g., "equipment-electric-consumption", "professional-travel")
-   * @returns Module total in tCO2eq, or null if not available
-   */
-  function getModuleTotal(module: string): number | null {
-    if (!state.moduleTotals) {
-      return null;
-    }
-    return state.moduleTotals[module] ?? null;
-  }
-
-  const workspaceStore = useWorkspaceStore();
-  const moduleTotals = computed(() => {
-    const unitId = workspaceStore.selectedUnit?.id;
-    const year = workspaceStore.selectedYear ?? new Date().getFullYear();
-
-    if (
-      unitId &&
-      year &&
-      (moduleTotalsUnitId.value !== unitId || moduleTotalsYear.value !== year)
-    ) {
-      getModuleTotalsAggregated(unitId, year);
-    }
-    return state.moduleTotals;
-  });
 
   return {
     initializeSubmoduleState,
@@ -696,9 +663,8 @@ export const useModuleStore = defineStore('modules', () => {
     deleteItem,
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
-    getModuleTotalsAggregated,
-    getModuleTotal,
-    moduleTotals,
+    getValidatedTotals,
+    validatedTotalsCarbonReportId,
     state,
   };
 });
