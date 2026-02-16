@@ -62,7 +62,7 @@ This document defines the actionable security mitigation measures for the `EPFL-
   - Scheduled periodic runs (e.g., nightly)
 
 ### Tools to Enable
-- **CodeQL Static Analysis** via GitHub’s `codeql-action` for code scanning.:contentReference[oaicite:2]{index=2}
+- **CodeQL Static Analysis** via GitHub’s `codeql-action` for code scanning.
 - GitHub **Secret scanning** (enabled by default for public repos).
 - Optionally SonarCloud or other SAST tools for additional coverage.
 
