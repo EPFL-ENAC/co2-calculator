@@ -62,7 +62,7 @@ const defaultDateTimeFormat: { [key: string]: Intl.DateTimeFormatOptions } = {
     day: '2-digit',
     hour: 'numeric',
     minute: 'numeric',
-    timeZoneName: 'shortOffset'
+    timeZoneName: 'shortOffset',
   },
 };
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditLogEntry, AuditAction } from 'src/api/audit';
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
   copy: [entry: AuditLogEntry];
 }>();
 
-const columns = [
+const columns = computed(() => [
   { key: 'change_type', label: t('audit_col_action'), sortable: true },
   { key: 'entity_type', label: t('audit_col_entity_type'), sortable: true },
   { key: 'entity_id', label: t('audit_col_entity_id'), sortable: true },
@@ -27,7 +28,7 @@ const columns = [
   { key: 'handler_id', label: t('audit_col_handler_id'), sortable: false },
   { key: 'message_summary', label: t('audit_col_summary'), sortable: false },
   { key: 'actions', label: t('audit_col_actions'), sortable: false },
-];
+]);
 
 const actionColors: Record<AuditAction, string> = {
   CREATE: '#28A745',

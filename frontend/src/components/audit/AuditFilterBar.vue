@@ -41,7 +41,7 @@ const entityTypeOptions = computed(() => [
   { label: t('audit_entity_factor'), value: 'Factor' },
   {
     label: t('audit_entity_data_entry_read'),
-    value: 'DataEntryReadByCarbonReportModule',
+    value: 'CarbonReportModule',
   },
   { label: t('audit_entity_emission_factor'), value: 'EmissionFactor' },
 ]);
