@@ -52,13 +52,13 @@ function getUserLabel(row: AuditLogEntry): string {
     return row.changed_by_display_name;
   }
   if (row.handler_id === 'csv_ingestion') {
-    return t('audit_user_job_id', { id: row.entity_id });
+    return t('audit_user_job_id', { id: row.changed_by });
   }
   if (row.entity_type === 'DataIngestionJob') {
     return t('audit_user_job_id', { id: row.entity_id });
   }
   if (row.changed_by !== null && row.changed_by !== undefined) {
-    return String(row.changed_by);
+    return String(row.handler_id);
   }
   return t('audit_user_unknown');
 }
@@ -74,9 +74,7 @@ function getUserLabel(row: AuditLogEntry): string {
         class="audit-table__header-cell"
         :class="{
           'audit-table__header-cell--sortable': col.sortable,
-          'audit-table__header-cell--action': col.key === 'change_type',
-          'audit-table__header-cell--entity-type': col.key === 'entity_type',
-          'audit-table__header-cell--entity-id': col.key === 'entity_id',
+          [`audit-table__header-cell--${col.key}`]: true,
           'audit-table__header-cell--actions': col.key === 'actions',
         }"
         @click="col.sortable ? emit('sort', col.key) : undefined"
@@ -125,7 +123,7 @@ function getUserLabel(row: AuditLogEntry): string {
     <template v-else>
       <div v-for="row in rows" :key="row.id" class="audit-table__row">
         <!-- Action -->
-        <div class="audit-table__cell audit-table__cell--action">
+        <div class="audit-table__cell audit-table__cell--change_type">
           <span
             class="status-dot"
             :style="{ backgroundColor: getActionColor(row.change_type) }"
@@ -139,27 +137,27 @@ function getUserLabel(row: AuditLogEntry): string {
         </div>
 
         <!-- Entity Type -->
-        <div class="audit-table__cell audit-table__cell--entity-type">
+        <div class="audit-table__cell audit-table__cell--entity_type">
           {{ row.entity_type }}
         </div>
 
         <!-- Entity ID -->
-        <div class="audit-table__cell audit-table__cell--entity-id">
+        <div :class="`audit-table__cell audit-table__cell--entity_id`">
           {{ row.entity_id }}
         </div>
 
         <!-- Timestamp -->
-        <div class="audit-table__cell">
+        <div class="audit-table__cell audit-table__cell--changed_at">
           {{ $d(new Date(row.changed_at), 'long') }}
         </div>
 
         <!-- User -->
-        <div class="audit-table__cell">
+        <div class="audit-table__cell audit-table__cell--changed_by">
           {{ getUserLabel(row) }}
         </div>
 
         <!-- Handler ID -->
-        <div class="audit-table__cell">
+        <div class="audit-table__cell audit-table__cell--handler_id">
           {{ row.handler_id || '-' }}
         </div>
 
@@ -258,13 +256,23 @@ function getUserLabel(row: AuditLogEntry): string {
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
 
-    &--action,
-    &--entity-type,
-    &--entity-id {
-      flex: 0 1 100px;
-      max-width: 100px;
+    &--change_type,
+    &--entity_type,
+    &--entity_id,
+    &--handler_id {
+      flex: 0 1 70px;
+      max-width: 70px;
+    }
+
+    &--changed_at {
+      flex: 0 1 150px;
+      max-width: 150px;
+    }
+    &--changed_by {
+      flex: 0 1 250px;
+      max-width: 250px;
     }
 
     &--summary {
@@ -287,11 +295,21 @@ function getUserLabel(row: AuditLogEntry): string {
   }
 }
 
-.audit-table__header-cell--action,
-.audit-table__header-cell--entity-type,
-.audit-table__header-cell--entity-id {
-  flex: 0 1 100px;
-  max-width: 100px;
+.audit-table__header-cell--change_type,
+.audit-table__header-cell--entity_type,
+.audit-table__header-cell--handler_id,
+.audit-table__header-cell--entity_id {
+  flex: 0 1 70px;
+  max-width: 70px;
+}
+
+.audit-table__header-cell--changed_at {
+  flex: 0 1 150px;
+  max-width: 150px;
+}
+.audit-table__header-cell--changed_by {
+  flex: 0 1 250px;
+  max-width: 250px;
 }
 
 .status-dot {

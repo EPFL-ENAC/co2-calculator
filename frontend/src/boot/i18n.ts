@@ -57,12 +57,12 @@ const defaultDateTimeFormat: { [key: string]: Intl.DateTimeFormatOptions } = {
     day: 'numeric',
   },
   long: {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    weekday: 'short',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
     hour: 'numeric',
     minute: 'numeric',
+    timeZoneName: 'shortOffset'
   },
 };
 
