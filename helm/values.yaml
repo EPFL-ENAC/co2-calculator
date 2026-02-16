@@ -300,6 +300,10 @@ serviceAccount:
   annotations: {}
   name: ""
 
+  # imagePullSecrets:
+  #   - name: docker-reg-cred
+  imagePullSecrets: []
+
 podDisruptionBudget:
   enabled: false
   minAvailable: 1
