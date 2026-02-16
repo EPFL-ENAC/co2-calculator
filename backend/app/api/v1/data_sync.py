@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,6 +21,7 @@ from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks.ingestion_tasks import run_ingestion
+from app.utils.request_context import extract_ip_address, extract_route_payload
 
 router = APIRouter()
 
@@ -62,7 +63,8 @@ class SyncJobResponse(BaseModel):
 @router.post("/data-entries/{module_type_id}", response_model=SyncStatusResponse)
 async def sync_module_data_entries(
     module_type_id: ModuleTypeEnum,
-    request: SyncRequest,
+    syncRequest: SyncRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
@@ -88,16 +90,16 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
-    if request.target_type == TargetType.FACTORS and request.year is None:
+    if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
         raise HTTPException(
             status_code=400,
             detail="year is required for factor CSV ingestion",
         )
 
     # Prepare config with file_path and carbon_report_module_id if provided
-    config = request.config.model_dump() if request.config else {}
-    if request.file_path:
-        config["file_path"] = request.file_path
+    config = syncRequest.config.model_dump() if syncRequest.config else {}
+    if syncRequest.file_path:
+        config["file_path"] = syncRequest.file_path
 
     # Determine entity_type early based on carbon_report_module_id presence
     entity_type = (
@@ -106,12 +108,12 @@ async def sync_module_data_entries(
         else EntityType.MODULE_PER_YEAR
     )
     config["entity_type"] = entity_type.value
-    config["year"] = request.year
+    config["year"] = syncRequest.year
 
     provider = await ProviderFactory.create_provider(
         module_type_id=ModuleTypeEnum(module_type_id),
-        ingestion_method=request.ingestion_method,
-        target_type=request.target_type,
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
         config=config,
         user=current_user,
         job_session=db,  # Use same session for both during validation
@@ -121,31 +123,36 @@ async def sync_module_data_entries(
     if not provider:
         raise HTTPException(
             status_code=400,
-            detail=f"""Provider '{request.ingestion_method}'
+            detail=f"""Provider '{syncRequest.ingestion_method}'
                 not supported for module '{module_type_id}'""",
         )
 
     if not await provider.validate_connection():
         raise HTTPException(
-            status_code=503, detail=f"Cannot connect to {request.ingestion_method}"
+            status_code=503, detail=f"Cannot connect to {syncRequest.ingestion_method}"
         )
 
-    factor_type_id = getattr(request, "factor_type_id", None)
+    factor_type_id = getattr(syncRequest, "factor_type_id", None)
     if factor_type_id is not None:
         factor_type_id = FactorType(factor_type_id)
     data_entry_type_id = config.get("data_entry_type_id") or getattr(
-        request, "data_entry_type_id", None
+        syncRequest, "data_entry_type_id", None
     )
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),
         data_entry_type_id=data_entry_type_id,
         entity_type=entity_type,
-        year=request.year,
-        ingestion_method=request.ingestion_method,
-        target_type=request.target_type,
+        year=syncRequest.year,
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
         factor_type_id=factor_type_id,
         config=config,
         db=db,
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
     )
     # Commit job creation to database
     await db.commit()
@@ -158,14 +165,14 @@ async def sync_module_data_entries(
         run_ingestion,
         provider_name=provider.__class__.__name__,
         job_id=job_id,
-        filters=request.filters or {},
+        filters=syncRequest.filters or {},
     )
 
     return {
         "job_id": job_id,
         "status": "pending",
         "status_code": IngestionStatus.IN_PROGRESS,
-        "message": f"""Sync initiated using {request.ingestion_method}""",
+        "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
     }
 
@@ -174,7 +181,7 @@ async def sync_module_data_entries(
 async def sync_module_factors(
     module_id: int,
     factor_type_id: int,
-    request: SyncRequest,
+    syncRequest: SyncRequest,
     db: AsyncSession = Depends(get_db),
 ):
     # Implementation similar to sync_module_data_entries,

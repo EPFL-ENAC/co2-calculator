@@ -66,6 +66,7 @@ class DataIngestionProvider(ABC):
         factor_type_id: FactorType | None = None,
         config: Dict[str, Any] | None = None,
         db: AsyncSession | None = None,
+        request_context: dict | None = None,
     ) -> int:
         """Create an ingestion job.
 
@@ -124,9 +125,11 @@ class DataIngestionProvider(ABC):
             change_reason=f"Data ingestion job created via {ingestion_method.value}",
             handler_id=handler_id,
             handled_ids=[],  # No specific handled IDs for job creation
-            ip_address=None,
-            route_path=None,
-            route_payload=None,
+            ip_address=request_context.get("ip_address") if request_context else None,
+            route_path=request_context.get("route_path") if request_context else None,
+            route_payload=request_context.get("route_payload")
+            if request_context
+            else None,
         )
 
         return self.job_id

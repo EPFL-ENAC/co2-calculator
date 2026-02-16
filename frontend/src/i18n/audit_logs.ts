@@ -52,7 +52,7 @@ export default {
     fr: 'Facteur',
   },
   audit_entity_data_entry_read: {
-    en: 'DataEntryReadByCarbonReportModule',
+    en: 'Read by CarbonReport Module',
     fr: 'Lecture par module de rapport',
   },
   audit_entity_emission_factor: {
@@ -152,8 +152,8 @@ export default {
     fr: 'Horodatage',
   },
   audit_col_user: {
-    en: 'User',
-    fr: 'Utilisateur',
+    en: 'User or Job',
+    fr: 'Utilisateur ou tâche',
   },
   audit_col_handler_id: {
     en: 'Handler ID',
@@ -286,8 +286,8 @@ export default {
     fr: 'Version',
   },
   audit_detail_user: {
-    en: 'User',
-    fr: 'Utilisateur',
+    en: 'User or Job (created_by)',
+    fr: 'Utilisateur ou tâche (créé par)',
   },
   audit_detail_handler_id: {
     en: 'Handler ID',
