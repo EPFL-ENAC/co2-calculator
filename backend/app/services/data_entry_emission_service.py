@@ -7,8 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.repositories.data_entry_emission_repo import (

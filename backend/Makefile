@@ -85,7 +85,7 @@ type-check: ## Run type checking with mypy
 .PHONY: test
 test: ## Run tests
 	@set -e; \
-	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=45
+	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=60
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage

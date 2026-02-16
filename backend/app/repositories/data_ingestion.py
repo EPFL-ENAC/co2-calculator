@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlmodel import col, desc, select
@@ -64,7 +64,7 @@ class DataIngestionRepository:
                     completed_at.isoformat()
                     if completed_at
                     else (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                         if status_code == IngestionStatus.COMPLETED
                         else None
                     )

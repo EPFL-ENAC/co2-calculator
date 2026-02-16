@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from asyncio.log import logger
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -107,6 +107,28 @@ class DataIngestionProvider(ABC):
         if self.job_id is None:
             raise Exception("Failed to create ingestion job id")
 
+        # Create audit record for job creation
+        from app.models.audit import AuditChangeTypeEnum
+        from app.services.audit_service import AuditDocumentService
+
+        audit_service = AuditDocumentService(db)
+        changed_by = self.user.id if self.user else self.job_id
+        handler_id = self.user.provider_code if self.user else "csv_ingestion"
+
+        await audit_service.create_version(
+            entity_type="DataIngestionJob",
+            entity_id=self.job_id,
+            data_snapshot=job.model_dump(),
+            change_type=AuditChangeTypeEnum.CREATE,
+            changed_by=changed_by,
+            change_reason=f"Data ingestion job created via {ingestion_method.value}",
+            handler_id=handler_id,
+            handled_ids=[],  # No specific handled IDs for job creation
+            ip_address=None,
+            route_path=None,
+            route_payload=None,
+        )
+
         return self.job_id
 
     async def ingest(
@@ -175,7 +197,7 @@ class DataIngestionProvider(ABC):
             status_message=status_message,
             status_code=status_code,
             metadata=metadata,
-            completed_at=datetime.utcnow()
+            completed_at=datetime.now(timezone.utc)
             if status_code in [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
             else None,
         )

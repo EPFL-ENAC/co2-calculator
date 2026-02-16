@@ -50,10 +50,33 @@ const defaultFormat: { [key: string]: Intl.NumberFormatOptions } = {
   },
 };
 
+const defaultDateTimeFormat: { [key: string]: Intl.DateTimeFormatOptions } = {
+  short: {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  },
+  long: {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    weekday: 'short',
+    hour: 'numeric',
+    minute: 'numeric',
+  },
+};
+
 const numberFormats = {
   'en-US': defaultFormat,
   'de-CH': defaultFormat,
   'fr-CH': defaultFormat,
+  // Add other locales as needed, all using the same config
+};
+
+const datetimeFormats = {
+  'en-US': defaultDateTimeFormat,
+  'de-CH': defaultDateTimeFormat,
+  'fr-CH': defaultDateTimeFormat,
   // Add other locales as needed, all using the same config
 };
 
@@ -72,6 +95,7 @@ export const i18n = createI18n({
   legacy: false,
   messages,
   numberFormats,
+  datetimeFormats,
   // Show i18n warnings only in dev
   missingWarn: import.meta.env.DEV,
   fallbackWarn: import.meta.env.DEV,
