@@ -19,21 +19,19 @@ The existing aggregation endpoints only handle equipment and don't filter by val
 
 **Purpose:** Feed the YearSelector with total tCO2eq per year.
 
-**Response:**
+**Response:** plain JSON array (no wrapper object):
 
 ```json
-{
-  "emissions_data": [
-    { "year": 2022, "total_tonnes_co2eq": 37.5 },
-    { "year": 2023, "total_tonnes_co2eq": 37.8 },
-    { "year": 2024, "total_tonnes_co2eq": 38.1 }
-  ]
-}
+[
+  { "year": 2022, "total_tonnes_co2eq": 37.5 },
+  { "year": 2023, "total_tonnes_co2eq": 37.8 },
+  { "year": 2024, "total_tonnes_co2eq": 38.1 }
+]
 ```
 
 ### 1a. Repository: [data_entry_emission_repo.py](backend/app/repositories/data_entry_emission_repo.py)
 
-Add `get_validated_totals_by_unit(unit_id: int) -> list[dict]`
+`get_validated_totals_by_unit(unit_id: int) -> list[dict]`
 
 - Start from `CarbonReport` to get years, join down to emissions: `CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission`
 - Filter: `CarbonReport.unit_id == unit_id`, `CarbonReportModule.status == ModuleStatus.VALIDATED`, `DataEntryEmission.kg_co2eq IS NOT NULL`
@@ -41,19 +39,22 @@ Add `get_validated_totals_by_unit(unit_id: int) -> list[dict]`
 - Aggregate: `SUM(DataEntryEmission.kg_co2eq)`
 - Order by: year ascending
 - No filter on `module_type_id` — sums across ALL module types
-- Follows the same join pattern as `get_travel_evolution_over_time` (line 194)
+- Returns: `[{"year": 2023, "kg_co2eq": 61700.0}, ...]` (still in kg)
 
 ### 1b. Service: [unit_totals_service.py](backend/app/services/unit_totals_service.py)
 
-Add `get_validated_emissions_by_unit(unit_id: int) -> list[dict]`
+`get_validated_emissions_by_unit(unit_id: int) -> list[dict]`
 
-- Calls the repo method
-- Converts kg to tonnes (÷1000) for each year
-- Returns list of `{"year": int, "total_tonnes_co2eq": float}`
+- Delegates to the repo method and returns its result as-is (no conversion)
+- Returns: `[{"year": 2023, "kg_co2eq": 61700.0}, ...]`
 
 ### 1c. Endpoint: [unit_results.py](backend/app/api/v1/unit_results.py)
 
-Add `GET /{unit_id}/yearly-validated-emissions` endpoint. Already mounted at `/unit` prefix (line 25 of `router.py`).
+`GET /{unit_id}/yearly-validated-emissions` — mounted at `/unit` prefix.
+
+- Calls `UnitTotalsService.get_validated_emissions_by_unit(unit_id)`
+- Converts kg → tonnes (÷1000) in the response list comprehension
+- Returns `list[dict]` directly (no wrapper object)
 
 ---
 
@@ -63,98 +64,118 @@ Add `GET /{unit_id}/yearly-validated-emissions` endpoint. Already mounted at `/u
 
 **Purpose:** Show per-module tCO2eq breakdown + total for a specific carbon report. Uses `carbon_report_id` directly (frontend already has it from `selectedCarbonReport.id`).
 
-**Response:**
+**Response:** `modules` is a **map** keyed by `module_type_id` (int), not an array:
 
 ```json
 {
-  "modules": [
-    { "module_type_id": 1, "total_fte": 25.5 },
-    { "module_type_id": 2, "total_tonnes_co2eq": 15.0 },
-    { "module_type_id": 4, "total_tonnes_co2eq": 41.7 },
-    { "module_type_id": 7, "total_tonnes_co2eq": 5.0 }
-  ],
+  "modules": { "1": 25.5, "2": 15.0, "4": 41.7, "7": 5.0 },
   "total_tonnes_co2eq": 61.7,
   "total_fte": 25.5
 }
 ```
 
-- `modules` merges emission stats and FTE stats into one array
-- Each item has `module_type_id` and either `total_tonnes_co2eq` or `total_fte`
-- `total_tonnes_co2eq` / `total_fte` at root level are the sums
+- `modules` maps `module_type_id → value` where the value is **FTE** for headcount (`ModuleTypeEnum.headcount`) and **tonnes CO2eq** for all other module types
+- `total_tonnes_co2eq` is the sum of all emission stats (÷1000) across all modules
+- `total_fte` is the sum of all FTE stats
 
 ### 2a. Repository: [data_entry_emission_repo.py](backend/app/repositories/data_entry_emission_repo.py)
 
-Add `get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='module_type_id', aggregate_field='kg_co2eq') -> dict[str, float]`
+`get_stats_by_carbon_report_id(carbon_report_id: int) -> dict[str, float]`
 
-Follows the same pattern as existing `get_stats` but works across all validated modules in a carbon report:
+No `aggregate_by`/`aggregate_field` parameters — always groups by `module_type_id` and sums `kg_co2eq`:
 
 - Join: `DataEntryEmission → DataEntry → CarbonReportModule` (join through DataEntry to get to CarbonReportModule)
 - Filter: `CarbonReportModule.carbon_report_id == carbon_report_id`, `CarbonReportModule.status == VALIDATED`, `kg_co2eq IS NOT NULL`
 - Group by: `CarbonReportModule.module_type_id`
 - Aggregate: `SUM(DataEntryEmission.kg_co2eq)`
-- Returns: `{"2": 15000.0, "4": 41700.0, "7": 5000.0}`
+- Returns: `{"2": 15000.0, "4": 41700.0, "7": 5000.0}` (kg, string keys)
 
 ### 2b. Repository: [data_entry_repo.py](backend/app/repositories/data_entry_repo.py)
 
-Add `get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='data_entry_type_id', aggregate_field='fte') -> dict[str, float]`
+`get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='module_type_id', aggregate_field='fte') -> dict[str, float]`
 
-Same pattern but for DataEntry (FTE):
+Generic aggregation method. Repo defaults are `aggregate_by='module_type_id'` and `aggregate_field='fte'`, but the **service** overrides `aggregate_by` to `'data_entry_type_id'` (see 2c):
 
 - Join: `DataEntry → CarbonReportModule` (join to get carbon_report_id and status)
 - Filter: `CarbonReportModule.carbon_report_id == carbon_report_id`, `CarbonReportModule.status == VALIDATED`
-- Group by: `aggregate_by` field
-- Aggregate: `SUM(DataEntry.data[aggregate_field].as_float())`
-- Returns: `{"1": 15.0, "2": 10.5}` (member + student FTE)
+- Group by: resolved `aggregate_by` field (column from `CarbonReportModule`, `DataEntry`, or JSON key)
+- Aggregate: `SUM(DataEntry.data[aggregate_field].as_float())` (or column if it exists on `DataEntry`)
+- Returns: `{"1": 15.0, "2": 10.5}` (keyed by `data_entry_type_id`)
 - Only headcount entries have FTE data; other modules' entries return null for `data["fte"]` and are excluded by SUM
 
 ### 2c. Endpoint: [carbon_report_module_stats.py](backend/app/api/v1/carbon_report_module_stats.py)
 
-Add `GET /{carbon_report_id}/validated-totals` endpoint. Already mounted at `/modules-stats` prefix.
+`GET /{carbon_report_id}/validated-totals` — mounted at `/modules-stats` prefix.
 
 The endpoint:
 
-- Calls `DataEntryEmissionService.get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='module_type_id', aggregate_field='kg_co2eq')`
-- Calls `DataEntryService.get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='data_entry_type_id', aggregate_field='fte')`
-- Merges results: emission stats as `{"module_type_id": X, "total_tonnes_co2eq": Y}`, FTE stats as `{"module_type_id": 1, "total_fte": Z}`
-- Computes `total_tonnes_co2eq = sum(emission_stats)` and `total_fte = sum(fte_stats)`
+- Calls `DataEntryEmissionService(db).get_stats_by_carbon_report_id(carbon_report_id)` → `emission_stats` (dict keyed by `module_type_id` as string)
+- Calls `DataEntryService(db).get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='module_type_id')` → `fte_stats` (explicitly groups by `module_type_id` so keys align with `emission_stats`)
+- Merges both dicts into a single `modules: dict[int, float]` map:
+  - For the headcount `module_type_id`: uses FTE value from `fte_stats`
+  - For all other `module_type_id`s: converts kg → tonnes (÷1000) from `emission_stats`
+- Computes `total_tonnes_co2eq = sum(emission_stats values) / 1000` and `total_fte = sum(fte_stats values)`
 
 ---
 
 ## Frontend
 
-### API functions: [modules.ts](frontend/src/api/modules.ts)
+### Store: [modules.ts](frontend/src/stores/modules.ts)
 
-**Function 1:** `getValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, returns `{ emissions_data: Array<{year, total_tonnes_co2eq}> }`
+Both API functions live in the **Pinia store** (`useModuleStore`), not in `api/modules.ts`. They call the backend via `api.get()` directly.
 
-**Function 2:** `getValidatedTotals(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/validated-totals`, returns `{ modules, total_tonnes_co2eq, total_fte }`
+**Interfaces:**
+
+```typescript
+interface ValidatedTotalsResponse {
+  modules: Record<number, number>;
+  total_tonnes_co2eq: number;
+  total_fte: number;
+}
+
+interface YearlyValidatedEmission {
+  year: number;
+  total_tonnes_co2eq: number;
+}
+```
+
+**Function 1:** `getYearlyValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, stores result in `state.yearlyValidatedEmissions` (`YearlyValidatedEmission[]`).
+
+**Function 2:** `getValidatedTotals(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/validated-totals`, stores result in `state.validatedTotals` (`ValidatedTotalsResponse | null`). Caches by `carbonReportId` to avoid redundant fetches.
 
 ### Integration: WorkspaceSetupPage / YearSelector
 
-Use `getValidatedEmissions` after unit selection to populate the tCO2eq column per year in YearSelector.
+- `WorkspaceSetupPage.vue` calls `moduleStore.getYearlyValidatedEmissions(unit.id)` in `handleUnitSelect`, alongside fetching carbon reports
+- A `yearRows` computed property maps `state.yearlyValidatedEmissions` into `YearData[]` by matching each year's emissions to the available carbon report years
+- The `YearSelector.vue` component receives `yearRows` as a prop and displays tCO2eq per year in a table column
 
 ### Integration: HomePage
 
-Use `getValidatedTotals` to display per-module validated emissions and the year total.
+- `HomePage.vue` calls `moduleStore.getValidatedTotals(carbonReportId)` reactively via a computed property (triggers when `currentCarbonReportId` changes)
+- `validatedTotals?.total_tonnes_co2eq` is displayed as the year total
+- A `moduleCardTotals` computed maps `validatedTotals.modules` to per-module-card values using `getModuleTypeId(module)` lookups
 
 ---
 
 ## Files Modified
 
-| File                                                   | Change                                                                   |
-| ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `backend/app/repositories/data_entry_emission_repo.py` | Add `get_validated_totals_by_unit()` + `get_stats_by_carbon_report_id()` |
-| `backend/app/repositories/data_entry_repo.py`          | Add `get_stats_by_carbon_report_id()`                                    |
-| `backend/app/services/unit_totals_service.py`          | Add `get_validated_emissions_by_unit()`                                  |
-| `backend/app/services/data_entry_emission_service.py`  | Add `get_stats_by_carbon_report_id()` (delegates to repo)                |
-| `backend/app/services/data_entry_service.py`           | Add `get_stats_by_carbon_report_id()` (delegates to repo)                |
-| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/yearly-validated-emissions` endpoint                 |
-| `backend/app/api/v1/carbon_report_module_stats.py`     | Add `GET /{carbon_report_id}/validated-totals` endpoint                  |
-| `frontend/src/api/modules.ts`                          | Add `getValidatedEmissions()` + `getValidatedTotals()` + interfaces      |
+| File                                                   | Change                                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `backend/app/repositories/data_entry_emission_repo.py` | Add `get_validated_totals_by_unit()` + `get_stats_by_carbon_report_id()`            |
+| `backend/app/repositories/data_entry_repo.py`          | Add `get_stats_by_carbon_report_id()`                                               |
+| `backend/app/services/unit_totals_service.py`          | Add `get_validated_emissions_by_unit()`                                             |
+| `backend/app/services/data_entry_emission_service.py`  | Add `get_stats_by_carbon_report_id()` (delegates to repo)                           |
+| `backend/app/services/data_entry_service.py`           | Add `get_stats_by_carbon_report_id()` (delegates to repo)                           |
+| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/yearly-validated-emissions` endpoint                            |
+| `backend/app/api/v1/carbon_report_module_stats.py`     | Add `GET /{carbon_report_id}/validated-totals` endpoint                             |
+| `frontend/src/stores/modules.ts`                       | Add `getYearlyValidatedEmissions()` + `getValidatedTotals()`, interfaces, and state |
+| `frontend/src/pages/app/WorkspaceSetupPage.vue`        | Call `getYearlyValidatedEmissions` on unit selection, compute `yearRows`            |
+| `frontend/src/pages/app/HomePage.vue`                  | Call `getValidatedTotals` reactively, display totals and per-module cards           |
 
 ## Verification
 
-1. Call `GET /api/v1/unit/{id}/yearly-validated-emissions` — verify response contains per-year totals from validated modules only
-2. Call `GET /api/v1/modules-stats/{carbon_report_id}/validated-totals` — verify per-module breakdown with correct module_type_id keys
+1. Call `GET /api/v1/unit/{id}/yearly-validated-emissions` — verify response is a plain JSON array of per-year totals from validated modules only
+2. Call `GET /api/v1/modules-stats/{carbon_report_id}/validated-totals` — verify `modules` is a map keyed by `module_type_id` (int) with correct values
 3. Non-validated modules (status 0 or 1) must not appear in either endpoint
 4. Headcount FTE must come from `DataEntry.data["fte"]`, not from `DataEntryEmission`
-5. A unit with no validated modules returns empty `emissions_data` array / zero totals
+5. A unit with no validated modules returns an empty array / zero totals

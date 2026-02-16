@@ -132,64 +132,6 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        aggregate_by: str = "module_type_id",
-        aggregate_field: str = "fte",
-    ) -> Dict[str, float]:
-        """Aggregate DataEntry data across validated modules for a carbon report.
-
-        Joins DataEntry → CarbonReportModule and returns
-        SUM(DataEntry.data[aggregate_field]) grouped by aggregate_by,
-        filtered to validated modules only.
-
-        Args:
-            carbon_report_id: The carbon report to aggregate across.
-            aggregate_by: Column to group by. Resolves from CarbonReportModule
-                first, then DataEntry, then DataEntry.data JSON.
-            aggregate_field: JSON data key to sum (default: fte).
-
-        Returns:
-            Dict keyed by aggregate_by value, e.g. {"1": 25.5}
-        """
-        if hasattr(CarbonReportModule, aggregate_by):
-            group_field = getattr(CarbonReportModule, aggregate_by)
-        elif hasattr(DataEntry, aggregate_by):
-            group_field = getattr(DataEntry, aggregate_by)
-        else:
-            group_field = DataEntry.data[aggregate_by].as_string()
-
-        sum_field = DataEntry.data[aggregate_field].as_float()
-
-        query = (
-            select(
-                group_field,
-                func.sum(sum_field).label("total"),
-            )
-            .join(
-                CarbonReportModule,
-                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
-            )
-            .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
-            )
-            .group_by(group_field)
-        )
-
-        result = await self.session.execute(query)
-        rows = result.all()
-
-        aggregation: Dict[str, float] = {}
-        for key, total in rows:
-            if total is None:
-                continue
-            label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total)
-
-        return aggregation
-
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
     ) -> Optional[int]:
@@ -514,5 +456,60 @@ class DataEntryRepository:
             if label not in aggregation:
                 aggregation[label] = 0.0
             aggregation[label] += float(total_count or 0.0)
+
+        return aggregation
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+        aggregate_by: str = "module_type_id",
+        aggregate_field: str = "fte",
+    ) -> Dict[str, float]:
+        """Aggregate DataEntry data by module_type_id for a whole carbon report.
+
+        Joins DataEntry → CarbonReportModule.
+        Filters: carbon_report_id, module status == VALIDATED.
+        Default aggregation: SUM(fte) grouped by module_type_id.
+
+        Returns:
+            {"1": 4532.0}  (headcount module FTE)
+        """
+        # Resolve group field
+        if aggregate_by == "module_type_id":
+            group_field = col(CarbonReportModule.module_type_id)
+        elif hasattr(DataEntry, aggregate_by):
+            group_field = getattr(DataEntry, aggregate_by)
+        else:
+            group_field = DataEntry.data[aggregate_by].as_string()
+
+        # Resolve sum field
+        if hasattr(DataEntry, aggregate_field):
+            sum_field = getattr(DataEntry, aggregate_field)
+        else:
+            sum_field = DataEntry.data[aggregate_field].as_float()
+
+        query = (
+            select(
+                group_field,
+                func.sum(sum_field).label("total"),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+            )
+            .group_by(group_field)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        aggregation: Dict[str, float] = {}
+        for key, total in rows:
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total or 0.0)
 
         return aggregation
