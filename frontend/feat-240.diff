@@ -1,0 +1,1800 @@
+diff --git a/backend/app/api/router.py b/backend/app/api/router.py
+index 4ede282..52ee862 100644
+--- a/backend/app/api/router.py
++++ b/backend/app/api/router.py
+@@ -3,6 +3,7 @@
+ from fastapi import APIRouter
+ 
+ from app.api.v1 import (
++    audit,
+     auth,
+     backoffice,
+     carbon_report,
+@@ -40,3 +41,4 @@ api_router.include_router(
+ api_router.include_router(locations.router, prefix="/locations", tags=["locations"])
+ api_router.include_router(files.router, prefix="/files", tags=["files"])
+ api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])
++api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
+diff --git a/backend/app/api/v1/auth.py b/backend/app/api/v1/auth.py
+index 3eb5562..1d98135 100644
+--- a/backend/app/api/v1/auth.py
++++ b/backend/app/api/v1/auth.py
+@@ -2,7 +2,7 @@
+ 
+ import logging
+ from datetime import timedelta
+-from typing import Optional
++from typing import Any, Optional
+ 
+ from authlib.integrations.base_client.errors import MismatchingStateError
+ from authlib.integrations.starlette_client import OAuth
+@@ -18,10 +18,13 @@ from app.core.security import (
+     create_refresh_token,
+     decode_jwt,
+ )
++from app.models.audit import AuditChangeTypeEnum
+ from app.models.user import UserProvider
+ from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
+ from app.schemas.user import UserRead
++from app.services.audit_service import AuditDocumentService
+ from app.services.user_service import UserService
++from app.utils.request_context import extract_ip_address, extract_route_payload
+ 
+ logger = get_logger(__name__)
+ router = APIRouter()
+@@ -93,10 +96,88 @@ def _set_auth_cookies(
+     )
+ 
+ 
++def _sanitize_route_payload(payload: Optional[dict]) -> Optional[dict]:
++    if not payload:
++        return payload
++
++    redacted_keys = {
++        "code",
++        "state",
++        "id_token",
++        "access_token",
++        "refresh_token",
++        "token",
++        "authorization",
++    }
++
++    def scrub(value: Any) -> Any:
++        if isinstance(value, dict):
++            return {
++                k: ("[redacted]" if k.lower() in redacted_keys else scrub(v))
++                for k, v in value.items()
++            }
++        if isinstance(value, list):
++            return [scrub(item) for item in value]
++        return value
++
++    return scrub(payload)
++
++
++async def _build_request_context(request: Request) -> dict:
++    try:
++        route_payload = await extract_route_payload(request)
++    except Exception:
++        route_payload = None
++
++    return {
++        "ip_address": extract_ip_address(request),
++        "route_path": request.url.path,
++        "route_payload": _sanitize_route_payload(route_payload),
++    }
++
++
++async def _log_auth_audit_event(
++    *,
++    db: AsyncSession,
++    request: Request,
++    change_type: AuditChangeTypeEnum,
++    change_reason: str,
++    handler_id: str,
++    changed_by: Optional[int],
++    data_snapshot: Optional[dict] = None,
++    handled_ids: Optional[list[str]] = None,
++    entity_id: Optional[int] = None,
++) -> None:
++    try:
++        request_context = await _build_request_context(request)
++        audit_service = AuditDocumentService(db)
++
++        await audit_service.create_version(
++            entity_type="User",
++            entity_id=entity_id if entity_id is not None else 0,
++            data_snapshot=data_snapshot or {},
++            change_type=change_type,
++            changed_by=changed_by,
++            change_reason=change_reason,
++            handler_id=handler_id,
++            handled_ids=handled_ids or [],
++            ip_address=request_context.get("ip_address"),
++            route_path=request_context.get("route_path"),
++            route_payload=request_context.get("route_payload"),
++        )
++        await db.commit()
++    except Exception as exc:
++        logger.warning(
++            "Auth audit log failed",
++            extra={"error": str(exc), "change_type": change_type},
++        )
++
++
+ @router.get(
+     "/login-test",
+ )
+ async def login_test(
++    request: Request,
+     role: str = "co2.user.std",
+     db: AsyncSession = Depends(get_db),
+ ):
+@@ -168,6 +249,23 @@ async def login_test(
+         email=user.email,
+     )
+ 
++    await _log_auth_audit_event(
++        db=db,
++        request=request,
++        change_type=AuditChangeTypeEnum.CREATE,
++        change_reason="User login (test)",
++        handler_id=user.provider_code or str(user.id),
++        changed_by=user.id,
++        handled_ids=[user.provider_code] if user.provider_code else [],
++        data_snapshot={
++            "event": "login_test",
++            "user_id": user.id,
++            "email": user.email,
++            "provider_code": user.provider_code,
++        },
++        entity_id=user.id or 0,
++    )
++
+     return response
+ 
+ 
+@@ -291,18 +389,55 @@ async def auth_callback(
+             "User authenticated successfully",
+             extra={"user_id": user.id, "redirect_to": "/"},
+         )
++
++        await _log_auth_audit_event(
++            db=db,
++            request=request,
++            change_type=AuditChangeTypeEnum.CREATE,
++            change_reason="User login",
++            handler_id=user.provider_code or str(user.id),
++            changed_by=user.id,
++            handled_ids=[user.provider_code] if user.provider_code else [],
++            data_snapshot={
++                "event": "login",
++                "user_id": user.id,
++                "email": user.email,
++                "provider_code": user.provider_code,
++            },
++            entity_id=user.id or 0,
++        )
+         return response
+ 
+     except MismatchingStateError:
+         logger.warning(
+             "OAuth state mismatch - session loss or multiple tabs",
+         )
++        await _log_auth_audit_event(
++            db=db,
++            request=request,
++            change_type=AuditChangeTypeEnum.CREATE,
++            change_reason="Login failed: OAuth state mismatch",
++            handler_id="unknown",
++            changed_by=None,
++            data_snapshot={"event": "login_failed", "reason": "state_mismatch"},
++            entity_id=0,
++        )
+         raise HTTPException(
+             status_code=status.HTTP_400_BAD_REQUEST,
+             detail="Authentication session expired. Please start the login flow again.",
+         )
+     except HTTPException:
+         logger.error("OAuth callback HTTP exception", exc_info=True)
++        await _log_auth_audit_event(
++            db=db,
++            request=request,
++            change_type=AuditChangeTypeEnum.CREATE,
++            change_reason="Login failed: HTTPException",
++            handler_id="unknown",
++            changed_by=None,
++            data_snapshot={"event": "login_failed", "reason": "http_exception"},
++            entity_id=0,
++        )
+         raise
+     except Exception as e:
+         logger.error(
+@@ -310,6 +445,19 @@ async def auth_callback(
+             extra={"error": str(e), "type": type(e).__name__},
+             exc_info=settings.DEBUG,
+         )
++        await _log_auth_audit_event(
++            db=db,
++            request=request,
++            change_type=AuditChangeTypeEnum.CREATE,
++            change_reason="Login failed: unexpected error",
++            handler_id="unknown",
++            changed_by=None,
++            data_snapshot={
++                "event": "login_failed",
++                "reason": type(e).__name__,
++            },
++            entity_id=0,
++        )
+         if settings.DEBUG:
+             import traceback
+ 
+@@ -392,6 +540,7 @@ async def get_me(
+ 
+ @router.post("/refresh")
+ async def refresh_token(
++    request: Request,
+     refresh_token: Optional[str] = Cookie(None),
+     response: Response = Response(),
+     db: AsyncSession = Depends(get_db),
+@@ -456,6 +605,24 @@ async def refresh_token(
+         )
+ 
+         logger.info("Token refreshed successfully", extra={"user_id": user.id})
++
++        if request is not None:
++            await _log_auth_audit_event(
++                db=db,
++                request=request,
++                change_type=AuditChangeTypeEnum.UPDATE,
++                change_reason="Token refreshed",
++                handler_id=user.provider_code or str(user.id),
++                changed_by=user.id,
++                handled_ids=[user.provider_code] if user.provider_code else [],
++                data_snapshot={
++                    "event": "refresh",
++                    "user_id": user.id,
++                    "email": user.email,
++                    "provider_code": user.provider_code,
++                },
++                entity_id=user.id or 0,
++            )
+         return {"message": "Token refreshed successfully"}
+ 
+     except HTTPException:
+@@ -469,7 +636,12 @@ async def refresh_token(
+ 
+ 
+ @router.post("/logout")
+-async def logout(response: Response):
++async def logout(
++    response: Response,
++    request: Request,
++    auth_token: Optional[str] = Cookie(None),
++    db: AsyncSession = Depends(get_db),
++):
+     """
+     Logout the current user.
+ 
+@@ -495,4 +667,34 @@ async def logout(response: Response):
+     )
+ 
+     logger.info("User logged out")
++
++    if auth_token:
++        try:
++            payload = decode_jwt(auth_token)
++            user_id = payload.get("user_id")
++            user_email = payload.get("email")
++
++            handler_id = "unknown"
++            if user_id:
++                user = await UserService(db).get_by_id(user_id)
++                if user and user.provider_code:
++                    handler_id = user.provider_code
++
++            await _log_auth_audit_event(
++                db=db,
++                request=request,
++                change_type=AuditChangeTypeEnum.DELETE,
++                change_reason="User logout",
++                handler_id=handler_id,
++                changed_by=user_id,
++                handled_ids=[handler_id] if handler_id != "unknown" else [],
++                data_snapshot={
++                    "event": "logout",
++                    "user_id": user_id,
++                    "email": user_email,
++                },
++                entity_id=user_id or 0,
++            )
++        except Exception as exc:
++            logger.warning("Failed to log logout audit", extra={"error": str(exc)})
+     return {"message": "Logged out successfully"}
+diff --git a/backend/app/api/v1/carbon_report_module.py b/backend/app/api/v1/carbon_report_module.py
+index c00e31e..1bc65b3 100644
+--- a/backend/app/api/v1/carbon_report_module.py
++++ b/backend/app/api/v1/carbon_report_module.py
+@@ -2,7 +2,7 @@
+ 
+ from typing import List, Optional, Union
+ 
+-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
++from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+ from sqlmodel.ext.asyncio.session import AsyncSession
+ 
+ from app.api.deps import get_current_active_user, get_db
+@@ -26,9 +26,11 @@ from app.schemas.data_entry import (
+     ModuleHandler,
+     resolve_primary_factor_if_kind_or_subkind_changed,
+ )
++from app.schemas.user import UserRead
+ from app.services.carbon_report_module_service import CarbonReportModuleService
+ from app.services.data_entry_emission_service import DataEntryEmissionService
+ from app.services.data_entry_service import DataEntryService
++from app.utils.request_context import extract_ip_address, extract_route_payload
+ 
+ logger = get_logger(__name__)
+ router = APIRouter()
+@@ -204,6 +206,7 @@ async def get_submodule(
+     year: int,
+     module_id: str,
+     submodule_id: str,
++    request: Request,
+     page: int = Query(default=1, ge=1, description="Page number"),
+     limit: int = Query(default=50, le=1000, description="Items per page"),
+     sort_by: str = Query(default="id", description="Field to sort by"),
+@@ -275,6 +278,12 @@ async def get_submodule(
+         sort_by=sort_by,
+         sort_order=sort_order,
+         filter=filter,
++        current_user=UserRead.model_validate(current_user),
++        request_context={
++            "ip_address": extract_ip_address(request),
++            "route_path": request.url.path,
++            "route_payload": await extract_route_payload(request),
++        },
+     )
+ 
+     if not submodule_data:
+@@ -305,6 +314,7 @@ async def create(
+     module_id: str,
+     submodule_id: str,
+     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
++    request: Request,
+     db: AsyncSession = Depends(get_db),
+     current_user: User = Depends(get_current_active_user),
+ ):
+@@ -401,8 +411,13 @@ async def create(
+     item = await DataEntryService(db).create(
+         carbon_report_module_id=carbon_report_module_id,
+         data_entry_type_id=data_entry_type_id,
+-        user=current_user,
++        user=UserRead.model_validate(current_user),
+         data=data_entry_create,
++        request_context={
++            "ip_address": extract_ip_address(request),
++            "route_path": request.url.path,
++            "route_payload": await extract_route_payload(request),
++        },
+     )
+     if item is None:
+         raise HTTPException(
+@@ -483,6 +498,7 @@ async def update(
+     submodule_id: str,
+     item_id: int,
+     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
++    request: Request,
+     db: AsyncSession = Depends(get_db),
+     current_user: User = Depends(get_current_active_user),
+ ):
+@@ -557,7 +573,12 @@ async def update(
+         item = await DataEntryService(db).update(
+             id=item_id,
+             data=data_entry_update,
+-            user=current_user,
++            user=UserRead.model_validate(current_user),
++            request_context={
++                "ip_address": extract_ip_address(request),
++                "route_path": request.url.path,
++                "route_payload": await extract_route_payload(request),
++            },
+         )
+         await db.flush()
+         if item is None:
+@@ -596,6 +617,7 @@ async def delete(
+     module_id: str,
+     submodule_id: str,
+     item_id: int,
++    request: Request,
+     db: AsyncSession = Depends(get_db),
+     current_user: User = Depends(get_current_active_user),
+ ):
+@@ -621,7 +643,12 @@ async def delete(
+ 
+         await DataEntryService(db).delete(
+             id=item_id,
+-            current_user=current_user,
++            current_user=UserRead.model_validate(current_user),
++            request_context={
++                "ip_address": extract_ip_address(request),
++                "route_path": request.url.path,
++                "route_payload": await extract_route_payload(request),
++            },
+         )
+         await db.commit()
+     except HTTPException:
+diff --git a/backend/app/models/__init__.py b/backend/app/models/__init__.py
+index 84462a2..d5e919a 100644
+--- a/backend/app/models/__init__.py
++++ b/backend/app/models/__init__.py
+@@ -2,21 +2,19 @@
+ 
+ from sqlmodel import Relationship
+ 
++from .audit import AuditDocument
+ from .carbon_report import CarbonReport, CarbonReportModule
+ from .data_entry import DataEntry
+ from .data_entry_emission import DataEntryEmission
+ from .data_ingestion import DataIngestionJob
+ from .factor import Factor
+-from .location import (
+-    Location,
+-    LocationBase,
+-    LocationRead,
+-)
++from .location import Location
+ from .unit import Unit
+ from .unit_user import UnitUser
+-from .user import User, UserBase
++from .user import User
+ 
+ # IMPORTANT: Call model_rebuild() BEFORE adding relationships
++AuditDocument.model_rebuild()
+ Unit.model_rebuild()
+ User.model_rebuild()
+ UnitUser.model_rebuild()
+@@ -46,17 +44,15 @@ DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
+ DataEntryEmission.data_entry = Relationship()
+ 
+ __all__ = [
++    "AuditDocument",
+     "Unit",
+     "User",
+-    "UserBase",
+     "UnitUser",
+     "DataIngestionJob",
+     "Factor",
+     "CarbonReport",
+     "CarbonReportModule",
+     "Location",
+-    "LocationBase",
+-    "LocationRead",
+     "DataEntry",
+     "DataEntryEmission",
+ ]
+diff --git a/backend/app/models/data_entry_emission.py b/backend/app/models/data_entry_emission.py
+index 5ca72a4..4066a1f 100644
+--- a/backend/app/models/data_entry_emission.py
++++ b/backend/app/models/data_entry_emission.py
+@@ -1,12 +1,34 @@
+ """Data entry emission models for storing computed emission results."""
+ 
+ from datetime import datetime
++from enum import Enum
+ from typing import Optional
+ 
+ from sqlalchemy import ForeignKey
+ from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
+ 
+ 
++class EmissionTypeEnum(int, Enum):
++    energy = 1
++    equipment = 2
++    food = 3
++    waste = 4
++    commuting = 5
++    grey_energy = 6
++    plane = 7
++    train = 8
++    car = 9
++    # External Clouds:
++    # cloud storage
++    stockage = 10
++    # cloud virtualisation
++    virtualisation = 11
++    # cloud compute
++    calcul = 12
++    # External AI:
++    ai_provider = 13
++
++
+ class DataEntryEmissionBase(SQLModel):
+     """Base data entry emission model with shared fields."""
+ 
+diff --git a/backend/app/models/emission_type.py b/backend/app/models/emission_type.py
+deleted file mode 100644
+index 4a17448..0000000
+--- a/backend/app/models/emission_type.py
++++ /dev/null
+@@ -1,24 +0,0 @@
+-"""Emission type model for categorizing different types of emissions."""
+-
+-from enum import Enum
+-
+-
+-class EmissionTypeEnum(int, Enum):
+-    energy = 1
+-    equipment = 2
+-    food = 3
+-    waste = 4
+-    commuting = 5
+-    grey_energy = 6
+-    plane = 7
+-    train = 8
+-    car = 9
+-    # External Clouds:
+-    # cloud storage
+-    stockage = 10
+-    # cloud virtualisation
+-    virtualisation = 11
+-    # cloud compute
+-    calcul = 12
+-    # External AI:
+-    ai_provider = 13
+diff --git a/backend/app/repositories/data_entry_repo.py b/backend/app/repositories/data_entry_repo.py
+index 86e7697..cd46942 100644
+--- a/backend/app/repositories/data_entry_repo.py
++++ b/backend/app/repositories/data_entry_repo.py
+@@ -35,6 +35,7 @@ class DataEntryRepository:
+ 
+     def __init__(self, session: AsyncSession):
+         self.session = session
++        self.entity_type = DataEntry.__name__
+         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
+ 
+     async def get(self, id: int) -> Optional[DataEntry]:
+diff --git a/backend/app/repositories/factor_repo.py b/backend/app/repositories/factor_repo.py
+index b8fae40..d8ac4df 100644
+--- a/backend/app/repositories/factor_repo.py
++++ b/backend/app/repositories/factor_repo.py
+@@ -6,7 +6,7 @@ from sqlmodel import col, select
+ from sqlmodel.ext.asyncio.session import AsyncSession
+ 
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.factor import Factor
+ 
+ 
+diff --git a/backend/app/schemas/data_entry.py b/backend/app/schemas/data_entry.py
+index 87f9711..2bebd1b 100644
+--- a/backend/app/schemas/data_entry.py
++++ b/backend/app/schemas/data_entry.py
+@@ -349,6 +349,7 @@ class HeadcountItemResponse(DataEntryResponseGen):
+     name: str
+     function: Optional[str] = None
+     fte: Optional[float] = None
++    sciper: Optional[str] = None
+ 
+ 
+ class HeadCountStudentResponse(DataEntryResponseGen):
+@@ -423,6 +424,7 @@ class HeadCountCreate(DataEntryCreate):
+     name: str
+     function: Optional[str] = None
+     fte: Optional[float] = None
++    sciper: Optional[str] = None
+ 
+     @field_validator("fte", mode="after")
+     @classmethod
+diff --git a/backend/app/schemas/factor.py b/backend/app/schemas/factor.py
+index 58812c1..af019ea 100644
+--- a/backend/app/schemas/factor.py
++++ b/backend/app/schemas/factor.py
+@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_o
+ from pydantic import BaseModel, ConfigDict, Field, model_validator
+ 
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.factor import Factor
+ from app.models.location import TransportModeEnum
+ 
+diff --git a/backend/app/schemas/user.py b/backend/app/schemas/user.py
+index ba3d953..922fbe0 100644
+--- a/backend/app/schemas/user.py
++++ b/backend/app/schemas/user.py
+@@ -5,8 +5,7 @@ from typing import List, Optional
+ 
+ from pydantic import BaseModel, EmailStr, computed_field
+ 
+-from app.models import UserBase
+-from app.models.user import Role, UserProvider
++from app.models.user import Role, UserBase, UserProvider
+ 
+ 
+ class UserRead(UserBase):
+@@ -21,6 +20,7 @@ class UserRead(UserBase):
+     email: EmailStr
+     last_login: Optional[datetime] = None
+     provider: UserProvider
++    provider_code: str
+ 
+     @computed_field
+     def is_user_test(self) -> Optional[bool]:
+diff --git a/backend/app/seed/seed_emission_factors.py b/backend/app/seed/seed_emission_factors.py
+index b5dba2f..8025f23 100644
+--- a/backend/app/seed/seed_emission_factors.py
++++ b/backend/app/seed/seed_emission_factors.py
+@@ -16,7 +16,7 @@ from app.core.config import get_settings
+ from app.core.logging import get_logger
+ from app.db import SessionLocal
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ 
+ # from app.models.emission_factor import EmissionFactor, PowerFactor
+ from app.models.factor import Factor
+diff --git a/backend/app/seed/seed_equipment.py b/backend/app/seed/seed_equipment.py
+index 673c472..6fadd08 100644
+--- a/backend/app/seed/seed_equipment.py
++++ b/backend/app/seed/seed_equipment.py
+@@ -23,8 +23,7 @@ from app.db import SessionLocal
+ 
+ # from app.models.equipment import Equipment, EquipmentEmission
+ from app.models.data_entry import DataEntry, DataEntryTypeEnum
+-from app.models.data_entry_emission import DataEntryEmission
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+ from app.models.factor import Factor
+ from app.models.module_type import ModuleTypeEnum
+ 
+diff --git a/backend/app/seed/seed_external_cloud_and_ai.py b/backend/app/seed/seed_external_cloud_and_ai.py
+index efb3443..668aaa1 100644
+--- a/backend/app/seed/seed_external_cloud_and_ai.py
++++ b/backend/app/seed/seed_external_cloud_and_ai.py
+@@ -8,10 +8,8 @@ from app.core.config import get_settings
+ from app.core.logging import get_logger
+ from app.db import SessionLocal
+ from app.models.data_entry import DataEntry, DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.module_type import ModuleTypeEnum
+-
+-# from app.models.emission_type import EmissionTypeEnum
+ from app.seed.seed_helper import (
+     get_carbon_report_module_id,
+     load_factors_map,
+diff --git a/backend/app/seed/seed_plane_factors.py b/backend/app/seed/seed_plane_factors.py
+index ddbc309..4d52e7f 100644
+--- a/backend/app/seed/seed_plane_factors.py
++++ b/backend/app/seed/seed_plane_factors.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ from app.core.logging import get_logger
+ from app.db import SessionLocal
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.location import TransportModeEnum
+ from app.services.factor_service import FactorService
+ 
+diff --git a/backend/app/seed/seed_train_factors.py b/backend/app/seed/seed_train_factors.py
+index 2d92043..f301beb 100644
+--- a/backend/app/seed/seed_train_factors.py
++++ b/backend/app/seed/seed_train_factors.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ from app.core.logging import get_logger
+ from app.db import SessionLocal
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.location import TransportModeEnum
+ from app.services.factor_service import FactorService
+ 
+diff --git a/backend/app/services/data_entry_emission_service.py b/backend/app/services/data_entry_emission_service.py
+index f1e5048..fbea131 100644
+--- a/backend/app/services/data_entry_emission_service.py
++++ b/backend/app/services/data_entry_emission_service.py
+@@ -7,8 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
+ from app.core.config import get_settings
+ from app.core.logging import get_logger
+ from app.models.data_entry import DataEntry, DataEntryTypeEnum
+-from app.models.data_entry_emission import DataEntryEmission
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+ from app.models.factor import Factor
+ from app.models.location import Location, TransportModeEnum
+ from app.repositories.data_entry_emission_repo import (
+diff --git a/backend/app/services/data_entry_service.py b/backend/app/services/data_entry_service.py
+index 5fdfacd..b3c6ac3 100644
+--- a/backend/app/services/data_entry_service.py
++++ b/backend/app/services/data_entry_service.py
+@@ -7,8 +7,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
+ 
+ from app.core.logging import _sanitize_for_log as sanitize
+ from app.core.logging import get_logger
++from app.models.audit import AuditChangeTypeEnum
+ from app.models.data_entry import DataEntry, DataEntryTypeEnum
+-from app.models.user import User
+ 
+ # from app.repositories.headcount_repo import HeadCountRepository
+ from app.repositories.data_entry_repo import DataEntryRepository
+@@ -18,6 +18,9 @@ from app.schemas.carbon_report_response import (
+     SubmoduleResponse,
+ )
+ from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
++from app.schemas.user import UserRead
++from app.services.audit_service import AuditDocumentService
++from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
+ 
+ logger = get_logger(__name__)
+ 
+@@ -25,9 +28,14 @@ logger = get_logger(__name__)
+ class DataEntryService:
+     """Service for data entry business logic."""
+ 
+-    def __init__(self, session: AsyncSession):
++    def __init__(
++        self,
++        session: AsyncSession,
++        versioning_service: Optional[AuditDocumentService] = None,
++    ):
+         self.session = session
+         self.repo = DataEntryRepository(session)
++        self.versioning = versioning_service or AuditDocumentService(session)
+ 
+     async def get_stats(
+         self,
+@@ -46,8 +54,9 @@ class DataEntryService:
+         self,
+         carbon_report_module_id: int,
+         data_entry_type_id: int,
+-        user: User,
++        user: UserRead,
+         data: DataEntryCreate,
++        request_context: Optional[dict] = None,
+     ) -> DataEntryResponse:
+         logger.info(
+             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
+@@ -67,20 +76,89 @@ class DataEntryService:
+         await self.session.flush()
+         await self.session.refresh(created_entry)
+ 
++        # Extract context information
++        request_context = request_context or {}
++        handled_ids = extract_handled_ids(
++            created_entry, DataEntryTypeEnum(data_entry_type_id)
++        )
++
++        await self.versioning.create_version(
++            entity_type=self.repo.entity_type,
++            entity_id=created_entry.id or 0,
++            data_snapshot=created_entry.model_dump(),
++            change_type=AuditChangeTypeEnum.CREATE,
++            changed_by=user.id,
++            change_reason="Initial creation",
++            handler_id=user.provider_code,
++            handled_ids=handled_ids,
++            ip_address=request_context.get("ip_address"),
++            route_path=request_context.get("route_path"),
++            route_payload=request_context.get("route_payload"),
++        )
++
+         # 5. return response
+         return DataEntryResponse.model_validate(created_entry)
+ 
+     async def bulk_create(
+-        self, data_entries: list[DataEntry]
++        self,
++        data_entries: list[DataEntry],
++        user: Optional[UserRead] = None,
++        request_context: Optional[dict] = None,
++        job_id: Optional[str | int] = None,
+     ) -> list[DataEntryResponse]:
+         """Bulk create data entries."""
+         logger.info(f"Bulk creating {len(data_entries)} data entries")
+         db_objs = await self.repo.bulk_create(data_entries)
+-        # await self.session.flush()  # Ensure data_entry IDs are populated
++        await self.session.flush()  # Ensure data_entry IDs are populated
++
++        # Create versions for all entries (only if user context available)
++        if user or job_id:
++            request_context = request_context or {}
++            changed_by = user.id if user else None
++            if changed_by is None and job_id is not None:
++                try:
++                    changed_by = int(job_id)
++                except (TypeError, ValueError):
++                    changed_by = None
++            handler_id = user.provider_code if user else "csv_ingestion"
++
++            # Build list of version metadata for bulk creation
++            versions_data = []
++            for obj in db_objs:
++                handled_ids = extract_handled_ids(
++                    obj, DataEntryTypeEnum(obj.data_entry_type_id)
++                )
++                versions_data.append(
++                    {
++                        "entity_id": obj.id or 0,
++                        "data_snapshot": obj.model_dump(),
++                        "change_type": AuditChangeTypeEnum.CREATE,
++                        "changed_by": changed_by,
++                        "change_reason": "Bulk data entry creation"
++                        if user
++                        else f"Imported via CSV job {job_id}",
++                        "handler_id": handler_id,
++                        "handled_ids": handled_ids,
++                        "ip_address": request_context.get("ip_address"),
++                        "route_path": request_context.get("route_path"),
++                        "route_payload": request_context.get("route_payload"),
++                    }
++                )
++
++            # Bulk create all versions at once
++            await self.versioning.bulk_create_versions(
++                entity_type=self.repo.entity_type,
++                versions_data=versions_data,
++            )
++
+         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
+ 
+     async def bulk_delete(
+-        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
++        self,
++        carbon_report_module_id: int,
++        data_entry_type_id: DataEntryTypeEnum,
++        user: Optional[UserRead] = None,
++        request_context: Optional[dict] = None,
+     ) -> None:
+         """Bulk delete data entries by module and type."""
+         logger.info(
+@@ -88,14 +166,69 @@ class DataEntryService:
+             f"for module_id={sanitize(carbon_report_module_id)}\n"
+             f"data_entry_type_id={sanitize(data_entry_type_id.value)}"
+         )
++
++        # Fetch entries before deletion to capture snapshots (only if versioning needed)
++        entries_to_delete = []
++        snapshots = {}
++        handled_ids_map = {}
++        if user:
++            entries_to_delete = await self.repo.get_list(
++                carbon_report_module_id=carbon_report_module_id,
++                limit=10000,
++                offset=0,
++                sort_by="id",
++                sort_order="asc",
++            )
++            # Filter to only the type being deleted
++            entries_to_delete = [
++                e
++                for e in entries_to_delete
++                if e.data_entry_type_id == data_entry_type_id
++            ]
++
++            # Capture snapshots and handled_ids before deletion
++            for e in entries_to_delete:
++                snapshots[e.id] = e.model_dump()
++                handled_ids_map[e.id] = extract_handled_ids(
++                    e, DataEntryTypeEnum(e.data_entry_type_id)
++                )
++
+         await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
+         await self.session.flush()
+ 
++        # Create versions for all deleted entries (only if user context available)
++        if user and entries_to_delete:
++            request_context = request_context or {}
++
++            # Build list of version metadata for bulk creation
++            versions_data = [
++                {
++                    "entity_id": entry.id or 0,
++                    "data_snapshot": snapshots[entry.id],
++                    "change_type": AuditChangeTypeEnum.DELETE,
++                    "changed_by": user.id,
++                    "change_reason": "Bulk data entry deletion",
++                    "handler_id": user.provider_code,
++                    "handled_ids": handled_ids_map.get(entry.id, []),
++                    "ip_address": request_context.get("ip_address"),
++                    "route_path": request_context.get("route_path"),
++                    "route_payload": request_context.get("route_payload"),
++                }
++                for entry in entries_to_delete
++            ]
++
++            # Bulk create all versions at once
++            await self.versioning.bulk_create_versions(
++                entity_type=self.repo.entity_type,
++                versions_data=versions_data,
++            )
++
+     async def update(
+         self,
+         id: int,
+         data: DataEntryUpdate,
+-        user: User,
++        user: UserRead,
++        request_context: Optional[dict] = None,
+     ) -> DataEntryResponse:
+         """Update an existing record."""
+         if not user or not user.id:
+@@ -109,15 +242,68 @@ class DataEntryService:
+         if entry is None:
+             raise ValueError(f"Data entry with id={id} not found")
+         await self.session.refresh(entry)
++
++        # Extract context information
++        request_context = request_context or {}
++        handled_ids = extract_handled_ids(
++            entry, DataEntryTypeEnum(entry.data_entry_type_id)
++        )
++
++        await self.versioning.create_version(
++            entity_type=self.repo.entity_type,
++            entity_id=entry.id or 0,
++            data_snapshot=entry.model_dump(),
++            change_type=AuditChangeTypeEnum.UPDATE,
++            changed_by=user.id,
++            change_reason="Data entry updated",
++            handler_id=user.provider_code,
++            handled_ids=handled_ids,
++            ip_address=request_context.get("ip_address"),
++            route_path=request_context.get("route_path"),
++            route_payload=request_context.get("route_payload"),
++        )
++
+         return DataEntryResponse.model_validate(entry)
+ 
+-    async def delete(self, id: int, current_user: User) -> bool:
++    async def delete(
++        self, id: int, current_user: UserRead, request_context: Optional[dict] = None
++    ) -> bool:
+         """Delete a record."""
++        # Fetch entry before deletion to capture snapshot
++        entry = await self.repo.get(id)
++        if entry is None:
++            raise ValueError(f"Data entry with id={id} not found")
++
++        # Capture snapshot and handled_ids before deletion
++        snapshot = entry.model_dump()
++        handled_ids = extract_handled_ids(
++            entry, DataEntryTypeEnum(entry.data_entry_type_id)
++        )
++
+         result = await self.repo.delete(id)
+         await self.session.flush()
+ 
+         if result is False:
+             raise ValueError(f"Data entry with id={id} not found")
++
++        # Extract context information
++        request_context = request_context or {}
++
++        # Create version record for deletion
++        await self.versioning.create_version(
++            entity_type=self.repo.entity_type,
++            entity_id=id,
++            data_snapshot=snapshot,
++            change_type=AuditChangeTypeEnum.DELETE,
++            changed_by=current_user.id,
++            change_reason="Data entry deleted",
++            handler_id=current_user.provider_code,
++            handled_ids=handled_ids,
++            ip_address=request_context.get("ip_address"),
++            route_path=request_context.get("route_path"),
++            route_payload=request_context.get("route_payload"),
++        )
++
+         return True
+ 
+     async def get(self, id: int) -> DataEntryResponse:
+@@ -177,9 +363,11 @@ class DataEntryService:
+         sort_by: str = "date",
+         sort_order: str = "asc",
+         filter: Optional[str] = None,
++        current_user: Optional[UserRead] = None,
++        request_context: Optional[dict] = None,
+     ) -> SubmoduleResponse:
+         """Get module data for a unit and year."""
+-        return await self.repo.get_submodule_data(
++        response = await self.repo.get_submodule_data(
+             carbon_report_module_id=carbon_report_module_id,
+             data_entry_type_id=data_entry_type_id,
+             limit=limit,
+@@ -189,6 +377,43 @@ class DataEntryService:
+             filter=filter,
+         )
+ 
++        if (
++            (current_user is not None and current_user.id is not None)
++            and (request_context is not None)
++            and (response is not None)
++            and (
++                data_entry_type_id == DataEntryTypeEnum.trips.value
++                or data_entry_type_id == DataEntryTypeEnum.member.value
++            )
++        ):
++            # for headcount and trips we need for OPDO to have a record of READ
++            # Create version record for read
++            extracted_handled_ids = extract_handled_ids_from_list(
++                list(response.items), DataEntryTypeEnum(data_entry_type_id)
++            )
++            #
++            await self.versioning.create_version(
++                entity_type="DataEntryReadByCarbonReportModule",
++                entity_id=carbon_report_module_id,
++                data_snapshot={},  # No snapshot for read operations
++                change_type=AuditChangeTypeEnum.READ,
++                changed_by=current_user.id,
++                change_reason=(
++                    f"Data entry read for "
++                    f"carbon_report_module_id {carbon_report_module_id} "
++                    f"and data_entry_type_id {data_entry_type_id}"
++                ),
++                handler_id=current_user.provider_code,
++                handled_ids=extracted_handled_ids,
++                ip_address=request_context.get("ip_address"),
++                route_path=request_context.get("route_path"),
++                route_payload=request_context.get("route_payload"),
++            )
++            # special case, we want to commit here, cause we don't commit in READ routes
++            await self.session.commit()
++
++        return response
++
+     async def get_total_per_field(
+         self,
+         field_name: str,
+diff --git a/backend/app/services/data_ingestion/base_csv_provider.py b/backend/app/services/data_ingestion/base_csv_provider.py
+index 1f974ad..22083bf 100644
+--- a/backend/app/services/data_ingestion/base_csv_provider.py
++++ b/backend/app/services/data_ingestion/base_csv_provider.py
+@@ -1,7 +1,7 @@
+ import csv
+ import io
+ from abc import ABC, abstractmethod
+-from typing import Any, Dict, List, TypedDict
++from typing import Any, Dict, List, Optional, TypedDict
+ 
+ from app.core.logging import get_logger
+ from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+@@ -15,6 +15,7 @@ from app.models.user import User
+ from app.providers.unit_provider import get_unit_provider
+ from app.repositories.data_ingestion import DataIngestionRepository
+ from app.schemas.data_entry import ModuleHandler
++from app.schemas.user import UserRead
+ from app.seed.seed_helper import lookup_factor
+ from app.services.data_entry_emission_service import DataEntryEmissionService
+ from app.services.data_entry_service import DataEntryService
+@@ -656,7 +657,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
+                 # Process batch when it reaches BATCH_SIZE
+                 if len(batch) >= BATCH_SIZE:
+                     await self._process_batch(
+-                        batch, data_entry_service, emission_service
++                        batch, data_entry_service, emission_service, self.user
+                     )
+                     stats["batches_processed"] += 1
+                     logger.info(
+@@ -898,7 +899,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
+         """
+         # Process final batch (remaining rows < BATCH_SIZE)
+         if batch:
+-            await self._process_batch(batch, data_entry_service, emission_service)
++            await self._process_batch(
++                batch, data_entry_service, emission_service, self.user
++            )
+             stats["batches_processed"] += 1
+             logger.info(
+                 f"Processed final batch {stats['batches_processed']}: "
+@@ -948,6 +951,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
+         batch: List[DataEntry],
+         data_entry_service: DataEntryService,
+         emission_service: DataEntryEmissionService,
++        user: Optional[User],
+     ) -> None:
+         """Process a batch of data entries: bulk insert entries and emissions"""
+         if not batch:
+@@ -956,7 +960,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
+         logger.info(f"Processing batch of {len(batch)} entries")
+ 
+         # 1. Bulk create data entries
+-        data_entries_response = await data_entry_service.bulk_create(batch)
++        data_entries_response = await data_entry_service.bulk_create(
++            batch,
++            UserRead.model_validate(user) if user else None,
++            job_id=self.job_id,
++        )
+ 
+         # 2. Prepare emissions for all created data entries
+         emissions_to_create = []
+diff --git a/backend/app/services/data_ingestion/base_provider.py b/backend/app/services/data_ingestion/base_provider.py
+index 0154d5e..d90cced 100644
+--- a/backend/app/services/data_ingestion/base_provider.py
++++ b/backend/app/services/data_ingestion/base_provider.py
+@@ -107,6 +107,28 @@ class DataIngestionProvider(ABC):
+         if self.job_id is None:
+             raise Exception("Failed to create ingestion job id")
+ 
++        # Create audit record for job creation
++        from app.models.audit import AuditChangeTypeEnum
++        from app.services.audit_service import AuditDocumentService
++
++        audit_service = AuditDocumentService(db)
++        changed_by = self.user.id if self.user else self.job_id
++        handler_id = self.user.provider_code if self.user else "csv_ingestion"
++
++        await audit_service.create_version(
++            entity_type="DataIngestionJob",
++            entity_id=self.job_id,
++            data_snapshot=job.model_dump(),
++            change_type=AuditChangeTypeEnum.CREATE,
++            changed_by=changed_by,
++            change_reason=f"Data ingestion job created via {ingestion_method.value}",
++            handler_id=handler_id,
++            handled_ids=[],  # No specific handled IDs for job creation
++            ip_address=None,
++            route_path=None,
++            route_payload=None,
++        )
++
+         return self.job_id
+ 
+     async def ingest(
+diff --git a/backend/tests/integration/v1/test_auth.py b/backend/tests/integration/v1/test_auth.py
+index 883fb8e..6e60c25 100644
+--- a/backend/tests/integration/v1/test_auth.py
++++ b/backend/tests/integration/v1/test_auth.py
+@@ -1,3 +1,5 @@
++from unittest.mock import AsyncMock, MagicMock
++
+ import pytest
+ from fastapi.testclient import TestClient
+ 
+@@ -38,3 +40,75 @@ async def test_login_redirect_uri_https(client, monkeypatch):
+     assert (
+         "redirect_uri=https%3A%2F%2F" in location or "redirect_uri=https://" in location
+     )
++
++
++def test_refresh_logs_audit_event(client, monkeypatch):
++    import app.api.v1.auth as auth_module
++
++    async def override_get_db():
++        db = MagicMock()
++        db.commit = AsyncMock()
++        yield db
++
++    monkeypatch.setattr(
++        auth_module,
++        "decode_jwt",
++        MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 5}),
++    )
++    mock_user = MagicMock(id=5, email="test@example.com", provider_code="654321")
++    monkeypatch.setattr(
++        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
++    )
++    create_version_mock = AsyncMock()
++    monkeypatch.setattr(
++        auth_module.AuditDocumentService,
++        "create_version",
++        create_version_mock,
++    )
++
++    app.dependency_overrides[auth_module.get_db] = override_get_db
++    try:
++        response = client.post(
++            "/api/v1/auth/refresh", cookies={"refresh_token": "token"}
++        )
++    finally:
++        app.dependency_overrides.clear()
++
++    assert response.status_code == 200
++    assert response.json()["message"] == "Token refreshed successfully"
++    assert create_version_mock.await_count == 1
++
++
++def test_logout_logs_audit_event(client, monkeypatch):
++    import app.api.v1.auth as auth_module
++
++    async def override_get_db():
++        db = MagicMock()
++        db.commit = AsyncMock()
++        yield db
++
++    monkeypatch.setattr(
++        auth_module,
++        "decode_jwt",
++        MagicMock(return_value={"user_id": 7, "email": "test@example.com"}),
++    )
++    mock_user = MagicMock(id=7, provider_code="987654")
++    monkeypatch.setattr(
++        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
++    )
++    create_version_mock = AsyncMock()
++    monkeypatch.setattr(
++        auth_module.AuditDocumentService,
++        "create_version",
++        create_version_mock,
++    )
++
++    app.dependency_overrides[auth_module.get_db] = override_get_db
++    try:
++        response = client.post("/api/v1/auth/logout", cookies={"auth_token": "token"})
++    finally:
++        app.dependency_overrides.clear()
++
++    assert response.status_code == 200
++    assert response.json()["message"] == "Logged out successfully"
++    assert create_version_mock.await_count == 1
+diff --git a/backend/tests/unit/repositories/test_data_entry_emission_repo.py b/backend/tests/unit/repositories/test_data_entry_emission_repo.py
+index c8a81ce..76d0b31 100644
+--- a/backend/tests/unit/repositories/test_data_entry_emission_repo.py
++++ b/backend/tests/unit/repositories/test_data_entry_emission_repo.py
+@@ -5,8 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
+ 
+ from app.models.carbon_report import CarbonReport, CarbonReportModule
+ from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+-from app.models.data_entry_emission import DataEntryEmission
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+ from app.models.module_type import ModuleTypeEnum
+ from app.models.unit import Unit
+ from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+diff --git a/backend/tests/unit/repositories/test_factor_repo.py b/backend/tests/unit/repositories/test_factor_repo.py
+index 25699ce..5a488a4 100644
+--- a/backend/tests/unit/repositories/test_factor_repo.py
++++ b/backend/tests/unit/repositories/test_factor_repo.py
+@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
+ import pytest
+ 
+ from app.models.data_entry import DataEntryTypeEnum
+-from app.models.emission_type import EmissionTypeEnum
++from app.models.data_entry_emission import EmissionTypeEnum
+ from app.models.factor import Factor
+ from app.repositories.factor_repo import FactorRepository
+ 
+diff --git a/backend/tests/unit/services/data_ingestion/test_base_csv_provider.py b/backend/tests/unit/services/data_ingestion/test_base_csv_provider.py
+index c7792c9..a47f758 100644
+--- a/backend/tests/unit/services/data_ingestion/test_base_csv_provider.py
++++ b/backend/tests/unit/services/data_ingestion/test_base_csv_provider.py
+@@ -7,6 +7,7 @@ import pytest
+ 
+ from app.models.data_entry import DataEntryTypeEnum
+ from app.models.data_ingestion import EntityType
++from app.models.user import UserProvider
+ from app.services.data_ingestion import base_csv_provider
+ from app.services.data_ingestion.base_csv_provider import (
+     BATCH_SIZE,
+@@ -577,8 +578,15 @@ async def test_process_batch_creates_emissions():
+     emission_service.bulk_create = AsyncMock()
+ 
+     batch = [MagicMock()]
++    user = SimpleNamespace(
++        id=1,
++        email="test@example.com",
++        display_name="Test User",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+ 
+-    await provider._process_batch(batch, data_entry_service, emission_service)
++    await provider._process_batch(batch, data_entry_service, emission_service, user)
+ 
+     data_entry_service.bulk_create.assert_awaited_once()
+     emission_service.prepare_create.assert_awaited_once_with(created_entry)
+diff --git a/backend/tests/unit/services/test_data_entry_service.py b/backend/tests/unit/services/test_data_entry_service.py
+index d41b90c..b54c45a 100644
+--- a/backend/tests/unit/services/test_data_entry_service.py
++++ b/backend/tests/unit/services/test_data_entry_service.py
+@@ -30,7 +30,12 @@ async def test_create_data_entry_success(db_session: AsyncSession):
+     await db_session.flush()
+ 
+     # Create user
+-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+ 
+     # Create data
+     data = DataEntryCreate(
+@@ -83,7 +88,12 @@ async def test_update_data_entry_success(db_session: AsyncSession):
+     await db_session.flush()
+ 
+     # Create user
+-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+ 
+     # Update data
+     update_data = DataEntryUpdate(
+@@ -115,11 +125,7 @@ async def test_update_data_entry_without_user_raises_error(db_session: AsyncSess
+         await service.update(id=1, data=update_data, user=None)
+ 
+     with pytest.raises(PermissionError, match="User context is required"):
+-        await service.update(
+-            id=1,
+-            data=update_data,
+-            user=User(email="test@example.com", provider=UserProvider.DEFAULT),
+-        )
++        await service.update(id=1, data=update_data, user=User(id=None, email=""))
+ 
+ 
+ @pytest.mark.asyncio
+@@ -127,7 +133,12 @@ async def test_update_data_entry_not_found_raises_error(db_session: AsyncSession
+     """Test that updating non-existent entry raises ValueError."""
+     service = DataEntryService(db_session)
+ 
+-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+     update_data = DataEntryUpdate(
+         data_entry_type_id=DataEntryTypeEnum.trips.value,
+         carbon_report_module_id=1,
+@@ -168,7 +179,12 @@ async def test_delete_data_entry_success(db_session: AsyncSession):
+     await db_session.flush()
+ 
+     # Create user
+-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+ 
+     result = await service.delete(id=entry.id, current_user=user)
+ 
+@@ -184,7 +200,12 @@ async def test_delete_data_entry_not_found_raises_error(db_session: AsyncSession
+     """Test that deleting non-existent entry raises ValueError."""
+     service = DataEntryService(db_session)
+ 
+-    user = User(id=1, email="test@example.com", provider=UserProvider.DEFAULT)
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
+ 
+     with pytest.raises(ValueError, match="not found"):
+         await service.delete(id=99999, current_user=user)
+@@ -253,6 +274,14 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
+     db_session.add(module)
+     await db_session.flush()
+ 
++    # Create user
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
++
+     # Create multiple entries
+     entries = [
+         DataEntry(
+@@ -264,7 +293,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
+         for i in range(5)
+     ]
+ 
+-    result = await service.bulk_create(entries)
++    result = await service.bulk_create(entries, user)
+ 
+     assert len(result) == 5
+     assert all(r.id is not None for r in result)
+@@ -286,6 +315,14 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
+     db_session.add(module)
+     await db_session.flush()
+ 
++    # Create user
++    user = User(
++        id=1,
++        email="test@example.com",
++        provider=UserProvider.DEFAULT,
++        provider_code="default-1441",
++    )
++
+     # Create entries of different types
+     trips = [
+         DataEntry(
+@@ -308,7 +345,7 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
+     await db_session.flush()
+ 
+     # Bulk delete only trips
+-    await service.bulk_delete(module.id, DataEntryTypeEnum.trips)
++    await service.bulk_delete(module.id, DataEntryTypeEnum.trips, user)
+ 
+     # Verify trips are deleted
+     from sqlmodel import select
+diff --git a/backend/tests/unit/v1/test_unit_auth.py b/backend/tests/unit/v1/test_unit_auth.py
+index f5d959e..4841c98 100644
+--- a/backend/tests/unit/v1/test_unit_auth.py
++++ b/backend/tests/unit/v1/test_unit_auth.py
+@@ -1,7 +1,7 @@
+ from unittest.mock import AsyncMock, MagicMock
+ 
+ import pytest
+-from fastapi import status
++from fastapi import Response, status
+ from fastapi.testclient import TestClient
+ 
+ import app.api.v1.auth as auth_module
+@@ -141,8 +141,14 @@ async def test_refresh_token_invalid_payload(monkeypatch, payload):
+     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
+     db = MagicMock()
+     response = MagicMock()
++    request = MagicMock()
+     with pytest.raises(auth_module.HTTPException) as exc:
+-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
++        await auth_module.refresh_token(
++            refresh_token="token",
++            response=response,
++            request=request,
++            db=db,
++        )
+     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+ 
+ 
+@@ -157,8 +163,14 @@ async def test_refresh_token_user_missing(monkeypatch):
+     )
+     db = MagicMock()
+     response = MagicMock()
++    request = MagicMock()
+     with pytest.raises(auth_module.HTTPException) as exc:
+-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
++        await auth_module.refresh_token(
++            refresh_token="token",
++            response=response,
++            request=request,
++            db=db,
++        )
+     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+ 
+ 
+@@ -166,8 +178,14 @@ async def test_refresh_token_user_missing(monkeypatch):
+ async def test_refresh_token_no_token():
+     db = MagicMock()
+     response = MagicMock()
++    request = MagicMock()
+     with pytest.raises(auth_module.HTTPException) as exc:
+-        await auth_module.refresh_token(refresh_token=None, response=response, db=db)
++        await auth_module.refresh_token(
++            refresh_token=None,
++            response=response,
++            request=request,
++            db=db,
++        )
+     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+ 
+ 
+@@ -178,12 +196,83 @@ async def test_refresh_token_exception(monkeypatch):
+     )
+     db = MagicMock()
+     response = MagicMock()
++    request = MagicMock()
+     with pytest.raises(auth_module.HTTPException) as exc:
+-        await auth_module.refresh_token(refresh_token="token", response=response, db=db)
++        await auth_module.refresh_token(
++            refresh_token="token",
++            response=response,
++            request=request,
++            db=db,
++        )
+     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+ 
+ 
++@pytest.mark.asyncio
++async def test_refresh_token_logs_audit_event(monkeypatch):
++    monkeypatch.setattr(
++        auth_module,
++        "decode_jwt",
++        MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 42}),
++    )
++    mock_user = MagicMock(id=42, email="test@example.com", provider_code="123456")
++    monkeypatch.setattr(
++        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
++    )
++    log_mock = AsyncMock()
++    monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)
++
++    db = MagicMock()
++    response = Response()
++    request = MagicMock()
++
++    result = await auth_module.refresh_token(
++        refresh_token="token",
++        response=response,
++        request=request,
++        db=db,
++    )
++
++    assert result["message"] == "Token refreshed successfully"
++    log_mock.assert_awaited_once()
++
++
+ def test_logout(client):
+-    response = client.post("/api/v1/auth/logout")
++    async def override_get_db():
++        yield MagicMock()
++
++    app.dependency_overrides[auth_module.get_db] = override_get_db
++    try:
++        response = client.post("/api/v1/auth/logout")
++    finally:
++        app.dependency_overrides.clear()
+     assert response.status_code == 200
+     assert response.json()["message"] == "Logged out successfully"
++
++
++@pytest.mark.asyncio
++async def test_logout_logs_audit_event(monkeypatch):
++    monkeypatch.setattr(
++        auth_module,
++        "decode_jwt",
++        MagicMock(return_value={"user_id": 7, "email": "test@example.com"}),
++    )
++    mock_user = MagicMock(id=7, provider_code="987654")
++    monkeypatch.setattr(
++        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
++    )
++    log_mock = AsyncMock()
++    monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)
++
++    response = Response()
++    request = MagicMock()
++    db = MagicMock()
++
++    result = await auth_module.logout(
++        response=response,
++        request=request,
++        auth_token="token",
++        db=db,
++    )
++
++    assert result["message"] == "Logged out successfully"
++    log_mock.assert_awaited_once()
+diff --git a/docs/src/database/erd.md b/docs/src/database/erd.md
+index ce6df80..f801516 100644
+--- a/docs/src/database/erd.md
++++ b/docs/src/database/erd.md
+@@ -2,6 +2,26 @@ Generating Mermaid ERD...
+ 
+ ```mermaid
+ erDiagram
++  audit_documents {
++    VARCHAR change_reason
++    VARCHAR change_type
++    DATETIME changed_at
++    INTEGER changed_by
++    VARCHAR current_hash
++    JSON data_diff
++    JSON data_snapshot
++    INTEGER entity_id "indexed"
++    VARCHAR entity_type "indexed"
++    JSON handled_ids
++    VARCHAR handler_id
++    INTEGER id PK
++    VARCHAR ip_address
++    BOOLEAN is_current
++    VARCHAR previous_hash
++    VARCHAR route_path
++    JSON route_payload
++    INTEGER version "indexed"
++  }
+   carbon_report_modules {
+     INTEGER carbon_report_id FK
+     INTEGER id PK
+diff --git a/frontend/src/boot/i18n.ts b/frontend/src/boot/i18n.ts
+index fd405ed..cc227c9 100644
+--- a/frontend/src/boot/i18n.ts
++++ b/frontend/src/boot/i18n.ts
+@@ -50,6 +50,16 @@ const defaultFormat: { [key: string]: Intl.NumberFormatOptions } = {
+   },
+ };
+ 
++const defaultDateTimeFormat: { [key: string]: Intl.DateTimeFormatOptions } = {
++  short: {
++    year: 'numeric', month: 'short', day: 'numeric'
++  },
++  long: {
++    year: 'numeric', month: 'short', day: 'numeric',
++    weekday: 'short', hour: 'numeric', minute: 'numeric'
++  }
++};
++
+ const numberFormats = {
+   'en-US': defaultFormat,
+   'de-CH': defaultFormat,
+@@ -57,6 +67,13 @@ const numberFormats = {
+   // Add other locales as needed, all using the same config
+ };
+ 
++const datetimeFormats = {
++  'en-US': defaultDateTimeFormat,
++  'de-CH': defaultDateTimeFormat,
++  'fr-CH': defaultDateTimeFormat,
++  // Add other locales as needed, all using the same config
++};
++
+ // Detect browser language and find matching locale
+ const getBrowserLocale = (): MessageLanguages => {
+   const browserLang = navigator.language.split('-')[0]; // 'en-US' → 'en'
+@@ -72,6 +89,7 @@ export const i18n = createI18n({
+   legacy: false,
+   messages,
+   numberFormats,
++  datetimeFormats,
+   // Show i18n warnings only in dev
+   missingWarn: import.meta.env.DEV,
+   fallbackWarn: import.meta.env.DEV,
+diff --git a/frontend/src/pages/system/LogsPage.vue b/frontend/src/pages/system/LogsPage.vue
+index a85db5b..d467dc8 100644
+--- a/frontend/src/pages/system/LogsPage.vue
++++ b/frontend/src/pages/system/LogsPage.vue
+@@ -1,6 +1,57 @@
+ <script setup lang="ts">
++import { onMounted } from 'vue';
++import { useI18n } from 'vue-i18n';
+ import { SYSTEM_NAV } from 'src/constant/navigation';
+ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
++import AuditStatCards from 'src/components/audit/AuditStatCards.vue';
++import AuditFilterBar from 'src/components/audit/AuditFilterBar.vue';
++import AuditSearchBar from 'src/components/audit/AuditSearchBar.vue';
++import AuditTable from 'src/components/audit/AuditTable.vue';
++import AuditPagination from 'src/components/audit/AuditPagination.vue';
++import AuditDetailDrawer from 'src/components/audit/AuditDetailDrawer.vue';
++import { useAuditLogs } from 'src/composables/useAuditLogs';
++
++const { t } = useI18n();
++
++const {
++  // Filter state
++  actionFilter,
++  entityTypeFilter,
++  moduleFilter,
++  handlerIdFilter,
++  dateRange,
++  searchQuery,
++  // Pagination
++  page,
++  pageSize,
++  totalEntries,
++  // Table
++  logs,
++  isLoading,
++  hasError,
++  sortBy,
++  sortDesc,
++  // Stats
++  stats,
++  statsLoading,
++  // Detail
++  selectedLog,
++  detailOpen,
++  // Actions
++  onSearch,
++  onFilterChange,
++  onSort,
++  onPageChange,
++  onPageSizeChange,
++  openDetail,
++  copyEntry,
++  handleExport,
++  retry,
++} = useAuditLogs();
++
++onMounted(() => {
++  onSearch();
++});
+ </script>
+ 
+ <template>
+@@ -8,8 +59,91 @@ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHead
+     <navigation-header :item="SYSTEM_NAV.SYSTEM_LOGS" />
+ 
+     <div class="q-my-xl q-px-xl">
+-      <div class="container">
+-        <p class="text-h1">Placeholder: Add Grafana iFrame</p>
++      <div class="container full-width">
++        <!-- Stat cards -->
++        <AuditStatCards
++          :stats="stats"
++          :loading="statsLoading"
++          class="q-mb-lg"
++        />
++
++        <!-- Filter bar -->
++        <AuditFilterBar
++          :action="actionFilter"
++          :entity-type="entityTypeFilter"
++          :module="moduleFilter"
++          :handler-id="handlerIdFilter"
++          :date-range="dateRange"
++          class="q-mb-md"
++          @update:action="
++            actionFilter = $event;
++            onFilterChange();
++          "
++          @update:entity-type="
++            entityTypeFilter = $event;
++            onFilterChange();
++          "
++          @update:module="
++            moduleFilter = $event;
++            onFilterChange();
++          "
++          @update:handler-id="
++            handlerIdFilter = $event;
++            onFilterChange();
++          "
++          @update:date-range="
++            dateRange = $event;
++            onFilterChange();
++          "
++        />
++
++        <!-- Search bar + export -->
++        <AuditSearchBar
++          v-model="searchQuery"
++          class="q-mb-md"
++          @search="onSearch"
++          @export="handleExport"
++        />
++
++        <!-- Error banner -->
++        <q-banner
++          v-if="hasError"
++          class="bg-negative text-white q-mb-md"
++          rounded
++        >
++          {{ t('audit_msg_load_failed') }}
++          <template #action>
++            <q-btn flat :label="t('audit_btn_retry')" @click="retry" />
++          </template>
++        </q-banner>
++
++        <!-- Table -->
++        <AuditTable
++          :rows="logs"
++          :loading="isLoading"
++          :sort-by="sortBy"
++          :sort-desc="sortDesc"
++          @sort="onSort"
++          @view="openDetail"
++          @copy="copyEntry"
++        />
++
++        <!-- Pagination -->
++        <AuditPagination
++          :page="page"
++          :page-size="pageSize"
++          :total="totalEntries"
++          class="q-mt-md"
++          @update:page="onPageChange"
++          @update:page-size="onPageSizeChange"
++        />
++
++        <!-- Detail drawer -->
++        <AuditDetailDrawer
++          v-model="detailOpen"
++          :entry="selectedLog"
++          @copy="copyEntry"
++        />
+       </div>
+     </div>
+   </q-page>

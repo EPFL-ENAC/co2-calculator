@@ -5,8 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository

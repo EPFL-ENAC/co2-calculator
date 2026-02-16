@@ -4,7 +4,7 @@ This repository handles internal user database operations.
 Users are managed through OAuth authentication only.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -50,7 +50,7 @@ class UserRepository:
         function: Optional[str] = None,
     ) -> User:
         """Create a new user."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entity = User(
             provider_code=provider_code,
             email=email,
@@ -81,7 +81,7 @@ class UserRepository:
         if not entity:
             raise HTTPException(status_code=404, detail="User not found")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if roles is not None:
             entity.roles = roles
