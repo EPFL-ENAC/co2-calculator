@@ -26,8 +26,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      {{- with .Values.backend.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
