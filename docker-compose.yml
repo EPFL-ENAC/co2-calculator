@@ -75,15 +75,18 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: co2-backend
-    command: >
-      sh -c "
-        alembic upgrade head &&
-        opentelemetry-instrument python -m app.main
-      "
-    env_file:
-      - ./backend/.env
     environment:
       DEBUG: "True"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      WORKERS: "1"
+    command: >
+      sh -c '
+        alembic upgrade head &&
+        exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
+      '
+    env_file:
+      - ./backend/.env
     # volumes:
     #   - ./app:/app/app:ro
     labels:

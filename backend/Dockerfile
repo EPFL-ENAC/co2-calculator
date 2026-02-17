@@ -47,11 +47,13 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONFAULTHANDLER=1 \
     HOST=0.0.0.0 \
     PORT=8000 \
-    WORKERS=1
+    WORKERS=1 \
+    OTEL_PYTHON_FORK_SAFE=true
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT}/health || exit 1
 
-CMD ["opentelemetry-instrument", "python", "-m", "app.main"]
+# Use environment variables in CMD
+CMD ["sh", "-c", "exec opentelemetry-instrument uvicorn app.main:app --host $HOST --port $PORT --workers $WORKERS"]
