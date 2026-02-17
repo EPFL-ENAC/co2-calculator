@@ -137,6 +137,12 @@ class Settings(BaseSettings):
         description="Weeks per year for annual CO2 calculation",
     )
 
+    # CO2 Calculation Constants
+    CO2_PER_KM_KG: float = Field(
+        default=0.34,
+        description="CO2 per km in kg",
+    )
+
     # Loki (optional)
     LOKI_ENABLED: bool = False
     LOKI_URL: Optional[str] = None  # e.g. http://loki:3100

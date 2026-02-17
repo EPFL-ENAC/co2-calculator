@@ -42,7 +42,7 @@ class DataEntryService:
         carbon_report_module_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         """Get module statistics such as total items and submodules."""
         return await self.repo.get_stats(
             carbon_report_module_id=carbon_report_module_id,

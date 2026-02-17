@@ -55,6 +55,7 @@ export interface ResultsSummary {
     previous_year_total_tonnes_co2eq: number | null;
     year_comparison_percentage: number | null;
   };
+  co2_per_km_kg: number;
   module_results: ModuleResult[];
 }
 

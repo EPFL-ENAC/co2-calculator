@@ -1,11 +1,12 @@
-# Validated Modules Totals — Two Endpoints
+# Validated Modules Totals & Results Summary
 
 ## Context
 
-We need two new endpoints to display validated module emissions:
+We need endpoints to display validated module emissions:
 
 1. **WorkspaceSetupPage / YearSelector** — needs total tCO2eq per year (all years at once) for a given unit
 2. **HomePage** — needs per-module breakdown of tCO2eq for a specific carbon report, plus the total and FTE from headcount
+3. **ResultsPage** — needs a rich per-module summary with tonnes, FTE per FTE, equivalent car km, and year-over-year comparison
 
 The existing aggregation endpoints only handle equipment and don't filter by validation status. Headcount has no `DataEntryEmission` records — FTE is stored in `DataEntry.data["fte"]` and must be queried separately via `DataEntryRepository`.
 
@@ -118,64 +119,184 @@ The endpoint:
 
 ---
 
+## Endpoint 3: ResultsPage — full results summary
+
+**Route:** `GET /modules-stats/{carbon_report_id}/results-summary`
+
+**Purpose:** Provide a comprehensive results summary for the dedicated ResultsPage, including unit-wide totals, per-module breakdowns with car-km equivalents and year-over-year comparison.
+
+**Response:**
+
+```json
+{
+  "unit_totals": {
+    "total_tonnes_co2eq": 61.7,
+    "total_fte": 25.5,
+    "tonnes_co2eq_per_fte": 2.42,
+    "equivalent_car_km": 181470.6,
+    "previous_year_total_tonnes_co2eq": 58.2,
+    "year_comparison_percentage": 6.01
+  },
+  "co2_per_km_kg": 0.34,
+  "module_results": [
+    {
+      "module_type_id": 2,
+      "total_tonnes_co2eq": 15.0,
+      "total_fte": null,
+      "tonnes_co2eq_per_fte": 0.59,
+      "equivalent_car_km": 44117.6,
+      "previous_year_total_tonnes_co2eq": 14.2,
+      "year_comparison_percentage": 5.63
+    }
+  ]
+}
+```
+
+- `co2_per_km_kg` is the configurable `CO2_PER_KM_KG` env variable (default `0.34`), returned so the frontend can display the conversion factor in tooltips
+- `unit_totals` aggregates across all validated modules
+- `module_results` is a list of per-module entries; headcount module includes `total_fte`, others have `total_fte: null`
+- `year_comparison_percentage` is `null` when no previous year data exists
+- `equivalent_car_km = kg_co2eq / CO2_PER_KM_KG`
+
+### 3a. Service: [unit_totals_service.py](backend/app/services/unit_totals_service.py)
+
+`get_results_summary(carbon_report_id: int) -> dict`
+
+Orchestrates all data fetching (3–5 DB queries total):
+
+1. Loads `CarbonReport` by id → gets `unit_id` and `year`
+2. Looks up previous year's `CarbonReport` via `CarbonReportRepository.get_by_unit_and_year(unit_id, year - 1)`
+3. Fetches current emissions per module: `DataEntryEmissionRepository.get_stats_by_carbon_report_id(carbon_report_id)`
+4. Fetches current FTE per module: `DataEntryRepository.get_stats_by_carbon_report_id(carbon_report_id)`
+5. If previous report exists, fetches previous emissions per module
+
+Returns raw data dict for the endpoint to format:
+
+```python
+{
+    "current_emissions": {"2": 15000.0, "4": 41700.0},   # module_type_id → kg
+    "current_fte": {"1": 25.5},                            # module_type_id → fte
+    "prev_emissions": {"2": 14200.0, "4": 40000.0},       # empty dict if no prev year
+}
+```
+
+### 3b. Endpoint: [carbon_report_module_stats.py](backend/app/api/v1/carbon_report_module_stats.py)
+
+`GET /{carbon_report_id}/results-summary` — mounted at `/modules-stats` prefix.
+
+The endpoint handles all formatting/conversion:
+
+- Calls `UnitTotalsService(db).get_results_summary(carbon_report_id)` for raw data
+- For each module in `current_emissions`, computes:
+  - `total_tonnes = kg_co2eq / 1000`
+  - `tonnes_per_fte = total_tonnes / total_fte` (if FTE available)
+  - `equivalent_car_km = kg_co2eq / settings.CO2_PER_KM_KG`
+  - `year_comparison = (current - prev) / prev * 100` (if previous year exists)
+- Aggregates `unit_totals` by summing across all modules
+- Returns `co2_per_km_kg` from `Settings.CO2_PER_KM_KG` so the frontend can display it
+
+### 3c. Configuration: `CO2_PER_KM_KG`
+
+New environment variable in `backend/app/core/config.py`:
+
+```python
+CO2_PER_KM_KG: float = Field(
+    default=0.34,
+    description="CO2 per km in kg",
+)
+```
+
+Also documented in `.env.example`.
+
+---
+
 ## Frontend
 
-### Store: [modules.ts](frontend/src/stores/modules.ts)
+### API layer: [modules.ts](frontend/src/api/modules.ts)
 
-Both API functions live in the **Pinia store** (`useModuleStore`), not in `api/modules.ts`. They call the backend via `api.get()` directly.
+The API module defines TypeScript interfaces and fetch functions:
 
 **Interfaces:**
 
 ```typescript
-interface ValidatedTotalsResponse {
-  modules: Record<number, number>;
+interface ModuleResult {
+  module_type_id: number;
   total_tonnes_co2eq: number;
-  total_fte: number;
+  total_fte: number | null;
+  tonnes_co2eq_per_fte: number | null;
+  equivalent_car_km: number;
+  previous_year_total_tonnes_co2eq: number | null;
+  year_comparison_percentage: number | null;
 }
 
-interface YearlyValidatedEmission {
-  year: number;
-  total_tonnes_co2eq: number;
+interface ResultsSummary {
+  unit_totals: {
+    total_tonnes_co2eq: number | null;
+    total_fte: number | null;
+    tonnes_co2eq_per_fte: number | null;
+    equivalent_car_km: number | null;
+    previous_year_total_tonnes_co2eq: number | null;
+    year_comparison_percentage: number | null;
+  };
+  co2_per_km_kg: number;
+  module_results: ModuleResult[];
 }
 ```
 
-**Function 1:** `getYearlyValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, stores result in `state.yearlyValidatedEmissions` (`YearlyValidatedEmission[]`).
+**Function:** `getResultsSummary(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/results-summary`.
 
-**Function 2:** `getValidatedTotals(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/validated-totals`, stores result in `state.validatedTotals` (`ValidatedTotalsResponse | null`). Caches by `carbonReportId` to avoid redundant fetches.
+### Store: [modules.ts](frontend/src/stores/modules.ts)
 
-### Integration: WorkspaceSetupPage / YearSelector
+The Pinia store (`useModuleStore`) contains functions for endpoint 1 (yearly emissions):
 
-- `WorkspaceSetupPage.vue` calls `moduleStore.getYearlyValidatedEmissions(unit.id)` in `handleUnitSelect`, alongside fetching carbon reports
-- A `yearRows` computed property maps `state.yearlyValidatedEmissions` into `YearData[]` by matching each year's emissions to the available carbon report years
-- The `YearSelector.vue` component receives `yearRows` as a prop and displays tCO2eq per year in a table column
+**Function:** `getYearlyValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, stores result in `state.yearlyValidatedEmissions`.
 
-### Integration: HomePage
+### ResultsPage: [ResultsPage.vue](frontend/src/pages/app/ResultsPage.vue)
 
-- `HomePage.vue` calls `moduleStore.getValidatedTotals(carbonReportId)` reactively via a computed property (triggers when `currentCarbonReportId` changes)
-- `validatedTotals?.total_tonnes_co2eq` is displayed as the year total
-- A `moduleCardTotals` computed maps `validatedTotals.modules` to per-module-card values using `getModuleTypeId(module)` lookups
+Dedicated results page that consumes the `results-summary` endpoint:
+
+- Calls `getResultsSummary(carbonReportId)` on mount and when `selectedCarbonReport` changes
+- **Unit-wide totals section** with 3 `BigNumber` cards:
+  - Total carbon footprint (tonnes CO2eq) with car-km equivalent
+  - Carbon footprint per FTE with Paris Agreement reference (2 tonnes)
+  - Year-over-year % change with previous year comparison
+- **Per-module breakdown** using expansion panels for each module (excluding headcount):
+  - Each module shows 3 `BigNumber` cards (same metrics as unit totals but module-scoped)
+  - Professional travel modules additionally show `ModuleCharts` when validated
+  - Non-validated modules show a placeholder card prompting validation
+- `co2_per_km_kg` value from the response is used in tooltips to explain the car-km conversion factor
+- Supports colorblind mode toggle, uncertainty badges, and year comparison toggle
+- PDF download via `window.print()`
 
 ---
 
 ## Files Modified
 
-| File                                                   | Change                                                                              |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `backend/app/repositories/data_entry_emission_repo.py` | Add `get_validated_totals_by_unit()` + `get_stats_by_carbon_report_id()`            |
-| `backend/app/repositories/data_entry_repo.py`          | Add `get_stats_by_carbon_report_id()`                                               |
-| `backend/app/services/unit_totals_service.py`          | Add `get_validated_emissions_by_unit()`                                             |
-| `backend/app/services/data_entry_emission_service.py`  | Add `get_stats_by_carbon_report_id()` (delegates to repo)                           |
-| `backend/app/services/data_entry_service.py`           | Add `get_stats_by_carbon_report_id()` (delegates to repo)                           |
-| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/yearly-validated-emissions` endpoint                            |
-| `backend/app/api/v1/carbon_report_module_stats.py`     | Add `GET /{carbon_report_id}/validated-totals` endpoint                             |
-| `frontend/src/stores/modules.ts`                       | Add `getYearlyValidatedEmissions()` + `getValidatedTotals()`, interfaces, and state |
-| `frontend/src/pages/app/WorkspaceSetupPage.vue`        | Call `getYearlyValidatedEmissions` on unit selection, compute `yearRows`            |
-| `frontend/src/pages/app/HomePage.vue`                  | Call `getValidatedTotals` reactively, display totals and per-module cards           |
+| File                                                   | Change                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `backend/app/core/config.py`                           | Add `CO2_PER_KM_KG` setting (default 0.34)                                                 |
+| `backend/.env.example`                                 | Document `CO2_PER_KM_KG`                                                                   |
+| `backend/app/repositories/data_entry_emission_repo.py` | Add `get_validated_totals_by_unit()` + `get_stats_by_carbon_report_id()`                   |
+| `backend/app/repositories/data_entry_repo.py`          | Add `get_stats_by_carbon_report_id()`                                                      |
+| `backend/app/repositories/carbon_report_repo.py`       | Add `get_by_unit_and_year()`                                                               |
+| `backend/app/services/unit_totals_service.py`          | Add `get_validated_emissions_by_unit()` + `get_results_summary()`                          |
+| `backend/app/services/data_entry_emission_service.py`  | Add `get_stats_by_carbon_report_id()` (delegates to repo)                                  |
+| `backend/app/services/data_entry_service.py`           | Add `get_stats_by_carbon_report_id()` (delegates to repo)                                  |
+| `backend/app/api/v1/unit_results.py`                   | Add `GET /{unit_id}/yearly-validated-emissions` endpoint                                   |
+| `backend/app/api/v1/carbon_report_module_stats.py`     | Add `GET /{carbon_report_id}/validated-totals` + `GET /{carbon_report_id}/results-summary` |
+| `frontend/src/api/modules.ts`                          | Add `ResultsSummary`, `ModuleResult` interfaces + `getResultsSummary()` function           |
+| `frontend/src/stores/modules.ts`                       | Add `getYearlyValidatedEmissions()`, interfaces, and state                                 |
+| `frontend/src/pages/app/ResultsPage.vue`               | Full results page consuming `results-summary` endpoint                                     |
+| `frontend/src/types.ts`                                | Add `ModuleResult` type reference                                                          |
 
 ## Verification
 
 1. Call `GET /api/v1/unit/{id}/yearly-validated-emissions` — verify response is a plain JSON array of per-year totals from validated modules only
 2. Call `GET /api/v1/modules-stats/{carbon_report_id}/validated-totals` — verify `modules` is a map keyed by `module_type_id` (int) with correct values
-3. Non-validated modules (status 0 or 1) must not appear in either endpoint
-4. Headcount FTE must come from `DataEntry.data["fte"]`, not from `DataEntryEmission`
-5. A unit with no validated modules returns an empty array / zero totals
+3. Call `GET /api/v1/modules-stats/{carbon_report_id}/results-summary` — verify `unit_totals`, `module_results[]`, and `co2_per_km_kg` are present and correctly computed
+4. Non-validated modules (status 0 or 1) must not appear in any endpoint
+5. Headcount FTE must come from `DataEntry.data["fte"]`, not from `DataEntryEmission`
+6. A unit with no validated modules returns an empty array / zero totals
+7. `equivalent_car_km` uses the configurable `CO2_PER_KM_KG` value (default 0.34)
+8. Year-over-year comparison returns `null` when no previous year data exists
+9. ResultsPage displays placeholder cards for modules that are not yet validated

@@ -172,7 +172,7 @@ class DataEntryEmissionService:
         carbon_report_module_id: int,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         """Get aggregated emission statistics for a carbon report module."""
         stats = await self.repo.get_stats(
             carbon_report_module_id,
