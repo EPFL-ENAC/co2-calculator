@@ -45,7 +45,7 @@ export const useFilesStore = defineStore(
      * List all temporary files stored in the backend (backend admin only).
      */
     async function listTempFiles(): Promise<FileNode[]> {
-      const response = await api.get<FileNode[]>('files/tmp');
+      const response = await api.get<FileNode[]>('files/temp-upload');
       const nodes = await response.json();
       return nodes;
     }
@@ -61,7 +61,7 @@ export const useFilesStore = defineStore(
         formData.append('files', file, file.name);
       });
 
-      const response = await api.post<FileNode[]>('files/tmp', {
+      const response = await api.post<FileNode[]>('files/temp-upload', {
         body: formData,
       });
       const nodes = await response.json();

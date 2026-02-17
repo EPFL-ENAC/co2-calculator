@@ -120,7 +120,7 @@ class LokiHandler(logging.Handler):
                 sys.stderr.write(
                     f"LokiHandler: failed to push log: {type(e).__name__}: {str(e)}\n"
                 )
-            except Exception:
+            except Exception:  # nosec B110
                 # If stderr itself fails, there's nothing more we can do
                 # This is the one acceptable case for bare pass in logging handlers
                 pass

@@ -189,7 +189,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 if error_msg:
                     continue
 
-                assert factor is not None
+                if factor is None:
+                    raise ValueError("Factor is None without error message")
                 batch.append(factor)
                 stats["rows_processed"] += 1
 

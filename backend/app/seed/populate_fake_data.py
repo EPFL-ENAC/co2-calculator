@@ -9,6 +9,7 @@ Script to populate local/dev database with fake Units and Users.
 
 import asyncio
 import random
+import secrets
 
 from faker import Faker
 from sqlalchemy import insert
@@ -75,7 +76,7 @@ async def main():
         for unit_idx, count in enumerate(unit_user_counts):
             unit_id = unit_idx + 1  # Assuming autoincrement
             for _ in range(count):
-                role = random.choice(USER_ROLES)
+                role = secrets.choice(USER_ROLES)
                 email = fake.unique.email()
                 user_id = fake.unique.random_int(100000, 999999)
                 users.append(

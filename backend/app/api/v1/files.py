@@ -209,7 +209,7 @@ async def get_file(
 
 
 @router.post(
-    "/tmp",
+    "/temp-upload",
     status_code=200,
     response_model=List[FileNode],
     response_model_exclude_none=True,

@@ -642,9 +642,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     # Row had errors, already recorded in stats
                     continue
 
-                assert (
-                    data_entry is not None
-                )  # Type guard: if no error, data_entry is valid
+                if data_entry is None:
+                    raise ValueError("Data entry is None without error message")
 
                 # Row processed successfully
                 batch.append(data_entry)
