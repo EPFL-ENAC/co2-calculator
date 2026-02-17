@@ -82,3 +82,24 @@ async def get_unit_totals(
     )
 
     return totals
+
+
+@router.get("/{unit_id}/yearly-validated-emissions")
+async def get_validated_emissions(
+    unit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict]:
+    """Get validated emission totals per year for a unit.
+
+    Returns:
+        [{"year": 2023, "total_tonnes_co2eq": 61.7}, ...]
+    """
+    rows = await UnitTotalsService(db).get_validated_emissions_by_unit(unit_id=unit_id)
+    return [
+        {
+            "year": row["year"],
+            "total_tonnes_co2eq": row["kg_co2eq"] / 1000.0,
+        }
+        for row in rows
+    ]

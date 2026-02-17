@@ -1,4 +1,4 @@
-"""Unit Results API endpoints."""
+"""Module stats API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -11,72 +11,64 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
-# TODO: not implemented for other modules than equipment-electric-consumption
-# TODO: make generic!
-@router.get("/{unit_id}/{year}/totals", response_model=dict[str, float])
-async def get_module_totals(
-    unit_id: int,
-    year: int,
+@router.get("/{carbon_report_id}/validated-totals")
+async def get_validated_totals(
+    carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> dict[str, float]:
+) -> dict:
     """
-    Get total tCO2eq for equipment-electric-consumption module.
+    Get validated totals for a carbon report.
 
-    Args:
-        unit_id: Unit ID
-        year: Year for the data
-        db: Database session
-        current_user: Authenticated user
+    Aggregates emissions (kg → tonnes CO2eq) and FTE across all validated
+    modules in the given carbon report. Both are keyed by module_type_id so
+    headcount appears with total_fte while other modules show total_tonnes_co2eq.
+
+    Returns:
+        {
+            "modules": {1: 25.5, 2: 15.0, 4: 41.7, 7: 5.0},
+            "total_tonnes_co2eq": 61.7,
+            "total_fte": 25.5
+        }
     """
-    logger.info(
-        f"GET module totals: unit_id={sanitize(unit_id)}, year={sanitize(year)}"
+    logger.info(f"GET validated totals: carbon_report_id={sanitize(carbon_report_id)}")
+
+    # Emission totals per module (kg_co2eq grouped by module_type_id)
+    emission_stats = await DataEntryEmissionService(db).get_stats_by_carbon_report_id(
+        carbon_report_id=carbon_report_id
     )
 
-    totals: dict[str, float] = {
-        "total": 0.0,
-        "equipment-electric-consumption": 0.0,
+    # FTE totals grouped by module_type_id (only headcount modules have FTE)
+    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
+        carbon_report_id=carbon_report_id,
+    )
+
+    # Collect all module_type_ids from both queries
+    all_module_ids = set(emission_stats.keys()) | set(fte_stats.keys())
+    headcount_type_id = str(ModuleTypeEnum.headcount.value)
+
+    modules: dict[int, float] = {}
+    for module_type_id in sorted(all_module_ids, key=int):
+        if module_type_id == headcount_type_id and module_type_id in fte_stats:
+            modules[int(module_type_id)] = fte_stats[module_type_id]
+        elif module_type_id in emission_stats:
+            modules[int(module_type_id)] = emission_stats[module_type_id] / 1000.0
+
+    total_tonnes_co2eq = sum(kg / 1000.0 for kg in emission_stats.values())
+    total_fte = sum(fte_stats.values())
+
+    return {
+        "modules": modules,
+        "total_tonnes_co2eq": total_tonnes_co2eq,
+        "total_fte": total_fte,
     }
-
-    # Get equipment module totals
-    try:
-        await _check_module_permission(
-            current_user, "equipment-electric-consumption", "view"
-        )
-        carbon_report_module = await CarbonReportModuleService(
-            db
-        ).get_carbon_report_by_year_and_unit(
-            unit_id=unit_id,
-            year=year,
-            module_type_id=ModuleTypeEnum["equipment_electric_consumption"],
-        )
-        module_stats = await DataEntryService(db).get_stats(
-            carbon_report_module_id=carbon_report_module.id
-        )
-        equipment_kg_co2eq = module_stats.get("total_kg_co2eq", 0.0)
-        equipment_tco2eq = round(float(equipment_kg_co2eq or 0.0) / 1000.0, 2)
-        totals["equipment-electric-consumption"] = equipment_tco2eq
-    except HTTPException:
-        # Permission denied, skip this module
-        logger.warning("Permission denied for equipment module")
-    except Exception as e:
-        logger.error(f"Error getting equipment stats: {e}", exc_info=True)
-
-    # Calculate total
-    totals["total"] = round(totals["equipment-electric-consumption"], 2)
-
-    logger.info(
-        f"Module totals returned: total={totals['total']} tCO2eq "
-        f"(equipment: {totals['equipment-electric-consumption']})"
-    )
-
-    return totals
 
 
 @router.get("/{unit_id}/{year}/{module_id}/stats", response_model=dict[str, float])
