@@ -5,14 +5,14 @@
 
 version: 2
 updates:
-  - package-ecosystem: "python" # See documentation for possible values
+  - package-ecosystem: "uv" # See documentation for possible values
     directory: "/backend" # Location of package manifests
     schedule:
-      interval: "weekly"
+      interval: "daily"
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "/frontend" # Location of package manifests
     schedule:
-      interval: "weekly"
+      interval: "daily"
   # Enable version updates for npm
   - package-ecosystem: "npm"
     # Look for `package.json` and `lock` files in the `root` directory
