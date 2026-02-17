@@ -5,6 +5,7 @@ declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
     $nOrDash: typeof nOrDash;
     $t: typeof i18n.global.t;
+    $n: typeof i18n.global.n;
   }
 }
 

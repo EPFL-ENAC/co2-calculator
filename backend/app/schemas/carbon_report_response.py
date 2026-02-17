@@ -68,5 +68,7 @@ class ModuleResponse(BaseModel):
     data_entry_types_total_items: Dict[int, int] = Field(
         ..., description="Total items per data entry type ID"
     )
-    stats: Optional[dict[str, float]] = Field(None, description="Module statistics")
+    stats: Optional[dict[str, float | None]] = Field(
+        None, description="Module statistics"
+    )
     totals: ModuleTotals = Field(..., description="Module totals")

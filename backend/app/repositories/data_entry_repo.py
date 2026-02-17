@@ -408,7 +408,7 @@ class DataEntryRepository:
         carbon_report_module_id,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Optional[float]]:
         """Aggregate DataEntry data by submodule or function.
                 SELECT
             dee.*
@@ -447,15 +447,16 @@ class DataEntryRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, float] = {}
+        aggregation: Dict[str, Optional[float]] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
             # special edge case for headcount : TO BE FIX by PM
             if aggregate_by == "function":
                 label = get_function_role(label)
             if label not in aggregation:
-                aggregation[label] = 0.0
-            aggregation[label] += float(total_count or 0.0)
+                aggregation[label] = None
+            if total_count is not None:
+                aggregation[label] = (aggregation[label] or 0.0) + total_count
 
         return aggregation
 

@@ -135,10 +135,6 @@ class UnitTotalsService:
         Returns:
             [{"year": 2023, "kg_co2eq": 61700.0}, ...]
         """
-        from app.repositories.data_entry_emission_repo import (
-            DataEntryEmissionRepository,
-        )
-
         return await DataEntryEmissionRepository(
             self.session
         ).get_validated_totals_by_unit(unit_id=unit_id)

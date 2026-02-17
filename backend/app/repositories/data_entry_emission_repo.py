@@ -1,6 +1,6 @@
 """Data entry emission repository for database operations."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import Select
 from sqlmodel import col, func, select
@@ -63,7 +63,7 @@ class DataEntryEmissionRepository:
         carbon_report_module_id,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Optional[float]]:
         """Aggregate DataEntryEmission data by emission_type_id
                 SELECT
             dee.*
@@ -97,10 +97,10 @@ class DataEntryEmissionRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, float] = {}
+        aggregation: Dict[str, Optional[float]] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total_count or 0.0)
+            aggregation[label] = total_count or None
 
         return aggregation
 
