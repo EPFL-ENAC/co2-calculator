@@ -121,7 +121,7 @@
   - [ ] Require pull request reviews
   - [ ] Require passing status checks before merge
 - [ ] Add security guidance to the pull request template.
-- [~x] Define code review guidelines with security focus.
+- [ ] Define code review guidelines with security focus.
 
 #### Exploitation Phase
 - [ ] Perform code reviews on all pull requests.
@@ -163,12 +163,12 @@
 ### Actions
 
 #### Development Phase
-- [~x] Design and implement centralized authentication logic.
+- [ ] Design and implement centralized authentication logic.
 - [ ] Add tests for:
   - [ ] Missing or invalid authentication tokens
   - [ ] Incorrect role/claim combinations
   - [ ] Unauthorized access attempts
-- [~x] Document authentication assumptions and architecture.
+- [ ] Document authentication assumptions and architecture.
 
 #### Exploitation Phase
 - [ ] Review authentication logic during code reviews.
