@@ -1,6 +1,7 @@
-# GitHub CI/CD Security Maintenance Plan
+# ADR-014: Security Checklist
 
-This document defines the actionable security mitigation measures for the `EPFL-ENAC/co2-calculator` repository.
+**Status**: Accepted  
+**Date**: 2026-02-16 \n**Deciders**: Development Team
 
 ---
 
@@ -18,7 +19,7 @@ This document defines the actionable security mitigation measures for the `EPFL-
 #### Development Phase
 - [ ] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
 - [x] Configure Dependabot settings in repository.
-- [ ] Assign a maintainer to be responsible to manage dependabot alerts and PRs.
+- [ ] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
 
 #### Exploitation Phase
 - [ ] Review and merge Dependabot PRs promptly.
@@ -38,7 +39,7 @@ This document defines the actionable security mitigation measures for the `EPFL-
   - High vulnerability updates: within 1 week
 
 ### Validation
-- Check repository settings that Dependabot alerts are enabled.
+- Check repository settings to ensure Dependabot alerts are enabled.
 - Confirm that Dependabot PRs appear regularly.
 - Verify CI successfully runs and passes on Dependabot PRs.
 - Periodically inspect the dependency graph for unresolved alerts.
@@ -245,7 +246,6 @@ This document defines the actionable security mitigation measures for the `EPFL-
 ---
 
 ## 6. Container Security (OpenShift Deployment)
-tryevil
 
 ### Objective
 Reduce the risk of vulnerabilities and misconfigurations in container images deployed on the OpenShift platform, within the responsibility boundaries of the application development team.
