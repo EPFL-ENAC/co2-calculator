@@ -227,7 +227,7 @@ async def resolve_primary_factor_if_kind_or_subkind_changed(
     update_payload: dict,
     data_entry_type: DataEntryTypeEnum,
     item_data: dict,
-    existing_data: dict,
+    existing_data: dict | None,
     db: AsyncSession,
 ) -> dict:
     """
@@ -630,15 +630,16 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
+        primary_factor = data_entry.data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "service_type": data_entry.data["primary_factor"].get("subkind")
+                "service_type": primary_factor.get("subkind")
                 or data_entry.data.get("service_type"),
-                "cloud_provider": data_entry.data["primary_factor"].get("kind")
+                "cloud_provider": primary_factor.get("kind")
                 or data_entry.data.get("cloud_provider"),
             }
         )

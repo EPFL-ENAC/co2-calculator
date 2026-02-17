@@ -863,11 +863,15 @@ function rowClasses(row: ModuleRow) {
 
 function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
   if (col.name === 'kg_co2eq') {
-    if (row.status && String(row.status).toLowerCase() !== 'in service')
-      return '';
-    const thresholdVal = props.threshold?.value ?? null;
-    const val = Number(row[col.field]);
-    if (thresholdVal !== null && Number.isFinite(val) && val > thresholdVal) {
+    const thresholdVal = Number(props.threshold?.value);
+    const rawVal = row?.[col.field];
+    const val = typeof rawVal === 'number' ? rawVal : Number(rawVal);
+
+    if (
+      Number.isFinite(thresholdVal) &&
+      Number.isFinite(val) &&
+      val > thresholdVal
+    ) {
       return 'text-negative';
     }
   }

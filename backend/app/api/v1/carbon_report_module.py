@@ -388,7 +388,7 @@ async def create(
             create_payload,
             data_entry_type,
             item_data,
-            existing_data={},
+            existing_data=None,
             db=db,
         )
 
