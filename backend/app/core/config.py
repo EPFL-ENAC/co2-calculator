@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     See .env.example for reference configuration.
     """
 
+    # General to avoid B104:hardcoded_bind_all_interfaces
+    HOST: str = "127.0.0.1"
+    PORT: int = 8000
+    WORKERS: int = 1
+
     # Application
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
