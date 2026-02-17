@@ -346,12 +346,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         )
 
         # Create EquipmentEmission record
-        assert equipment.id is not None, (
-            "Equipment must be saved before creating emission"
-        )
-        assert equipment.data_entry_type_id is not None, (
-            "Equipment must have data_entry_type_id"
-        )
+        if equipment.id is None:
+            raise ValueError("Equipment must be saved before creating emission")
+
+        if equipment.data_entry_type_id is None:
+            raise ValueError("Equipment must have data_entry_type_id")
         equipment_emission = DataEntryEmission(
             data_entry_id=equipment.id,
             emission_type_id=EmissionTypeEnum.equipment,
