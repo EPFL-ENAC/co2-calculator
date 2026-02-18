@@ -132,10 +132,16 @@ async def get_module(
             carbon_report_module_id=carbon_report_module_id,
         )
     # if need other subtotal do it here
-    total_kg_co2eq = sum(module_data.stats.values())
+    total_kg_co2eq = (
+        sum(v for v in module_data.stats.values() if v is not None)
+        if module_data.stats
+        else None
+    )
     module_data.totals = ModuleTotals(
         total_kg_co2eq=total_kg_co2eq,
-        total_tonnes_co2eq=total_kg_co2eq / 1000.0,
+        total_tonnes_co2eq=total_kg_co2eq / 1000.0
+        if total_kg_co2eq is not None
+        else None,
         total_annual_consumption_kwh=None,
         total_annual_fte=total_annual_fte,
     )
