@@ -186,6 +186,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-commuting-category'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: {
         x: 'category',
         y: 'commuting',
@@ -201,6 +202,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-food-category'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: {
         x: 'category',
         y: 'food',
@@ -216,6 +218,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-waste-category'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: {
         x: 'category',
         y: 'waste',
@@ -231,6 +234,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-grey-energy-category'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: {
         x: 'category',
         y: 'greyEnergy',
@@ -278,6 +282,7 @@ const chartOption = computed((): EChartsOption => {
       type: 'bar' as const,
       stack: 'total',
       encode: { x: 'category', y: 'energy' },
+      animation: true,
       markLine: {
         silent: true,
         symbol: ['none', 'none'],
@@ -292,6 +297,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-building-room-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'grey_energy' },
       itemStyle: { color: colors.value.lilac.dark },
       label: { show: false },
@@ -301,6 +307,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-scientific-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'scientific' },
       itemStyle: { color: colors.value.mauve.darker },
       label: { show: false },
@@ -309,6 +316,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-equipment-it'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'it' },
       itemStyle: { color: colors.value.mauve.dark },
       label: { show: false },
@@ -317,6 +325,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-other-purchases-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'other' },
       itemStyle: { color: colors.value.mauve.default },
       label: { show: false },
@@ -326,6 +335,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-plane-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'plane' },
       itemStyle: { color: colors.value.babyBlue.darker },
       label: { show: false },
@@ -334,6 +344,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-train-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'train' },
       itemStyle: { color: colors.value.babyBlue.dark },
       label: { show: false },
@@ -343,6 +354,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-stockage-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'stockage' },
       itemStyle: { color: colors.value.paleYellowGreen.darker },
       label: { show: false },
@@ -351,6 +363,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-virtualisation-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'virtualisation' },
       itemStyle: { color: colors.value.paleYellowGreen.dark },
       label: { show: false },
@@ -359,6 +372,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-calcul-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'calcul' },
       itemStyle: { color: colors.value.paleYellowGreen.default },
       label: { show: false },
@@ -367,6 +381,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-ai-provider-subcategory'),
       type: 'bar' as const,
       stack: 'total',
+      animation: true,
       encode: { x: 'category', y: 'ai_provider' },
       itemStyle: { color: colors.value.paleYellowGreen.light },
       label: { show: false },
@@ -375,6 +390,7 @@ const chartOption = computed((): EChartsOption => {
   ];
 
   return {
+    animation: false,
     tooltip: {
       trigger: 'axis',
       axisPointer: {
