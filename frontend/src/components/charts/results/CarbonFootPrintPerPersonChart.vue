@@ -37,15 +37,17 @@ const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Building': ['infrastructure'],
-  'Equipment': ['equipment'],
-  'IT Infrastructure': ['itInfrastructure'],
-  'Professional Travel': ['professionalTravel'],
-  'Purchases': ['purchases'],
-  'Research Core Facilities': ['researchCoreFacilities'],
-  'Commuting': ['commuting'],
-  'Food': ['food'],
-  'Waste': ['waste'],
+  Processes: [],
+  'Buildings energy consumption': ['infrastructure'],
+  'Buildings room': ['infrastructure'],
+  Equipment: ['equipment'],
+  'External cloud & AI': ['externalCloudAndAI'],
+  Purchases: ['purchases'],
+  'Research facilities': ['researchFacilities'],
+  'Professional travel': ['professionalTravel'],
+  Commuting: ['commuting'],
+  Food: ['food'],
+  Waste: ['waste'],
   'Grey Energy': ['greyEnergy'],
 };
 
@@ -73,10 +75,10 @@ const myUnitRow = computed<Record<string, unknown>>(() => {
 const EPFL_REFERENCE_VALUES: Record<string, number> = {
   infrastructure: 6.6,
   equipment: 4.4,
-  itInfrastructure: 4.0,
+  researchFacilities: 4.0,
   professionalTravel: 14.7,
   purchases: 31.3,
-  researchCoreFacilities: 3.0,
+  externalCloudAndAI: 3.0,
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
@@ -112,10 +114,10 @@ const allValueKeys = computed(() => {
   const baseKeys = [
     'infrastructure',
     'equipment',
-    'itInfrastructure',
+    'researchFacilities',
     'professionalTravel',
     'purchases',
-    'researchCoreFacilities',
+    'externalCloudAndAI',
   ];
 
   if (toggleAdditionalData.value) {
@@ -270,7 +272,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'itInfrastructure',
+        y: 'researchFacilities',
       },
       itemStyle: {
         color: colors.value.lavender.darker,
@@ -315,7 +317,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'researchCoreFacilities',
+        y: 'externalCloudAndAI',
       },
       itemStyle: {
         color: colors.value.paleYellowGreen.darker,
@@ -440,10 +442,10 @@ const chartOption = computed((): EChartsOption => {
         'category',
         'infrastructure',
         'equipment',
-        'itInfrastructure',
+        'researchFacilities',
         'professionalTravel',
         'purchases',
-        'researchCoreFacilities',
+        'externalCloudAndAI',
         'commuting',
         'food',
         'waste',
@@ -553,7 +555,12 @@ const downloadCSV = () => {
 
     <template v-if="headcountValidated">
       <q-card-section class="chart-container flex justify-center items-center">
-        <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
+        <v-chart
+          ref="chartRef"
+          class="chart"
+          autoresize
+          :option="chartOption"
+        />
       </q-card-section>
     </template>
 
@@ -561,14 +568,11 @@ const downloadCSV = () => {
       <q-card-section class="col validation-placeholder">
         <div class="validation-required-card">
           <div class="validation-required-card__content">
-            <q-icon
-              name="o_info"
-              size="md"
-              color="accent"
-              class="q-mb-md"
-            />
+            <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
             <div class="text-h6 text-weight-medium text-center q-mb-sm">
-              {{ $t('results_validate_module_title', { module: $t('headcount') }) }}
+              {{
+                $t('results_validate_module_title', { module: $t('headcount') })
+              }}
             </div>
             <div class="text-body2 text-secondary text-center">
               {{ $t('results_validate_module_message') }}

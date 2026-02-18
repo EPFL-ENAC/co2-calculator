@@ -280,9 +280,17 @@ const downloadPDF = () => {
         />
         <CarbonFootPrintPerPersonChart
           :view-uncertainties="viewUncertainties"
-          :per-person-breakdown="moduleStore.state.emissionBreakdown?.per_person_breakdown"
-          :validated-categories="moduleStore.state.emissionBreakdown?.validated_categories"
-          :headcount-validated="moduleStore.state.emissionBreakdown?.validated_categories?.includes('Commuting') ?? false"
+          :per-person-breakdown="
+            moduleStore.state.emissionBreakdown?.per_person_breakdown
+          "
+          :validated-categories="
+            moduleStore.state.emissionBreakdown?.validated_categories
+          "
+          :headcount-validated="
+            moduleStore.state.emissionBreakdown?.validated_categories?.includes(
+              'Commuting',
+            ) ?? false
+          "
         />
       </q-card>
 

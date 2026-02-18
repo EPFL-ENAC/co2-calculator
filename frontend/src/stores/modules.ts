@@ -652,6 +652,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function getEmissionBreakdown(carbonReportId: number) {
     state.loadingEmissionBreakdown = true;
     state.errorEmissionBreakdown = null;
+    state.emissionBreakdown = null;
     try {
       const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
       const data = await api.get(path).json<EmissionBreakdownResponse>();

@@ -34,7 +34,7 @@ def test_build_chart_breakdown_basic():
     assert equip["other"] == pytest.approx(0.2)
 
     travel = next(
-        d for d in result["module_breakdown"] if d["category"] == "Professional Travel"
+        d for d in result["module_breakdown"] if d["category"] == "Professional travel"
     )
     assert travel["plane"] == pytest.approx(3.0)
     assert travel["train"] == pytest.approx(1.5)
@@ -43,18 +43,45 @@ def test_build_chart_breakdown_basic():
 
 
 def test_build_chart_breakdown_emission_type_for_infra():
-    """Infrastructure uses emission type as chart key (not subcategory)."""
+    """Infrastructure energy → 'Buildings energy consumption' bar."""
     rows = [
         (3, 1, "Building", 9_000.0),
     ]
     result = build_chart_breakdown(rows)
 
-    infra = next(d for d in result["module_breakdown"] if d["category"] == "Building")
+    infra = next(
+        d
+        for d in result["module_breakdown"]
+        if d["category"] == "Buildings energy consumption"
+    )
     assert infra["energy"] == pytest.approx(9.0)
 
 
+def test_build_chart_breakdown_building_room():
+    """Infrastructure grey_energy → 'Buildings room' bar (not headcount)."""
+    rows = [
+        (3, 1, "Building", 4_000.0),  # energy → Buildings energy consumption
+        (3, 6, "Building", 2_000.0),  # grey_energy → Buildings room
+    ]
+    result = build_chart_breakdown(rows)
+
+    energy_bar = next(
+        d
+        for d in result["module_breakdown"]
+        if d["category"] == "Buildings energy consumption"
+    )
+    assert energy_bar["energy"] == pytest.approx(4.0)
+
+    room_bar = next(
+        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
+    )
+    assert room_bar["grey_energy"] == pytest.approx(2.0)
+
+    assert result["total_tonnes_co2eq"] == pytest.approx(6.0)
+
+
 def test_build_chart_breakdown_emission_type_for_rcf():
-    """Research Core Facilities uses emission type as chart key."""
+    """External cloud & AI uses emission type as chart key."""
     rows = [
         (7, 10, "External_Clouds", 2_000.0),  # stockage
         (7, 11, "External_Clouds", 1_000.0),  # virtualisation
@@ -63,9 +90,7 @@ def test_build_chart_breakdown_emission_type_for_rcf():
     result = build_chart_breakdown(rows)
 
     rcf = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Research Core Facilities"
+        d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
     )
     assert rcf["stockage"] == pytest.approx(2.0)
     assert rcf["virtualisation"] == pytest.approx(1.0)
@@ -107,17 +132,19 @@ def test_build_chart_breakdown_category_ordering():
     assert categories == MODULE_BREAKDOWN_ORDER
 
     travel = next(
-        d for d in result["module_breakdown"] if d["category"] == "Professional Travel"
+        d for d in result["module_breakdown"] if d["category"] == "Professional travel"
     )
     assert travel["plane"] == pytest.approx(1.0)
 
-    infra = next(d for d in result["module_breakdown"] if d["category"] == "Building")
+    infra = next(
+        d
+        for d in result["module_breakdown"]
+        if d["category"] == "Buildings energy consumption"
+    )
     assert infra["energy"] == pytest.approx(0.5)
 
     rcf = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Research Core Facilities"
+        d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
     )
     assert rcf["calcul"] == pytest.approx(0.3)
 
@@ -218,7 +245,7 @@ def test_build_chart_breakdown_stddev_keys():
     """Each value key has a corresponding *StdDev key (0.0 placeholder)."""
     rows = [
         (4, 2, "Scientific", 10_000.0),
-        (3, 1, "Building", 9_000.0),
+        (3, 1, "Building", 9_000.0),  # maps to "Buildings energy consumption"
     ]
     result = build_chart_breakdown(rows)
 
@@ -265,8 +292,8 @@ def test_build_chart_breakdown_validated_categories():
         validated_module_type_ids={4, 2},
     )
     assert "Equipment" in result["validated_categories"]
-    assert "Professional Travel" in result["validated_categories"]
-    assert "Building" not in result["validated_categories"]
+    assert "Professional travel" in result["validated_categories"]
+    assert "Buildings energy consumption" not in result["validated_categories"]
 
 
 def test_build_chart_breakdown_validated_includes_additional_when_headcount():

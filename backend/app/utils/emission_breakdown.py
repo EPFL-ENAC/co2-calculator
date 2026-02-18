@@ -9,13 +9,20 @@ from __future__ import annotations
 from app.models.data_entry_emission import EmissionTypeEnum
 
 # module_type_id → chart category (x-axis grouping)
+# Building (module_type_id=3) is split by emission type; see _MODULE_EMISSION_CATEGORY
 MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
-    3: "Building",
     4: "Equipment",
-    6: "IT Infrastructure",
-    2: "Professional Travel",
+    6: "Research facilities",
+    2: "Professional travel",
     5: "Purchases",
-    7: "Research Core Facilities",
+    7: "External cloud & AI",
+}
+
+# (module_type_id, emission_type_id) → category override
+# Splits Building into two separate x-axis bars by emission type
+_MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
+    (3, EmissionTypeEnum.energy): "Buildings energy consumption",
+    (3, EmissionTypeEnum.grey_energy): "Buildings room",
 }
 
 # Modules where the DB subcategory field provides meaningful subdivisions;
@@ -42,10 +49,10 @@ HEADCOUNT_KEY_MAP: dict[int, str] = {
 MODULE_TYPE_TO_PER_PERSON_KEY: dict[int, str] = {
     3: "infrastructure",
     4: "equipment",
-    6: "itInfrastructure",
+    6: "researchFacilities",
     2: "professionalTravel",
     5: "purchases",
-    7: "researchCoreFacilities",
+    7: "externalCloudAndAI",
 }
 
 # Maps chart category → module_type_ids (for validation status lookup)
@@ -53,6 +60,10 @@ CATEGORY_TO_MODULE_TYPE_IDS: dict[str, list[int]] = {
     cat: [mid for mid, c in MODULE_TYPE_TO_CATEGORY.items() if c == cat]
     for cat in MODULE_TYPE_TO_CATEGORY.values()
 }
+for (_mid, _etype), _cat in _MODULE_EMISSION_CATEGORY.items():
+    CATEGORY_TO_MODULE_TYPE_IDS.setdefault(_cat, [])
+    if _mid not in CATEGORY_TO_MODULE_TYPE_IDS[_cat]:
+        CATEGORY_TO_MODULE_TYPE_IDS[_cat].append(_mid)
 
 # Headcount placeholder per-FTE values (kg CO2eq per FTE per year)
 HEADCOUNT_PER_FTE_KG: dict[str, float] = {
@@ -63,23 +74,30 @@ HEADCOUNT_PER_FTE_KG: dict[str, float] = {
 }
 
 MODULE_BREAKDOWN_ORDER = [
-    "Building",
+    # Scope 1
+    "Processes",
+    "Buildings energy consumption",
+    # Scope 2
+    "Buildings room",
     "Equipment",
-    "IT Infrastructure",
-    "Professional Travel",
+    # Scope 3
+    "External cloud & AI",
     "Purchases",
-    "Research Core Facilities",
+    "Research facilities",
+    "Professional travel",
 ]
 
 # Expected chart keys per category for zero-filling.
 # Equipment/Travel: subcategory-based; others: emission-type-based.
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
-    "Building": ["energy"],
+    "Processes": [],
+    "Buildings energy consumption": ["energy"],
+    "Buildings room": ["grey_energy"],
     "Equipment": ["scientific", "it", "other"],
-    "IT Infrastructure": [],
-    "Professional Travel": ["plane", "train"],
+    "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
     "Purchases": [],
-    "Research Core Facilities": ["stockage", "virtualisation", "calcul", "ai_provider"],
+    "Research facilities": [],
+    "Professional travel": ["plane", "train"],
 }
 
 ADDITIONAL_BREAKDOWN_ORDER = ["Commuting", "Food", "Waste", "Grey Energy"]
@@ -90,6 +108,31 @@ _HEADCOUNT_KEY_TO_CATEGORY: dict[str, str] = {
     "waste": "Waste",
     "greyEnergy": "Grey Energy",
 }
+
+
+def _is_headcount_only(emission_type_id: int, module_type_id: int) -> bool:
+    """Return True if this emission should be routed to additional_breakdown.
+
+    Headcount emission types (food, waste, commuting, grey_energy) are
+    normally headcount-derived.  However, if the (module, emission_type)
+    pair has a specific category override in _MODULE_EMISSION_CATEGORY,
+    it is real module data (e.g. grey_energy on Building → "Buildings room").
+    """
+    if emission_type_id not in HEADCOUNT_EMISSION_TYPES:
+        return False
+    return (module_type_id, emission_type_id) not in _MODULE_EMISSION_CATEGORY
+
+
+def _get_category(module_type_id: int, emission_type_id: int) -> str | None:
+    """Resolve the chart category for a (module, emission_type) pair.
+
+    Checks _MODULE_EMISSION_CATEGORY overrides first (e.g. Building split),
+    then falls back to MODULE_TYPE_TO_CATEGORY.
+    """
+    override = _MODULE_EMISSION_CATEGORY.get((module_type_id, emission_type_id))
+    if override is not None:
+        return override
+    return MODULE_TYPE_TO_CATEGORY.get(module_type_id)
 
 
 def _to_chart_key(
@@ -111,7 +154,7 @@ def _to_chart_key(
 
 
 def build_chart_breakdown(
-    rows: list[tuple[int, int, str | None, float]],
+    rows: list[tuple[int, int, str | None, float | None]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
@@ -127,10 +170,10 @@ def build_chart_breakdown(
     for module_type_id, emission_type_id, subcategory, kg_co2eq in rows:
         if kg_co2eq is None:
             continue
-        if emission_type_id in HEADCOUNT_EMISSION_TYPES:
+        if _is_headcount_only(emission_type_id, module_type_id):
             continue
 
-        cat = MODULE_TYPE_TO_CATEGORY.get(module_type_id)
+        cat = _get_category(module_type_id, emission_type_id)
         if cat is None:
             continue
 
@@ -189,7 +232,7 @@ def build_chart_breakdown(
     for module_type_id, emission_type_id, _subcategory, kg_co2eq in rows:
         if kg_co2eq is None:
             continue
-        if emission_type_id in HEADCOUNT_EMISSION_TYPES:
+        if _is_headcount_only(emission_type_id, module_type_id):
             continue
         module_totals_kg[module_type_id] = (
             module_totals_kg.get(module_type_id, 0.0) + kg_co2eq
@@ -207,8 +250,8 @@ def build_chart_breakdown(
     # Total tonnes
     real_kg = sum(
         kg_co2eq
-        for _, etype, _, kg_co2eq in rows
-        if kg_co2eq is not None and etype not in HEADCOUNT_EMISSION_TYPES
+        for mtype, etype, _, kg_co2eq in rows
+        if kg_co2eq is not None and not _is_headcount_only(etype, mtype)
     )
     headcount_kg = sum(headcount_totals_kg.values())
     total_tonnes = (real_kg + headcount_kg) / 1000.0

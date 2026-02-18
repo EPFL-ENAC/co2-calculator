@@ -36,42 +36,48 @@ const props = defineProps<{
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
-const additionalDataConfig = computed(() => {
+const scopeConfig = computed(() => {
   if (toggleAdditionalData.value) {
     return {
-      scope2RectWidth: 55,
-      scope3RectLeft: 101,
-      scope3RectWidth: 233,
-      scope3TextLeft: 111,
+      scope1RectWidth: 72,
+      scope2RectLeft: 118,
+      scope2RectWidth: 72,
+      scope3RectLeft: 190,
+      scope3RectWidth: 144,
       estimatedRectLeft: 334,
       estimatedText: t('charts-additional-category'),
     };
   }
 
   return {
-    scope2RectWidth: 82,
-    scope3RectLeft: 128,
-    scope3RectWidth: 500,
-    scope3TextLeft: 138,
+    scope1RectWidth: 108,
+    scope2RectLeft: 154,
+    scope2RectWidth: 108,
+    scope3RectLeft: 262,
+    scope3RectWidth: 330,
     estimatedRectLeft: 0,
     estimatedText: '',
   };
 });
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
-  'Building': 'infrastructure',
-  'Equipment': 'equipment-electric-consumption',
-  'IT Infrastructure': 'internal-services',
-  'Professional Travel': 'professional-travel',
-  'Purchases': 'purchase',
-  'Research Core Facilities': 'external-cloud-and-ai',
-  'Commuting': 'charts-commuting-category',
-  'Food': 'charts-food-category',
-  'Waste': 'charts-waste-category',
+  Processes: 'charts-processes-category',
+  'Buildings energy consumption': 'charts-building-energy-subcategory',
+  'Buildings room': 'charts-building-room-subcategory',
+  Equipment: 'equipment-electric-consumption',
+  'External cloud & AI': 'external-cloud-and-ai',
+  Purchases: 'purchase',
+  'Research facilities': 'charts-research-facilities-category',
+  'Professional travel': 'professional-travel',
+  Commuting: 'charts-commuting-category',
+  Food: 'charts-food-category',
+  Waste: 'charts-waste-category',
   'Grey Energy': 'charts-grey-energy-category',
 };
 
-function translateCategory(entry: Record<string, unknown>): Record<string, unknown> {
+function translateCategory(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
   const cat = entry.category as string;
   const i18nKey = CATEGORY_LABEL_MAP[cat];
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
@@ -83,7 +89,8 @@ const datasetSource = computed(() => {
   const baseData = props.breakdownData.module_breakdown.map(translateCategory);
 
   if (toggleAdditionalData.value) {
-    const additionalData = props.breakdownData.additional_breakdown.map(translateCategory);
+    const additionalData =
+      props.breakdownData.additional_breakdown.map(translateCategory);
     return [...baseData, ...additionalData];
   }
   return baseData;
@@ -92,9 +99,16 @@ const datasetSource = computed(() => {
 const allValueKeys = computed(() => {
   const baseKeys = [
     'energy',
-    'scientific', 'it', 'other',
-    'plane', 'train',
-    'stockage', 'virtualisation', 'calcul', 'ai_provider',
+    'grey_energy',
+    'scientific',
+    'it',
+    'other',
+    'plane',
+    'train',
+    'stockage',
+    'virtualisation',
+    'calcul',
+    'ai_provider',
   ];
 
   if (toggleAdditionalData.value) {
@@ -106,9 +120,16 @@ const allValueKeys = computed(() => {
 const allStdDevKeys = computed(() => {
   const baseKeys = [
     'energyStdDev',
-    'scientificStdDev', 'itStdDev', 'otherStdDev',
-    'planeStdDev', 'trainStdDev',
-    'stockageStdDev', 'virtualisationStdDev', 'calculStdDev', 'ai_providerStdDev',
+    'grey_energyStdDev',
+    'scientificStdDev',
+    'itStdDev',
+    'otherStdDev',
+    'planeStdDev',
+    'trainStdDev',
+    'stockageStdDev',
+    'virtualisationStdDev',
+    'calculStdDev',
+    'ai_providerStdDev',
   ];
 
   if (toggleAdditionalData.value) {
@@ -224,14 +245,25 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const validatedLabels = computed(() => {
-  if (!props.breakdownData?.validated_categories) return new Set<string>();
-  return new Set(
-    props.breakdownData.validated_categories
-      .map((cat) => {
+const ADDITIONAL_CATEGORIES = ['Commuting', 'Food', 'Waste', 'Grey Energy'];
+
+const additionalLabels = computed(
+  () =>
+    new Set(
+      ADDITIONAL_CATEGORIES.map((cat) => {
         const key = CATEGORY_LABEL_MAP[cat];
         return key ? t(key) : cat;
       }),
+    ),
+);
+
+const validatedLabels = computed(() => {
+  if (!props.breakdownData?.validated_categories) return new Set<string>();
+  return new Set(
+    props.breakdownData.validated_categories.map((cat) => {
+      const key = CATEGORY_LABEL_MAP[cat];
+      return key ? t(key) : cat;
+    }),
   );
 });
 
@@ -240,9 +272,9 @@ const chartOption = computed((): EChartsOption => {
 
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
-    // Infrastructure — single emission type: energy
+    // Buildings energy consumption
     {
-      name: t('charts-energy-subcategory'),
+      name: t('charts-building-energy-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       encode: { x: 'category', y: 'energy' },
@@ -253,6 +285,15 @@ const chartOption = computed((): EChartsOption => {
         data: markLineData.value,
       },
       itemStyle: { color: colors.value.lilac.darker },
+      label: { show: false },
+    },
+    // Buildings room
+    {
+      name: t('charts-building-room-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: { x: 'category', y: 'grey_energy' },
+      itemStyle: { color: colors.value.lilac.dark },
       label: { show: false },
     },
     // Equipment — subcategories: scientific, it, other
@@ -297,7 +338,7 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: { color: colors.value.babyBlue.dark },
       label: { show: false },
     },
-    // Research Core Facilities — emission types: stockage, virtualisation, calcul, ai_provider
+    // External cloud & AI — emission types: stockage, virtualisation, calcul, ai_provider
     {
       name: t('charts-stockage-subcategory'),
       type: 'bar' as const,
@@ -353,6 +394,15 @@ const chartOption = computed((): EChartsOption => {
         };
         const data = p.data;
         const name = p.axisValue || p.name || '';
+        const isValidated = validatedLabels.value.has(name);
+
+        if (!isValidated) {
+          const moduleName = additionalLabels.value.has(name)
+            ? t('headcount')
+            : name;
+          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
+        }
+
         let total = 0;
         let tooltip = `<strong>${name}</strong><br/>`;
 
@@ -363,7 +413,6 @@ const chartOption = computed((): EChartsOption => {
             value?: number | number[];
             data?: Record<string, unknown>;
           };
-          // Find series by name to get its key
           const series = seriesArray.find((s) => s.name === p.seriesName);
           const key = series?.encode.y;
 
@@ -402,7 +451,7 @@ const chartOption = computed((): EChartsOption => {
       axisLabel: {
         interval: 0,
         rotate: 45,
-        fontSize: 11,
+        fontSize: 9,
         formatter: (value: string) => {
           if (validatedLabels.value.has(value)) {
             return `{validated|${value}}`;
@@ -412,11 +461,11 @@ const chartOption = computed((): EChartsOption => {
         rich: {
           validated: {
             color: '#000000',
-            fontSize: 11,
+            fontSize: 10,
           },
           unvalidated: {
             color: '#aaaaaa',
-            fontSize: 11,
+            fontSize: 10,
           },
         },
       },
@@ -436,24 +485,19 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     graphic: [
+      // Scope 1 overlay (Processes, Buildings energy consumption)
       {
         type: 'rect',
         left: '46px',
         top: '15px',
         shape: {
-          width: additionalDataConfig.value.scope2RectWidth,
+          width: scopeConfig.value.scope1RectWidth,
           height: 300,
         },
         style: {
           fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(240,240,240,0.9)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(240,240,240,0.1)',
-            },
+            { offset: 0, color: 'rgba(248,248,248,0.9)' },
+            { offset: 1, color: 'rgba(248,248,248,0.1)' },
           ]),
         },
       },
@@ -463,34 +507,55 @@ const chartOption = computed((): EChartsOption => {
         top: '30px',
         style: {
           fill: '#000000',
-          text: t('charts-scope') + ' 2',
+          text: t('charts-scope') + ' 1',
           font: '11px SuisseIntl',
         },
       },
+      // Scope 2 overlay (Buildings room, Equipment)
       {
         type: 'rect',
-        left: additionalDataConfig.value.scope3RectLeft,
+        left: scopeConfig.value.scope2RectLeft,
         top: '15px',
         shape: {
-          width: additionalDataConfig.value.scope3RectWidth,
+          width: scopeConfig.value.scope2RectWidth,
           height: 300,
         },
         style: {
           fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(229,229,229,0.9)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(229,229,229,0.1)',
-            },
+            { offset: 0, color: 'rgba(240,240,240,0.9)' },
+            { offset: 1, color: 'rgba(240,240,240,0.1)' },
           ]),
         },
       },
       {
         type: 'text',
-        left: additionalDataConfig.value.scope3TextLeft,
+        left: scopeConfig.value.scope2RectLeft + 10,
+        top: '30px',
+        style: {
+          fill: '#000000',
+          text: t('charts-scope') + ' 2',
+          font: '11px SuisseIntl',
+        },
+      },
+      // Scope 3 overlay (External cloud & AI, Purchases, Research facilities, Professional travel)
+      {
+        type: 'rect',
+        left: scopeConfig.value.scope3RectLeft,
+        top: '15px',
+        shape: {
+          width: scopeConfig.value.scope3RectWidth,
+          height: 300,
+        },
+        style: {
+          fill: new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(229,229,229,0.9)' },
+            { offset: 1, color: 'rgba(229,229,229,0.1)' },
+          ]),
+        },
+      },
+      {
+        type: 'text',
+        left: scopeConfig.value.scope3RectLeft + 10,
         top: '30px',
         style: {
           fill: '#000000',
@@ -511,19 +576,36 @@ const chartOption = computed((): EChartsOption => {
       ...(() => {
         if (toggleAdditionalData.value) {
           return [
+            // Additional categories background (darker grey)
             {
-              type: 'text',
-              left: additionalDataConfig.value.estimatedRectLeft + 10,
-              top: '0px',
+              type: 'rect',
+              left: scopeConfig.value.estimatedRectLeft,
+              top: '15px',
+              shape: {
+                width: 200,
+                height: 300,
+              },
               style: {
-                fill: '#000000',
-                text: additionalDataConfig.value.estimatedText,
-                font: '11px SuisseIntl',
+                fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: 'rgba(215,215,215,0.9)' },
+                  { offset: 1, color: 'rgba(215,215,215,0.1)' },
+                ]),
               },
             },
             {
+              type: 'text',
+              left: scopeConfig.value.estimatedRectLeft + 10,
+              top: '0px',
+              style: {
+                fill: '#000000',
+                text: scopeConfig.value.estimatedText,
+                font: '11px SuisseIntl',
+              },
+            },
+            // Divider line
+            {
               type: 'rect',
-              left: additionalDataConfig.value.estimatedRectLeft,
+              left: scopeConfig.value.estimatedRectLeft,
               top: '0px',
               shape: {
                 width: 1,
@@ -531,14 +613,8 @@ const chartOption = computed((): EChartsOption => {
               },
               style: {
                 fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                  {
-                    offset: 0,
-                    color: 'rgba(0,0,0)',
-                  },
-                  {
-                    offset: 1,
-                    color: 'rgba(240,240,240,0.1)',
-                  },
+                  { offset: 0, color: 'rgba(0,0,0)' },
+                  { offset: 1, color: 'rgba(240,240,240,0.1)' },
                 ]),
               },
               z: 100,
@@ -551,20 +627,36 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'energy', 'energyStdDev',
-        'scientific', 'scientificStdDev',
-        'it', 'itStdDev',
-        'other', 'otherStdDev',
-        'plane', 'planeStdDev',
-        'train', 'trainStdDev',
-        'stockage', 'stockageStdDev',
-        'virtualisation', 'virtualisationStdDev',
-        'calcul', 'calculStdDev',
-        'ai_provider', 'ai_providerStdDev',
-        'commuting', 'commutingStdDev',
-        'food', 'foodStdDev',
-        'waste', 'wasteStdDev',
-        'greyEnergy', 'greyEnergyStdDev',
+        'energy',
+        'energyStdDev',
+        'grey_energy',
+        'grey_energyStdDev',
+        'scientific',
+        'scientificStdDev',
+        'it',
+        'itStdDev',
+        'other',
+        'otherStdDev',
+        'plane',
+        'planeStdDev',
+        'train',
+        'trainStdDev',
+        'stockage',
+        'stockageStdDev',
+        'virtualisation',
+        'virtualisationStdDev',
+        'calcul',
+        'calculStdDev',
+        'ai_provider',
+        'ai_providerStdDev',
+        'commuting',
+        'commutingStdDev',
+        'food',
+        'foodStdDev',
+        'waste',
+        'wasteStdDev',
+        'greyEnergy',
+        'greyEnergyStdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
