@@ -224,6 +224,22 @@ export default {
     en: 'Add with note',
     fr: 'Ajouter avec note',
   },
+  common_comment_entry_title: {
+    en: 'Comment Entry',
+    fr: 'Commenter l\'entrée',
+  },
+  common_edit_comment_title: {
+    en: 'Edit Comment',
+    fr: 'Modifier le commentaire',
+  },
+  common_comment_placeholder: {
+    en: 'Comment...',
+    fr: 'Commentaire...',
+  },
+  common_note_hint: {
+    en: '*The note is personal and won\'t be shared with anyone outside the unit',
+    fr: '*La note est personnelle et ne sera partagée avec personne en dehors de l\'unité',
+  },
   common_actions: {
     en: 'Actions',
     fr: 'Actions',

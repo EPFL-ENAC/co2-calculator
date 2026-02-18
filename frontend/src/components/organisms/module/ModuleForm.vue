@@ -268,7 +268,6 @@
             <q-btn
               v-if="hasAddWithNote"
               outline
-              disabled
               icon="o_add_comment"
               color="primary"
               :label="$t('common_add_with_note_button')"
@@ -276,16 +275,18 @@
               no-caps
               size="md"
               class="text-weight-medium q-mr-sm"
+              @click="openAddNoteDialog"
             />
           </template>
         </q-card-actions>
       </q-form>
     </q-card-section>
+    <NoteDialog v-model="addNoteDialogOpen" @save="saveNote" />
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed, toRef } from 'vue';
+import { reactive, watch, computed, toRef, ref } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -304,11 +305,14 @@ import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptio
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
+import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { MODULES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+
+const addNoteDialogOpen = ref(false);
 
 interface Option {
   label: string;
@@ -878,6 +882,15 @@ function clearOriginAndDestination() {
   // Clear origin and destination fields when add button is clicked
   // This ensures fields are cleared after successful form submission
   // The reset() function will handle the actual clearing
+}
+
+function openAddNoteDialog() {
+  addNoteDialogOpen.value = true;
+}
+
+function saveNote(note: string) {
+  // TODO: persist the note
+  void note;
 }
 </script>
 <style scoped lang="scss">

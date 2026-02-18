@@ -160,6 +160,19 @@
             "
           >
             <q-btn
+              icon="o_add_comment"
+              color="grey-4"
+              text-color="primary"
+              :disable="isDisabled"
+              unelevated
+              no-caps
+              dense
+              round
+              outline
+              class="q-mr-sm"
+              @click="openNoteDialog(slotProps.row)"
+            />
+            <q-btn
               v-if="canEdit"
               icon="o_delete"
               color="grey-4"
@@ -244,6 +257,13 @@
     </q-card>
   </q-dialog>
 
+  <NoteDialog
+    v-model="noteDialogOpen"
+    :note="noteDialogCurrentNote"
+    mode="edit"
+    @save="saveNote"
+  />
+
   <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
     <q-card class="column">
       <q-card-section class="flex justify-between items-center">
@@ -309,6 +329,7 @@ import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
+import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
@@ -358,6 +379,21 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
 
+const noteDialogOpen = ref(false);
+const noteDialogCurrentNote = ref('');
+const noteDialogRowId = ref<number | null>(null);
+
+function openNoteDialog(row: ModuleRow) {
+  noteDialogRowId.value = getRowId(row);
+  noteDialogCurrentNote.value = (row.note as string) ?? '';
+  noteDialogOpen.value = true;
+}
+
+function saveNote(note: string) {
+  // TODO: persist the note for noteDialogRowId.value
+  void note;
+  noteDialogRowId.value = null;
+}
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
