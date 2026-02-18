@@ -101,6 +101,7 @@ class DataEntryResponseGen(DataEntryBase):
     """Response schema for DataEntry items."""
 
     id: int
+    note: Optional[str] = None
 
 
 # == =========== DTO BASE ================================= #

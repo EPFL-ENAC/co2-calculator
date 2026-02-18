@@ -268,7 +268,6 @@
             <q-btn
               v-if="hasAddWithNote"
               outline
-              disabled
               icon="o_add_comment"
               color="primary"
               :label="$t('common_add_with_note_button')"
@@ -276,16 +275,18 @@
               no-caps
               size="md"
               class="text-weight-medium q-mr-sm"
+              @click="openAddNoteDialog"
             />
           </template>
         </q-card-actions>
       </q-form>
     </q-card-section>
+    <NoteDialog v-model="addNoteDialogOpen" @save="saveNote" />
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed, toRef } from 'vue';
+import { reactive, watch, computed, toRef, ref } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -304,11 +305,14 @@ import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptio
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
+import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { MODULES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+
+const addNoteDialogOpen = ref(false);
 
 interface Option {
   label: string;
@@ -731,29 +735,24 @@ function validateForm() {
   return ok;
 }
 
-function onSubmit() {
-  if (!validateForm()) {
-    return;
-  }
-  // Normalize payload types (numbers remain numbers, booleans kept, empty -> null/string)
+function buildPayload(): Record<
+  string,
+  string | number | boolean | null | Option
+> {
   const payload: Record<string, string | number | boolean | null | Option> = {};
 
-  // Fields to exclude from submission (read-only display fields)
   const excludedFields = [
     'origin_location_data',
     'destination_location_data',
-    'origin', // Display-only field for table
-    'destination', // Display-only field for table
-    'round_trip', // Direction input field (not backend field)
-    'distance_km', // Read-only calculated field
-    'kg_co2eq', // Read-only calculated field
+    'origin',
+    'destination',
+    'round_trip',
+    'distance_km',
+    'kg_co2eq',
   ];
 
   Object.keys(form).forEach((k) => {
-    // Skip excluded fields
-    if (excludedFields.includes(k)) {
-      return;
-    }
+    if (excludedFields.includes(k)) return;
 
     const cfg = visibleFields.value.find((i) => i.id === k);
     const effectiveType = cfg?.type;
@@ -766,8 +765,6 @@ function onSubmit() {
     }
   });
 
-  // Include location IDs for professional travel when creating new entries
-  // Only include if we have location IDs (from autocomplete selection)
   if (
     !props.rowData &&
     form.origin_location_id !== undefined &&
@@ -777,7 +774,12 @@ function onSubmit() {
     payload.destination_location_id = form.destination_location_id as number;
   }
 
-  emit('submit', payload);
+  return payload;
+}
+
+function onSubmit() {
+  if (!validateForm()) return;
+  emit('submit', buildPayload());
   reset();
 }
 
@@ -878,6 +880,18 @@ function clearOriginAndDestination() {
   // Clear origin and destination fields when add button is clicked
   // This ensures fields are cleared after successful form submission
   // The reset() function will handle the actual clearing
+}
+
+function openAddNoteDialog() {
+  if (!validateForm()) return;
+  addNoteDialogOpen.value = true;
+}
+
+function saveNote(note: string) {
+  const payload = buildPayload();
+  if (note) payload.note = note;
+  emit('submit', payload);
+  reset();
 }
 </script>
 <style scoped lang="scss">
