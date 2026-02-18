@@ -22,9 +22,6 @@ import { MODULES, Module } from 'src/constant/modules';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 const { t } = useI18n();
 
-const FORMAT_1_DECIMAL = {
-  options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-};
 const FORMAT_INTEGER = {
   options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
 };
@@ -108,9 +105,6 @@ const viewUncertainties = ref(false);
 const compareYears = ref(false);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
-const getModuleFormatOptions = (module: string) => ({
-  options: getModuleConfig(module)?.numberFormatOptions,
-});
 
 const getUncertainty = (
   uncertainty?: string,
@@ -192,10 +186,7 @@ const downloadPDF = () => {
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
           :number="
-            $nOrDash(
-              resultsSummary.unit_totals.total_tonnes_co2eq,
-              FORMAT_INTEGER,
-            )
+            $formatTonnesCO2(resultsSummary.unit_totals.total_tonnes_co2eq)
           "
           :comparison="
             $t('results_equivalent_to_car', {
@@ -216,10 +207,7 @@ const downloadPDF = () => {
         <BigNumber
           :title="$t('results_carbon_footprint_per_fte')"
           :number="
-            $nOrDash(
-              resultsSummary.unit_totals.tonnes_co2eq_per_fte,
-              FORMAT_INTEGER,
-            )
+            $formatTonnesCO2(resultsSummary.unit_totals.tonnes_co2eq_per_fte)
           "
           :comparison="
             $t('results_paris_agreement_value', {
@@ -260,13 +248,12 @@ const downloadPDF = () => {
             "
             :comparison="
               $t('results_compared_to_value_of', {
-                value: `${$nOrDash(
+                value: `${$formatTonnesCO2(
                   resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
-                  FORMAT_1_DECIMAL,
                 )}${$t('results_units_tonnes')}`,
               })
             "
-            :comparison-highlight="`${$nOrDash(
+            :comparison-highlight="`${$formatTonnesCO2(
               resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
             )}${$t('results_units_tonnes')}`"
           >
@@ -367,9 +354,8 @@ const downloadPDF = () => {
                         })
                       "
                       :number="
-                        $nOrDash(
+                        getModuleConfig(module).totalFormatter(
                           getModuleResult(module)!.total_tonnes_co2eq,
-                          getModuleFormatOptions(module),
                         )
                       "
                       :comparison="
@@ -397,9 +383,8 @@ const downloadPDF = () => {
                     <BigNumber
                       :title="$t('results_carbon_footprint_per_fte')"
                       :number="
-                        $nOrDash(
+                        getModuleConfig(module).totalFormatter(
                           getModuleResult(module)!.tonnes_co2eq_per_fte,
-                          getModuleFormatOptions(module),
                         )
                       "
                       :comparison="
@@ -448,13 +433,15 @@ const downloadPDF = () => {
                         "
                         :comparison="
                           $t('results_compared_to_value_of', {
-                            value: `${$nOrDash(
+                            value: `${getModuleConfig(module).totalFormatter(
                               getModuleResult(module)!
                                 .previous_year_total_tonnes_co2eq,
                             )}${$t('results_units_tonnes')}`,
                           })
                         "
-                        :comparison-highlight="`${$nOrDash(
+                        :comparison-highlight="`${getModuleConfig(
+                          module,
+                        ).totalFormatter(
                           getModuleResult(module)!
                             .previous_year_total_tonnes_co2eq,
                         )}${$t('results_units_tonnes')}`"

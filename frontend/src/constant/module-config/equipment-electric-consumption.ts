@@ -1,4 +1,5 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type {
   Module,
   EquipmentElectricConsumptionSubType,
@@ -183,6 +184,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
   hasSubmodules: true,
   isCollapsible: true,
   uncertainty: 'high',
+  totalFormatter: formatTonnesCO2,
 
   formStructure: 'perSubmodule',
 

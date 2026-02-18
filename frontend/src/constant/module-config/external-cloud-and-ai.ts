@@ -1,4 +1,5 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { formatTonnesCO2 } from 'src/utils/number';
 import {
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
   MODULES,
@@ -153,6 +154,7 @@ export const externalCloudAndAi: ModuleConfig = {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   },
+  totalFormatter: formatTonnesCO2,
   submodules: [
     {
       id: SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds,

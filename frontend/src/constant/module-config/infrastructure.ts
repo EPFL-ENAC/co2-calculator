@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_INFRASTRUCTURE_TYPES } from 'src/constant/modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type { InfrastructureSubType } from 'src/constant/modules';
 
 const buildingFields: ModuleField[] = [
@@ -43,6 +44,7 @@ export const infrastructure: ModuleConfig = {
   description: 'Track infrastructure-related emissions',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
+  totalFormatter: formatTonnesCO2,
   submodules: [
     {
       id: 'sub_building',

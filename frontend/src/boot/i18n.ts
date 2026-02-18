@@ -3,7 +3,12 @@ import { createI18n } from 'vue-i18n';
 import { Cookies } from 'quasar';
 import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
-import { nOrDash } from 'src/utils/number';
+import {
+  nOrDash,
+  formatTonnesCO2,
+  formatKgCO2,
+  formatFTE,
+} from 'src/utils/number';
 
 const LOCALE_COOKIE_KEY = 'locale';
 
@@ -104,4 +109,7 @@ export const i18n = createI18n({
 export default boot(({ app }) => {
   app.use(i18n);
   app.config.globalProperties.$nOrDash = nOrDash;
+  app.config.globalProperties.$formatTonnesCO2 = formatTonnesCO2;
+  app.config.globalProperties.$formatKgCO2 = formatKgCO2;
+  app.config.globalProperties.$formatFTE = formatFTE;
 });
