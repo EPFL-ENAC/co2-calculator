@@ -160,18 +160,22 @@
             "
           >
             <q-btn
-              icon="o_add_comment"
-              color="grey-4"
-              text-color="primary"
+              :icon="slotProps.row.note ? 'o_comment' : 'o_add_comment'"
+              :color="slotProps.row.note ? 'accent' : 'grey-4'"
+              :text-color="slotProps.row.note ? 'white' : 'primary'"
               :disable="isDisabled"
               unelevated
               no-caps
               dense
               round
-              outline
+              :outline="!slotProps.row.note"
               class="q-mr-sm"
               @click="openNoteDialog(slotProps.row)"
-            />
+            >
+              <q-tooltip v-if="slotProps.row.note" class="tooltip">
+                {{ slotProps.row.note }}
+              </q-tooltip>
+            </q-btn>
             <q-btn
               v-if="canEdit"
               icon="o_delete"
@@ -260,8 +264,9 @@
   <NoteDialog
     v-model="noteDialogOpen"
     :note="noteDialogCurrentNote"
-    mode="edit"
+    :mode="noteDialogCurrentNote ? 'edit' : 'add'"
     @save="saveNote"
+    @delete="deleteNote"
   />
 
   <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
@@ -389,10 +394,48 @@ function openNoteDialog(row: ModuleRow) {
   noteDialogOpen.value = true;
 }
 
-function saveNote(note: string) {
-  // TODO: persist the note for noteDialogRowId.value
-  void note;
-  noteDialogRowId.value = null;
+async function saveNote(note: string) {
+  if (noteDialogRowId.value == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      noteDialogRowId.value,
+      { note },
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  } finally {
+    noteDialogRowId.value = null;
+  }
+}
+
+async function deleteNote() {
+  if (noteDialogRowId.value == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      noteDialogRowId.value,
+      { note: null },
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  } finally {
+    noteDialogRowId.value = null;
+  }
 }
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 

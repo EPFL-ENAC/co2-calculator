@@ -226,7 +226,7 @@ export default {
   },
   common_comment_entry_title: {
     en: 'Comment Entry',
-    fr: 'Commenter l\'entrée',
+    fr: "Commenter l'entrée",
   },
   common_edit_comment_title: {
     en: 'Edit Comment',
@@ -237,8 +237,12 @@ export default {
     fr: 'Commentaire...',
   },
   common_note_hint: {
-    en: '*The note is personal and won\'t be shared with anyone outside the unit',
-    fr: '*La note est personnelle et ne sera partagée avec personne en dehors de l\'unité',
+    en: "*The note is personal and won't be shared with anyone outside the unit",
+    fr: "*La note est personnelle et ne sera partagée avec personne en dehors de l'unité",
+  },
+  common_save_error: {
+    en: 'Failed to save. Please try again.',
+    fr: 'Échec de la sauvegarde. Veuillez réessayer.',
   },
   common_actions: {
     en: 'Actions',

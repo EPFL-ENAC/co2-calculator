@@ -735,29 +735,24 @@ function validateForm() {
   return ok;
 }
 
-function onSubmit() {
-  if (!validateForm()) {
-    return;
-  }
-  // Normalize payload types (numbers remain numbers, booleans kept, empty -> null/string)
+function buildPayload(): Record<
+  string,
+  string | number | boolean | null | Option
+> {
   const payload: Record<string, string | number | boolean | null | Option> = {};
 
-  // Fields to exclude from submission (read-only display fields)
   const excludedFields = [
     'origin_location_data',
     'destination_location_data',
-    'origin', // Display-only field for table
-    'destination', // Display-only field for table
-    'round_trip', // Direction input field (not backend field)
-    'distance_km', // Read-only calculated field
-    'kg_co2eq', // Read-only calculated field
+    'origin',
+    'destination',
+    'round_trip',
+    'distance_km',
+    'kg_co2eq',
   ];
 
   Object.keys(form).forEach((k) => {
-    // Skip excluded fields
-    if (excludedFields.includes(k)) {
-      return;
-    }
+    if (excludedFields.includes(k)) return;
 
     const cfg = visibleFields.value.find((i) => i.id === k);
     const effectiveType = cfg?.type;
@@ -770,8 +765,6 @@ function onSubmit() {
     }
   });
 
-  // Include location IDs for professional travel when creating new entries
-  // Only include if we have location IDs (from autocomplete selection)
   if (
     !props.rowData &&
     form.origin_location_id !== undefined &&
@@ -781,7 +774,12 @@ function onSubmit() {
     payload.destination_location_id = form.destination_location_id as number;
   }
 
-  emit('submit', payload);
+  return payload;
+}
+
+function onSubmit() {
+  if (!validateForm()) return;
+  emit('submit', buildPayload());
   reset();
 }
 
@@ -885,12 +883,15 @@ function clearOriginAndDestination() {
 }
 
 function openAddNoteDialog() {
+  if (!validateForm()) return;
   addNoteDialogOpen.value = true;
 }
 
 function saveNote(note: string) {
-  // TODO: persist the note
-  void note;
+  const payload = buildPayload();
+  if (note) payload.note = note;
+  emit('submit', payload);
+  reset();
 }
 </script>
 <style scoped lang="scss">

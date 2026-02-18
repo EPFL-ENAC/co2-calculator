@@ -99,7 +99,7 @@ watch(
 );
 
 function onSave() {
-  emit('save', localNote.value);
+  emit('save', localNote.value.trim());
   emit('update:modelValue', false);
 }
 
