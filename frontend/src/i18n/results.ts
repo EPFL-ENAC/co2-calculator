@@ -167,9 +167,9 @@ export default {
     en: 'Infrastructure-gas',
     fr: 'Gaz infrastructure',
   },
-  'charts-infrastructure-category': {
-    en: 'Infrastructure',
-    fr: 'Infrastructure',
+  'charts-building-category': {
+    en: 'Building',
+    fr: 'Bâtiment',
   },
   'charts-equipment-category': {
     en: 'Equipment',

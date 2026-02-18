@@ -26,8 +26,11 @@ use([
   GraphicComponent,
 ]);
 
+import type { EmissionBreakdownResponse } from 'src/stores/modules';
+
 const props = defineProps<{
   viewUncertainties?: boolean;
+  breakdownData?: EmissionBreakdownResponse | null;
 }>();
 
 const { t } = useI18n();
@@ -36,138 +39,62 @@ const toggleAdditionalData = ref(false);
 const additionalDataConfig = computed(() => {
   if (toggleAdditionalData.value) {
     return {
-      firstRectWidth: 72,
-      secondRectLeft: 118,
-      secondRectWidth: 75,
-      secondTextLeft: 128,
-      thirdRectLeft: 193,
-      thirdRectWidth: 500,
-      thirdTextLeft: 203,
+      scope2RectWidth: 55,
+      scope3RectLeft: 101,
+      scope3RectWidth: 233,
+      scope3TextLeft: 111,
+      estimatedRectLeft: 334,
       estimatedText: t('charts-additional-category'),
     };
   }
 
   return {
-    firstRectWidth: 109,
-    secondRectLeft: 155,
-    secondRectWidth: 108,
-    secondTextLeft: 165,
-    thirdRectLeft: 263,
-    thirdRectWidth: 500,
-    thirdTextLeft: 273,
+    scope2RectWidth: 82,
+    scope3RectLeft: 128,
+    scope3RectWidth: 500,
+    scope3TextLeft: 138,
+    estimatedRectLeft: 0,
     estimatedText: '',
   };
 });
 
+const CATEGORY_LABEL_MAP: Record<string, string> = {
+  'Building': 'infrastructure',
+  'Equipment': 'equipment-electric-consumption',
+  'IT Infrastructure': 'internal-services',
+  'Professional Travel': 'professional-travel',
+  'Purchases': 'purchase',
+  'Research Core Facilities': 'external-cloud-and-ai',
+  'Commuting': 'charts-commuting-category',
+  'Food': 'charts-food-category',
+  'Waste': 'charts-waste-category',
+  'Grey Energy': 'charts-grey-energy-category',
+};
+
+function translateCategory(entry: Record<string, unknown>): Record<string, unknown> {
+  const cat = entry.category as string;
+  const i18nKey = CATEGORY_LABEL_MAP[cat];
+  return { ...entry, category: i18nKey ? t(i18nKey) : cat };
+}
+
 const datasetSource = computed(() => {
-  const baseData = [
-    {
-      category: t('charts-unit-gas-category'),
-      unitGas: 2.5,
-      unitGasStdDev: 0.5,
-    },
-    {
-      category: t('charts-infrastructure-gas-category'),
-      infrastructureGas: 2,
-      infrastructureGasStdDev: 0.5,
-    },
-    {
-      category: t('charts-infrastructure-category'),
-      cooling: 9,
-      coolingStdDev: 1.8,
-      ventilation: 3,
-      ventilationStdDev: 1,
-      lighting: 9,
-      lightingStdDev: 1.8,
-    },
-    {
-      category: t('charts-equipment-category'),
-      scientific: 10,
-      scientificStdDev: 2,
-      it: 3,
-      itStdDev: 0.6,
-      other: 0.2,
-      otherStdDev: 0.04,
-    },
-    {
-      category: t('charts-it-category'),
-      itInfrastructure: 25,
-      itInfrastructureStdDev: 0.2,
-    },
-    {
-      category: t('charts-professional-travel-category'),
-      train: 1.5,
-      trainStdDev: 0.3,
-      plane: 3,
-      planeStdDev: 0.6,
-    },
-    {
-      category: t('charts-purchases-category'),
-      bioChemicals: 2,
-      bioChemicalsStdDev: 0.4,
-      consumables: 3,
-      consumablesStdDev: 0.6,
-      equipment: 1,
-      equipmentStdDev: 0.2,
-      services: 2,
-      servicesStdDev: 0.4,
-    },
-    {
-      category: t('charts-research-core-facilities-category'),
-      scitas: 1,
-      scitasStdDev: 0.2,
-      rcp: 1.5,
-      rcpStdDev: 0.3,
-    },
-  ];
+  if (!props.breakdownData) return [];
+
+  const baseData = props.breakdownData.module_breakdown.map(translateCategory);
 
   if (toggleAdditionalData.value) {
-    return [
-      ...baseData,
-      {
-        category: t('charts-commuting-category'),
-        commuting: 8,
-        commutingStdDev: 1.6,
-      },
-      {
-        category: t('charts-food-category'),
-        food: 2.5,
-        foodStdDev: 0.5,
-      },
-      {
-        category: t('charts-waste-category'),
-        waste: 10,
-        wasteStdDev: 2,
-      },
-      {
-        category: t('charts-grey-energy-category'),
-        greyEnergy: 4,
-        greyEnergyStdDev: 2,
-      },
-    ];
+    const additionalData = props.breakdownData.additional_breakdown.map(translateCategory);
+    return [...baseData, ...additionalData];
   }
   return baseData;
 });
 
 const allValueKeys = computed(() => {
   const baseKeys = [
-    'unitGas',
-    'infrastructureGas',
-    'cooling',
-    'ventilation',
-    'lighting',
-    'scientific',
-    'it',
-    'other',
-    'train',
-    'plane',
-    'itInfrastructure',
-    'bioChemicals',
-    'consumables',
-    'equipment',
-    'services',
-    'scitas',
-    'rcp',
+    'energy',
+    'scientific', 'it', 'other',
+    'plane', 'train',
+    'stockage', 'virtualisation', 'calcul', 'ai_provider',
   ];
 
   if (toggleAdditionalData.value) {
@@ -178,23 +105,10 @@ const allValueKeys = computed(() => {
 
 const allStdDevKeys = computed(() => {
   const baseKeys = [
-    'unitGasStdDev',
-    'infrastructureGasStdDev',
-    'coolingStdDev',
-    'ventilationStdDev',
-    'lightingStdDev',
-    'scientificStdDev',
-    'itStdDev',
-    'otherStdDev',
-    'trainStdDev',
-    'planeStdDev',
-    'itInfrastructureStdDev',
-    'bioChemicalsStdDev',
-    'consumablesStdDev',
-    'equipmentStdDev',
-    'servicesStdDev',
-    'scitasStdDev',
-    'rcpStdDev',
+    'energyStdDev',
+    'scientificStdDev', 'itStdDev', 'otherStdDev',
+    'planeStdDev', 'trainStdDev',
+    'stockageStdDev', 'virtualisationStdDev', 'calculStdDev', 'ai_providerStdDev',
   ];
 
   if (toggleAdditionalData.value) {
@@ -216,13 +130,13 @@ const markLineData = computed(() => {
   return datasetSource.value
     .map((item, i) => {
       const total = allValueKeys.value.reduce(
-        (sum, k) => sum + (item[k] || 0),
+        (sum, k) => sum + (Number(item[k]) || 0),
         0,
       );
       if (total <= 0) return null;
       const stdDev = Math.sqrt(
         allStdDevKeys.value.reduce(
-          (sum, k) => sum + Math.pow(item[k] || 0, 2),
+          (sum, k) => sum + Math.pow(Number(item[k]) || 0, 2),
           0,
         ),
       );
@@ -310,275 +224,111 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
+const validatedLabels = computed(() => {
+  if (!props.breakdownData?.validated_categories) return new Set<string>();
+  return new Set(
+    props.breakdownData.validated_categories
+      .map((cat) => {
+        const key = CATEGORY_LABEL_MAP[cat];
+        return key ? t(key) : cat;
+      }),
+  );
+});
+
 const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
 
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
+    // Infrastructure — single emission type: energy
     {
-      name: t('charts-unit-gas-category'),
+      name: t('charts-energy-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'unitGas',
-      },
+      encode: { x: 'category', y: 'energy' },
       markLine: {
         silent: true,
         symbol: ['none', 'none'],
-        lineStyle: {
-          color: '#333',
-          width: 1.5,
-          type: 'solid' as const,
-        },
+        lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
         data: markLineData.value,
       },
-      itemStyle: {
-        color: colors.value.peach.darker,
-      },
-      label: {
-        show: false,
-      },
+      itemStyle: { color: colors.value.lilac.darker },
+      label: { show: false },
     },
-    {
-      name: t('charts-infrastructure-gas-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'infrastructureGas',
-      },
-      itemStyle: {
-        color: colors.value.apricot.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-cooling-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'cooling',
-      },
-      itemStyle: {
-        color: colors.value.lilac.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-ventilation-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'ventilation',
-      },
-      itemStyle: {
-        color: colors.value.lilac.dark,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-lighting-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'lighting',
-      },
-      itemStyle: {
-        color: colors.value.lilac.default,
-      },
-      label: {
-        show: false,
-      },
-    },
+    // Equipment — subcategories: scientific, it, other
     {
       name: t('charts-scientific-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'scientific',
-      },
-      itemStyle: {
-        color: colors.value.mauve.darker,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'scientific' },
+      itemStyle: { color: colors.value.mauve.darker },
+      label: { show: false },
     },
     {
       name: t('charts-equipment-it'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'it',
-      },
-      itemStyle: {
-        color: colors.value.mauve.dark,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'it' },
+      itemStyle: { color: colors.value.mauve.dark },
+      label: { show: false },
     },
     {
       name: t('charts-other-purchases-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'other',
-      },
-      itemStyle: {
-        color: colors.value.mauve.default,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'other' },
+      itemStyle: { color: colors.value.mauve.default },
+      label: { show: false },
     },
+    // Professional Travel — subcategories: plane, train
     {
-      name: t('charts-infrastructure-it'),
+      name: t('charts-plane-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'itInfrastructure',
-      },
-      itemStyle: {
-        color: colors.value.lavender.darker,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'plane' },
+      itemStyle: { color: colors.value.babyBlue.darker },
+      label: { show: false },
     },
     {
       name: t('charts-train-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'train',
-      },
-      itemStyle: {
-        color: colors.value.babyBlue.darker,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'train' },
+      itemStyle: { color: colors.value.babyBlue.dark },
+      label: { show: false },
     },
+    // Research Core Facilities — emission types: stockage, virtualisation, calcul, ai_provider
     {
-      name: t('charts-plane-subcategory'),
+      name: t('charts-stockage-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'plane',
-      },
-      itemStyle: {
-        color: colors.value.babyBlue.dark,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'stockage' },
+      itemStyle: { color: colors.value.paleYellowGreen.darker },
+      label: { show: false },
     },
     {
-      name: t('charts-bio-chemicals-subcategory'),
+      name: t('charts-virtualisation-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'bioChemicals',
-      },
-      itemStyle: {
-        color: colors.value.lightGreen.darker,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'virtualisation' },
+      itemStyle: { color: colors.value.paleYellowGreen.dark },
+      label: { show: false },
     },
     {
-      name: t('charts-consumables-subcategory'),
+      name: t('charts-calcul-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'consumables',
-      },
-      itemStyle: {
-        color: colors.value.lightGreen.dark,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'calcul' },
+      itemStyle: { color: colors.value.paleYellowGreen.default },
+      label: { show: false },
     },
     {
-      name: t('charts-equipment-subcategory'),
+      name: t('charts-ai-provider-subcategory'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'equipment',
-      },
-      itemStyle: {
-        color: colors.value.lightGreen.default,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-services-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'services',
-      },
-      itemStyle: {
-        color: colors.value.lightGreen.light,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-scitas-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'scitas',
-      },
-      itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-rcp-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'rcp',
-      },
-      itemStyle: {
-        color: colors.value.paleYellowGreen.dark,
-      },
-      label: {
-        show: false,
-      },
+      encode: { x: 'category', y: 'ai_provider' },
+      itemStyle: { color: colors.value.paleYellowGreen.light },
+      label: { show: false },
     },
     ...additionalSeriesData.value,
   ];
@@ -653,11 +403,26 @@ const chartOption = computed((): EChartsOption => {
         interval: 0,
         rotate: 45,
         fontSize: 11,
+        formatter: (value: string) => {
+          if (validatedLabels.value.has(value)) {
+            return `{validated|${value}}`;
+          }
+          return `{unvalidated|${value}}`;
+        },
+        rich: {
+          validated: {
+            color: '#000000',
+            fontSize: 11,
+          },
+          unvalidated: {
+            color: '#aaaaaa',
+            fontSize: 11,
+          },
+        },
       },
     },
     yAxis: {
       type: 'value',
-      max: 30,
       name: t('tco2eq'),
       nameLocation: 'middle',
       nameGap: 30,
@@ -676,7 +441,7 @@ const chartOption = computed((): EChartsOption => {
         left: '46px',
         top: '15px',
         shape: {
-          width: additionalDataConfig.value.firstRectWidth,
+          width: additionalDataConfig.value.scope2RectWidth,
           height: 300,
         },
         style: {
@@ -694,20 +459,20 @@ const chartOption = computed((): EChartsOption => {
       },
       {
         type: 'text',
-        left: '56px', // Position at horizontal center according to its parent.
-        top: '30px', // Position at vertical center according to its parent.
+        left: '56px',
+        top: '30px',
         style: {
           fill: '#000000',
-          text: t('charts-scope') + ' 1',
+          text: t('charts-scope') + ' 2',
           font: '11px SuisseIntl',
         },
       },
       {
         type: 'rect',
-        left: additionalDataConfig.value.secondRectLeft,
+        left: additionalDataConfig.value.scope3RectLeft,
         top: '15px',
         shape: {
-          width: additionalDataConfig.value.secondRectWidth,
+          width: additionalDataConfig.value.scope3RectWidth,
           height: 300,
         },
         style: {
@@ -725,39 +490,8 @@ const chartOption = computed((): EChartsOption => {
       },
       {
         type: 'text',
-        left: additionalDataConfig.value.secondTextLeft,
-        top: '30px', // Position at vertical center according to its parent.
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 2',
-          font: '11px SuisseIntl',
-        },
-      },
-      {
-        type: 'rect',
-        left: additionalDataConfig.value.thirdRectLeft,
-        top: '15px',
-        shape: {
-          width: additionalDataConfig.value.thirdRectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(210,210,210,0.9)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(210,210,210,0.1)',
-            },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: additionalDataConfig.value.thirdTextLeft,
-        top: '30px', // Position at vertical center according to its parent.
+        left: additionalDataConfig.value.scope3TextLeft,
+        top: '30px',
         style: {
           fill: '#000000',
           text: t('charts-scope') + ' 3',
@@ -766,21 +500,11 @@ const chartOption = computed((): EChartsOption => {
       },
       {
         type: 'text',
-        left: '56px', // Position at horizontal center according to its parent.
-        top: '00px', // Position at vertical center according to its parent.
+        left: '56px',
+        top: '00px',
         style: {
           fill: '#000000',
           text: t('charts-main-category'),
-          font: '11px SuisseIntl',
-        },
-      },
-      {
-        type: 'text',
-        left: '345px',
-        top: '0px', // Position at vertical center according to its parent.
-        style: {
-          fill: '#000000',
-          text: additionalDataConfig.value.estimatedText,
           font: '11px SuisseIntl',
         },
       },
@@ -788,8 +512,18 @@ const chartOption = computed((): EChartsOption => {
         if (toggleAdditionalData.value) {
           return [
             {
+              type: 'text',
+              left: additionalDataConfig.value.estimatedRectLeft + 10,
+              top: '0px',
+              style: {
+                fill: '#000000',
+                text: additionalDataConfig.value.estimatedText,
+                font: '11px SuisseIntl',
+              },
+            },
+            {
               type: 'rect',
-              left: '335px',
+              left: additionalDataConfig.value.estimatedRectLeft,
               top: '0px',
               shape: {
                 width: 1,
@@ -817,48 +551,20 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'unitGas',
-        'unitGasStdDev',
-        'infrastructureGas',
-        'infrastructureGasStdDev',
-        'cooling',
-        'coolingStdDev',
-        'ventilation',
-        'ventilationStdDev',
-        'lighting',
-        'lightingStdDev',
-        'scientific',
-        'scientificStdDev',
-        'it',
-        'itStdDev',
-        'other',
-        'otherStdDev',
-        'train',
-        'trainStdDev',
-        'plane',
-        'planeStdDev',
-        'itInfrastructure',
-        'itInfrastructureStdDev',
-        'bioChemicals',
-        'bioChemicalsStdDev',
-        'consumables',
-        'consumablesStdDev',
-        'equipment',
-        'equipmentStdDev',
-        'services',
-        'servicesStdDev',
-        'scitas',
-        'scitasStdDev',
-        'rcp',
-        'rcpStdDev',
-        'commuting',
-        'commutingStdDev',
-        'food',
-        'foodStdDev',
-        'waste',
-        'wasteStdDev',
-        'greyEnergy',
-        'greyEnergyStdDev',
+        'energy', 'energyStdDev',
+        'scientific', 'scientificStdDev',
+        'it', 'itStdDev',
+        'other', 'otherStdDev',
+        'plane', 'planeStdDev',
+        'train', 'trainStdDev',
+        'stockage', 'stockageStdDev',
+        'virtualisation', 'virtualisationStdDev',
+        'calcul', 'calculStdDev',
+        'ai_provider', 'ai_providerStdDev',
+        'commuting', 'commutingStdDev',
+        'food', 'foodStdDev',
+        'waste', 'wasteStdDev',
+        'greyEnergy', 'greyEnergyStdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },

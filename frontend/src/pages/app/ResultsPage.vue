@@ -17,7 +17,7 @@ import {
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useTimelineStore } from 'src/stores/modules';
+import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { MODULES, Module } from 'src/constant/modules';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 const { t } = useI18n();
@@ -45,6 +45,7 @@ function formatPercentChange(value: number | null | undefined): string {
 
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
+const moduleStore = useModuleStore();
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
@@ -67,8 +68,15 @@ async function fetchResultsSummary() {
   }
 }
 
+async function fetchEmissionBreakdown() {
+  const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+  if (!carbonReportId) return;
+  await moduleStore.getEmissionBreakdown(carbonReportId);
+}
+
 onMounted(() => {
   fetchResultsSummary();
+  fetchEmissionBreakdown();
 });
 
 // Watch for year/unit changes
@@ -76,6 +84,7 @@ watch(
   () => [workspaceStore.selectedCarbonReport?.id, currentYear.value],
   () => {
     fetchResultsSummary();
+    fetchEmissionBreakdown();
   },
 );
 
@@ -265,9 +274,15 @@ const downloadPDF = () => {
         </div>
       </q-card>
       <q-card flat class="grid-2-col">
-        <ModuleCarbonFootprintChart :view-uncertainties="viewUncertainties" />
+        <ModuleCarbonFootprintChart
+          :view-uncertainties="viewUncertainties"
+          :breakdown-data="moduleStore.state.emissionBreakdown"
+        />
         <CarbonFootPrintPerPersonChart
           :view-uncertainties="viewUncertainties"
+          :per-person-breakdown="moduleStore.state.emissionBreakdown?.per_person_breakdown"
+          :validated-categories="moduleStore.state.emissionBreakdown?.validated_categories"
+          :headcount-validated="moduleStore.state.emissionBreakdown?.validated_categories?.includes('Commuting') ?? false"
         />
       </q-card>
 

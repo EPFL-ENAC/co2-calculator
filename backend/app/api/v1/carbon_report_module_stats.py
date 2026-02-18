@@ -1,13 +1,16 @@
 """Module stats API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.config import get_settings
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
+from app.models.carbon_report import CarbonReportModule
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
@@ -15,6 +18,7 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_totals_service import UnitTotalsService
+from app.utils.emission_breakdown import build_chart_breakdown
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -216,3 +220,55 @@ async def get_results_summary(
         "co2_per_km_kg": get_settings().CO2_PER_KM_KG,
         "module_results": module_results,
     }
+
+
+@router.get("/{carbon_report_id}/emission-breakdown")
+async def get_emission_breakdown(
+    carbon_report_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    """Return chart-ready emission breakdown for a carbon report.
+
+    Serves both ModuleCarbonFootprintChart (module_breakdown +
+    additional_breakdown) and CarbonFootPrintPerPersonChart
+    (per_person_breakdown).
+    """
+    logger.info(
+        f"GET emission breakdown: carbon_report_id={sanitize(carbon_report_id)}"
+    )
+
+    emission_rows = await DataEntryEmissionService(db).get_emission_breakdown(
+        carbon_report_id=carbon_report_id,
+    )
+
+    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
+        carbon_report_id=carbon_report_id,
+        aggregate_by="module_type_id",
+    )
+    total_fte = sum(fte_stats.values())
+
+    result = await db.execute(
+        select(
+            CarbonReportModule.module_type_id,
+            CarbonReportModule.status,
+        ).where(
+            CarbonReportModule.carbon_report_id == carbon_report_id,
+        )
+    )
+    module_statuses = {row[0]: row[1] for row in result.all()}
+    headcount_validated = (
+        module_statuses.get(ModuleTypeEnum.headcount.value) == ModuleStatus.VALIDATED
+    )
+    validated_module_type_ids = {
+        mid
+        for mid, status in module_statuses.items()
+        if status == ModuleStatus.VALIDATED
+    }
+
+    return build_chart_breakdown(
+        rows=emission_rows,
+        total_fte=total_fte,
+        headcount_validated=headcount_validated,
+        validated_module_type_ids=validated_module_type_ids,
+    )

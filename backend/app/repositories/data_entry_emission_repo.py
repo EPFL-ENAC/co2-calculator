@@ -200,6 +200,58 @@ class DataEntryEmissionRepository:
 
         return aggregation
 
+    async def get_emission_breakdown(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[int, int, str | None, float]]:
+        """Aggregate emissions by module_type_id, emission_type_id, and subcategory.
+
+        Same join pattern as get_stats_by_carbon_report_id but with finer
+        granularity (subcategory + emission_type_id) needed for chart breakdown.
+
+        Returns:
+            [(module_type_id, emission_type_id, subcategory, sum_kg_co2eq), ...]
+        """
+        query = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+                col(DataEntryEmission.subcategory),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+                col(DataEntryEmission.subcategory),
+            )
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            (
+                int(row.module_type_id),
+                int(row.emission_type_id),
+                row.subcategory,
+                float(row.total) if row.total is not None else 0.0,
+            )
+            for row in rows
+        ]
+
     async def get_travel_stats_by_class(
         self,
         carbon_report_module_id: int,
