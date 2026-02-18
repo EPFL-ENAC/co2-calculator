@@ -190,6 +190,15 @@ class DataEntryEmissionService:
             carbon_report_id=carbon_report_id,
         )
 
+    async def get_emission_breakdown(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[int, int, str | None, float | None]]:
+        """Get emission breakdown by module, emission type, and subcategory."""
+        return await self.repo.get_emission_breakdown(
+            carbon_report_id=carbon_report_id,
+        )
+
     async def get_travel_stats_by_class(
         self,
         carbon_report_module_id: int,

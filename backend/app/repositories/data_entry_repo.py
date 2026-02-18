@@ -511,6 +511,6 @@ class DataEntryRepository:
         aggregation: Dict[str, float] = {}
         for key, total in rows:
             label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total)
+            aggregation[label] = float(total) if total is not None else 0.0
 
         return aggregation

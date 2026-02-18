@@ -28,45 +28,79 @@ use([
 
 const props = defineProps<{
   viewUncertainties?: boolean;
+  perPersonBreakdown?: Record<string, number> | null;
+  validatedCategories?: string[] | null;
+  headcountValidated?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
+const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
+  Processes: [],
+  'Buildings energy consumption': ['infrastructure'],
+  'Buildings room': ['infrastructure'],
+  Equipment: ['equipment'],
+  'External cloud & AI': ['externalCloudAndAI'],
+  Purchases: ['purchases'],
+  'Research facilities': ['researchFacilities'],
+  'Professional travel': ['professionalTravel'],
+  Commuting: ['commuting'],
+  Food: ['food'],
+  Waste: ['waste'],
+  'Grey Energy': ['greyEnergy'],
+};
+
+const validatedPPKeys = computed(() => {
+  if (!props.validatedCategories) return new Set<string>();
+  const keys = new Set<string>();
+  for (const cat of props.validatedCategories) {
+    for (const k of CATEGORY_TO_PP_KEYS[cat] ?? []) {
+      keys.add(k);
+    }
+  }
+  return keys;
+});
+
+const myUnitRow = computed<Record<string, unknown>>(() => {
+  if (!props.perPersonBreakdown) {
+    return { category: t('charts-my-unit-tick') };
+  }
+  return {
+    category: t('charts-my-unit-tick'),
+    ...props.perPersonBreakdown,
+  };
+});
+
+const EPFL_REFERENCE_VALUES: Record<string, number> = {
+  infrastructure: 6.6,
+  equipment: 4.4,
+  researchFacilities: 4.0,
+  professionalTravel: 14.7,
+  purchases: 31.3,
+  externalCloudAndAI: 3.0,
+  commuting: 8.8,
+  food: 10.4,
+  waste: 0.0,
+  greyEnergy: 0.0,
+};
+
+const epflReferenceRow = computed<Record<string, unknown>>(() => {
+  const row: Record<string, unknown> = { category: t('charts-epf-tick') };
+  const validated = validatedPPKeys.value;
+  for (const [key, val] of Object.entries(EPFL_REFERENCE_VALUES)) {
+    if (validated.has(key)) {
+      row[key] = val;
+    }
+  }
+  row.stdDev = 10;
+  return row;
+});
+
 const datasetSource = computed(() => {
   const baseData = [
-    {
-      category: t('charts-my-unit-tick'),
-      unitGas: 2.5,
-      infrastructureGas: 2.0,
-      infrastructure: 8.3,
-      equipment: 5.5,
-      itInfrastructure: 5.0,
-      professionalTravel: 18.4,
-      purchases: 39.1,
-      researchCoreFacilities: 3.0,
-      commuting: 11.0,
-      food: 13.0,
-      waste: 0.0,
-      greyEnergy: 0.0,
-      stdDev: 10,
-    },
-    {
-      category: t('charts-epf-tick'),
-      unitGas: 2.0,
-      infrastructureGas: 1.6,
-      infrastructure: 6.6,
-      equipment: 4.4,
-      itInfrastructure: 4.0,
-      professionalTravel: 14.7,
-      purchases: 31.3,
-      researchCoreFacilities: 3.0,
-      commuting: 8.8,
-      food: 10.4,
-      waste: 0.0,
-      greyEnergy: 0.0,
-      stdDev: 10,
-    },
+    myUnitRow.value,
+    epflReferenceRow.value,
     {
       category: t('charts-objective-tick'),
       objective2030: 12,
@@ -78,14 +112,12 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
-    'unitGas',
-    'infrastructureGas',
     'infrastructure',
     'equipment',
-    'itInfrastructure',
+    'researchFacilities',
     'professionalTravel',
     'purchases',
-    'researchCoreFacilities',
+    'externalCloudAndAI',
   ];
 
   if (toggleAdditionalData.value) {
@@ -195,12 +227,12 @@ const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
   const seriesArray = [
     {
-      name: t('charts-unit-gas-category'),
+      name: t('infrastructure'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'unitGas',
+        y: 'infrastructure',
       },
       markLine: {
         silent: true,
@@ -213,36 +245,6 @@ const chartOption = computed((): EChartsOption => {
         data: markLineData.value,
       },
       itemStyle: {
-        color: colors.value.peach.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-infrastructure-gas-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'infrastructureGas',
-      },
-      itemStyle: {
-        color: colors.value.apricot.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-infrastructure-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'infrastructure',
-      },
-      itemStyle: {
         color: colors.value.lilac.darker,
       },
       label: {
@@ -250,7 +252,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-equipment-category'),
+      name: t('equipment-electric-consumption'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -265,12 +267,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-it-category'),
+      name: t('internal-services'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'itInfrastructure',
+        y: 'researchFacilities',
       },
       itemStyle: {
         color: colors.value.lavender.darker,
@@ -280,7 +282,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-professional-travel-category'),
+      name: t('professional-travel'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -295,7 +297,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-purchases-category'),
+      name: t('purchase'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -310,12 +312,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-research-core-facilities-category'),
+      name: t('external-cloud-and-ai'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'researchCoreFacilities',
+        y: 'externalCloudAndAI',
       },
       itemStyle: {
         color: colors.value.paleYellowGreen.darker,
@@ -434,40 +436,16 @@ const chartOption = computed((): EChartsOption => {
           ]),
         },
       },
-      {
-        type: 'rect',
-        left: '335px',
-        top: '0px',
-        shape: {
-          width: 1,
-          height: 420,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(0,0,0)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(240,240,240,0.1)',
-            },
-          ]),
-        },
-        z: 100,
-      },
     ],
     dataset: {
       dimensions: [
         'category',
-        'unitGas',
-        'infrastructureGas',
         'infrastructure',
         'equipment',
-        'itInfrastructure',
+        'researchFacilities',
         'professionalTravel',
         'purchases',
-        'researchCoreFacilities',
+        'externalCloudAndAI',
         'commuting',
         'food',
         'waste',
@@ -544,7 +522,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div>
+      <div v-if="headcountValidated">
         <q-btn
           unelevated
           no-caps
@@ -567,21 +545,73 @@ const downloadCSV = () => {
         />
       </div>
       <q-checkbox
+        v-if="headcountValidated"
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
         size="xs"
         color="accent"
       />
     </q-card-section>
-    <q-card-section class="chart-container flex justify-center items-center">
-      <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
-    </q-card-section>
+
+    <template v-if="headcountValidated">
+      <q-card-section class="chart-container flex justify-center items-center">
+        <v-chart
+          ref="chartRef"
+          class="chart"
+          autoresize
+          :option="chartOption"
+        />
+      </q-card-section>
+    </template>
+
+    <template v-else>
+      <q-card-section class="col validation-placeholder">
+        <div class="validation-required-card">
+          <div class="validation-required-card__content">
+            <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
+            <div class="text-h6 text-weight-medium text-center q-mb-sm">
+              {{
+                $t('results_validate_module_title', { module: $t('headcount') })
+              }}
+            </div>
+            <div class="text-body2 text-secondary text-center">
+              {{ $t('results_validate_module_message') }}
+            </div>
+          </div>
+        </div>
+      </q-card-section>
+    </template>
   </q-card>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+.container--pa-none {
+  display: flex;
+  flex-direction: column;
+}
+
 .chart {
   width: 500px;
   min-height: 500px;
+}
+
+.validation-placeholder {
+  flex: 1;
+  display: flex;
+}
+
+.validation-required-card {
+  flex: 1;
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 3rem;
+  }
 }
 </style>

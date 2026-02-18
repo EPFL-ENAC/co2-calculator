@@ -167,9 +167,22 @@ export default {
     en: 'Infrastructure-gas',
     fr: 'Gaz infrastructure',
   },
-  'charts-infrastructure-category': {
-    en: 'Infrastructure',
-    fr: 'Infrastructure',
+
+  'charts-processes-category': {
+    en: 'Processes',
+    fr: 'Processus',
+  },
+  'charts-building-energy-subcategory': {
+    en: 'Buildings energy consumption',
+    fr: "Consommation d'énergie des bâtiments",
+  },
+  'charts-building-room-subcategory': {
+    en: 'Buildings room',
+    fr: 'Locaux des bâtiments',
+  },
+  'charts-research-facilities-category': {
+    en: 'Research core facilities',
+    fr: 'Infrastructures de recherche',
   },
   'charts-equipment-category': {
     en: 'Equipment',

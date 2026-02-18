@@ -33,6 +33,15 @@ interface YearlyValidatedEmission {
   total_tonnes_co2eq: number;
 }
 
+export interface EmissionBreakdownResponse {
+  module_breakdown: Array<Record<string, unknown>>;
+  additional_breakdown: Array<Record<string, unknown>>;
+  per_person_breakdown: Record<string, number>;
+  validated_categories: string[];
+  total_tonnes_co2eq: number;
+  total_fte: number;
+}
+
 /**
  * API response for inventory module
  */
@@ -200,6 +209,9 @@ export const useModuleStore = defineStore('modules', () => {
     yearlyValidatedEmissions: YearlyValidatedEmission[];
     loadingYearlyValidatedEmissions: boolean;
     errorYearlyValidatedEmissions: string | null;
+    emissionBreakdown: EmissionBreakdownResponse | null;
+    loadingEmissionBreakdown: boolean;
+    errorEmissionBreakdown: string | null;
   }>({
     loading: false,
     error: null,
@@ -223,6 +235,9 @@ export const useModuleStore = defineStore('modules', () => {
     yearlyValidatedEmissions: [],
     loadingYearlyValidatedEmissions: false,
     errorYearlyValidatedEmissions: null,
+    emissionBreakdown: null,
+    loadingEmissionBreakdown: false,
+    errorEmissionBreakdown: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -634,6 +649,27 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getEmissionBreakdown(carbonReportId: number) {
+    state.loadingEmissionBreakdown = true;
+    state.errorEmissionBreakdown = null;
+    state.emissionBreakdown = null;
+    try {
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
+      const data = await api.get(path).json<EmissionBreakdownResponse>();
+      state.emissionBreakdown = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorEmissionBreakdown = err.message ?? 'Unknown error';
+        state.emissionBreakdown = null;
+      } else {
+        state.errorEmissionBreakdown = 'Unknown error';
+        state.emissionBreakdown = null;
+      }
+    } finally {
+      state.loadingEmissionBreakdown = false;
+    }
+  }
+
   // Track which carbon report the cached validated totals belong to
   const validatedTotalsCarbonReportId = ref<number | null>(null);
 
@@ -691,6 +727,7 @@ export const useModuleStore = defineStore('modules', () => {
     getTravelEvolutionOverTime,
     getValidatedTotals,
     getYearlyValidatedEmissions,
+    getEmissionBreakdown,
     validatedTotalsCarbonReportId,
     state,
   };
