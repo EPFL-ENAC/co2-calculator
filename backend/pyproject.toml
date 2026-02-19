@@ -46,6 +46,8 @@ env = [
     "OAUTH_SCOPE=openid profile email",
     "FRONTEND_URL=http://test-frontend",
     "DEBUG=False",
+    "ELASTICSEARCH_INDEX=opdo-test",
+
 ]
 
 filterwarnings = ["ignore::DeprecationWarning"]
