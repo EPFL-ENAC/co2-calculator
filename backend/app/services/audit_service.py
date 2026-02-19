@@ -8,12 +8,14 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from fastapi import BackgroundTasks
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.repositories.audit_repo import AuditDocumentRepository
+from app.tasks.audit_sync_tasks import sync_audit_records_with_elasticsearch
 
 logger = get_logger(__name__)
 
@@ -171,6 +173,7 @@ class AuditDocumentService:
         route_path: Optional[str] = None,
         route_payload: Optional[Dict] = None,
         handled_ids: Optional[List[str]] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> AuditDocument:
         """
         Create a new version for an entity.
@@ -188,6 +191,7 @@ class AuditDocumentService:
             route_path: API route path that triggered the change
             route_payload: Route payload/parameters
             handled_ids: List of user provider codes whose data was affected
+            background_tasks: FastAPI BackgroundTasks object to schedule async tasks
 
         Returns:
             The newly created AuditDocument
@@ -249,12 +253,19 @@ class AuditDocumentService:
             f"({change_type}) by {changed_by or 'unknown'}"
         )
 
+        # Schedule async sync task if background_tasks is provided
+        if background_tasks:
+            background_tasks.add_task(
+                sync_audit_records_with_elasticsearch, background_tasks
+            )
+
         return doc_version
 
     async def bulk_create_versions(
         self,
         entity_type: str,
         versions_data: List[Dict[str, Any]],
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> List[AuditDocument]:
         """
         Efficiently bulk create versions for multiple entities.
@@ -277,6 +288,7 @@ class AuditDocumentService:
                 - route_path: Optional[str]
                 - route_payload: Optional[Dict]
                 - handled_ids: Optional[List[str]]
+            background_tasks: FastAPI BackgroundTasks object to schedule async tasks
 
         Returns:
             List of created AuditDocument objects
@@ -367,6 +379,12 @@ class AuditDocumentService:
             f"Bulk created {len(created_docs)} versions for {entity_type} "
             f"by {versions_data[0].get('changed_by') or 'unknown'}"
         )
+
+        # Schedule async sync task if background_tasks is provided
+        if background_tasks:
+            background_tasks.add_task(
+                sync_audit_records_with_elasticsearch, background_tasks
+            )
 
         return created_docs
 

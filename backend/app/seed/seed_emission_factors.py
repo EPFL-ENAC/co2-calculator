@@ -55,7 +55,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
             "description": "Swiss electricity consumption mix",
             "methodology": "Life cycle analysis",
         },
-        values={"kgco2eq_per_kwh": settings.EMISSION_FACTOR_SWISS_MIX},
+        values={"kg_co2eq_per_kwh": settings.EMISSION_FACTOR_SWISS_MIX},
     )
 
     session.add(factor)

@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from fastapi import BackgroundTasks
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
@@ -70,6 +71,7 @@ class DataEntryService:
         user: UserRead,
         data: DataEntryCreate,
         request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -107,6 +109,7 @@ class DataEntryService:
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
             route_payload=request_context.get("route_payload"),
+            background_tasks=background_tasks,
         )
 
         # 5. return response
@@ -118,6 +121,7 @@ class DataEntryService:
         user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
         job_id: Optional[str | int] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> list[DataEntryResponse]:
         """Bulk create data entries."""
         logger.info(f"Bulk creating {len(data_entries)} data entries")
@@ -162,6 +166,7 @@ class DataEntryService:
             await self.versioning.bulk_create_versions(
                 entity_type=self.repo.entity_type,
                 versions_data=versions_data,
+                background_tasks=background_tasks,
             )
 
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
@@ -172,6 +177,7 @@ class DataEntryService:
         data_entry_type_id: DataEntryTypeEnum,
         user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> None:
         """Bulk delete data entries by module and type."""
         logger.info(
@@ -234,6 +240,7 @@ class DataEntryService:
             await self.versioning.bulk_create_versions(
                 entity_type=self.repo.entity_type,
                 versions_data=versions_data,
+                background_tasks=background_tasks,
             )
 
     async def update(
@@ -242,6 +249,7 @@ class DataEntryService:
         data: DataEntryUpdate,
         user: UserRead,
         request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
         if not user or not user.id:
@@ -274,12 +282,17 @@ class DataEntryService:
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
             route_payload=request_context.get("route_payload"),
+            background_tasks=background_tasks,
         )
 
         return DataEntryResponse.model_validate(entry)
 
     async def delete(
-        self, id: int, current_user: UserRead, request_context: Optional[dict] = None
+        self,
+        id: int,
+        current_user: UserRead,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> bool:
         """Delete a record."""
         # Fetch entry before deletion to capture snapshot
@@ -315,6 +328,7 @@ class DataEntryService:
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
             route_payload=request_context.get("route_payload"),
+            background_tasks=background_tasks,
         )
 
         return True
@@ -378,6 +392,7 @@ class DataEntryService:
         filter: Optional[str] = None,
         current_user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> SubmoduleResponse:
         """Get module data for a unit and year."""
         response = await self.repo.get_submodule_data(
@@ -425,6 +440,7 @@ class DataEntryService:
                 ip_address=request_context.get("ip_address"),
                 route_path=request_context.get("route_path"),
                 route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
             )
             # special case, we want to commit here, cause we don't commit in READ routes
             await self.session.commit()

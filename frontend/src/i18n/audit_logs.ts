@@ -155,6 +155,10 @@ export default {
     en: 'User or Job',
     fr: 'Utilisateur ou tâche',
   },
+  audit_col_sync_status: {
+    en: 'Sync Status',
+    fr: 'Statut de synchronisation',
+  },
   audit_col_handler_id: {
     en: 'Handler ID',
     fr: 'ID du gestionnaire',
@@ -200,8 +204,8 @@ export default {
     fr: 'Rechercher',
   },
   audit_btn_export_csv: {
-    en: 'Export as CSV',
-    fr: 'Exporter en CSV',
+    en: 'Export as CSV (max 10,000 rows)',
+    fr: 'Exporter en CSV (max 10 000 lignes)',
   },
   audit_btn_export_json: {
     en: 'Export as JSON',

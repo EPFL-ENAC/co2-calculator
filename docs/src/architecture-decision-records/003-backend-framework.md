@@ -56,7 +56,7 @@ _See `backend/pyproject.toml` for current versions._
 
 ```python
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session.AsyncSession
 
 router = APIRouter(prefix="/emissions", tags=["emissions"])
 

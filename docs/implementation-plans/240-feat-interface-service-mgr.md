@@ -295,10 +295,10 @@ Legal requirement: Keep audit logs for 5 years minimum, with local 1-year copies
 | Criterion                          | Status         | Notes                              |
 | ---------------------------------- | -------------- | ---------------------------------- |
 | Activity saved in AUDIT DB         | ✅ Done        | All CRUD ops logged                |
-| Authentication events logged       | ⏳ Not Started | Login/logout audit records needed  |
-| Visible in Service Mgr UI          | 🚧 In Progress | API done, UI needed                |
-| Query audit logs by date/user/type | ⏳ Not Started | API endpoints required             |
-| Export audit log capability        | ⏳ Not Started | CSV/JSON export                    |
+| Authentication events logged       | ✅ Done        | Login/logout audit records needed  |
+| Visible in Service Mgr UI          | ✅ Done        | API done, UI needed                |
+| Query audit logs by date/user/type | ✅ Done        | API endpoints required             |
+| Export audit log capability        | ✅ Done        | CSV/JSON export                    |
 | User guide updated                 | ⏳ Not Started | "Activity History" section needed  |
 | API docs updated                   | ⏳ Not Started | OpenAPI/Swagger                    |
 | Test coverage ≥60%                 | ⏳ Not Started | Need test suite                    |

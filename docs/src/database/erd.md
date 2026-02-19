@@ -20,6 +20,9 @@ erDiagram
     VARCHAR previous_hash
     VARCHAR route_path
     JSON route_payload
+    VARCHAR sync_error
+    VARCHAR sync_status
+    DATETIME synced_at
     INTEGER version "indexed"
   }
   carbon_report_modules {

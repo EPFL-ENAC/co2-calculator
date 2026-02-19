@@ -25,6 +25,9 @@ class AuditLogEntry(BaseModel):
     ip_address: str
     route_path: Optional[str] = None
     message_summary: Optional[str] = None
+    sync_status: Optional[str] = None
+    sync_error: Optional[str] = None
+    synced_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
