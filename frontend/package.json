@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@quasar/extras": "=1.17.0",
-    "@quasar/quasar-app-extension-qmarkdown": "^2.0.5",
     "echarts": "^6.0.0",
     "ky": "=1.14.0",
     "pinia": "=3.0.3",
@@ -74,7 +73,6 @@
     "wait-on": "=9.0.1"
   },
   "overrides": {
-    "ajv": "^8.18.0",
     "minimatch": "^10.2.1"
   },
   "type": "module",
