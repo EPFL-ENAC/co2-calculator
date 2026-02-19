@@ -3,10 +3,8 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from elasticsearch.exceptions import NotFoundError
 
 from app.elasticsearch.client import (
-    ELASTICSEARCH_INDEX,
     ElasticsearchClient,
     format_timestamp,
     map_to_opdo_schema,
@@ -1064,109 +1062,3 @@ class TestElasticsearchClient:
         assert result["errors"][0]["id"] == "error-id"
         assert "Invalid field value" in result["errors"][0]["error"]
         mock_bulk.assert_called_once()
-
-    @patch("app.elasticsearch.client.Path")
-    @patch("app.elasticsearch.client.Elasticsearch")
-    def test_get_audit_record_success(self, mock_elasticsearch, mock_path):
-        """Test successful retrieval of audit record."""
-        # Mock the Path.exists() to return True
-        mock_path_instance = Mock()
-        mock_path.return_value = mock_path_instance
-        mock_path_instance.exists.return_value = True
-
-        # Mock the Elasticsearch client
-        mock_es_instance = Mock()
-        mock_elasticsearch.return_value = mock_es_instance
-        mock_es_instance.info.return_value = {"version": {"number": "8.11.0"}}
-        mock_es_instance.get.return_value = {"_source": {"key": "value"}}
-
-        # Create the client
-        client = ElasticsearchClient()
-
-        # Call get_audit_record
-        result = client.get_audit_record("123")
-
-        # Verify success
-        assert result == {"key": "value"}
-        mock_es_instance.get.assert_called_once_with(
-            index=ELASTICSEARCH_INDEX, id="123"
-        )
-
-    @patch("app.elasticsearch.client.Path")
-    @patch("app.elasticsearch.client.Elasticsearch")
-    def test_get_audit_record_not_found(self, mock_elasticsearch, mock_path):
-        """Test retrieval of non-existent audit record."""
-        # Mock the Path.exists() to return True
-        mock_path_instance = Mock()
-        mock_path.return_value = mock_path_instance
-        mock_path_instance.exists.return_value = True
-
-        # Mock the Elasticsearch client
-        mock_es_instance = Mock()
-        mock_elasticsearch.return_value = mock_es_instance
-        mock_es_instance.info.return_value = {"version": {"number": "8.11.0"}}
-        mock_es_instance.get.side_effect = NotFoundError(404, "Not Found", {})
-
-        # Create the client
-        client = ElasticsearchClient()
-
-        # Call get_audit_record
-        result = client.get_audit_record("123")
-
-        # Verify None returned
-        assert result is None
-        mock_es_instance.get.assert_called_once_with(
-            index=ELASTICSEARCH_INDEX, id="123"
-        )
-
-    @patch("app.elasticsearch.client.Path")
-    @patch("app.elasticsearch.client.Elasticsearch")
-    def test_get_audit_record_exception(self, mock_elasticsearch, mock_path):
-        """Test retrieval of audit record when Elasticsearch throws an exception."""
-        # Mock the Path.exists() to return True
-        mock_path_instance = Mock()
-        mock_path.return_value = mock_path_instance
-        mock_path_instance.exists.return_value = True
-
-        # Mock the Elasticsearch client
-        mock_es_instance = Mock()
-        mock_elasticsearch.return_value = mock_es_instance
-        mock_es_instance.info.return_value = {"version": {"number": "8.11.0"}}
-        mock_es_instance.get.side_effect = Exception("Connection failed")
-
-        # Create the client
-        client = ElasticsearchClient()
-
-        # Call get_audit_record
-        result = client.get_audit_record("123")
-
-        # Verify None returned
-        assert result is None
-        mock_es_instance.get.assert_called_once_with(
-            index=ELASTICSEARCH_INDEX, id="123"
-        )
-
-    @patch("app.elasticsearch.client.Path")
-    @patch("app.elasticsearch.client.Elasticsearch")
-    def test_get_audit_record_client_not_initialized(
-        self, mock_elasticsearch, mock_path
-    ):
-        """Test get_audit_record when client is not initialized."""
-        # Mock the Path.exists() to return True
-        mock_path_instance = Mock()
-        mock_path.return_value = mock_path_instance
-        mock_path_instance.exists.return_value = True
-
-        # Mock the Elasticsearch client
-        mock_elasticsearch.return_value = Mock()
-
-        # Create the client
-        client = ElasticsearchClient()
-        # Manually set client to None to simulate initialization failure
-        client.client = None
-
-        # Call get_audit_record
-        result = client.get_audit_record("123")
-
-        # Verify None returned
-        assert result is None

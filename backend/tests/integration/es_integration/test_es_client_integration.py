@@ -91,12 +91,6 @@ class TestElasticsearchClientIntegration:
         # Verify success
         assert result is True
 
-        # Verify the document was indexed
-        retrieved_doc = client.get_audit_record("int-122")
-        assert retrieved_doc is not None
-        assert retrieved_doc["handled_id"] == "1,2,3"
-        assert retrieved_doc["crudt"] == "C"
-
     def test_bulk_sync_audit_records_integration(self):
         """Test bulk syncing multiple audit records to Elasticsearch."""
         # Create our Elasticsearch client with the test client
@@ -132,28 +126,6 @@ class TestElasticsearchClientIntegration:
         assert result["failed"] == 0
         assert result["errors"] == []
 
-        # Verify the documents were indexed
-        doc1 = client.get_audit_record("int-123")
-        doc2 = client.get_audit_record("int-124")
-
-        assert doc1 is not None
-        assert doc2 is not None
-        assert doc1["handled_id"] == "1,2,3"
-        assert doc2["handled_id"] == "4,5,6"
-        assert doc1["crudt"] == "C"
-        assert doc2["crudt"] == "U"
-
-    def test_get_audit_record_not_found_integration(self):
-        """Test retrieving a non-existent audit record."""
-        # Create our Elasticsearch client with the test client
-        client = ElasticsearchClient(self.original_client)
-
-        # Try to get a non-existent record
-        result = client.get_audit_record("non-existent-id")
-
-        # Should return None
-        assert result is None
-
     def test_sync_audit_record_with_validation_error_integration(self):
         """Test syncing an audit record with validation error."""
         # Create our Elasticsearch client with the test client
@@ -175,10 +147,6 @@ class TestElasticsearchClientIntegration:
 
         # Verify failure
         assert result is False
-
-        # Verify the document was not indexed
-        retrieved_doc = client.get_audit_record("int-invalid")
-        assert retrieved_doc is None
 
     def test_bulk_sync_with_mixed_validity_integration(self):
         """Test bulk syncing with mix of valid and invalid records."""
@@ -215,12 +183,3 @@ class TestElasticsearchClientIntegration:
         assert result["failed"] == 1
         assert len(result["errors"]) == 1
         assert result["errors"][0]["id"] == "int-invalid"
-
-        # Verify only the valid document was indexed
-        valid_doc = client.get_audit_record("int-valid")
-        invalid_doc = client.get_audit_record("int-invalid")
-
-        assert valid_doc is not None
-        assert invalid_doc is None
-        assert valid_doc["handled_id"] == "1,2,3"
-        assert valid_doc["crudt"] == "C"

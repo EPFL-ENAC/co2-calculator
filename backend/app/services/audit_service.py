@@ -13,7 +13,6 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.db import get_db_session
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.repositories.audit_repo import AuditDocumentRepository
 from app.tasks.audit_sync_tasks import sync_audit_records_with_elasticsearch
@@ -256,10 +255,8 @@ class AuditDocumentService:
 
         # Schedule async sync task if background_tasks is provided
         if background_tasks:
-            # Get a new session for the background task
-            db_session = await get_db_session()
             background_tasks.add_task(
-                sync_audit_records_with_elasticsearch, background_tasks, db_session
+                sync_audit_records_with_elasticsearch, background_tasks
             )
 
         return doc_version
@@ -385,10 +382,8 @@ class AuditDocumentService:
 
         # Schedule async sync task if background_tasks is provided
         if background_tasks:
-            # Get a new session for the background task
-            db_session = await get_db_session()
             background_tasks.add_task(
-                sync_audit_records_with_elasticsearch, background_tasks, db_session
+                sync_audit_records_with_elasticsearch, background_tasks
             )
 
         return created_docs

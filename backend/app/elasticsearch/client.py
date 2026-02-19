@@ -9,14 +9,12 @@ import logging
 from datetime import datetime
 from ipaddress import ip_address
 from pathlib import Path
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import (
     AuthenticationException,
     ConnectionError,
-    NotFoundError,
 )
 
 from app.core.config import get_settings
@@ -273,13 +271,24 @@ class ElasticsearchClient:
             # Transform audit record to OPDo schema
             opdo_document = map_to_opdo_schema(audit_record)
 
+            logger.debug(
+                f"Indexing document with handler_id: {opdo_document.get('handler_id')}"
+            )
+            logger.debug(f"Full document: {opdo_document}")
+
             # Index the document in Elasticsearch with op_type=create for data streams
-            self.client.index(
+            response = self.client.index(
                 index=ELASTICSEARCH_INDEX,
-                id=doc_id,
+                # we don't set the _id for data streams as
+                # it is auto-generated, but we can use the audit
+                # record ID as a reference in the payload if needed
+                # id=doc_id,
                 document=opdo_document,
                 op_type="create",
+                refresh=True,  # Make document immediately searchable
             )
+
+            logger.debug(f"Index response: {response}")
 
             logger.info(f"Successfully synced audit record {doc_id} to Elasticsearch")
             return True
@@ -332,7 +341,11 @@ class ElasticsearchClient:
                         {
                             "_op_type": "create",
                             "_index": ELASTICSEARCH_INDEX,
-                            "_id": str(record.get("id")),
+                            # we don't set the _id for data streams
+                            # as it is auto-generated,
+                            # but we can use the audit record ID as a reference
+                            # in the payload if needed
+                            # "_id": str(record.get("id")),
                             "_source": opdo_document,
                         }
                     )
@@ -437,29 +450,3 @@ class ElasticsearchClient:
                 "errors": [str(e)],
                 "conflicts": [],
             }
-
-    def get_audit_record(self, doc_id: str) -> Optional[dict]:
-        """
-        Retrieve an audit record from Elasticsearch.
-
-        Args:
-            doc_id: ID of the audit record
-
-        Returns:
-            dict or None: The audit record if found, None otherwise
-        """
-        if not self.client:
-            logger.error("Elasticsearch client not initialized")
-            return None
-
-        try:
-            response = self.client.get(index=ELASTICSEARCH_INDEX, id=doc_id)
-            return response["_source"]
-        except NotFoundError:
-            logger.warning(f"Audit record {doc_id} not found in Elasticsearch")
-            return None
-        except Exception as e:
-            logger.error(
-                f"Failed to retrieve audit record {doc_id} from Elasticsearch: {e}"
-            )
-            return None
