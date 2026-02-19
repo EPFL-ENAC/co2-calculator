@@ -1048,7 +1048,6 @@ function isComplete(row: ModuleRow) {
     return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    // For Professional Travel, consider complete if origin, destination, and transport_mode are set
     const required = [
       'origin',
       'destination',
@@ -1058,6 +1057,24 @@ function isComplete(row: ModuleRow) {
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );
+  }
+  if (props.moduleType === MODULES.ProcessEmissions) {
+    const baseRequired = ['emitted_gas', 'quantity_kg'];
+    const hasBaseRequired = baseRequired.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+    if (!hasBaseRequired) {
+      return false;
+    }
+
+    if (row.emitted_gas === 'Refrigerants') {
+      return (
+        row.sub_category !== null &&
+        row.sub_category !== undefined &&
+        row.sub_category !== ''
+      );
+    }
+    return true;
   }
   throw new Error(`Unknown module type: ${props.moduleType}`);
 }
@@ -1136,6 +1153,8 @@ function onDownloadTemplate() {
   const csvExternalCloudContent = `service_type,cloud_provider,spending`;
   const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
 
+  const csvProcessesContent = `emitted_gas,sub_category,quantity_kg`;
+
   const csvDefaultContent = `not_implemented_yet`;
 
   let csvContent: string;
@@ -1161,6 +1180,9 @@ function onDownloadTemplate() {
       } else {
         csvContent = csvDefaultContent;
       }
+      break;
+    case MODULES.ProcessEmissions:
+      csvContent = csvProcessesContent;
       break;
     default:
       csvContent = csvDefaultContent;

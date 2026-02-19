@@ -6,6 +6,7 @@ import { internalServices } from 'src/constant/module-config/internal-services';
 import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-and-ai';
 import { infrastructure } from 'src/constant/module-config/infrastructure';
 import { purchase } from 'src/constant/module-config/purchase';
+import { processEmissions } from 'src/constant/module-config/process_emissions';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   'equipment-electric-consumption': equipmentElectricConsumption,
@@ -15,6 +16,7 @@ export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   infrastructure: infrastructure,
   purchase: purchase,
   'external-cloud-and-ai': externalCloudAndAi,
+  'process-emissions': processEmissions,
 };
 
 export {
@@ -25,4 +27,5 @@ export {
   infrastructure,
   purchase,
   externalCloudAndAi,
+  processEmissions,
 };

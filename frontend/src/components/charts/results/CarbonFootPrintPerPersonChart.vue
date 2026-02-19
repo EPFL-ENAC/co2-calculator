@@ -39,7 +39,7 @@ const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  Processes: [],
+  'Process Emissions': [' '],
   'Buildings energy consumption': ['infrastructure'],
   'Buildings room': ['infrastructure'],
   Equipment: ['equipment'],
@@ -75,6 +75,7 @@ const myUnitRow = computed<Record<string, unknown>>(() => {
 });
 
 const EPFL_REFERENCE_VALUES: Record<string, number> = {
+  processEmissions: 0.0,
   infrastructure: 6.6,
   equipment: 4.4,
   researchFacilities: 4.0,
@@ -114,6 +115,7 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
+    'processEmissions',
     'infrastructure',
     'equipment',
     'researchFacilities',
@@ -229,12 +231,12 @@ const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
   const seriesArray = [
     {
-      name: t('infrastructure'),
+      name: t('charts-process-emissions-category'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'infrastructure',
+        y: 'processEmissions',
       },
       markLine: {
         silent: true,
@@ -245,6 +247,21 @@ const chartOption = computed((): EChartsOption => {
           type: 'solid' as const,
         },
         data: markLineData.value,
+      },
+      itemStyle: {
+        color: colors.value.apricot.darker,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('infrastructure'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'infrastructure',
       },
       itemStyle: {
         color: colors.value.lilac.darker,
@@ -442,6 +459,7 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
+        'processEmissions',
         'infrastructure',
         'equipment',
         'researchFacilities',

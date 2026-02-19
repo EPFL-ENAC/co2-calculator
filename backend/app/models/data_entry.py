@@ -27,6 +27,8 @@ class DataEntryTypeEnum(int, Enum):
     # external clouds and ai
     external_clouds = 40
     external_ai = 41
+    # process emissions
+    process_emissions = 50
     # energy mix
     energy_mix = 100
 

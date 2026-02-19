@@ -10,6 +10,10 @@ export const timelineItems = [
     link: MODULES.ProfessionalTravel,
   },
   {
+    icon: 'o_science',
+    link: MODULES.ProcessEmissions,
+  },
+  {
     icon: 'o_apartment',
     link: MODULES.Infrastructure,
   },

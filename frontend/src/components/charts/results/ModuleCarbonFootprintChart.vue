@@ -62,7 +62,7 @@ const scopeConfig = computed(() => {
 });
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
-  Processes: 'charts-processes-category',
+  'Process Emissions': 'charts-process-emissions-category',
   'Buildings energy consumption': 'charts-building-energy-subcategory',
   'Buildings room': 'charts-building-room-subcategory',
   Equipment: 'equipment-electric-consumption',
@@ -99,6 +99,7 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
+    'process_emissions',
     'energy',
     'grey_energy',
     'scientific',
@@ -120,6 +121,7 @@ const allValueKeys = computed(() => {
 
 const allStdDevKeys = computed(() => {
   const baseKeys = [
+    'process_emissionsStdDev',
     'energyStdDev',
     'grey_energyStdDev',
     'scientificStdDev',
@@ -277,6 +279,22 @@ const chartOption = computed((): EChartsOption => {
 
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
+    // Processes
+    {
+      name: t('charts-process-emissions-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'process_emissions' },
+      markLine: {
+        silent: true,
+        symbol: ['none', 'none'],
+        lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
+        data: markLineData.value,
+      },
+      itemStyle: { color: colors.value.apricot.darker },
+      label: { show: false },
+    },
     // Buildings energy consumption
     {
       name: t('charts-building-energy-subcategory'),
@@ -284,12 +302,6 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: { x: 'category', y: 'energy' },
       animation: true,
-      markLine: {
-        silent: true,
-        symbol: ['none', 'none'],
-        lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
-        data: markLineData.value,
-      },
       itemStyle: { color: colors.value.lilac.darker },
       label: { show: false },
     },
@@ -644,6 +656,8 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
+        'process_emissions',
+        'process_emissionsStdDev',
         'energy',
         'energyStdDev',
         'grey_energy',

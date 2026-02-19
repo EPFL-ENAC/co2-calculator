@@ -61,7 +61,7 @@ const cloudFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -129,7 +129,7 @@ const externalAIFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,

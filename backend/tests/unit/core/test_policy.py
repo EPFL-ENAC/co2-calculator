@@ -51,6 +51,11 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("my-lab")
         assert result == "modules.headcount"
 
+    def test_processes_module(self):
+        """Test mapping for processes module."""
+        result = _get_module_permission_path("process-emissions")
+        assert result == "modules.process_emissions"
+
     def test_unknown_module_returns_none(self):
         """Test that unknown module ID returns None."""
         result = _get_module_permission_path("unknown-module")
