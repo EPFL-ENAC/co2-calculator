@@ -1153,6 +1153,8 @@ function onDownloadTemplate() {
   const csvExternalCloudContent = `service_type,cloud_provider,spending`;
   const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
 
+  const csvProcessesContent = `emitted_gas,sub_category,quantity_kg`;
+
   const csvDefaultContent = `not_implemented_yet`;
 
   let csvContent: string;
@@ -1178,6 +1180,9 @@ function onDownloadTemplate() {
       } else {
         csvContent = csvDefaultContent;
       }
+      break;
+    case MODULES.Processes:
+      csvContent = csvProcessesContent;
       break;
     default:
       csvContent = csvDefaultContent;
