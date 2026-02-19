@@ -56,10 +56,6 @@ export const MODULE_CARDS: ModuleCard[] = [
     module: MODULES.ExternalCloudAndAI,
     active: true,
   },
-  {
-    module: MODULES.ProcessEmissions,
-    active: false,
-  },
 ];
 
 export type ModuleCardType = (typeof MODULE_CARDS)[number];
