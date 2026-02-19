@@ -141,6 +141,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         )
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
+      useModuleStore().invalidateValidatedTotals();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -494,6 +495,8 @@ export const useModuleStore = defineStore('modules', () => {
         year,
         submoduleType: submoduleType,
       });
+
+      invalidateValidatedTotals();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -571,6 +574,8 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
+
+      invalidateValidatedTotals();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -603,6 +608,8 @@ export const useModuleStore = defineStore('modules', () => {
         unit,
         year,
       });
+
+      invalidateValidatedTotals();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -674,6 +681,10 @@ export const useModuleStore = defineStore('modules', () => {
   // Track which carbon report the cached validated totals belong to
   const validatedTotalsCarbonReportId = ref<number | null>(null);
 
+  function invalidateValidatedTotals() {
+    validatedTotalsCarbonReportId.value = null;
+  }
+
   async function getValidatedTotals(carbonReportId: number) {
     state.loadingValidatedTotals = true;
     state.errorValidatedTotals = null;
@@ -727,6 +738,7 @@ export const useModuleStore = defineStore('modules', () => {
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
     getValidatedTotals,
+    invalidateValidatedTotals,
     getYearlyValidatedEmissions,
     getEmissionBreakdown,
     validatedTotalsCarbonReportId,
