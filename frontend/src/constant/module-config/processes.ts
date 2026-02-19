@@ -43,11 +43,11 @@ const processesFields: ModuleField[] = [
     type: 'number',
     required: true,
     editableInline: true,
-    min: 1,
-    step: 1,
+    step: 0.001,
     ratio: '1/3',
     sortable: true,
     hideIn: { form: false },
+    min: 0.001,
   },
   {
     id: 'kg_co2eq',

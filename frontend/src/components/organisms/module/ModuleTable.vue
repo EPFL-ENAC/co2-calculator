@@ -1059,10 +1059,22 @@ function isComplete(row: ModuleRow) {
     );
   }
   if (props.moduleType === MODULES.Processes) {
-    const required = ['emitted_gas', 'quantity_kg'];
-    return required.every(
+    const baseRequired = ['emitted_gas', 'quantity_kg'];
+    const hasBaseRequired = baseRequired.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );
+    if (!hasBaseRequired) {
+      return false;
+    }
+
+    if (row.emitted_gas === 'Refrigerants') {
+      return (
+        row.sub_category !== null &&
+        row.sub_category !== undefined &&
+        row.sub_category !== ''
+      );
+    }
+    return true;
   }
   throw new Error(`Unknown module type: ${props.moduleType}`);
 }

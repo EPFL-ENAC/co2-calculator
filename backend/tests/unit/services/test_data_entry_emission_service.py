@@ -10,6 +10,7 @@ from app.services.data_entry_emission_service import (
     DataEntryEmissionService,
     compute_external_ai,
     compute_external_clouds,
+    compute_process_emission,
     compute_scientific_it_other,
     compute_trips,
 )
@@ -478,6 +479,98 @@ async def test_compute_trips_response_structure():
 
 
 # ======================================================================
+# Process Emission Calculation Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_compute_process_emission_valid_calculation():
+    """Test process emission calculation with valid inputs."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.process_emission
+    data_entry.data = {"quantity_kg": 500.0}
+
+    factor = Factor(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.process_emission,
+        values={"gwp_kg_co2eq_per_kg": 3.5},
+        classification={"kind": "process"},
+    )
+
+    result = await compute_process_emission(service, data_entry, [factor])
+
+    # 500 kg * 3.5 kg CO2eq/kg = 1750 kg CO2eq
+    assert result["kg_co2eq"] == 1750.0
+    assert result["gwp_factor"] == 3.5
+    assert result["quantity_kg"] == 500.0
+
+
+@pytest.mark.asyncio
+async def test_compute_process_emission_zero_quantity():
+    """Test process emission calculation with zero quantity."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.process_emission
+    data_entry.data = {"quantity_kg": 0}
+
+    factor = Factor(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.process_emission,
+        values={"gwp_kg_co2eq_per_kg": 3.5},
+        classification={"kind": "process"},
+    )
+
+    result = await compute_process_emission(service, data_entry, [factor])
+
+    assert result["kg_co2eq"] == 0
+    assert result["quantity_kg"] == 0
+
+
+@pytest.mark.asyncio
+async def test_compute_process_emission_no_factors():
+    """Test process emission calculation with no factors returns None."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.process_emission
+    data_entry.data = {"quantity_kg": 500.0}
+
+    result = await compute_process_emission(service, data_entry, [])
+
+    assert result["kg_co2eq"] is None
+
+
+@pytest.mark.asyncio
+async def test_compute_process_emission_missing_quantity_kg():
+    """Test process emission calculation with missing quantity_kg field."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.process_emission
+    data_entry.data = {}
+
+    factor = Factor(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.process_emission,
+        values={"gwp_kg_co2eq_per_kg": 3.5},
+        classification={"kind": "process"},
+    )
+
+    result = await compute_process_emission(service, data_entry, [factor])
+
+    # Missing quantity_kg defaults to 0, so 0 * 3.5 = 0
+    assert result["kg_co2eq"] == 0
+    assert result["quantity_kg"] == 0
+
+
+# ======================================================================
 # Formula Registration Tests
 # ======================================================================
 
@@ -493,6 +586,7 @@ def test_formula_registration():
     assert DataEntryTypeEnum.it in formulas
     assert DataEntryTypeEnum.other in formulas
     assert DataEntryTypeEnum.trips in formulas
+    assert DataEntryTypeEnum.process_emission in formulas
 
     # Verify they point to the correct functions
     assert formulas[DataEntryTypeEnum.external_clouds] == compute_external_clouds
@@ -501,6 +595,7 @@ def test_formula_registration():
     assert formulas[DataEntryTypeEnum.it] == compute_scientific_it_other
     assert formulas[DataEntryTypeEnum.other] == compute_scientific_it_other
     assert formulas[DataEntryTypeEnum.trips] == compute_trips
+    assert formulas[DataEntryTypeEnum.process_emission] == compute_process_emission
 
 
 # ======================================================================

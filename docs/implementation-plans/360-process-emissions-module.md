@@ -186,12 +186,10 @@ The "Processes" category already exists in `MODULE_BREAKDOWN_ORDER` (line 78) â€
 
 **`backend/app/models/user.py`**
 
-- Add `"modules.process_emissions": {"view": True, "edit": True}` to `calco2.user.principal` role permissions
-- Add `"modules.process_emissions": {"view": False, "edit": False}` to `calco2.user.standard` role permissions
-
-**`backend/app/core/policy.py`**
-
-- Add `"process-emissions": "modules.process_emissions"` to the module permission path map
+- Add `"modules.processes": {"view": True, "edit": True}` to `calco2.user.principal` role permissions
+- Add `"modules.processes": {"view": False, "edit": False}` to `calco2.user.standard` role permissions
+  **`backend/app/core/policy.py`**
+- Add `"process-emissions": "modules.processes"` to the module permission path map
 
 ---
 

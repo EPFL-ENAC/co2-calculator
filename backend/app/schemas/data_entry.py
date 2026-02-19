@@ -897,33 +897,33 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
 class ProcessesHandlerResponse(DataEntryResponseGen):
     emitted_gas: str
     sub_category: Optional[str] = None
-    quantity_kg: int
+    quantity_kg: float
     kg_co2eq: Optional[float] = None
 
 
 class ProcessesHandlerCreate(DataEntryCreate):
     emitted_gas: str
     sub_category: Optional[str] = None
-    quantity_kg: int
+    quantity_kg: float
 
     @field_validator("quantity_kg", mode="after")
     @classmethod
-    def validate_quantity(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("Quantity must be > 0")
+    def validate_quantity(cls, v: float) -> float:
+        if v < 0.001:
+            raise ValueError("Quantity must be >= 0.001 kg")
         return v
 
 
 class ProcessesHandlerUpdate(DataEntryUpdate):
     emitted_gas: Optional[str] = None
     sub_category: Optional[str] = None
-    quantity_kg: Optional[int] = None
+    quantity_kg: Optional[float] = None
 
     @field_validator("quantity_kg", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v <= 0:
-            raise ValueError("Quantity must be > 0")
+    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0.001:
+            raise ValueError("Quantity must be >= 0.001 kg")
         return v
 
 

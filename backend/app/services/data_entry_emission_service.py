@@ -492,6 +492,15 @@ async def compute_process_emission(
     if not factors:
         return {"kg_co2eq": None}
     factor = factors[0]
+
     gwp = factor.values.get("gwp_kg_co2eq_per_kg", 0)
+    # Defensive check for legacy or corrupted data: quantity must not be negative.
+    if quantity_kg < 0:
+        return {
+            "kg_co2eq": None,
+            "gwp_factor": gwp,
+            "quantity_kg": quantity_kg,
+        }
+
     kg_co2eq = quantity_kg * gwp
     return {"kg_co2eq": kg_co2eq, "gwp_factor": gwp, "quantity_kg": quantity_kg}
