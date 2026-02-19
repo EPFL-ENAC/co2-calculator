@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_INTERNAL_SERVICES_TYPES } from 'src/constant/modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 import type { InternalServicesSubType } from 'src/constant/modules';
 const rootFields: ModuleField[] = [
@@ -133,6 +134,7 @@ export const internalServices: ModuleConfig = {
   description: 'Categorize and track waste streams',
   hasSubmodules: true,
   formStructure: 'single',
+  totalFormatter: formatTonnesCO2,
   moduleFields: rootFields,
   submodules: [
     {

@@ -18,7 +18,7 @@ import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 import { useTimelineStore } from 'src/stores/modules';
 import { useModuleStore } from 'src/stores/modules';
-import { nOrDash } from 'src/utils/number';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -142,7 +142,7 @@ const modulesCounterText = computed(() =>
           />
           <div class="column items-end">
             <p class="text-h1 text-weight-medium q-mb-none">
-              {{ nOrDash(validatedTotals?.total_tonnes_co2eq) }}
+              {{ formatTonnesCO2(validatedTotals?.total_tonnes_co2eq) }}
             </p>
             <p class="text-secondary text-body2 q-mb-none">
               {{ $t('tco2eq') }}
@@ -253,10 +253,9 @@ const modulesCounterText = computed(() =>
             >
               <p class="text-weight-medium q-mb-none">
                 {{
-                  nOrDash(moduleCardTotals[moduleCard.module], {
-                    options:
-                      MODULES_CONFIG[moduleCard.module]?.numberFormatOptions,
-                  })
+                  MODULES_CONFIG[moduleCard.module].totalFormatter(
+                    moduleCardTotals[moduleCard.module],
+                  )
                 }}
               </p>
               <p class="text-body2 text-secondary q-mb-none">

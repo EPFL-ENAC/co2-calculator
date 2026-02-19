@@ -118,6 +118,7 @@ export interface ModuleConfig {
   type: string;
   name?: string;
   numberFormatOptions?: Intl.NumberFormatOptions;
+  totalFormatter: (value: number | string | null | undefined) => string;
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;

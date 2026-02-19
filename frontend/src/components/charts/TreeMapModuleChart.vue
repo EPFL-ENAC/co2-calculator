@@ -14,6 +14,7 @@ import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { formatTonnesForChart } from 'src/utils/number';
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
@@ -173,7 +174,7 @@ const chartOption = computed((): EChartsOption => {
         }
 
         let tooltip = `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${color};"></span><strong>${categoryName}</strong><br/>`;
-        tooltip += `${className}: <strong>${value.toFixed(0)}</strong>`;
+        tooltip += `${className}: <strong>${formatTonnesForChart(value)}</strong>`;
 
         return tooltip;
       },

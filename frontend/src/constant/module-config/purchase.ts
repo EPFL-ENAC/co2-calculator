@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { PurchaseSubType, SUBMODULE_PURCHASE_TYPES } from '../modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 
 const goodsFields: ModuleField[] = [
   {
@@ -42,6 +43,7 @@ export const purchase: ModuleConfig = {
   description: 'Track purchased goods and materials',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
+  totalFormatter: formatTonnesCO2,
   submodules: [
     {
       id: 'sub_goods',

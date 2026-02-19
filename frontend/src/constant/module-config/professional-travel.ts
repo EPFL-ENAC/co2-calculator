@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type { ProfessionalTravelSubType } from 'src/constant/modules';
 
 const moduleFields: ModuleField[] = [
@@ -168,6 +169,7 @@ export const professionalTravel: ModuleConfig = {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   },
+  totalFormatter: formatTonnesCO2,
   unit: 't CO₂-eq',
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0],

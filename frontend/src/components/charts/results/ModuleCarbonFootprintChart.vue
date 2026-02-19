@@ -27,6 +27,7 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import { formatTonnesForChart } from 'src/utils/number';
 
 const props = defineProps<{
   viewUncertainties?: boolean;
@@ -434,12 +435,12 @@ const chartOption = computed((): EChartsOption => {
 
           const dataValue = Number(data[key]) || 0;
           if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${dataValue.toFixed(1)} </strong><br/>`;
+            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
             total += dataValue;
           }
         });
 
-        let totalDisplay = total.toFixed(1);
+        let totalDisplay = formatTonnesForChart(total);
         if (showUncertainties && data) {
           const stdDev = Math.sqrt(
             allStdDevKeys.value.reduce(
@@ -448,7 +449,7 @@ const chartOption = computed((): EChartsOption => {
             ),
           );
           if (stdDev > 0)
-            totalDisplay = `${total.toFixed(1)} ± ${stdDev.toFixed(1)}`;
+            totalDisplay = `${formatTonnesForChart(total)} ± ${formatTonnesForChart(stdDev)}`;
         }
 
         return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
