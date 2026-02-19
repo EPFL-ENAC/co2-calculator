@@ -30,6 +30,7 @@
         No travel data available
       </div>
     </template>
+
     <h2 v-else class="text-h3 q-mb-none text-bold text-uppercase">
       {{ $t(`${type}-charts-title`) }}
     </h2>

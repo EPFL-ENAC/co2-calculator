@@ -26,6 +26,11 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: false,
   },
   {
+    module: MODULES.Processes,
+    value: "8'250",
+    active: false,
+  },
+  {
     module: MODULES.Infrastructure,
     value: "8'250",
     active: false,

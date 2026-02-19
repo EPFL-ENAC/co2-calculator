@@ -48,15 +48,37 @@ class CarbonReportModuleService:
     async def get_carbon_report_by_year_and_unit(
         self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
     ) -> CarbonReportModuleRead:
-        """Get a carbon report module by year and unit."""
+        """Get a carbon report module by year and unit.
+
+        If the carbon report exists but the module entry is missing
+        (e.g. a new module type added after the report was created),
+        auto-create it with NOT_STARTED status.
+        """
         carbon_report_module = await self.repo.get_by_year_and_unit(
             year, unit_id, module_type_id
         )
         if carbon_report_module is None:
-            raise ValueError(
-                f"Carbon report module not found for year={year}, "
-                f"unit_id={unit_id}, module_type_id={module_type_id}"
+            from app.services.carbon_report_service import CarbonReportService
+
+            cr_service = CarbonReportService(self.session)
+            carbon_report = await cr_service.get_by_unit_and_year(
+                unit_id=unit_id, year=year
             )
+            if carbon_report is None:
+                raise ValueError(
+                    f"Carbon report module not found for year={year}, "
+                    f"unit_id={unit_id}, module_type_id={module_type_id}"
+                )
+            logger.info(
+                f"Auto-creating module {sanitize(module_type_id)} for "
+                f"carbon report {sanitize(carbon_report.id)}"
+            )
+            carbon_report_module = await self.repo.create(
+                carbon_report_id=carbon_report.id,
+                module_type_id=int(module_type_id),
+                status=ModuleStatus.NOT_STARTED,
+            )
+            await self.session.commit()
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
     async def get_module(

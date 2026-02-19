@@ -26,6 +26,7 @@ export const MODULE_TYPE_IDS = {
   purchase: 5,
   'internal-services': 6,
   'external-cloud-and-ai': 7,
+  processes: 8,
 } as const;
 
 export type ModuleTypeId =

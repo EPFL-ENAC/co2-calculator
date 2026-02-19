@@ -99,6 +99,7 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
+    'process',
     'energy',
     'grey_energy',
     'scientific',
@@ -120,6 +121,7 @@ const allValueKeys = computed(() => {
 
 const allStdDevKeys = computed(() => {
   const baseKeys = [
+    'processStdDev',
     'energyStdDev',
     'grey_energyStdDev',
     'scientificStdDev',
@@ -277,6 +279,22 @@ const chartOption = computed((): EChartsOption => {
 
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
+    // Processes
+    {
+      name: t('charts-processes-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'process' },
+      markLine: {
+        silent: true,
+        symbol: ['none', 'none'],
+        lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
+        data: markLineData.value,
+      },
+      itemStyle: { color: colors.value.apricot.darker },
+      label: { show: false },
+    },
     // Buildings energy consumption
     {
       name: t('charts-building-energy-subcategory'),
@@ -284,12 +302,6 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: { x: 'category', y: 'energy' },
       animation: true,
-      markLine: {
-        silent: true,
-        symbol: ['none', 'none'],
-        lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
-        data: markLineData.value,
-      },
       itemStyle: { color: colors.value.lilac.darker },
       label: { show: false },
     },
@@ -644,6 +656,8 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
+        'process',
+        'processStdDev',
         'energy',
         'energyStdDev',
         'grey_energy',

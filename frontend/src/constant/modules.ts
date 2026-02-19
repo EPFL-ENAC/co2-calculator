@@ -1,6 +1,7 @@
 export const MODULES = {
   Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
+  Processes: 'processes',
   Infrastructure: 'infrastructure',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
@@ -16,6 +17,7 @@ export const MODULES_DESCRIPTIONS = {
   Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
   ExternalCloudAndAI: 'external-cloud-and-ai-description',
+  Processes: 'processes-description',
 } as const;
 
 // TODO: implement something like this
@@ -54,6 +56,18 @@ type ExternalCloudProps = {
   submoduleType?: ExternalCloudSubType;
 };
 
+export const SUBMODULE_PROCESSES_TYPES = {
+  ProcessEmission: 'process_emission',
+} as const;
+
+export type ProcessesSubType =
+  (typeof SUBMODULE_PROCESSES_TYPES)[keyof typeof SUBMODULE_PROCESSES_TYPES];
+
+type ProcessesProps = {
+  moduleType: typeof MODULES.Processes;
+  submoduleType?: ProcessesSubType;
+};
+
 export const enumSubmodule = {
   member: 1,
   student: 2,
@@ -65,6 +79,7 @@ export const enumSubmodule = {
   building: 30,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
+  process_emission: 50,
   energy_mix: 100,
 } as const;
 
@@ -155,7 +170,8 @@ export type AllSubmoduleTypes =
   | InfrastructureSubType
   | ProfessionalTravelSubType
   | InternalServicesSubType
-  | ExternalCloudSubType;
+  | ExternalCloudSubType
+  | ProcessesSubType;
 
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
@@ -164,7 +180,8 @@ export type ConditionalSubmoduleProps =
   | InfrastructureProps
   | ProfessionalTravelProps
   | InternalServicesProps
-  | ExternalCloudProps;
+  | ExternalCloudProps
+  | ProcessesProps;
 
 export const MODULES_LIST: Module[] = Object.values(MODULES);
 
@@ -245,6 +262,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
+    [MODULES.Processes]: 'processes',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

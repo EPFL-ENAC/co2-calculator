@@ -169,8 +169,8 @@ export default {
   },
 
   'charts-processes-category': {
-    en: 'Processes',
-    fr: 'Processus',
+    en: 'Process emissions',
+    fr: 'Emissions de procédés',
   },
   'charts-building-energy-subcategory': {
     en: 'Buildings energy consumption',

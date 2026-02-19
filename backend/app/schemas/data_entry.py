@@ -889,3 +889,86 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> ProfessionalTravelHandlerUpdate:
         return self.update_dto.model_validate(payload)
+
+
+# Process Emissions
+
+
+class ProcessesHandlerResponse(DataEntryResponseGen):
+    emitted_gas: str
+    sub_category: Optional[str] = None
+    quantity_kg: int
+    kg_co2eq: Optional[float] = None
+
+
+class ProcessesHandlerCreate(DataEntryCreate):
+    emitted_gas: str
+    sub_category: Optional[str] = None
+    quantity_kg: int
+
+    @field_validator("quantity_kg", mode="after")
+    @classmethod
+    def validate_quantity(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Quantity must be > 0")
+        return v
+
+
+class ProcessesHandlerUpdate(DataEntryUpdate):
+    emitted_gas: Optional[str] = None
+    sub_category: Optional[str] = None
+    quantity_kg: Optional[int] = None
+
+    @field_validator("quantity_kg", mode="after")
+    @classmethod
+    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("Quantity must be > 0")
+        return v
+
+
+class ProcessesModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.processes
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.process_emission
+
+    create_dto = ProcessesHandlerCreate
+    update_dto = ProcessesHandlerUpdate
+    response_dto = ProcessesHandlerResponse
+
+    kind_field: str = "emitted_gas"
+    subkind_field: str = "sub_category"
+    require_subkind_for_factor = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "emitted_gas": Factor.classification["kind"].as_string(),
+        "sub_category": Factor.classification["subkind"].as_string(),
+        "quantity_kg": DataEntry.data["quantity_kg"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    filter_map = {
+        "emitted_gas": Factor.classification["kind"].as_string(),
+        "sub_category": Factor.classification["subkind"].as_string(),
+    }
+
+    def to_response(self, data_entry: DataEntry) -> ProcessesHandlerResponse:
+        primary_factor = data_entry.data.get("primary_factor", {})
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+                "emitted_gas": primary_factor.get("kind")
+                or data_entry.data.get("emitted_gas"),
+                "sub_category": primary_factor.get("subkind")
+                or data_entry.data.get("sub_category"),
+            }
+        )
+
+    def validate_create(self, payload: dict) -> ProcessesHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> ProcessesHandlerUpdate:
+        return self.update_dto.model_validate(payload)

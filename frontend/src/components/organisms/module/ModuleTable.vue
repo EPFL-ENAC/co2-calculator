@@ -1048,13 +1048,18 @@ function isComplete(row: ModuleRow) {
     return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    // For Professional Travel, consider complete if origin, destination, and transport_mode are set
     const required = [
       'origin',
       'destination',
       'transport_mode',
       'traveler_name',
     ];
+    return required.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+  }
+  if (props.moduleType === MODULES.Processes) {
+    const required = ['emitted_gas', 'quantity_kg'];
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );

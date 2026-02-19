@@ -27,6 +27,8 @@ class EmissionTypeEnum(int, Enum):
     calcul = 12
     # External AI:
     ai_provider = 13
+    # Process emissions:
+    process = 14
 
 
 class DataEntryEmissionBase(SQLModel):

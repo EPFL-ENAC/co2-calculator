@@ -66,6 +66,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.purchase": {"view": bool, "edit": bool},
         "modules.internal_services": {"view": bool, "edit": bool},
         "modules.external_cloud_and_ai": {"view": bool, "edit": bool},
+        "modules.processes": {"view": bool, "edit": bool},
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
@@ -103,6 +104,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.purchase": {"view": False, "edit": False},
         "modules.internal_services": {"view": False, "edit": False},
         "modules.external_cloud_and_ai": {"view": False, "edit": False},
+        "modules.processes": {"view": False, "edit": False},
     }
 
     # Helper to check if scope is global (handles both GlobalScope objects and dicts)
@@ -151,6 +153,10 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 permissions["modules.purchase"] = {"view": True, "edit": True}
                 permissions["modules.internal_services"] = {"view": True, "edit": True}
                 permissions["modules.external_cloud_and_ai"] = {
+                    "view": True,
+                    "edit": True,
+                }
+                permissions["modules.processes"] = {
                     "view": True,
                     "edit": True,
                 }
