@@ -325,7 +325,7 @@ provider_type
         purchase: 5,
         'internal-services': 6,
         'external-cloud-and-ai': 7,
-        processes: 8,
+        'process-emissions': 8,
       };
       return moduleTypeIds[module];
     }

@@ -1058,7 +1058,7 @@ function isComplete(row: ModuleRow) {
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );
   }
-  if (props.moduleType === MODULES.Processes) {
+  if (props.moduleType === MODULES.ProcessEmissions) {
     const baseRequired = ['emitted_gas', 'quantity_kg'];
     const hasBaseRequired = baseRequired.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
@@ -1181,7 +1181,7 @@ function onDownloadTemplate() {
         csvContent = csvDefaultContent;
       }
       break;
-    case MODULES.Processes:
+    case MODULES.ProcessEmissions:
       csvContent = csvProcessesContent;
       break;
     default:

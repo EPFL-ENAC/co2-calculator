@@ -58,8 +58,8 @@ class DataEntryEmissionService:
             if transport_mode is None:
                 raise ValueError("transport_mode is required for trips")
             emission_type = EmissionTypeEnum[str(transport_mode)]
-        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emission:
-            emission_type = EmissionTypeEnum.process
+        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emissions:
+            emission_type = EmissionTypeEnum.process_emissions
         # for equipment?
         elif (
             data_entry.data_entry_type == DataEntryTypeEnum.scientific
@@ -114,7 +114,7 @@ class DataEntryEmissionService:
         subcategory = None  # TODO: should be an enum somwhere
         if data_entry.data_entry_type == DataEntryTypeEnum.trips:
             subcategory = data_entry.data.get("transport_mode")
-        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emission:
+        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emissions:
             sub_cat = data_entry.data.get("sub_category")
             subcategory = sub_cat if sub_cat else data_entry.data.get("emitted_gas")
         elif data_entry.data_entry_type is not None:
@@ -483,8 +483,8 @@ def compute_travel_train(
     return {"kg_co2eq": kg_co2eq}
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.process_emission)
-async def compute_process_emission(
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.process_emissions)
+async def compute_process_emissions(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
     """Emissions_CO2eq = Quantity (kg) × GWP_factor"""
@@ -496,11 +496,7 @@ async def compute_process_emission(
     gwp = factor.values.get("gwp_kg_co2eq_per_kg", 0)
     # Defensive check for legacy or corrupted data: quantity must not be negative.
     if quantity_kg < 0:
-        return {
-            "kg_co2eq": None,
-            "gwp_factor": gwp,
-            "quantity_kg": quantity_kg,
-        }
+        return {"kg_co2eq": None}
 
     kg_co2eq = quantity_kg * gwp
-    return {"kg_co2eq": kg_co2eq, "gwp_factor": gwp, "quantity_kg": quantity_kg}
+    return {"kg_co2eq": kg_co2eq, "quantity_kg": quantity_kg, "gwp_factor": gwp}

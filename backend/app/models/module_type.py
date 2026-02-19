@@ -28,7 +28,7 @@ class ModuleTypeEnum(IntEnum):
     purchase = 5
     internal_services = 6
     external_cloud_and_ai = 7
-    processes = 8
+    process_emissions = 8
     global_energy = 99
 
 
@@ -59,8 +59,8 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.external_clouds,
         DataEntryTypeEnum.external_ai,
     ],
-    ModuleTypeEnum.processes: [
-        DataEntryTypeEnum.process_emission,
+    ModuleTypeEnum.process_emissions: [
+        DataEntryTypeEnum.process_emissions,
     ],
     ModuleTypeEnum.global_energy: [
         DataEntryTypeEnum.energy_mix,

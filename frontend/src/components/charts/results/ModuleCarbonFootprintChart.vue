@@ -62,7 +62,7 @@ const scopeConfig = computed(() => {
 });
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
-  Processes: 'charts-processes-category',
+  'Process Emissions': 'charts-process-emissions-category',
   'Buildings energy consumption': 'charts-building-energy-subcategory',
   'Buildings room': 'charts-building-room-subcategory',
   Equipment: 'equipment-electric-consumption',
@@ -99,7 +99,7 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
-    'process',
+    'process_emissions',
     'energy',
     'grey_energy',
     'scientific',
@@ -121,7 +121,7 @@ const allValueKeys = computed(() => {
 
 const allStdDevKeys = computed(() => {
   const baseKeys = [
-    'processStdDev',
+    'process_emissionsStdDev',
     'energyStdDev',
     'grey_energyStdDev',
     'scientificStdDev',
@@ -281,11 +281,11 @@ const chartOption = computed((): EChartsOption => {
   const seriesArray = [
     // Processes
     {
-      name: t('charts-processes-category'),
+      name: t('charts-process-emissions-category'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'process' },
+      encode: { x: 'category', y: 'process_emissions' },
       markLine: {
         silent: true,
         symbol: ['none', 'none'],
@@ -656,8 +656,8 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'process',
-        'processStdDev',
+        'process_emissions',
+        'process_emissionsStdDev',
         'energy',
         'energyStdDev',
         'grey_energy',

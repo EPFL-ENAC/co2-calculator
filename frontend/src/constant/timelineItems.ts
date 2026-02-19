@@ -11,7 +11,7 @@ export const timelineItems = [
   },
   {
     icon: 'o_science',
-    link: MODULES.Processes,
+    link: MODULES.ProcessEmissions,
   },
   {
     icon: 'o_apartment',

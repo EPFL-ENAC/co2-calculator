@@ -1,12 +1,12 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_PROCESSES_TYPES, MODULES } from 'src/constant/modules';
 import type { ProcessesSubType, Module } from 'src/constant/modules';
-
-const processesFields: ModuleField[] = [
+import { formatTonnesCO2 } from 'src/utils/number';
+const processEmissionsFields: ModuleField[] = [
   {
     id: 'emitted_gas',
     optionsId: 'kind',
-    labelKey: `${MODULES.Processes}.inputs.emitted_gas`,
+    labelKey: `${MODULES.ProcessEmissions}.inputs.emitted_gas`,
     type: 'select',
     required: true,
     sortable: true,
@@ -20,7 +20,7 @@ const processesFields: ModuleField[] = [
   {
     id: 'sub_category',
     optionsId: 'subkind',
-    labelKey: `${MODULES.Processes}.inputs.sub_category`,
+    labelKey: `${MODULES.ProcessEmissions}.inputs.sub_category`,
     type: 'select',
     required: false,
     sortable: true,
@@ -39,7 +39,7 @@ const processesFields: ModuleField[] = [
   },
   {
     id: 'quantity_kg',
-    labelKey: `${MODULES.Processes}.inputs.quantity_kg`,
+    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity_kg`,
     type: 'number',
     required: true,
     editableInline: true,
@@ -51,7 +51,7 @@ const processesFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,
     hideIn: { form: true },
@@ -59,9 +59,9 @@ const processesFields: ModuleField[] = [
   },
 ];
 
-export const processes: ModuleConfig = {
+export const processEmissions: ModuleConfig = {
   id: 'module_processes_001',
-  type: MODULES.Processes as Module,
+  type: MODULES.ProcessEmissions as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
@@ -75,12 +75,13 @@ export const processes: ModuleConfig = {
   },
   submodules: [
     {
-      id: SUBMODULE_PROCESSES_TYPES.ProcessEmission,
-      type: SUBMODULE_PROCESSES_TYPES.ProcessEmission as ProcessesSubType,
-      tableNameKey: `${MODULES.Processes}.table_title`,
-      moduleFields: processesFields,
+      id: SUBMODULE_PROCESSES_TYPES.ProcessEmissions,
+      type: SUBMODULE_PROCESSES_TYPES.ProcessEmissions as ProcessesSubType,
+      tableNameKey: `${MODULES.ProcessEmissions}.table_title`,
+      moduleFields: processEmissionsFields,
       hasTableAction: true,
-      addButtonLabelKey: `${MODULES.Processes}.add_button`,
+      addButtonLabelKey: `${MODULES.ProcessEmissions}.add_button`,
     },
   ],
+  totalFormatter: formatTonnesCO2,
 };

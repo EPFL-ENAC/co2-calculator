@@ -894,14 +894,14 @@ class ProfessionalTravelModuleHandler(BaseModuleHandler):
 # Process Emissions
 
 
-class ProcessesHandlerResponse(DataEntryResponseGen):
+class ProcessEmissionsHandlerResponse(DataEntryResponseGen):
     emitted_gas: str
     sub_category: Optional[str] = None
     quantity_kg: float
     kg_co2eq: Optional[float] = None
 
 
-class ProcessesHandlerCreate(DataEntryCreate):
+class ProcessEmissionsHandlerCreate(DataEntryCreate):
     emitted_gas: str
     sub_category: Optional[str] = None
     quantity_kg: float
@@ -914,7 +914,7 @@ class ProcessesHandlerCreate(DataEntryCreate):
         return v
 
 
-class ProcessesHandlerUpdate(DataEntryUpdate):
+class ProcessEmissionsHandlerUpdate(DataEntryUpdate):
     emitted_gas: Optional[str] = None
     sub_category: Optional[str] = None
     quantity_kg: Optional[float] = None
@@ -927,13 +927,13 @@ class ProcessesHandlerUpdate(DataEntryUpdate):
         return v
 
 
-class ProcessesModuleHandler(BaseModuleHandler):
-    module_type: ModuleTypeEnum = ModuleTypeEnum.processes
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.process_emission
+class ProcessEmissionsModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.process_emissions
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.process_emissions
 
-    create_dto = ProcessesHandlerCreate
-    update_dto = ProcessesHandlerUpdate
-    response_dto = ProcessesHandlerResponse
+    create_dto = ProcessEmissionsHandlerCreate
+    update_dto = ProcessEmissionsHandlerUpdate
+    response_dto = ProcessEmissionsHandlerResponse
 
     kind_field: str = "emitted_gas"
     subkind_field: str = "sub_category"
@@ -952,7 +952,7 @@ class ProcessesModuleHandler(BaseModuleHandler):
         "sub_category": Factor.classification["subkind"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ProcessesHandlerResponse:
+    def to_response(self, data_entry: DataEntry) -> ProcessEmissionsHandlerResponse:
         primary_factor = data_entry.data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
@@ -967,8 +967,8 @@ class ProcessesModuleHandler(BaseModuleHandler):
             }
         )
 
-    def validate_create(self, payload: dict) -> ProcessesHandlerCreate:
+    def validate_create(self, payload: dict) -> ProcessEmissionsHandlerCreate:
         return self.create_dto.model_validate(payload)
 
-    def validate_update(self, payload: dict) -> ProcessesHandlerUpdate:
+    def validate_update(self, payload: dict) -> ProcessEmissionsHandlerUpdate:
         return self.update_dto.model_validate(payload)

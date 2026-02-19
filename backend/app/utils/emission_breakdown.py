@@ -16,7 +16,7 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
     2: "Professional travel",
     5: "Purchases",
     7: "External cloud & AI",
-    8: "Processes",
+    8: "Process Emissions",
 }
 
 # (module_type_id, emission_type_id) → category override
@@ -54,7 +54,7 @@ MODULE_TYPE_TO_PER_PERSON_KEY: dict[int, str] = {
     2: "professionalTravel",
     5: "purchases",
     7: "externalCloudAndAI",
-    8: "processes",
+    8: "processEmissions",
 }
 
 # Maps chart category → module_type_ids (for validation status lookup)
@@ -77,7 +77,7 @@ HEADCOUNT_PER_FTE_KG: dict[str, float] = {
 
 MODULE_BREAKDOWN_ORDER = [
     # Scope 1
-    "Processes",
+    "Process Emissions",
     "Buildings energy consumption",
     # Scope 2
     "Buildings room",
@@ -92,7 +92,7 @@ MODULE_BREAKDOWN_ORDER = [
 # Expected chart keys per category for zero-filling.
 # Equipment/Travel: subcategory-based; others: emission-type-based.
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
-    "Processes": ["process"],
+    "Process Emissions": ["process_emissions"],
     "Buildings energy consumption": ["energy"],
     "Buildings room": ["grey_energy"],
     "Equipment": ["scientific", "it", "other"],

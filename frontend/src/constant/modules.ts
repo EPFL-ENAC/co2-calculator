@@ -1,7 +1,7 @@
 export const MODULES = {
   Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
-  Processes: 'processes',
+  ProcessEmissions: 'process-emissions',
   Infrastructure: 'infrastructure',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
@@ -17,7 +17,7 @@ export const MODULES_DESCRIPTIONS = {
   Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
   ExternalCloudAndAI: 'external-cloud-and-ai-description',
-  Processes: 'processes-description',
+  ProcessEmissions: 'process-emissions-description',
 } as const;
 
 // TODO: implement something like this
@@ -57,14 +57,14 @@ type ExternalCloudProps = {
 };
 
 export const SUBMODULE_PROCESSES_TYPES = {
-  ProcessEmission: 'process_emission',
+  ProcessEmissions: 'process_emissions',
 } as const;
 
 export type ProcessesSubType =
   (typeof SUBMODULE_PROCESSES_TYPES)[keyof typeof SUBMODULE_PROCESSES_TYPES];
 
 type ProcessesProps = {
-  moduleType: typeof MODULES.Processes;
+  moduleType: typeof MODULES.ProcessEmissions;
   submoduleType?: ProcessesSubType;
 };
 
@@ -79,7 +79,7 @@ export const enumSubmodule = {
   building: 30,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
-  process_emission: 50,
+  process_emissions: 50,
   energy_mix: 100,
 } as const;
 
@@ -262,7 +262,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
-    [MODULES.Processes]: 'processes',
+    [MODULES.ProcessEmissions]: 'process_emissions',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

@@ -19,7 +19,7 @@ export default {
     en: 'Compare years',
     fr: 'Comparer les années',
   },
-  results_units: {
+  results_units_kg: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
@@ -168,7 +168,7 @@ export default {
     fr: 'Gaz infrastructure',
   },
 
-  'charts-processes-category': {
+  'charts-process-emissions-category': {
     en: 'Process emissions',
     fr: 'Emissions de procédés',
   },
