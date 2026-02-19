@@ -17,7 +17,7 @@ export default {
     en: 'The amount of each greenhouse gas emitted should be estimated before entering the value in the calculator (e.g. taking into account that only X% of the SF₆ used is ultimately emitted)',
     fr: 'La quantité de chaque gaz à effet de serre émise doit être estimée avant de saisir la valeur dans le calculateur (par ex. en prenant en compte que seulement X % du SF₆ utilisé est finalement émis)',
   },
-  [`${MODULES.ProcessEmissions}.process_emissions-form-title`]: {
+  [`${MODULES.ProcessEmissions}-process_emissions-form-title`]: {
     en: 'Add an emitted gas',
     fr: 'Ajouter un gaz émis',
   },
@@ -46,8 +46,8 @@ export default {
     fr: 'Quantité (kg)',
   },
   [`${MODULES.ProcessEmissions}.add_button`]: {
-    en: 'Add an emitted gas',
-    fr: 'Ajouter un gaz émis',
+    en: 'Add',
+    fr: 'Ajouter',
   },
   [`${MODULES.ProcessEmissions}.work_in_progress`]: {
     en: 'work in progress, please validate to confirm your entries',
