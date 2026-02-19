@@ -2,7 +2,16 @@
 
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -213,6 +222,7 @@ async def get_submodule(
     module_id: str,
     submodule_id: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
@@ -290,6 +300,7 @@ async def get_submodule(
             "route_path": request.url.path,
             "route_payload": await extract_route_payload(request),
         },
+        background_tasks=background_tasks,
     )
 
     if not submodule_data:
@@ -321,6 +332,7 @@ async def create(
     submodule_id: str,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -424,6 +436,7 @@ async def create(
             "route_path": request.url.path,
             "route_payload": await extract_route_payload(request),
         },
+        background_tasks=background_tasks,
     )
     if item is None:
         raise HTTPException(
@@ -505,6 +518,7 @@ async def update(
     item_id: int,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -585,6 +599,7 @@ async def update(
                 "route_path": request.url.path,
                 "route_payload": await extract_route_payload(request),
             },
+            background_tasks=background_tasks,
         )
         await db.flush()
         if item is None:
@@ -624,6 +639,7 @@ async def delete(
     submodule_id: str,
     item_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -655,6 +671,7 @@ async def delete(
                 "route_path": request.url.path,
                 "route_payload": await extract_route_payload(request),
             },
+            background_tasks=background_tasks,
         )
         await db.commit()
     except HTTPException:

@@ -25,6 +25,9 @@ export interface AuditLogEntry {
   ip_address: string;
   route_path: string | null;
   message_summary: string | null;
+  sync_status: string | null;
+  sync_error: string | null;
+  synced_at: string | null;
 }
 
 export interface AuditLogDetail extends AuditLogEntry {

@@ -57,7 +57,82 @@ def mock_audit_doc():
     doc.ip_address = "127.0.0.1"
     doc.route_path = "/api/test"
     doc.data_snapshot = {"key": "value"}
+    doc.sync_status = "PENDING"
+    doc.sync_error = None
+    doc.synced_at = None
     doc.data_diff = None
+
+    # Mock the model_dump method to return fields as they would be serialized
+    def mock_model_dump():
+        return {
+            "id": doc.id,
+            "entity_type": doc.entity_type,
+            "entity_id": doc.entity_id,
+            "version": doc.version,
+            "change_type": doc.change_type,
+            "change_reason": doc.change_reason,
+            "changed_by": doc.changed_by,
+            "changed_at": doc.changed_at,
+            "handler_id": doc.handler_id,
+            "handled_ids": doc.handled_ids or [],
+            "ip_address": doc.ip_address,
+            "route_path": doc.route_path,
+            "data_snapshot": doc.data_snapshot,
+            "sync_status": doc.sync_status,
+            "sync_error": doc.sync_error,
+            "synced_at": doc.synced_at,
+            "data_diff": doc.data_diff,
+        }
+
+    doc.model_dump = mock_model_dump
+    return doc
+
+
+@pytest.fixture
+def mock_audit_doc_with_none_handled_ids():
+    """Create a mock audit document with handled_ids set to None."""
+    doc = MagicMock(spec=AuditDocument)
+    doc.id = 1
+    doc.entity_type = "test_entity"
+    doc.entity_id = 123
+    doc.version = 1
+    doc.change_type = AuditChangeTypeEnum.CREATE
+    doc.change_reason = "Test reason"
+    doc.changed_by = 1
+    doc.changed_at = datetime(2024, 1, 15, 10, 30, 0)
+    doc.handler_id = "handler-123"
+    doc.handled_ids = None  # This is the key difference
+    doc.ip_address = "127.0.0.1"
+    doc.route_path = "/api/test"
+    doc.data_snapshot = {"key": "value"}
+    doc.sync_status = "PENDING"
+    doc.sync_error = None
+    doc.synced_at = None
+    doc.data_diff = None
+
+    # Mock the model_dump method to return fields as they would be serialized
+    def mock_model_dump():
+        return {
+            "id": doc.id,
+            "entity_type": doc.entity_type,
+            "entity_id": doc.entity_id,
+            "version": doc.version,
+            "change_type": doc.change_type,
+            "change_reason": doc.change_reason,
+            "changed_by": doc.changed_by,
+            "changed_at": doc.changed_at,
+            "handler_id": doc.handler_id,
+            "handled_ids": doc.handled_ids or [],
+            "ip_address": doc.ip_address,
+            "route_path": doc.route_path,
+            "data_snapshot": doc.data_snapshot,
+            "sync_status": doc.sync_status,
+            "sync_error": doc.sync_error,
+            "synced_at": doc.synced_at,
+            "data_diff": doc.data_diff,
+        }
+
+    doc.model_dump = mock_model_dump
     return doc
 
 
@@ -980,7 +1055,7 @@ class TestGetAuditLogDetail:
 
     @pytest.mark.asyncio
     async def test_handled_ids_defaults_to_empty_list(
-        self, client, mock_auth_allow, mock_user
+        self, client, mock_auth_allow, mock_user, mock_audit_doc_with_none_handled_ids
     ):
         """handled_ids defaults to empty list if None."""
         from app.api.deps import get_db
@@ -998,26 +1073,10 @@ class TestGetAuditLogDetail:
         app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[get_current_active_user] = lambda: mock_user
 
-        doc = MagicMock(spec=AuditDocument)
-        doc.id = 1
-        doc.entity_type = "test"
-        doc.entity_id = 123
-        doc.version = 1
-        doc.change_type = AuditChangeTypeEnum.CREATE
-        doc.change_reason = None
-        doc.changed_by = 1
-        doc.changed_at = datetime(2024, 1, 15)
-        doc.handler_id = "handler-123"
-        doc.handled_ids = None  # None instead of list
-        doc.ip_address = "127.0.0.1"
-        doc.route_path = "/api/test"
-        doc.data_snapshot = {}
-        doc.data_diff = None
-
         with patch.object(
             AuditDocumentRepository, "get_by_id", new_callable=AsyncMock
         ) as mock_get:
-            mock_get.return_value = doc
+            mock_get.return_value = mock_audit_doc_with_none_handled_ids
 
             response = client.get("/api/v1/audit/activity/1")
 

@@ -26,6 +26,7 @@ const columns = computed(() => [
   { key: 'changed_at', label: t('audit_col_timestamp'), sortable: true },
   { key: 'changed_by', label: t('audit_col_user'), sortable: true },
   { key: 'handler_id', label: t('audit_col_handler_id'), sortable: false },
+  { key: 'sync_status', label: t('audit_col_sync_status'), sortable: false },
   { key: 'message_summary', label: t('audit_col_summary'), sortable: false },
   { key: 'actions', label: t('audit_col_actions'), sortable: false },
 ]);
@@ -160,6 +161,11 @@ function getUserLabel(row: AuditLogEntry): string {
         <!-- Handler ID -->
         <div class="audit-table__cell audit-table__cell--handler_id">
           {{ row.handler_id || '-' }}
+        </div>
+
+        <!-- Sync Status -->
+        <div class="audit-table__cell audit-table__cell--sync_status">
+          {{ row.sync_status || '-' }}
         </div>
 
         <!-- Summary -->

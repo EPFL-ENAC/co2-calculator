@@ -180,21 +180,11 @@ async def list_audit_logs(
     for doc in docs:
         if doc.id is None:
             continue
+
         entries.append(
             AuditLogEntry(
-                id=doc.id,
-                entity_type=doc.entity_type,
-                entity_id=doc.entity_id,
-                version=doc.version,
-                change_type=doc.change_type,
-                change_reason=doc.change_reason,
-                changed_by=doc.changed_by,
+                **doc.model_dump(),
                 changed_by_display_name=display_names.get(doc.handler_id),
-                changed_at=doc.changed_at,
-                handler_id=doc.handler_id,
-                handled_ids=doc.handled_ids or [],
-                ip_address=doc.ip_address,
-                route_path=doc.route_path,
                 message_summary=_build_message_summary(doc),
             )
         )
@@ -288,22 +278,9 @@ async def get_audit_log_detail(
         )
 
     return AuditLogDetail(
-        id=doc.id,
-        entity_type=doc.entity_type,
-        entity_id=doc.entity_id,
-        version=doc.version,
-        change_type=doc.change_type,
-        change_reason=doc.change_reason,
-        changed_by=doc.changed_by,
+        **doc.model_dump(),
         changed_by_display_name=display_names.get(doc.handler_id),
-        changed_at=doc.changed_at,
-        handler_id=doc.handler_id,
-        handled_ids=doc.handled_ids or [],
-        ip_address=doc.ip_address,
-        route_path=doc.route_path,
         message_summary=_build_message_summary(doc),
-        data_snapshot=doc.data_snapshot or {},
-        data_diff=doc.data_diff,
     )
 
 

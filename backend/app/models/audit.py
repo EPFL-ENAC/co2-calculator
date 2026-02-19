@@ -13,6 +13,17 @@ from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
 
+class SyncStatusEnum(str, Enum):
+    PENDING = "PENDING"
+    SYNCING = "SYNCING"  # a.k.a RECEIVED AND STARTED
+    SYNCED = "SYNCED"  # a.k.a SUCCESS
+    FAILED = "FAILED"  # a.k.a FAILURE
+    SKIPPED = (
+        "SKIPPED"  # a.k.a REVOKED For records that should not be synced (filtered out)
+    )
+    RETRY_QUEUED = "RETRY_QUEUED"  # a.k.a RETRY For records queued for retry
+
+
 class AuditChangeTypeEnum(str, Enum):
     CREATE = "CREATE"
     READ = "READ"
@@ -92,6 +103,23 @@ class AuditDocumentBase(SQLModel):
         default=None, description="Hash of previous version"
     )
     current_hash: str = Field(description="Hash of this version")
+
+    # Elasticsearch sync status
+    sync_status: SyncStatusEnum = Field(
+        default=SyncStatusEnum.PENDING,
+        sa_column=Column(
+            SAEnum(SyncStatusEnum, name="sync_status_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Status of Elasticsearch sync: pending, syncing, synced, failed",
+    )
+    sync_error: Optional[str] = Field(
+        default=None, description="Error message if Elasticsearch (ES) sync failed"
+    )
+    synced_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when the audit record was successfully synced to ES",
+    )
 
 
 class AuditDocument(AuditDocumentBase, table=True):
