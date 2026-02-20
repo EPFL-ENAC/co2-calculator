@@ -44,7 +44,7 @@ export type PermissionPath =
   | 'modules.headcount'
   | 'modules.equipment'
   | 'modules.professional_travel'
-  | 'modules.infrastructure'
+  | 'modules.buildings'
   | 'modules.purchase'
   | 'modules.internal_services'
   | 'modules.external_cloud_and_ai'
@@ -177,7 +177,7 @@ export interface UserPermissions {
  * @property {ModulePermissions} ['modules.headcount'] - Headcount module permissions
  * @property {ModulePermissions} ['modules.equipment'] - Equipment module permissions
  * @property {ModulePermissions} ['modules.professional_travel'] - Professional travel module permissions
- * @property {ModulePermissions} ['modules.infrastructure'] - Infrastructure module permissions
+ * @property {ModulePermissions} ['modules.buildings'] - Buildings module permissions
  * @property {ModulePermissions} ['modules.purchase'] - Purchase module permissions
  * @property {ModulePermissions} ['modules.internal_services'] - Internal services module permissions
  * @property {ModulePermissions} ['modules.external_clouds'] - External cloud module permissions
@@ -201,7 +201,7 @@ export interface FlatUserPermissions {
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;
   'modules.professional_travel'?: ModulePermissions;
-  'modules.infrastructure'?: ModulePermissions;
+  'modules.buildings'?: ModulePermissions;
   'modules.purchase'?: ModulePermissions;
   'modules.internal_services'?: ModulePermissions;
   'modules.external_clouds'?: ModulePermissions;

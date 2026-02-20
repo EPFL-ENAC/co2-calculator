@@ -23,7 +23,7 @@ class ModuleTypeEnum(IntEnum):
 
     headcount = 1
     professional_travel = 2
-    infrastructure = 3
+    buildings = 3
     equipment_electric_consumption = 4
     purchase = 5
     internal_services = 6
@@ -52,7 +52,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         # DataEntryTypeEnum.train,
         DataEntryTypeEnum.trips,
     ],
-    ModuleTypeEnum.infrastructure: [
+    ModuleTypeEnum.buildings: [
         DataEntryTypeEnum.building,
     ],
     ModuleTypeEnum.external_cloud_and_ai: [

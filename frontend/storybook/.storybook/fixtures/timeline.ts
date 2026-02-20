@@ -13,7 +13,7 @@ import type { ModuleStates } from 'src/constant/moduleStates';
 export const allDefault: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.Default,
   [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
-  [MODULES.Infrastructure]: MODULE_STATES.Default,
+  [MODULES.Buildings]: MODULE_STATES.Default,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
   [MODULES.InternalServices]: MODULE_STATES.Default,
@@ -27,7 +27,7 @@ export const allDefault: Partial<ModuleStates> = {
 export const mixedStates: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.Validated,
   [MODULES.ProfessionalTravel]: MODULE_STATES.Validated,
-  [MODULES.Infrastructure]: MODULE_STATES.InProgress,
+  [MODULES.Buildings]: MODULE_STATES.InProgress,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
   [MODULES.InternalServices]: MODULE_STATES.Default,
@@ -40,7 +40,7 @@ export const mixedStates: Partial<ModuleStates> = {
 export const earlyStage: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.InProgress,
   [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
-  [MODULES.Infrastructure]: MODULE_STATES.Default,
+  [MODULES.Buildings]: MODULE_STATES.Default,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
   [MODULES.InternalServices]: MODULE_STATES.Default,
@@ -53,7 +53,7 @@ export const earlyStage: Partial<ModuleStates> = {
 export const midStage: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.Validated,
   [MODULES.ProfessionalTravel]: MODULE_STATES.Validated,
-  [MODULES.Infrastructure]: MODULE_STATES.Validated,
+  [MODULES.Buildings]: MODULE_STATES.Validated,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.InProgress,
   [MODULES.Purchase]: MODULE_STATES.Default,
   [MODULES.InternalServices]: MODULE_STATES.Default,
@@ -66,7 +66,7 @@ export const midStage: Partial<ModuleStates> = {
 export const lateStage: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.Validated,
   [MODULES.ProfessionalTravel]: MODULE_STATES.Validated,
-  [MODULES.Infrastructure]: MODULE_STATES.Validated,
+  [MODULES.Buildings]: MODULE_STATES.Validated,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Validated,
   [MODULES.Purchase]: MODULE_STATES.Validated,
   [MODULES.InternalServices]: MODULE_STATES.Validated,
@@ -79,7 +79,7 @@ export const lateStage: Partial<ModuleStates> = {
 export const allInProgress: Partial<ModuleStates> = {
   [MODULES.Headcount]: MODULE_STATES.InProgress,
   [MODULES.ProfessionalTravel]: MODULE_STATES.InProgress,
-  [MODULES.Infrastructure]: MODULE_STATES.InProgress,
+  [MODULES.Buildings]: MODULE_STATES.InProgress,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.InProgress,
   [MODULES.Purchase]: MODULE_STATES.InProgress,
   [MODULES.InternalServices]: MODULE_STATES.InProgress,

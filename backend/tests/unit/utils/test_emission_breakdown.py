@@ -42,8 +42,8 @@ def test_build_chart_breakdown_basic():
     assert result["total_tonnes_co2eq"] == pytest.approx(17.7)
 
 
-def test_build_chart_breakdown_emission_type_for_infra():
-    """Infrastructure energy → 'Buildings energy consumption' bar."""
+def test_build_chart_breakdown_emission_type_for_buildings():
+    """Buildings energy → 'Buildings energy consumption' bar."""
     rows = [
         (3, 1, "Building", 9_000.0),
     ]
@@ -58,7 +58,7 @@ def test_build_chart_breakdown_emission_type_for_infra():
 
 
 def test_build_chart_breakdown_building_room():
-    """Infrastructure grey_energy → 'Buildings room' bar (not headcount)."""
+    """Buildings grey_energy → 'Buildings room' bar (not headcount)."""
     rows = [
         (3, 1, "Building", 4_000.0),  # energy → Buildings energy consumption
         (3, 6, "Building", 2_000.0),  # grey_energy → Buildings room

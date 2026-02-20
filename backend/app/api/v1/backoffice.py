@@ -26,7 +26,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "default", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -38,7 +38,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "in-progress", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -50,7 +50,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "in-progress", "outlier_values": 3},
                 "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "infrastructure": {"status": "default", "outlier_values": 4},
+                "buildings": {"status": "default", "outlier_values": 4},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -71,7 +71,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -83,7 +83,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -95,7 +95,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "in-progress", "outlier_values": 2},
                 "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -116,7 +116,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -128,7 +128,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -140,7 +140,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -161,7 +161,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
-                "infrastructure": {"status": "validated", "outlier_values": 2},
+                "buildings": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
                     "status": "validated",
                     "outlier_values": 0,
@@ -173,7 +173,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
-                "infrastructure": {"status": "validated", "outlier_values": 2},
+                "buildings": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
                     "status": "validated",
                     "outlier_values": 0,
@@ -185,7 +185,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "validated", "outlier_values": 0},
-                "infrastructure": {"status": "validated", "outlier_values": 2},
+                "buildings": {"status": "validated", "outlier_values": 2},
                 "equipment_electric_consumption": {
                     "status": "validated",
                     "outlier_values": 0,
@@ -206,7 +206,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "infrastructure": {"status": "in-progress", "outlier_values": 0},
+                "buildings": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -218,7 +218,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "infrastructure": {"status": "in-progress", "outlier_values": 0},
+                "buildings": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -230,7 +230,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "validated", "outlier_values": 0},
                 "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "infrastructure": {"status": "in-progress", "outlier_values": 0},
+                "buildings": {"status": "in-progress", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -251,7 +251,7 @@ MOCK_UNITS_REPORTING = [
             "2024": {
                 "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -263,7 +263,7 @@ MOCK_UNITS_REPORTING = [
             "2025": {
                 "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,
@@ -275,7 +275,7 @@ MOCK_UNITS_REPORTING = [
             "2026": {
                 "headcount": {"status": "default", "outlier_values": 0},
                 "professional_travel": {"status": "default", "outlier_values": 0},
-                "infrastructure": {"status": "default", "outlier_values": 0},
+                "buildings": {"status": "default", "outlier_values": 0},
                 "equipment_electric_consumption": {
                     "status": "default",
                     "outlier_values": 0,

@@ -57,7 +57,7 @@ export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
     [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
-    [MODULES.Infrastructure]: MODULE_STATES.Default,
+    [MODULES.Buildings]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.InternalServices]: MODULE_STATES.Default,

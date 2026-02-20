@@ -315,7 +315,7 @@ export function getModulePermissionPath(module: Module): string | null {
     [MODULES.Headcount]: 'modules.headcount',
     [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
     [MODULES.ProfessionalTravel]: 'modules.professional_travel',
-    [MODULES.Infrastructure]: 'modules.infrastructure',
+    [MODULES.Buildings]: 'modules.buildings',
     [MODULES.Purchase]: 'modules.purchase',
     [MODULES.InternalServices]: 'modules.internal_services',
     [MODULES.ExternalCloudAndAI]: 'modules.external_cloud_and_ai',

@@ -15,9 +15,9 @@ const moduleChartFetchers: Partial<Record<Module, ChartDataFetcher>> = {
     return moduleStore.getTravelStatsByClass(unitId, year);
   },
   // Add more modules here as needed:
-  // [MODULES.Infrastructure]: (unitId: string, year: string) => {
+  // [MODULES.Buildings]: (unitId: string, year: string) => {
   //   const moduleStore = useModuleStore();
-  //   return moduleStore.getInfrastructureStats(unitId, year);
+  //   return moduleStore.getBuildingsStats(unitId, year);
   // },
 };
 

@@ -50,7 +50,7 @@ class UnitTotalsService:
             # Continue with other modules
 
         # TODO: Add other modules as they become available:
-        # - Infrastructure
+        # - Buildings
         # - Purchase
         # - Internal Services
         # - External Cloud

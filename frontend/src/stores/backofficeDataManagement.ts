@@ -320,7 +320,7 @@ provider_type
       const moduleTypeIds: Record<Module, number> = {
         headcount: 1,
         'professional-travel': 2,
-        infrastructure: 3,
+        buildings: 3,
         'equipment-electric-consumption': 4,
         purchase: 5,
         'internal-services': 6,

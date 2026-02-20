@@ -53,7 +53,7 @@ const moduleOptions = computed(() => [
     label: t('audit_module_professional_travel'),
     value: 'professional_travel',
   },
-  { label: t('audit_module_infrastructure'), value: 'infrastructure' },
+  { label: t('audit_module_buildings'), value: 'buildings' },
   {
     label: t('audit_module_equipment_electric'),
     value: 'equipment_electric_consumption',
