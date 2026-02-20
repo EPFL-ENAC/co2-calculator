@@ -1,12 +1,7 @@
 <template>
   <div class="inline-select-wrapper">
     <div
-      v-if="
-        isSubClass &&
-        !loadingSubclasses &&
-        (!subClassOptions || subClassOptions.length === 0) &&
-        !model
-      "
+      v-if="showPlaceholder"
       class="inline-subclass-placeholder"
     ></div>
     <q-select
@@ -19,7 +14,7 @@
       outlined
       hide-bottom-space
       class="inline-input"
-      :loading="isClass ? loadingClasses : loadingSubclasses"
+      :loading="isLoading"
       :disable="props.disable"
       @update:model-value="onChange"
     />
@@ -29,7 +24,11 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import {
+  useClassificationTree,
+  type TreeLevelConfig,
+} from 'src/composables/useClassificationTree';
+import { useFactorsStore } from 'src/stores/powerFactors';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -37,7 +36,6 @@ const moduleStore = useModuleStore();
 
 interface ModuleRow {
   id: string | number;
-  // allow arbitrary additional fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
@@ -62,23 +60,44 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const isClass = computed(() => props.optionsId === 'kind');
-const isSubClass = computed(() => props.optionsId === 'subkind');
+const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
 
-const kindFieldId = computed(() => {
-  const kindField = props.cols.find((f) => f.optionsId === 'kind');
-  return kindField ? kindField.field : null;
+const treeLevels = computed<TreeLevelConfig[]>(() => {
+  const levels: TreeLevelConfig[] = [];
+  for (const optId of TREE_OPTION_IDS) {
+    const col = props.cols.find((c) => c.optionsId === optId);
+    if (col) levels.push({ fieldId: col.field, optionKey: optId });
+  }
+  return levels;
 });
 
-const subkindFieldId = computed(() => {
-  const subkindField = props.cols.find((f) => f.optionsId === 'subkind');
-  return subkindField ? subkindField.field : null;
-});
+const factorsStore = useFactorsStore();
 
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'), {
-    classFieldId: kindFieldId.value,
-    subClassFieldId: subkindFieldId.value,
+const { dynamicOptions, loading, isPlaceholder, isLevelLoading } =
+  useClassificationTree(props.row, toRef(props, 'submoduleType'), {
+    levels: treeLevels.value,
+    async onLeafChange(selections) {
+      const cls = selections[0];
+      if (!cls) return;
+      const subCls = selections.length > 1 ? selections[1] : null;
+      try {
+        const pf = await factorsStore.fetchPowerFactor(
+          props.submoduleType,
+          cls,
+          subCls,
+        );
+        if (pf) {
+          if ('active_power_w' in props.row)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (props.row as any).active_power_w = pf.active_power_w;
+          if ('standby_power_w' in props.row)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (props.row as any).standby_power_w = pf.standby_power_w;
+        }
+      } catch {
+        // power factor lookup failed, user can still fill manually
+      }
+    },
   });
 
 const classOptions = computed(() => {
@@ -112,9 +131,9 @@ const subClassOptions = computed(() => {
   });
 });
 
-const options = computed(() => {
-  return isClass.value ? classOptions.value : subClassOptions.value;
-});
+const isLoading = computed(() => isLevelLoading(props.optionsId));
+
+const showPlaceholder = computed(() => isPlaceholder(props.optionsId));
 
 const model = computed({
   get() {

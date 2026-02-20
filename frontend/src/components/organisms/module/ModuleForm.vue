@@ -486,16 +486,15 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const kindFieldId = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
-  return kindField ? kindField.id : null;
-});
+const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
 
-const subkindFieldId = computed(() => {
-  const subkindField = visibleFields.value.find(
-    (f) => f.optionsId === 'subkind',
-  );
-  return subkindField ? subkindField.id : null;
+const treeLevels = computed<TreeLevelConfig[]>(() => {
+  const levels: TreeLevelConfig[] = [];
+  for (const optId of TREE_OPTION_IDS) {
+    const field = visibleFields.value.find((f) => f.optionsId === optId);
+    if (field) levels.push({ fieldId: field.id, optionKey: optId });
+  }
+  return levels;
 });
 
 const useEquipmentClassOptionsConfig: Record<string, string> = {};
@@ -520,6 +519,34 @@ function getTravelMode(): 'plane' | 'train' | undefined {
   return undefined;
 }
 
+const isBuildingsRoomSubmodule = computed(
+  () =>
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building,
+);
+
+watch(
+  () => form['room_name'],
+  async (newVal, oldVal) => {
+    if (!isBuildingsRoomSubmodule.value) return;
+    if (!newVal || newVal === oldVal) return;
+
+    const buildingName = form['building_name'];
+    if (!buildingName) return;
+
+    try {
+      const rooms = await getArchibusRooms(buildingName);
+      const match = rooms.find((r) => r.room_name === newVal);
+      if (match) {
+        form['room_type'] = match.sia_type;
+        form['room_surface_square_meter'] = match.surface_m2;
+      }
+    } catch {
+      // archibus lookup failed, user can fill manually
+    }
+  },
+);
+
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
     return { valid: false, parsed: null, error: 'Required' };
@@ -531,6 +558,10 @@ function validateUsage(value: unknown) {
   if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
   return { valid: true, parsed: n, error: null };
 }
+
+// legacy helpers kept only for typing compatibility; logic lives
+// entirely in the useEquipmentClassOptions composable.
+// They are intentionally not used here.
 
 function init() {
   if (props.rowData) {

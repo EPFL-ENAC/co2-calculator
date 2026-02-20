@@ -70,7 +70,6 @@ const workspaceStore = useWorkspaceStore();
 const moduleStore = useModuleStore();
 
 const forbiddenModules: Module[] = [
-  MODULES.Buildings,
   MODULES.InternalServices,
 ];
 

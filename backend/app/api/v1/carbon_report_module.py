@@ -70,6 +70,40 @@ async def get_carbon_report_id(
     return carbon_report_module.id
 
 
+@router.get("/archibus-rooms")
+async def get_archibus_rooms(
+    building_code: Optional[str] = Query(default=None),
+    building_name: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Return Archibus buildings and rooms for the Buildings module dropdowns.
+
+    Without filters: returns list of distinct buildings.
+    With building_code or building_name: returns rooms filtered by that building.
+    """
+    from app.repositories.archibus_room_repo import ArchibusRoomRepository
+
+    repo = ArchibusRoomRepository(db)
+    if building_code or building_name:
+        rooms = await repo.list_rooms(
+            building_code=building_code, building_name=building_name
+        )
+        return [
+            {
+                "building_code": r.building_code,
+                "building_name": r.building_name,
+                "room_code": r.room_code,
+                "room_name": r.room_name,
+                "generic_type_din": r.generic_type_din,
+                "sia_type": r.sia_type,
+                "surface_m2": r.surface_m2,
+            }
+            for r in rooms
+        ]
+    return await repo.list_buildings()
+
+
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
 async def get_module(
     unit_id: int,

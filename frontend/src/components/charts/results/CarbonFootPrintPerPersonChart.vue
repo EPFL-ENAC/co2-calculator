@@ -41,7 +41,7 @@ const toggleAdditionalData = ref(false);
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
   'Process Emissions': [' '],
   'Buildings energy consumption': ['buildings'],
-  'Buildings room': ['buildings'],
+  'Energy combustion': ['buildings'],
   Equipment: ['equipment'],
   'External cloud & AI': ['externalCloudAndAI'],
   Purchases: ['purchases'],

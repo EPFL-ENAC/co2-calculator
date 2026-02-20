@@ -2,6 +2,16 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
+  archibus_rooms {
+    VARCHAR building_code "indexed"
+    VARCHAR building_name "indexed"
+    VARCHAR generic_type_din
+    INTEGER id PK
+    VARCHAR room_code "indexed"
+    VARCHAR room_name
+    VARCHAR sia_type
+    FLOAT surface_m2
+  }
   audit_documents {
     VARCHAR change_reason
     VARCHAR change_type

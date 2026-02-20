@@ -176,9 +176,9 @@ export default {
     en: 'Buildings energy consumption',
     fr: "Consommation d'énergie des bâtiments",
   },
-  'charts-building-room-subcategory': {
-    en: 'Buildings room',
-    fr: 'Locaux des bâtiments',
+  'charts-energy-combustion-subcategory': {
+    en: 'Energy combustion',
+    fr: "Combustion d'énergie",
   },
   'charts-research-facilities-category': {
     en: 'Research core facilities',

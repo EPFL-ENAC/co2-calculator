@@ -122,7 +122,7 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
+              v-if="col.optionsId"
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
@@ -350,7 +350,11 @@ import type {
 } from 'src/constant/modules';
 import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
 
-import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
+import {
+  MODULES,
+  SUBMODULE_BUILDINGS_TYPES,
+  SUBMODULE_EXTERNAL_CLOUD_TYPES,
+} from 'src/constant/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
@@ -1108,6 +1112,23 @@ function isComplete(row: ModuleRow) {
       );
     }
     return true;
+  }
+  if (props.moduleType === MODULES.Buildings) {
+    if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
+      const required = ['heating_type', 'quantity'];
+      return required.every(
+        (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+      );
+    }
+    const required = [
+      'building_name',
+      'room_name',
+      'room_type',
+      'room_surface_square_meter',
+    ];
+    return required.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
   }
   throw new Error(`Unknown module type: ${props.moduleType}`);
 }
