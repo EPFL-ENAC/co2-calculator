@@ -4,8 +4,6 @@ Used by the emission-breakdown endpoint to serve both
 ModuleCarbonFootprintChart and CarbonFootPrintPerPersonChart.
 """
 
-from __future__ import annotations
-
 from app.models.data_entry_emission import EmissionTypeEnum
 
 # module_type_id → chart category (x-axis grouping)

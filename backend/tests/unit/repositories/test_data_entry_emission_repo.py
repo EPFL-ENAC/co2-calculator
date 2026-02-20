@@ -830,3 +830,235 @@ async def test_get_travel_evolution_over_time_empty_result(db_session: AsyncSess
     result = await repo.get_travel_evolution_over_time(99999)
 
     assert result == []
+
+
+# ======================================================================
+# get_validated_totals_by_unit Tests
+# ======================================================================
+
+
+async def _seed_emission(db_session, module, name, kg):
+    """Helper: create DataEntry + DataEntryEmission for a module."""
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": name},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionTypeEnum.equipment,
+            kg_co2eq=kg,
+        )
+    )
+    await db_session.flush()
+
+
+_EQ = ModuleTypeEnum.equipment_electric_consumption.value
+_PT = ModuleTypeEnum.professional_travel.value
+_VAL = ModuleStatus.VALIDATED
+_WIP = ModuleStatus.IN_PROGRESS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "units, year_modules, query_unit_id, expected",
+    [
+        pytest.param(
+            [(90001, "VT-1", "Unit VT")],
+            [(0, 2024, [(_EQ, _VAL, "Item A", 5000.0)])],
+            90001,
+            [{"year": 2024, "kg_co2eq": 5000.0}],
+            id="basic",
+        ),
+        pytest.param(
+            [(90002, "VT-2", "Unit VT2")],
+            [
+                (0, 2023, [(_EQ, _VAL, "Item 2023", 3000.0)]),
+                (0, 2024, [(_EQ, _VAL, "Item 2024", 7000.0)]),
+            ],
+            90002,
+            [{"year": 2023}, {"year": 2024}],
+            id="multi_year_ordered_asc",
+        ),
+        pytest.param(
+            [(90003, "VT-3", "Unit VT3")],
+            [(0, 2024, [(_EQ, _VAL, "Equip", 4000.0), (_PT, _VAL, "Travel", 2000.0)])],
+            90003,
+            [{"kg_co2eq": 6000.0}],
+            id="sums_modules_same_year",
+        ),
+        pytest.param(
+            [(90004, "VT-4", "Unit VT4")],
+            [(0, 2024, [(_EQ, _VAL, "Valid", 3000.0), (_PT, _WIP, "WIP", 9999.0)])],
+            90004,
+            [{"kg_co2eq": 3000.0}],
+            id="excludes_in_progress",
+        ),
+        pytest.param(
+            [(90005, "VT-5A", "Unit A"), (90006, "VT-5B", "Unit B")],
+            [
+                (0, 2024, [(_EQ, _VAL, "Item A", 1000.0)]),
+                (1, 2024, [(_EQ, _VAL, "Item B", 9999.0)]),
+            ],
+            90005,
+            [{"kg_co2eq": 1000.0}],
+            id="excludes_other_unit",
+        ),
+        pytest.param(
+            [],
+            [],
+            99999,
+            [],
+            id="no_data",
+        ),
+    ],
+)
+async def test_validated_totals_by_unit(
+    db_session: AsyncSession, units, year_modules, query_unit_id, expected
+):
+    repo = DataEntryEmissionRepository(db_session)
+
+    unit_objs = []
+    for uid, pcode, name in units:
+        u = Unit(id=uid, provider_code=pcode, name=name)
+        db_session.add(u)
+        unit_objs.append(u)
+    if unit_objs:
+        await db_session.flush()
+
+    for unit_idx, year, module_specs in year_modules:
+        report = CarbonReport(unit_id=unit_objs[unit_idx].id, year=year)
+        db_session.add(report)
+        await db_session.flush()
+        for mod_type, status, name, kg in module_specs:
+            module = CarbonReportModule(
+                carbon_report_id=report.id,
+                module_type_id=mod_type,
+                status=status,
+            )
+            db_session.add(module)
+            await db_session.flush()
+            await _seed_emission(db_session, module, name, kg)
+
+    result = await repo.get_validated_totals_by_unit(query_unit_id)
+    assert len(result) == len(expected)
+    for row, checks in zip(result, expected):
+        for key, val in checks.items():
+            if isinstance(val, float):
+                assert row[key] == pytest.approx(val)
+            else:
+                assert row[key] == val
+
+
+# ======================================================================
+# get_stats_by_carbon_report_id Tests (emission repo)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_emission_stats_single_validated(db_session: AsyncSession):
+    """Single validated module → dict with one key."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    await _seed_emission(db_session, module, "Item", 4200.0)
+
+    result = await repo.get_stats_by_carbon_report_id(1)
+    assert result == {
+        str(ModuleTypeEnum.equipment_electric_consumption.value): pytest.approx(4200.0)
+    }
+
+
+@pytest.mark.asyncio
+async def test_emission_stats_multi_modules(db_session: AsyncSession):
+    """2 validated modules → 2 keys."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    equip = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    travel = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add_all([equip, travel])
+    await db_session.flush()
+
+    await _seed_emission(db_session, equip, "Equip", 3000.0)
+    await _seed_emission(db_session, travel, "Trip", 1500.0)
+
+    result = await repo.get_stats_by_carbon_report_id(2)
+    assert len(result) == 2
+    assert result[
+        str(ModuleTypeEnum.equipment_electric_consumption.value)
+    ] == pytest.approx(3000.0)
+    assert result[str(ModuleTypeEnum.professional_travel.value)] == pytest.approx(
+        1500.0
+    )
+
+
+@pytest.mark.asyncio
+async def test_emission_stats_excludes_in_progress(db_session: AsyncSession):
+    """IN_PROGRESS module → absent from dict."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=3,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    await _seed_emission(db_session, module, "WIP", 9999.0)
+
+    result = await repo.get_stats_by_carbon_report_id(3)
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_emission_stats_excludes_other_report(db_session: AsyncSession):
+    """No leakage between carbon reports."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    mod_a = CarbonReportModule(
+        carbon_report_id=10,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    mod_b = CarbonReportModule(
+        carbon_report_id=11,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add_all([mod_a, mod_b])
+    await db_session.flush()
+
+    await _seed_emission(db_session, mod_a, "Report 10", 1000.0)
+    await _seed_emission(db_session, mod_b, "Report 11", 9999.0)
+
+    result = await repo.get_stats_by_carbon_report_id(10)
+    assert len(result) == 1
+    assert list(result.values())[0] == pytest.approx(1000.0)
+
+
+@pytest.mark.asyncio
+async def test_emission_stats_empty(db_session: AsyncSession):
+    """No data → empty dict."""
+    repo = DataEntryEmissionRepository(db_session)
+    result = await repo.get_stats_by_carbon_report_id(99999)
+    assert result == {}
