@@ -37,7 +37,7 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: true,
   },
   {
-    module: MODULES.Infrastructure,
+    module: MODULES.Buildings,
     active: true,
   },
   {

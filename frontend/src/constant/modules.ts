@@ -2,7 +2,7 @@ export const MODULES = {
   Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
   ProcessEmissions: 'process-emissions',
-  Infrastructure: 'infrastructure',
+  Buildings: 'buildings',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
   InternalServices: 'internal-services',
@@ -12,7 +12,7 @@ export const MODULES = {
 export const MODULES_DESCRIPTIONS = {
   Headcount: 'headcount-description',
   ProfessionalTravel: 'professional-travel-description',
-  Infrastructure: 'infrastructure-description',
+  Buildings: 'buildings-description',
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
   InternalServices: 'internal-services-description',
   ExternalCloudAndAI: 'external-cloud-and-ai-description',
@@ -23,7 +23,7 @@ export const MODULES_DESCRIPTIONS = {
 // export const MODULES: Record<string, string> = {
 //   headcount: 'modules.headcount',
 //   professional_travel: 'modules.professional_travel',
-//   infrastructure: 'modules.infrastructure',
+//   buildings: 'modules.buildings',
 //   equipment_electric_consumption: 'modules.equipment',
 //   purchase: 'modules.purchase',
 //   internal_services: 'modules.internal_services',
@@ -124,17 +124,17 @@ export const SUBMODULE_HEADCOUNT_TYPES = {
 export type HeadcountSubType =
   (typeof SUBMODULE_HEADCOUNT_TYPES)[keyof typeof SUBMODULE_HEADCOUNT_TYPES];
 
-export const SUBMODULE_INFRASTRUCTURE_TYPES = {
+export const SUBMODULE_BUILDINGS_TYPES = {
   Building: 'building',
   Facility: 'facility',
 } as const;
 
-export type InfrastructureSubType =
-  (typeof SUBMODULE_INFRASTRUCTURE_TYPES)[keyof typeof SUBMODULE_INFRASTRUCTURE_TYPES];
+export type BuildingsSubType =
+  (typeof SUBMODULE_BUILDINGS_TYPES)[keyof typeof SUBMODULE_BUILDINGS_TYPES];
 
-type InfrastructureProps = {
-  moduleType: typeof MODULES.Infrastructure;
-  submoduleType?: AllSubmoduleTypes; // InfrastructureSubType;
+type BuildingsProps = {
+  moduleType: typeof MODULES.Buildings;
+  submoduleType?: BuildingsSubType;
 };
 
 type EquipmentElectricConsumptionProps = {
@@ -180,7 +180,7 @@ export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
   | HeadcountProps
   | PurchaseProps
-  | InfrastructureProps
+  | BuildingsProps
   | ProfessionalTravelProps
   | InternalServicesProps
   | ExternalCloudProps
@@ -260,7 +260,7 @@ export function getBackendModuleName(frontendModule: Module): string {
   const moduleMap: Record<Module, string> = {
     [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
-    [MODULES.Infrastructure]: 'infrastructure',
+    [MODULES.Buildings]: 'buildings',
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',

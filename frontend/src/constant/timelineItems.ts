@@ -15,7 +15,7 @@ export const timelineItems = [
   },
   {
     icon: 'o_apartment',
-    link: MODULES.Infrastructure,
+    link: MODULES.Buildings,
   },
   {
     icon: 'o_bolt',

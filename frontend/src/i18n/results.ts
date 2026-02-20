@@ -163,9 +163,9 @@ export default {
     en: 'Unit-gas',
     fr: 'Gaz unitaire',
   },
-  'charts-infrastructure-gas-category': {
-    en: 'Infrastructure-gas',
-    fr: 'Gaz infrastructure',
+  'charts-buildings-gas-category': {
+    en: 'Buildings-gas',
+    fr: 'Gaz bâtiments',
   },
 
   'charts-process-emissions-category': {
@@ -297,7 +297,7 @@ export default {
     en: 'IT Equipment',
     fr: 'IT Équipement',
   },
-  'charts-infrastructure-it': {
+  'charts-buildings-it': {
     en: 'IT',
     fr: 'IT',
   },

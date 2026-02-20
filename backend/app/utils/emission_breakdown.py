@@ -46,7 +46,7 @@ HEADCOUNT_KEY_MAP: dict[int, str] = {
 
 # Maps module_type_id → per-person chart key
 MODULE_TYPE_TO_PER_PERSON_KEY: dict[int, str] = {
-    3: "infrastructure",
+    3: "buildings",
     4: "equipment",
     6: "researchFacilities",
     2: "professionalTravel",

@@ -39,9 +39,9 @@ const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Process Emissions': ['processEmissions'],
-  'Buildings energy consumption': ['infrastructure'],
-  'Buildings room': ['infrastructure'],
+  'Process Emissions': [' '],
+  'Buildings energy consumption': ['buildings'],
+  'Buildings room': ['buildings'],
   Equipment: ['equipment'],
   'External cloud & AI': ['externalCloudAndAI'],
   Purchases: ['purchases'],
@@ -116,7 +116,7 @@ const datasetSource = computed(() => {
 const allValueKeys = computed(() => {
   const baseKeys = [
     'processEmissions',
-    'infrastructure',
+    'buildings',
     'equipment',
     'researchFacilities',
     'professionalTravel',
@@ -256,12 +256,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('infrastructure'),
+      name: t('buildings'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'infrastructure',
+        y: 'buildings',
       },
       itemStyle: {
         color: colors.value.lilac.darker,
@@ -460,7 +460,7 @@ const chartOption = computed((): EChartsOption => {
       dimensions: [
         'category',
         'processEmissions',
-        'infrastructure',
+        'buildings',
         'equipment',
         'researchFacilities',
         'professionalTravel',

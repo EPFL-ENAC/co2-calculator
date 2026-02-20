@@ -73,9 +73,9 @@ export default {
     en: 'Professional Travel',
     fr: 'Déplacements professionnels',
   },
-  audit_module_infrastructure: {
-    en: 'Infrastructure',
-    fr: 'Infrastructure',
+  audit_module_buildings: {
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
   audit_module_equipment_electric: {
     en: 'Equipment Electric Consumption',
