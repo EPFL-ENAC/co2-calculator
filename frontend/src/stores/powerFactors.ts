@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import {
-  getSubclassMap,
+  getClassificationTree,
   getPowerFactor,
-  PowerFactorResponse,
+  type OptionTree,
+  type PowerFactorResponse,
 } from 'src/api/powerFactors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
 
@@ -12,51 +13,47 @@ type Option = { label: string; value: string };
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
-  // Make these reactive
-  const subclassOptionMapBySubmodule = reactive<
-    Partial<Record<AllSubmoduleTypes, Record<string, Option[]>>>
+  const treeBySubmodule = reactive<
+    Partial<Record<AllSubmoduleTypes, OptionTree>>
   >({});
-  const subclassMapFetchedAt = reactive<
+  const treeFetchedAt = reactive<
     Partial<Record<AllSubmoduleTypes, number>>
   >({});
 
-  async function ensureSubclassOptionMap(
+  async function ensureTree(
     submodule: AllSubmoduleTypes,
-  ): Promise<Record<string, Option[]>> {
+  ): Promise<OptionTree> {
     const now = Date.now();
-    const existing = subclassOptionMapBySubmodule[submodule];
-    const last = subclassMapFetchedAt[submodule];
+    const existing = treeBySubmodule[submodule];
+    const last = treeFetchedAt[submodule];
 
     if (existing && last && now - last < ONE_MINUTE_MS) {
       return existing;
     }
 
-    const rawMap = await getSubclassMap(submodule);
-    const optionMap: Record<string, Option[]> = {};
-    Object.entries(rawMap).forEach(([cls, list]) => {
-      optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
-    });
-
-    subclassOptionMapBySubmodule[submodule] = optionMap;
-    subclassMapFetchedAt[submodule] = now;
-
-    return optionMap;
+    const tree = await getClassificationTree(submodule);
+    treeBySubmodule[submodule] = tree;
+    treeFetchedAt[submodule] = now;
+    return tree;
   }
 
-  async function fetchClassOptions(
+  /**
+   * Walk the cached tree along `path` and return sorted child keys as options.
+   * Returns [] if any segment in the path is missing.
+   */
+  function getOptionsAtPath(
     submodule: AllSubmoduleTypes,
-  ): Promise<Option[]> {
-    const optionMap = await ensureSubclassOptionMap(submodule);
-    const classes = Object.keys(optionMap).sort();
-    return classes.map((c) => ({ label: c, value: c }));
-  }
-
-  async function fetchSubclassOptions(
-    submodule: AllSubmoduleTypes,
-    equipmentClass: string,
-  ): Promise<Option[]> {
-    const optionMap = await ensureSubclassOptionMap(submodule);
-    return optionMap[equipmentClass] ?? [];
+    path: string[],
+  ): Option[] {
+    let node: OptionTree | undefined = treeBySubmodule[submodule];
+    for (const segment of path) {
+      if (!node || !(segment in node)) return [];
+      node = node[segment];
+    }
+    if (!node) return [];
+    return Object.keys(node)
+      .sort()
+      .map((k) => ({ label: k, value: k }));
   }
 
   async function fetchPowerFactor(
@@ -68,10 +65,10 @@ export const useFactorsStore = defineStore('factors', () => {
   }
 
   return {
-    subclassOptionMapBySubmodule,
-    subclassMapFetchedAt,
-    fetchClassOptions,
-    fetchSubclassOptions,
+    treeBySubmodule,
+    treeFetchedAt,
+    ensureTree,
+    getOptionsAtPath,
     fetchPowerFactor,
   };
 });

@@ -62,7 +62,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
     await session.commit()
     logger.info(
         f"Created emission factor: {factor.classification['description']}"
-        f" = {factor.values['kgco2eq_per_kwh']} kgCO2eq/kWh"
+        f" = {factor.values['kg_co2eq_per_kwh']} kgCO2eq/kWh"
     )
 
 

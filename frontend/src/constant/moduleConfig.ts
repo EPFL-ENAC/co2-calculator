@@ -72,6 +72,8 @@ export interface ModuleField {
     table?: boolean;
     form?: boolean;
   };
+  // Grey out field until the referenced field has a value
+  disableUntilField?: string;
   // Conditional visibility based on another field's value
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value

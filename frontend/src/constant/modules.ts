@@ -77,6 +77,7 @@ export const enumSubmodule = {
   [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
   trips: 20,
   building: 30,
+  energy_combustion: 31,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
   process_emissions: 50,
@@ -113,7 +114,7 @@ type PurchaseProps = {
 
 export const SUBMODULE_BUILDINGS_TYPES = {
   Building: 'building',
-  Facility: 'facility',
+  EnergyCombustion: 'energy_combustion',
 } as const;
 
 export type BuildingsSubType =

@@ -24,6 +24,7 @@ class DataEntryTypeEnum(int, Enum):
     trips = 20
     #
     building = 30
+    energy_combustion = 31
     # external clouds and ai
     external_clouds = 40
     external_ai = 41

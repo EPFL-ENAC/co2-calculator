@@ -60,6 +60,10 @@ class DataEntryEmissionService:
             emission_type = EmissionTypeEnum[str(transport_mode)]
         elif data_entry.data_entry_type == DataEntryTypeEnum.process_emissions:
             emission_type = EmissionTypeEnum.process_emissions
+        elif data_entry.data_entry_type == DataEntryTypeEnum.building:
+            emission_type = EmissionTypeEnum.energy
+        elif data_entry.data_entry_type == DataEntryTypeEnum.energy_combustion:
+            emission_type = EmissionTypeEnum.combustion
         # for equipment?
         elif (
             data_entry.data_entry_type == DataEntryTypeEnum.scientific
@@ -94,6 +98,7 @@ class DataEntryEmissionService:
             DataEntryTypeEnum.scientific,
             DataEntryTypeEnum.it,
             DataEntryTypeEnum.other,
+            DataEntryTypeEnum.building,
         ):
             electricity_factor = await factor_service.get_electricity_factor()
             if electricity_factor:
@@ -500,3 +505,72 @@ async def compute_process_emissions(
 
     kg_co2eq = quantity_kg * gwp
     return {"kg_co2eq": kg_co2eq, "quantity_kg": quantity_kg, "gwp_factor": gwp}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.building)
+async def compute_building_room(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute building room energy emissions.
+
+    kg_co2eq = room_surface_square_meter * sum(kWh/m² per type) * electricity_factor
+    """
+    surface = data_entry.data.get("room_surface_square_meter")
+    if not surface or surface <= 0:
+        return {"kg_co2eq": None}
+    if len(factors) < 2:
+        return {"kg_co2eq": None}
+
+    energy_factor = factors[0]
+    elec_factor = factors[1]
+    kgco2_per_kwh = elec_factor.values.get("kgco2eq_per_kwh")
+    if kgco2_per_kwh is None:
+        return {"kg_co2eq": None}
+
+    heating_kwh = (energy_factor.values.get("heating_kwh_per_m2") or 0) * surface
+    cooling_kwh = (energy_factor.values.get("cooling_kwh_per_m2") or 0) * surface
+    ventilation_kwh = (
+        energy_factor.values.get("ventilation_kwh_per_m2") or 0
+    ) * surface
+    lighting_kwh = (energy_factor.values.get("lighting_kwh_per_m2") or 0) * surface
+
+    total_kwh = heating_kwh + cooling_kwh + ventilation_kwh + lighting_kwh
+    kg_co2eq = total_kwh * kgco2_per_kwh
+
+    return {
+        "kg_co2eq": kg_co2eq,
+        "heating_kwh": heating_kwh,
+        "cooling_kwh": cooling_kwh,
+        "ventilation_kwh": ventilation_kwh,
+        "lighting_kwh": lighting_kwh,
+        "heating_kg_co2eq": heating_kwh * kgco2_per_kwh,
+        "cooling_kg_co2eq": cooling_kwh * kgco2_per_kwh,
+        "ventilation_kg_co2eq": ventilation_kwh * kgco2_per_kwh,
+        "lighting_kg_co2eq": lighting_kwh * kgco2_per_kwh,
+    }
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.energy_combustion)
+async def compute_energy_combustion(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute energy combustion emissions.
+
+    kg_co2eq = quantity * factor kg_co2eq_per_unit
+    """
+    quantity = data_entry.data.get("quantity")
+    if not quantity or quantity <= 0:
+        return {"kg_co2eq": None}
+    if not factors:
+        return {"kg_co2eq": None}
+
+    factor = factors[0]
+    kgco2_per_unit = factor.values.get("kg_co2eq_per_unit", 0)
+    kg_co2eq = quantity * kgco2_per_unit
+
+    return {
+        "kg_co2eq": kg_co2eq,
+        "quantity": quantity,
+        "unit": factor.values.get("unit", ""),
+        "factor_kg_co2eq_per_unit": kgco2_per_unit,
+    }

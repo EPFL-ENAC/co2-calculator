@@ -127,6 +127,7 @@ class ModuleHandler(Protocol[T]):
     # kind/subkind fields
     kind_field: Optional[str] = None
     subkind_field: Optional[str] = None
+    extra_factor_fields: list[str] = []
 
     def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
     async def resolve_primary_factor_id(
@@ -171,9 +172,9 @@ class ModuleHandlerMeta(type):
 class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     """base ModuleHandler with common logic"""
 
-    # kind/subkind resolution can be implemented here if needed
     kind_field: Optional[str] = None
     subkind_field: Optional[str] = None
+    extra_factor_fields: list[str] = []
     data_entry_type: Optional[DataEntryTypeEnum] = None
     require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
@@ -197,20 +198,17 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         db: AsyncSession,
         existing_data: Optional[dict] = None,
     ) -> dict:
-        if self.kind_field is None or self.subkind_field is None:
+        if self.kind_field is None:
             return payload
-        # payload can be flattened or with "data"
         data = payload.copy()
 
-        # Merge in existing values for fields not in the payload
         if existing_data:
             for key, value in existing_data.items():
                 if key not in data:
                     data[key] = value
 
         kind = data.get(self.kind_field) or ""
-        subkind = data.get(self.subkind_field)
-        # Retrieve the factor
+        subkind = data.get(self.subkind_field) if self.subkind_field else None
         factor_service = FactorService(db)
 
         factor = await factor_service.get_by_classification(
@@ -259,15 +257,16 @@ async def resolve_primary_factor_if_kind_or_subkind_changed(
     subkind_changed = (handler_subkind_field in item_data) and (
         item_data[handler_subkind_field] != existing_data.get(handler_subkind_field)
     )
+    extra_changed = any(
+        (f in item_data) and (item_data[f] != existing_data.get(f))
+        for f in getattr(handler, "extra_factor_fields", [])
+    )
 
     if kind_changed:
-        # If the kind field is being updated, we need to reset subkind and
-        # primary_factor_id to ensure data integrity
         update_payload[handler_subkind_field] = None
         update_payload["primary_factor_id"] = None
 
-    # Only resolve primary_factor_id if kind or subkind changed
-    if kind_changed or subkind_changed:
+    if kind_changed or subkind_changed or extra_changed:
         update_payload = await handler.resolve_primary_factor_id(
             update_payload, data_entry_type, db, existing_data=existing_data
         )
@@ -971,4 +970,229 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
         return self.create_dto.model_validate(payload)
 
     def validate_update(self, payload: dict) -> ProcessEmissionsHandlerUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+# ============ BUILDING ROOMS ================================= #
+
+
+class BuildingRoomHandlerResponse(DataEntryResponseGen):
+    building_name: str
+    room_name: str
+    room_type: Optional[str] = None
+    room_surface_square_meter: Optional[float] = None
+    heating_kwh_per_m2: Optional[float] = None
+    cooling_kwh_per_m2: Optional[float] = None
+    ventilation_kwh_per_m2: Optional[float] = None
+    lighting_kwh_per_m2: Optional[float] = None
+    heating_kwh: Optional[float] = None
+    cooling_kwh: Optional[float] = None
+    ventilation_kwh: Optional[float] = None
+    lighting_kwh: Optional[float] = None
+    kg_co2eq: Optional[float] = None
+
+
+class BuildingRoomHandlerCreate(DataEntryCreate):
+    building_name: str
+    room_name: str
+    room_type: Optional[str] = None
+    room_surface_square_meter: Optional[float] = None
+
+    @field_validator("room_surface_square_meter", mode="after")
+    @classmethod
+    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v <= 0:
+            raise ValueError("Surface must be > 0")
+        return v
+
+
+class BuildingRoomHandlerUpdate(DataEntryUpdate):
+    building_name: Optional[str] = None
+    room_name: Optional[str] = None
+    room_type: Optional[str] = None
+    room_surface_square_meter: Optional[float] = None
+
+    @field_validator("room_surface_square_meter", mode="after")
+    @classmethod
+    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v <= 0:
+            raise ValueError("Surface must be > 0")
+        return v
+
+
+class BuildingRoomModuleHandler(BaseModuleHandler):
+    """Handler for building rooms submodule.
+
+    Dropdowns use building_name (kind) and room_name (subkind) from archibus.
+    room_type drives the actual energy factor lookup (Office, Laboratories, etc.).
+    kg_co2eq = surface × sum(kWh/m² from factor) × electricity emission factor.
+    """
+
+    module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building
+
+    create_dto = BuildingRoomHandlerCreate
+    update_dto = BuildingRoomHandlerUpdate
+    response_dto = BuildingRoomHandlerResponse
+
+    kind_field: str = "building_name"
+    subkind_field: str = "room_name"
+    extra_factor_fields: list[str] = ["room_type"]
+    require_subkind_for_factor = False
+    require_factor_to_match = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "building_name": DataEntry.data["building_name"].as_string(),
+        "room_name": DataEntry.data["room_name"].as_string(),
+        "room_type": DataEntry.data["room_type"].as_string(),
+        "room_surface_square_meter": DataEntry.data[
+            "room_surface_square_meter"
+        ].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    filter_map = {
+        "building_name": DataEntry.data["building_name"].as_string(),
+        "room_name": DataEntry.data["room_name"].as_string(),
+        "room_type": DataEntry.data["room_type"].as_string(),
+    }
+
+    async def resolve_primary_factor_id(
+        self,
+        payload: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        db: AsyncSession,
+        existing_data: Optional[dict] = None,
+    ) -> dict:
+        """Resolve energy factor by room_type (not by building/room names)."""
+        data = payload.copy()
+        if existing_data:
+            for key, value in existing_data.items():
+                if key not in data:
+                    data[key] = value
+
+        room_type = data.get("room_type")
+        if not room_type:
+            payload["primary_factor_id"] = None
+            return payload
+
+        factor_service = FactorService(db)
+        factor = await factor_service.get_by_classification(
+            data_entry_type=data_entry_type_id,
+            kind=room_type,
+            subkind=None,
+        )
+        payload["primary_factor_id"] = factor.id if factor else None
+        return payload
+
+    def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
+        d = data_entry.data
+        pf = d.get("primary_factor", {})
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **d,
+                "room_type": pf.get("kind") or d.get("room_type"),
+                "heating_kwh_per_m2": pf.get("heating_kwh_per_m2"),
+                "cooling_kwh_per_m2": pf.get("cooling_kwh_per_m2"),
+                "ventilation_kwh_per_m2": pf.get("ventilation_kwh_per_m2"),
+                "lighting_kwh_per_m2": pf.get("lighting_kwh_per_m2"),
+                "heating_kwh": d.get("heating_kwh"),
+                "cooling_kwh": d.get("cooling_kwh"),
+                "ventilation_kwh": d.get("ventilation_kwh"),
+                "lighting_kwh": d.get("lighting_kwh"),
+            }
+        )
+
+    def validate_create(self, payload: dict) -> BuildingRoomHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> BuildingRoomHandlerUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+# ============ ENERGY COMBUSTION ================================= #
+
+
+class EnergyCombustionHandlerResponse(DataEntryResponseGen):
+    heating_type: str
+    unit: Optional[str] = None
+    quantity: float
+    kg_co2eq: Optional[float] = None
+
+
+class EnergyCombustionHandlerCreate(DataEntryCreate):
+    heating_type: str
+    quantity: float
+
+    @field_validator("quantity", mode="after")
+    @classmethod
+    def validate_quantity(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Quantity must be > 0")
+        return v
+
+
+class EnergyCombustionHandlerUpdate(DataEntryUpdate):
+    heating_type: Optional[str] = None
+    quantity: Optional[float] = None
+
+    @field_validator("quantity", mode="after")
+    @classmethod
+    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v <= 0:
+            raise ValueError("Quantity must be > 0")
+        return v
+
+
+class EnergyCombustionModuleHandler(BaseModuleHandler):
+    """Handler for energy combustion submodule.
+
+    Unit is derived from the factor (not user input).
+    """
+
+    module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.energy_combustion
+
+    create_dto = EnergyCombustionHandlerCreate
+    update_dto = EnergyCombustionHandlerUpdate
+    response_dto = EnergyCombustionHandlerResponse
+
+    kind_field: str = "heating_type"
+    subkind_field: str | None = None
+    require_subkind_for_factor = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "heating_type": Factor.classification["kind"].as_string(),
+        "quantity": DataEntry.data["quantity"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    filter_map = {
+        "heating_type": Factor.classification["kind"].as_string(),
+    }
+
+    def to_response(self, data_entry: DataEntry) -> EnergyCombustionHandlerResponse:
+        primary_factor = data_entry.data.get("primary_factor", {})
+        factor_values = primary_factor.get("values", {})
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+                "heating_type": primary_factor.get("kind")
+                or data_entry.data.get("heating_type"),
+                "unit": factor_values.get("unit") or data_entry.data.get("unit"),
+            }
+        )
+
+    def validate_create(self, payload: dict) -> EnergyCombustionHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> EnergyCombustionHandlerUpdate:
         return self.update_dto.model_validate(payload)

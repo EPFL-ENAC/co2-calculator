@@ -21,7 +21,7 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
 # Splits Building into two separate x-axis bars by emission type
 _MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
     (3, EmissionTypeEnum.energy): "Buildings energy consumption",
-    (3, EmissionTypeEnum.grey_energy): "Buildings room",
+    (3, EmissionTypeEnum.combustion): "Energy combustion",
 }
 
 # Modules where the DB subcategory field provides meaningful subdivisions;
@@ -78,7 +78,7 @@ MODULE_BREAKDOWN_ORDER = [
     "Process Emissions",
     "Buildings energy consumption",
     # Scope 2
-    "Buildings room",
+    "Energy combustion",
     "Equipment",
     # Scope 3
     "External cloud & AI",
@@ -92,7 +92,7 @@ MODULE_BREAKDOWN_ORDER = [
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
     "Process Emissions": ["process_emissions"],
     "Buildings energy consumption": ["energy"],
-    "Buildings room": ["grey_energy"],
+    "Energy combustion": ["combustion"],
     "Equipment": ["scientific", "it", "other"],
     "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
     "Purchases": [],
@@ -116,7 +116,7 @@ def _is_headcount_only(emission_type_id: int, module_type_id: int) -> bool:
     Headcount emission types (food, waste, commuting, grey_energy) are
     normally headcount-derived.  However, if the (module, emission_type)
     pair has a specific category override in _MODULE_EMISSION_CATEGORY,
-    it is real module data (e.g. grey_energy on Building → "Buildings room").
+    it is real module data (e.g. combustion on Building → "Energy combustion").
     """
     if emission_type_id not in HEADCOUNT_EMISSION_TYPES:
         return False

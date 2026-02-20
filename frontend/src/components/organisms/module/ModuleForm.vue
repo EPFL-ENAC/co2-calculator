@@ -69,11 +69,11 @@
             >
               <template
                 v-if="
-                  inp.optionsId === 'subkind' &&
-                  !loadingSubclasses &&
-                  (!dynamicOptions['subkind'] ||
-                    dynamicOptions['subkind'].length === 0) &&
-                  !form['subkind']
+                  (inp.optionsId &&
+                    TREE_OPTION_IDS.includes(inp.optionsId) &&
+                    isPlaceholder(inp.optionsId)) ||
+                  (inp.disableUntilField &&
+                    !form[inp.disableUntilField])
                 "
               >
                 <div class="subclass-placeholder" />
@@ -197,8 +197,7 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  (inp.optionsId === 'kind' && loadingClasses) ||
-                  (inp.optionsId === 'subkind' && loadingSubclasses)
+                  inp.optionsId ? isLevelLoading(inp.optionsId) : false
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -301,13 +300,17 @@ import {
 } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import {
+  useClassificationTree,
+  type TreeLevelConfig,
+} from 'src/composables/useClassificationTree';
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
-import { MODULES } from 'src/constant/modules';
+import { getArchibusRooms } from 'src/api/archibus';
+import { MODULES, SUBMODULE_BUILDINGS_TYPES } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -416,7 +419,7 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
         : (inp.options?.map((o) => ({
-            label: o.label,
+            label: $t(o.label) !== o.label ? $t(o.label) : o.label,
             value: o.value,
           })) ?? []);
 
@@ -477,27 +480,49 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const kindFieldId = computed(() => {
-  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
-  return kindField ? kindField.id : null;
+const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
+
+const treeLevels = computed<TreeLevelConfig[]>(() => {
+  const levels: TreeLevelConfig[] = [];
+  for (const optId of TREE_OPTION_IDS) {
+    const field = visibleFields.value.find((f) => f.optionsId === optId);
+    if (field) levels.push({ fieldId: field.id, optionKey: optId });
+  }
+  return levels;
 });
 
-const subkindFieldId = computed(() => {
-  const subkindField = visibleFields.value.find(
-    (f) => f.optionsId === 'subkind',
-  );
-  return subkindField ? subkindField.id : null;
-});
-
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
-    // classFieldId: 'equipment_class',
-    // subClassFieldId: 'sub_class',
-    classFieldId: kindFieldId.value,
-    subClassFieldId: subkindFieldId.value,
+const { dynamicOptions, loading: treeLoading, isPlaceholder, isLevelLoading } =
+  useClassificationTree(form, toRef(props, 'submoduleType'), {
+    levels: treeLevels.value,
   });
 
-// Use equipment options directly as dynamic options
+const isBuildingsRoomSubmodule = computed(
+  () =>
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building,
+);
+
+watch(
+  () => form['room_name'],
+  async (newVal, oldVal) => {
+    if (!isBuildingsRoomSubmodule.value) return;
+    if (!newVal || newVal === oldVal) return;
+
+    const buildingName = form['building_name'];
+    if (!buildingName) return;
+
+    try {
+      const rooms = await getArchibusRooms(buildingName);
+      const match = rooms.find((r) => r.room_name === newVal);
+      if (match) {
+        form['room_type'] = match.sia_type;
+        form['room_surface_square_meter'] = match.surface_m2;
+      }
+    } catch {
+      // archibus lookup failed, user can fill manually
+    }
+  },
+);
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -511,9 +536,6 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
-// legacy helpers kept only for typing compatibility; logic lives
-// entirely in the useEquipmentClassOptions composable.
-// They are intentionally not used here.
 
 function init() {
   if (props.rowData) {

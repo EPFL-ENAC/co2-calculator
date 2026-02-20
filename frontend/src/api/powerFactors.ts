@@ -3,23 +3,23 @@ import { api } from 'src/api/http';
 import type { AllSubmoduleTypes } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
 
-export async function getSubclassMap(
+/** Recursive tree: keys are option values, leaves are empty objects. */
+export interface OptionTree {
+  [key: string]: OptionTree;
+}
+
+export async function getClassificationTree(
   submodule: AllSubmoduleTypes,
-): Promise<Record<string, string[]>> {
+): Promise<OptionTree> {
   const res = await api
     .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map`,
+      `factors/${encodeURIComponent(enumSubmodule[submodule])}/classification-tree`,
     )
-    .json<Record<string, string[]>>();
+    .json<OptionTree>();
   return res ?? {};
 }
 
 export interface PowerFactorResponse {
-  // submodule: string;
-  // equipment_class: string;
-  // sub_class: string | null;
-  // TODO: IMPROVE: change to optional?
-  // return generic for kind and subkind and values
   active_power_w: number;
   standby_power_w: number;
 }

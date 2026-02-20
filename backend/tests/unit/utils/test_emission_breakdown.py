@@ -57,11 +57,11 @@ def test_build_chart_breakdown_emission_type_for_buildings():
     assert infra["energy"] == pytest.approx(9.0)
 
 
-def test_build_chart_breakdown_building_room():
-    """Buildings grey_energy → 'Buildings room' bar (not headcount)."""
+def test_build_chart_breakdown_energy_combustion():
+    """Buildings combustion → 'Energy combustion' bar."""
     rows = [
         (3, 1, "Building", 4_000.0),  # energy → Buildings energy consumption
-        (3, 6, "Building", 2_000.0),  # grey_energy → Buildings room
+        (3, 15, "Energy_Combustion", 2_000.0),  # combustion → Energy combustion
     ]
     result = build_chart_breakdown(rows)
 
@@ -72,10 +72,10 @@ def test_build_chart_breakdown_building_room():
     )
     assert energy_bar["energy"] == pytest.approx(4.0)
 
-    room_bar = next(
-        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
+    combustion_bar = next(
+        d for d in result["module_breakdown"] if d["category"] == "Energy combustion"
     )
-    assert room_bar["grey_energy"] == pytest.approx(2.0)
+    assert combustion_bar["combustion"] == pytest.approx(2.0)
 
     assert result["total_tonnes_co2eq"] == pytest.approx(6.0)
 
