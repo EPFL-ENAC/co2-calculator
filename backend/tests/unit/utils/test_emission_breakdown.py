@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.models.data_entry_emission import EmissionTypeEnum
 from app.utils.emission_breakdown import (
     HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
@@ -15,14 +16,14 @@ from app.utils.emission_breakdown import (
 
 
 def test_build_chart_breakdown_basic():
-    """Subcategory-preferred modules keep their subdivisions;
-    others use emission type."""
+    """Equipment splits by subcategory; travel splits by emission type."""
     rows = [
-        # Equipment (module_type_id=4) uses subcategory
+        # Equipment (module_type_id=4): all share emission_type=equipment(2),
+        # subcategory determines chart key
         (4, 2, "Scientific", 10_000.0),
         (4, 2, "It", 3_000.0),
         (4, 2, "Other", 200.0),
-        # Travel (module_type_id=2) uses subcategory
+        # Travel (module_type_id=2): emission_type distinguishes plane/train
         (2, 7, "plane", 3_000.0),
         (2, 8, "train", 1_500.0),
     ]
@@ -80,21 +81,24 @@ def test_build_chart_breakdown_energy_combustion():
     assert result["total_tonnes_co2eq"] == pytest.approx(6.0)
 
 
-def test_build_chart_breakdown_emission_type_for_rcf():
-    """External cloud & AI uses emission type as chart key."""
+def test_build_chart_breakdown_emission_type_for_cloud():
+    """External cloud & AI uses emission type as chart key (all 4 types)."""
     rows = [
-        (7, 10, "External_Clouds", 2_000.0),  # stockage
-        (7, 11, "External_Clouds", 1_000.0),  # virtualisation
-        (7, 12, "External_Ai", 500.0),  # calcul
+        (7, 10, "External_Clouds", 800.0),  # stockage
+        (7, 11, "External_Clouds", 600.0),  # virtualisation
+        (7, 12, "External_Clouds", 2_000.0),  # calcul
+        (7, 12, "External_Clouds", 500.0),  # calcul (aggregated)
+        (7, 13, "External_Ai", 1_000.0),  # ai_provider
     ]
     result = build_chart_breakdown(rows)
 
-    rcf = next(
+    cloud = next(
         d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
     )
-    assert rcf["stockage"] == pytest.approx(2.0)
-    assert rcf["virtualisation"] == pytest.approx(1.0)
-    assert rcf["calcul"] == pytest.approx(0.5)
+    assert cloud["stockage"] == pytest.approx(0.8)
+    assert cloud["virtualisation"] == pytest.approx(0.6)
+    assert cloud["calcul"] == pytest.approx(2.5)
+    assert cloud["ai_provider"] == pytest.approx(1.0)
 
 
 def test_build_chart_breakdown_empty_input():
@@ -201,13 +205,17 @@ def test_build_chart_breakdown_headcount_per_fte():
     food_entry = next(
         d for d in result["additional_breakdown"] if d["category"] == "Food"
     )
-    expected_food_tonnes = HEADCOUNT_PER_FTE_KG["food"] * total_fte / 1000.0
+    expected_food_tonnes = (
+        HEADCOUNT_PER_FTE_KG[EmissionTypeEnum.food] * total_fte / 1000.0
+    )
     assert food_entry["food"] == pytest.approx(expected_food_tonnes)
 
     commuting_entry = next(
         d for d in result["additional_breakdown"] if d["category"] == "Commuting"
     )
-    expected_commuting_tonnes = HEADCOUNT_PER_FTE_KG["commuting"] * total_fte / 1000.0
+    expected_commuting_tonnes = (
+        HEADCOUNT_PER_FTE_KG[EmissionTypeEnum.commuting] * total_fte / 1000.0
+    )
     assert commuting_entry["commuting"] == pytest.approx(expected_commuting_tonnes)
 
 
@@ -284,11 +292,11 @@ def test_build_chart_breakdown_null_filtered():
     result = build_chart_breakdown(rows)
 
     equip = next(d for d in result["module_breakdown"] if d["category"] == "Equipment")
-    assert equip["scientific"] == pytest.approx(5.0)
-    assert equip["it"] == pytest.approx(0.0)  # zero-filled, None row skipped
+    assert equip["scientific"] == pytest.approx(5.0)  # None row skipped
+    assert equip["it"] == pytest.approx(0.0)
 
 
-def test_build_chart_breakdown_subcategory_aggregation():
+def test_build_chart_breakdown_emission_type_aggregation():
     """Multiple rows with same subcategory aggregate correctly."""
     rows = [
         (4, 2, "Scientific", 4_000.0),

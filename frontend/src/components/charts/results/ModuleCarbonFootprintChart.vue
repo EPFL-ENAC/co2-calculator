@@ -114,7 +114,7 @@ const allValueKeys = computed(() => {
   ];
 
   if (toggleAdditionalData.value) {
-    return [...baseKeys, 'commuting', 'food', 'waste', 'greyEnergy'];
+    return [...baseKeys, 'commuting', 'food', 'waste', 'grey_energy'];
   }
   return baseKeys;
 });
@@ -141,7 +141,7 @@ const allStdDevKeys = computed(() => {
       'commutingStdDev',
       'foodStdDev',
       'wasteStdDev',
-      'greyEnergyStdDev',
+      'grey_energyStdDev',
     ];
   }
   return baseKeys;
@@ -240,7 +240,7 @@ const additionalSeriesData = computed(() => {
       animation: true,
       encode: {
         x: 'category',
-        y: 'greyEnergy',
+        y: 'grey_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -686,8 +686,8 @@ const chartOption = computed((): EChartsOption => {
         'foodStdDev',
         'waste',
         'wasteStdDev',
-        'greyEnergy',
-        'greyEnergyStdDev',
+        'grey_energy',
+        'grey_energyStdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },

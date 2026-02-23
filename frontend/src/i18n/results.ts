@@ -292,6 +292,22 @@ export default {
     en: 'Scientific Equipment',
     fr: 'Équipement scientifique',
   },
+  'charts-stockage-subcategory': {
+    en: 'Cloud Storage',
+    fr: 'Stockage cloud',
+  },
+  'charts-virtualisation-subcategory': {
+    en: 'Cloud Virtualisation',
+    fr: 'Virtualisation cloud',
+  },
+  'charts-calcul-subcategory': {
+    en: 'Cloud Compute',
+    fr: 'Calcul cloud',
+  },
+  'charts-ai-provider-subcategory': {
+    en: 'AI Provider',
+    fr: 'Fournisseur IA',
+  },
 
   'charts-equipment-it': {
     en: 'IT Equipment',

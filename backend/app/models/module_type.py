@@ -29,10 +29,24 @@ class ModuleTypeEnum(IntEnum):
     internal_services = 6
     external_cloud_and_ai = 7
     process_emissions = 8
+    # Chart-only bars (headcount-derived, not real input modules)
+    commuting = 9
+    food = 10
+    waste = 11
+    grey_energy = 12
     global_energy = 99
 
 
-ALL_MODULE_TYPE_IDS = list(ModuleTypeEnum)
+_CHART_ONLY_MODULE_TYPES = {
+    ModuleTypeEnum.commuting,
+    ModuleTypeEnum.food,
+    ModuleTypeEnum.waste,
+    ModuleTypeEnum.grey_energy,
+}
+
+ALL_MODULE_TYPE_IDS = [
+    mt for mt in ModuleTypeEnum if mt not in _CHART_ONLY_MODULE_TYPES
+]
 
 
 # corresponding data_entry_type enum for each module type
