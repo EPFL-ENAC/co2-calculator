@@ -1363,4 +1363,8 @@ onUnmounted(() => {
   max-width: 280px;
   white-space: normal;
 }
+
+.co2-table .q-table td {
+  width: 100px;
+}
 </style>

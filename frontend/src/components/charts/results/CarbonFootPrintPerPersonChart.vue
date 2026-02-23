@@ -39,7 +39,7 @@ const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Process Emissions': [' '],
+  'Process Emissions': ['processEmissions'],
   'Buildings energy consumption': ['infrastructure'],
   'Buildings room': ['infrastructure'],
   Equipment: ['equipment'],
@@ -75,7 +75,7 @@ const myUnitRow = computed<Record<string, unknown>>(() => {
 });
 
 const EPFL_REFERENCE_VALUES: Record<string, number> = {
-  processEmissions: 0.0,
+  processEmissions: 2.5,
   infrastructure: 6.6,
   equipment: 4.4,
   researchFacilities: 4.0,
