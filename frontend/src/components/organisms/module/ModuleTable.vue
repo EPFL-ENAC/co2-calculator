@@ -122,10 +122,9 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.optionsId"
+              v-if="col.treeLevel !== undefined"
               :row="slotProps.row"
               :field-id="col.field"
-              :options-id="col.optionsId"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -654,7 +653,7 @@ type TableViewColumn = {
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
-  optionsId?: string;
+  treeLevel?: number;
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
@@ -729,7 +728,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           inputComponent,
           editableInline,
           options,
-          optionsId: f.optionsId,
+          treeLevel: f.treeLevel,
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,

@@ -409,7 +409,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp?.optionsId ?? ''];
+    const dynamicOpts = dynamicOptions[inp?.id ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -486,7 +486,12 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
+const treeLevels = computed<TreeLevelConfig[]>(() =>
+  visibleFields.value
+    .filter((f) => f.treeLevel !== undefined)
+    .sort((a, b) => a.treeLevel! - b.treeLevel!)
+    .map((f) => ({ fieldId: f.id, optionKey: f.id })),
+);
 
 const treeLevels = computed<TreeLevelConfig[]>(() => {
   const levels: TreeLevelConfig[] = [];
@@ -591,6 +596,7 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
+                dynamicOptions[i.optionsId] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -834,6 +840,7 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
+        dynamicOptions[i.optionsId] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,

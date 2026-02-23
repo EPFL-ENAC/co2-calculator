@@ -15,9 +15,9 @@ export const useFactorsStore = defineStore('factors', () => {
   const treeBySubmodule = reactive<
     Partial<Record<AllSubmoduleTypes, OptionTree>>
   >({});
-  const treeFetchedAt = reactive<
-    Partial<Record<AllSubmoduleTypes, number>>
-  >({});
+  const treeFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
+    {},
+  );
 
   async function ensureSubclassOptionMap(
     submodule: keyof typeof enumSubmodule,
