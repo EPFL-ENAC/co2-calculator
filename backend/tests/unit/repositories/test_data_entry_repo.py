@@ -590,3 +590,131 @@ def test_default_filter_map():
     """Test that DEFAULT_FILTER_MAP is properly defined."""
     assert "name" in DEFAULT_FILTER_MAP
     assert DEFAULT_FILTER_MAP["name"] is not None
+
+
+# ======================================================================
+# get_stats_by_carbon_report_id Tests (FTE aggregation)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_fte_stats_basic(db_session: AsyncSession):
+    """DataEntry.data["fte"]=25.5 → {"1": 25.5}."""
+    from app.core.constants import ModuleStatus
+
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=100,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Alice", "fte": 25.5},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    result = await repo.get_stats_by_carbon_report_id(100)
+    assert result == {str(ModuleTypeEnum.headcount.value): pytest.approx(25.5)}
+
+
+@pytest.mark.asyncio
+async def test_fte_stats_multiple_entries_summed(db_session: AsyncSession):
+    """Multiple FTE entries summed."""
+    from app.core.constants import ModuleStatus
+
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=101,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    for fte_val in [10.0, 15.5, 4.5]:
+        db_session.add(
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                status=DataEntryStatusEnum.PENDING,
+                data={"name": "Person", "fte": fte_val},
+            )
+        )
+    await db_session.flush()
+
+    result = await repo.get_stats_by_carbon_report_id(101)
+    assert result[str(ModuleTypeEnum.headcount.value)] == pytest.approx(30.0)
+
+
+@pytest.mark.asyncio
+async def test_fte_stats_non_validated_excluded(db_session: AsyncSession):
+    """Non-validated module → {}."""
+    from app.core.constants import ModuleStatus
+
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=102,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": "Bob", "fte": 50.0},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_stats_by_carbon_report_id(102)
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_fte_stats_no_fte_key(db_session: AsyncSession):
+    """Data without 'fte' key → absent from result (NULL sum → 0.0)."""
+    from app.core.constants import ModuleStatus
+
+    repo = DataEntryRepository(db_session)
+    module = CarbonReportModule(
+        carbon_report_id=103,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": "Carol"},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_stats_by_carbon_report_id(103)
+    if result:
+        assert result.get(str(ModuleTypeEnum.headcount.value), 0.0) == pytest.approx(
+            0.0
+        )
+
+
+@pytest.mark.asyncio
+async def test_fte_stats_empty(db_session: AsyncSession):
+    """No data → empty dict."""
+    repo = DataEntryRepository(db_session)
+    result = await repo.get_stats_by_carbon_report_id(99999)
+    assert result == {}
