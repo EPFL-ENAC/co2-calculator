@@ -978,7 +978,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
 
 class BuildingRoomHandlerResponse(DataEntryResponseGen):
     building_name: str
-    room_name: str
+    room_name: Optional[str] = None
     room_type: Optional[str] = None
     room_surface_square_meter: Optional[float] = None
     heating_kwh_per_m2: Optional[float] = None

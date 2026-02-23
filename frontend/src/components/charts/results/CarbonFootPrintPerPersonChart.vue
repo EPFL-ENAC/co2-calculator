@@ -50,7 +50,7 @@ const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
   Commuting: ['commuting'],
   Food: ['food'],
   Waste: ['waste'],
-  'Grey Energy': ['greyEnergy'],
+  'Grey Energy': ['grey_energy'],
 };
 
 const validatedPPKeys = computed(() => {
@@ -85,7 +85,7 @@ const EPFL_REFERENCE_VALUES: Record<string, number> = {
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
-  greyEnergy: 0.0,
+  grey_energy: 0.0,
 };
 
 const epflReferenceRow = computed<Record<string, unknown>>(() => {
@@ -130,7 +130,7 @@ const allValueKeys = computed(() => {
       'commuting',
       'food',
       'waste',
-      'greyEnergy',
+      'grey_energy',
       'objective2030',
     ];
   }
@@ -215,7 +215,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'greyEnergy',
+        y: 'grey_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -469,7 +469,7 @@ const chartOption = computed((): EChartsOption => {
         'commuting',
         'food',
         'waste',
-        'greyEnergy',
+        'grey_energy',
         'objective2030',
         'stdDev',
       ],

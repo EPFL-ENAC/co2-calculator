@@ -10,12 +10,12 @@ export default {
     fr: "Ce module permet d'estimer l'empreinte carbone liée au bâtiment (chauffage, climatisation, ventilation et éclairage). Un tableau supplémentaire est disponible pour compléter avec d'autres émissions de combustion d'énergie au cas où votre unité utilise une source d'énergie non-centralisée.",
   },
   [`${MODULES.Buildings}-title-subtext`]: {
-    en: 'Buildings energy consumption is calculated from room surface and type (surface × energy intensity per room type × electricity emission factor). Energy combustion covers non-centralized heating sources (gas, oil, biomass) reported by your unit.',
-    fr: "La consommation d'énergie des bâtiments est calculée à partir de la surface et du type de local (surface × intensité énergétique par type de local × facteur d'émission de l'électricité). La combustion d'énergie couvre les sources de chauffage non centralisées (gaz, mazout, biomasse) déclarées par votre unité.",
+    en: '',
+    fr: '',
   },
   [`${MODULES.Buildings}-title-tooltip-title`]: {
-    en: 'Enter the room type (Office, Laboratories, etc.) and surface area. Energy consumption (kWh) is calculated automatically from SIA benchmarks per room type, then converted to CO₂ using the electricity emission factor.',
-    fr: "Entrez le type de local (Bureau, Laboratoires, etc.) et la surface. La consommation d'énergie (kWh) est calculée automatiquement à partir des benchmarks SIA par type de local, puis convertie en CO₂ à l'aide du facteur d'émission de l'électricité.",
+    en: '',
+    fr: '',
   },
 
   // Rooms submodule
@@ -30,6 +30,14 @@ export default {
   [`${MODULES.Buildings}.rooms-form-title`]: {
     en: 'Add a room',
     fr: 'Ajouter un local',
+  },
+  [`${MODULES.Buildings}-building-form-title`]: {
+    en: 'Add a room',
+    fr: 'Ajouter un local',
+  },
+  [`${MODULES.Buildings}-energy_combustion-form-title`]: {
+    en: 'Add an energy source',
+    fr: "Ajouter une source d'énergie",
   },
 
   // Rooms fields
