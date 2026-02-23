@@ -337,8 +337,8 @@ export default {
     fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
   },
   csv_sync_initiated: {
-    en: 'CSV sync initiated',
-    fr: 'Synchronisation CSV lancée',
+    en: 'Data upload in progress...',
+    fr: 'Importation des données en cours...',
   },
   csv_sync_failed_to_initiate: {
     en: 'Failed to initiate sync',
