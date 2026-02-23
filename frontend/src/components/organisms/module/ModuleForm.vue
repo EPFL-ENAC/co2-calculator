@@ -64,16 +64,13 @@
           <div class="form-grid">
             <div
               v-for="inp in visibleFieldsWithConditional"
-              :key="inp.optionsId || inp.id"
+              :key="inp.id"
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
                 v-if="
-                  (inp.optionsId &&
-                    TREE_OPTION_IDS.includes(inp.optionsId) &&
-                    isPlaceholder(inp.optionsId)) ||
-                  (inp.disableUntilField &&
-                    !form[inp.disableUntilField])
+                  (inp.treeLevel !== undefined && isPlaceholder(inp.id)) ||
+                  (inp.disableUntilField && !form[inp.disableUntilField])
                 "
               >
                 <div class="subclass-placeholder" />
@@ -197,7 +194,7 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  inp.optionsId ? isLevelLoading(inp.optionsId) : false
+                  inp.treeLevel !== undefined ? isLevelLoading(inp.id) : false
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -414,7 +411,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp?.optionsId ?? ''];
+    const dynamicOpts = dynamicOptions[inp?.id ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -480,21 +477,20 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
+const treeLevels = computed<TreeLevelConfig[]>(() =>
+  visibleFields.value
+    .filter((f) => f.treeLevel !== undefined)
+    .sort((a, b) => a.treeLevel! - b.treeLevel!)
+    .map((f) => ({ fieldId: f.id, optionKey: f.id })),
+);
 
-const treeLevels = computed<TreeLevelConfig[]>(() => {
-  const levels: TreeLevelConfig[] = [];
-  for (const optId of TREE_OPTION_IDS) {
-    const field = visibleFields.value.find((f) => f.optionsId === optId);
-    if (field) levels.push({ fieldId: field.id, optionKey: optId });
-  }
-  return levels;
-});
-
-const { dynamicOptions, loading: treeLoading, isPlaceholder, isLevelLoading } =
-  useClassificationTree(form, toRef(props, 'submoduleType'), {
+const { dynamicOptions, isPlaceholder, isLevelLoading } = useClassificationTree(
+  form,
+  toRef(props, 'submoduleType'),
+  {
     levels: treeLevels.value,
-  });
+  },
+);
 
 const isBuildingsRoomSubmodule = computed(
   () =>
@@ -536,7 +532,6 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
-
 function init() {
   if (props.rowData) {
     Object.keys(props.rowData).forEach((key) => {
@@ -565,7 +560,7 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions[i.optionsId] ??
+                dynamicOptions[i.id] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -817,7 +812,7 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions[i.optionsId] ??
+        dynamicOptions[i.id] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,

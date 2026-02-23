@@ -15,9 +15,7 @@ export interface TreeConfig {
   onLeafChange?: (selections: (string | null)[]) => void;
 }
 
-export function useClassificationTree<
-  TEntity extends Record<string, unknown>,
->(
+export function useClassificationTree<TEntity extends Record<string, unknown>>(
   entity: TEntity,
   submoduleType: Ref<AllSubmoduleTypes>,
   config: TreeConfig,
@@ -49,8 +47,10 @@ export function useClassificationTree<
   function refreshOptionsForLevel(levelIndex: number) {
     if (levelIndex < 0 || levelIndex >= levels.length) return;
     const path = getSelections(levelIndex);
-    dynamicOptions[levels[levelIndex].optionKey] =
-      store.getOptionsAtPath(submoduleType.value, path);
+    dynamicOptions[levels[levelIndex].optionKey] = store.getOptionsAtPath(
+      submoduleType.value,
+      path,
+    );
   }
 
   function resetLevelsFrom(startLevel: number) {
@@ -119,9 +119,7 @@ export function useClassificationTree<
         }
 
         if (onLeafChange) {
-          onLeafChange(
-            levels.map((l) => normalizeValue(entity[l.fieldId])),
-          );
+          onLeafChange(levels.map((l) => normalizeValue(entity[l.fieldId])));
         }
       },
       { immediate: idx === 0 },

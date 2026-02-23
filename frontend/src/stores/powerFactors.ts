@@ -16,13 +16,11 @@ export const useFactorsStore = defineStore('factors', () => {
   const treeBySubmodule = reactive<
     Partial<Record<AllSubmoduleTypes, OptionTree>>
   >({});
-  const treeFetchedAt = reactive<
-    Partial<Record<AllSubmoduleTypes, number>>
-  >({});
+  const treeFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
+    {},
+  );
 
-  async function ensureTree(
-    submodule: AllSubmoduleTypes,
-  ): Promise<OptionTree> {
+  async function ensureTree(submodule: AllSubmoduleTypes): Promise<OptionTree> {
     const now = Date.now();
     const existing = treeBySubmodule[submodule];
     const last = treeFetchedAt[submodule];

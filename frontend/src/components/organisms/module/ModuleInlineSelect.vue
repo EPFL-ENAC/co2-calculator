@@ -1,9 +1,6 @@
 <template>
   <div class="inline-select-wrapper">
-    <div
-      v-if="showPlaceholder"
-      class="inline-subclass-placeholder"
-    ></div>
+    <div v-if="showPlaceholder" class="inline-subclass-placeholder"></div>
     <q-select
       v-else
       v-model="model"
@@ -41,13 +38,12 @@ type TableViewColumnSubset = {
   name: string;
   label: string;
   field: string;
-  optionsId?: string;
+  treeLevel?: number;
 };
 
 type CommonProps = {
   row: ModuleRow;
   fieldId: string;
-  optionsId: string;
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;
@@ -57,21 +53,20 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const TREE_OPTION_IDS = ['kind', 'subkind', 'subsubkind'];
 
-const treeLevels = computed<TreeLevelConfig[]>(() => {
-  const levels: TreeLevelConfig[] = [];
-  for (const optId of TREE_OPTION_IDS) {
-    const col = props.cols.find((c) => c.optionsId === optId);
-    if (col) levels.push({ fieldId: col.field, optionKey: optId });
-  }
-  return levels;
-});
+const treeLevels = computed<TreeLevelConfig[]>(() =>
+  props.cols
+    .filter((c) => c.treeLevel !== undefined)
+    .sort((a, b) => a.treeLevel! - b.treeLevel!)
+    .map((c) => ({ fieldId: c.field, optionKey: c.field })),
+);
 
 const factorsStore = useFactorsStore();
 
-const { dynamicOptions, loading, isPlaceholder, isLevelLoading } =
-  useClassificationTree(props.row, toRef(props, 'submoduleType'), {
+const { dynamicOptions, isPlaceholder, isLevelLoading } = useClassificationTree(
+  props.row,
+  toRef(props, 'submoduleType'),
+  {
     levels: treeLevels.value,
     async onLeafChange(selections) {
       const cls = selections[0];
@@ -95,15 +90,14 @@ const { dynamicOptions, loading, isPlaceholder, isLevelLoading } =
         // power factor lookup failed, user can still fill manually
       }
     },
-  });
-
-const options = computed(
-  () => dynamicOptions[props.optionsId] ?? [],
+  },
 );
 
-const isLoading = computed(() => isLevelLoading(props.optionsId));
+const options = computed(() => dynamicOptions[props.fieldId] ?? []);
 
-const showPlaceholder = computed(() => isPlaceholder(props.optionsId));
+const isLoading = computed(() => isLevelLoading(props.fieldId));
+
+const showPlaceholder = computed(() => isPlaceholder(props.fieldId));
 
 const model = computed({
   get() {

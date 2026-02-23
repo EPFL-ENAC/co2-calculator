@@ -69,10 +69,7 @@ const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
-const forbiddenModules: Module[] = [
-  MODULES.InternalServices,
-  MODULES.Purchase,
-];
+const forbiddenModules: Module[] = [MODULES.InternalServices, MODULES.Purchase];
 
 // COMPUTED
 const data = computed(() => moduleStore.state.data);
