@@ -151,7 +151,23 @@ def test_build_chart_breakdown_category_ordering():
     purchases = next(
         d for d in result["module_breakdown"] if d["category"] == "Purchases"
     )
-    assert purchases == {"category": "Purchases"}
+    assert purchases == {
+        "category": "Purchases",
+        "biological_chemical_gaseous_product": 0.0,
+        "biological_chemical_gaseous_productStdDev": 0.0,
+        "consumable_accessories": 0.0,
+        "consumable_accessoriesStdDev": 0.0,
+        "it_equipment": 0.0,
+        "it_equipmentStdDev": 0.0,
+        "other_purchases": 0.0,
+        "other_purchasesStdDev": 0.0,
+        "scientific_equipment": 0.0,
+        "scientific_equipmentStdDev": 0.0,
+        "services": 0.0,
+        "servicesStdDev": 0.0,
+        "vehicles": 0.0,
+        "vehiclesStdDev": 0.0,
+    }
 
 
 def test_build_chart_breakdown_headcount_additional():
