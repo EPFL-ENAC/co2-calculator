@@ -11,6 +11,7 @@ from app.services.data_entry_emission_service import (
     compute_external_ai,
     compute_external_clouds,
     compute_process_emissions,
+    compute_purchase,
     compute_scientific_it_other,
     compute_trips,
 )
@@ -476,6 +477,67 @@ async def test_compute_trips_response_structure():
     assert result["transport_mode"] == "train"
     assert result["cabin_class"] == "second"
     assert result["number_of_trips"] == 5
+
+
+# ======================================================================
+# Purchase Calculation Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_compute_purchase_valid_calculation():
+    """Test purchase emission calculation with valid inputs."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.scientific_equipment
+    data_entry.data = {
+        "name": "LIDAR",
+        "supplier": "Michel",
+        "purchase_institutional_code": "41102400",
+        "quantity": 1,
+        "total_spent_amount": 1000000,
+        "primary_factor_id": 214,
+    }
+
+    factor = Factor(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.scientific_equipment,
+        values={"currency": "eur", "ef_kg_co2eq_per_currency": 0.71},
+        classification={
+            "purchase_institutional_code": "41102400",
+            "purchase_category": "scientific_equipment",
+            "kind": "41102400",
+        },
+    )
+
+    result = await compute_purchase(service, data_entry, [factor])
+
+    # 1000000 * 0.71 kg CO2eq/kg = 710000 kg CO2eq
+    assert result["kg_co2eq"] == 710000.0
+
+
+@pytest.mark.asyncio
+async def test_compute_purchase_no_factors():
+    """Test purchase emission calculation with no factors returns None."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.scientific_equipment
+    data_entry.data = {
+        "name": "LIDAR",
+        "supplier": "Michel",
+        "purchase_institutional_code": "41102400",
+        "quantity": 1,
+        "total_spent_amount": 1000000,
+        "primary_factor_id": 214,
+    }
+
+    result = await compute_purchase(service, data_entry, [])
+
+    assert result["kg_co2eq"] is None
 
 
 # ======================================================================
