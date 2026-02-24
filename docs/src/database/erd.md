@@ -3,14 +3,19 @@ Generating Mermaid ERD...
 ```mermaid
 erDiagram
   archibus_rooms {
-    VARCHAR building_code "indexed"
+    VARCHAR building_location "indexed"
     VARCHAR building_name "indexed"
-    VARCHAR generic_type_din
+    FLOAT cooling_kwh_per_square_meter
+    FLOAT heating_kwh_per_square_meter
     INTEGER id PK
-    VARCHAR room_code "indexed"
-    VARCHAR room_name
-    VARCHAR sia_type
-    FLOAT surface_m2
+    FLOAT kg_co2eq
+    FLOAT lighting_kwh_per_square_meter
+    VARCHAR note
+    VARCHAR room_name "indexed"
+    FLOAT room_surface_square_meter
+    VARCHAR room_type
+    VARCHAR unit_institutional_id "indexed"
+    FLOAT ventilation_kwh_per_square_meter
   }
   audit_documents {
     VARCHAR change_reason

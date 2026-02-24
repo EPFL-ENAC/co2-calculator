@@ -32,17 +32,34 @@ def upgrade() -> None:
     op.create_table(
         "archibus_rooms",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("unit_institutional_id", sa.VARCHAR(), nullable=True),
+        sa.Column("building_location", sa.VARCHAR(), nullable=False),
         sa.Column("building_name", sa.VARCHAR(), nullable=False),
-        sa.Column("building_code", sa.VARCHAR(), nullable=False),
-        sa.Column("room_code", sa.VARCHAR(), nullable=False),
         sa.Column("room_name", sa.VARCHAR(), nullable=False),
-        sa.Column("generic_type_din", sa.VARCHAR(), nullable=False),
-        sa.Column("sia_type", sa.VARCHAR(), nullable=False),
-        sa.Column("surface_m2", sa.Float(), nullable=False),
+        sa.Column("room_type", sa.VARCHAR(), nullable=True),
+        sa.Column("room_surface_square_meter", sa.Float(), nullable=True),
+        sa.Column("heating_kwh_per_square_meter", sa.Float(), nullable=True),
+        sa.Column("cooling_kwh_per_square_meter", sa.Float(), nullable=True),
+        sa.Column("ventilation_kwh_per_square_meter", sa.Float(), nullable=True),
+        sa.Column("lighting_kwh_per_square_meter", sa.Float(), nullable=True),
+        sa.Column("note", sa.VARCHAR(), nullable=True),
+        sa.Column("kg_co2eq", sa.Float(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
         op.f("ix_archibus_rooms_id"), "archibus_rooms", ["id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_archibus_rooms_unit_institutional_id"),
+        "archibus_rooms",
+        ["unit_institutional_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_archibus_rooms_building_location"),
+        "archibus_rooms",
+        ["building_location"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_archibus_rooms_building_name"),
@@ -51,22 +68,21 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_archibus_rooms_building_code"),
+        op.f("ix_archibus_rooms_room_name"),
         "archibus_rooms",
-        ["building_code"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_archibus_rooms_room_code"),
-        "archibus_rooms",
-        ["room_code"],
+        ["room_name"],
         unique=False,
     )
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_archibus_rooms_room_code"), table_name="archibus_rooms")
-    op.drop_index(op.f("ix_archibus_rooms_building_code"), table_name="archibus_rooms")
+    op.drop_index(op.f("ix_archibus_rooms_room_name"), table_name="archibus_rooms")
     op.drop_index(op.f("ix_archibus_rooms_building_name"), table_name="archibus_rooms")
+    op.drop_index(
+        op.f("ix_archibus_rooms_building_location"), table_name="archibus_rooms"
+    )
+    op.drop_index(
+        op.f("ix_archibus_rooms_unit_institutional_id"), table_name="archibus_rooms"
+    )
     op.drop_index(op.f("ix_archibus_rooms_id"), table_name="archibus_rooms")
     op.drop_table("archibus_rooms")

@@ -10,12 +10,32 @@ from app.services.factor_service import FactorService
 router = APIRouter()
 
 
+def _unit_institutional_ids(
+    cost_centers: list, provider_code: Optional[str]
+) -> list[str]:
+    """Return Archibus unit IDs from cost centers plus provider code."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in cost_centers:
+        value = str(item).strip()
+        if value and value not in seen:
+            seen.add(value)
+            normalized.append(value)
+    if provider_code:
+        provider = str(provider_code).strip()
+        if provider and provider not in seen:
+            seen.add(provider)
+            normalized.append(provider)
+    return normalized
+
+
 @router.get(
     "/{data_entry_type}/class-subclass-map",
     response_model=dict[str, list[str]],
 )
 async def get_class_subclass_map(
     data_entry_type: DataEntryTypeEnum,
+    unit_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, list[str]]:
     """Get mapping of classes to subclasses for a given submodule.
@@ -25,9 +45,19 @@ async def get_class_subclass_map(
     """
     if data_entry_type == DataEntryTypeEnum.building:
         from app.repositories.archibus_room_repo import ArchibusRoomRepository
+        from app.repositories.unit_repo import UnitRepository
 
         repo = ArchibusRoomRepository(db)
-        rooms = await repo.list_rooms()
+        if unit_id is None:
+            return {}
+        unit = await UnitRepository(db).get_by_id(unit_id)
+        if unit is None:
+            return {}
+        unit_institutional_ids = _unit_institutional_ids(
+            unit.cost_centers or [],
+            unit.provider_code,
+        )
+        rooms = await repo.list_rooms(unit_institutional_ids=unit_institutional_ids)
         mapping: dict[str, list[str]] = {}
         for room in rooms:
             if room.building_name not in mapping:
@@ -47,6 +77,7 @@ async def get_class_subclass_map(
 )
 async def get_classification_tree(
     data_entry_type: DataEntryTypeEnum,
+    unit_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get recursive classification tree for cascading dropdowns.
@@ -58,9 +89,19 @@ async def get_classification_tree(
     """
     if data_entry_type == DataEntryTypeEnum.building:
         from app.repositories.archibus_room_repo import ArchibusRoomRepository
+        from app.repositories.unit_repo import UnitRepository
 
         repo = ArchibusRoomRepository(db)
-        rooms = await repo.list_rooms()
+        if unit_id is None:
+            return {}
+        unit = await UnitRepository(db).get_by_id(unit_id)
+        if unit is None:
+            return {}
+        unit_institutional_ids = _unit_institutional_ids(
+            unit.cost_centers or [],
+            unit.provider_code,
+        )
+        rooms = await repo.list_rooms(unit_institutional_ids=unit_institutional_ids)
         tree: dict = {}
         for room in rooms:
             if room.building_name not in tree:
