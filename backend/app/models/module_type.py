@@ -65,6 +65,11 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ModuleTypeEnum.purchase: [
         DataEntryTypeEnum.scientific_equipment,
         DataEntryTypeEnum.it_equipment,
+        DataEntryTypeEnum.consumable_accessories,
+        DataEntryTypeEnum.biological_chemical_gaseous_product,
+        DataEntryTypeEnum.services,
+        DataEntryTypeEnum.vehicles,
+        DataEntryTypeEnum.other_purchases,
     ],
     ModuleTypeEnum.global_energy: [
         DataEntryTypeEnum.energy_mix,

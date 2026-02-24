@@ -18,12 +18,12 @@ export default {
     fr: 'Graphiques',
   },
   [`${MODULES.Purchase}.inputs.name`]: {
-    en: 'Name',
-    fr: 'Nom',
+    en: 'Item Description',
+    fr: 'Description de l’article',
   },
   [`${MODULES.Purchase}.inputs.purchase_institutional_code`]: {
-    en: 'Purchase Institutional Code',
-    fr: "Code institutionnel d'achat",
+    en: 'UNSPC Code',
+    fr: 'Code UNSPC',
   },
   [`${MODULES.Purchase}.inputs.supplier`]: {
     en: 'Supplier',
@@ -37,22 +37,74 @@ export default {
     en: 'Total Spent Amount',
     fr: 'Montant total dépensé',
   },
-  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipment}-table-title`]:
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
     {
       en: 'Scientific Equipments',
       fr: 'Équipements scientifiques',
     },
-  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipment}-form-title`]:
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-form-title`]:
     {
       en: 'Add Scientific Equipment',
       fr: 'Ajouter un équipement scientifique',
     },
-  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipment}-table-title`]: {
-    en: 'IT Equipments',
-    fr: 'Équipements informatiques',
-  },
-  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipment}-form-title`]: {
-    en: 'Add IT Equipment',
-    fr: 'Ajouter un équipement informatique',
-  },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
+    {
+      en: 'IT Equipments',
+      fr: 'Équipements informatiques',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-form-title`]:
+    {
+      en: 'Add IT Equipment',
+      fr: 'Ajouter un équipement informatique',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title`]:
+    {
+      en: 'Consumables & Accessories',
+      fr: 'Consommables et accessoires',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-form-title`]:
+    {
+      en: 'Add Consumable',
+      fr: 'Ajouter un consommable',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-table-title`]:
+    {
+      en: 'Biological, Chemical & Gaseous Products',
+      fr: 'Produits biologiques chimiques et gazeux',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-form-title`]:
+    {
+      en: 'Add Biological/Chemical/Gaseous Product',
+      fr: 'Ajouter un produit biologique/chimique/gazeux',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-table-title`]:
+    {
+      en: 'Services',
+      fr: 'Services',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-form-title`]:
+    {
+      en: 'Add Service',
+      fr: 'Ajouter un service',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-table-title`]:
+    {
+      en: 'Vehicles',
+      fr: 'Véhicules',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-form-title`]:
+    {
+      en: 'Add Vehicle',
+      fr: 'Ajouter un véhicule',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-table-title`]:
+    {
+      en: 'Other Purchases',
+      fr: 'Autres achats',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-form-title`]:
+    {
+      en: 'Add Other Purchase',
+      fr: 'Ajouter un autre achat',
+    },
 } as const;

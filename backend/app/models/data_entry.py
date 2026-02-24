@@ -32,6 +32,11 @@ class DataEntryTypeEnum(int, Enum):
     # purchase
     scientific_equipment = 60
     it_equipment = 61
+    consumable_accessories = 62
+    biological_chemical_gaseous_product = 63
+    services = 64
+    vehicles = 65
+    other_purchases = 66
     # energy mix
     energy_mix = 100
 

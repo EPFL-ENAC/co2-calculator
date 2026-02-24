@@ -95,7 +95,15 @@ CATEGORY_CHART_KEYS: dict[str, list[str]] = {
     "Buildings room": ["grey_energy"],
     "Equipment": ["scientific", "it", "other"],
     "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
-    "Purchases": ["scientific_equipment", "it_equipment"],
+    "Purchases": [
+        "scientific_equipment",
+        "it_equipment",
+        "consumable_accessories",
+        "biological_chemical_gaseous_product",
+        "services",
+        "vehicles",
+        "other_purchases",
+    ],
     "Research facilities": [],
     "Professional travel": ["plane", "train"],
 }

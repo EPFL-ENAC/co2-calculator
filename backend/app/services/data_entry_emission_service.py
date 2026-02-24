@@ -56,6 +56,12 @@ class DataEntryEmissionService:
         elif (
             data_entry.data_entry_type == DataEntryTypeEnum.scientific_equipment
             or data_entry.data_entry_type == DataEntryTypeEnum.it_equipment
+            or data_entry.data_entry_type == DataEntryTypeEnum.consumable_accessories
+            or data_entry.data_entry_type
+            == DataEntryTypeEnum.biological_chemical_gaseous_product
+            or data_entry.data_entry_type == DataEntryTypeEnum.services
+            or data_entry.data_entry_type == DataEntryTypeEnum.vehicles
+            or data_entry.data_entry_type == DataEntryTypeEnum.other_purchases
         ):
             emission_type = EmissionTypeEnum.purchase
         elif data_entry.data_entry_type == DataEntryTypeEnum.trips:
@@ -295,6 +301,13 @@ async def compute_external_ai(
 
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific_equipment)
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.it_equipment)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.consumable_accessories)
+@DataEntryEmissionService.register_formula(
+    DataEntryTypeEnum.biological_chemical_gaseous_product
+)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.services)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.vehicles)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.other_purchases)
 async def compute_purchase(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:

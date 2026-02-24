@@ -765,7 +765,15 @@ class ExternalAIModuleHandler(BaseModuleHandler):
 
 class PurchaseModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.scientific_equipment
+    registration_keys = [
+        DataEntryTypeEnum.scientific_equipment,
+        DataEntryTypeEnum.it_equipment,
+        DataEntryTypeEnum.consumable_accessories,
+        DataEntryTypeEnum.biological_chemical_gaseous_product,
+        DataEntryTypeEnum.services,
+        DataEntryTypeEnum.vehicles,
+        DataEntryTypeEnum.other_purchases,
+    ]
 
     create_dto = PurchaseHandlerCreate
     update_dto = PurchaseHandlerUpdate

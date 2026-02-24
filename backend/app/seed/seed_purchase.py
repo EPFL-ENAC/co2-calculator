@@ -75,25 +75,23 @@ async def seed_factor_by_entry_type(session: AsyncSession, entry_type: str) -> N
     logger.info("Seeded Purchase Common factors.")
 
 
-async def seed_purchase_scientific_equipment(session: AsyncSession):
-    pass
-
-
-async def seed_purchase_it_equipment(session: AsyncSession):
-    pass
-
-
 async def main():
     logger.info("Starting purchase data seeding...")
 
     async with SessionLocal() as session:
         await seed_factor_by_entry_type(session, "scientific_equipment")
         await session.commit()
-        await seed_purchase_scientific_equipment(session)
-        await session.commit()
         await seed_factor_by_entry_type(session, "it_equipment")
         await session.commit()
-        await seed_purchase_it_equipment(session)
+        await seed_factor_by_entry_type(session, "consumable_accessories")
+        await session.commit()
+        await seed_factor_by_entry_type(session, "biological_chemical_gaseous_product")
+        await session.commit()
+        await seed_factor_by_entry_type(session, "services")
+        await session.commit()
+        await seed_factor_by_entry_type(session, "vehicles")
+        await session.commit()
+        await seed_factor_by_entry_type(session, "other_purchases")
         await session.commit()
 
     logger.info("Purchase data seeding completed.")

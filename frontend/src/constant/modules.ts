@@ -56,8 +56,13 @@ type ExternalCloudProps = {
 };
 
 export const SUBMODULE_PURCHASE_TYPES = {
-  ScientificEquipment: 'scientific_equipment',
-  ITEquipment: 'it_equipment',
+  ScientificEquipmentPurchases: 'scientific_equipment',
+  ITEquipmentPurchases: 'it_equipment',
+  ConsumablePurchases: 'consumable_accessories',
+  BioProductPurchases: 'biological_chemical_gaseous_product',
+  ServicePurchases: 'services',
+  VehiclePurchases: 'vehicles',
+  OtherPurchases: 'other_purchases',
 } as const;
 
 export type PurchaseSubType =
@@ -92,8 +97,13 @@ export const enumSubmodule = {
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
   process_emissions: 50,
-  [SUBMODULE_PURCHASE_TYPES.ScientificEquipment]: 60,
-  [SUBMODULE_PURCHASE_TYPES.ITEquipment]: 61,
+  [SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases]: 60,
+  [SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases]: 61,
+  [SUBMODULE_PURCHASE_TYPES.ConsumablePurchases]: 62,
+  [SUBMODULE_PURCHASE_TYPES.BioProductPurchases]: 63,
+  [SUBMODULE_PURCHASE_TYPES.ServicePurchases]: 64,
+  [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
+  [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
   energy_mix: 100,
 } as const;
 

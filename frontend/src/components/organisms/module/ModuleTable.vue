@@ -350,11 +350,7 @@ import type {
 } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
 
-import {
-  MODULES,
-  SUBMODULE_EXTERNAL_CLOUD_TYPES,
-  SUBMODULE_PURCHASE_TYPES,
-} from 'src/constant/modules';
+import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
@@ -1063,10 +1059,7 @@ function isComplete(row: ModuleRow) {
   ) {
     return isCompleteExternalAI(row);
   }
-  if (
-    props.moduleType === MODULES.Purchase &&
-    props.submoduleType === SUBMODULE_PURCHASE_TYPES.ScientificEquipment
-  ) {
+  if (props.moduleType === MODULES.Purchase) {
     return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
