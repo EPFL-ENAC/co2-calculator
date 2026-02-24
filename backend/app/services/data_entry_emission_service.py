@@ -53,6 +53,11 @@ class DataEntryEmissionService:
             ]
         elif data_entry.data_entry_type == DataEntryTypeEnum.external_ai:
             emission_type = EmissionTypeEnum.ai_provider
+        elif (
+            data_entry.data_entry_type == DataEntryTypeEnum.scientific_equipment
+            or data_entry.data_entry_type == DataEntryTypeEnum.it_equipment
+        ):
+            emission_type = EmissionTypeEnum.purchase
         elif data_entry.data_entry_type == DataEntryTypeEnum.trips:
             transport_mode = data_entry.data.get("transport_mode")
             if transport_mode is None:
@@ -284,6 +289,49 @@ async def compute_external_ai(
             (frequency * 5 * 46 * number_of_users)
             * factor.values.get("factor_gCO2eq", 0)
         ) / 1000
+    # return intermediary dict with calculation details alway kg_co2eq at least
+    return {"kg_co2eq": kg_co2eq}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific_equipment)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.it_equipment)
+async def compute_purchase(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute emissions for purchases."""
+    # Implement actual calculation based on data_entry data
+    kg_co2eq = None
+    total_spent_amount = data_entry.data.get("total_spent_amount", 0)
+    # Default currency is CHF
+    # TODO currency handling in issue #402
+    # currency = data_entry.data.get("currency", "chf").lower()
+    purchase_institutional_code = data_entry.data.get(
+        "purchase_institutional_code", None
+    )
+    if purchase_institutional_code is None:
+        logger.warning("purchase_institutional_code is missing in data entry data")
+        return {"kg_co2eq": kg_co2eq}
+    if not factors or len(factors) == 0:
+        return {"kg_co2eq": kg_co2eq}
+
+    # Find factor matching the purchase_institutional_code
+    purchase_factors = [
+        f
+        for f in factors
+        if f.classification.get("purchase_institutional_code")
+        == purchase_institutional_code
+    ]
+    if not purchase_factors or len(purchase_factors) == 0:
+        logger.warning(
+            "No factor found matching purchase_institutional_code: "
+            f"{purchase_institutional_code}"
+        )
+        return {"kg_co2eq": kg_co2eq}
+    purchase_factor = purchase_factors[0]
+    if total_spent_amount and purchase_factor and purchase_factor.values:
+        kg_co2eq = total_spent_amount * purchase_factor.values.get(
+            "ef_kg_co2eq_per_currency", 0
+        )
     # return intermediary dict with calculation details alway kg_co2eq at least
     return {"kg_co2eq": kg_co2eq}
 

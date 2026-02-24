@@ -82,7 +82,7 @@ class FactorService:
         is_conversion: bool,
         data_entry_type_id: int,  # DataEntryTypeEnum,
         classification: Dict[str, Any],
-        values: Dict[str, float | int | None],
+        values: Dict[str, float | int | str | None],
     ) -> Factor:
         """Prepare a factor for creation."""
 

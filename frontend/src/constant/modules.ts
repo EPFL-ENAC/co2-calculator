@@ -14,7 +14,6 @@ export const MODULES_DESCRIPTIONS = {
   ProfessionalTravel: 'professional-travel-description',
   Infrastructure: 'infrastructure-description',
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
-  Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
   ExternalCloudAndAI: 'external-cloud-and-ai-description',
   ProcessEmissions: 'process-emissions-description',
@@ -56,6 +55,19 @@ type ExternalCloudProps = {
   submoduleType?: ExternalCloudSubType;
 };
 
+export const SUBMODULE_PURCHASE_TYPES = {
+  ScientificEquipment: 'scientific_equipment',
+  ITEquipment: 'it_equipment',
+} as const;
+
+export type PurchaseSubType =
+  (typeof SUBMODULE_PURCHASE_TYPES)[keyof typeof SUBMODULE_PURCHASE_TYPES];
+
+type PurchaseProps = {
+  moduleType: typeof MODULES.Purchase;
+  submoduleType?: PurchaseSubType;
+};
+
 export const SUBMODULE_PROCESSES_TYPES = {
   ProcessEmissions: 'process_emissions',
 } as const;
@@ -80,6 +92,8 @@ export const enumSubmodule = {
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
   process_emissions: 50,
+  [SUBMODULE_PURCHASE_TYPES.ScientificEquipment]: 60,
+  [SUBMODULE_PURCHASE_TYPES.ITEquipment]: 61,
   energy_mix: 100,
 } as const;
 
@@ -96,20 +110,6 @@ export const SUBMODULE_HEADCOUNT_TYPES = {
 // Headcount subtypes are the same as Headcount subtypes
 export type HeadcountSubType =
   (typeof SUBMODULE_HEADCOUNT_TYPES)[keyof typeof SUBMODULE_HEADCOUNT_TYPES];
-
-export const SUBMODULE_PURCHASE_TYPES = {
-  Consumable: 'consumable',
-  Durable: 'durable',
-  Good: 'good',
-} as const;
-
-export type PurchaseSubType =
-  (typeof SUBMODULE_PURCHASE_TYPES)[keyof typeof SUBMODULE_PURCHASE_TYPES];
-
-type PurchaseProps = {
-  moduleType: typeof MODULES.Purchase;
-  submoduleType?: PurchaseSubType;
-};
 
 export const SUBMODULE_INFRASTRUCTURE_TYPES = {
   Building: 'building',

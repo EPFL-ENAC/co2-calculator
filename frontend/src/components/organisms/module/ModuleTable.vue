@@ -350,7 +350,11 @@ import type {
 } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
 
-import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
+import {
+  MODULES,
+  SUBMODULE_EXTERNAL_CLOUD_TYPES,
+  SUBMODULE_PURCHASE_TYPES,
+} from 'src/constant/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
@@ -674,8 +678,8 @@ const qCols = computed<TableViewColumn[]>(() => {
       if (Array.isArray(i18nLabelKey)) {
         i18nLabelKey.forEach((labelKey, index) => {
           let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
-          const translated = $t(labelKey);
-          if (translated && translated !== labelKey) {
+          const translated = $t(labelKey, { unit });
+          if (translated) {
             labelText = translated;
           }
 
@@ -700,8 +704,8 @@ const qCols = computed<TableViewColumn[]>(() => {
         // Single labelKey - create one column
         let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
         if (i18nLabelKey) {
-          const translated = $t(i18nLabelKey as string);
-          if (translated && translated !== i18nLabelKey) {
+          const translated = $t(i18nLabelKey as string, { unit });
+          if (translated) {
             labelText = translated;
           }
         }
@@ -1025,6 +1029,18 @@ function isCompleteExternalAI(row: ModuleRow) {
   );
 }
 
+function isCompletePurchase(row: ModuleRow) {
+  const required = [
+    'name',
+    'quantity',
+    'purchase_institutional_code',
+    'total_spent_amount',
+  ];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
 function isComplete(row: ModuleRow) {
   // # TODO : move isComplete to module definition
 
@@ -1046,6 +1062,12 @@ function isComplete(row: ModuleRow) {
     props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
   ) {
     return isCompleteExternalAI(row);
+  }
+  if (
+    props.moduleType === MODULES.Purchase &&
+    props.submoduleType === SUBMODULE_PURCHASE_TYPES.ScientificEquipment
+  ) {
+    return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
     const required = [
@@ -1153,6 +1175,8 @@ function onDownloadTemplate() {
   const csvExternalCloudContent = `service_type,cloud_provider,spending`;
   const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
 
+  const csvPurchaseContent = `name,purchase_institutional_code,quantity,total_spent_amount`;
+
   const csvProcessesContent = `emitted_gas,sub_category,quantity_kg`;
 
   const csvDefaultContent = `not_implemented_yet`;
@@ -1183,6 +1207,9 @@ function onDownloadTemplate() {
       break;
     case MODULES.ProcessEmissions:
       csvContent = csvProcessesContent;
+      break;
+    case MODULES.Purchase:
+      csvContent = csvPurchaseContent;
       break;
     default:
       csvContent = csvDefaultContent;

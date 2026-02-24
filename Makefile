@@ -96,6 +96,11 @@ run-db:
 .PHONY: stop-db
 stop-db:
 	docker compose down
+
+.PHONY: connect-db
+connect-db:
+	docker compose exec postgres psql -U co2_user -d co2_calculator
+
 .PHONY: clean-db
 clean-db:
 	docker compose down -v

@@ -6,3 +6,5 @@ site
 .database.env
 *.csv
 storybook-static
+.serena
+AGENTS.md

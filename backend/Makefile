@@ -108,6 +108,7 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_plane_factors
 	$(UV) run -m app.seed.seed_train_factors
 	$(UV) run -m app.seed.seed_external_cloud_and_ai
+	$(UV) run -m app.seed.seed_purchase
 
 .PHONY: dev
 dev: install ## Start backend development server

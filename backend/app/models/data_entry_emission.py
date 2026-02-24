@@ -29,6 +29,10 @@ class EmissionTypeEnum(int, Enum):
     ai_provider = 13
     # Process emissions:
     process_emissions = 14
+    # Purchase
+    purchase = 1000
+    purchase_scientific_equipment = 1001
+    purchase_it_equipment = 1002
 
 
 class DataEntryEmissionBase(SQLModel):
