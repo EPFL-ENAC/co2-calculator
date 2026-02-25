@@ -7,12 +7,12 @@ import type { AllSubmoduleTypes } from 'src/constant/modules';
 const roomFields: ModuleField[] = [
   {
     id: 'building_name',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.Buildings}.inputs.building_name`,
     type: 'select',
     required: true,
     sortable: true,
-    editableInline: true,
+    editableInline: false,
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
@@ -20,12 +20,12 @@ const roomFields: ModuleField[] = [
   },
   {
     id: 'room_name',
-    treeLevel: 1,
+    optionsId: 'subkind',
     labelKey: `${MODULES.Buildings}.inputs.room_name`,
     type: 'select',
     required: true,
     sortable: true,
-    editableInline: true,
+    editableInline: false,
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
@@ -36,25 +36,28 @@ const roomFields: ModuleField[] = [
     labelKey: `${MODULES.Buildings}.inputs.room_type`,
     type: 'select',
     sortable: true,
-    editableInline: false,
+    editableInline: true,
     inputTypeName: 'QSelect',
     align: 'left',
     ratio: '1/3',
     icon: 'o_category',
     disableUntilField: 'room_name',
+    // IMPORTANT: these values are backend emission-factor lookup keys.
+    // Do not translate or rename without matching backend seed/data updates.
+    // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     options: [
       { value: '', label: '-' },
-      { value: 'Office', label: `${MODULES.Buildings}.room_type.Office` },
-      { value: 'Miscels', label: `${MODULES.Buildings}.room_type.Miscels` },
+      { value: 'Office', label: 'Office' },
+      { value: 'Miscels', label: 'Miscellaneous' },
       {
         value: 'Laboratories',
-        label: `${MODULES.Buildings}.room_type.Laboratories`,
+        label: 'Laboratories',
       },
-      { value: 'Archives', label: `${MODULES.Buildings}.room_type.Archives` },
-      { value: 'Libraries', label: `${MODULES.Buildings}.room_type.Libraries` },
+      { value: 'Archives', label: 'Archives' },
+      { value: 'Libraries', label: 'Libraries' },
       {
         value: 'Auditoriums',
-        label: `${MODULES.Buildings}.room_type.Auditoriums`,
+        label: 'Auditoriums',
       },
     ],
   },
@@ -123,7 +126,7 @@ const roomFields: ModuleField[] = [
 const energyCombustionFields: ModuleField[] = [
   {
     id: 'heating_type',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.Buildings}.inputs.heating_type`,
     type: 'select',
     required: true,
@@ -136,6 +139,15 @@ const energyCombustionFields: ModuleField[] = [
     hideIn: { form: false },
   },
   {
+    id: 'unit',
+    labelKey: `${MODULES.Buildings}.inputs.unit`,
+    type: 'text',
+    readOnly: true,
+    sortable: false,
+    align: 'left',
+    hideIn: { form: true },
+  },
+  {
     id: 'quantity',
     labelKey: `${MODULES.Buildings}.inputs.quantity`,
     type: 'number',
@@ -146,15 +158,6 @@ const energyCombustionFields: ModuleField[] = [
     step: 0.001,
     ratio: '1/2',
     hideIn: { form: false },
-  },
-  {
-    id: 'unit',
-    labelKey: `${MODULES.Buildings}.inputs.unit`,
-    type: 'text',
-    readOnly: true,
-    sortable: false,
-    align: 'left',
-    hideIn: { form: true },
   },
   {
     id: 'kg_co2eq',
@@ -182,10 +185,12 @@ export const buildings: ModuleConfig = {
   },
   submodules: [
     {
-      id: 'sub_building',
-      type: SUBMODULE_INFRASTRUCTURE_TYPES.Building as AllSubmoduleTypes,
-      name: 'Building',
-      moduleFields: buildingFields,
+      id: SUBMODULE_BUILDINGS_TYPES.Building,
+      type: SUBMODULE_BUILDINGS_TYPES.Building as AllSubmoduleTypes,
+      tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
+      moduleFields: roomFields,
+      hasTableAction: true,
+      addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
     },
     {
       id: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion,

@@ -300,6 +300,7 @@ import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import { useArchibusRoomDynamicOptions } from 'src/composables/useArchibusRoomDynamicOptions';
 import {
   MODULES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
@@ -409,7 +410,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp?.id ?? ''];
+    const dynamicOpts = dynamicOptions[inp?.optionsId ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -486,20 +487,16 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const treeLevels = computed<TreeLevelConfig[]>(() =>
-  visibleFields.value
-    .filter((f) => f.treeLevel !== undefined)
-    .sort((a, b) => a.treeLevel! - b.treeLevel!)
-    .map((f) => ({ fieldId: f.id, optionKey: f.id })),
-);
+const kindFieldId = computed(() => {
+  const kindField = visibleFields.value.find((f) => f.optionsId === 'kind');
+  return kindField ? kindField.id : null;
+});
 
-const treeLevels = computed<TreeLevelConfig[]>(() => {
-  const levels: TreeLevelConfig[] = [];
-  for (const optId of TREE_OPTION_IDS) {
-    const field = visibleFields.value.find((f) => f.optionsId === optId);
-    if (field) levels.push({ fieldId: field.id, optionKey: optId });
-  }
-  return levels;
+const subkindFieldId = computed(() => {
+  const subkindField = visibleFields.value.find(
+    (f) => f.optionsId === 'subkind',
+  );
+  return subkindField ? subkindField.id : null;
 });
 
 const useEquipmentClassOptionsConfig: Record<string, string> = {};
@@ -515,6 +512,14 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     fetchFactorValuesOnChange: true,
     ...useEquipmentClassOptionsConfig,
   });
+
+useArchibusRoomDynamicOptions(
+  form,
+  toRef(props, 'moduleType'),
+  toRef(props, 'submoduleType'),
+  toRef(props, 'unitId'),
+);
+
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
   if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane)
@@ -523,45 +528,6 @@ function getTravelMode(): 'plane' | 'train' | undefined {
     return 'train';
   return undefined;
 }
-
-const isBuildingsRoomSubmodule = computed(
-  () =>
-    props.moduleType === MODULES.Buildings &&
-    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building,
-);
-
-watch(
-  () => form['room_name'],
-  async (newVal, oldVal) => {
-    if (!isBuildingsRoomSubmodule.value) return;
-    if (!newVal || newVal === oldVal) return;
-
-    const buildingName = form['building_name'];
-    if (!buildingName) return;
-    const currentUnitId =
-      props.unitId ?? workspaceStore.selectedUnit?.id ?? undefined;
-    if (!currentUnitId) return;
-
-    try {
-      const rooms = await getArchibusRooms(currentUnitId, buildingName);
-      const match = rooms.find((r) => r.room_name === newVal);
-      if (match) {
-        form['room_type'] = match.room_type ?? '';
-        form['room_surface_square_meter'] = match.room_surface_square_meter;
-        form['heating_kwh_per_square_meter'] =
-          match.heating_kwh_per_square_meter ?? 0;
-        form['cooling_kwh_per_square_meter'] =
-          match.cooling_kwh_per_square_meter ?? 0;
-        form['ventilation_kwh_per_square_meter'] =
-          match.ventilation_kwh_per_square_meter ?? 0;
-        form['lighting_kwh_per_square_meter'] =
-          match.lighting_kwh_per_square_meter ?? 0;
-      }
-    } catch {
-      // archibus lookup failed, user can fill manually
-    }
-  },
-);
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -574,10 +540,6 @@ function validateUsage(value: unknown) {
   if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
   return { valid: true, parsed: n, error: null };
 }
-
-// legacy helpers kept only for typing compatibility; logic lives
-// entirely in the useEquipmentClassOptions composable.
-// They are intentionally not used here.
 
 function init() {
   if (props.rowData) {
@@ -607,7 +569,6 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions[i.optionsId] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -851,7 +812,6 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions[i.optionsId] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,

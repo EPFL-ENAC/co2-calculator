@@ -76,12 +76,6 @@ class FactorService:
         )
         return response
 
-    async def get_classification_tree(
-        self, data_entry_type: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
-        """Get recursive classification tree for dropdown cascading."""
-        return await self.repo.get_classification_tree(data_entry_type)
-
     async def prepare_create(
         self,
         emission_type_id: int,  # DataEntryTypeEnum, #

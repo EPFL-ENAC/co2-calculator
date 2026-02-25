@@ -45,25 +45,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def _unit_institutional_ids(
-    cost_centers: list, provider_code: Optional[str]
-) -> list[str]:
-    """Return Archibus unit IDs from cost centers plus provider code."""
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for item in cost_centers:
-        value = str(item).strip()
-        if value and value not in seen:
-            seen.add(value)
-            normalized.append(value)
-    if provider_code:
-        provider = str(provider_code).strip()
-        if provider and provider not in seen:
-            seen.add(provider)
-            normalized.append(provider)
-    return normalized
-
-
 async def get_carbon_report_id(
     unit_id: int,
     year: int,
@@ -87,58 +68,6 @@ async def get_carbon_report_id(
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
     return carbon_report_module.id
-
-
-@router.get("/archibus-rooms")
-async def get_archibus_rooms(
-    unit_id: Optional[int] = Query(default=None),
-    building_location: Optional[str] = Query(default=None),
-    building_name: Optional[str] = Query(default=None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Return Archibus buildings and rooms for the Buildings module dropdowns.
-
-    Filter by `unit_id` where Unit.cost_centers contains room unit IDs.
-    Without building filters: returns list of distinct buildings.
-    With building_location or building_name: returns rooms for that building.
-    """
-    from app.repositories.archibus_room_repo import ArchibusRoomRepository
-    from app.repositories.unit_repo import UnitRepository
-
-    repo = ArchibusRoomRepository(db)
-    if unit_id is None:
-        return []
-    unit = await UnitRepository(db).get_by_id(unit_id)
-    if unit is None:
-        return []
-    unit_institutional_ids = _unit_institutional_ids(
-        unit.cost_centers or [],
-        unit.provider_code,
-    )
-
-    if building_location or building_name:
-        rooms = await repo.list_rooms(
-            unit_institutional_ids=unit_institutional_ids,
-            building_location=building_location,
-            building_name=building_name,
-        )
-        return [
-            {
-                "unit_institutional_id": r.unit_institutional_id,
-                "building_location": r.building_location,
-                "building_name": r.building_name,
-                "room_name": r.room_name,
-                "room_type": r.room_type,
-                "room_surface_square_meter": r.room_surface_square_meter,
-                "heating_kwh_per_square_meter": r.heating_kwh_per_square_meter,
-                "cooling_kwh_per_square_meter": r.cooling_kwh_per_square_meter,
-                "ventilation_kwh_per_square_meter": r.ventilation_kwh_per_square_meter,
-                "lighting_kwh_per_square_meter": r.lighting_kwh_per_square_meter,
-            }
-            for r in rooms
-        ]
-    return await repo.list_buildings(unit_institutional_ids=unit_institutional_ids)
 
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)

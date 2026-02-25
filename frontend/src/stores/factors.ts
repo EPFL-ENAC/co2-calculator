@@ -3,69 +3,59 @@ import { reactive } from 'vue';
 import {
   getSubclassMap,
   getFactorValues,
-  ValueFactorResponse,
+  type ValueFactorResponse,
 } from 'src/api/factors';
-import { AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
+import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
-  const workspaceStore = useWorkspaceStore();
 
-  const treeBySubmodule = reactive<
-    Partial<Record<AllSubmoduleTypes, OptionTree>>
+  const subclassOptionMapBySubmodule = reactive<
+    Partial<Record<AllSubmoduleTypes, Record<string, Option[]>>>
   >({});
-  const treeFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
-    {},
-  );
-  const treeUnitId = reactive<Partial<Record<AllSubmoduleTypes, number>>>({});
+  const subclassMapFetchedAt = reactive<
+    Partial<Record<AllSubmoduleTypes, number>>
+  >({});
 
   async function ensureSubclassOptionMap(
     submodule: keyof typeof enumSubmodule,
   ): Promise<Record<string, Option[]>> {
     const now = Date.now();
-    const existing = treeBySubmodule[submodule];
-    const last = treeFetchedAt[submodule];
-    const currentUnitId = workspaceStore.selectedUnit?.id;
-    const requestedUnitId =
-      submodule === SUBMODULE_BUILDINGS_TYPES.Building ? currentUnitId : undefined;
-    const cachedUnitId = treeUnitId[submodule];
-    const hasCachedEntries = !!existing && Object.keys(existing).length > 0;
+    const existing = subclassOptionMapBySubmodule[submodule];
+    const last = subclassMapFetchedAt[submodule];
 
-    if (
-      hasCachedEntries &&
-      last &&
-      now - last < ONE_MINUTE_MS &&
-      cachedUnitId === requestedUnitId
-    ) {
+    if (existing && last && now - last < ONE_MINUTE_MS) {
       return existing;
     }
 
-    const tree = await getClassificationTree(submodule, requestedUnitId);
-    treeBySubmodule[submodule] = tree;
-    treeFetchedAt[submodule] = now;
-    treeUnitId[submodule] = requestedUnitId;
-    return tree;
+    const rawMap = await getSubclassMap(submodule);
+    const optionMap: Record<string, Option[]> = {};
+    Object.entries(rawMap).forEach(([cls, list]) => {
+      optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
+    });
+
+    subclassOptionMapBySubmodule[submodule] = optionMap;
+    subclassMapFetchedAt[submodule] = now;
+
+    return optionMap;
   }
 
-  /**
-   * Walk the cached tree along `path` and return sorted child keys as options.
-   * Returns [] if any segment in the path is missing.
-   */
-  function getOptionsAtPath(
+  async function fetchClassOptions(
     submodule: AllSubmoduleTypes,
-    path: string[],
-  ): Option[] {
-    let node: OptionTree | undefined = treeBySubmodule[submodule];
-    for (const segment of path) {
-      if (!node || !(segment in node)) return [];
-      node = node[segment];
-    }
-    if (!node) return [];
-    return Object.keys(node)
-      .sort()
-      .map((k) => ({ label: k, value: k }));
+  ): Promise<Option[]> {
+    const optionMap = await ensureSubclassOptionMap(submodule);
+    const classes = Object.keys(optionMap).sort();
+    return classes.map((c) => ({ label: c, value: c }));
+  }
+
+  async function fetchSubclassOptions(
+    submodule: AllSubmoduleTypes,
+    equipmentClass: string,
+  ): Promise<Option[]> {
+    const optionMap = await ensureSubclassOptionMap(submodule);
+    return optionMap[equipmentClass] ?? [];
   }
 
   async function fetchPowerFactor(
@@ -77,11 +67,10 @@ export const useFactorsStore = defineStore('factors', () => {
   }
 
   return {
-    treeBySubmodule,
-    treeFetchedAt,
-    treeUnitId,
-    ensureTree,
-    getOptionsAtPath,
+    subclassOptionMapBySubmodule,
+    subclassMapFetchedAt,
+    fetchClassOptions,
+    fetchSubclassOptions,
     fetchPowerFactor,
   };
 });

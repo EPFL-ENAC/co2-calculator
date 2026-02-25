@@ -14,7 +14,11 @@ from app.models.archibus_room import ArchibusRoom
 
 logger = get_logger(__name__)
 
-CSV_PATH = Path(__file__).parent.parent.parent / "seed_data" / "seed_archibus_rooms.csv"
+CSV_PATH = (
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_buildings_archibus_rooms.csv"
+)
 
 
 def _to_float(value: Optional[str]) -> Optional[float]:

@@ -11,7 +11,7 @@ import type { Module } from 'src/constant/modules';
 const cloudFields: ModuleField[] = [
   {
     id: 'cloud_provider',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.cloud_provider`,
     hideIn: { form: false },
     sortable: true,
@@ -29,7 +29,7 @@ const cloudFields: ModuleField[] = [
     id: 'service_type',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
-    treeLevel: 1,
+    optionsId: 'subkind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -85,7 +85,7 @@ const externalAIFields: ModuleField[] = [
     hideIn: { table: false },
     editableInline: true,
 
-    treeLevel: 0,
+    optionsId: 'kind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -98,7 +98,7 @@ const externalAIFields: ModuleField[] = [
     hideIn: { table: false },
     editableInline: true,
 
-    treeLevel: 1,
+    optionsId: 'subkind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',

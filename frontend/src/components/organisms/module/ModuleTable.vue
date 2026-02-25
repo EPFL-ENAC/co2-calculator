@@ -122,9 +122,10 @@
         >
           <template v-if="col.editableInline">
             <module-inline-select
-              v-if="col.treeLevel !== undefined"
+              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
               :row="slotProps.row"
               :field-id="col.field"
+              :options-id="col.optionsId"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -653,7 +654,7 @@ type TableViewColumn = {
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
-  treeLevel?: number;
+  optionsId?: string;
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
@@ -728,7 +729,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           inputComponent,
           editableInline,
           options,
-          treeLevel: f.treeLevel,
+          optionsId: f.optionsId,
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,
@@ -1210,6 +1211,7 @@ function onDownloadTemplate() {
   const csvDefaultContent = 'not_implemented_yet';
 
   const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
+  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:
@@ -1219,7 +1221,11 @@ function onDownloadTemplate() {
       csvContent = csvProfessionalTravelContent;
       break;
     case MODULES.Buildings:
-      csvContent = csvBuildingsContent;
+      if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
+        csvContent = csvBuildingsCombustionContent;
+      } else {
+        csvContent = csvBuildingsContent;
+      }
       break;
     case MODULES.EquipmentElectricConsumption:
       csvContent = csvEquipmentContent;

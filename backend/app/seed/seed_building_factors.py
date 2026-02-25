@@ -17,11 +17,13 @@ logger = get_logger(__name__)
 CSV_PATH_BUILDING_ENERGY = (
     Path(__file__).parent.parent.parent
     / "seed_data"
-    / "seed_building_energy_factors.csv"
+    / "seed_buildings_rooms_factors.csv"
 )
 
 CSV_PATH_COMBUSTION = (
-    Path(__file__).parent.parent.parent / "seed_data" / "seed_combustion_factors.csv"
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_buildings_combustion_factors.csv"
 )
 
 

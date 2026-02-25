@@ -1,6 +1,14 @@
 <template>
   <div class="inline-select-wrapper">
-    <div v-if="showPlaceholder" class="inline-subclass-placeholder"></div>
+    <div
+      v-if="
+        isSubClass &&
+        !loadingSubclasses &&
+        (!subClassOptions || subClassOptions.length === 0) &&
+        !model
+      "
+      class="inline-subclass-placeholder"
+    ></div>
     <q-select
       v-else
       v-model="model"
@@ -11,7 +19,7 @@
       outlined
       hide-bottom-space
       class="inline-input"
-      :loading="isLoading"
+      :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
       @update:model-value="onChange"
     />
@@ -21,11 +29,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
-import {
-  useClassificationTree,
-  type TreeLevelConfig,
-} from 'src/composables/useClassificationTree';
-import { useFactorsStore } from 'src/stores/powerFactors';
+import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -33,6 +37,7 @@ const moduleStore = useModuleStore();
 
 interface ModuleRow {
   id: string | number;
+  // allow arbitrary additional fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
@@ -41,12 +46,13 @@ type TableViewColumnSubset = {
   name: string;
   label: string;
   field: string;
-  treeLevel?: number;
+  optionsId?: string;
 };
 
 type CommonProps = {
   row: ModuleRow;
   fieldId: string;
+  optionsId: string;
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;
@@ -56,43 +62,23 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
+const isClass = computed(() => props.optionsId === 'kind');
+const isSubClass = computed(() => props.optionsId === 'subkind');
 
-const treeLevels = computed<TreeLevelConfig[]>(() =>
-  props.cols
-    .filter((c) => c.treeLevel !== undefined)
-    .sort((a, b) => a.treeLevel! - b.treeLevel!)
-    .map((c) => ({ fieldId: c.field, optionKey: c.field })),
-);
+const kindFieldId = computed(() => {
+  const kindField = props.cols.find((f) => f.optionsId === 'kind');
+  return kindField ? kindField.field : null;
+});
 
-const factorsStore = useFactorsStore();
+const subkindFieldId = computed(() => {
+  const subkindField = props.cols.find((f) => f.optionsId === 'subkind');
+  return subkindField ? subkindField.field : null;
+});
 
-const { dynamicOptions, isPlaceholder, isLevelLoading } = useClassificationTree(
-  props.row,
-  toRef(props, 'submoduleType'),
-  {
-    levels: treeLevels.value,
-    async onLeafChange(selections) {
-      const cls = selections[0];
-      if (!cls) return;
-      const subCls = selections.length > 1 ? selections[1] : null;
-      try {
-        const pf = await factorsStore.fetchPowerFactor(
-          props.submoduleType,
-          cls,
-          subCls,
-        );
-        if (pf) {
-          if ('active_power_w' in props.row)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (props.row as any).active_power_w = pf.active_power_w;
-          if ('standby_power_w' in props.row)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (props.row as any).standby_power_w = pf.standby_power_w;
-        }
-      } catch {
-        // power factor lookup failed, user can still fill manually
-      }
-    },
+const { dynamicOptions, loadingClasses, loadingSubclasses } =
+  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'), {
+    classFieldId: kindFieldId.value,
+    subClassFieldId: subkindFieldId.value,
   });
 
 const classOptions = computed(() => {
@@ -126,11 +112,9 @@ const subClassOptions = computed(() => {
   });
 });
 
-const options = computed(() => dynamicOptions[props.fieldId] ?? []);
-
-const isLoading = computed(() => isLevelLoading(props.fieldId));
-
-const showPlaceholder = computed(() => isPlaceholder(props.fieldId));
+const options = computed(() => {
+  return isClass.value ? classOptions.value : subClassOptions.value;
+});
 
 const model = computed({
   get() {

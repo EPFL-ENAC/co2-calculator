@@ -8,12 +8,9 @@ export async function getSubclassMap(
 ): Promise<Record<string, string[]>> {
   const res = await api
     .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/classification-tree`,
-      {
-        searchParams: unitId ? { unit_id: unitId } : undefined,
-      },
+      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map`,
     )
-    .json<OptionTree>();
+    .json<Record<string, string[]>>();
   return res ?? {};
 }
 

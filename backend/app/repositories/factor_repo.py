@@ -1,6 +1,6 @@
 """Repository for generic factors."""
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -163,24 +163,6 @@ class FactorRepository:
             mapping[key].sort()
 
         return dict(sorted(mapping.items()))
-
-    async def get_classification_tree(
-        self, data_entry_type: DataEntryTypeEnum
-    ) -> Dict[str, Any]:
-        """Return a recursive tree built from Factor.classification.
-
-        Each classification key (kind, subkind, ...) becomes a level.
-        Leaves are empty dicts.
-        Example: {"ClassA": {"Sub1": {}, "Sub2": {}}, "ClassB": {}}
-        """
-        flat_map = await self.get_class_subclass_map(data_entry_type)
-        tree: Dict[str, Any] = {}
-        for kind, subkinds in flat_map.items():
-            if subkinds:
-                tree[kind] = {sk: {} for sk in subkinds}
-            else:
-                tree[kind] = {}
-        return tree
 
     # async def get_current_factor(
     #     self,

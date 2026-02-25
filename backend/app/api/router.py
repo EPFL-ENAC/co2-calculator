@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    archibus,
     audit,
     auth,
     backoffice,
@@ -36,6 +37,7 @@ api_router.include_router(
 api_router.include_router(
     carbon_report_module.router, prefix="/modules", tags=["modules"]
 )
+api_router.include_router(archibus.router, prefix="/modules", tags=["modules"])
 # TODO: rename /modules-stats in the frontend!
 api_router.include_router(
     carbon_report_module_stats.router, prefix="/modules-stats", tags=["modules-stats"]
