@@ -13,7 +13,7 @@
           :error="error"
           :unit-id="unitId"
           :year="year"
-          :threshold="currentModuleConfig.threshold"
+          :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
     </div>
@@ -27,6 +27,7 @@ import { MODULES_CONFIG } from 'src/constant/module-config';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
 
 import type { ModuleResponse } from 'src/constant/modules';
+import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
 
 import { Module } from 'src/constant/modules';
 
@@ -43,6 +44,11 @@ const props = defineProps<{
 const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[props.type] as ModuleConfig,
 );
+
+const defaultThreshold: Threshold = {
+  type: MODULES_THRESHOLD_TYPES[0],
+  value: 0,
+};
 </script>
 
 <style scoped lang="scss">

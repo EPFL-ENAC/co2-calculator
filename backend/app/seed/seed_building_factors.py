@@ -1,4 +1,4 @@
-"""Seed building energy kWh/m² factors and combustion factors from CSV."""
+"""Seed building energy and combustion factors from CSV."""
 
 import asyncio
 import csv
@@ -32,35 +32,51 @@ def _float_or_none(value: str | None) -> float | None:
 
 
 async def seed_building_energy_factors(session: AsyncSession) -> None:
-    """Seed kWh/m² factors for each SIA room type."""
+    """Seed building energy factors from normalized building/category CSV."""
     service = FactorService(session)
     await service.bulk_delete_by_data_entry_type(DataEntryTypeEnum.building)
 
     factors = []
     with open(CSV_PATH_BUILDING_ENERGY, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
+        required_columns = {
+            "building_name",
+            "category",
+            "ef_kg_co2eq_per_kwh",
+            "energy_type",
+            "conversion_factor",
+        }
+        present_columns = set(reader.fieldnames or [])
+        missing_columns = required_columns - present_columns
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(
+                "seed_building_energy_factors.csv is missing required columns: "
+                f"{missing}"
+            )
+
         for row in reader:
-            heating = _float_or_none(row.get("heating_kwh_per_m2"))
-            if heating is None:
+            ef_kg_co2eq_per_kwh = _float_or_none(row.get("ef_kg_co2eq_per_kwh"))
+            if ef_kg_co2eq_per_kwh is None:
                 continue
+
+            building_name = (row.get("building_name") or "").strip()
+            category = (row.get("category") or "").strip().lower()
+            if not building_name or not category:
+                continue
+
             factor = await service.prepare_create(
                 emission_type_id=EmissionTypeEnum.energy,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.building.value,
                 classification={
-                    "kind": row.get("kind", ""),
-                    "subkind": row.get("subkind") or None,
-                    "source": row.get("source", ""),
+                    "kind": building_name,
+                    "subkind": category,
                 },
                 values={
-                    "heating_kwh_per_m2": heating,
-                    "cooling_kwh_per_m2": _float_or_none(row.get("cooling_kwh_per_m2")),
-                    "ventilation_kwh_per_m2": _float_or_none(
-                        row.get("ventilation_kwh_per_m2")
-                    ),
-                    "lighting_kwh_per_m2": _float_or_none(
-                        row.get("lighting_kwh_per_m2")
-                    ),
+                    "ef_kg_co2eq_per_kwh": ef_kg_co2eq_per_kwh,
+                    "energy_type": (row.get("energy_type") or "").strip(),
+                    "conversion_factor": _float_or_none(row.get("conversion_factor")),
                 },
             )
             factors.append(factor)

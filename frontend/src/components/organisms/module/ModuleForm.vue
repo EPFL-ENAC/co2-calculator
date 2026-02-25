@@ -538,13 +538,24 @@ watch(
 
     const buildingName = form['building_name'];
     if (!buildingName) return;
+    const currentUnitId =
+      props.unitId ?? workspaceStore.selectedUnit?.id ?? undefined;
+    if (!currentUnitId) return;
 
     try {
-      const rooms = await getArchibusRooms(buildingName);
+      const rooms = await getArchibusRooms(currentUnitId, buildingName);
       const match = rooms.find((r) => r.room_name === newVal);
       if (match) {
-        form['room_type'] = match.sia_type;
-        form['room_surface_square_meter'] = match.surface_m2;
+        form['room_type'] = match.room_type ?? '';
+        form['room_surface_square_meter'] = match.room_surface_square_meter;
+        form['heating_kwh_per_square_meter'] =
+          match.heating_kwh_per_square_meter ?? 0;
+        form['cooling_kwh_per_square_meter'] =
+          match.cooling_kwh_per_square_meter ?? 0;
+        form['ventilation_kwh_per_square_meter'] =
+          match.ventilation_kwh_per_square_meter ?? 0;
+        form['lighting_kwh_per_square_meter'] =
+          match.lighting_kwh_per_square_meter ?? 0;
       }
     } catch {
       // archibus lookup failed, user can fill manually

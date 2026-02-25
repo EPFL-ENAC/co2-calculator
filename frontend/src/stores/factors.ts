@@ -11,6 +11,7 @@ type Option = { label: string; value: string };
 
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
+  const workspaceStore = useWorkspaceStore();
 
   const treeBySubmodule = reactive<
     Partial<Record<AllSubmoduleTypes, OptionTree>>
@@ -18,6 +19,7 @@ export const useFactorsStore = defineStore('factors', () => {
   const treeFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
     {},
   );
+  const treeUnitId = reactive<Partial<Record<AllSubmoduleTypes, number>>>({});
 
   async function ensureSubclassOptionMap(
     submodule: keyof typeof enumSubmodule,
@@ -25,14 +27,25 @@ export const useFactorsStore = defineStore('factors', () => {
     const now = Date.now();
     const existing = treeBySubmodule[submodule];
     const last = treeFetchedAt[submodule];
+    const currentUnitId = workspaceStore.selectedUnit?.id;
+    const requestedUnitId =
+      submodule === SUBMODULE_BUILDINGS_TYPES.Building ? currentUnitId : undefined;
+    const cachedUnitId = treeUnitId[submodule];
+    const hasCachedEntries = !!existing && Object.keys(existing).length > 0;
 
-    if (existing && last && now - last < ONE_MINUTE_MS) {
+    if (
+      hasCachedEntries &&
+      last &&
+      now - last < ONE_MINUTE_MS &&
+      cachedUnitId === requestedUnitId
+    ) {
       return existing;
     }
 
-    const tree = await getClassificationTree(submodule);
+    const tree = await getClassificationTree(submodule, requestedUnitId);
     treeBySubmodule[submodule] = tree;
     treeFetchedAt[submodule] = now;
+    treeUnitId[submodule] = requestedUnitId;
     return tree;
   }
 
@@ -66,6 +79,7 @@ export const useFactorsStore = defineStore('factors', () => {
   return {
     treeBySubmodule,
     treeFetchedAt,
+    treeUnitId,
     ensureTree,
     getOptionsAtPath,
     fetchPowerFactor,
