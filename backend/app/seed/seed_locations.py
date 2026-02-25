@@ -36,7 +36,7 @@ async def seed_locations(session: AsyncSession) -> None:
         logger.error(f"CSV file not found: {csv_path}")
         return
 
-    # Load existing locations into a dict keyed by (name, transport_mode)
+    # Load existing locations into a dict keyed by (name, location transport_mode)
     result = await session.exec(select(Location))
     existing_locations = {
         (loc.name.lower(), loc.transport_mode): loc for loc in result.all()
@@ -54,14 +54,14 @@ async def seed_locations(session: AsyncSession) -> None:
         reader = csv.DictReader(f)
         for row_num, row in enumerate(reader, start=2):  # Start at 2 (row 1 is header)
             try:
-                # Parse transport mode
+                # Parse location transport_mode
                 transport_mode_raw = row.get("transport_mode", "").strip().lower()
                 if transport_mode_raw not in (
                     TransportModeEnum.plane.name,
                     TransportModeEnum.train.name,
                 ):
                     logger.warning(
-                        f"Row {row_num}: Invalid transport mode "
+                        f"Row {row_num}: Invalid location transport_mode "
                         f"'{transport_mode_raw}', skipping"
                     )
                     skipped += 1

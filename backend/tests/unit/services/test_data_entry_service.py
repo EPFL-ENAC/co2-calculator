@@ -39,23 +39,23 @@ async def test_create_data_entry_success(db_session: AsyncSession):
 
     # Create data
     data = DataEntryCreate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=module.id,
-        data={"name": "Test Trip", "transport_mode": "plane"},
+        data={"name": "Test Trip", "cabin_class": "eco"},
     )
 
     result = await service.create(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         user=user,
         data=data,
     )
 
     assert result.id is not None
     assert result.carbon_report_module_id == module.id
-    assert result.data_entry_type_id == DataEntryTypeEnum.trips
+    assert result.data_entry_type_id == DataEntryTypeEnum.plane
     assert result.data["name"] == "Test Trip"
-    assert result.data["transport_mode"] == "plane"
+    assert result.data["cabin_class"] == "eco"
 
 
 # ======================================================================
@@ -80,9 +80,9 @@ async def test_update_data_entry_success(db_session: AsyncSession):
     # Create existing entry
     entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"name": "Original Trip", "transport_mode": "plane"},
+        data={"name": "Original Trip", "cabin_class": "eco"},
     )
     db_session.add(entry)
     await db_session.flush()
@@ -97,16 +97,16 @@ async def test_update_data_entry_success(db_session: AsyncSession):
 
     # Update data
     update_data = DataEntryUpdate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=module.id,
-        data={"transport_mode": "train"},
+        data={"cabin_class": "business"},
     )
 
     result = await service.update(id=entry.id, data=update_data, user=user)
 
     assert result.id == entry.id
     assert result.data["name"] == "Original Trip"  # Preserved
-    assert result.data["transport_mode"] == "train"  # Updated
+    assert result.data["cabin_class"] == "business"  # Updated
 
 
 @pytest.mark.asyncio
@@ -115,7 +115,7 @@ async def test_update_data_entry_without_user_raises_error(db_session: AsyncSess
     service = DataEntryService(db_session)
 
     update_data = DataEntryUpdate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=1,
         data={"name": "Updated"},
     )
@@ -140,7 +140,7 @@ async def test_update_data_entry_not_found_raises_error(db_session: AsyncSession
         provider_code="default-1441",
     )
     update_data = DataEntryUpdate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=1,
         data={"name": "Updated"},
     )
@@ -171,7 +171,7 @@ async def test_delete_data_entry_success(db_session: AsyncSession):
     # Create entry
     entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -233,7 +233,7 @@ async def test_get_data_entry_success(db_session: AsyncSession):
     # Create entry
     entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -286,7 +286,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -324,10 +324,10 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     )
 
     # Create entries of different types
-    trips = [
+    plane_entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -341,22 +341,22 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
         data={"name": "Cloud"},
     )
 
-    db_session.add_all(trips + [other_entry])
+    db_session.add_all(plane_entries + [other_entry])
     await db_session.flush()
 
-    # Bulk delete only trips
-    await service.bulk_delete(module.id, DataEntryTypeEnum.trips, user)
+    # Bulk delete only plane entries
+    await service.bulk_delete(module.id, DataEntryTypeEnum.plane, user)
 
-    # Verify trips are deleted
+    # Verify plane entries are deleted
     from sqlmodel import select
 
     stmt = select(DataEntry).where(
         DataEntry.carbon_report_module_id == module.id,
-        DataEntry.data_entry_type_id == DataEntryTypeEnum.trips.value,
+        DataEntry.data_entry_type_id == DataEntryTypeEnum.plane.value,
     )
     result = await db_session.exec(stmt)
-    remaining_trips = list(result.all())
-    assert len(remaining_trips) == 0
+    remaining_plane = list(result.all())
+    assert len(remaining_plane) == 0
 
     # Verify other entry still exists
     stmt = select(DataEntry).where(
@@ -391,7 +391,7 @@ async def test_get_list_data_entries(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -436,7 +436,7 @@ async def test_get_module_data(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -449,8 +449,8 @@ async def test_get_module_data(db_session: AsyncSession):
 
     assert result.carbon_report_module_id == module.id
     assert result.data_entry_types_total_items is not None
-    assert DataEntryTypeEnum.trips.value in result.data_entry_types_total_items
-    assert result.data_entry_types_total_items[DataEntryTypeEnum.trips.value] == 5
+    assert DataEntryTypeEnum.plane.value in result.data_entry_types_total_items
+    assert result.data_entry_types_total_items[DataEntryTypeEnum.plane.value] == 5
     assert result.retrieved_at is not None
 
 
@@ -477,13 +477,12 @@ async def test_get_submodule_data(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={
                 "traveler_name": f"Traveler {i}",
                 "origin_location_id": 1,
                 "destination_location_id": 2,
-                "transport_mode": "plane",
                 "number_of_trips": 1,
                 "unit_id": 1,
             },
@@ -495,14 +494,14 @@ async def test_get_submodule_data(db_session: AsyncSession):
 
     result = await service.get_submodule_data(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         limit=10,
         offset=0,
         sort_by="id",
         sort_order="asc",
     )
 
-    assert result.id == DataEntryTypeEnum.trips.value
+    assert result.id == DataEntryTypeEnum.plane.value
     assert result.count == 3
     assert result.summary.total_items == 3
 

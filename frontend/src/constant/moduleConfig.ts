@@ -56,6 +56,9 @@ export interface ModuleField {
   default?: string | number | boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  treeLevel?: number;
+  disableUntilField?: string;
+  appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
   tooltip?: string;
@@ -98,6 +101,8 @@ export interface Submodule {
   hasTableAction?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
+  requiredFieldIds?: string[];
+  csvTemplateHeaders?: string[];
 }
 
 export interface ResultBigNumberConfig {

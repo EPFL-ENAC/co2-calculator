@@ -6,6 +6,14 @@ export default {
     en: 'Trips',
     fr: 'Voyages',
   },
+  [`${MODULES.ProfessionalTravel}-plane-table-title`]: {
+    en: 'Plane Trip ({count}) | Plane Trips ({count})',
+    fr: 'Avion ({count}) | Avions ({count})',
+  },
+  [`${MODULES.ProfessionalTravel}-train-table-title`]: {
+    en: 'Train Trip ({count}) | Train Trips ({count})',
+    fr: 'Train ({count}) | Trains ({count})',
+  },
   [`${MODULES.ProfessionalTravel}-field-type`]: {
     en: 'Type',
     fr: 'Type',
@@ -43,6 +51,14 @@ export default {
     en: 'Add a trip',
     fr: 'Ajouter un voyage',
   },
+  [`${MODULES.ProfessionalTravel}-plane-form-title`]: {
+    en: 'Add a plane trip',
+    fr: 'Ajouter un trajet en avion',
+  },
+  [`${MODULES.ProfessionalTravel}-train-form-title`]: {
+    en: 'Add a train trip',
+    fr: 'Ajouter un trajet en train',
+  },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
     en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose.',
     fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet.',
@@ -75,6 +91,22 @@ export default {
   [`${MODULES.ProfessionalTravel}-trips`]: {
     en: 'trip',
     fr: 'voyage',
+  },
+  [`${MODULES.ProfessionalTravel}-plane`]: {
+    en: 'plane',
+    fr: 'avion',
+  },
+  [`${MODULES.ProfessionalTravel}-train`]: {
+    en: 'train',
+    fr: 'train',
+  },
+  [`${MODULES.ProfessionalTravel}-add-plane-button`]: {
+    en: 'Add a plane trip',
+    fr: 'Ajouter un trajet en avion',
+  },
+  [`${MODULES.ProfessionalTravel}-add-train-button`]: {
+    en: 'Add a train trip',
+    fr: 'Ajouter un trajet en train',
   },
   // Legacy keys (keeping for backward compatibility)
   [MODULES.ProfessionalTravel]: {
@@ -166,8 +198,8 @@ export default {
     fr: 'Train',
   },
   plane: {
-    en: 'Flight',
-    fr: 'Vol',
+    en: 'Plane',
+    fr: 'Avion',
   },
   [`${MODULES.ProfessionalTravel}-error-same-destination`]: {
     en: 'Origin and destination cannot be the same',

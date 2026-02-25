@@ -106,7 +106,6 @@ async def get_module(
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
     module_key = module_id.replace("-", "_")
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
@@ -173,7 +172,7 @@ async def get_stats_by_class(
     current_user: User = Depends(get_current_active_user),
 ) -> List:
     """
-    Get travel emissions aggregated by transport_mode and cabin_class.
+    Get travel emissions aggregated by travel category and cabin_class.
 
     Returns treemap-format data for charts.
     """
@@ -202,7 +201,7 @@ async def get_evolution_over_time(
     current_user: User = Depends(get_current_active_user),
 ) -> List:
     """
-    Get travel emissions aggregated by year and transport_mode for a unit.
+    Get travel emissions aggregated by year and category for a unit.
     """
     await _check_module_permission(current_user, "professional-travel", "view")
 
@@ -262,7 +261,6 @@ async def get_submodule(
     )
 
     module_key = module_id.replace("-", "_")
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
@@ -548,7 +546,6 @@ async def update(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Submodule not supported for update",
         )
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,

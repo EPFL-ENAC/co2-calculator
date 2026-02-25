@@ -35,19 +35,20 @@ class LocationService:
         Args:
             query: Search query string
             limit: Maximum number of results
-            transport_mode: Filter by transport mode ('train' or 'plane')
+            transport_mode: Filter by location transport mode ('train' or 'plane')
 
         Returns:
             List of LocationRead DTOs ordered by relevance
 
         Raises:
-            HTTPException 400: If transport_mode is invalid or query is too short
+            HTTPException 400: If location transport_mode is invalid
+                or query is too short
         """
-        # Validate transport_mode if provided
+        # Validate location transport_mode
         if transport_mode is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="transport_mode must be either 'train' or 'plane'",
+                detail="location transport_mode must be either 'train' or 'plane'",
             )
 
         # Normalize and validate query
@@ -88,7 +89,7 @@ class LocationService:
         number_of_trips: int = 1,
     ) -> dict[str, float]:
         """
-        Calculate distance between two locations based on transport mode.
+        Calculate distance between two locations based on location transport mode.
 
         For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
         For trains: Haversine distance × 1.2 (track routing, curves, detours)
@@ -98,14 +99,15 @@ class LocationService:
         Args:
             origin_location_id: Origin location ID
             destination_location_id: Destination location ID
-            transport_mode: 'plane' or 'train'
+            transport_mode: Location transport mode ('plane' or 'train')
             number_of_trips: Number of trips (default: 1)
 
         Returns:
             Dict with distance_km in kilometers
 
         Raises:
-            HTTPException 400: If transport_mode is invalid or coordinates are invalid
+            HTTPException 400: If location transport_mode is invalid
+                or coordinates are invalid
             HTTPException 404: If location not found
         """
         # Fetch locations

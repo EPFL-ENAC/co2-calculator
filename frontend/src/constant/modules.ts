@@ -93,7 +93,8 @@ export const enumSubmodule = {
   [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 9,
   [SUBMODULE_EQUIPMENT_TYPES.IT]: 10,
   [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
-  trips: 20,
+  plane: 20,
+  train: 21,
   building: 30,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
@@ -147,10 +148,8 @@ export type HeadcountProps = {
 };
 
 export const SUBMODULE_PROFESSIONAL_TRAVEL_TYPES = {
-  Conference: 'conference',
-  Fieldwork: 'fieldwork',
-  Training: 'training',
-  Other: 'other',
+  Plane: 'plane',
+  Train: 'train',
 } as const;
 
 export type ProfessionalTravelSubType =

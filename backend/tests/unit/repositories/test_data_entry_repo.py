@@ -33,16 +33,16 @@ async def test_create_data_entry(db_session: AsyncSession):
     # Create data entry
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"name": "Test Trip", "transport_mode": "plane"},
+        data={"name": "Test Trip", "cabin_class": "eco"},
     )
 
     result = await repo.create(data_entry)
 
     assert result.id is not None
     assert result.carbon_report_module_id == module.id
-    assert result.data_entry_type_id == DataEntryTypeEnum.trips
+    assert result.data_entry_type_id == DataEntryTypeEnum.plane
     assert result.data["name"] == "Test Trip"
 
 
@@ -63,7 +63,7 @@ async def test_get_data_entry(db_session: AsyncSession):
     # Create data entry
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -104,25 +104,25 @@ async def test_update_data_entry(db_session: AsyncSession):
     # Create data entry
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"name": "Test Trip", "transport_mode": "plane"},
+        data={"name": "Test Trip", "cabin_class": "eco"},
     )
     db_session.add(data_entry)
     await db_session.flush()
 
     # Update data entry
     update_data = DataEntryUpdate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=module.id,
-        data={"transport_mode": "train", "new_field": "value"},
+        data={"cabin_class": "business", "new_field": "value"},
     )
 
     result = await repo.update(data_entry.id, update_data, user_id=1)
 
     assert result is not None
     assert result.data["name"] == "Test Trip"  # Original field preserved
-    assert result.data["transport_mode"] == "train"  # Updated field
+    assert result.data["cabin_class"] == "business"  # Updated field
     assert result.data["new_field"] == "value"  # New field added
 
 
@@ -132,7 +132,7 @@ async def test_update_data_entry_not_found(db_session: AsyncSession):
     repo = DataEntryRepository(db_session)
 
     update_data = DataEntryUpdate(
-        data_entry_type_id=DataEntryTypeEnum.trips.value,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
         carbon_report_module_id=1,
         data={"name": "Updated"},
     )
@@ -158,7 +158,7 @@ async def test_delete_data_entry(db_session: AsyncSession):
     # Create data entry
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -207,7 +207,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -237,10 +237,10 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
     await db_session.flush()
 
     # Create entries of different types
-    trips_entries = [
+    plane_entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -254,23 +254,23 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
         data={"name": "Cloud"},
     )
 
-    db_session.add_all(trips_entries + [other_entry])
+    db_session.add_all(plane_entries + [other_entry])
     await db_session.flush()
 
-    # Bulk delete only trips
-    await repo.bulk_delete(module.id, DataEntryTypeEnum.trips)
+    # Bulk delete only plane entries
+    await repo.bulk_delete(module.id, DataEntryTypeEnum.plane)
     await db_session.flush()
 
-    # Verify trips are deleted
+    # Verify plane entries are deleted
     from sqlmodel import select
 
     stmt = select(DataEntry).where(
         DataEntry.carbon_report_module_id == module.id,
-        DataEntry.data_entry_type_id == DataEntryTypeEnum.trips.value,
+        DataEntry.data_entry_type_id == DataEntryTypeEnum.plane.value,
     )
     result = await db_session.exec(stmt)
-    remaining_trips = list(result.all())
-    assert len(remaining_trips) == 0
+    remaining_plane = list(result.all())
+    assert len(remaining_plane) == 0
 
     # Verify other entry still exists
     stmt = select(DataEntry).where(
@@ -305,7 +305,7 @@ async def test_get_total_count_by_submodule(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -317,8 +317,8 @@ async def test_get_total_count_by_submodule(db_session: AsyncSession):
 
     result = await repo.get_total_count_by_submodule(module.id)
 
-    assert DataEntryTypeEnum.trips.value in result
-    assert result[DataEntryTypeEnum.trips.value] == 5
+    assert DataEntryTypeEnum.plane.value in result
+    assert result[DataEntryTypeEnum.plane.value] == 5
 
 
 @pytest.mark.asyncio
@@ -373,7 +373,7 @@ async def test_get_total_per_field_kg_co2eq(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}", "kg_co2eq": 100.0 * (i + 1)},
         )
@@ -404,24 +404,24 @@ async def test_get_total_per_field_with_type_filter(db_session: AsyncSession):
     await db_session.flush()
 
     # Create mixed entries
-    trips = [
+    plane_entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}", "kg_co2eq": 100.0},
         )
         for i in range(3)
     ]
 
-    db_session.add_all(trips)
+    db_session.add_all(plane_entries)
     await db_session.flush()
 
     result = await repo.get_total_per_field(
-        "kg_co2eq", module.id, DataEntryTypeEnum.trips.value
+        "kg_co2eq", module.id, DataEntryTypeEnum.plane.value
     )
 
-    # Only trips counted: 100 * 3 = 300
+    # Only plane entries counted: 100 * 3 = 300
     assert result == pytest.approx(300.0, rel=0.01)
 
 
@@ -453,7 +453,7 @@ async def test_get_stats_by_data_entry_type(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}", "fte": 1.0},
         )
@@ -467,8 +467,8 @@ async def test_get_stats_by_data_entry_type(db_session: AsyncSession):
         module.id, aggregate_by="data_entry_type_id", aggregate_field="fte"
     )
 
-    assert str(DataEntryTypeEnum.trips.value) in result
-    assert result[str(DataEntryTypeEnum.trips.value)] == pytest.approx(3.0, rel=0.01)
+    assert str(DataEntryTypeEnum.plane.value) in result
+    assert result[str(DataEntryTypeEnum.plane.value)] == pytest.approx(3.0, rel=0.01)
 
 
 @pytest.mark.asyncio

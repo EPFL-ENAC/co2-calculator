@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
 import FilesUploadDialog from './FilesUploadDialog.vue';
 import { useFilesStore } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
@@ -24,6 +23,23 @@ defineProps<Props>();
 const showUploadDialog = ref<boolean>(false);
 const uploadTargetType = ref<'data_entries' | 'factors'>('data_entries');
 const uploadFactorVariant = ref<string | null>(null);
+const uploadDataEntryTypeId = ref<number | null>(null);
+
+type ImportRow = {
+  key: string;
+  labelKey: string;
+  moduleTypeId: number;
+  dataEntryTypeId?: number;
+  factorVariant?: 'plane' | 'train';
+};
+
+const importRows = computed<ImportRow[]>(() => {
+  return MODULES_LIST.map((module, index) => ({
+    key: module,
+    labelKey: module,
+    moduleTypeId: index + 1,
+  }));
+});
 
 /**
  * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
@@ -88,10 +104,14 @@ const onFilesUploaded = async (filePaths: string[]) => {
       file_path: filePath,
     };
 
-    // Add data_entry_type_id for headcount (members only)
-    // probably should be done in backend, but doing here for now to avoid changing existing backend endpoint signature
-    if (uploadTargetType.value === 'data_entries' && module_type_id === 1) {
-      syncParams.data_entry_type_id = enumSubmodule.member; // value: 1
+    if (uploadDataEntryTypeId.value !== null) {
+      syncParams.data_entry_type_id = uploadDataEntryTypeId.value;
+    } else if (
+      uploadTargetType.value === 'data_entries' &&
+      module_type_id === 1
+    ) {
+      // Keep existing headcount default behavior
+      syncParams.data_entry_type_id = 1;
     }
 
     if (uploadTargetType.value === 'factors' && uploadFactorVariant.value) {
@@ -149,50 +169,23 @@ const dataEntrySync = async (moduleTypeId: number, year: number) => {
   });
 };
 
-const openUploadCsvDialog = (moduleTypeId: number, year: number) => {
+const openUploadCsvDialog = (row: ImportRow, year: number) => {
   // store moduleTypeId in filesStore to retrieve later when files are uploaded
   // TODO: FORBID USER to CHANGE
-  filesStore.currentUploadModuleTypeId = moduleTypeId;
+  filesStore.currentUploadModuleTypeId = row.moduleTypeId;
   filesStore.currentUploadYear = year;
   uploadTargetType.value = 'data_entries';
   uploadFactorVariant.value = null;
+  uploadDataEntryTypeId.value = row.dataEntryTypeId ?? null;
   showUploadDialog.value = true;
 };
 
-const openUploadFactorsDialog = async (moduleTypeId: number, year: number) => {
-  filesStore.currentUploadModuleTypeId = moduleTypeId;
+const openUploadFactorsDialog = (row: ImportRow, year: number) => {
+  filesStore.currentUploadModuleTypeId = row.moduleTypeId;
   filesStore.currentUploadYear = year;
   uploadTargetType.value = 'factors';
-  uploadFactorVariant.value = null;
-
-  if (moduleTypeId === 2) {
-    const result = await new Promise<string | null>((resolve) => {
-      $q.dialog({
-        title: 'Select travel factor type',
-        message: 'Which travel factor CSV are you uploading?',
-        options: {
-          type: 'radio',
-          model: 'plane',
-          items: [
-            { label: 'Plane factors', value: 'plane' },
-            { label: 'Train factors', value: 'train' },
-          ],
-        },
-        cancel: true,
-        persistent: true,
-      })
-        .onOk((value: string) => resolve(value))
-        .onCancel(() => resolve(null))
-        .onDismiss(() => resolve(null));
-    });
-
-    if (!result) {
-      return;
-    }
-
-    uploadFactorVariant.value = result;
-  }
-
+  uploadDataEntryTypeId.value = row.dataEntryTypeId ?? null;
+  uploadFactorVariant.value = row.factorVariant ?? null;
   showUploadDialog.value = true;
 };
 
@@ -286,8 +279,10 @@ onUnmounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="module in MODULES_LIST" :key="module">
-            <td class="text-weight-medium" align="left">{{ $t(module) }}</td>
+          <tr v-for="row in importRows" :key="row.key">
+            <td class="text-weight-medium" align="left">
+              {{ $t(row.labelKey) }}
+            </td>
             <td align="left"></td>
             <td align="left">
               <div class="q-mb-sm">
@@ -305,9 +300,7 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
-                  @click="
-                    openUploadCsvDialog(MODULES_LIST.indexOf(module) + 1, year)
-                  "
+                  @click="openUploadCsvDialog(row, year)"
                 />
                 <!-- TODO: use enum for data_module_type_id -->
                 <q-btn
@@ -317,7 +310,7 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_connect_api')"
                   class="text-weight-medium on-right"
-                  @click="dataEntrySync(MODULES_LIST.indexOf(module) + 1, year)"
+                  @click="dataEntrySync(row.moduleTypeId, year)"
                 />
                 <q-btn
                   no-caps
@@ -345,12 +338,7 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
-                  @click="
-                    openUploadFactorsDialog(
-                      MODULES_LIST.indexOf(module) + 1,
-                      year,
-                    )
-                  "
+                  @click="openUploadFactorsDialog(row, year)"
                 />
                 <q-btn
                   no-caps

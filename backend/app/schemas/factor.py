@@ -247,15 +247,15 @@ class ExternalAIFactorResponse(FactorResponseGen):
 
 class TravelPlaneFactorResponse(FactorResponseGen):
     category: str
-    impact_score: float
-    rfi_adjustment: Optional[float] = None
+    ef_kg_co2eq_per_km: float
+    rfi_adjustement: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
 
 class TravelTrainFactorResponse(FactorResponseGen):
     country_code: str
-    impact_score: float
+    ef_kg_co2eq_per_km: float
 
 
 class EquipmentFactorCreate(FactorCreate):
@@ -375,15 +375,15 @@ class ExternalAIFactorUpdate(FactorUpdate):
 
 class TravelPlaneFactorCreate(FactorCreate):
     category: str
-    impact_score: float
-    rfi_adjustment: Optional[float] = None
+    ef_kg_co2eq_per_km: float
+    rfi_adjustement: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
     classification_field_map: dict[str, str] = {"category": "category"}
     value_field_map: dict[str, str] = {
-        "impact_score": "impact_score",
-        "rfi_adjustment": "rfi_adjustment",
+        "ef_kg_co2eq_per_km": "ef_kg_co2eq_per_km",
+        "rfi_adjustement": "rfi_adjustement",
         "min_distance": "min_distance",
         "max_distance": "max_distance",
     }
@@ -398,15 +398,15 @@ class TravelPlaneFactorCreate(FactorCreate):
 
 class TravelPlaneFactorUpdate(FactorUpdate):
     category: Optional[str] = None
-    impact_score: Optional[float] = None
-    rfi_adjustment: Optional[float] = None
+    ef_kg_co2eq_per_km: Optional[float] = None
+    rfi_adjustement: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
     classification_field_map: dict[str, str] = {"category": "category"}
     value_field_map: dict[str, str] = {
-        "impact_score": "impact_score",
-        "rfi_adjustment": "rfi_adjustment",
+        "ef_kg_co2eq_per_km": "ef_kg_co2eq_per_km",
+        "rfi_adjustement": "rfi_adjustement",
         "min_distance": "min_distance",
         "max_distance": "max_distance",
     }
@@ -418,10 +418,10 @@ class TravelPlaneFactorUpdate(FactorUpdate):
 
 class TravelTrainFactorCreate(FactorCreate):
     country_code: str
-    impact_score: float
+    ef_kg_co2eq_per_km: float
 
     classification_field_map: dict[str, str] = {"country_code": "country_code"}
-    value_field_map: dict[str, str] = {"impact_score": "impact_score"}
+    value_field_map: dict[str, str] = {"ef_kg_co2eq_per_km": "ef_kg_co2eq_per_km"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -433,10 +433,10 @@ class TravelTrainFactorCreate(FactorCreate):
 
 class TravelTrainFactorUpdate(FactorUpdate):
     country_code: Optional[str] = None
-    impact_score: Optional[float] = None
+    ef_kg_co2eq_per_km: Optional[float] = None
 
     classification_field_map: dict[str, str] = {"country_code": "country_code"}
-    value_field_map: dict[str, str] = {"impact_score": "impact_score"}
+    value_field_map: dict[str, str] = {"ef_kg_co2eq_per_km": "ef_kg_co2eq_per_km"}
 
     @classmethod
     def computed_classification(cls, payload: dict) -> dict:
@@ -498,11 +498,11 @@ class ExternalAIFactorHandler(BaseFactorHandler):
 
 
 class TravelPlaneFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.trips
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
     factor_variant: str = "plane"
     emission_type: EmissionTypeEnum = EmissionTypeEnum.plane
 
-    registration_keys = [(DataEntryTypeEnum.trips, "plane")]
+    registration_keys = [(DataEntryTypeEnum.plane, "plane")]
 
     create_dto = TravelPlaneFactorCreate
     update_dto = TravelPlaneFactorUpdate
@@ -510,11 +510,11 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
 
 
 class TravelTrainFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.trips
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
     factor_variant: str = "train"
     emission_type: EmissionTypeEnum = EmissionTypeEnum.train
 
-    registration_keys = [(DataEntryTypeEnum.trips, "train")]
+    registration_keys = [(DataEntryTypeEnum.train, "train")]
 
     create_dto = TravelTrainFactorCreate
     update_dto = TravelTrainFactorUpdate

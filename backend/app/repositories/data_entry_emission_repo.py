@@ -257,13 +257,12 @@ class DataEntryEmissionRepository:
         carbon_report_module_id: int,
     ) -> List[Dict[str, Any]]:
         """
-        Aggregate trip emissions by transport_mode and cabin_class.
+        Aggregate travel emissions by data entry type and cabin_class.
         """
-        # Define expressions once so SELECT and GROUP BY use the same objects
-        category_expr = DataEntry.data["transport_mode"].as_string()
+        category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data["cabin_class"].as_string()
 
-        query = (
+        query: Select[Any] = (
             select(
                 category_expr.label("category"),
                 class_expr.label("class_key"),
@@ -275,7 +274,9 @@ class DataEntryEmissionRepository:
             )
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
-                DataEntry.data_entry_type_id == DataEntryTypeEnum.trips.value,
+                col(DataEntry.data_entry_type_id).in_(
+                    [DataEntryTypeEnum.plane.value, DataEntryTypeEnum.train.value]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 col(DataEntryEmission.kg_co2eq) > 0,
             )
@@ -285,10 +286,15 @@ class DataEntryEmissionRepository:
         result = await self.session.execute(query)
         rows = result.all()
 
-        # Group by category (transport_mode), aggregate by class
+        # Group by category, aggregate by class
         data_dict: Dict[str, Dict[str, float]] = {}
         for row in rows:
-            category = row.category or "unknown"
+            if row.category == DataEntryTypeEnum.plane.value:
+                category = "plane"
+            elif row.category == DataEntryTypeEnum.train.value:
+                category = "train"
+            else:
+                continue
             class_key = row.class_key
             kg_co2eq = float(row.kg_co2eq or 0.0)
 
@@ -302,10 +308,8 @@ class DataEntryEmissionRepository:
             if class_key is None:
                 if category == "plane":
                     class_key = "eco"
-                elif category == "train":
-                    class_key = "class_2"
                 else:
-                    class_key = "unknown"
+                    class_key = "class_2"
 
             data_dict[category][class_key] = (
                 data_dict[category].get(class_key, 0.0) + kg_co2eq
@@ -345,23 +349,23 @@ class DataEntryEmissionRepository:
         unit_id: int,
     ) -> List[Dict[str, Any]]:
         """
-        Aggregate trip emissions by year and transport_mode across all years
+        Aggregate travel emissions by year and category across all years
         for a given unit.
 
         Returns:
         [
-            {"year": 2023, "transport_mode": "plane", "kg_co2eq": 15000.0},
-            {"year": 2023, "transport_mode": "train", "kg_co2eq": 8000.0},
+            {"year": 2023, "category": "plane", "kg_co2eq": 15000.0},
+            {"year": 2023, "category": "train", "kg_co2eq": 8000.0},
             ...
         ]
         """
         year_expr = col(CarbonReport.year)
-        transport_mode_expr = DataEntry.data["transport_mode"].as_string()
+        category_expr = col(DataEntry.data_entry_type_id)
 
         query: Select[Any] = (
             select(
                 year_expr.label("year"),
-                transport_mode_expr.label("transport_mode"),
+                category_expr.label("category"),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
             )
             .join(
@@ -380,22 +384,32 @@ class DataEntryEmissionRepository:
                 CarbonReport.unit_id == unit_id,
                 CarbonReportModule.module_type_id
                 == ModuleTypeEnum.professional_travel.value,
-                DataEntry.data_entry_type_id == DataEntryTypeEnum.trips.value,
+                col(DataEntry.data_entry_type_id).in_(
+                    [DataEntryTypeEnum.plane.value, DataEntryTypeEnum.train.value]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 col(DataEntryEmission.kg_co2eq) > 0,
             )
-            .group_by(year_expr, transport_mode_expr)
-            .order_by(year_expr.asc(), transport_mode_expr.asc())
+            .group_by(year_expr, category_expr)
+            .order_by(year_expr.asc(), category_expr.asc())
         )
 
         result = await self.session.execute(query)
         rows = result.all()
 
-        return [
-            {
-                "year": row.year,
-                "transport_mode": row.transport_mode or "unknown",
-                "kg_co2eq": row.kg_co2eq or None,
-            }
-            for row in rows
-        ]
+        result_list: List[Dict[str, Any]] = []
+        for row in rows:
+            if row.category == DataEntryTypeEnum.plane.value:
+                category = "plane"
+            elif row.category == DataEntryTypeEnum.train.value:
+                category = "train"
+            else:
+                continue
+            result_list.append(
+                {
+                    "year": row.year,
+                    "category": category,
+                    "kg_co2eq": row.kg_co2eq or None,
+                }
+            )
+        return result_list

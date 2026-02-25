@@ -174,7 +174,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     "provider": self.config["provider"],
                     "origin_location_id": origin_location_id,
                     "destination_location_id": destination_location_id,
-                    "transport_mode": record.get("TRANSPORT_TYPE"),
                     "year": self.config["year"],
                 }
                 transformed.append(entry)
@@ -192,14 +191,27 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             raise
 
     async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        def resolve_data_entry_type_id(item: Dict[str, Any]) -> int:
+            raw_transport_type = (item.get("transport_type") or "").strip().lower()
+            if "train" in raw_transport_type:
+                return DataEntryTypeEnum.train.value
+            if "plane" in raw_transport_type:
+                return DataEntryTypeEnum.plane.value
+
+            logger.warning(
+                "Unknown transport_type '%s'; defaulting to plane",
+                item.get("transport_type"),
+            )
+            return DataEntryTypeEnum.plane.value
+
         result = []
         async with SessionLocal() as db:
             service = DataEntryService(db)
             entries = [
                 DataEntry(
                     carbon_report_module_id=item.get("carbon_report_module_id"),
-                    data_entry_type_id=DataEntryTypeEnum.trips.value,
-                    data=item,
+                    data_entry_type_id=resolve_data_entry_type_id(item),
+                    data={k: v for k, v in item.items() if k != "transport_type"},
                 )
                 for item in data
             ]

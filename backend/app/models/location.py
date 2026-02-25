@@ -13,8 +13,8 @@ from sqlmodel import Field, SQLModel
 # enum - used in other files
 class TransportModeEnum(str, Enum):
     """
-    Module types for travel data entries.
-    Used to differentiate between plane and train data entries.
+    Location classification for transport networks.
+    Used to distinguish airport locations from train station locations.
     """
 
     plane = "plane"
@@ -30,7 +30,7 @@ class LocationBase(SQLModel):
     transport_mode: TransportModeEnum = Field(
         nullable=False,
         index=True,
-        description="Transport mode: 'plane' or 'train'",
+        description="Location transport mode: 'plane' (airport) or 'train' (station)",
     )
     name: str = Field(
         max_length=255,

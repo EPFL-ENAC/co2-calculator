@@ -241,14 +241,17 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        is_trips = data_entry_type_id == DataEntryTypeEnum.trips.value
+        is_travel_entry = data_entry_type_id in (
+            DataEntryTypeEnum.plane.value,
+            DataEntryTypeEnum.train.value,
+        )
 
         # Build query based on entry type
         entities: list[Any] = [DataEntry, DataEntryEmission, Factor]
         OriginLocation = aliased(Location)
         DestLocation = aliased(Location)
 
-        if is_trips:
+        if is_travel_entry:
             entities.extend([OriginLocation, DestLocation])
         statement: Select[Any] = (
             sa_select(*entities)
@@ -264,7 +267,7 @@ class DataEntryRepository:
             )
         )
 
-        if is_trips:
+        if is_travel_entry:
             statement = statement.join(
                 OriginLocation,
                 DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,
@@ -312,7 +315,7 @@ class DataEntryRepository:
 
         for row in rows:
             # Unpack based on query shape
-            if is_trips:
+            if is_travel_entry:
                 (
                     data_entry,
                     data_entry_emission,

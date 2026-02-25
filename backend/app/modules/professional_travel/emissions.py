@@ -17,7 +17,8 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.trips)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.plane)
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.train)
 async def compute_trips(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
@@ -62,6 +63,8 @@ async def compute_trips(
     OriginLoc = aliased(Location, name="origin")
     DestLoc = aliased(Location, name="dest")
 
+    selected_type = DataEntryTypeEnum(data_entry.data_entry_type)
+
     stmt = (
         select(OriginLoc, DestLoc, Factor)
         .select_from(OriginLoc)
@@ -69,7 +72,7 @@ async def compute_trips(
         .outerjoin(
             Factor,
             and_(
-                col(Factor.data_entry_type_id) == DataEntryTypeEnum.trips.value,
+                col(Factor.data_entry_type_id) == selected_type.value,
                 Factor.classification["kind"].as_string() == transport_mode.value,
             ),
         )

@@ -28,7 +28,7 @@ async def seed_train_factors() -> None:
         service = FactorService(session)
 
         # Delete existing train factors
-        existing = await service.list_by_data_entry_type(DataEntryTypeEnum.trips)
+        existing = await service.list_by_data_entry_type(DataEntryTypeEnum.train)
         ids = [
             f.id
             for f in existing
@@ -42,16 +42,27 @@ async def seed_train_factors() -> None:
         with open(CSV_PATH, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 country_code = row["country_code"]
+                impact_score_raw = row.get("impact_score") or row.get(
+                    "ef_kg_co2eq_per_km"
+                )
                 factor = await service.prepare_create(
                     emission_type_id=EmissionTypeEnum.train.value,
                     is_conversion=False,
-                    data_entry_type_id=DataEntryTypeEnum.trips.value,
+                    data_entry_type_id=DataEntryTypeEnum.train.value,
                     classification={
                         "kind": TransportModeEnum.train.value,
                         "subkind": country_code,
                         "country_code": country_code,
                     },
-                    values={"impact_score": float(row["impact_score"])},
+                    values={
+                        # Keep both key variants for backward compatibility.
+                        "impact_score": float(impact_score_raw)
+                        if impact_score_raw
+                        else None,
+                        "ef_kg_co2eq_per_km": float(impact_score_raw)
+                        if impact_score_raw
+                        else None,
+                    },
                 )
                 factors.append(factor)
 

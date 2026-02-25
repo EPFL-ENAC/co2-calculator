@@ -428,15 +428,18 @@ export const useModuleStore = defineStore('modules', () => {
       if (moduleType === MODULES.EquipmentElectricConsumption) {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
-      } else if (moduleType === MODULES.ProfessionalTravel) {
-        // Add unit_id for professional travel (required by backend)
-        normalized.unit_id = unitId;
       }
-
-      const body = normalized;
 
       const isRoundTrip =
         moduleType === MODULES.ProfessionalTravel && !!normalized.is_round_trip;
+      const body =
+        moduleType === MODULES.ProfessionalTravel
+          ? (() => {
+              const rest = { ...normalized };
+              delete rest.is_round_trip;
+              return rest;
+            })()
+          : normalized;
 
       try {
         await api.post(path, { json: body }).json();
@@ -458,10 +461,9 @@ export const useModuleStore = defineStore('modules', () => {
 
       if (isRoundTrip) {
         const returnBody = {
-          ...normalized,
+          ...body,
           origin_location_id: normalized.destination_location_id,
           destination_location_id: normalized.origin_location_id,
-          is_round_trip: false,
         };
         try {
           await api.post(path, { json: returnBody }).json();
@@ -536,32 +538,6 @@ export const useModuleStore = defineStore('modules', () => {
             ? null
             : (value as string | number | boolean | null);
       });
-
-      // Module-specific payload adjustments
-      if (moduleType === MODULES.ProfessionalTravel) {
-        // Ensure number_of_trips is an integer if present and prevent negative values
-        if (
-          'number_of_trips' in normalized &&
-          normalized.number_of_trips !== null
-        ) {
-          const tripsValue = normalized.number_of_trips;
-          let parsed: number;
-          if (typeof tripsValue === 'string') {
-            parsed = parseInt(tripsValue, 10);
-            if (isNaN(parsed)) {
-              throw new Error('number_of_trips must be a valid integer');
-            }
-          } else if (typeof tripsValue === 'number') {
-            parsed = Math.floor(tripsValue);
-          } else {
-            throw new Error('number_of_trips must be a number');
-          }
-          if (parsed < 1) {
-            throw new Error('number_of_trips must be at least 1');
-          }
-          normalized.number_of_trips = parsed;
-        }
-      }
 
       await api.patch(path, { json: normalized }).json();
 
