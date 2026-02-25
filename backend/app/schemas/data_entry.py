@@ -1106,6 +1106,11 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     room_name: str
     room_type: Optional[str] = None
     room_surface_square_meter: Optional[float] = None
+    heating_kwh_per_square_meter: Optional[float] = None
+    cooling_kwh_per_square_meter: Optional[float] = None
+    ventilation_kwh_per_square_meter: Optional[float] = None
+    lighting_kwh_per_square_meter: Optional[float] = None
+    note: Optional[str] = None
 
     @field_validator("room_surface_square_meter", mode="after")
     @classmethod
@@ -1120,6 +1125,11 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
     room_name: Optional[str] = None
     room_type: Optional[str] = None
     room_surface_square_meter: Optional[float] = None
+    heating_kwh_per_square_meter: Optional[float] = None
+    cooling_kwh_per_square_meter: Optional[float] = None
+    ventilation_kwh_per_square_meter: Optional[float] = None
+    lighting_kwh_per_square_meter: Optional[float] = None
+    note: Optional[str] = None
 
     @field_validator("room_surface_square_meter", mode="after")
     @classmethod

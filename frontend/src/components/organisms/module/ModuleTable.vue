@@ -1209,6 +1209,7 @@ function onDownloadTemplate() {
   const csvProcessesContent = 'emitted_gas,sub_category,quantity_kg';
   const csvDefaultContent = 'not_implemented_yet';
 
+  const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:
@@ -1216,6 +1217,9 @@ function onDownloadTemplate() {
       break;
     case MODULES.ProfessionalTravel:
       csvContent = csvProfessionalTravelContent;
+      break;
+    case MODULES.Buildings:
+      csvContent = csvBuildingsContent;
       break;
     case MODULES.EquipmentElectricConsumption:
       csvContent = csvEquipmentContent;

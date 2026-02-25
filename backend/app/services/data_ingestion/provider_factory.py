@@ -9,6 +9,7 @@ from app.services.data_ingestion.api_providers.professional_travel_api_provider 
 )
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.csv_providers import (
+    BuildingRoomCSVProvider,
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
@@ -82,6 +83,11 @@ class ProviderFactory:
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
         v.__name__: v for _, v in PROVIDERS.items()
     }
+    PROVIDERS_BY_CLASS_NAME.update(
+        {
+            BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
+        }
+    )
 
     @staticmethod
     def get_provider_class(
@@ -106,6 +112,16 @@ class ProviderFactory:
         entity_type determines which provider variant to use
         (e.g., MODULE_UNIT_SPECIFIC vs MODULE_PER_YEAR).
         """
+        if (
+            module_type_id == ModuleTypeEnum.buildings
+            and ingestion_method == IngestionMethod.csv
+            and target_type == TargetType.DATA_ENTRIES
+            and entity_type == EntityType.MODULE_UNIT_SPECIFIC
+            and data_entry_type_id is not None
+            and int(data_entry_type_id) == DataEntryTypeEnum.building.value
+        ):
+            return BuildingRoomCSVProvider
+
         return ProviderFactory.PROVIDERS.get(
             (module_type_id, ingestion_method, target_type, entity_type)
         )
@@ -138,14 +154,13 @@ class ProviderFactory:
             # Invalid entity_type value - return None to signal configuration error
             return None
 
-        # Fetch the provider class using the entity_type directly from config
-        provider_class = cls.PROVIDERS.get(
-            (
-                module_type_id,
-                ingestion_method,
-                target_type,
-                entity_type,
-            )
+        data_entry_type_id = config.get("data_entry_type_id")
+        provider_class = cls.get_provider_by_keys(
+            module_type_id=module_type_id,
+            ingestion_method=ingestion_method,
+            target_type=target_type,
+            entity_type=entity_type,
+            data_entry_type_id=data_entry_type_id,
         )
 
         if not provider_class:
