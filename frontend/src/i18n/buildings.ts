@@ -10,12 +10,12 @@ export default {
     fr: "Ce module permet d'estimer l'empreinte carbone liée au bâtiment (chauffage, climatisation, ventilation et éclairage). Un tableau supplémentaire est disponible pour compléter avec d'autres émissions de combustion d'énergie au cas où votre unité utilise une source d'énergie non-centralisée.",
   },
   [`${MODULES.Buildings}-title-subtext`]: {
-    en: '',
-    fr: '',
+    en: ' ',
+    fr: ' ',
   },
   [`${MODULES.Buildings}-title-tooltip-title`]: {
-    en: '',
-    fr: '',
+    en: ' ',
+    fr: ' ',
   },
 
   // Rooms submodule
@@ -50,8 +50,8 @@ export default {
     fr: 'Local',
   },
   [`${MODULES.Buildings}.inputs.room_type`]: {
-    en: 'Room type',
-    fr: 'Type de local',
+    en: 'Type',
+    fr: 'Type',
   },
   [`${MODULES.Buildings}.room_type.Office`]: {
     en: 'Office',
