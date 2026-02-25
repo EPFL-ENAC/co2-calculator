@@ -1219,7 +1219,13 @@ function onDownloadTemplate() {
       csvContent = csvProfessionalTravelContent;
       break;
     case MODULES.Buildings:
-      csvContent = csvBuildingsContent;
+      if (
+        props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
+      ) {
+        csvContent = csvBuildingsCombustionContent;
+      } else {
+        csvContent = csvBuildingsContent;
+      }
       break;
     case MODULES.EquipmentElectricConsumption:
       csvContent = csvEquipmentContent;

@@ -1223,12 +1223,14 @@ class EnergyCombustionHandlerResponse(DataEntryResponseGen):
     heating_type: str
     unit: Optional[str] = None
     quantity: float
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
     heating_type: str
     quantity: float
+    note: Optional[str] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -1241,6 +1243,7 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
     heating_type: Optional[str] = None
     quantity: Optional[float] = None
+    note: Optional[str] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
