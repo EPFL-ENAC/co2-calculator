@@ -29,6 +29,15 @@ class DataEntryTypeEnum(int, Enum):
     external_ai = 41
     # process emissions
     process_emissions = 50
+    # purchase
+    scientific_equipment = 60
+    it_equipment = 61
+    consumable_accessories = 62
+    biological_chemical_gaseous_product = 63
+    services = 64
+    vehicles = 65
+    other_purchases = 66
+    additional_purchases = 67
     # energy mix
     energy_mix = 100
 

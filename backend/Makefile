@@ -77,6 +77,17 @@ lint: ## Check code formatting
 		npx prettier --check . --ignore-unknown; \
 	fi
 
+.PHONY: lint-fix
+lint-fix: ## Fix code formatting issues
+	@set -e; \
+	if [ -n "$(PY_FILES)" ]; then \
+		$(RUFF) format $(PY_FILES) && \
+		$(RUFF) check --fix $(PY_FILES); \
+	else \
+		$(RUFF) format . && \
+		$(RUFF) check --fix .; \
+	fi
+
 .PHONY: type-check
 type-check: ## Run type checking with mypy
 	@set -e; \
@@ -85,7 +96,7 @@ type-check: ## Run type checking with mypy
 .PHONY: test
 test: ## Run tests
 	@set -e; \
-	$(PYTEST) tests/unit -v --cov=app --cov-report=term-missing --cov-fail-under=60
+	$(PYTEST) tests/unit -vv --cov=app --cov-report=term-missing --cov-fail-under=60
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
@@ -108,6 +119,7 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_plane_factors
 	$(UV) run -m app.seed.seed_train_factors
 	$(UV) run -m app.seed.seed_external_cloud_and_ai
+	$(UV) run -m app.seed.seed_purchase
 
 .PHONY: dev
 dev: install ## Start backend development server

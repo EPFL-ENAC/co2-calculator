@@ -1,12 +1,132 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.Purchase]: {
     en: 'Purchases',
     fr: 'Achats',
   },
-  [MODULES_DESCRIPTIONS.Purchase]: {
-    en: 'Input annual purchases to assess supply chain emissions footprint',
-    fr: "Saisissez vos achats annuels afin d'évaluer l'empreinte de la chaîne d'approvisionnement",
+  [`${MODULES.Purchase}-description`]: {
+    en: 'Review annual purchase data and its carbon footprint.',
+    fr: "Vérifiez vos données d'achats annuelles et leur empreintes carbones.",
   },
+  [`${MODULES.Purchase}-title-subtext`]: {
+    en: 'This module calculates the carbon footprint of your unit’s purchases on an item-by-item basis using imported data. Purchase entries can be reviewed and added by the user if necessary. Emissions are estimated using spend-based emission factors by default. For specific categories, such as liquid nitrogen, users may enter usage data to apply usage-based emission factors. If you have questions or need clarification regarding specific items, please contact XX.',
+    fr: "Ce module calcule l'empreinte carbone des achats de votre unité, article par article, à partir des données importées. Vous pouvez consulter et ajouter des entrées d'achat selon vos besoins. Les émissions sont estimées par défaut à partir des dépenses. Pour certaines catégories (comme l'azote liquide), vous avez la possibilité de saisir des données d'usage afin d'utiliser des facteurs d'émission spécifiques. Si vous avez des questions ou besoin de clarification concernant vos achats, veuillez contacter XX.",
+  },
+  [`${MODULES.Purchase}-charts-title`]: {
+    en: 'Charts',
+    fr: 'Graphiques',
+  },
+  [`${MODULES.Purchase}.inputs.name`]: {
+    en: 'Item Description',
+    fr: 'Description de l’article',
+  },
+  [`${MODULES.Purchase}.inputs.purchase_institutional_code`]: {
+    en: 'UNSPC Code',
+    fr: 'Code UNSPC',
+  },
+  [`${MODULES.Purchase}.inputs.supplier`]: {
+    en: 'Supplier',
+    fr: 'Fournisseur',
+  },
+  [`${MODULES.Purchase}.inputs.quantity`]: {
+    en: 'Quantity',
+    fr: 'Quantité',
+  },
+  [`${MODULES.Purchase}.inputs.total_spent_amount`]: {
+    en: 'Total Spent Amount',
+    fr: 'Montant total dépensé',
+  },
+  [`${MODULES.Purchase}.inputs.annual_consumption`]: {
+    en: 'Annual Consumption',
+    fr: 'Consommation annuelle',
+  },
+  [`${MODULES.Purchase}.inputs.unit`]: {
+    en: 'Unit',
+    fr: 'Unité',
+  },
+  [`${MODULES.Purchase}.inputs.coef_to_kg`]: {
+    en: 'Conversion Coefficient to kg CO₂-eq',
+    fr: 'Coefficient de conversion en kg CO₂-eq',
+  },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
+    {
+      en: 'Scientific Equipments',
+      fr: 'Équipements scientifiques',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-form-title`]:
+    {
+      en: 'Add Scientific Equipment',
+      fr: 'Ajouter un équipement scientifique',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
+    {
+      en: 'IT Equipments',
+      fr: 'Équipements informatiques',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-form-title`]:
+    {
+      en: 'Add IT Equipment',
+      fr: 'Ajouter un équipement informatique',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title`]:
+    {
+      en: 'Consumables & Accessories',
+      fr: 'Consommables et accessoires',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-form-title`]:
+    {
+      en: 'Add Consumable',
+      fr: 'Ajouter un consommable',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-table-title`]:
+    {
+      en: 'Biological, Chemical & Gaseous Products',
+      fr: 'Produits biologiques chimiques et gazeux',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-form-title`]:
+    {
+      en: 'Add Biological/Chemical/Gaseous Product',
+      fr: 'Ajouter un produit biologique/chimique/gazeux',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-table-title`]:
+    {
+      en: 'Services',
+      fr: 'Services',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-form-title`]:
+    {
+      en: 'Add Service',
+      fr: 'Ajouter un service',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-table-title`]:
+    {
+      en: 'Vehicles',
+      fr: 'Véhicules',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-form-title`]:
+    {
+      en: 'Add Vehicle',
+      fr: 'Ajouter un véhicule',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-table-title`]:
+    {
+      en: 'Other Purchases',
+      fr: 'Autres achats',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-form-title`]:
+    {
+      en: 'Add Other Purchase',
+      fr: 'Ajouter un autre achat',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
+    {
+      en: 'Additional Purchases',
+      fr: 'Achats supplémentaires',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-form-title`]:
+    {
+      en: 'Add Additional Purchase',
+      fr: 'Ajouter un achat supplémentaire',
+    },
 } as const;

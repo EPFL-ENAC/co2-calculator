@@ -48,7 +48,7 @@
         />
       </div>
       <q-separator />
-      <div v-if="submodule.moduleFields && !disable && canEdit" class="q-mx-lg">
+      <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
         <module-form
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
@@ -150,6 +150,14 @@ const item = computed(() => {
   return null;
 });
 const { te } = useI18n();
+
+const hasModuleForm = computed(() => {
+  return (
+    props.submodule.moduleFields &&
+    props.submodule.moduleFields.filter((field) => !field.hideIn?.form).length >
+      0
+  );
+});
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;

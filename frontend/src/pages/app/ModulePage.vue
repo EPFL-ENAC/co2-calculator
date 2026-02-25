@@ -72,7 +72,6 @@ const moduleStore = useModuleStore();
 const forbiddenModules: Module[] = [
   MODULES.Infrastructure,
   MODULES.InternalServices,
-  MODULES.Purchase,
 ];
 
 // COMPUTED
