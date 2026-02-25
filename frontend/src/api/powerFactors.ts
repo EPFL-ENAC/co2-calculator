@@ -10,10 +10,14 @@ export interface OptionTree {
 
 export async function getClassificationTree(
   submodule: AllSubmoduleTypes,
+  unitId?: number,
 ): Promise<OptionTree> {
   const res = await api
     .get(
       `factors/${encodeURIComponent(enumSubmodule[submodule])}/classification-tree`,
+      {
+        searchParams: unitId ? { unit_id: unitId } : undefined,
+      },
     )
     .json<OptionTree>();
   return res ?? {};

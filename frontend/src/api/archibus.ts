@@ -1,30 +1,40 @@
 import { api } from 'src/api/http';
 
 export interface ArchibusBuilding {
-  building_code: string;
+  building_location: string;
   building_name: string;
 }
 
 export interface ArchibusRoom {
-  building_code: string;
+  unit_institutional_id: string | null;
+  building_location: string;
   building_name: string;
-  room_code: string;
   room_name: string;
-  generic_type_din: string;
-  sia_type: string;
-  surface_m2: number;
+  room_type: string | null;
+  room_surface_square_meter: number | null;
+  heating_kwh_per_square_meter: number | null;
+  cooling_kwh_per_square_meter: number | null;
+  ventilation_kwh_per_square_meter: number | null;
+  lighting_kwh_per_square_meter: number | null;
 }
 
-export async function getArchibusBuildings(): Promise<ArchibusBuilding[]> {
-  return api.get('modules/archibus-rooms').json<ArchibusBuilding[]>();
+export async function getArchibusBuildings(
+  unitId: number,
+): Promise<ArchibusBuilding[]> {
+  return api
+    .get('modules/archibus-rooms', {
+      searchParams: { unit_id: unitId },
+    })
+    .json<ArchibusBuilding[]>();
 }
 
 export async function getArchibusRooms(
+  unitId: number,
   buildingName: string,
 ): Promise<ArchibusRoom[]> {
   return api
     .get('modules/archibus-rooms', {
-      searchParams: { building_name: buildingName },
+      searchParams: { unit_id: unitId, building_name: buildingName },
     })
     .json<ArchibusRoom[]>();
 }

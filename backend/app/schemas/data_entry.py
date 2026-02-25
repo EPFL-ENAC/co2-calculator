@@ -1065,25 +1065,8 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         db: AsyncSession,
         existing_data: Optional[dict] = None,
     ) -> dict:
-        """Resolve energy factor by room_type (not by building/room names)."""
-        data = payload.copy()
-        if existing_data:
-            for key, value in existing_data.items():
-                if key not in data:
-                    data[key] = value
-
-        room_type = data.get("room_type")
-        if not room_type:
-            payload["primary_factor_id"] = None
-            return payload
-
-        factor_service = FactorService(db)
-        factor = await factor_service.get_by_classification(
-            data_entry_type=data_entry_type_id,
-            kind=room_type,
-            subkind=None,
-        )
-        payload["primary_factor_id"] = factor.id if factor else None
+        """Building factors are category-based and resolved at emission runtime."""
+        payload["primary_factor_id"] = None
         return payload
 
     def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
