@@ -37,6 +37,7 @@ class DataEntryTypeEnum(int, Enum):
     services = 64
     vehicles = 65
     other_purchases = 66
+    additional_purchases = 67
     # energy mix
     energy_mix = 100
 

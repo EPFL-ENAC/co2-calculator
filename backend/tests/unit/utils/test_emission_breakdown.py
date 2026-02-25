@@ -153,6 +153,8 @@ def test_build_chart_breakdown_category_ordering():
     )
     assert purchases == {
         "category": "Purchases",
+        "additional_purchases": 0.0,
+        "additional_purchasesStdDev": 0.0,
         "biological_chemical_gaseous_product": 0.0,
         "biological_chemical_gaseous_productStdDev": 0.0,
         "consumable_accessories": 0.0,

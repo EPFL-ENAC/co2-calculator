@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div class="q-gutter-sm">
+    <div v-if="hasModuleUpload" class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -348,7 +348,7 @@ import type {
   Threshold,
   EnumSubmoduleType,
 } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
+import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
 
 import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
@@ -593,6 +593,13 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+
+const hasModuleUpload = computed(() => {
+  return (
+    props.moduleFields &&
+    props.moduleFields.filter((field) => !field.hideIn?.form).length > 0
+  );
+});
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
@@ -1037,6 +1044,13 @@ function isCompletePurchase(row: ModuleRow) {
   );
 }
 
+function isCompletePurchaseAdditional(row: ModuleRow) {
+  const required = ['name', 'annual_consumption', 'coef_to_kg'];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
 function isComplete(row: ModuleRow) {
   // # TODO : move isComplete to module definition
 
@@ -1060,6 +1074,9 @@ function isComplete(row: ModuleRow) {
     return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.Purchase) {
+    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.AdditionalPurchases) {
+      return isCompletePurchaseAdditional(row);
+    }
     return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {

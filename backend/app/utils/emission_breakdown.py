@@ -103,6 +103,7 @@ CATEGORY_CHART_KEYS: dict[str, list[str]] = {
         "services",
         "vehicles",
         "other_purchases",
+        "additional_purchases",
     ],
     "Research facilities": [],
     "Professional travel": ["plane", "train"],

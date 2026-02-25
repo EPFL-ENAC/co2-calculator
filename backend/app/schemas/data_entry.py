@@ -349,9 +349,17 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
 class PurchaseHandlerResponse(DataEntryResponseGen):
     name: str
     supplier: Optional[str] = None
-    quantity: int
+    quantity: float
     total_spent_amount: float
     purchase_institutional_code: Optional[str] = None
+    kg_co2eq: Optional[float] = None
+
+
+class PurchaseAdditionalHandlerResponse(DataEntryResponseGen):
+    name: str
+    unit: Optional[str] = None
+    annual_consumption: float
+    coef_to_kg: float
     kg_co2eq: Optional[float] = None
 
 
@@ -433,7 +441,7 @@ class ExternalAIHandlerCreate(DataEntryCreate):
 class PurchaseHandlerCreate(DataEntryCreate):
     name: str
     supplier: Optional[str] = None
-    quantity: int
+    quantity: float
     total_spent_amount: float
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
@@ -455,6 +463,21 @@ class PurchaseHandlerCreate(DataEntryCreate):
             raise ValueError(
                 "Purchase institutional code must be at least 1 character long"
             )
+        return v
+
+
+class PurchaseAdditionalHandlerCreate(DataEntryCreate):
+    name: str
+    unit: Optional[str] = None
+    annual_consumption: Optional[float] = 0
+    coef_to_kg: float
+    kg_co2eq: Optional[float] = None
+
+    @field_validator("annual_consumption", "coef_to_kg", mode="after")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Value must be non-negative")
         return v
 
 
@@ -580,7 +603,7 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
 class PurchaseHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
     supplier: Optional[str] = None
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None
     total_spent_amount: Optional[float] = None
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
@@ -604,6 +627,23 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             return v
         if v < 0:
             raise ValueError("Total spend amount must be non-negative")
+        return v
+
+
+class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
+    name: Optional[str] = None
+    unit: Optional[str] = None
+    annual_consumption: Optional[float] = None
+    coef_to_kg: Optional[float] = None
+    kg_co2eq: Optional[float] = None
+
+    @field_validator("annual_consumption", "coef_to_kg", mode="after")
+    @classmethod
+    def validate_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("Value must be non-negative")
         return v
 
 
@@ -826,6 +866,48 @@ class PurchaseModuleHandler(BaseModuleHandler):
         return self.create_dto.model_validate(payload)
 
     def validate_update(self, payload: dict) -> PurchaseHandlerUpdate:
+        return self.update_dto.model_validate(payload)
+
+
+class PurchaseAdditionalModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.additional_purchases
+
+    create_dto = PurchaseAdditionalHandlerCreate
+    update_dto = PurchaseAdditionalHandlerUpdate
+    response_dto = PurchaseAdditionalHandlerResponse
+
+    kind_field: str = "name"
+    subkind_field: Optional[str] = ""
+
+    sort_map = {
+        "id": DataEntry.id,
+        "name": DataEntry.data["name"].as_string(),
+        "unit": DataEntry.data["unit"].as_string(),
+        "annual_consumption": DataEntry.data["annual_consumption"].as_float(),
+        "coef_to_kg": DataEntry.data["coef_to_kg"].as_float(),
+        "kg_co2eq": DataEntryEmission.kg_co2eq,
+    }
+
+    filter_map = {
+        "name": DataEntry.data["name"].as_string(),
+        "unit": DataEntry.data["unit"].as_string(),
+    }
+
+    def to_response(self, data_entry: DataEntry) -> PurchaseAdditionalHandlerResponse:
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+            }
+        )
+
+    def validate_create(self, payload: dict) -> PurchaseAdditionalHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> PurchaseAdditionalHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
 

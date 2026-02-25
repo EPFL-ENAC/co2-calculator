@@ -8,6 +8,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.services.data_entry_emission_service import (
     DataEntryEmissionService,
+    compute_additional_purchase,
     compute_external_ai,
     compute_external_clouds,
     compute_process_emissions,
@@ -538,6 +539,38 @@ async def test_compute_purchase_no_factors():
     result = await compute_purchase(service, data_entry, [])
 
     assert result["kg_co2eq"] is None
+
+
+@pytest.mark.asyncio
+async def test_compute_additional_purchase_valid_calculation():
+    """Test additional purchase emission calculation with valid inputs."""
+    mock_session = MagicMock()
+    service = DataEntryEmissionService(mock_session)
+
+    data_entry = MagicMock()
+    data_entry.data_entry_type = DataEntryTypeEnum.additional_purchases
+    data_entry.data = {
+        "name": "Liquid Nitrogen",
+        "annual_consumption": 1000,
+        "coef_to_kg": 0.5,
+        "primary_factor_id": 215,
+    }
+
+    factor = Factor(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.additional_purchases,
+        values={"ef_kg_co2eq_per_kg": 0.001},
+        classification={
+            "name": "Liquid Nitrogen",
+            "note": "",
+            "kind": "Liquid Nitrogen",
+        },
+    )
+
+    result = await compute_additional_purchase(service, data_entry, [factor])
+
+    # 1000 * 0.5 kg CO2eq/kg = 500 kg CO2eq
+    assert result["kg_co2eq"] == 0.5
 
 
 # ======================================================================

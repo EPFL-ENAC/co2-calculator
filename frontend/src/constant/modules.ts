@@ -63,6 +63,7 @@ export const SUBMODULE_PURCHASE_TYPES = {
   ServicePurchases: 'services',
   VehiclePurchases: 'vehicles',
   OtherPurchases: 'other_purchases',
+  AdditionalPurchases: 'additional_purchases',
 } as const;
 
 export type PurchaseSubType =
@@ -104,6 +105,7 @@ export const enumSubmodule = {
   [SUBMODULE_PURCHASE_TYPES.ServicePurchases]: 64,
   [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
   [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
+  [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
   energy_mix: 100,
 } as const;
 

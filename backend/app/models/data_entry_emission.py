@@ -38,6 +38,7 @@ class EmissionTypeEnum(int, Enum):
     purchase_services = 1005
     purchase_vehicles = 1006
     purchase_other_purchases = 1007
+    purchase_additional_purchases = 1008
 
 
 class DataEntryEmissionBase(SQLModel):

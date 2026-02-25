@@ -37,6 +37,18 @@ export default {
     en: 'Total Spent Amount',
     fr: 'Montant total dépensé',
   },
+  [`${MODULES.Purchase}.inputs.annual_consumption`]: {
+    en: 'Annual Consumption',
+    fr: 'Consommation annuelle',
+  },
+  [`${MODULES.Purchase}.inputs.unit`]: {
+    en: 'Unit',
+    fr: 'Unité',
+  },
+  [`${MODULES.Purchase}.inputs.coef_to_kg`]: {
+    en: 'Conversion Coefficient to kg CO₂-eq',
+    fr: 'Coefficient de conversion en kg CO₂-eq',
+  },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
     {
       en: 'Scientific Equipments',
@@ -106,5 +118,15 @@ export default {
     {
       en: 'Add Other Purchase',
       fr: 'Ajouter un autre achat',
+    },
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
+    {
+      en: 'Additional Purchases',
+      fr: 'Achats supplémentaires',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-form-title`]:
+    {
+      en: 'Add Additional Purchase',
+      fr: 'Ajouter un achat supplémentaire',
     },
 } as const;

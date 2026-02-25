@@ -70,6 +70,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.services,
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
+        DataEntryTypeEnum.additional_purchases,
     ],
     ModuleTypeEnum.global_energy: [
         DataEntryTypeEnum.energy_mix,

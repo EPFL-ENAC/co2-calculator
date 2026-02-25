@@ -62,6 +62,7 @@ class DataEntryEmissionService:
             or data_entry.data_entry_type == DataEntryTypeEnum.services
             or data_entry.data_entry_type == DataEntryTypeEnum.vehicles
             or data_entry.data_entry_type == DataEntryTypeEnum.other_purchases
+            or data_entry.data_entry_type == DataEntryTypeEnum.additional_purchases
         ):
             emission_type = EmissionTypeEnum.purchase
         elif data_entry.data_entry_type == DataEntryTypeEnum.trips:
@@ -344,6 +345,38 @@ async def compute_purchase(
     if total_spent_amount and purchase_factor and purchase_factor.values:
         kg_co2eq = total_spent_amount * purchase_factor.values.get(
             "ef_kg_co2eq_per_currency", 0
+        )
+    # return intermediary dict with calculation details alway kg_co2eq at least
+    return {"kg_co2eq": kg_co2eq}
+
+
+@DataEntryEmissionService.register_formula(DataEntryTypeEnum.additional_purchases)
+async def compute_additional_purchase(
+    self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
+) -> dict:
+    """Compute emissions for additional purchases."""
+    # Implement actual calculation based on data_entry data
+    kg_co2eq = None
+    name = data_entry.data.get("name", "")
+    if not name:
+        logger.warning("name is missing in data entry data for additional purchase")
+        return {"kg_co2eq": kg_co2eq}
+    annual_consumption = data_entry.data.get("annual_consumption", 0)
+    coef_to_kg = data_entry.data.get("coef_to_kg", 0)
+    if not factors or len(factors) == 0:
+        return {"kg_co2eq": kg_co2eq}
+
+    # Find factor matching the name
+    purchase_factors = [f for f in factors if f.classification.get("name") == name]
+    if not purchase_factors or len(purchase_factors) == 0:
+        logger.warning(f"No factor found matching name: {name}")
+        return {"kg_co2eq": kg_co2eq}
+    purchase_factor = purchase_factors[0]
+    if annual_consumption and coef_to_kg:
+        kg_co2eq = (
+            annual_consumption
+            * coef_to_kg
+            * purchase_factor.values.get("ef_kg_co2eq_per_kg", 0)
         )
     # return intermediary dict with calculation details alway kg_co2eq at least
     return {"kg_co2eq": kg_co2eq}
