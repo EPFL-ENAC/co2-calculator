@@ -6,13 +6,12 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
+from app.modules.purchase.emissions import compute_additional_purchase, compute_purchase
 from app.services.data_entry_emission_service import (
     DataEntryEmissionService,
-    compute_additional_purchase,
     compute_external_ai,
     compute_external_clouds,
     compute_process_emissions,
-    compute_purchase,
     compute_scientific_it_other,
     compute_trips,
 )
