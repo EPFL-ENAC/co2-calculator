@@ -177,7 +177,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="canEdit"
+              v-if="canEdit && hasModuleUpload"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
