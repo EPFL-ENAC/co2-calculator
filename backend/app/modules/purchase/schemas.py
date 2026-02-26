@@ -140,6 +140,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
     response_dto = PurchaseHandlerResponse
 
     kind_field: str = "purchase_institutional_code"
+    kind_label_field: str = "purchase_institutional_description"
     subkind_field: Optional[str] = ""
 
     sort_map = {

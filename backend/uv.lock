@@ -353,6 +353,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "sqlalchemy", extra = ["asyncio", "mypy"] },
     { name = "sqlmodel" },
@@ -377,6 +378,7 @@ dev = [
     { name = "pytest-env" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
     { name = "types-requests" },
 ]
 
@@ -400,6 +402,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.12.3" },
     { name = "pydantic-settings", specifier = "==2.11.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "sqlalchemy", extras = ["asyncio", "mypy"], specifier = "==2.0.44" },
     { name = "sqlmodel", specifier = ">=0.0.27" },
@@ -425,6 +428,7 @@ dev = [
     { name = "pytest-env", specifier = ">=1.2.0" },
     { name = "pytest-mock", specifier = ">=3.15" },
     { name = "ruff", specifier = ">=0.14" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
     { name = "types-requests", specifier = ">=2.32.4.20260107" },
 ]
 
@@ -1987,6 +1991,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b5/f4/718ff8cbef9366e597aefd58929321702d3e183998cea89949ab5423281f/types_passlib-1.7.7.20260211.tar.gz", hash = "sha256:af73afffe1ce94c95c7f6072bd261572c29845de74fdffa3a265fc7634bca056", size = 25666, upload-time = "2026-02-10T15:11:59.517Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/6a/e9fc6a5b8f9a380a4a56b9f1e4dba5c6899561868017b17f6de382808b6f/types_passlib-1.7.7.20260211-py3-none-any.whl", hash = "sha256:c0f1ad440c513a6c07f333b28249530686056fd54a7b3ac6128ae31fd46305d3", size = 40457, upload-time = "2026-02-10T15:11:58.647Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20250915"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/69/3c51b36d04da19b92f9e815be12753125bd8bc247ba0470a982e6979e71c/types_pyyaml-6.0.12.20250915.tar.gz", hash = "sha256:0f8b54a528c303f0e6f7165687dd33fafa81c807fcac23f632b63aa624ced1d3", size = 17522, upload-time = "2025-09-15T03:01:00.728Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/e0/1eed384f02555dde685fff1a1ac805c1c7dcb6dd019c916fe659b1c1f9ec/types_pyyaml-6.0.12.20250915-py3-none-any.whl", hash = "sha256:e7d4d9e064e89a3b3cae120b4990cd370874d2bf12fa5f46c97018dd5d3c9ab6", size = 20338, upload-time = "2025-09-15T03:00:59.218Z" },
 ]
 
 [[package]]

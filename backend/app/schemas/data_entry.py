@@ -1,11 +1,15 @@
+import json
+from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
+import yaml
 from pydantic import BaseModel, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryBase, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.models.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
@@ -134,6 +138,9 @@ class ModuleHandler(Protocol[T]):
     ) -> dict: ...
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
+    async def get_taxonomy(
+        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
+    ) -> TaxonomyNode: ...
 
 
 # ----------- ModuleHandlers --------------------------------- #
@@ -170,6 +177,8 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # kind/subkind resolution can be implemented here if needed
     kind_field: Optional[str] = None
     subkind_field: Optional[str] = None
+    kind_label_field: Optional[str] = None
+    subkind_label_field: Optional[str] = None
     data_entry_type: Optional[DataEntryTypeEnum] = None
     require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
@@ -204,8 +213,8 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
                 if key not in data:
                     data[key] = value
 
-        kind = data.get(self.kind_field) or ""
-        subkind = data.get(self.subkind_field)
+        kind = data.get(self.kind_field, "")
+        subkind = data.get(self.subkind_field, "")
         # Retrieve the factor
         factor_service = FactorService(db)
 
@@ -214,6 +223,110 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         )
         payload["primary_factor_id"] = factor.id if factor else None
         return payload
+
+    async def get_taxonomy(
+        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
+    ) -> TaxonomyNode:
+        """Default implementation to get taxonomy based on factors for this handler's
+        data entry type. Specific handlers can override this method to implement
+        custom taxonomy logic if needed, based on a static file or other source
+        instead of factors. This default implementation assumes a two-level taxonomy
+        based on kind and subkind fields.
+        """
+        return await self.get_taxonomy_from_factors(data_entry_type, db)
+
+    async def get_taxonomy_from_file(self, path: Path) -> TaxonomyNode:
+        """Implementation to get taxonomy from a static file."""
+        if not path.exists():
+            raise FileNotFoundError(f"Taxonomy file not found at path: {path}")
+        # If path ends with .json
+        if path.suffix.lower() == ".json":
+            with open(path, "r") as f:
+                taxonomy_dict = json.load(f)
+            return TaxonomyNode.model_validate(taxonomy_dict)
+        # If path ends with .yaml or .yml
+        if path.suffix.lower() in [".yaml", ".yml"]:
+            with open(path, "r") as f:
+                taxonomy_dict = yaml.safe_load(f)
+            return TaxonomyNode.model_validate(taxonomy_dict)
+        # For other formats, implement the necessary parsing logic here
+        raise ValueError(f"Unsupported taxonomy file format: {path.suffix}")
+
+    async def get_taxonomy_from_factors(
+        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
+    ) -> TaxonomyNode:
+        """Get the taxonomy for this module handler, based on its data entry type.
+          This default implementation assumes a two-level taxonomy based on kind
+          and subkind fields. Handlers can override this method to implement custom
+          taxonomy logic if needed.
+
+        Args:
+          data_entry_type: The data entry type for which to get the taxonomy
+          db: Database session for retrieving factors if needed
+        Returns:
+          TaxonomyNode representing the taxonomy for this module handler's
+          data entry type
+        """
+        # Retrieve the factor
+        factor_service = FactorService(db)
+        factors = await factor_service.list_by_data_entry_type(data_entry_type)
+        children: list[TaxonomyNode] = []
+        for factor in factors:
+            classification = factor.classification or {}
+            if self.kind_field is None or self.kind_field not in classification:
+                continue  # if no kind/subkind fields defined, skip adding nodes
+            kind_value = classification.get(self.kind_field, "")
+            if kind_value == "":
+                continue  # skip if no kind in classification
+            # find the children based on kind or add it
+            kind_node = next((c for c in children if c.name == kind_value), None)
+            if not kind_node:
+                if self.kind_label_field and self.kind_label_field in classification:
+                    label = classification.get(self.kind_label_field, kind_value)
+                else:
+                    label = self.to_label(kind_value)
+                kind_node = TaxonomyNode(
+                    name=kind_value,
+                    label=label,
+                )
+                children.append(kind_node)
+            if self.subkind_field is None or self.subkind_field not in classification:
+                continue  # if no subkind field defined, skip adding subkind nodes
+            subkind_value = classification.get(self.subkind_field, "")
+            if subkind_value == "":
+                continue  # skip if no subkind in classification
+            if kind_node.children is None:
+                kind_node.children = []
+            if self.subkind_label_field and self.subkind_label_field in classification:
+                subkind_label = classification.get(
+                    self.subkind_label_field, subkind_value
+                )
+            else:
+                subkind_label = self.to_label(subkind_value)
+            kind_node.children.append(
+                TaxonomyNode(
+                    name=subkind_value,
+                    label=subkind_label,
+                )
+            )
+        return TaxonomyNode(
+            name=data_entry_type.name,
+            label=self.to_label(data_entry_type.name),
+            children=children,
+        )
+
+    @staticmethod
+    def to_label(name: str) -> str:
+        """Convert a name to a label by replacing underscores with spaces and
+        capitalizing words.
+        """
+        # if all capital letters, keep it as is (e.g. for acronyms),
+        # otherwise convert to title case
+        if name.isupper():
+            return name
+        # capitalize only the first letter, to preserve any existing
+        # capitalization (e.g. for acronyms within the name)
+        return name[0].upper() + name[1:].replace("_", " ")
 
 
 # --- Helpers ------------------------------------------------ #
