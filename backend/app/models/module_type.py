@@ -48,9 +48,8 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.other,
     ],
     ModuleTypeEnum.professional_travel: [
-        # DataEntryTypeEnum.flight,
-        # DataEntryTypeEnum.train,
-        DataEntryTypeEnum.trips,
+        DataEntryTypeEnum.plane,
+        DataEntryTypeEnum.train,
     ],
     ModuleTypeEnum.infrastructure: [
         DataEntryTypeEnum.building,

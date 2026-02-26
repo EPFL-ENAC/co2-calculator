@@ -64,17 +64,11 @@
           <div class="form-grid">
             <div
               v-for="inp in visibleFieldsWithConditional"
-              :key="inp.optionsId || inp.id"
+              :key="inp.id"
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
-                v-if="
-                  inp.optionsId === 'subkind' &&
-                  !loadingSubclasses &&
-                  (!dynamicOptions['subkind'] ||
-                    dynamicOptions['subkind'].length === 0) &&
-                  !form['subkind']
-                "
+                v-if="inp.disableUntilField && !form[inp.disableUntilField]"
               >
                 <div class="subclass-placeholder" />
               </template>
@@ -163,11 +157,7 @@
                   :to="String(form.destination ?? '')"
                   :error="!!errors.origin || !!errors.destination"
                   :error-message="errors.origin || errors.destination || ''"
-                  :transport-mode="
-                    !rowData && form.transport_mode
-                      ? (form.transport_mode as 'plane' | 'train')
-                      : undefined
-                  "
+                  :transport-mode="getTravelMode()"
                   :disable="inp.disable"
                   @update:from="
                     (val) => {
@@ -197,8 +187,11 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  (inp.optionsId === 'kind' && loadingClasses) ||
-                  (inp.optionsId === 'subkind' && loadingSubclasses)
+                  inp.optionsId === 'kind'
+                    ? loadingClasses
+                    : inp.optionsId === 'subkind'
+                      ? loadingSubclasses
+                      : false
                 "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
@@ -286,7 +279,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed, toRef, ref } from 'vue';
+import { reactive, watch, computed, ref, toRef } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -301,13 +294,16 @@ import {
 } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
-import { MODULES } from 'src/constant/modules';
+import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import {
+  MODULES,
+  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
+} from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
@@ -416,7 +412,7 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
         : (inp.options?.map((o) => ({
-            label: o.label,
+            label: $t(o.label) !== o.label ? $t(o.label) : o.label,
             value: o.value,
           })) ?? []);
 
@@ -491,13 +487,17 @@ const subkindFieldId = computed(() => {
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
-    // classFieldId: 'equipment_class',
-    // subClassFieldId: 'sub_class',
-    classFieldId: kindFieldId.value,
-    subClassFieldId: subkindFieldId.value,
+    classFieldId: kindFieldId.value ?? undefined,
+    subClassFieldId: subkindFieldId.value ?? undefined,
   });
-
-// Use equipment options directly as dynamic options
+function getTravelMode(): 'plane' | 'train' | undefined {
+  if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
+  if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane)
+    return 'plane';
+  if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train)
+    return 'train';
+  return undefined;
+}
 
 function validateUsage(value: unknown) {
   if (value === null || value === undefined || value === '') {
@@ -510,10 +510,6 @@ function validateUsage(value: unknown) {
   if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
   return { valid: true, parsed: n, error: null };
 }
-
-// legacy helpers kept only for typing compatibility; logic lives
-// entirely in the useEquipmentClassOptions composable.
-// They are intentionally not used here.
 
 function init() {
   if (props.rowData) {
@@ -543,12 +539,10 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions[i.optionsId] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
-                })) ??
-                [];
+                })) ?? [];
               return options.length > 0 ? options[0].value : '';
             })();
             break;
@@ -605,36 +599,29 @@ watch(
   },
 );
 
-// Clear location data when transport mode changes (specific to professional travel)
-watch(
-  () => form.transport_mode,
-  (newMode, oldMode) => {
-    // Only clear if transport mode actually changed (not on initial mount)
-    if (oldMode !== undefined && newMode !== oldMode && !props.rowData) {
-      // Clear origin and destination field values
-      form.origin = '';
-      form.destination = '';
-      // Clear location IDs when switching transport modes
-      form.origin_location_id = undefined;
-      form.destination_location_id = undefined;
-      // Clear distance when transport mode changes
-      form.distance_km = null;
-    }
-  },
-);
-// Watch for changes to location IDs, transport mode, and number of trips to calculate distance
+// Watch for changes to location IDs and number of trips to calculate distance.
 watch(
   () => [
     form.origin_location_id,
     form.destination_location_id,
-    form.transport_mode,
     form.number_of_trips,
   ],
   async () => {
+    const travelMode = getTravelMode();
+    if (!travelMode) return;
+    if (
+      form.origin_location_id === undefined ||
+      form.origin_location_id === null ||
+      form.destination_location_id === undefined ||
+      form.destination_location_id === null
+    ) {
+      form.distance_km = null;
+      return;
+    }
     form.distance_km = await calculateDistance(
       form.origin_location_id as number,
       form.destination_location_id as number,
-      form.transport_mode as 'plane' | 'train',
+      travelMode,
       (form.number_of_trips as number) || 1,
     );
   },
@@ -795,12 +782,10 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions[i.optionsId] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,
-        })) ??
-        [];
+        })) ?? [];
       form[i.id] = options.length > 0 ? options[0].value : '';
     } else if (effectiveType === 'direction-input') {
       // Clear origin and destination fields
@@ -837,11 +822,20 @@ async function handleFromLocationSelected(location: {
   latitude: number;
   longitude: number;
 }) {
+  const travelMode = getTravelMode();
+  if (!travelMode) return;
   form.origin_location_id = location.id;
+  if (
+    form.destination_location_id === undefined ||
+    form.destination_location_id === null
+  ) {
+    form.distance_km = null;
+    return;
+  }
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'plane' | 'train',
+    travelMode,
     (form.number_of_trips as number) || 1,
   );
 }
@@ -852,26 +846,46 @@ async function handleToLocationSelected(location: {
   latitude: number;
   longitude: number;
 }) {
+  const travelMode = getTravelMode();
+  if (!travelMode) return;
   form.destination_location_id = location.id;
+  if (
+    form.origin_location_id === undefined ||
+    form.origin_location_id === null
+  ) {
+    form.distance_km = null;
+    return;
+  }
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'plane' | 'train',
+    travelMode,
     (form.number_of_trips as number) || 1,
   );
 }
 
 async function handleSwapLocations() {
+  const travelMode = getTravelMode();
+  if (!travelMode) return;
   // Swap location IDs when user swaps from/to
   const oldOriginId = form.origin_location_id;
   const oldDestinationId = form.destination_location_id;
 
   form.origin_location_id = oldDestinationId;
   form.destination_location_id = oldOriginId;
+  if (
+    form.origin_location_id === undefined ||
+    form.origin_location_id === null ||
+    form.destination_location_id === undefined ||
+    form.destination_location_id === null
+  ) {
+    form.distance_km = null;
+    return;
+  }
   form.distance_km = await calculateDistance(
     form.origin_location_id as number,
     form.destination_location_id as number,
-    form.transport_mode as 'plane' | 'train',
+    travelMode,
     (form.number_of_trips as number) || 1,
   );
 }

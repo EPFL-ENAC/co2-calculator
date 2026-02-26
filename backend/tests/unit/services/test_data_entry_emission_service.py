@@ -14,9 +14,11 @@ from app.modules.external_cloud_and_ai.emissions import (
     compute_external_clouds,
 )
 from app.modules.process_emissions.emissions import compute_process_emissions
-from app.modules.professional_travel.emissions import compute_trips
 from app.modules.purchase.emissions import compute_additional_purchase, compute_purchase
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    DataEntryEmissionService,
+    compute_travel,
+)
 
 # ======================================================================
 # External Clouds Emission Calculation Tests
@@ -401,61 +403,60 @@ async def test_compute_scientific_it_other_zero_usage():
 
 
 # ======================================================================
-# Trips Emission Calculation Tests (Simplified - without DB queries)
+# Travel Emission Calculation Tests (Simplified - without DB queries)
 # ======================================================================
 
 
 @pytest.mark.asyncio
-async def test_compute_trips_missing_origin_destination():
-    """Test trips calculation with missing origin or destination."""
+async def test_compute_travel_missing_origin_destination():
+    """Test travel calculation with missing origin or destination."""
     mock_session = MagicMock()
     service = DataEntryEmissionService(mock_session)
 
     data_entry = MagicMock()
-    data_entry.data_entry_type = DataEntryTypeEnum.trips
+    data_entry.data_entry_type = DataEntryTypeEnum.plane
     data_entry.data = {
-        "transport_mode": "plane",
         "number_of_trips": 1,
         # Missing origin_location_id and destination_location_id
     }
 
-    result = await compute_trips(service, data_entry, [])
+    result = await compute_travel(service, data_entry, [])
 
     assert result["kg_co2eq"] is None
-    assert result["transport_mode"] == "plane"
+    assert result["number_of_trips"] == 1
 
 
 @pytest.mark.asyncio
-async def test_compute_trips_invalid_transport_mode():
-    """Test trips calculation with invalid transport mode."""
+async def test_compute_travel_invalid_data_entry_type():
+    """Test travel calculation with unsupported travel data entry type."""
     mock_session = MagicMock()
     service = DataEntryEmissionService(mock_session)
+    service.session.execute = AsyncMock(
+        return_value=MagicMock(all=MagicMock(return_value=[]))
+    )
 
     data_entry = MagicMock()
-    data_entry.data_entry_type = DataEntryTypeEnum.trips
+    data_entry.data_entry_type = DataEntryTypeEnum.other
     data_entry.data = {
-        "transport_mode": "teleportation",  # Invalid mode
         "origin_location_id": 1,
         "destination_location_id": 2,
         "number_of_trips": 1,
     }
 
-    result = await compute_trips(service, data_entry, [])
+    result = await compute_travel(service, data_entry, [])
 
     assert result["kg_co2eq"] is None
-    assert result["transport_mode"] is None
 
 
 @pytest.mark.asyncio
-async def test_compute_trips_response_structure():
-    """Test that trips calculation returns proper response structure."""
+async def test_compute_travel_response_structure():
+    """Test that travel calculation returns proper response structure."""
     mock_session = MagicMock()
     service = DataEntryEmissionService(mock_session)
 
     data_entry = MagicMock()
-    data_entry.data_entry_type = DataEntryTypeEnum.trips
+    data_entry.data_entry_type = DataEntryTypeEnum.train
     data_entry.data = {
-        "transport_mode": "train",
         "cabin_class": "second",
         "origin_location_id": 1,
         "destination_location_id": 2,
@@ -466,17 +467,15 @@ async def test_compute_trips_response_structure():
         return_value=MagicMock(all=MagicMock(return_value=[]))
     )
 
-    result = await compute_trips(service, data_entry, [])
+    result = await compute_travel(service, data_entry, [])
 
     # Verify response structure (DB query would fail, but structure should be correct)
     assert "kg_co2eq" in result
     assert "distance_km" in result
-    assert "transport_mode" in result
     assert "cabin_class" in result
     assert "number_of_trips" in result
     assert "origin_location_id" in result
     assert "destination_location_id" in result
-    assert result["transport_mode"] == "train"
     assert result["cabin_class"] == "second"
     assert result["number_of_trips"] == 5
 
@@ -681,7 +680,8 @@ def test_formula_registration():
     assert DataEntryTypeEnum.scientific in formulas
     assert DataEntryTypeEnum.it in formulas
     assert DataEntryTypeEnum.other in formulas
-    assert DataEntryTypeEnum.trips in formulas
+    assert DataEntryTypeEnum.plane in formulas
+    assert DataEntryTypeEnum.train in formulas
     assert DataEntryTypeEnum.process_emissions in formulas
 
     # Verify they point to the correct functions
@@ -690,7 +690,8 @@ def test_formula_registration():
     assert formulas[DataEntryTypeEnum.scientific] == compute_scientific_it_other
     assert formulas[DataEntryTypeEnum.it] == compute_scientific_it_other
     assert formulas[DataEntryTypeEnum.other] == compute_scientific_it_other
-    assert formulas[DataEntryTypeEnum.trips] == compute_trips
+    assert formulas[DataEntryTypeEnum.plane] == compute_travel
+    assert formulas[DataEntryTypeEnum.train] == compute_travel
     assert formulas[DataEntryTypeEnum.process_emissions] == compute_process_emissions
 
 

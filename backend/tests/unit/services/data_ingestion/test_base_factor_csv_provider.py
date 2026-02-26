@@ -137,7 +137,7 @@ def test_resolve_data_entry_type_missing_multi():
 
 
 @pytest.mark.asyncio
-async def test_process_row_missing_factor_variant_for_trips():
+async def test_process_row_missing_factor_variant_for_travel():
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
@@ -145,12 +145,12 @@ async def test_process_row_missing_factor_variant_for_trips():
 
     setup_result = {
         "expected_columns": {"data_entry_type_id"},
-        "valid_entry_types": [DataEntryTypeEnum.trips],
+        "valid_entry_types": [DataEntryTypeEnum.plane],
         "factor_variant": None,
     }
 
     factor, error_msg = await provider._process_row(
-        row={"data_entry_type_id": str(DataEntryTypeEnum.trips.value)},
+        row={"data_entry_type_id": str(DataEntryTypeEnum.plane.value)},
         row_idx=1,
         setup_result=setup_result,
         stats=stats,

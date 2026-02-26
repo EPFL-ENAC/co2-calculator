@@ -59,7 +59,7 @@ onMounted(() => {
 const chartData = computed(() => {
   const rawData = moduleStore.state.travelEvolutionOverTime as Array<{
     year: number;
-    transport_mode: string;
+    category: string;
     kg_co2eq: number;
   }>;
 
@@ -80,14 +80,14 @@ const chartData = computed(() => {
   });
   const years = Array.from(yearsSet).sort((a, b) => a - b);
 
-  // Group data by transport mode and year
+  // Group data by category and year
   const dataByMode: Record<string, Record<number, number>> = {
     plane: {},
     train: {},
   };
 
   rawData.forEach((item) => {
-    const mode = item.transport_mode === 'plane' ? 'plane' : 'train';
+    const mode = item.category === 'plane' ? 'plane' : 'train';
     const year = item.year;
     const value = item.kg_co2eq || 0;
 

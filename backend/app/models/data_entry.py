@@ -21,7 +21,8 @@ class DataEntryTypeEnum(int, Enum):
     it = 10
     other = 11
     # travel
-    trips = 20
+    plane = 20
+    train = 21
     #
     building = 30
     # external clouds and ai

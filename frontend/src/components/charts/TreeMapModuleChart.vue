@@ -281,7 +281,7 @@ const showEvolutionDialogRef = ref(false);
 const hasMultipleYears = computed(() => {
   const evolutionData = moduleStore.state.travelEvolutionOverTime as Array<{
     year: number;
-    transport_mode: string;
+    category: string;
     kg_co2eq: number;
   }>;
 

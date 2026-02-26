@@ -32,7 +32,7 @@ async def search_locations(
     transport_mode: Optional[TransportModeEnum] = Query(
         None,
         description=(
-            "Filter by transport mode: 'train' or 'plane'. "
+            "Filter by location transport mode: 'train' or 'plane'. "
             "If not provided, returns both types."
         ),
     ),
@@ -50,7 +50,7 @@ async def search_locations(
     Args:
         query: Search query string (minimum 2 characters)
         limit: Maximum number of results (default: 5, max: 20)
-        transport_mode: Filter by transport mode ('train' or 'plane').
+        transport_mode: Filter by location transport mode ('train' or 'plane').
             If None, returns both types.
         db: Database session
         current_user: Authenticated user
@@ -69,7 +69,7 @@ async def search_locations(
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="transport_mode must be either 'train' or 'plane'",
+            detail="location transport_mode must be either 'train' or 'plane'",
         )
     service = LocationService(db)
     locations = await service.search_locations(
@@ -109,7 +109,7 @@ async def calculate_distance(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Calculate distance between two locations based on transport mode.
+    Calculate distance between two locations based on location transport mode.
 
     For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
     For trains: Haversine distance × 1.2 (track routing, curves, detours)
@@ -119,7 +119,7 @@ async def calculate_distance(
     Args:
         origin_location_id: Origin location ID
         destination_location_id: Destination location ID
-        transport_mode: 'plane' or 'train'
+        transport_mode: Location transport mode ('plane' or 'train')
         number_of_trips: Number of trips (default: 1)
         db: Database session
         current_user: Authenticated user
@@ -129,7 +129,8 @@ async def calculate_distance(
 
     Raises:
         HTTPException 404: If location not found
-        HTTPException 400: If transport_mode is invalid or coordinates are invalid
+        HTTPException 400: If location transport_mode is invalid
+            or coordinates are invalid
     """
     service = LocationService(db)
     result = await service.calculate_distance(

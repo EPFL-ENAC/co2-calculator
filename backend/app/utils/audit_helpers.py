@@ -19,7 +19,7 @@ def extract_handled_ids(
     Extract list of user provider codes affected by this data entry.
 
     Different data entry types store user identifiers in different fields:
-    - Professional travel (trips): traveler_id or sciper
+    - Professional travel (plane/train): traveler_id or sciper
     - Headcount (member/student): sciper or user_provider_code
     - Equipment/Cloud/AI: No user-specific data (returns empty list)
 
@@ -50,7 +50,10 @@ def extract_handled_ids(
         handled_ids = []
 
         # Professional travel - extract traveler identifier
-        if data_entry_type_id == DataEntryTypeEnum.trips:
+        if data_entry_type_id in (
+            DataEntryTypeEnum.plane,
+            DataEntryTypeEnum.train,
+        ):
             # Try multiple field names that might contain the traveler's sciper
             traveler_id = (
                 data.get("traveler_id")

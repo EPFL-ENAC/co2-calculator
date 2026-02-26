@@ -351,7 +351,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 return None, "Missing data_entry_type"
 
             variant = factor_variant
-            if data_entry_type == DataEntryTypeEnum.trips:
+            if data_entry_type in (
+                DataEntryTypeEnum.plane,
+                DataEntryTypeEnum.train,
+            ):
                 variant = variant or row.get("factor_variant")
                 if not variant:
                     error_msg = "Missing factor_variant for travel factors"

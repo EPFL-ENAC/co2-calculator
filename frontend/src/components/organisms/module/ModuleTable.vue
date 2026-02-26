@@ -981,6 +981,16 @@ function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
 }
 
+function hasValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+function hasRequiredValues(row: ModuleRow, fields: string[]) {
+  return fields.every((fieldId) => hasValue(row[fieldId]));
+}
+
 function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
@@ -991,9 +1001,7 @@ function isCompleteEquipement(row: ModuleRow) {
     'standby_power_w',
   ];
 
-  return required.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, required);
 }
 
 function isCompleteHeadcount(row: ModuleRow) {
@@ -1001,23 +1009,17 @@ function isCompleteHeadcount(row: ModuleRow) {
   const requiredStudent = ['fte'];
   // implicit behavior: if sciper is set, it's a member
   // todo: sciper field should not exist: maybe user_id to be agnostic
-  if (row.sciper !== '') {
-    return requiredMember.every(
-      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-    );
+  if (hasValue(row.sciper)) {
+    return hasRequiredValues(row, requiredMember);
   }
 
-  return requiredStudent.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, requiredStudent);
 }
 
 //  dependence on the submodule type
 function isCompleteExternalCloud(row: ModuleRow) {
   const required = ['service_type', 'cloud_provider', 'spending'];
-  return required.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, required);
 }
 
 function isCompleteExternalAI(row: ModuleRow) {
@@ -1027,9 +1029,7 @@ function isCompleteExternalAI(row: ModuleRow) {
     'frequency_use_per_day',
     'user_count',
   ];
-  return required.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, required);
 }
 
 function isCompletePurchase(row: ModuleRow) {
@@ -1052,7 +1052,10 @@ function isCompletePurchaseAdditional(row: ModuleRow) {
 }
 
 function isComplete(row: ModuleRow) {
-  // # TODO : move isComplete to module definition
+  const requiredFieldIds = props.submoduleConfig?.requiredFieldIds ?? [];
+  if (requiredFieldIds.length > 0) {
+    return hasRequiredValues(row, requiredFieldIds);
+  }
 
   if (props.moduleType === MODULES.Headcount) {
     // For Headcount, consider complete if name and status are set
@@ -1092,9 +1095,7 @@ function isComplete(row: ModuleRow) {
   }
   if (props.moduleType === MODULES.ProcessEmissions) {
     const baseRequired = ['emitted_gas', 'quantity_kg'];
-    const hasBaseRequired = baseRequired.every(
-      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-    );
+    const hasBaseRequired = hasRequiredValues(row, baseRequired);
     if (!hasBaseRequired) {
       return false;
     }
@@ -1175,21 +1176,18 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  //
-  const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
-
-  const csvHeadcountContent = `name,function,fte`;
-
-  const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
-
-  const csvExternalCloudContent = `service_type,cloud_provider,spending`;
-  const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
-
-  const csvPurchaseContent = `name,purchase_institutional_code,quantity,total_spent_amount`;
-
-  const csvProcessesContent = `emitted_gas,sub_category,quantity_kg`;
-
-  const csvDefaultContent = `not_implemented_yet`;
+  const csvEquipmentContent =
+    'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
+  const csvHeadcountContent = 'name,function,fte';
+  const csvProfessionalTravelContent =
+    'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
+  const csvExternalCloudContent = 'service_type,cloud_provider,spending';
+  const csvExternalAIContent =
+    'ai_provider,ai_use,frequency_use_per_day,user_count';
+  const csvPurchaseContent =
+    'name,purchase_institutional_code,quantity,total_spent_amount';
+  const csvProcessesContent = 'emitted_gas,sub_category,quantity_kg';
+  const csvDefaultContent = 'not_implemented_yet';
 
   let csvContent: string;
   switch (props.moduleType) {
@@ -1231,16 +1229,15 @@ function onDownloadTemplate() {
 
   const a = document.createElement('a');
   a.href = csvUrl;
-  a.download = `${props.moduleType}-template.csv`; // filename for the user
+  a.download = `${props.moduleType}-template.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  URL.revokeObjectURL(csvUrl);
 
   $q.notify({
     color: 'info',
-    message:
-      $t('common_download_csv_template_mock') ||
-      'CSV template download (mocked)',
+    message: $t('common_download_csv_template_mock') || 'CSV template download',
     position: 'top',
   });
 }

@@ -198,7 +198,7 @@ async def test_get_factor_with_fallback(repo):
     repo.session.exec = AsyncMock(side_effect=[result_mock_none, result_mock_factor])
 
     result = await repo.get_factor(
-        DataEntryTypeEnum.trips,
+        DataEntryTypeEnum.train,
         fallbacks={"country_code": "RoW"},
         kind="train",
         country_code="FR",

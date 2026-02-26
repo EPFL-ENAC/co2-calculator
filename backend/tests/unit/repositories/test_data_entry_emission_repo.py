@@ -32,7 +32,7 @@ async def test_create_emission(db_session: AsyncSession):
 
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -71,7 +71,7 @@ async def test_update_emission(db_session: AsyncSession):
 
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -108,7 +108,7 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
 
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -155,7 +155,7 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
 
     data_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "Test Trip"},
     )
@@ -203,7 +203,7 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
     entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={"name": f"Trip {i}"},
         )
@@ -252,9 +252,9 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     plane_entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
-            data={"name": f"Plane {i}", "transport_mode": "plane"},
+            data={"name": f"Plane {i}"},
         )
         for i in range(2)
     ]
@@ -262,9 +262,9 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     train_entries = [
         DataEntry(
             carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.train,
             status=DataEntryStatusEnum.PENDING,
-            data={"name": f"Train {i}", "transport_mode": "train"},
+            data={"name": f"Train {i}"},
         )
         for i in range(3)
     ]
@@ -355,9 +355,9 @@ async def test_get_emission_breakdown_basic(db_session: AsyncSession):
     # Travel entry
     plane_entry = DataEntry(
         carbon_report_module_id=module_travel.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane"},
+        data={},
     )
     db_session.add_all([sci_entry, it_entry, plane_entry])
     await db_session.flush()
@@ -425,7 +425,7 @@ async def test_get_emission_breakdown_validated_only(db_session: AsyncSession):
     )
     entry_ip = DataEntry(
         carbon_report_module_id=in_progress_module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
         data={"name": "In progress item"},
     )
@@ -533,16 +533,16 @@ async def test_get_travel_stats_by_class_basic(db_session: AsyncSession):
     # Create plane trips with different cabin classes
     eco_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane", "cabin_class": "eco"},
+        data={"cabin_class": "eco"},
     )
 
     business_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane", "cabin_class": "business"},
+        data={"cabin_class": "business"},
     )
 
     db_session.add_all([eco_entry, business_entry])
@@ -603,17 +603,17 @@ async def test_get_travel_stats_by_class_null_cabin(db_session: AsyncSession):
     # Create plane trip with NULL cabin_class
     plane_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane"},  # No cabin_class
+        data={},  # No cabin_class
     )
 
     # Create train trip with NULL cabin_class
     train_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.train,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "train"},  # No cabin_class
+        data={},  # No cabin_class
     )
 
     db_session.add_all([plane_entry, train_entry])
@@ -668,16 +668,16 @@ async def test_get_travel_stats_by_class_filters_zero_emissions(
     # Create entries
     valid_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane", "cabin_class": "eco"},
+        data={"cabin_class": "eco"},
     )
 
     zero_entry = DataEntry(
         carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane", "cabin_class": "business"},
+        data={"cabin_class": "business"},
     )
 
     db_session.add_all([valid_entry, zero_entry])
@@ -756,24 +756,24 @@ async def test_get_travel_evolution_over_time(db_session: AsyncSession):
     # Create entries for 2023
     plane_2023 = DataEntry(
         carbon_report_module_id=module_2023.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane"},
+        data={},
     )
 
     # Create entries for 2024
     plane_2024 = DataEntry(
         carbon_report_module_id=module_2024.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.plane,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "plane"},
+        data={},
     )
 
     train_2024 = DataEntry(
         carbon_report_module_id=module_2024.id,
-        data_entry_type_id=DataEntryTypeEnum.trips,
+        data_entry_type_id=DataEntryTypeEnum.train,
         status=DataEntryStatusEnum.PENDING,
-        data={"transport_mode": "train"},
+        data={},
     )
 
     db_session.add_all([plane_2023, plane_2024, train_2024])
@@ -808,13 +808,13 @@ async def test_get_travel_evolution_over_time(db_session: AsyncSession):
 
     # Find specific records
     plane_2023_record = next(
-        r for r in result if r["year"] == 2023 and r["transport_mode"] == "plane"
+        r for r in result if r["year"] == 2023 and r["category"] == "plane"
     )
     plane_2024_record = next(
-        r for r in result if r["year"] == 2024 and r["transport_mode"] == "plane"
+        r for r in result if r["year"] == 2024 and r["category"] == "plane"
     )
     train_2024_record = next(
-        r for r in result if r["year"] == 2024 and r["transport_mode"] == "train"
+        r for r in result if r["year"] == 2024 and r["category"] == "train"
     )
 
     assert plane_2023_record["kg_co2eq"] == pytest.approx(500.0, rel=0.01)

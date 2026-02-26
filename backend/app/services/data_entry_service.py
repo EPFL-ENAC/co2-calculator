@@ -410,11 +410,12 @@ class DataEntryService:
             and (request_context is not None)
             and (response is not None)
             and (
-                data_entry_type_id == DataEntryTypeEnum.trips.value
+                data_entry_type_id == DataEntryTypeEnum.plane.value
+                or data_entry_type_id == DataEntryTypeEnum.train.value
                 or data_entry_type_id == DataEntryTypeEnum.member.value
             )
         ):
-            # for headcount and trips we need for OPDO to have a record of READ
+            # for headcount and travel (plane/train), keep a READ audit record
             # Create version record for read
             extracted_handled_ids = extract_handled_ids_from_list(
                 list(response.items), DataEntryTypeEnum(data_entry_type_id)

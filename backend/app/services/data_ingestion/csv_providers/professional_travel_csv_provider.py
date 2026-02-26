@@ -26,7 +26,7 @@ from app.services.data_ingestion.base_csv_provider import (
 logger = get_logger(__name__)
 
 # Columns the user provides in the travel CSV
-TRAVEL_CSV_REQUIRED_COLUMNS = {"transport_mode", "from", "to", "traveler_name"}
+TRAVEL_CSV_REQUIRED_COLUMNS = {"from", "to", "traveler_name", "cabin_class"}
 TRAVEL_CSV_OPTIONAL_COLUMNS = {
     "departure_date",
     "sciper",
@@ -45,8 +45,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
        via in-memory caches
     3. Transform rows into the format expected by ProfessionalTravelHandlerCreate
     """
-
-    SUPPORTED_TRANSPORT_MODES = {mode.value for mode in TransportModeEnum}
 
     def __init__(
         self,
@@ -154,6 +152,13 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         if configured_data_entry_type_id is None:
             raise ValueError("data_entry_type_id is required for travel CSV ingestion")
         configured_data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
+        if configured_data_entry_type not in (
+            DataEntryTypeEnum.plane,
+            DataEntryTypeEnum.train,
+        ):
+            raise ValueError(
+                "travel CSV ingestion only supports data_entry_type_id plane/train"
+            )
         handler = BaseModuleHandler.get_by_type(configured_data_entry_type)
         expected_columns = set(handler.create_dto.model_fields.keys())
 
@@ -179,8 +184,10 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
             raise
 
         # --- Build location caches ---
-        self._iata_cache = await self._build_iata_cache()
-        self._train_name_cache = await self._build_train_name_cache()
+        if configured_data_entry_type == DataEntryTypeEnum.plane:
+            self._iata_cache = await self._build_iata_cache()
+        else:
+            self._train_name_cache = await self._build_train_name_cache()
 
         return {
             "csv_text": csv_text,
@@ -209,29 +216,27 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         """
         origin_raw = (row.get("from") or "").strip()
         destination_raw = (row.get("to") or "").strip()
-        transport_mode = (row.get("transport_mode") or "").strip().lower()
+        data_entry_type = DataEntryTypeEnum(int(self.config["data_entry_type_id"]))
 
-        # Validate transport_mode
-        if transport_mode not in self.SUPPORTED_TRANSPORT_MODES:
-            error_msg = (
-                f"Unsupported transport_mode '{transport_mode}': "
-                f"only {sorted(self.SUPPORTED_TRANSPORT_MODES)} are supported"
-            )
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, error_msg, None
-
-        # Resolve origin and destination based on transport mode
-        if transport_mode == TransportModeEnum.plane:
+        # Resolve origin and destination based on configured data_entry_type
+        # (location transport_mode is only used internally by location caches)
+        if data_entry_type == DataEntryTypeEnum.plane:
             origin_location_id = self._iata_cache.get(origin_raw.upper())
             destination_location_id = self._iata_cache.get(destination_raw.upper())
             origin_label, destination_label = (
                 origin_raw.upper(),
                 destination_raw.upper(),
             )
-        elif transport_mode == TransportModeEnum.train:
+        elif data_entry_type == DataEntryTypeEnum.train:
             origin_location_id = self._train_name_cache.get(origin_raw)
             destination_location_id = self._train_name_cache.get(destination_raw)
             origin_label, destination_label = origin_raw, destination_raw
+        else:
+            error_msg = (
+                f"Unsupported travel data_entry_type_id '{data_entry_type.value}'"
+            )
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, error_msg, None
 
         if not origin_location_id:
             error_msg = f"Origin '{origin_label}' not found in locations"
@@ -245,7 +250,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
 
         # Build transformed row with schema field names
         transformed_row: Dict[str, str] = {
-            "transport_mode": transport_mode,
             "origin_location_id": str(origin_location_id),
             "destination_location_id": str(destination_location_id),
         }
@@ -257,6 +261,14 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
         transformed_row["traveler_name"] = traveler_name
+
+        # Map cabin_class (required)
+        cabin_class = (row.get("cabin_class") or "").strip()
+        if not cabin_class:
+            error_msg = "Missing required value for 'cabin_class'"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, error_msg, None
+        transformed_row["cabin_class"] = cabin_class
 
         # Map sciper (optional → traveler_id)
         sciper = (row.get("sciper") or "").strip()

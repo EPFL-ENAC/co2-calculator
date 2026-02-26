@@ -28,12 +28,14 @@ def _make_stats() -> StatsDict:
 
 def _make_setup_result(
     csv_text: str = "",
-    configured_data_entry_type_id: int = DataEntryTypeEnum.trips.value,
+    configured_data_entry_type_id: int = DataEntryTypeEnum.plane.value,
 ) -> dict:
     """Minimal setup_result dict expected by _process_row."""
     from app.schemas.data_entry import BaseModuleHandler
 
-    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.trips)
+    handler = BaseModuleHandler.get_by_type(
+        DataEntryTypeEnum(configured_data_entry_type_id)
+    )
     expected_columns = set(handler.create_dto.model_fields.keys())
     return {
         "csv_text": csv_text,
@@ -54,7 +56,7 @@ def base_config():
         "job_id": 1,
         "file_path": "tmp/travel.csv",
         "carbon_report_module_id": 10,
-        "data_entry_type_id": DataEntryTypeEnum.trips.value,
+        "data_entry_type_id": DataEntryTypeEnum.plane.value,
     }
 
 
@@ -138,10 +140,10 @@ class TestProcessRow:
     async def test_valid_row_creates_data_entry(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Alice",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -153,16 +155,17 @@ class TestProcessRow:
         assert entry.data["origin_location_id"] == 100
         assert entry.data["destination_location_id"] == 200
         assert entry.data["traveler_name"] == "Alice"
+        assert entry.data["cabin_class"] == "eco"
         assert stats["rows_skipped"] == 0
 
     @pytest.mark.asyncio
     async def test_sciper_mapped_to_traveler_id(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Bob",
+            "cabin_class": "eco",
             "sciper": "123456",
         }
         stats = _make_stats()
@@ -177,10 +180,10 @@ class TestProcessRow:
     async def test_number_of_trips_passed_through(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Charlie",
+            "cabin_class": "eco",
             "number_of_trips": "3",
         }
         stats = _make_stats()
@@ -195,10 +198,10 @@ class TestProcessRow:
     async def test_departure_date_passed_through(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Dave",
+            "cabin_class": "eco",
             "departure_date": "2024-06-15",
         }
         stats = _make_stats()
@@ -210,13 +213,14 @@ class TestProcessRow:
         assert entry is not None
 
     @pytest.mark.asyncio
-    async def test_unsupported_transport_mode_skips_row(self, provider):
+    async def test_unsupported_data_entry_type_skips_row(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
+        provider.config["data_entry_type_id"] = DataEntryTypeEnum.external_ai.value
         row = {
-            "transport_mode": "bus",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Eve",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -224,20 +228,21 @@ class TestProcessRow:
         entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
 
         assert entry is None
-        assert "Unsupported transport_mode" in err
+        assert "Unsupported travel data_entry_type_id" in err
         assert stats["rows_skipped"] == 1
 
     @pytest.mark.asyncio
     async def test_valid_train_row_creates_data_entry(self, provider):
         provider._train_name_cache = {"Lausanne": 300, "Zürich HB": 400}
+        provider.config["data_entry_type_id"] = DataEntryTypeEnum.train.value
         row = {
-            "transport_mode": "train",
             "from": "Lausanne",
             "to": "Zürich HB",
             "traveler_name": "Fiona",
+            "cabin_class": "class_2",
         }
         stats = _make_stats()
-        setup = _make_setup_result()
+        setup = _make_setup_result(DataEntryTypeEnum.train.value)
 
         entry, err, factor = await provider._process_row(row, 1, setup, stats, 100)
 
@@ -251,14 +256,15 @@ class TestProcessRow:
     @pytest.mark.asyncio
     async def test_unknown_train_origin_skips_row(self, provider):
         provider._train_name_cache = {"Zürich HB": 400}
+        provider.config["data_entry_type_id"] = DataEntryTypeEnum.train.value
         row = {
-            "transport_mode": "train",
             "from": "Unknown Station",
             "to": "Zürich HB",
             "traveler_name": "George",
+            "cabin_class": "class_2",
         }
         stats = _make_stats()
-        setup = _make_setup_result()
+        setup = _make_setup_result(DataEntryTypeEnum.train.value)
 
         entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
 
@@ -269,14 +275,15 @@ class TestProcessRow:
     @pytest.mark.asyncio
     async def test_unknown_train_destination_skips_row(self, provider):
         provider._train_name_cache = {"Lausanne": 300}
+        provider.config["data_entry_type_id"] = DataEntryTypeEnum.train.value
         row = {
-            "transport_mode": "train",
             "from": "Lausanne",
             "to": "Nowhere",
             "traveler_name": "Hannah",
+            "cabin_class": "class_2",
         }
         stats = _make_stats()
-        setup = _make_setup_result()
+        setup = _make_setup_result(DataEntryTypeEnum.train.value)
 
         entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
 
@@ -288,10 +295,10 @@ class TestProcessRow:
     async def test_unknown_origin_iata_skips_row(self, provider):
         provider._iata_cache = {"SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "XXX",
             "to": "SFO",
             "traveler_name": "Frank",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -306,10 +313,10 @@ class TestProcessRow:
     async def test_unknown_destination_iata_skips_row(self, provider):
         provider._iata_cache = {"GVA": 100}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "YYY",
             "traveler_name": "Grace",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -324,10 +331,10 @@ class TestProcessRow:
     async def test_iata_codes_are_case_insensitive(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "gva",
             "to": "sfo",
             "traveler_name": "Henry",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -339,13 +346,13 @@ class TestProcessRow:
         assert entry.data["destination_location_id"] == 200
 
     @pytest.mark.asyncio
-    async def test_empty_transport_mode_skips_row(self, provider):
+    async def test_empty_traveler_name_skips_row(self, provider):
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "",
             "from": "GVA",
             "to": "SFO",
-            "traveler_name": "Ivy",
+            "traveler_name": "",
+            "cabin_class": "eco",
         }
         stats = _make_stats()
         setup = _make_setup_result()
@@ -353,17 +360,17 @@ class TestProcessRow:
         entry, err, _ = await provider._process_row(row, 1, setup, stats, 100)
 
         assert entry is None
-        assert "Unsupported transport_mode" in err
+        assert "Missing required value for 'traveler_name'" in err
 
     @pytest.mark.asyncio
     async def test_float_ids_are_coerced_to_int(self, provider):
         """Ensure float values from CSV parsing are coerced to int."""
         provider._iata_cache = {"GVA": 100, "SFO": 200}
         row = {
-            "transport_mode": "plane",
             "from": "GVA",
             "to": "SFO",
             "traveler_name": "Jack",
+            "cabin_class": "eco",
             "number_of_trips": "2",
         }
         stats = _make_stats()
@@ -386,7 +393,7 @@ class TestSetupAndValidate:
         config = {
             "job_id": 1,
             "carbon_report_module_id": 10,
-            "data_entry_type_id": DataEntryTypeEnum.trips.value,
+            "data_entry_type_id": DataEntryTypeEnum.plane.value,
         }
         mock_session = AsyncMock()
         prov = ProfessionalTravelCSVProvider(
@@ -401,7 +408,7 @@ class TestSetupAndValidate:
 
     @pytest.mark.asyncio
     async def test_successful_setup(self, provider):
-        csv_content = "transport_mode,from,to,traveler_name\nplane,GVA,SFO,Alice\n"
+        csv_content = "from,to,traveler_name,cabin_class\nGVA,SFO,Alice,eco\n"
         provider._files_store.move_file = AsyncMock(return_value=True)
         provider._files_store.get_file = AsyncMock(
             return_value=(csv_content.encode("utf-8"), "text/csv")
@@ -424,7 +431,7 @@ class TestSetupAndValidate:
     @pytest.mark.asyncio
     async def test_missing_required_csv_column_raises(self, provider):
         # CSV missing "from" column
-        csv_content = "transport_mode,to,traveler_name\nplane,SFO,Alice\n"
+        csv_content = "to,traveler_name\nSFO,Alice\n"
         provider._files_store.move_file = AsyncMock(return_value=True)
         provider._files_store.get_file = AsyncMock(
             return_value=(csv_content.encode("utf-8"), "text/csv")
