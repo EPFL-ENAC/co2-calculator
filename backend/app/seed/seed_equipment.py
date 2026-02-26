@@ -27,15 +27,17 @@ from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
+# from app.services import calculation_service
+from app.modules.equipment_electric_consumption.emissions import (
+    compute_scientific_it_other,
+)
+
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
     load_factors_map,
     lookup_factor,
 )
-
-# from app.services import calculation_service
-from app.services.data_entry_emission_service import compute_scientific_it_other
 
 logger = get_logger(__name__)
 settings = get_settings()
