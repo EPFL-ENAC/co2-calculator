@@ -49,14 +49,14 @@ async def seed_test_units(session: AsyncSession) -> None:
         unit_data=Unit(
             provider_code="12345",
             name="test unit 12345",
-            principal_user_provider_code="777777",
+            principal_user_institutional_id="777777",
         )
     )
     await unit_service.upsert(
         unit_data=Unit(
             provider_code="10208",
             name="enac test 10208",
-            principal_user_provider_code="777777",
+            principal_user_institutional_id="777777",
         )
     )
 

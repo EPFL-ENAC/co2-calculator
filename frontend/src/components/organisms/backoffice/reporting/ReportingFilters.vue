@@ -1,111 +1,44 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useUnitFiltersStore } from 'src/stores/unitFilters';
 
 const { t } = useI18n();
+const unitFiltersStore = useUnitFiltersStore();
 
-const props = defineProps<{
-  affiliations: string[];
-  units: number[];
-}>();
-
-const emit = defineEmits<{
-  (
-    e: 'update:filters',
-    filters: {
-      affiliation: string[];
-      units: number[];
-      completion: string;
-      outlier_values: boolean | null;
-      search: string;
-    },
-  ): void;
-}>();
-
-const affiliation = ref<string[]>([]);
 const currentUnits = ref<number[]>([]);
 const completion = ref('');
 
-const affiliationOptions = computed(() =>
-  props.affiliations.map((aff) => ({ label: aff, value: aff })),
-);
-
-const unitOptions = computed(() =>
-  props.units.map((unit) => ({ label: String(unit), value: unit })),
-);
-
-const filteredUnitOptions = ref<Array<{ label: string; value: number }>>([]);
-
-// Initialize filtered options with all options
-watch(
-  unitOptions,
-  (newOptions) => {
-    filteredUnitOptions.value = newOptions;
-  },
-  { immediate: true },
-);
-
-function filterUnits(val: string, update: (callback: () => void) => void) {
-  if (val === '') {
-    update(() => {
-      filteredUnitOptions.value = unitOptions.value;
-    });
-    return;
-  }
-
-  update(() => {
-    const needle = val.toLowerCase();
-    filteredUnitOptions.value = unitOptions.value.filter(
-      (v) => v.label.toLowerCase().indexOf(needle) > -1,
-    );
-  });
-}
-
-const search = ref('');
-
-const outlier_values = ref<boolean | null>(null);
-
-function extractValue<T>(value: T | null | undefined, defaultValue: T): T {
-  if (value === null || value === undefined) {
-    return defaultValue;
-  }
-  if (typeof value === 'object' && 'value' in value) {
-    return (value as { value: T }).value ?? defaultValue;
-  }
-  return value;
-}
-
-watch(
-  [affiliation, currentUnits, completion, outlier_values, search],
-  ([newAffiliation, newUnits, newCompletion, newOutlierValues, newSearch]) => {
-    // Backend handles validation and filtering, so just pass the values directly
-    const affiliationValue = Array.isArray(newAffiliation)
-      ? newAffiliation
-      : [];
-    const unitsValue = Array.isArray(newUnits) ? newUnits : [];
-    const completionValue = extractValue(newCompletion, '');
-    const outlierValuesResult = extractValue(
-      newOutlierValues,
-      null as boolean | null,
-    );
-
-    emit('update:filters', {
-      affiliation: affiliationValue,
-      units: unitsValue,
-      completion: String(completionValue),
-      outlier_values: outlierValuesResult,
-      search: String(newSearch || ''),
-    });
-  },
-  { immediate: true },
-);
+// Initialize with first page of data
+// unitFiltersStore.setSearchQuery('');
 </script>
 <template>
   <div class="row q-mb-md">
     <div class="grid-4-col full-width">
+      <!-- Error message display -->
+      <q-banner
+        v-if="unitFiltersStore.error !== null"
+        dense
+        class="bg-negative text-white q-mb-sm"
+      >
+        <template #avatar>
+          <q-icon name="error" />
+        </template>
+        <!-- use error from AsyncResult -->
+        {{ $t('common_error_message') }}
+        <template #action>
+          <q-btn
+            flat
+            color="white"
+            :label="$t('common_retry')"
+            @click="unitFiltersStore.setSearchQuery('')"
+          />
+        </template>
+      </q-banner>
+
       <q-select
         v-model="currentUnits"
-        :options="filteredUnitOptions"
+        :options="unitFiltersStore.data"
         option-value="value"
         option-label="label"
         multiple
@@ -113,34 +46,19 @@ watch(
         dense
         outlined
         use-input
-        input-debounce="0"
+        input-debounce="300"
         emit-value
         map-options
+        :loading="unitFiltersStore.loading"
         :label="$t('backoffice_reporting_filter_units_label')"
+        filled
+        clearable
         class="full-width"
-        @filter="filterUnits"
+        @filter="unitFiltersStore.filterUnits"
+        @virtual-scroll="unitFiltersStore.onScroll"
       >
         <template #prepend>
           <q-icon name="o_business" color="grey-6" size="xs" />
-        </template>
-      </q-select>
-      <q-select
-        v-model="affiliation"
-        :options="affiliationOptions"
-        option-value="value"
-        option-label="label"
-        multiple
-        use-chips
-        outlined
-        dense
-        emit-value
-        map-options
-        :label="$t('backoffice_reporting_row_affiliation_label')"
-        class="full-width"
-        style="flex-grow: 1"
-      >
-        <template #prepend>
-          <q-icon name="o_school" color="grey-6" size="xs" />
         </template>
       </q-select>
       <q-select
@@ -162,38 +80,6 @@ watch(
           <q-icon name="o_check_small" color="grey-6" size="xs" />
         </template>
       </q-select>
-      <q-select
-        v-model="outlier_values"
-        outlined
-        dense
-        :options="[
-          { label: t('common_filter_all'), value: null },
-          { label: t('common_filter_yes'), value: true },
-          { label: t('common_filter_no'), value: false },
-        ]"
-        option-value="value"
-        option-label="label"
-        :label="$t('backoffice_reporting_row_outlier_values_label')"
-        class="full-width"
-        style="flex-grow: 1"
-      >
-        <template #prepend>
-          <q-icon name="o_report" color="grey-6" size="xs" />
-        </template>
-      </q-select>
     </div>
   </div>
-  <q-input
-    v-model="search"
-    outlined
-    dense
-    type="search"
-    color="text-grey-6"
-    :label="$t('common_filters_search_label')"
-    class="text-weight-medium"
-  >
-    <template #prepend>
-      <q-icon name="o_search" color="grey-6" size="xs" />
-    </template>
-  </q-input>
 </template>

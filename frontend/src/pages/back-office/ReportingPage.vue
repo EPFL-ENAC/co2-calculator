@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import { getBackendModuleName } from 'src/constant/modules';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { Module } from 'src/constant/modules';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
@@ -28,28 +27,6 @@ const allStatesSelected = computed(() => {
   });
 });
 
-const moduleFilters = computed(() => {
-  const filters: Array<{ module: string; state: ModuleState }> = [];
-
-  // Only include modules that have states selected
-  MODULE_CARDS.forEach((card) => {
-    const module = card.module;
-    const data = moduleStates.value.get(module);
-
-    // Only process modules that have states selected
-    if (data && data.states.length > 0) {
-      // Map frontend module name to backend module name
-      const backendModuleName = getBackendModuleName(module);
-      // Module has states selected - add them to filters
-      data.states.forEach((state) => {
-        filters.push({ module: backendModuleName, state });
-      });
-    }
-  });
-
-  return { filters };
-});
-
 async function toggleSelectAll(shouldSelectAll: boolean) {
   const allStates = Object.values(MODULE_STATES);
 
@@ -71,22 +48,7 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
 
 const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
-const filters = ref({
-  affiliation: [] as string[],
-  units: [] as number[],
-  completion: '',
-  outlier_values: null as boolean | null,
-  search: '',
-});
-
-function handleFiltersUpdate(newFilters: {
-  affiliation: string[];
-  units: number[];
-  completion: string;
-  outlier_values: boolean | null;
-  search: string;
-}) {
-  filters.value = newFilters;
+function handleFiltersUpdate() {
   fetchUnits();
 }
 
@@ -95,42 +57,40 @@ const selectedUnitId = ref<string | number>('');
 
 const units = computed(() => backofficeStore.units);
 const loading = computed(() => backofficeStore.unitsLoading);
-const affiliations = computed(() => backofficeStore.affiliations);
-const availableUnits = computed(() => backofficeStore.availableUnits);
+// const affiliations = computed(() => backofficeStore.affiliations);
+// const availableUnits = computed(() => backofficeStore.availableUnits);
 
 async function fetchUnits() {
-  const filtersToSend: {
-    affiliation?: string[];
-    units?: number[];
-    years?: string[];
-    completion?: string;
-    outlier_values?: boolean | null;
-    search?: string;
-    modules?: Array<{ module: string; state: ModuleState }> | null;
-  } = {
-    affiliation: filters.value.affiliation,
-    units: filters.value.units,
-    years: selectedYears.value,
-    completion: filters.value.completion,
-    outlier_values: filters.value.outlier_values,
-    search: filters.value.search,
-  };
+  // const filtersToSend: {
+  //   affiliation?: string[];
+  //   units?: number[];
+  //   years?: string[];
+  //   completion?: string;
+  //   outlier_values?: boolean | null;
+  //   modules?: Array<{ module: string; state: ModuleState }> | null;
+  // } = {
+  //   affiliation: filters.value.affiliation,
+  //   units: filters.value.units,
+  //   years: selectedYears.value,
+  //   completion: filters.value.completion,
+  //   outlier_values: filters.value.outlier_values,
+  // };
 
-  // Check if any modules have states selected
-  const hasAnyStatesSelected = MODULE_CARDS.some((card) => {
-    const data = moduleStates.value.get(card.module);
-    return data && data.states.length > 0;
-  });
+  // // Check if any modules have states selected
+  // const hasAnyStatesSelected = MODULE_CARDS.some((card) => {
+  //   const data = moduleStates.value.get(card.module);
+  //   return data && data.states.length > 0;
+  // });
 
-  if (hasAnyStatesSelected) {
-    // Some modules have states selected - send the filters
-    filtersToSend.modules = moduleFilters.value.filters;
-  } else {
-    // All modules are unselected - send empty array to return no results
-    filtersToSend.modules = [];
-  }
+  // if (hasAnyStatesSelected) {
+  //   // Some modules have states selected - send the filters
+  //   filtersToSend.modules = moduleFilters.value.filters;
+  // } else {
+  //   // All modules are unselected - send empty array to return no results
+  //   filtersToSend.modules = [];
+  // }
 
-  await backofficeStore.getUnits(filtersToSend);
+  await backofficeStore.getUnits();
 }
 
 onMounted(async () => {
@@ -143,7 +103,7 @@ onMounted(async () => {
     });
   });
 
-  await backofficeStore.getAllUnits();
+  // await backofficeStore.getAllUnits();
   await backofficeStore.getAvailableYears();
   await fetchUnits();
 });
@@ -189,11 +149,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         />
       </div>
       <div class="q-mt-xl">
-        <ReportingFilters
-          :affiliations="affiliations"
-          :units="availableUnits"
-          @update:filters="handleFiltersUpdate"
-        />
+        <ReportingFilters @update:filters="handleFiltersUpdate" />
       </div>
       <div class="q-mt-xl">
         <div class="flex justify-between items-center q-mb-sm">
@@ -228,7 +184,8 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       </div>
       <div class="q-mt-xl">
         <UnitsTable
-          :units="units"
+          :units="units?.data || []"
+          :pagination="units?.pagination"
           :loading="loading"
           @view-unit="handleViewUnit"
         />
@@ -244,7 +201,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
             $t('backoffice_reporting_generate_report_description')
           }}</span>
 
-          <ReportExport :units="units" />
+          <ReportExport :units="[]" />
         </div>
       </div>
       <UnitDialogue v-model:model-value="alert" :unit-id="selectedUnitId" />

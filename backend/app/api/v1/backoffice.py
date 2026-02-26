@@ -1,18 +1,40 @@
 """Backoffice API endpoints."""
 
-from datetime import datetime, timedelta
-from typing import Any, List, Optional, cast
+import csv
+import io
+import json
+import zipfile
+from datetime import datetime, timedelta, timezone
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import get_logger
 from app.core.security import require_permission
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportModuleRead,
+)
 from app.models.user import User
-from app.schemas.user import UserCreate, UserRead, UserUpdate
-from app.services.user_service import UserService
+from app.repositories.carbon_report_module_repo import (
+    CarbonReportModuleRepository,
+)
+from app.repositories.unit_repo import UnitRepository
+from app.schemas.backoffice import (
+    PaginatedUnitReportingData,
+    PaginationMeta,
+    UnitReportingData,
+)
+from app.schemas.unit import UnitRead
+
+# Services
+from app.services.data_entry_service import DataEntryService
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -304,22 +326,6 @@ class ModuleCompletion(BaseModel):
     outlier_values: int
 
 
-class UnitReportingData(BaseModel):
-    id: int
-    completion: dict[str, Any]
-    completion_counts: CompletionCounts
-    unit: int
-    affiliation: str
-    principal_user: str
-    last_update: datetime
-    outlier_values: (
-        int  # Total outlier values (sum of all modules across selected years)
-    )
-    expected_total: Optional[int] = (
-        None  # Expected total module-year combinations (7 × number of years)
-    )
-
-
 def get_module_status(module_data: dict | str) -> str:
     """Extract status from module data
     (handles both old string format and new object format)."""
@@ -492,7 +498,30 @@ def _is_unit_complete(completion: dict, years: list[str] | None = None) -> bool:
     return validated_count == expected_total
 
 
-@router.get("/units", response_model=List[UnitReportingData])
+@router.get("/select-units")
+async def get_filter_units(
+    years: List[int] = Query(default=[]),
+    path_name: str = Query(default=None, description="Filter by path name"),
+    name: Optional[str] = Query(
+        None, description="Filter by unit name (partial match)"
+    ),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    unit_repo = UnitRepository(db)
+    result = await unit_repo.get_units_with_filters(
+        years=years,
+        path_name=path_name,
+        name=name,
+        page=page,
+        page_size=page_size,
+    )
+    return result
+
+
+@router.get("/units", response_model=PaginatedUnitReportingData)
 async def list_backoffice_units(
     affiliation: Optional[List[str]] = Query(
         None, description="Filter by affiliation(s) - can specify multiple"
@@ -519,7 +548,10 @@ async def list_backoffice_units(
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List units with reporting data for backoffice.
@@ -527,147 +559,327 @@ async def list_backoffice_units(
     Returns mock data with completion status, outlier values, and other metrics.
     Supports filtering by affiliation, completion status, outlier values, and search.
     """
-    filtered_units = MOCK_UNITS_REPORTING.copy()
+    carbon_report_repo = CarbonReportModuleRepository(db)
+    result = await carbon_report_repo.get_reporting_overview(
+        year=2025,  # Default to all years for overview
+        page=page,
+        page_size=page_size,
+    )
+    # data, total, page, page_size, total_pages = result
 
-    # Filter by affiliation(s)
-    if affiliation:
-        affiliation_set = {
-            a.strip() for a in affiliation if isinstance(a, str) and a.strip()
-        }
-        if affiliation_set:
-            filtered_units = [
-                u for u in filtered_units if u["affiliation"] in affiliation_set
-            ]
+    # return result.get("data", [])
 
-    # Filter by unit name(s)
-    if units:
-        units_set = {u.strip() for u in units if isinstance(u, str) and u.strip()}
-        if units_set:
-            filtered_units = [u for u in filtered_units if u["unit"] in units_set]
-
-    # Filter by completion status (only if provided and not empty)
-    if completion and isinstance(completion, str) and completion.strip():
-        completion_status = completion.strip()
-        if completion_status == "complete":
-            # Filter units where all modules are validated in ALL selected years
-            filtered_units = [
-                u
-                for u in filtered_units
-                if isinstance(u.get("completion"), dict)
-                and _is_unit_complete(cast(dict[str, Any], u["completion"]), years)
-            ]
-        elif completion_status == "incomplete":
-            # Filter units that are not complete
-            filtered_units = [
-                u
-                for u in filtered_units
-                if not (
-                    isinstance(u.get("completion"), dict)
-                    and _is_unit_complete(cast(dict[str, Any], u["completion"]), years)
-                )
-            ]
-
-    # Filter by outlier values
-    if outlier_values is not None:
-        filtered_units = [
-            u
-            for u in filtered_units
-            if isinstance(u.get("completion"), dict)
-            and (
-                calculate_total_outlier_values(
-                    cast(dict[str, Any], u["completion"]), years
-                )
-                > 0
-            )
-            == outlier_values
-        ]
-
-    # Filter by module states (only if provided and not empty)
-    if modules and isinstance(modules, list) and len(modules) > 0:
-        if any(isinstance(m, str) and m.strip() == "" for m in modules):
-            filtered_units = []
+    # Convert the data to UnitReportingData instances
+    unit_reporting_data = []
+    for item in result.get("data", []):
+        if isinstance(item, dict):
+            unit_reporting_data.append(UnitReportingData(**item))
         else:
-            from collections import defaultdict
+            unit_reporting_data.append(item)
 
-            module_filters_dict: dict[str, set[str]] = defaultdict(set)
-            for module_filter in modules:
-                if isinstance(module_filter, str) and ":" in module_filter:
-                    parts = module_filter.split(":", 1)
-                    if len(parts) == 2:
-                        module_name = parts[0].strip()
-                        state = parts[1].strip()
-                        if module_name and state:  # Both must be non-empty
-                            module_filters_dict[module_name].add(state)
+    return PaginatedUnitReportingData(
+        data=unit_reporting_data,
+        pagination=PaginationMeta(**result),
+    )
 
-            if module_filters_dict:
-                filtered_units = [
-                    u
-                    for u in filtered_units
-                    if isinstance(u.get("completion"), dict)
-                    and all(
-                        get_module_status(
-                            get_completion_for_years(
-                                cast(dict[str, Any], u["completion"]), years
-                            ).get(module_name, {})
-                        )
-                        in states
-                        for module_name, states in module_filters_dict.items()
-                    )
-                ]
 
-    # Filter by search
-    if search:
-        search_lower = search.strip().lower()
-        if search_lower:
-            filtered_units = [
-                u
-                for u in filtered_units
-                if any(
-                    search_lower in str(u[field]).lower()
-                    for field in ["unit", "affiliation", "principal_user"]
-                )
-            ]
+@router.get("/export-detailed")
+async def export_detailed_reporting(
+    path_name: Optional[str] = Query(
+        None, description="Filter by path name(s) - can specify multiple"
+    ),
+    units: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    years: Optional[List[str]] = Query(
+        None, description="Filter by years (e.g., ['2024', '2025'])"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("system.users", "edit")),
+):
+    """
+    Export detailed reporting data for all units, including module-level details.
+    Creates one CSV per unit/year/module combination using response
+      DTOs and packages them in a ZIP file.
+    File naming format: {AFFILIATION}_{UNIT_NAME}_{YEAR}_module_{MODULE_TYPE}.csv
+    """
+    # Get units based on filters
+    unit_repo = UnitRepository(db)
+    units_result = await unit_repo.get_units_with_filters(
+        years=[int(y) for y in years] if years else None,
+        path_name=path_name,
+        name=units[0] if units and len(units) == 1 else None,
+        page=1,
+        page_size=10,
+    )
+    filtered_units: List[UnitRead] = units_result["data"]
 
-    # Calculate expected total: 7 modules × number of selected years
-    MODULE_COUNT = 7
-    if years:
-        num_years = len(years)
-    elif filtered_units:
-        completion_data = filtered_units[0].get("completion", {})
-        if isinstance(completion_data, dict):
-            num_years = len(_get_year_keys(completion_data)) or 3
-        else:
-            num_years = 3
-    else:
-        num_years = 3
-    expected_total = MODULE_COUNT * num_years
+    # If no units found, return empty ZIP
+    if not filtered_units:
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr("README.txt", "No data found for the specified filters.")
+        zip_buffer.seek(0)
 
-    # Add completion counts and total outlier values to each unit
-    result_units = []
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return StreamingResponse(
+            iter([zip_buffer.getvalue()]),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; "
+                f'filename="detailed_export_{timestamp}.zip"'
+            },
+        )
+
+    # Get years to process
+    year_list = [int(y) for y in years] if years else [2024, 2025, 2026]
+
+    # Initialize data entry service
+    data_entry_service = DataEntryService(db)
+
+    # Collect CSV data for each unit/year/module combination
+    csv_files_data = []
+
+    # Process each unit and year
     for unit in filtered_units:
-        unit_dict = unit.copy()
-        completion_data = unit.get("completion")
-        if isinstance(completion_data, dict):
-            completion_dict = cast(dict[str, Any], completion_data)
-            unit_dict["completion"] = get_completion_for_years(completion_dict, years)
-            unit_dict["completion_counts"] = calculate_completion_counts(
-                completion_dict, years
-            )
-            unit_dict["outlier_values"] = calculate_total_outlier_values(
-                completion_dict, years
-            )
-        else:
-            unit_dict["completion"] = (
-                completion_data if completion_data is not None else {}
-            )
-            unit_dict["completion_counts"] = CompletionCounts(
-                validated=0, in_progress=0, default=0
-            )
-            unit_dict["outlier_values"] = 0
-        unit_dict["expected_total"] = expected_total
-        result_units.append(unit_dict)
+        # Create unit path for file naming (e.g., "STI_LMSC")
+        unit_path = "UNKNOWN_PATH"
+        if unit.path_name:
+            unit_path = f"{unit.path_name.replace(' ', '_')}"
 
-    return result_units
+        for year in year_list:
+            # Get carbon report for this unit and year
+            report_stmt = select(CarbonReport).where(
+                CarbonReport.unit_id == unit.id, CarbonReport.year == year
+            )
+            report_result = await db.exec(report_stmt)
+            carbon_report = report_result.one_or_none()
+
+            if not carbon_report:
+                continue
+
+            # Get all modules for this report
+            modules_stmt = select(CarbonReportModule).where(
+                CarbonReportModule.carbon_report_id == carbon_report.id
+            )
+            modules_result = await db.exec(modules_stmt)
+            db_modules = modules_result.all()
+            modules = [CarbonReportModuleRead.model_validate(m) for m in db_modules]
+            # Process each module
+            for module in modules:
+                try:
+                    # Get submodule data using the proper service method
+                    # We need to determine the data entry type IDs for this module
+                    # For now, let's get all data entry types for this module
+                    module_data = await data_entry_service.get_module_data(
+                        carbon_report_module_id=module.id,
+                    )
+
+                    # Get data for each submodule type within this module
+                    for (
+                        data_entry_type_id,
+                        count,
+                    ) in module_data.data_entry_types_total_items.items():
+                        if count > 0:  # Only process submodules that have data
+                            # Get the submodule data with proper response DTOs
+                            submodule_data = (
+                                await data_entry_service.get_submodule_data(
+                                    carbon_report_module_id=module.id,
+                                    data_entry_type_id=data_entry_type_id,
+                                    limit=10000,  # Get all items
+                                    offset=0,
+                                    sort_by="id",
+                                    sort_order="asc",
+                                )
+                            )
+
+                            if submodule_data.items:
+                                # Create CSV content for this
+                                # unit/year/module/submodule combination
+                                csv_buffer = io.StringIO()
+                                writer = csv.writer(csv_buffer)
+
+                                # Write header based on first entry
+                                first_entry_dict = submodule_data.items[0].model_dump()
+                                writer.writerow(first_entry_dict.keys())
+
+                                # Write data rows
+                                for entry in submodule_data.items:
+                                    entry_dict = entry.model_dump()
+
+                                    writer.writerow(entry_dict.values())
+
+                                # Add CSV to our collection with proper naming
+                                # Map data entry type to module type name
+                                module_type_name = _get_module_type_name(
+                                    data_entry_type_id
+                                )
+                                filename = (
+                                    f"{unit_path}_{year}_module_{module_type_name}.csv"
+                                )
+                                csv_files_data.append(
+                                    {
+                                        "filename": filename,
+                                        "content": csv_buffer.getvalue(),
+                                    }
+                                )
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to process module {module.id} "
+                        f"for unit {unit.id} year {year}: {e}"
+                    )
+                    continue
+
+    # Create ZIP file with all CSVs
+    zip_buffer = io.BytesIO()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        # Add each CSV file to the ZIP
+        for csv_data in csv_files_data:
+            if csv_data["content"]:
+                zip_file.writestr(csv_data["filename"], csv_data["content"])
+
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; "
+            f'filename="detailed_export_{timestamp}.zip"'
+        },
+    )
+
+
+def _get_module_type_name(data_entry_type_id: int) -> str:
+    """Convert data entry type ID to module type name for file naming."""
+    type_mapping = {
+        1: "headcount_member",
+        2: "headcount_student",
+        9: "equipment_scientific",
+        10: "equipment_it",
+        11: "equipment_other",
+        20: "professional_travel",
+        40: "external_cloud",
+        41: "external_ai",
+        50: "process_emissions",
+    }
+    return type_mapping.get(data_entry_type_id, f"unknown_{data_entry_type_id}")
+
+
+@router.get("/export")
+async def export_reporting(
+    affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliation(s) - can specify multiple"
+    ),
+    units: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    completion: Optional[str] = Query(
+        None, description="Filter by completion status (complete, incomplete)"
+    ),
+    outlier_values: Optional[bool] = Query(
+        None,
+        description="""Filter by outlier values (true = has outliers,
+        false = no outliers)""",
+    ),
+    search: Optional[str] = Query(
+        None, description="Search in unit name, affiliation, or principal user"
+    ),
+    modules: Optional[List[str]] = Query(
+        None,
+        description="""Filter by module states, format: 'module_name:state'
+        (e.g., 'headcount:validated')""",
+    ),
+    years: Optional[List[str]] = Query(
+        None, description="Filter by years (e.g., ['2024', '2025'])"
+    ),
+    format: str = Query("csv", description="Export format: csv or json"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    # TODO: for export, we might want to allow larger page sizes
+    # or even no pagination to get all data at once
+    # it was 10000, not sure how to handle millions of rows if that ever happens
+    # - maybe we should stream the data instead of loading it all in memory?
+    page_size: int = Query(100, ge=1, le=100, description="Number of items per page"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("system.users", "edit")),
+):
+    """Export unit reporting data as CSV or JSON file download."""
+    # Get all matching records for export
+    reporting_data = await list_backoffice_units(
+        affiliation=affiliation,
+        units=units,
+        completion=completion,
+        outlier_values=outlier_values,
+        search=search,
+        modules=modules,
+        years=years,
+        page=page,
+        page_size=page_size,
+        current_user=current_user,
+        db=db,
+    )
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    if format == "json":
+        # JSON export
+        export_data = [doc.model_dump() for doc in reporting_data.data]
+
+        content = json.dumps(export_data, indent=2, default=str)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="reporting_export_{today}.json"'
+                ),
+            },
+        )
+    else:
+        # CSV export
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "id",
+                "unit_name",
+                "affiliation",
+                "validation_status",
+                "principal_user",
+                "last_update",
+                "highest_result_category",
+                "total_carbon_footprint",
+                "view_url",
+            ]
+        )
+
+        for doc in reporting_data.data:
+            writer.writerow(
+                [
+                    doc.unit_id,
+                    doc.unit_name,
+                    doc.affiliation,
+                    doc.validation_status,
+                    doc.principal_user,
+                    doc.last_update.isoformat() if doc.last_update else "",
+                    doc.highest_result_category or "",
+                    doc.total_carbon_footprint,
+                    doc.view_url or "",
+                ]
+            )
+
+        content = output.getvalue()
+        return StreamingResponse(
+            iter([content]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="reporting_export_{today}.csv"'
+                ),
+            },
+        )
 
 
 @router.get("/unit/{unit_id}", response_model=UnitReportingData)
@@ -678,49 +890,7 @@ async def get_backoffice_unit(
     ),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Get a unit with reporting data for backoffice.
-    Returns raw completion data with all years if no years specified.
-    """
-
-    # Find unit by id
-    unit = next((u for u in MOCK_UNITS_REPORTING if u["id"] == unit_id), None)
-    if unit is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unit with id {unit_id} not found",
-        )
-
-    unit_dict = unit.copy()
-    MODULE_COUNT = 7
-
-    completion_data = unit.get("completion", {})
-    if isinstance(completion_data, dict):
-        completion_dict = cast(dict[str, Any], completion_data)
-        if years:
-            num_years = len(years)
-            unit_dict["completion"] = get_completion_for_years(completion_dict, years)
-        else:
-            unit_dict["completion"] = completion_dict
-            num_years = len(_get_year_keys(completion_dict)) or 3
-
-        unit_dict["completion_counts"] = calculate_completion_counts(
-            completion_dict, years
-        )
-        unit_dict["outlier_values"] = calculate_total_outlier_values(
-            completion_dict, years
-        )
-    else:
-        unit_dict["completion"] = completion_data
-        num_years = 3
-        unit_dict["completion_counts"] = CompletionCounts(
-            validated=0, in_progress=0, default=0
-        )
-        unit_dict["outlier_values"] = 0
-
-    unit_dict["expected_total"] = MODULE_COUNT * num_years
-
-    return unit_dict
+    return {"message": f"Details for unit {unit_id} with year filter {years}"}
 
 
 @router.get("/years")
@@ -732,18 +902,9 @@ async def get_available_years(
     Returns all unique years found across all units' completion data,
     sorted in descending order (latest first).
     """
-    all_years: set[str] = set()
-
-    for unit in MOCK_UNITS_REPORTING:
-        completion_data = unit.get("completion", {})
-        if isinstance(completion_data, dict):
-            years = _get_year_keys(completion_data)
-            all_years.update(years)
-
-    if not all_years:
-        # Default to current year if no years found
-        current_year = str(datetime.now().year)
-        return {"years": [current_year], "latest": current_year}
+    all_years: set[str] = set(
+        "2024 2025 2026".split()
+    )  # Mocked for demo, replace with real data extraction
 
     # Sort years in descending order (latest first)
     sorted_years = sorted(
@@ -752,265 +913,3 @@ async def get_available_years(
     latest_year = sorted_years[0]
 
     return {"years": sorted_years, "latest": latest_year}
-
-
-# User management endpoints
-
-
-@router.get(
-    "/users",
-    response_model=List[UserRead],
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.view required"
-                    }
-                }
-            },
-        }
-    },
-)
-async def list_users(
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
-):
-    """
-    List users with policy-based filtering.
-
-    **Required Permission**: `backoffice.users.view`
-
-    **Authorization**:
-    - Backoffice admin: Can view all users
-    - Backoffice std: Can view all users
-    - Other users: No access
-
-    Raises:
-        403: Missing required permission
-    """
-    user_service = UserService(db)
-    users = await user_service.list_users(current_user, skip=skip, limit=limit)
-    return users
-
-
-@router.post(
-    "/users",
-    response_model=UserRead,
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.edit required"
-                    }
-                }
-            },
-        }
-    },
-)
-async def create_user(
-    user_data: UserCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
-):
-    """
-    Create a new user.
-
-    **Required Permission**: `backoffice.users.edit`
-
-    **Authorization**:
-    - Backoffice admin: Can create users
-    - Other users: No access
-
-    Raises:
-        403: Missing required permission
-    """
-    user_service = UserService(db)
-    user = await user_service.create_user(user_data.model_dump(), current_user)
-    await db.commit()
-    return user
-
-
-@router.get(
-    "/users/{user_id}",
-    response_model=UserRead,
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.view required"
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "User not found",
-            "content": {"application/json": {"example": {"detail": "User not found"}}},
-        },
-    },
-)
-async def get_user(
-    user_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
-):
-    """
-    Get a user by ID.
-
-    **Required Permission**: `backoffice.users.view`
-
-    **Authorization**:
-    - Backoffice admin: Can view all users
-    - Backoffice std: Can view all users
-    - Other users: No access
-
-    Returns 404 (not 403) if user lacks access to hide existence of the user.
-
-    Raises:
-        403: Missing required permission
-        404: User not found or not accessible
-    """
-    user_service = UserService(db)
-    user = await user_service.get_user(user_id, current_user)
-    return user
-
-
-@router.put(
-    "/users/{user_id}",
-    response_model=UserRead,
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.edit required"
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "User not found",
-            "content": {"application/json": {"example": {"detail": "User not found"}}},
-        },
-    },
-)
-async def update_user(
-    user_id: int,
-    user_data: UserUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
-):
-    """
-    Update a user.
-
-    **Required Permission**: `backoffice.users.edit`
-
-    **Authorization**:
-    - Backoffice admin: Can update users
-    - Other users: No access
-
-    Raises:
-        403: Missing required permission
-        404: User not found
-    """
-    user_service = UserService(db)
-    user = await user_service.update_user(
-        user_id, user_data.model_dump(exclude_unset=True), current_user
-    )
-    await db.commit()
-    return user
-
-
-@router.delete(
-    "/users/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.edit required"
-                    }
-                }
-            },
-        },
-        404: {
-            "description": "User not found",
-            "content": {"application/json": {"example": {"detail": "User not found"}}},
-        },
-    },
-)
-async def delete_user(
-    user_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
-):
-    """
-    Delete a user.
-
-    **Required Permission**: `backoffice.users.edit`
-
-    **Authorization**:
-    - Backoffice admin: Can delete users
-    - Other users: No access
-
-    Raises:
-        403: Missing required permission
-        404: User not found
-    """
-    user_service = UserService(db)
-    deleted = await user_service.delete_user(user_id, current_user)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    await db.commit()
-
-
-@router.post(
-    "/users/export",
-    response_model=List[UserRead],
-    responses={
-        403: {
-            "description": "Permission denied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": "Permission denied: backoffice.users.export required"
-                    }
-                }
-            },
-        }
-    },
-)
-async def export_users(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
-):
-    """
-    Export all users (with policy-based filtering).
-
-    **Required Permission**: `backoffice.users.export`
-
-    **Authorization**:
-    - Backoffice admin: Can export all users
-    - Other users: No access
-
-    Raises:
-        403: Missing required permission
-    """
-    user_service = UserService(db)
-    users = await user_service.export_users(current_user)
-    return users

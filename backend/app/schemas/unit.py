@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.unit import Unit
+
 
 class UnitWithUserRole(BaseModel):
     """Schema for unit with current user's role from join."""
@@ -15,7 +17,7 @@ class UnitWithUserRole(BaseModel):
     current_user_role: str = Field(
         ..., description="Current user's role within this unit"
     )
-    principal_user_provider_code: Optional[str] = Field(
+    principal_user_institutional_id: Optional[str] = Field(
         None, description="Principal user provider code"
     )
     principal_user_name: Optional[str] = Field(
@@ -31,35 +33,18 @@ class UnitWithUserRole(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UnitBase(BaseModel):
-    """Base unit schema with common fields."""
-
-    id: int = Field(..., description="EPFL unit/unit numeric ID")
-    name: str = Field(
-        ..., min_length=1, max_length=255, description="Unit name like 'ENAC-IT4R'"
-    )
-    principal_user_provider_code: str = Field(
-        ..., description="Principal user provider code"
-    )
-    affiliations: Optional[list[str]] = Field(
-        default_factory=list, description="List of affiliated units/units"
-    )
-
-
-class UnitCreate(UnitBase):
+class UnitCreate(Unit):
     """Schema for creating a new unit."""
 
     pass
 
 
-class UnitRead(UnitBase):
+class UnitRead(Unit):
     """Schema for reading resource data."""
 
     id: int
     name: str
-    principal_user_provider_code: str
-
-    model_config = ConfigDict(from_attributes=True)
+    principal_user_institutional_id: str
 
 
 class UnitList(BaseModel):

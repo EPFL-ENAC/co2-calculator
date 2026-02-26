@@ -36,6 +36,21 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "python": "${workspaceFolder}/backend/.venv/bin/python"
+    },
+    {
+      "name": "Debug Current script File",
+      "type": "debugpy",
+      "request": "launch",
+        "program": "${file}",
+        "args": [],
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/backend"
+        },
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "python": "${workspaceFolder}/backend/.venv/bin/python"
     }
   ],
   "compounds": [

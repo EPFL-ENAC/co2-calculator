@@ -28,7 +28,9 @@ erDiagram
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
+    INTEGER last_updated
     INTEGER module_type_id "indexed"
+    JSON stats
     INTEGER status
   }
   carbon_reports {
@@ -38,10 +40,12 @@ erDiagram
   }
   data_entries {
     INTEGER carbon_report_module_id FK
+    DATETIME created_at
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
     VARCHAR status
+    DATETIME updated_at
   }
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
@@ -95,13 +99,22 @@ erDiagram
     INTEGER user_id PK
   }
   units {
-    JSON affiliations
-    JSON cost_centers
+    VARCHAR cost_center "indexed"
     INTEGER id PK
+    BOOLEAN is_active
+    VARCHAR label_en
+    VARCHAR label_fr
+    INTEGER level "indexed"
     VARCHAR name "indexed"
-    VARCHAR principal_user_provider_code FK
+    INTEGER parent_id "indexed"
+    VARCHAR path_cost_center
+    VARCHAR path_name
+    VARCHAR path_provider_code "indexed"
+    VARCHAR principal_user_provider_code "indexed"
     VARCHAR provider
     VARCHAR provider_code "indexed"
+    INTEGER unit_type_id
+    VARCHAR unit_type_label
   }
   users {
     VARCHAR display_name
@@ -120,7 +133,6 @@ erDiagram
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
   users ||--}o unit_users : "user_id"
-  users ||--}o units : "principal_user_provider_code"
 ```
 
 Mermaid ERD generation complete.

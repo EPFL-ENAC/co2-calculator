@@ -1,7 +1,8 @@
 """DataEntry service for business logic."""
 
+import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import BackgroundTasks
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -24,6 +25,13 @@ from app.services.audit_service import AuditDocumentService
 from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
 
 logger = get_logger(__name__)
+
+
+def _serialize_datetime(obj: Any) -> Any:
+    """Convert datetime objects to ISO format strings for JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class DataEntryService:
@@ -97,10 +105,16 @@ class DataEntryService:
             created_entry, DataEntryTypeEnum(data_entry_type_id)
         )
 
+        # Serialize data_snapshot to handle datetime objects
+        data_snapshot_str = json.dumps(
+            created_entry.model_dump(), default=_serialize_datetime
+        )
+        data_snapshot = json.loads(data_snapshot_str)
+
         await self.versioning.create_version(
             entity_type=self.repo.entity_type,
             entity_id=created_entry.id or 0,
-            data_snapshot=created_entry.model_dump(),
+            data_snapshot=data_snapshot,
             change_type=AuditChangeTypeEnum.CREATE,
             changed_by=user.id,
             change_reason="Initial creation",
@@ -145,10 +159,15 @@ class DataEntryService:
                 handled_ids = extract_handled_ids(
                     obj, DataEntryTypeEnum(obj.data_entry_type_id)
                 )
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    obj.model_dump(), default=_serialize_datetime
+                )
+                data_snapshot = json.loads(data_snapshot_str)
                 versions_data.append(
                     {
                         "entity_id": obj.id or 0,
-                        "data_snapshot": obj.model_dump(),
+                        "data_snapshot": data_snapshot,
                         "change_type": AuditChangeTypeEnum.CREATE,
                         "changed_by": changed_by,
                         "change_reason": "Bulk data entry creation"
@@ -207,7 +226,11 @@ class DataEntryService:
 
             # Capture snapshots and handled_ids before deletion
             for e in entries_to_delete:
-                snapshots[e.id] = e.model_dump()
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    e.model_dump(), default=_serialize_datetime
+                )
+                snapshots[e.id] = json.loads(data_snapshot_str)
                 handled_ids_map[e.id] = extract_handled_ids(
                     e, DataEntryTypeEnum(e.data_entry_type_id)
                 )
@@ -270,10 +293,14 @@ class DataEntryService:
             entry, DataEntryTypeEnum(entry.data_entry_type_id)
         )
 
+        # Serialize data_snapshot to handle datetime objects
+        data_snapshot_str = json.dumps(entry.model_dump(), default=_serialize_datetime)
+        data_snapshot = json.loads(data_snapshot_str)
+
         await self.versioning.create_version(
             entity_type=self.repo.entity_type,
             entity_id=entry.id or 0,
-            data_snapshot=entry.model_dump(),
+            data_snapshot=data_snapshot,
             change_type=AuditChangeTypeEnum.UPDATE,
             changed_by=user.id,
             change_reason="Data entry updated",
@@ -301,7 +328,9 @@ class DataEntryService:
             raise ValueError(f"Data entry with id={id} not found")
 
         # Capture snapshot and handled_ids before deletion
-        snapshot = entry.model_dump()
+        # Serialize data_snapshot to handle datetime objects
+        data_snapshot_str = json.dumps(entry.model_dump(), default=_serialize_datetime)
+        snapshot = json.loads(data_snapshot_str)
         handled_ids = extract_handled_ids(
             entry, DataEntryTypeEnum(entry.data_entry_type_id)
         )

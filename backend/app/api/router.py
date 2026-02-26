@@ -6,6 +6,7 @@ from app.api.v1 import (
     audit,
     auth,
     backoffice,
+    backoffice_reporting,
     carbon_report,
     carbon_report_module,
     carbon_report_module_stats,
@@ -25,6 +26,11 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
 api_router.include_router(backoffice.router, prefix="/backoffice", tags=["backoffice"])
+api_router.include_router(
+    backoffice_reporting.router,
+    prefix="/backoffice-reporting",
+    tags=["backoffice-reporting"],
+)
 # TODO: rename /modules in the frontend!
 api_router.include_router(
     carbon_report_module.router, prefix="/modules", tags=["modules"]
