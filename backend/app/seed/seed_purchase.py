@@ -27,21 +27,25 @@ settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
 CSV_PATH_COMMON_FACTOR = (
-    Path(__file__).parent.parent.parent / "seed_data" / "purchases_common_factors.csv"
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_purchases_common_factors.csv"
 )
 
 CSV_PATH_COMMON_DATA = (
-    Path(__file__).parent.parent.parent / "seed_data" / "purchases_common_data.csv"
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_purchases_common_data.csv"
 )
 
 CSV_PATH_ADDITIONAL_FACTOR = (
     Path(__file__).parent.parent.parent
     / "seed_data"
-    / "purchases_additional_factors.csv"
+    / "seed_purchases_additional_factors.csv"
 )
 
 CSV_PATH_ADDITIONAL_DATA = (
-    Path(__file__).parent.parent.parent / "seed_data" / "purchases_additional_data.csv"
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_purchases_additional_data.csv"
 )
 
 
