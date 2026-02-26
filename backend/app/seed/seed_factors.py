@@ -134,7 +134,7 @@ async def create_factors(session: AsyncSession):
             factor = Factor(
                 emission_type_id=EmissionTypeEnum.plane,
                 is_conversion=False,
-                data_entry_type_id=DataEntryTypeEnum.trips,
+                data_entry_type_id=DataEntryTypeEnum.plane,
                 classification={
                     "cabin_class": cabin_class,
                     "distance_band": band_name,
@@ -156,30 +156,13 @@ async def create_factors(session: AsyncSession):
         factor = Factor(
             emission_type_id=EmissionTypeEnum.train,
             is_conversion=False,
-            data_entry_type_id=DataEntryTypeEnum.trips,
+            data_entry_type_id=DataEntryTypeEnum.train,
             classification={
                 "country": country,
                 "description": f"Train travel factor for {country}",
             },
             values={
                 "kg_co2eq_per_km": round(random.uniform(0.01, 0.1), 4),  # nosec B311
-            },
-        )
-        factors.append(factor)
-
-    # Car factors
-    car_types = ["Petrol", "Diesel", "Hybrid", "Electric", "CNG"]
-    for car_type in car_types:
-        factor = Factor(
-            emission_type_id=EmissionTypeEnum.car,
-            is_conversion=False,
-            data_entry_type_id=DataEntryTypeEnum.trips,
-            classification={
-                "car_type": car_type,
-                "description": f"Car travel factor for {car_type}",
-            },
-            values={
-                "kg_co2eq_per_km": round(random.uniform(0.1, 0.3), 4),  # nosec B311
             },
         )
         factors.append(factor)

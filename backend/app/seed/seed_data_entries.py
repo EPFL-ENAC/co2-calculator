@@ -28,7 +28,8 @@ from app.modules import (
     ExternalCloudHandlerCreate,
     HeadCountCreate,
     HeadCountStudentCreate,
-    ProfessionalTravelHandlerCreate,
+    ProfessionalTravelPlaneHandlerCreate,
+    ProfessionalTravelTrainHandlerCreate,
 )
 from app.seed.seed_helper import versionapi
 
@@ -139,7 +140,8 @@ async def copy_insert_emissions(conn, rows):
 # ============================================================
 
 DATA_ENTRY_TYPE_TO_DTO = {
-    DataEntryTypeEnum.trips: ProfessionalTravelHandlerCreate,
+    DataEntryTypeEnum.plane: ProfessionalTravelPlaneHandlerCreate,
+    DataEntryTypeEnum.train: ProfessionalTravelTrainHandlerCreate,
     DataEntryTypeEnum.it: EquipmentHandlerCreate,
     DataEntryTypeEnum.scientific: EquipmentHandlerCreate,
     DataEntryTypeEnum.other: EquipmentHandlerCreate,
@@ -215,7 +217,8 @@ def build_student():
 
 
 DTO_BUILDERS = {
-    ProfessionalTravelHandlerCreate: build_professional_travel,
+    ProfessionalTravelPlaneHandlerCreate: build_professional_travel,
+    ProfessionalTravelTrainHandlerCreate: build_professional_travel,
     EquipmentHandlerCreate: build_equipment,
     ExternalCloudHandlerCreate: build_external_cloud,
     ExternalAIHandlerCreate: build_external_ai,

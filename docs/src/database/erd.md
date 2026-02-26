@@ -31,7 +31,7 @@ erDiagram
     INTEGER last_updated
     INTEGER module_type_id "indexed"
     JSON stats
-    INTEGER status
+    INTEGER status "indexed"
   }
   carbon_reports {
     INTEGER id PK
@@ -99,20 +99,21 @@ erDiagram
     INTEGER user_id PK
   }
   units {
-    VARCHAR cost_center "indexed"
     INTEGER id PK
+    VARCHAR institutional_code "indexed"
+    VARCHAR institutional_id "indexed"
     BOOLEAN is_active
     VARCHAR label_en
     VARCHAR label_fr
     INTEGER level "indexed"
     VARCHAR name "indexed"
-    INTEGER parent_id "indexed"
-    VARCHAR path_cost_center
+    VARCHAR parent_institutional_code "indexed"
+    VARCHAR parent_institutional_id
+    VARCHAR path_institutional_code "indexed"
+    VARCHAR path_institutional_id
     VARCHAR path_name
-    VARCHAR path_provider_code "indexed"
-    VARCHAR principal_user_provider_code "indexed"
+    VARCHAR principal_user_institutional_id "indexed"
     VARCHAR provider
-    VARCHAR provider_code "indexed"
     INTEGER unit_type_id
     VARCHAR unit_type_label
   }

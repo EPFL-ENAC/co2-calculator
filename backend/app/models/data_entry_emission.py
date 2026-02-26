@@ -17,7 +17,6 @@ class EmissionTypeEnum(int, Enum):
     grey_energy = 6
     plane = 7
     train = 8
-    car = 9
     # External Clouds:
     # cloud storage
     stockage = 10

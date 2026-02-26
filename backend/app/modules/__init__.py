@@ -11,7 +11,10 @@ from app.modules.headcount.schemas import (
     HeadCountStudentUpdate,
     HeadCountUpdate,
 )
-from app.modules.professional_travel.schemas import ProfessionalTravelHandlerCreate
+from app.modules.professional_travel.schemas import (
+    ProfessionalTravelPlaneHandlerCreate,
+    ProfessionalTravelTrainHandlerCreate,
+)
 
 __all__ = [
     "ExternalAIHandlerCreate",
@@ -21,5 +24,6 @@ __all__ = [
     "HeadCountUpdate",
     "HeadCountStudentCreate",
     "HeadCountStudentUpdate",
-    "ProfessionalTravelHandlerCreate",
+    "ProfessionalTravelPlaneHandlerCreate",
+    "ProfessionalTravelTrainHandlerCreate",
 ]
