@@ -61,13 +61,14 @@ def generate_units():
         provider_code = f"U{i:05d}"
 
         affiliations = []
-        if random.random() < 0.7:
-            affiliations.append(random.choice(["SB", "STI", "IC", "SV", "EDOC"]))
-        if random.random() < 0.3:
-            affiliations.append(random.choice(["ENAC", "INPLUS", "ISIC", "IIE"]))
+        if random.random() < 0.7:  # nosec B311
+            affiliations.append(random.choice(["SB", "STI", "IC", "SV", "EDOC"]))  # nosec B311
+        if random.random() < 0.3:  # nosec B311
+            affiliations.append(random.choice(["ENAC", "INPLUS", "ISIC", "IIE"]))  # nosec B311
 
         cost_centers = [
-            f"C{random.randint(1000, 9999)}" for _ in range(random.randint(1, 3))
+            f"C{random.randint(1000, 9999)}"  # nosec B311
+            for _ in range(random.randint(1, 3))  # nosec B311
         ]
 
         rows.append(
@@ -171,7 +172,7 @@ def generate_users(unit_map):
             provider_code = f"USR{user_counter:06d}"
             user_counter += 1
 
-            role = random.choice(USER_ROLES)
+            role = random.choice(USER_ROLES)  # nosec B311
 
             user_rows.append(
                 (
@@ -209,7 +210,7 @@ def generate_users(unit_map):
             roles_raw = [
                 {
                     "role": role.value,
-                    "on": {"affiliation": random.choice(["SB", "STI", "IC", "SV"])},
+                    "on": {"affiliation": random.choice(["SB", "STI", "IC", "SV"])},  # nosec B311
                 }
             ]
 

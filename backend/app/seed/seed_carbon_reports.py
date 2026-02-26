@@ -96,7 +96,7 @@ async def insert_carbon_report_modules(conn, report_ids):
             records.append(
                 (
                     module_type_id,
-                    random.choice(statuses),
+                    random.choice(statuses),  # nosec B311
                     report_id,
                 )
             )

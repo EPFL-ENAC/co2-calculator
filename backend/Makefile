@@ -88,6 +88,12 @@ lint-fix: ## Fix code formatting issues
 		$(RUFF) check --fix .; \
 	fi
 
+.PHONY: audit
+audit: ## Run security audits with uv-audit and bandit
+	@set -e; \
+	uvx uv-audit --verbose && \
+	uvx bandit -r ./app/ -x tests,.venv
+
 .PHONY: type-check
 type-check: ## Run type checking with mypy
 	@set -e; \

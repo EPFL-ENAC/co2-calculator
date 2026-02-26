@@ -33,7 +33,7 @@ async def create_factors(session: AsyncSession):
                 "methodology": "Life cycle analysis",
             },
             values={
-                "kg_co2eq_per_kwh": round(random.uniform(0.05, 0.5), 6),
+                "kg_co2eq_per_kwh": round(random.uniform(0.05, 0.5), 6),  # nosec B311
             },
         )
         factors.append(factor)
@@ -67,7 +67,9 @@ async def create_factors(session: AsyncSession):
             DataEntryTypeEnum.it,
             DataEntryTypeEnum.other,
         ]:
-            for _ in range(random.randint(2, 5)):  # Create 2-5 variants of each
+            for _ in range(
+                random.randint(2, 5)  # nosec B311
+            ):  # Create 2-5 variants of each
                 sub_class = (
                     fake.random_element(elements=sub_classes)
                     if fake.boolean(chance_of_getting_true=70)
@@ -88,8 +90,8 @@ async def create_factors(session: AsyncSession):
                         + (f" - {sub_class}" if sub_class else ""),
                     },
                     values={
-                        "active_power_w": round(random.uniform(50, 5000), 2),
-                        "standby_power_w": round(random.uniform(0, 50), 2),
+                        "active_power_w": round(random.uniform(50, 5000), 2),  # nosec B311
+                        "standby_power_w": round(random.uniform(0, 50), 2),  # nosec B311
                     },
                 )
                 factors.append(factor)
@@ -113,7 +115,7 @@ async def create_factors(session: AsyncSession):
                     "unit": "kgCO2eq/FTE",
                 },
                 values={
-                    value_key: round(random.uniform(100, 1000), 2),
+                    value_key: round(random.uniform(100, 1000), 2),  # nosec B311
                 },
             )
             factors.append(factor)
@@ -142,8 +144,8 @@ async def create_factors(session: AsyncSession):
                     f"class on {band_name} flights",
                 },
                 values={
-                    "kg_co2eq_per_km": round(random.uniform(0.1, 0.5), 4),
-                    "radiative_forcing_factor": round(random.uniform(1.0, 2.0), 2),
+                    "kg_co2eq_per_km": round(random.uniform(0.1, 0.5), 4),  # nosec B311
+                    "radiative_forcing_factor": round(random.uniform(1.0, 2.0), 2),  # nosec B311
                 },
             )
             factors.append(factor)
@@ -160,7 +162,7 @@ async def create_factors(session: AsyncSession):
                 "description": f"Train travel factor for {country}",
             },
             values={
-                "kg_co2eq_per_km": round(random.uniform(0.01, 0.1), 4),
+                "kg_co2eq_per_km": round(random.uniform(0.01, 0.1), 4),  # nosec B311
             },
         )
         factors.append(factor)
@@ -177,7 +179,7 @@ async def create_factors(session: AsyncSession):
                 "description": f"Car travel factor for {car_type}",
             },
             values={
-                "kg_co2eq_per_km": round(random.uniform(0.1, 0.3), 4),
+                "kg_co2eq_per_km": round(random.uniform(0.1, 0.3), 4),  # nosec B311
             },
         )
         factors.append(factor)
@@ -189,7 +191,7 @@ async def create_factors(session: AsyncSession):
     for provider in cloud_providers:
         for service in service_types:
             factor = Factor(
-                emission_type_id=random.choice(
+                emission_type_id=random.choice(  # nosec B311
                     [
                         EmissionTypeEnum.stockage,
                         EmissionTypeEnum.calcul,
@@ -206,7 +208,7 @@ async def create_factors(session: AsyncSession):
                     "description": f"Cloud factor for {provider} {service}",
                 },
                 values={
-                    "kg_co2eq_per_dollar": round(random.uniform(0.1, 1.0), 4),
+                    "kg_co2eq_per_dollar": round(random.uniform(0.1, 1.0), 4),  # nosec B311
                 },
             )
             factors.append(factor)
@@ -241,7 +243,7 @@ async def create_factors(session: AsyncSession):
                     "description": f"AI factor for {provider} {use}",
                 },
                 values={
-                    "g_co2eq_per_request": round(random.uniform(0.1, 10.0), 2),
+                    "g_co2eq_per_request": round(random.uniform(0.1, 10.0), 2),  # nosec B311
                 },
             )
             factors.append(factor)
@@ -281,7 +283,7 @@ async def create_factors(session: AsyncSession):
                     f"{gas_name} in {industry} industry",
                 },
                 values={
-                    "gwp_kg_co2eq_per_kg": round(random.uniform(1, 10000), 2),
+                    "gwp_kg_co2eq_per_kg": round(random.uniform(1, 10000), 2),  # nosec B311
                 },
             )
             factors.append(factor)

@@ -53,6 +53,7 @@ interface UnitFilters {
 export const useBackofficeStore = defineStore('backoffice', () => {
   // should be paginated already!
   const units = ref<BackofficeUnitDataPagination | null>(null);
+  const unit = ref<BackofficeUnitData | null>(null);
 
   const allUnits = ref<BackofficeUnitData[]>([]);
   const selectedUnit = ref<BackofficeUnitData | null>(null);
@@ -165,7 +166,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
         : 'backoffice/units';
 
       const data = await api.get(url).json<BackofficeUnitDataPagination>();
-      units.value = data || [];
+      units.value = data || null;
     } catch (error) {
       console.error('Error getting units:', error);
       const errorObj =
@@ -184,6 +185,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
       const data = await api
         .get(`backoffice/unit/${id}`)
         .json<BackofficeUnitData>();
+      unit.value = data;
       selectedUnit.value = data;
       return data;
     } catch (error) {

@@ -153,22 +153,22 @@ DATA_ENTRY_TYPE_TO_DTO = {
 }
 
 
-def maybe(value, probability=0.5):
-    return value if random.random() < probability else None
+def maybe(value, probability=0.5):  # nosec B311
+    return value if random.random() < probability else None  # nosec B311
 
 
 def build_professional_travel():
     return {
         "traveler_name": fake.name(),
-        "traveler_id": maybe(random.randint(1, 1000)),
-        "origin_location_id": random.randint(1, 200),
-        "destination_location_id": random.randint(1, 200),
-        "transport_mode": random.choice(list(TransportModeEnum)).value,
-        "cabin_class": maybe(random.choice(["eco", "business", "first"])),
+        "traveler_id": maybe(random.randint(1, 1000)),  # nosec B311
+        "origin_location_id": random.randint(1, 200),  # nosec B311
+        "destination_location_id": random.randint(1, 200),  # nosec B311
+        "transport_mode": random.choice(list(TransportModeEnum)).value,  # nosec B311
+        "cabin_class": maybe(random.choice(["eco", "business", "first"])),  # nosec B311
         "departure_date": maybe(date.today()),
-        "number_of_trips": random.randint(1, 10),
-        "is_round_trip": random.choice([True, False]),
-        "trip_direction": maybe(random.choice(["outbound", "return"])),
+        "number_of_trips": random.randint(1, 10),  # nosec B311
+        "is_round_trip": random.choice([True, False]),  # nosec B311
+        "trip_direction": maybe(random.choice(["outbound", "return"])),  # nosec B311
     }
 
 
@@ -177,25 +177,25 @@ def build_equipment():
         "name": fake.word(),
         "equipment_class": maybe(fake.word()),
         "sub_class": maybe(fake.word()),
-        "active_usage_hours": maybe(random.randint(0, 168)),
-        "passive_usage_hours": maybe(random.randint(0, 168)),
+        "active_usage_hours": maybe(random.randint(0, 168)),  # nosec B311
+        "passive_usage_hours": maybe(random.randint(0, 168)),  # nosec B311
     }
 
 
 def build_external_cloud():
     return {
         "service_type": fake.word(),
-        "cloud_provider": maybe(random.choice(["AWS", "Azure", "GCP"])),
-        "spending": round(random.uniform(0, 5000), 2),
+        "cloud_provider": maybe(random.choice(["AWS", "Azure", "GCP"])),  # nosec B311
+        "spending": round(random.uniform(0, 5000), 2),  # nosec B311
     }
 
 
 def build_external_ai():
     return {
-        "ai_provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),
+        "ai_provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
         "ai_use": fake.sentence(nb_words=3),
-        "frequency_use_per_day": maybe(random.randint(0, 50)),
-        "user_count": random.randint(1, 500),
+        "frequency_use_per_day": maybe(random.randint(0, 50)),  # nosec B311
+        "user_count": random.randint(1, 500),  # nosec B311
     }
 
 
@@ -203,14 +203,14 @@ def build_headcount():
     return {
         "name": fake.name(),
         "function": maybe(fake.job()),
-        "fte": maybe(round(random.uniform(0.1, 1.0), 2)),
-        "sciper": maybe(str(random.randint(100000, 999999))),
+        "fte": maybe(round(random.uniform(0.1, 1.0), 2)),  # nosec B311
+        "sciper": maybe(str(random.randint(100000, 999999))),  # nosec B311
     }
 
 
 def build_student():
     return {
-        "fte": round(random.uniform(0.1, 1.0), 2),
+        "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
     }
 
 
@@ -228,14 +228,14 @@ def generate_data_entries_for_module(module_id, module_type_id):
     rows = []
     now_status_values = [s.value for s in DataEntryStatusEnum]
 
-    num_entries = random.randint(10, 220)
+    num_entries = random.randint(10, 220)  # nosec B311
 
     matching_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
         module_type_id, [DataEntryTypeEnum.member]
     )
 
     for _ in range(num_entries):
-        data_entry_type = random.choice(matching_types)
+        data_entry_type = random.choice(matching_types)  # nosec B311
 
         dto_class = DATA_ENTRY_TYPE_TO_DTO[data_entry_type]
         builder = DTO_BUILDERS[dto_class]
@@ -251,7 +251,7 @@ def generate_data_entries_for_module(module_id, module_type_id):
                 module_id,
                 # dto_instance.model_dump_json(),
                 json.dumps(payload_dict, default=str),
-                random.choice(now_status_values),
+                random.choice(now_status_values),  # nosec B311
             )
         )
 
@@ -262,8 +262,8 @@ def generate_emissions_for_entry(entry_id, data_entry_type_id):
     rows = []
     now = datetime.now(timezone.utc)
 
-    # simple placeholder logic for speed
-    emission_type = random.choice(list(EmissionTypeEnum))
+    # simple placeholder logic for speed  # nosec B311
+    emission_type = random.choice(list(EmissionTypeEnum))  # nosec B311
 
     rows.append(
         (
@@ -271,7 +271,7 @@ def generate_emissions_for_entry(entry_id, data_entry_type_id):
             emission_type.value,
             None,
             emission_type.name,
-            round(random.uniform(10, 500), 4),
+            round(random.uniform(10, 500), 4),  # nosec B311
             json.dumps({"seeded": True}),
             versionapi,
             now,
