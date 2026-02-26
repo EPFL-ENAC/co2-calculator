@@ -10,6 +10,9 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionTypeEnum
+from app.modules.process_emissions import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)

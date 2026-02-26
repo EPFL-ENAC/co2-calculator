@@ -28,6 +28,9 @@ from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 # from app.services import calculation_service
+from app.modules.equipment_electric_consumption import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 from app.modules.equipment_electric_consumption.emissions import (
     compute_scientific_it_other,
 )
