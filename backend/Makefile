@@ -117,9 +117,9 @@ test-cov-xml: ## Run tests with coverage and output XML report
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
 # custom seeds from accred
-	$(UV) run -m app.seed.seed_units_from_accred
+# 	$(UV) run -m app.seed.seed_units_from_accred
 # 	# Mandatory seeds
-# 	$(UV) run -m app.seed.seed_all
+	$(UV) run -m app.seed.seed_all
 # 	$(UV) run -m app.seed.seed_fake_user_unit
 # 	$(UV) run -m app.seed.seed_emission_factors
 # 	$(UV) run -m app.seed.seed_process_emissions_factors

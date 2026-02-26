@@ -48,7 +48,11 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
 
 const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
-function handleFiltersUpdate() {
+// Track selected units from ReportingFilters
+const selectedUnits = ref<number[]>([]);
+
+function handleFiltersUpdate(units: number[]) {
+  selectedUnits.value = units;
   fetchUnits();
 }
 
@@ -57,40 +61,22 @@ const selectedUnitId = ref<string | number>('');
 
 const units = computed(() => backofficeStore.units);
 const loading = computed(() => backofficeStore.unitsLoading);
-// const affiliations = computed(() => backofficeStore.affiliations);
-// const availableUnits = computed(() => backofficeStore.availableUnits);
 
 async function fetchUnits() {
-  // const filtersToSend: {
-  //   affiliation?: string[];
-  //   units?: number[];
-  //   years?: string[];
-  //   completion?: string;
-  //   outlier_values?: boolean | null;
-  //   modules?: Array<{ module: string; state: ModuleState }> | null;
-  // } = {
-  //   affiliation: filters.value.affiliation,
-  //   units: filters.value.units,
-  //   years: selectedYears.value,
-  //   completion: filters.value.completion,
-  //   outlier_values: filters.value.outlier_values,
-  // };
+  const filtersToSend: {
+    units?: number[];
+    years?: string[];
+    modules?: Array<{ module: string; state: ModuleState }>;
+  } = {
+    units: selectedUnits.value.length > 0 ? selectedUnits.value : undefined,
+    years: selectedYears.value,
+    modules: Array.from(moduleStates.value.values()).map((data) => ({
+      module: data.module,
+      state: data.states.length > 0 ? data.states[0] : 0,
+    })),
+  };
 
-  // // Check if any modules have states selected
-  // const hasAnyStatesSelected = MODULE_CARDS.some((card) => {
-  //   const data = moduleStates.value.get(card.module);
-  //   return data && data.states.length > 0;
-  // });
-
-  // if (hasAnyStatesSelected) {
-  //   // Some modules have states selected - send the filters
-  //   filtersToSend.modules = moduleFilters.value.filters;
-  // } else {
-  //   // All modules are unselected - send empty array to return no results
-  //   filtersToSend.modules = [];
-  // }
-
-  await backofficeStore.getUnits();
+  await backofficeStore.getUnits(filtersToSend);
 }
 
 onMounted(async () => {
@@ -103,7 +89,6 @@ onMounted(async () => {
     });
   });
 
-  // await backofficeStore.getAllUnits();
   await backofficeStore.getAvailableYears();
   await fetchUnits();
 });

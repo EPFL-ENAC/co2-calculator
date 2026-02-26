@@ -4,9 +4,7 @@ import asyncio
 import sys
 import traceback
 
-from app.seed.populate_units_and_users import main as seed_units_users
 from app.seed.seed_carbon_reports import main as seed_carbon_reports
-from app.seed.seed_clean_data import main as seed_clean_data
 from app.seed.seed_data_entries import main as seed_data_entries
 from app.seed.seed_factors import main as seed_factors
 from app.seed.seed_post_all import main as seed_post_all
@@ -18,9 +16,9 @@ async def main():
 
     try:
         print("\nCleaning existing data...")
-        await seed_clean_data()
-        print("\n1. Seeding units and users...")
-        await seed_units_users()
+        # await seed_clean_data()
+        # print("\n1. Seeding units and users...")
+        # await seed_units_users()
         print("✓ Units and users seeded successfully")
 
         print("\n2. Seeding carbon reports and modules...")

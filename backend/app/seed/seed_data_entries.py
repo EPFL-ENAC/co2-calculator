@@ -31,6 +31,7 @@ from app.modules import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
 )
+from app.modules.purchase.schemas import PurchaseHandlerCreate
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -152,6 +153,16 @@ DATA_ENTRY_TYPE_TO_DTO = {
     DataEntryTypeEnum.building: EquipmentHandlerCreate,
     DataEntryTypeEnum.process_emissions: EquipmentHandlerCreate,
     DataEntryTypeEnum.energy_mix: EquipmentHandlerCreate,
+    DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
+    DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
+    DataEntryTypeEnum.scientific_equipment: EquipmentHandlerCreate,
+    DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
+    DataEntryTypeEnum.consumable_accessories: PurchaseHandlerCreate,
+    DataEntryTypeEnum.biological_chemical_gaseous_product: PurchaseHandlerCreate,
+    DataEntryTypeEnum.services: PurchaseHandlerCreate,
+    DataEntryTypeEnum.vehicles: PurchaseHandlerCreate,
+    DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
+    DataEntryTypeEnum.additional_purchases: PurchaseHandlerCreate,
 }
 
 
@@ -216,6 +227,19 @@ def build_student():
     }
 
 
+def build_purchase():
+    return {
+        "name": fake.word(),
+        "supplier": maybe(fake.company()),
+        "quantity": maybe(random.randint(1, 100)),  # nosec B311
+        "total_spent_amount": maybe(round(random.uniform(100, 10000), 2)),  # nosec B311
+        "purchase_institutional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
+        "purchase_institutional_description": maybe(fake.sentence(nb_words=5)),
+        "purchase_additional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=10)),
+    }
+
+
 DTO_BUILDERS = {
     ProfessionalTravelPlaneHandlerCreate: build_professional_travel,
     ProfessionalTravelTrainHandlerCreate: build_professional_travel,
@@ -224,6 +248,7 @@ DTO_BUILDERS = {
     ExternalAIHandlerCreate: build_external_ai,
     HeadCountCreate: build_headcount,
     HeadCountStudentCreate: build_student,
+    PurchaseHandlerCreate: build_purchase,
 }
 
 
