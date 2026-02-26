@@ -357,9 +357,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Upsert each unit
                 for unit in fetched_units:
                     try:
-                        if unit.principal_user_provider_code:
+                        if unit.principal_user_institutional_id:
                             principal_user = await self.user_service.get_by_code(
-                                unit.principal_user_provider_code
+                                unit.principal_user_institutional_id
                             )
                             if not principal_user:
                                 # Create minimal principal user if it doesn't exist
@@ -367,14 +367,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                     "Creating minimal principal user record",
                                     extra={
                                         "provider_code": (
-                                            unit.principal_user_provider_code
+                                            unit.principal_user_institutional_id
                                         )
                                     },
                                 )
                                 await self.user_service.upsert_user(
                                     id=None,
-                                    provider_code=unit.principal_user_provider_code,
-                                    email=f"{unit.principal_user_provider_code}@placeholder.local",
+                                    provider_code=unit.principal_user_institutional_id,
+                                    email=f"{unit.principal_user_institutional_id}@placeholder.local",
                                     provider=job_user_provider,
                                 )
 
@@ -382,9 +382,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         units_upserted += 1
                     except Exception as e:
                         logger.error(
-                            f"Failed to upsert unit {unit.provider_code}",
+                            f"Failed to upsert unit {unit.institutional_code}",
                             extra={
-                                "unit_provider_code": unit.provider_code,
+                                "unit_provider_code": unit.institutional_code,
                                 "error": str(e),
                             },
                         )
@@ -462,7 +462,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Validate unit provider_codes exist to avoid FK violations
         unit_repo = UnitRepository(self.data_session)
         existing_units = await unit_repo.get_by_codes(list(unit_codes))
-        existing_codes = {unit.provider_code for unit in existing_units}
+        existing_codes = {unit.institutional_code for unit in existing_units}
         missing_codes = sorted(unit_codes - existing_codes)
         if missing_codes:
             # Attempt to fetch and upsert missing units from provider
@@ -488,7 +488,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             existing_units = await unit_repo.get_by_codes(list(unit_codes))
-            existing_codes = {unit.provider_code for unit in existing_units}
+            existing_codes = {unit.institutional_code for unit in existing_units}
             missing_codes = sorted(unit_codes - existing_codes)
 
             logger.info(
@@ -504,7 +504,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
 
         # Build mapping of provider_code to unit.id for DB operations
-        unit_code_to_id = {unit.provider_code: unit.id for unit in existing_units}
+        unit_code_to_id = {unit.institutional_code: unit.id for unit in existing_units}
 
         # Resolve carbon_report_module_id for each provider_code
         carbon_report_service = CarbonReportService(self.data_session)

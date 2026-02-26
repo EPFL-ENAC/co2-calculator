@@ -83,6 +83,7 @@ dev = [
     "faker>=38.2.0",
     "types-requests>=2.32.4.20260107",
     "docker>=7.1.0",
+    "asyncpg>=0.31.0",
 ]
 
 [tool.mypy]

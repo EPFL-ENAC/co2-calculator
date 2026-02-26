@@ -9,9 +9,8 @@ from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor

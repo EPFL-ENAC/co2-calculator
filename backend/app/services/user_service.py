@@ -25,7 +25,7 @@ from app.models.unit import Unit
 from app.models.user import Role, RoleScope, User, UserProvider
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
-from app.repositories.user_repo import UserRepository
+from app.repositories.user_repo import UpsertUserResult, UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
 
@@ -119,23 +119,27 @@ class UserService:
         # Fetch full unit details from provider
         unit_provider = get_unit_provider(provider_type=provider)
         units = await unit_provider.get_units(unit_ids=provider_unit_codes)
-
         # Upsert units with full metadata
+        # TODO: simplify the code, by assuming that provider returns all needed info
+        # unit_provider.fetch_all_units() all principal info!
+        # and upserting in one step without fetching principal users separately.
         role_provider = get_role_provider(provider_type=provider)
         unit_ids = []
         for unit in units:
-            if not unit.principal_user_provider_code:
-                raise ValueError(f"Unit {unit.id} missing principal_user_provider_code")
+            if not unit.principal_user_institutional_id:
+                raise ValueError(
+                    f"Unit {unit.id} missing principal_user_institutional_id"
+                )
 
             # Upsert principal user if needed
             principal_user = await role_provider.get_user_by_user_id(
-                unit.principal_user_provider_code
+                unit.principal_user_institutional_id
             )
 
             # Skip upserting if it's the same as skip_principal_user_for_provider_code
             if (
                 principal_user
-                and unit.principal_user_provider_code
+                and unit.principal_user_institutional_id
                 != skip_principal_user_for_provider_code
             ):
                 await self.upsert_user(
@@ -267,6 +271,23 @@ class UserService:
         )
 
         return user
+
+    async def bulk_create(
+        self,
+        users: List[User],
+    ) -> UpsertUserResult:
+        """Bulk create users."""
+        logger.info(f"Bulk creating/updating {len(users)} users")
+        db_objs = await self.user_repo.bulk_upsert(users)
+        await self.session.flush()  # Ensure user IDs are populated
+        return db_objs
+
+    async def bulk_upsert(self, users: List[User]) -> UpsertUserResult:
+        """Upsert users — business logic goes here if needed
+        (validation, enrichment, etc.)"""
+        db_objs = await self.user_repo.bulk_upsert(users)
+        await self.session.flush()  # Ensure user IDs are populated
+        return db_objs
 
     async def get_by_id(self, id: int) -> Optional[User]:
         """Get user by id."""

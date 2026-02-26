@@ -12,7 +12,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserProvider
+from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -27,6 +27,10 @@ class RoleProvider(ABC):
     """
 
     type: UserProvider = UserProvider.DEFAULT
+
+    def map_api_user(self, user_raw: dict) -> User:
+        """Map a raw API user dict to User field values."""
+        return User(provider=self.type, **user_raw)
 
     @abstractmethod
     async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
@@ -458,6 +462,21 @@ class AccredRoleProvider(RoleProvider):
             )
             logger.exception("Unexpected error fetching user from Accred API")
             raise
+
+    def map_api_user(self, user_raw: dict) -> User:
+        """Map a raw API user dict to User field values.
+        should work with principal user (missing fields) and full user
+        (e.g. from separate users endpoint)
+        """
+        return User(
+            provider=self.type,
+            provider_code=str(user_raw.get("id")),
+            display_name=user_raw.get("display"),
+            email=user_raw.get("email") or f"{user_raw.get('canon')}@epfl.ch",
+            function=user_raw.get("function", None),
+            # Assuming roles are provided in the raw data
+            roles=user_raw.get("roles", []),
+        )
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Fetch roles from EPFL Accred API.

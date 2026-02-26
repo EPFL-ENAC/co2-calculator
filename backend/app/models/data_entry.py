@@ -1,9 +1,11 @@
 """Generic module model for storing dynamic data across different module types."""
 
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlmodel import JSON, Column, Field, SQLModel
+from sqlalchemy import Column, DateTime
+from sqlmodel import JSON, Field, SQLModel
 
 
 class DataEntryStatusEnum(int, Enum):
@@ -102,6 +104,16 @@ class DataEntry(DataEntryBase, table=True):
     __tablename__ = "data_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(
+            DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        ),
+    )
 
     def __repr__(self) -> str:
         return (

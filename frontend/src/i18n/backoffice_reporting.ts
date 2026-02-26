@@ -59,30 +59,40 @@ export default {
     en: 'Units',
     fr: 'Unités',
   },
-  backoffice_reporting_row_completion_label: {
-    en: 'Completion',
-    fr: 'Achèvement',
-  },
-  backoffice_reporting_row_unit_label: {
+  backoffice_reporting_column_unit: {
     en: 'Unit',
     fr: 'Unité',
   },
-  backoffice_reporting_row_affiliation_label: {
+  backoffice_reporting_column_affiliation: {
     en: 'Affiliation',
     fr: 'Affiliation',
   },
-  backoffice_reporting_row_principal_user_label: {
-    en: 'Principal User',
+  backoffice_reporting_column_validation_status: {
+    en: 'Validation status',
+    fr: 'Statut de validation',
+  },
+  backoffice_reporting_column_principal_user: {
+    en: 'Principal user',
     fr: 'Utilisateur principal',
   },
-  backoffice_reporting_row_last_update_label: {
-    en: 'Last Update',
+  backoffice_reporting_column_last_update: {
+    en: 'Last update',
     fr: 'Dernière mise à jour',
   },
-  backoffice_reporting_row_action_label: {
-    en: 'Action',
-    fr: 'Action',
+  backoffice_reporting_column_highest_category: {
+    en: 'Highest result category',
+    fr: 'Catégorie de résultat le plus élevé',
   },
+  backoffice_reporting_column_total_footprint: {
+    en: 'Total carbon footprint (tCO₂-eq)',
+    fr: 'Empreinte carbone totale (tCO₂-eq)',
+  },
+  backoffice_reporting_column_view: {
+    en: 'View',
+    fr: 'Voir',
+  },
+
+  // Keep these for general UI usage
   backoffice_reporting_units_status_label: {
     en: 'Units ({count})',
     fr: 'Unités ({count})',

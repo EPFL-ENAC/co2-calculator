@@ -37,7 +37,7 @@ async def test_get_by_id_none(repo):
 
 @pytest.mark.asyncio
 async def test_get_by_code(repo):
-    unit = SimpleNamespace(provider_code="U1")
+    unit = SimpleNamespace(institutional_code="U1")
     result_mock = MagicMock()
     result_mock.one_or_none.return_value = unit
     repo.session.exec = AsyncMock(return_value=result_mock)
@@ -68,7 +68,7 @@ async def test_get_by_id_or_code_int(repo):
 
 @pytest.mark.asyncio
 async def test_get_by_id_or_code_string(repo):
-    unit = SimpleNamespace(provider_code="U1")
+    unit = SimpleNamespace(institutional_code="U1")
     result_mock = MagicMock()
     result_mock.one_or_none.return_value = unit
     repo.session.exec = AsyncMock(return_value=result_mock)
@@ -80,7 +80,10 @@ async def test_get_by_id_or_code_string(repo):
 
 @pytest.mark.asyncio
 async def test_get_by_codes(repo):
-    units = [SimpleNamespace(provider_code="U1"), SimpleNamespace(provider_code="U2")]
+    units = [
+        SimpleNamespace(institutional_code="U1"),
+        SimpleNamespace(institutional_code="U2"),
+    ]
     result_mock = MagicMock()
     result_mock.all.return_value = units
     repo.session.exec = AsyncMock(return_value=result_mock)
@@ -98,15 +101,15 @@ async def test_create(repo):
     repo.session.refresh = AsyncMock()
 
     result = await repo.create(
-        provider_code="U1",
+        institutional_code="U1",
         name="Unit 1",
-        principal_user_provider_code="user1",
-        affiliations=["aff1"],
+        principal_user_institutional_id="user1",
+        path_name=None,
         provider=UserProvider.DEFAULT,
-        cost_centers=["c1"],
+        institutional_id=None,
     )
 
-    assert result.provider_code == "U1"
+    assert result.institutional_code == "U1"
     assert result.name == "Unit 1"
     repo.session.add.assert_called_once()
     repo.session.flush.assert_awaited_once()
@@ -147,11 +150,11 @@ async def test_upsert_create(repo):
     repo.session.flush = AsyncMock()
     repo.session.refresh = AsyncMock()
 
-    unit_data = Unit(provider_code="U1", name="Unit 1")
+    unit_data = Unit(institutional_code="U1", name="Unit 1")
 
     result = await repo.upsert(unit_data)
 
-    assert result.provider_code == "U1"
+    assert result.institutional_code == "U1"
     repo.session.add.assert_called_once()
 
 
@@ -168,7 +171,7 @@ async def test_upsert_update(repo):
     repo.session.flush = AsyncMock()
     repo.session.refresh = AsyncMock()
 
-    unit_data = Unit(provider_code="U1", name="new")
+    unit_data = Unit(institutional_code="U1", name="new")
 
     result = await repo.upsert(unit_data)
 

@@ -1,8 +1,23 @@
+from enum import IntEnum
 from typing import Optional
 
-from sqlmodel import Field, SQLModel
+from sqlalchemy import Index, UniqueConstraint
+from sqlmodel import JSON, Column, Field, SQLModel
 
-from app.core.constants import ModuleStatus
+
+class ModuleStatus(IntEnum):
+    """
+    Status values for inventory modules.
+
+    These map to the frontend MODULE_STATES constant:
+    - NOT_STARTED (0) = Default
+    - IN_PROGRESS (1) = InProgress
+    - VALIDATED (2) = Validated
+    """
+
+    NOT_STARTED = 0
+    IN_PROGRESS = 1
+    VALIDATED = 2
 
 
 class CarbonReportBase(SQLModel):
@@ -28,6 +43,9 @@ class CarbonReport(CarbonReportBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # Unique constraint for (year, unit_id)
+    __table_args__ = (
+        UniqueConstraint("unit_id", "year", name="uq_carbon_reports_unit_year"),
+    )
 
 
 class CarbonReportModuleBase(SQLModel):
@@ -48,6 +66,27 @@ class CarbonReportModuleBase(SQLModel):
         index=True,
         description="Reference to parent carbon report",
     )
+    last_updated: Optional[int] = Field(
+        default=None,
+        description=(
+            "Timestamp of last update (epoch seconds)"
+            " - used for concurrency control and freshness checks"
+            " - updated automatically on data changes in the module"
+            " - can be null if never updated since creation"
+        ),
+    )
+    stats: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+        description=(
+            "Optional JSON field to store pre-calculated statistics for the module"
+            " - can include counts, sums, or other aggregates relevant to the module"
+            " - helps optimize frontend performance by avoiding on-the-fly calculations"
+            " - should be kg_co2eq totals and for each emission_type_id in the module,"
+            "to support frontend breakdowns by emission type"
+            ".e.g: { 1: kg_co2eq, 2: kg_co2eq, 'total': kg_co2eq_total }"
+        ),
+    )
 
 
 class CarbonReportModule(CarbonReportModuleBase, table=True):
@@ -59,6 +98,18 @@ class CarbonReportModule(CarbonReportModuleBase, table=True):
     """
 
     __tablename__ = "carbon_report_modules"
+    __table_args__ = (
+        Index(
+            "idx_crm_report_type_status", "carbon_report_id", "module_type_id", "status"
+        ),
+        UniqueConstraint(
+            "carbon_report_id", "module_type_id", name="uq_carbon_report_module"
+        ),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Unique constraint for (carbon_report_id, module_type_id) set in migration
+
+class CarbonReportModuleRead(CarbonReportModuleBase):
+    """The DTO used for reading data. ID is strictly an int."""
+
+    id: int

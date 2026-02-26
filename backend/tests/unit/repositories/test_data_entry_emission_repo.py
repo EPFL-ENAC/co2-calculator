@@ -729,7 +729,7 @@ async def test_get_travel_evolution_over_time(db_session: AsyncSession):
     repo = DataEntryEmissionRepository(db_session)
 
     # Create unit
-    unit = Unit(id=12345, provider_code="TEST-12345", name="Test Unit")
+    unit = Unit(id=12345, institutional_code="TEST-12345", name="Test Unit", level=1)
     db_session.add(unit)
     await db_session.flush()
 
@@ -924,7 +924,7 @@ async def test_validated_totals_by_unit(
 
     unit_objs = []
     for uid, pcode, name in units:
-        u = Unit(id=uid, provider_code=pcode, name=name)
+        u = Unit(id=uid, institutional_code=pcode, name=name, level=1)
         db_session.add(u)
         unit_objs.append(u)
     if unit_objs:
