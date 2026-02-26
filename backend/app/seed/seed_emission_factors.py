@@ -20,6 +20,9 @@ from app.models.data_entry_emission import EmissionTypeEnum
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor
+from app.modules.process_emissions import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 
 logger = get_logger(__name__)
 settings = get_settings()

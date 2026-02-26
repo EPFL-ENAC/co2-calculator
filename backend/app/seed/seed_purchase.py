@@ -10,6 +10,9 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.modules.purchase import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
     load_factors_map,

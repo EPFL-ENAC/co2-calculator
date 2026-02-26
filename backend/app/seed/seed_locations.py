@@ -14,6 +14,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.location import Location, TransportModeEnum
+from app.modules.professional_travel import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 
 logger = get_logger(__name__)
 

@@ -21,6 +21,7 @@ from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
+from app.modules.headcount.schemas import HeadcountItemResponse
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -31,7 +32,6 @@ from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponse,
     DataEntryUpdate,
-    HeadcountItemResponse,
     ModuleHandler,
     resolve_primary_factor_if_kind_or_subkind_changed,
 )
