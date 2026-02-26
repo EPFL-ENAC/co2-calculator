@@ -79,21 +79,7 @@ export interface AuditQueryParams {
 function toSearchParams(
   params: AuditQueryParams,
 ): Record<string, string | number | boolean> {
-  const result: Record<string, string | number | boolean> = {};
-  if (params.user_id) result.user_id = params.user_id;
-  if (params.handler_id) result.handler_id = params.handler_id;
-  if (params.entity_type) result.entity_type = params.entity_type;
-  if (params.entity_id !== undefined) result.entity_id = params.entity_id;
-  if (params.action) result.action = params.action;
-  if (params.date_from) result.date_from = params.date_from;
-  if (params.date_to) result.date_to = params.date_to;
-  if (params.search) result.search = params.search;
-  if (params.module) result.module = params.module;
-  result.page = params.page;
-  result.page_size = params.page_size;
-  result.sort_by = params.sort_by;
-  result.sort_desc = params.sort_desc;
-  return result;
+  return { ...params };
 }
 
 export async function fetchAuditLogs(

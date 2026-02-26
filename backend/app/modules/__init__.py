@@ -15,6 +15,9 @@ from app.modules.professional_travel.schemas import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
 )
+from app.modules.purchase.schemas import (
+    PurchaseHandlerCreate,
+)
 
 __all__ = [
     "ExternalAIHandlerCreate",
@@ -26,4 +29,5 @@ __all__ = [
     "HeadCountStudentUpdate",
     "ProfessionalTravelPlaneHandlerCreate",
     "ProfessionalTravelTrainHandlerCreate",
+    "PurchaseHandlerCreate",
 ]
