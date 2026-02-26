@@ -4,7 +4,7 @@ import type { AllSubmoduleTypes } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
 
 export async function getSubclassMap(
-  submodule: AllSubmoduleTypes,
+  submodule: keyof typeof enumSubmodule,
 ): Promise<Record<string, string[]>> {
   const res = await api
     .get(
@@ -14,27 +14,19 @@ export async function getSubclassMap(
   return res ?? {};
 }
 
-export interface PowerFactorResponse {
-  // submodule: string;
-  // equipment_class: string;
-  // sub_class: string | null;
-  // TODO: IMPROVE: change to optional?
-  // return generic for kind and subkind and values
-  active_power_w: number;
-  standby_power_w: number;
-}
+export type ValueFactorResponse = Record<string, number> | null;
 
-export async function getPowerFactor(
+export async function getFactorValues(
   submodule: AllSubmoduleTypes,
   equipmentClass: string,
   subClass?: string | null,
-): Promise<PowerFactorResponse | null> {
+): Promise<ValueFactorResponse | null> {
   let path = `factors/${encodeURIComponent(
     enumSubmodule[submodule],
-  )}/classes/${encodeURIComponent(equipmentClass)}/power`;
+  )}/classes/${encodeURIComponent(equipmentClass)}/values`;
   if (subClass) {
     path += `?sub_class=${encodeURIComponent(subClass)}`;
   }
-  const res = await api.get(path).json<PowerFactorResponse | null>();
+  const res = await api.get(path).json<ValueFactorResponse | null>();
   return res ?? null;
 }

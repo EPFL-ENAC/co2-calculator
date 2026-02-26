@@ -2,10 +2,10 @@ import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import {
   getSubclassMap,
-  getPowerFactor,
-  PowerFactorResponse,
-} from 'src/api/powerFactors';
-import { AllSubmoduleTypes } from 'src/constant/modules';
+  getFactorValues,
+  ValueFactorResponse,
+} from 'src/api/factors';
+import { AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
@@ -21,7 +21,7 @@ export const useFactorsStore = defineStore('factors', () => {
   >({});
 
   async function ensureSubclassOptionMap(
-    submodule: AllSubmoduleTypes,
+    submodule: keyof typeof enumSubmodule,
   ): Promise<Record<string, Option[]>> {
     const now = Date.now();
     const existing = subclassOptionMapBySubmodule[submodule];
@@ -63,8 +63,8 @@ export const useFactorsStore = defineStore('factors', () => {
     submodule: AllSubmoduleTypes,
     equipmentClass: string,
     subClass?: string | null,
-  ): Promise<PowerFactorResponse | null> {
-    return await getPowerFactor(submodule, equipmentClass, subClass);
+  ): Promise<ValueFactorResponse | null> {
+    return await getFactorValues(submodule, equipmentClass, subClass);
   }
 
   return {
