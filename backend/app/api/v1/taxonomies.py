@@ -44,3 +44,32 @@ async def get_taxonomy_for_data_entry_type(
     """Get taxonomy for a given data entry type."""
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     return await handler.get_taxonomy(data_entry_type, db)
+
+
+@router.get(
+    "/module/{module}",
+    response_model=TaxonomyNode,
+    response_model_exclude_none=True,
+)
+async def get_taxonomy_for_module(
+    module: str,
+    db: AsyncSession = Depends(get_db),
+) -> TaxonomyNode:
+    """Get taxonomy for a given module and data entry type."""
+    module_type = ModuleTypeEnum[module]
+    return await get_taxonomy_for_module_type(module_type, db)
+
+
+@router.get(
+    "/module/{module}/{data_entry}",
+    response_model=TaxonomyNode,
+    response_model_exclude_none=True,
+)
+async def get_taxonomy_for_module_data_entry(
+    module: str,
+    data_entry: str,
+    db: AsyncSession = Depends(get_db),
+) -> TaxonomyNode:
+    """Get taxonomy for a given module and data entry type."""
+    data_entry_type = DataEntryTypeEnum[data_entry]
+    return await get_taxonomy_for_data_entry_type(data_entry_type, db)

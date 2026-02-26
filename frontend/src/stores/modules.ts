@@ -14,6 +14,7 @@ import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
+  TaxonomyNode,
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
 
@@ -183,10 +184,12 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
+    taxonomy: TaxonomyNode | null;
     expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
     dataSubmodule: Record<string, Submodule | null>; // key: submodule ID
+    taxonomySubmodule: Record<string, TaxonomyNode | null>; // key: submodule ID
     filterTermSubmodule: Record<string, string>; // key: submodule ID
     paginationSubmodule: Record<
       string,
@@ -218,11 +221,13 @@ export const useModuleStore = defineStore('modules', () => {
     loading: false,
     error: null,
     data: null,
+    taxonomy: null,
     filterTermSubmodule: reactive({}),
     expandedSubmodules: reactive({}),
     loadingSubmodule: reactive({}),
     errorSubmodule: reactive({}),
     dataSubmodule: reactive({}),
+    taxonomySubmodule: reactive({}),
     paginationSubmodule: reactive({}),
     loadedSubmodules: reactive({}),
     travelStatsByClass: [],
@@ -262,6 +267,9 @@ export const useModuleStore = defineStore('modules', () => {
     }
     if (!(submoduleId in state.dataSubmodule)) {
       state.dataSubmodule[submoduleId] = null;
+    }
+    if (!(submoduleId in state.taxonomySubmodule)) {
+      state.taxonomySubmodule[submoduleId] = null;
     }
     // always initialize pagination with defaults
     state.paginationSubmodule[submoduleId] = {
@@ -312,6 +320,27 @@ export const useModuleStore = defineStore('modules', () => {
         state.error = err.message ?? 'Unknown error';
       } else {
         state.error = 'Unknown error';
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  async function getModuleTaxonomy(moduleType: Module) {
+    state.loading = true;
+    state.error = null;
+    state.taxonomy = null;
+    try {
+      state.taxonomy = (await api
+        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
+        .json()) as TaxonomyNode;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+        state.taxonomy = null;
+      } else {
+        state.error = 'Unknown error';
+        state.taxonomy = null;
       }
     } finally {
       state.loading = false;
@@ -384,6 +413,33 @@ export const useModuleStore = defineStore('modules', () => {
       }
     } finally {
       state.loadingSubmodule[submoduleType] = false;
+    }
+  }
+
+  async function getSubmoduleTaxonomy(
+    moduleType: Module,
+    submoduleType: string,
+  ) {
+    state.loading = true;
+    state.error = null;
+    state.taxonomySubmodule[submoduleType] = null;
+    try {
+      const taxonomy = (await api
+        .get(
+          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}`,
+        )
+        .json()) as TaxonomyNode;
+      state.taxonomySubmodule[submoduleType] = taxonomy;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+        state.taxonomySubmodule[submoduleType] = null;
+      } else {
+        state.error = 'Unknown error';
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
     }
   }
 
@@ -707,7 +763,9 @@ export const useModuleStore = defineStore('modules', () => {
     initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
+    getModuleTaxonomy,
     getSubmoduleData,
+    getSubmoduleTaxonomy,
     postItem,
     patchItem,
     deleteItem,
