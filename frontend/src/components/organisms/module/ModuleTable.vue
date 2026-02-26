@@ -1324,6 +1324,7 @@ watch(
           unit: props.unitId,
           year: String(props.year),
         });
+        moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
       }
     }
   },
@@ -1347,6 +1348,7 @@ onMounted(() => {
       unit: props.unitId,
       year: String(props.year),
     });
+    moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
   }
 
   // Clear inline errors on mount

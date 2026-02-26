@@ -277,3 +277,9 @@ export function getBackendModuleName(frontendModule: Module): string {
   };
   return moduleMap[frontendModule] || frontendModule;
 }
+
+export interface TaxonomyNode {
+  name: string;
+  label: string;
+  children?: TaxonomyNode[];
+}

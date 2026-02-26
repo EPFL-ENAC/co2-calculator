@@ -157,6 +157,18 @@ class FactorHandler(Protocol[T]):
 FACTOR_HANDLERS: dict[tuple[DataEntryTypeEnum, Optional[str]], FactorHandler] = {}
 
 
+def get_factor_handler_by_data_entry_type(
+    data_entry_type: DataEntryTypeEnum, variant: Optional[str] = None
+) -> FactorHandler:
+    handler = FACTOR_HANDLERS.get((data_entry_type, variant))
+    if handler is None:
+        raise ValueError(
+            f"No factor handler found for data_entry_type={data_entry_type}, "
+            f"variant={variant}"
+        )
+    return handler
+
+
 class FactorHandlerMeta(type):
     def __new__(mcs, name, bases, namespace):
         cls = super().__new__(mcs, name, bases, namespace)

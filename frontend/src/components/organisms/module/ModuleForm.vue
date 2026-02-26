@@ -304,9 +304,11 @@ import {
   MODULES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
 } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+const moduleStore = useModuleStore();
 
 const addNoteDialogOpen = ref(false);
 
@@ -455,7 +457,18 @@ const filteredOptionsMap = computed(() => {
 function getFilteredOptions(
   inp: ModuleField,
 ): Array<{ value: string; label: string }> {
-  return filteredOptionsMap.value[inp.id] ?? [];
+  const taxoNode =
+    moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
+  const opts = filteredOptionsMap.value[inp.id] ?? [];
+  opts.forEach((opt) => {
+    const taxoOptNode = taxoNode?.children?.find(
+      (node) => node.name === opt.value,
+    );
+    if (taxoOptNode) {
+      opt.label = taxoOptNode.label;
+    }
+  });
+  return opts;
 }
 
 function getDateRules(required?: boolean) {

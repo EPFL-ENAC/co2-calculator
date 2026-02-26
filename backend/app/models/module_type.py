@@ -76,3 +76,10 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ],
     # Add more if needed for other modules
 }
+
+
+def get_data_entry_types_for_module_type(
+    module_type: ModuleTypeEnum,
+) -> list[DataEntryTypeEnum]:
+    """Get the data entry types for a given module type."""
+    return MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])

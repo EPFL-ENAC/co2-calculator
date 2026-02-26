@@ -14,6 +14,7 @@ from app.api.v1 import (
     factors,
     files,
     locations,
+    taxonomies,
     unit_results,
     units,
     users,
@@ -41,6 +42,7 @@ api_router.include_router(
 )
 api_router.include_router(units.router, prefix="/units", tags=["units"])
 api_router.include_router(factors.router, prefix="/factors", tags=["factors"])
+api_router.include_router(taxonomies.router, prefix="/taxonomies", tags=["taxonomies"])
 api_router.include_router(
     carbon_report.router, prefix="/carbon-reports", tags=["carbon-reports"]
 )
