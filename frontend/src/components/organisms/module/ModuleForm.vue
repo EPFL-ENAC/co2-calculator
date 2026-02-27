@@ -187,13 +187,7 @@
                 :hint="inp.hint ? $t(inp.hint) : null"
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
-                :loading="
-                  inp.optionsId === 'kind'
-                    ? loadingClasses
-                    : inp.optionsId === 'subkind'
-                      ? loadingSubclasses
-                      : false
-                "
+                :loading="getFieldLoading(inp)"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
                 :min="inp.min"
@@ -299,6 +293,7 @@ import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useArchibusRoomDynamicOptions } from 'src/composables/useArchibusRoomDynamicOptions';
+import { useArchibusRoomStore } from 'src/stores/archibus';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -309,6 +304,7 @@ import { useModuleStore } from 'src/stores/modules';
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const moduleStore = useModuleStore();
+const archibusRoomStore = useArchibusRoomStore();
 
 const addNoteDialogOpen = ref(false);
 
@@ -318,6 +314,17 @@ interface Option {
 }
 type FieldValue = string | number | boolean | null | Option;
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
+
+function normalizeSelectValue(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'object' && value && 'value' in value) {
+    const nested = (value as { value?: unknown }).value;
+    return nested === null || nested === undefined || nested === ''
+      ? null
+      : String(nested);
+  }
+  return String(value);
+}
 
 const props = withDefaults(
   defineProps<{
@@ -467,6 +474,11 @@ const filteredOptionsMap = computed(() => {
 function getFilteredOptions(
   inp: ModuleField,
 ): Array<{ value: string; label: string }> {
+  if (isBuildingsRoomSubmodule.value) {
+    if (inp.optionsId === 'kind') return archibusBuildingOptions.value;
+    if (inp.optionsId === 'subkind') return archibusRoomOptions.value;
+  }
+
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
@@ -479,6 +491,18 @@ function getFilteredOptions(
     }
   });
   return opts;
+}
+
+function getFieldLoading(inp: ModuleField): boolean {
+  if (isBuildingsRoomSubmodule.value && inp.optionsId === 'kind') {
+    return loadingArchibusBuildings.value;
+  }
+  if (isBuildingsRoomSubmodule.value && inp.optionsId === 'subkind') {
+    return loadingArchibusRooms.value;
+  }
+  if (inp.optionsId === 'kind') return loadingClasses.value;
+  if (inp.optionsId === 'subkind') return loadingSubclasses.value;
+  return false;
 }
 
 function getDateRules(required?: boolean) {
@@ -532,6 +556,85 @@ useArchibusRoomDynamicOptions(
   toRef(props, 'moduleType'),
   toRef(props, 'submoduleType'),
   toRef(props, 'unitId'),
+);
+
+const isBuildingsRoomSubmodule = computed(
+  () =>
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building,
+);
+
+const archibusBuildingOptions = ref<Array<{ value: string; label: string }>>([]);
+const archibusRoomOptions = ref<Array<{ value: string; label: string }>>([]);
+const loadingArchibusBuildings = ref(false);
+const loadingArchibusRooms = ref(false);
+
+watch(
+  [isBuildingsRoomSubmodule, () => props.unitId, () => workspaceStore.selectedUnit?.id],
+  async () => {
+    if (!isBuildingsRoomSubmodule.value) return;
+    const currentUnitId = props.unitId ?? workspaceStore.selectedUnit?.id;
+    if (!currentUnitId) {
+      archibusBuildingOptions.value = [];
+      return;
+    }
+
+    loadingArchibusBuildings.value = true;
+    try {
+      const buildings = await archibusRoomStore.fetchBuildings(currentUnitId);
+      archibusBuildingOptions.value = buildings.map((building) => ({
+        value: building.building_name,
+        label: building.building_name,
+      }));
+    } finally {
+      loadingArchibusBuildings.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => form['building_name'],
+  async (newValue, oldValue) => {
+    if (!isBuildingsRoomSubmodule.value) return;
+
+    const buildingName = normalizeSelectValue(form['building_name']);
+    const currentUnitId = props.unitId ?? workspaceStore.selectedUnit?.id;
+    if (!buildingName || !currentUnitId) {
+      archibusRoomOptions.value = [];
+      return;
+    }
+
+    loadingArchibusRooms.value = true;
+    try {
+      const rooms = await archibusRoomStore.fetchRooms(currentUnitId, buildingName);
+      archibusRoomOptions.value = rooms.map((room) => ({
+        value: room.room_name,
+        label: room.room_name,
+      }));
+
+      const oldBuildingName = normalizeSelectValue(oldValue);
+      const newBuildingName = normalizeSelectValue(newValue);
+      if (oldBuildingName && newBuildingName && oldBuildingName !== newBuildingName) {
+        const currentRoomName = normalizeSelectValue(form['room_name']);
+        const roomStillValid = archibusRoomOptions.value.some(
+          (roomOption) => roomOption.value === currentRoomName,
+        );
+        if (!roomStillValid) {
+          form['room_name'] = null;
+          form['room_surface_square_meter'] = null;
+          form['room_type'] = '';
+          form['heating_kwh'] = null;
+          form['cooling_kwh'] = null;
+          form['ventilation_kwh'] = null;
+          form['lighting_kwh'] = null;
+        }
+      }
+    } finally {
+      loadingArchibusRooms.value = false;
+    }
+  },
+  { immediate: true },
 );
 
 function getTravelMode(): 'plane' | 'train' | undefined {
