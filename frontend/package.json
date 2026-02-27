@@ -74,7 +74,7 @@
     "wait-on": "=9.0.1"
   },
   "overrides": {
-    "minimatch": "^10.2.1"
+    "minimatch": "^10.2.4"
   },
   "type": "module",
   "engines": {

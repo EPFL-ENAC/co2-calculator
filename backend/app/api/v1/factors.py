@@ -7,16 +7,7 @@ from app.api.deps import get_db
 from app.models.data_entry import DataEntryTypeEnum
 from app.services.factor_service import FactorService
 
-# from app.schemas.factor import FactorRead
-
 router = APIRouter()
-
-
-"""Would be a great idea to return directly
- with value being the 'id ' from the power factor table
- Example response for submodule = scientific equipment
- [ { "label": "30 to 37°C incubators", "value": "30 to 37°C incubators" }
- """
 
 
 @router.get(

@@ -64,7 +64,7 @@ const scopeConfig = computed(() => {
 const CATEGORY_LABEL_MAP: Record<string, string> = {
   'Process Emissions': 'charts-process-emissions-category',
   'Buildings energy consumption': 'charts-building-energy-subcategory',
-  'Buildings room': 'charts-building-room-subcategory',
+  'Energy combustion': 'charts-energy-combustion-subcategory',
   Equipment: 'equipment-electric-consumption',
   'External cloud & AI': 'external-cloud-and-ai',
   Purchases: 'purchase',
@@ -101,7 +101,7 @@ const allValueKeys = computed(() => {
   const baseKeys = [
     'process_emissions',
     'energy',
-    'grey_energy',
+    'combustion',
     'scientific',
     'it',
     'other',
@@ -114,7 +114,7 @@ const allValueKeys = computed(() => {
   ];
 
   if (toggleAdditionalData.value) {
-    return [...baseKeys, 'commuting', 'food', 'waste', 'greyEnergy'];
+    return [...baseKeys, 'commuting', 'food', 'waste', 'grey_energy'];
   }
   return baseKeys;
 });
@@ -123,7 +123,7 @@ const allStdDevKeys = computed(() => {
   const baseKeys = [
     'process_emissionsStdDev',
     'energyStdDev',
-    'grey_energyStdDev',
+    'combustionStdDev',
     'scientificStdDev',
     'itStdDev',
     'otherStdDev',
@@ -141,7 +141,7 @@ const allStdDevKeys = computed(() => {
       'commutingStdDev',
       'foodStdDev',
       'wasteStdDev',
-      'greyEnergyStdDev',
+      'grey_energyStdDev',
     ];
   }
   return baseKeys;
@@ -240,7 +240,7 @@ const additionalSeriesData = computed(() => {
       animation: true,
       encode: {
         x: 'category',
-        y: 'greyEnergy',
+        y: 'grey_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -305,13 +305,13 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: { color: colors.value.lilac.darker },
       label: { show: false },
     },
-    // Buildings room
+    // Energy combustion
     {
-      name: t('charts-building-room-subcategory'),
+      name: t('charts-energy-combustion-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'grey_energy' },
+      encode: { x: 'category', y: 'combustion' },
       itemStyle: { color: colors.value.lilac.dark },
       label: { show: false },
     },
@@ -540,7 +540,7 @@ const chartOption = computed((): EChartsOption => {
           font: '11px SuisseIntl',
         },
       },
-      // Scope 2 overlay (Buildings room, Equipment)
+      // Scope 2 overlay (Energy combustion, Equipment)
       {
         type: 'rect',
         left: scopeConfig.value.scope2RectLeft,
@@ -660,8 +660,8 @@ const chartOption = computed((): EChartsOption => {
         'process_emissionsStdDev',
         'energy',
         'energyStdDev',
-        'grey_energy',
-        'grey_energyStdDev',
+        'combustion',
+        'combustionStdDev',
         'scientific',
         'scientificStdDev',
         'it',
@@ -686,8 +686,8 @@ const chartOption = computed((): EChartsOption => {
         'foodStdDev',
         'waste',
         'wasteStdDev',
-        'greyEnergy',
-        'greyEnergyStdDev',
+        'grey_energy',
+        'grey_energyStdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },

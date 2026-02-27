@@ -156,7 +156,7 @@ export const WithMixedStates: Story = {
 };
 
 /**
- * Timeline with a module selected (Infrastructure).
+ * Timeline with a module selected (Buildings).
  */
 export const WithSelectedModule: Story = {
   parameters: {
@@ -174,7 +174,7 @@ export const WithSelectedModule: Story = {
           unit: 'My%20Lab',
           year: '2024',
         },
-        module: MODULES.Infrastructure,
+        module: MODULES.Buildings,
       },
       timelineStates: mixedStates,
     }),

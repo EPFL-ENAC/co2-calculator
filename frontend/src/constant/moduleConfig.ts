@@ -56,8 +56,6 @@ export interface ModuleField {
   default?: string | number | boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
-  treeLevel?: number;
-  disableUntilField?: string;
   appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
@@ -67,6 +65,7 @@ export interface ModuleField {
   inputTypeName?: string;
   editableInline?: boolean;
   readOnly?: boolean;
+  readOnlyWhenFilled?: boolean;
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
@@ -75,6 +74,8 @@ export interface ModuleField {
     table?: boolean;
     form?: boolean;
   };
+  // Grey out field until the referenced field has a value
+  disableUntilField?: string;
   // Conditional visibility based on another field's value
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value

@@ -26,10 +26,10 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("equipment-electric-consumption")
         assert result == "modules.equipment"
 
-    def test_infrastructure_module(self):
-        """Test mapping for infrastructure module."""
-        result = _get_module_permission_path("infrastructure")
-        assert result == "modules.infrastructure"
+    def test_buildings_module(self):
+        """Test mapping for buildings module."""
+        result = _get_module_permission_path("buildings")
+        assert result == "modules.buildings"
 
     def test_purchase_module(self):
         """Test mapping for purchase module."""
@@ -148,7 +148,7 @@ class TestCheckModulePermission:
 
         mock_query_policy.return_value = {"allow": True}
 
-        await check_module_permission(user, "infrastructure", "view")
+        await check_module_permission(user, "buildings", "view")
 
         call_args = mock_query_policy.call_args
         assert call_args[0][1]["action"] == "view"

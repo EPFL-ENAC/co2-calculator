@@ -3,16 +3,15 @@ import { reactive } from 'vue';
 import {
   getSubclassMap,
   getFactorValues,
-  ValueFactorResponse,
+  type ValueFactorResponse,
 } from 'src/api/factors';
-import { AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
+import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
 
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
-  // Make these reactive
   const subclassOptionMapBySubmodule = reactive<
     Partial<Record<AllSubmoduleTypes, Record<string, Option[]>>>
   >({});

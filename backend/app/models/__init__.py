@@ -2,6 +2,7 @@
 
 from sqlmodel import Relationship
 
+from .archibus_room import ArchibusRoom
 from .audit import AuditDocument
 from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
@@ -44,6 +45,7 @@ DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
 DataEntryEmission.data_entry = Relationship()
 
 __all__ = [
+    "ArchibusRoom",
     "AuditDocument",
     "Unit",
     "User",

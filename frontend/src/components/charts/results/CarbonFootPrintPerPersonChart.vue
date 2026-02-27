@@ -39,9 +39,9 @@ const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Process Emissions': ['processEmissions'],
-  'Buildings energy consumption': ['infrastructure'],
-  'Buildings room': ['infrastructure'],
+  'Process Emissions': [' '],
+  'Buildings energy consumption': ['buildings'],
+  'Energy combustion': ['buildings'],
   Equipment: ['equipment'],
   'External cloud & AI': ['externalCloudAndAI'],
   Purchases: ['purchases'],
@@ -50,7 +50,7 @@ const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
   Commuting: ['commuting'],
   Food: ['food'],
   Waste: ['waste'],
-  'Grey Energy': ['greyEnergy'],
+  'Grey Energy': ['grey_energy'],
 };
 
 const validatedPPKeys = computed(() => {
@@ -85,7 +85,7 @@ const EPFL_REFERENCE_VALUES: Record<string, number> = {
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
-  greyEnergy: 0.0,
+  grey_energy: 0.0,
 };
 
 const epflReferenceRow = computed<Record<string, unknown>>(() => {
@@ -116,7 +116,7 @@ const datasetSource = computed(() => {
 const allValueKeys = computed(() => {
   const baseKeys = [
     'processEmissions',
-    'infrastructure',
+    'buildings',
     'equipment',
     'researchFacilities',
     'professionalTravel',
@@ -130,7 +130,7 @@ const allValueKeys = computed(() => {
       'commuting',
       'food',
       'waste',
-      'greyEnergy',
+      'grey_energy',
       'objective2030',
     ];
   }
@@ -215,7 +215,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'greyEnergy',
+        y: 'grey_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -256,12 +256,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('infrastructure'),
+      name: t('buildings'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'infrastructure',
+        y: 'buildings',
       },
       itemStyle: {
         color: colors.value.lilac.darker,
@@ -460,7 +460,7 @@ const chartOption = computed((): EChartsOption => {
       dimensions: [
         'category',
         'processEmissions',
-        'infrastructure',
+        'buildings',
         'equipment',
         'researchFacilities',
         'professionalTravel',
@@ -469,7 +469,7 @@ const chartOption = computed((): EChartsOption => {
         'commuting',
         'food',
         'waste',
-        'greyEnergy',
+        'grey_energy',
         'objective2030',
         'stdDev',
       ],
