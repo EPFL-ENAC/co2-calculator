@@ -68,26 +68,6 @@ BARS: list[ChartBar] = [
     ),
 ]
 
-# Expected chart keys per category for zero-filling.
-# Equipment/Travel: subcategory-based; others: emission-type-based.
-CATEGORY_CHART_KEYS: dict[str, list[str]] = {
-    "Process Emissions": ["process_emissions"],
-    "Buildings energy consumption": ["energy"],
-    "Energy combustion": ["combustion"],
-    "Equipment": ["scientific", "it", "other"],
-    "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
-    "Purchases": [
-        "scientific_equipment",
-        "it_equipment",
-        "consumable_accessories",
-        "biological_chemical_gaseous_product",
-        "services",
-        "vehicles",
-        "other_purchases",
-        "additional_purchases",
-    ],
-    "Research facilities": [],
-    "Professional travel": ["plane", "train"],
 # ---------------------------------------------------------------------------
 # Derived lookups (all from BARS)
 # ---------------------------------------------------------------------------
