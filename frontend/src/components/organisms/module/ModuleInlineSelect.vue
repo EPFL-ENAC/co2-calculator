@@ -25,7 +25,7 @@ import {
   useClassificationTree,
   type TreeLevelConfig,
 } from 'src/composables/useClassificationTree';
-import { useFactorsStore } from 'src/stores/powerFactors';
+import { useFactorsStore } from 'src/stores/factors';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 

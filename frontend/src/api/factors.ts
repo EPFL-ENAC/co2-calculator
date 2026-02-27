@@ -5,15 +5,16 @@ import { enumSubmodule } from 'src/constant/modules';
 
 export async function getSubclassMap(
   submodule: keyof typeof enumSubmodule,
+  unitId?: number,
 ): Promise<Record<string, string[]>> {
   const res = await api
     .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/classification-tree`,
+      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map`,
       {
         searchParams: unitId ? { unit_id: unitId } : undefined,
       },
     )
-    .json<OptionTree>();
+    .json<Record<string, string[]>>();
   return res ?? {};
 }
 
@@ -26,7 +27,7 @@ export async function getFactorValues(
 ): Promise<ValueFactorResponse | null> {
   let path = `factors/${encodeURIComponent(
     enumSubmodule[submodule],
-  )}/classes/${encodeURIComponent(equipmentClass)}/values`;
+  )}/classes/${encodeURIComponent(equipmentClass)}/power`;
   if (subClass) {
     path += `?sub_class=${encodeURIComponent(subClass)}`;
   }

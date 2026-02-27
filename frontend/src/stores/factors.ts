@@ -3,9 +3,14 @@ import { reactive } from 'vue';
 import {
   getSubclassMap,
   getFactorValues,
-  ValueFactorResponse,
+  type ValueFactorResponse,
 } from 'src/api/factors';
-import { AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
+import {
+  type AllSubmoduleTypes,
+  enumSubmodule,
+  SUBMODULE_BUILDINGS_TYPES,
+} from 'src/constant/modules';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 type Option = { label: string; value: string };
 
@@ -13,24 +18,28 @@ export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
   const workspaceStore = useWorkspaceStore();
 
-  const treeBySubmodule = reactive<
-    Partial<Record<AllSubmoduleTypes, OptionTree>>
+  const subclassMapBySubmodule = reactive<
+    Partial<Record<AllSubmoduleTypes, Record<string, string[]>>>
   >({});
-  const treeFetchedAt = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
+  const subclassMapFetchedAt = reactive<
+    Partial<Record<AllSubmoduleTypes, number>>
+  >(
     {},
   );
-  const treeUnitId = reactive<Partial<Record<AllSubmoduleTypes, number>>>({});
+  const subclassMapUnitId = reactive<Partial<Record<AllSubmoduleTypes, number>>>(
+    {},
+  );
 
-  async function ensureSubclassOptionMap(
+  async function ensureTree(
     submodule: keyof typeof enumSubmodule,
-  ): Promise<Record<string, Option[]>> {
+  ): Promise<Record<string, string[]>> {
     const now = Date.now();
-    const existing = treeBySubmodule[submodule];
-    const last = treeFetchedAt[submodule];
+    const existing = subclassMapBySubmodule[submodule];
+    const last = subclassMapFetchedAt[submodule];
     const currentUnitId = workspaceStore.selectedUnit?.id;
     const requestedUnitId =
       submodule === SUBMODULE_BUILDINGS_TYPES.Building ? currentUnitId : undefined;
-    const cachedUnitId = treeUnitId[submodule];
+    const cachedUnitId = subclassMapUnitId[submodule];
     const hasCachedEntries = !!existing && Object.keys(existing).length > 0;
 
     if (
@@ -39,33 +48,43 @@ export const useFactorsStore = defineStore('factors', () => {
       now - last < ONE_MINUTE_MS &&
       cachedUnitId === requestedUnitId
     ) {
-      return existing;
+      return existing as Record<string, string[]>;
     }
 
-    const tree = await getClassificationTree(submodule, requestedUnitId);
-    treeBySubmodule[submodule] = tree;
-    treeFetchedAt[submodule] = now;
-    treeUnitId[submodule] = requestedUnitId;
-    return tree;
+    const subclassMap = await getSubclassMap(submodule, requestedUnitId);
+    subclassMapBySubmodule[submodule] = subclassMap;
+    subclassMapFetchedAt[submodule] = now;
+    subclassMapUnitId[submodule] = requestedUnitId;
+    return subclassMap;
   }
 
   /**
-   * Walk the cached tree along `path` and return sorted child keys as options.
-   * Returns [] if any segment in the path is missing.
+   * Return options from class/subclass map:
+   * - [] path -> kind options
+   * - [kind] path -> subkind options
+   * - deeper path -> []
    */
   function getOptionsAtPath(
     submodule: AllSubmoduleTypes,
     path: string[],
   ): Option[] {
-    let node: OptionTree | undefined = treeBySubmodule[submodule];
-    for (const segment of path) {
-      if (!node || !(segment in node)) return [];
-      node = node[segment];
+    const map = subclassMapBySubmodule[submodule];
+    if (!map) return [];
+
+    if (path.length === 0) {
+      return Object.keys(map)
+        .sort()
+        .map((k) => ({ label: k, value: k }));
     }
-    if (!node) return [];
-    return Object.keys(node)
-      .sort()
-      .map((k) => ({ label: k, value: k }));
+
+    if (path.length === 1) {
+      return (map[path[0]] ?? [])
+        .slice()
+        .sort()
+        .map((k) => ({ label: k, value: k }));
+    }
+
+    return [];
   }
 
   async function fetchPowerFactor(
@@ -77,9 +96,9 @@ export const useFactorsStore = defineStore('factors', () => {
   }
 
   return {
-    treeBySubmodule,
-    treeFetchedAt,
-    treeUnitId,
+    subclassMapBySubmodule,
+    subclassMapFetchedAt,
+    subclassMapUnitId,
     ensureTree,
     getOptionsAtPath,
     fetchPowerFactor,

@@ -537,19 +537,8 @@ const dynamicOptions = computed<Record<string, Option[]>>(() => {
   return map;
 });
 
-const useEquipmentClassOptionsConfig: Record<string, string> = {};
-if (props.moduleType === MODULES.EquipmentElectricConsumption) {
-  useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'active_power_w';
-  useEquipmentClassOptionsConfig['secondaryValueFieldId'] = 'standby_power_w';
-}
-
-const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
-    classFieldId: kindFieldId.value ?? undefined,
-    subClassFieldId: subkindFieldId.value ?? undefined,
-    fetchFactorValuesOnChange: true,
-    ...useEquipmentClassOptionsConfig,
-  });
+const loadingClasses = ref(false);
+const loadingSubclasses = ref(false);
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
   if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane)

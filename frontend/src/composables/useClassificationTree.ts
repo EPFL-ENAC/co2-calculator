@@ -1,5 +1,5 @@
 import { reactive, ref, watch, type Ref } from 'vue';
-import { useFactorsStore } from 'src/stores/powerFactors';
+import { useFactorsStore } from 'src/stores/factors';
 import type { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
