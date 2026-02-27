@@ -87,6 +87,19 @@ export const useFactorsStore = defineStore('factors', () => {
     return [];
   }
 
+  async function fetchClassOptions(submodule: AllSubmoduleTypes): Promise<Option[]> {
+    await ensureTree(submodule);
+    return getOptionsAtPath(submodule, []);
+  }
+
+  async function fetchSubclassOptions(
+    submodule: AllSubmoduleTypes,
+    equipmentClass: string,
+  ): Promise<Option[]> {
+    await ensureTree(submodule);
+    return getOptionsAtPath(submodule, [equipmentClass]);
+  }
+
   async function fetchPowerFactor(
     submodule: AllSubmoduleTypes,
     equipmentClass: string,
@@ -101,6 +114,8 @@ export const useFactorsStore = defineStore('factors', () => {
     subclassMapUnitId,
     ensureTree,
     getOptionsAtPath,
+    fetchClassOptions,
+    fetchSubclassOptions,
     fetchPowerFactor,
   };
 });

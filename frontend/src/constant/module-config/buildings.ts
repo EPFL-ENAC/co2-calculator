@@ -7,7 +7,7 @@ import type { AllSubmoduleTypes } from 'src/constant/modules';
 const roomFields: ModuleField[] = [
   {
     id: 'building_name',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.Buildings}.inputs.building_name`,
     type: 'select',
     required: true,
@@ -20,7 +20,7 @@ const roomFields: ModuleField[] = [
   },
   {
     id: 'room_name',
-    treeLevel: 1,
+    optionsId: 'subkind',
     labelKey: `${MODULES.Buildings}.inputs.room_name`,
     type: 'select',
     required: true,
@@ -123,7 +123,7 @@ const roomFields: ModuleField[] = [
 const energyCombustionFields: ModuleField[] = [
   {
     id: 'heating_type',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.Buildings}.inputs.heating_type`,
     type: 'select',
     required: true,

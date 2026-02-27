@@ -187,9 +187,9 @@
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
-                  inp.optionsId === 'kind'
+                  inp.id === kindFieldId || inp.optionsId === 'kind'
                     ? loadingClasses
-                    : inp.optionsId === 'subkind'
+                    : inp.id === subkindFieldId || inp.optionsId === 'subkind'
                       ? loadingSubclasses
                       : false
                 "
@@ -279,7 +279,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed, ref } from 'vue';
+import { reactive, watch, computed, ref, toRef } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -300,11 +300,11 @@ import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { getArchibusRooms } from 'src/api/archibus';
+import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-  type TaxonomyNode,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -411,7 +411,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions.value[inp?.id ?? ''];
+    const dynamicOpts = dynamicOptions[inp?.id ?? ''] ?? dynamicOptions[inp?.optionsId ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -488,31 +488,6 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-function normalizeSelection(raw: unknown): string | null {
-  if (raw === null || raw === undefined || raw === '') return null;
-  if (typeof raw === 'object' && raw !== null && 'value' in raw) {
-    return String((raw as { value: unknown }).value);
-  }
-  return String(raw);
-}
-
-function toOptions(nodes?: TaxonomyNode[]): Option[] {
-  return (nodes ?? []).map((node) => ({
-    label: node.label || node.name,
-    value: node.name,
-  }));
-}
-
-const moduleTypeForTaxonomy = computed<Module | null>(() =>
-  Object.values(MODULES).includes(props.moduleType as Module)
-    ? (props.moduleType as Module)
-    : null,
-);
-
-const taxonomyNode = computed(
-  () => moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''] ?? null,
-);
-
 const kindFieldId = computed(
   () => visibleFields.value.find((f) => f.optionsId === 'kind')?.id ?? null,
 );
@@ -520,25 +495,21 @@ const subkindFieldId = computed(
   () => visibleFields.value.find((f) => f.optionsId === 'subkind')?.id ?? null,
 );
 
-const dynamicOptions = computed<Record<string, Option[]>>(() => {
-  const map: Record<string, Option[]> = {};
-  const classes = toOptions(taxonomyNode.value?.children);
-  if (kindFieldId.value) map[kindFieldId.value] = classes;
+const useEquipmentClassOptionsConfig: Record<string, string | boolean | undefined> = {};
+if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+  useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'active_power_w';
+  useEquipmentClassOptionsConfig['secondaryValueFieldId'] = 'standby_power_w';
+}
 
-  if (subkindFieldId.value) {
-    const selectedKind = kindFieldId.value
-      ? normalizeSelection(form[kindFieldId.value])
-      : null;
-    const selectedNode = taxonomyNode.value?.children?.find(
-      (node) => node.name === selectedKind,
-    );
-    map[subkindFieldId.value] = toOptions(selectedNode?.children);
-  }
-  return map;
-});
-
-const loadingClasses = ref(false);
-const loadingSubclasses = ref(false);
+const { dynamicOptions, loadingClasses, loadingSubclasses } =
+  useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
+    classFieldId: kindFieldId.value ?? undefined,
+    subClassFieldId: subkindFieldId.value ?? undefined,
+    classOptionId: kindFieldId.value ?? undefined,
+    subClassOptionId: subkindFieldId.value ?? undefined,
+    fetchFactorValuesOnChange: true,
+    ...useEquipmentClassOptionsConfig,
+  });
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
   if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane)
@@ -627,7 +598,7 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions.value[i.id] ??
+                dynamicOptions[i.id] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -871,7 +842,7 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions.value[i.id] ??
+        dynamicOptions[i.id] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,

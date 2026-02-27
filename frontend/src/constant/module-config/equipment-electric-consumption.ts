@@ -47,7 +47,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'equipment_class',
-    treeLevel: 0,
+    optionsId: 'kind',
     label: 'Class',
     type: 'select',
     required: true,
@@ -62,7 +62,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'sub_class',
-    treeLevel: 1,
+    optionsId: 'subkind',
     label: 'Sub-class',
     type: 'select',
     required: true,

@@ -5,7 +5,7 @@ import { formatTonnesCO2 } from 'src/utils/number';
 const processEmissionsFields: ModuleField[] = [
   {
     id: 'emitted_gas',
-    treeLevel: 0,
+    optionsId: 'kind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.emitted_gas`,
     type: 'select',
     required: true,
@@ -19,7 +19,7 @@ const processEmissionsFields: ModuleField[] = [
   },
   {
     id: 'sub_category',
-    treeLevel: 1,
+    optionsId: 'subkind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.sub_category`,
     type: 'select',
     required: false,
