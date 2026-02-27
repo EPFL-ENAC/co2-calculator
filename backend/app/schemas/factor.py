@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_o
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.models.location import TransportModeEnum
 
@@ -142,7 +142,7 @@ T = TypeVar("T", bound=BaseModel, contravariant=True)
 class FactorHandler(Protocol[T]):
     data_entry_type: Optional[DataEntryTypeEnum] = None
     factor_variant: Optional[str] = None
-    emission_type: Optional[EmissionTypeEnum] = None
+    emission_type: Optional[EmissionType] = None
     is_conversion: bool = False
 
     create_dto: Type[FactorCreate]
@@ -190,7 +190,7 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
 
     data_entry_type: Optional[DataEntryTypeEnum] = None
     factor_variant: Optional[str] = None
-    emission_type: Optional[EmissionTypeEnum] = None
+    emission_type: Optional[EmissionType] = None
     is_conversion: bool = False
 
     # These must be overridden in subclasses
@@ -462,7 +462,7 @@ class EquipmentFactorHandler(BaseFactorHandler):
         (DataEntryTypeEnum.it, None),
         (DataEntryTypeEnum.other, None),
     ]
-    emission_type: EmissionTypeEnum = EmissionTypeEnum.equipment
+    emission_type: EmissionType = EmissionType.equipment
 
     create_dto = EquipmentFactorCreate
     update_dto = EquipmentFactorUpdate
@@ -484,7 +484,7 @@ class EquipmentFactorHandler(BaseFactorHandler):
 
 class ExternalCloudFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
-    emission_type: EmissionTypeEnum = EmissionTypeEnum.calcul
+    emission_type: EmissionType = EmissionType.external__clouds__calcul
 
     create_dto = ExternalCloudFactorCreate
     update_dto = ExternalCloudFactorUpdate
@@ -495,14 +495,15 @@ class ExternalCloudFactorHandler(BaseFactorHandler):
         if "emission_type_id" not in prepared:
             service_type = prepared.get("service_type", "")
             emission_key = str(service_type).lower().strip() or "calcul"
-            emission_type = EmissionTypeEnum[emission_key]
+            emission_type = EmissionType[emission_key]
             prepared["emission_type_id"] = emission_type.value
         return super()._prepare_payload(prepared)
 
 
 class ExternalAIFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
-    emission_type: EmissionTypeEnum = EmissionTypeEnum.ai_provider
+    # todo: resolver at runtime based on provider/use
+    emission_type: EmissionType = EmissionType.external__ai
 
     create_dto = ExternalAIFactorCreate
     update_dto = ExternalAIFactorUpdate
@@ -512,7 +513,7 @@ class ExternalAIFactorHandler(BaseFactorHandler):
 class TravelPlaneFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
     factor_variant: str = "plane"
-    emission_type: EmissionTypeEnum = EmissionTypeEnum.plane
+    emission_type: EmissionType = EmissionType.professional_travel__plane
 
     registration_keys = [(DataEntryTypeEnum.plane, "plane")]
 
@@ -524,7 +525,7 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
 class TravelTrainFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
     factor_variant: str = "train"
-    emission_type: EmissionTypeEnum = EmissionTypeEnum.train
+    emission_type: EmissionType = EmissionType.professional_travel__train
 
     registration_keys = [(DataEntryTypeEnum.train, "train")]
 

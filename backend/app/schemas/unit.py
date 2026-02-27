@@ -43,8 +43,9 @@ class UnitRead(Unit):
     """Schema for reading resource data."""
 
     id: int
-    name: str
-    principal_user_institutional_id: str
+
+    class Config:
+        from_attributes = True
 
 
 class UnitUpdate(BaseModel):

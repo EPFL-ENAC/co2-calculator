@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor
@@ -38,7 +38,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
 
     # Check if Swiss mix factor already exists
     result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionTypeEnum.energy)
+        select(Factor).where(Factor.emission_type_id == EmissionType.energy)
     )
     existing = result.first()
 
@@ -48,7 +48,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
 
     # Create Swiss electricity mix emission factor
     factor = Factor(
-        emission_type_id=EmissionTypeEnum.energy,  # energy
+        emission_type_id=EmissionType.energy,  # energy
         is_conversion=True,
         data_entry_type_id=DataEntryTypeEnum.energy_mix,
         classification={
@@ -78,7 +78,7 @@ async def seed_power_factors(session: AsyncSession) -> None:
 
     # Check if power factors already exist
     result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionTypeEnum.equipment)
+        select(Factor).where(Factor.emission_type_id == EmissionType.equipment)
     )
     existing = result.first()
 
@@ -126,7 +126,7 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 continue
 
             power_factor = Factor(
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=EmissionType.equipment,
                 is_conversion=False,
                 data_entry_type_id=(
                     DataEntryTypeEnum[current_submodule].value

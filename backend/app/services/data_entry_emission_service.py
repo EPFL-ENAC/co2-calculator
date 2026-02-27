@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType, get_scope
 from app.models.factor import Factor
 from app.models.location import Location
 from app.repositories.data_entry_emission_repo import (
@@ -15,6 +15,7 @@ from app.repositories.data_entry_emission_repo import (
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
+from app.utils.data_entry_emission_type_map import resolve_emission_types
 from app.utils.distance_geography import resolve_flight_factor, resolve_train_factor
 
 settings = get_settings()
@@ -30,93 +31,47 @@ class DataEntryEmissionService:
 
     async def prepare_create(
         self, data_entry: DataEntryResponse | DataEntry
-    ) -> DataEntryEmission | None:
-        """Prepare emissions for a data entry, if applicable."""
+    ) -> list[DataEntryEmission]:
+        """Prepare emissions for a data entry, if applicable.
+
+        Returns a list of emissions (one per emission type).
+        For member/student types, multiple rows are produced (one per emission type).
+        For other types, typically a single row is produced.
+        """
         if not data_entry:
-            return None
+            return []
         if data_entry.data_entry_type is None:
             logger.error(
                 "DataEntry must have a data_entry_type before creating emissions."
             )
-            return None
+            return []
+
+        # Generic emission type resolution — no if/elif
+        emission_types = resolve_emission_types(
+            data_entry.data_entry_type, data_entry.data
+        )
+        if emission_types is None:
+            logger.warning(f"Unhandled emission type: {data_entry.data_entry_type}")
+            return []
+        if not emission_types:
+            return []  # e.g. energy_mix — intentionally no rows
+
         handler = BaseModuleHandler.get_by_type(
             DataEntryTypeEnum(data_entry.data_entry_type)
         )
-        # TODO: Make generic for all types!!!
-        # for cloud it's this key
-        if data_entry.data_entry_type == DataEntryTypeEnum.external_clouds:
-            emission_type = EmissionTypeEnum[
-                data_entry.data.get("sub_kind") or "calcul"
-            ]
-        elif data_entry.data_entry_type == DataEntryTypeEnum.external_ai:
-            emission_type = EmissionTypeEnum.ai_provider
-        elif (
-            data_entry.data_entry_type == DataEntryTypeEnum.scientific_equipment
-            or data_entry.data_entry_type == DataEntryTypeEnum.it_equipment
-            or data_entry.data_entry_type == DataEntryTypeEnum.consumable_accessories
-            or data_entry.data_entry_type
-            == DataEntryTypeEnum.biological_chemical_gaseous_product
-            or data_entry.data_entry_type == DataEntryTypeEnum.services
-            or data_entry.data_entry_type == DataEntryTypeEnum.vehicles
-            or data_entry.data_entry_type == DataEntryTypeEnum.other_purchases
-            or data_entry.data_entry_type == DataEntryTypeEnum.additional_purchases
-        ):
-            emission_type = EmissionTypeEnum.purchase
-        elif data_entry.data_entry_type == DataEntryTypeEnum.plane:
-            emission_type = EmissionTypeEnum.plane
-        elif data_entry.data_entry_type == DataEntryTypeEnum.train:
-            emission_type = EmissionTypeEnum.train
-        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emissions:
-            emission_type = EmissionTypeEnum.process_emissions
-        elif data_entry.data_entry_type == DataEntryTypeEnum.building:
-            emission_type = EmissionTypeEnum.energy
-        elif data_entry.data_entry_type == DataEntryTypeEnum.energy_combustion:
-            emission_type = EmissionTypeEnum.combustion
-        # for equipment?
-        elif (
-            data_entry.data_entry_type == DataEntryTypeEnum.scientific
-            or data_entry.data_entry_type == DataEntryTypeEnum.it
-            or data_entry.data_entry_type == DataEntryTypeEnum.other
-        ):
-            emission_type = EmissionTypeEnum.equipment
-        else:
-            d_type = data_entry.data_entry_type
-            logger.info(f"DataEntry type {d_type} not handled for ")
-            return None
-        # END OF TODO: Make generic for all types!!!
-
-        # Factor already resolved by handler
         primary_factor_id = data_entry.data.get("primary_factor_id")
-        if (
-            data_entry.data_entry_type != DataEntryTypeEnum.building
-            and not primary_factor_id
-            and handler.require_factor_to_match
-        ):
-            return None
+        if not primary_factor_id and handler.require_factor_to_match:
+            return []
 
         factors: list[Factor] = []
         factor_service = FactorService(self.session)
-        # retrieve factors based on data_entry info and type
-        if data_entry.data_entry_type == DataEntryTypeEnum.building:
-            building_name = data_entry.data.get("building_name")
-            if not building_name:
-                return None
-            for category in ("heating", "cooling", "ventilation", "lighting"):
-                factor = await factor_service.get_by_classification(
-                    data_entry_type=DataEntryTypeEnum.building,
-                    kind=building_name,
-                    subkind=category,
-                )
-                if factor:
-                    factors.append(factor)
-        elif primary_factor_id is not None:
+        if primary_factor_id is not None:
             primary_factor = await factor_service.get(primary_factor_id)
             if not primary_factor:
-                return None
+                return []
             factors = [primary_factor]
 
         # Start of module specific retrieval of factors and calculation logic
-        # Placeholder for actual emissions calculation logic
         # Equipment types need electricity factor too
         if data_entry.data_entry_type in (
             DataEntryTypeEnum.scientific,
@@ -127,48 +82,66 @@ class DataEntryEmissionService:
             if electricity_factor:
                 factors.append(electricity_factor)
 
+        # For headcount types (member/student), emit one row per emission type
+        # using the appropriate factor for each emission type
+        if data_entry.data_entry_type in (
+            DataEntryTypeEnum.member,
+            DataEntryTypeEnum.student,
+        ):
+            return await self._prepare_headcount_emissions(
+                data_entry, emission_types, factor_service
+            )
+
         # returns the factors used
         emissions_value = await self._calculate_emissions(data_entry, factors=factors)
         if data_entry.id is None:
             logger.error("DataEntry must have an ID before creating emissions.")
-            return None
+            return []
         if emissions_value.get("kg_co2eq") is None:
             logger.error(
                 "No emissions calculated for DataEntry ID "
                 f"{data_entry.id}. Skipping emission record creation"
                 f" (factor_id={primary_factor_id})"
             )
-            return None
-        subcategory = None  # TODO: should be an enum somwhere
-        if data_entry.data_entry_type in (
-            DataEntryTypeEnum.plane,
-            DataEntryTypeEnum.train,
-        ):
-            subcategory = DataEntryTypeEnum(data_entry.data_entry_type).name
-        elif data_entry.data_entry_type == DataEntryTypeEnum.process_emissions:
-            sub_cat = data_entry.data.get("sub_category")
-            subcategory = sub_cat if sub_cat else data_entry.data.get("emitted_gas")
-        elif data_entry.data_entry_type is not None:
-            subcategory = DataEntryTypeEnum(data_entry.data_entry_type).name.title()
-        emission_record = DataEntryEmission(
-            data_entry_id=data_entry.id,
-            emission_type_id=emission_type.value,
-            primary_factor_id=primary_factor_id,
-            subcategory=subcategory,  # TODO: should be an enum somwhere
-            kg_co2eq=emissions_value.get("kg_co2eq"),
-            meta={**emissions_value},
-        )
-        return emission_record
+            return []
 
-    async def create(self, data_entry: DataEntryResponse) -> DataEntryEmission | None:
-        """Create emissions for a data entry, if applicable."""
-        emission_record = await self.prepare_create(data_entry)
-        if not emission_record:
-            return None
-        created_emission = await self.repo.create(emission_record)
-        # await self.session.refresh(created_emission)
+        # One row per emission_type — scope derived from EMISSION_SCOPE
+        # We should get the factor corresponding to the emission type
+        # and compute the kg_co2eq based on the data entry data and factor values of
+        # each emission type match factors
+        # example of implementation for building!
 
-        return created_emission
+        #  for category in ("heating", "cooling", "ventilation", "lighting"):
+        #         factor = await factor_service.get_by_classification(
+        #             data_entry_type=DataEntryTypeEnum.building,
+        #             kind=building_name,
+        #             subkind=category,
+        #         )
+        #         if factor:
+        #             factors.append(factor)
+        return [
+            DataEntryEmission(
+                data_entry_id=data_entry.id,
+                emission_type_id=emission_type.value,
+                primary_factor_id=primary_factor_id,
+                scope=get_scope(emission_type),
+                kg_co2eq=emissions_value.get("kg_co2eq"),
+                meta={**emissions_value},
+            )
+            for emission_type in emission_types
+        ]
+
+    async def create(self, data_entry: DataEntryResponse) -> list[DataEntryEmission]:
+        """Create emissions for a data entry, if applicable.
+
+        Returns a list of created emission records.
+        """
+        emission_records = await self.prepare_create(data_entry)
+        if not emission_records:
+            return []
+
+        created_emissions = await self.repo.bulk_create(emission_records)
+        return created_emissions
 
     async def bulk_create(
         self, emission_records: list[DataEntryEmission]
@@ -179,29 +152,25 @@ class DataEntryEmissionService:
 
     async def upsert_by_data_entry(
         self, data_entry_response: DataEntryResponse
-    ) -> DataEntryEmission | None:
-        """Create or update emissions for a data entry, if applicable."""
-        # Prepare the emission record
-        prepared_emission = await self.prepare_create(data_entry_response)
-        if prepared_emission is None:
+    ) -> list[DataEntryEmission] | None:
+        """Create or update emissions for a data entry, if applicable.
+
+        First deletes existing emissions for this data entry, then creates new ones.
+        Returns the list of created/updated emissions.
+        """
+        # Prepare the emission records
+        prepared_emissions = await self.prepare_create(data_entry_response)
+        if not prepared_emissions:
             await self.repo.delete_by_data_entry_id(data_entry_response.id)
             await self.session.flush()
             return None
 
-        # Check if emission already exists
-        existing_emission = await self.repo.get_by_data_entry_id(data_entry_response.id)
-        if existing_emission is None:
-            # Create new emission
-            created_emission = await self.repo.create(prepared_emission)
-            return created_emission
-        else:
-            # Update existing emission
-            existing_emission.kg_co2eq = prepared_emission.kg_co2eq
-            existing_emission.primary_factor_id = prepared_emission.primary_factor_id
-            existing_emission.meta = prepared_emission.meta
+        # Delete existing emissions
+        await self.repo.delete_by_data_entry_id(data_entry_response.id)
 
-            updated_emission = await self.repo.update(existing_emission)
-            return updated_emission
+        # Create new emissions
+        created_emissions = await self.repo.bulk_create(prepared_emissions)
+        return created_emissions
 
     async def get_stats(
         self,
@@ -229,8 +198,11 @@ class DataEntryEmissionService:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, str | None, float | None]]:
-        """Get emission breakdown by module, emission type, and subcategory."""
+    ) -> list[tuple[int, int, int | None, float | None]]:
+        """Get emission breakdown by module, emission type, and scope.
+
+        Returns list of (module_type_id, emission_type_id, scope, sum_kg_co2eq).
+        """
         return await self.repo.get_emission_breakdown(
             carbon_report_id=carbon_report_id,
         )
@@ -262,6 +234,63 @@ class DataEntryEmissionService:
             return func
 
         return decorator
+
+    async def _prepare_headcount_emissions(
+        self,
+        data_entry: DataEntry | DataEntryResponse,
+        emission_types: list[EmissionType],
+        factor_service: FactorService,
+    ) -> list[DataEntryEmission]:
+        """Prepare emissions for member/student types (one row per emission type).
+
+        Each emission type (food, waste, commuting, grey_energy) uses its own factor.
+        The kg_co2eq is calculated as: fte × factor_value.kg_co2eq_per_fte
+
+        Args:
+            data_entry: The data entry (member or student)
+            emission_types: List of emission types (food, waste, commuting, grey_energy)
+            factor_service: FactorService for looking up factors
+
+        Returns:
+            List of DataEntryEmission objects (one per emission type)
+        """
+        emissions: list[DataEntryEmission] = []
+        fte = data_entry.data.get("fte", 0)
+
+        for emission_type in emission_types:
+            # Look up the specific factor for this emission type
+            factor = await factor_service.get_by_classification(
+                data_entry_type=data_entry.data_entry_type,
+                kind=emission_type.name,
+                subkind=None,
+            )
+
+            if not factor or not factor.values:
+                logger.warning(
+                    f"Missing factor for emission_type={emission_type} "
+                    f"for data_entry_id={data_entry.id}"
+                )
+                continue
+
+            # Calculate kg_co2eq = fte × kg_co2eq_per_fte
+            kg_co2eq_per_fte = factor.values.get("kg_co2eq_per_fte", 0)
+            kg_co2eq = fte * kg_co2eq_per_fte
+
+            emissions.append(
+                DataEntryEmission(
+                    data_entry_id=data_entry.id,
+                    emission_type_id=emission_type.value,
+                    primary_factor_id=factor.id,
+                    scope=get_scope(emission_type),
+                    kg_co2eq=kg_co2eq,
+                    meta={
+                        "fte": fte,
+                        "kg_co2eq_per_fte": kg_co2eq_per_fte,
+                    },
+                )
+            )
+
+        return emissions
 
     async def _calculate_emissions(
         self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]

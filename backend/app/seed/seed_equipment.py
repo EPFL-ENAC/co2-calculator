@@ -23,7 +23,7 @@ from app.db import SessionLocal
 
 # from app.models.equipment import Equipment, EquipmentEmission
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
@@ -270,7 +270,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
     # Get emission factor
     ef_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.energy)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.energy)
     )
     emission_factor = ef_result.one_or_none()
     if not emission_factor:
@@ -288,7 +288,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     # Get power factors map for lookup
     power_factors_map = {}
     pf_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.equipment)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.equipment)
     )
     for pf_ in pf_result.all():
         power_factors_map[pf_.id] = pf_
@@ -358,7 +358,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             raise ValueError("Equipment must have data_entry_type_id")
         equipment_emission = DataEntryEmission(
             data_entry_id=equipment.id,
-            emission_type_id=EmissionTypeEnum.equipment,
+            emission_type_id=EmissionType.equipment,
             primary_factor_id=power_factor_id,
             subcategory=DataEntryTypeEnum(
                 equipment.data_entry_type_id

@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 
 fake = Faker()
@@ -22,7 +22,7 @@ async def create_factors(session: AsyncSession):
     regions = ["CH", "EU", "US", "CN", "IN"]
     for region in regions:
         factor = Factor(
-            emission_type_id=EmissionTypeEnum.energy,
+            emission_type_id=EmissionType.energy,
             is_conversion=True,
             data_entry_type_id=DataEntryTypeEnum.energy_mix,
             classification={
@@ -77,7 +77,7 @@ async def create_factors(session: AsyncSession):
                 )
 
                 factor = Factor(
-                    emission_type_id=EmissionTypeEnum.equipment,
+                    emission_type_id=EmissionType.equipment,
                     is_conversion=False,
                     data_entry_type_id=data_entry_type,
                     classification={
@@ -98,10 +98,10 @@ async def create_factors(session: AsyncSession):
 
     # Create headcount factors (food, waste, transport, grey_energy)
     headcount_types = [
-        (EmissionTypeEnum.food, "kg_co2eq_per_fte", "Food consumption"),
-        (EmissionTypeEnum.waste, "kg_co2eq_per_fte", "Waste generation"),
-        (EmissionTypeEnum.commuting, "kg_co2eq_per_fte", "Commuting emissions"),
-        (EmissionTypeEnum.grey_energy, "kg_co2eq_per_fte", "Grey energy consumption"),
+        (EmissionType.food, "kg_co2eq_per_fte", "Food consumption"),
+        (EmissionType.waste, "kg_co2eq_per_fte", "Waste generation"),
+        (EmissionType.commuting, "kg_co2eq_per_fte", "Commuting emissions"),
+        (EmissionType.grey_energy, "kg_co2eq_per_fte", "Grey energy consumption"),
     ]
 
     for emission_type, value_key, description in headcount_types:
@@ -122,17 +122,25 @@ async def create_factors(session: AsyncSession):
 
     # Create travel factors
     # Plane factors
-    cabin_classes = ["economy", "business", "first"]
+    cabin_classes_type = [
+        EmissionType.professional_travel__plane__eco,
+        EmissionType.professional_travel__plane__eco_plus,
+        EmissionType.professional_travel__plane__business,
+        EmissionType.professional_travel__plane__first,
+    ]
     distance_bands = [
         ("Short-haul", 0, 1000),
         ("Medium-haul", 1000, 3000),
         ("Long-haul", 3000, 10000),
     ]
 
-    for cabin_class in cabin_classes:
+    for cabin_class_type in cabin_classes_type:
         for band_name, min_dist, max_dist in distance_bands:
+            cabin_class = cabin_class_type.name.split("__")[
+                -1
+            ]  # Extract class from enum value
             factor = Factor(
-                emission_type_id=EmissionTypeEnum.plane,
+                emission_type_id=cabin_class_type.value,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.plane,
                 classification={
@@ -152,19 +160,24 @@ async def create_factors(session: AsyncSession):
 
     # Train factors
     countries = ["CH", "DE", "FR", "IT", "AT", "NL", "BE", "UK", "ES", "PT"]
-    for country in countries:
-        factor = Factor(
-            emission_type_id=EmissionTypeEnum.train,
-            is_conversion=False,
-            data_entry_type_id=DataEntryTypeEnum.train,
-            classification={
-                "country": country,
-                "description": f"Train travel factor for {country}",
-            },
-            values={
-                "kg_co2eq_per_km": round(random.uniform(0.01, 0.1), 4),  # nosec B311
-            },
-        )
+    cabin_classes_type = [
+        EmissionType.professional_travel__train__class_1,
+        EmissionType.professional_travel__train__class_2,
+    ]
+    for cabin_class_type in cabin_classes_type:
+        for country in countries:
+            factor = Factor(
+                emission_type_id=cabin_class_type.value,
+                is_conversion=False,
+                data_entry_type_id=DataEntryTypeEnum.train,
+                classification={
+                    "country": country,
+                    "description": f"Train travel factor for {country}",
+                },
+                values={
+                    "kg_co2eq_per_km": round(random.uniform(0.01, 0.1), 4),  # nosec B311
+                },
+            )
         factors.append(factor)
 
     # Create external cloud factors
@@ -176,9 +189,9 @@ async def create_factors(session: AsyncSession):
             factor = Factor(
                 emission_type_id=random.choice(  # nosec B311
                     [
-                        EmissionTypeEnum.stockage,
-                        EmissionTypeEnum.calcul,
-                        EmissionTypeEnum.virtualisation,
+                        EmissionType.external__clouds__stockage,
+                        EmissionType.external__clouds__calcul,
+                        EmissionType.external__clouds__virtualisation,
                     ]
                 ),
                 is_conversion=False,
@@ -213,9 +226,16 @@ async def create_factors(session: AsyncSession):
     ]
 
     for provider in ai_providers:
+        emission_type_id = EmissionType.external__ai__provider_others
+        if provider == "OpenAI":
+            emission_type_id = EmissionType.external__ai__provider_openai
+        elif provider == "Anthropic":
+            emission_type_id = EmissionType.external__ai__provider_anthropic
+        elif provider == "Google AI":
+            emission_type_id = EmissionType.external__ai__provider_google
         for use in ai_uses:
             factor = Factor(
-                emission_type_id=EmissionTypeEnum.ai_provider,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
                 classification={
@@ -255,7 +275,7 @@ async def create_factors(session: AsyncSession):
     for gas_code, gas_name in gas_types:
         for industry in industries:
             factor = Factor(
-                emission_type_id=EmissionTypeEnum.process_emissions,
+                emission_type_id=EmissionType.process_emissions,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.process_emissions,
                 classification={

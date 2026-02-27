@@ -7,12 +7,14 @@ from pathlib import Path
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
+from app.models.factor import Factor
 from app.models.location import TransportModeEnum
 from app.modules.professional_travel import (
     schemas as schemas,
 )  # This ensures the handlers are registered
 from app.services.factor_service import FactorService
+from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 logger = get_logger(__name__)
 CSV_PATH = (
@@ -29,10 +31,17 @@ async def seed_train_factors() -> None:
 
         # Delete existing train factors
         existing = await service.list_by_data_entry_type(DataEntryTypeEnum.train)
+
+        def match_train_emission_type(factor: Factor) -> bool:
+            if not factor.emission_type_id:
+                return False
+            return factor.emission_type_id in {
+                EmissionType.professional_travel__train__class_1,
+                EmissionType.professional_travel__train__class_2,
+            }
+
         ids = [
-            f.id
-            for f in existing
-            if f.emission_type_id == EmissionTypeEnum.train.value and f.id
+            f.id for f in existing if match_train_emission_type(f) and f.id is not None
         ]
         if ids:
             await service.bulk_delete(ids)
@@ -45,8 +54,22 @@ async def seed_train_factors() -> None:
                 impact_score_raw = row.get("impact_score") or row.get(
                     "ef_kg_co2eq_per_km"
                 )
+
+                emission_types = resolve_emission_types(
+                    data_entry_type=DataEntryTypeEnum.train,
+                    data={
+                        "cabin_class": row.get("cabin_class") or "",
+                    },
+                )
+                emission_type_id = emission_types[0] if emission_types else None
+                if emission_type_id is None:
+                    logger.warning(
+                        f"Cabin class {row.get('cabin_class')}"
+                        f"due to unknown emission type resolution."
+                    )
+                    continue
                 factor = await service.prepare_create(
-                    emission_type_id=EmissionTypeEnum.train.value,
+                    emission_type_id=emission_type_id,
                     is_conversion=False,
                     data_entry_type_id=DataEntryTypeEnum.train.value,
                     classification={

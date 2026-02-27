@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.modules.process_emissions import (
     schemas as schemas,
 )  # This ensures the handlers are registered
@@ -43,7 +43,7 @@ async def seed_process_emissions_factors(session: AsyncSession) -> None:
             if gwp is None:
                 continue
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum.process_emissions,
+                emission_type_id=EmissionType.process_emissions,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
                 classification={

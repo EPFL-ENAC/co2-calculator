@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
@@ -42,7 +42,7 @@ async def test_create_emission(db_session: AsyncSession):
     # Create emission
     emission = DataEntryEmission(
         data_entry_id=data_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         meta={"distance_km": 500},
     )
@@ -80,7 +80,7 @@ async def test_update_emission(db_session: AsyncSession):
 
     emission = DataEntryEmission(
         data_entry_id=data_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
     )
     await repo.create(emission)
@@ -117,7 +117,7 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
 
     emission = DataEntryEmission(
         data_entry_id=data_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
     )
     await repo.create(emission)
@@ -164,7 +164,7 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
 
     emission = DataEntryEmission(
         data_entry_id=data_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
     )
     await repo.create(emission)
@@ -215,7 +215,7 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
     emissions = [
         DataEntryEmission(
             data_entry_id=entry.id,
-            emission_type_id=EmissionTypeEnum.plane,
+            emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=100.0 * (i + 1),
         )
         for i, entry in enumerate(entries)
@@ -276,7 +276,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     plane_emissions = [
         DataEntryEmission(
             data_entry_id=entry.id,
-            emission_type_id=EmissionTypeEnum.plane,
+            emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=200.0,
         )
         for entry in plane_entries
@@ -285,7 +285,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
     train_emissions = [
         DataEntryEmission(
             data_entry_id=entry.id,
-            emission_type_id=EmissionTypeEnum.train,
+            emission_type_id=EmissionType.professional_travel__train__class_2,
             kg_co2eq=50.0,
         )
         for entry in train_entries
@@ -296,14 +296,14 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
 
     result = await repo.get_stats(module.id, "emission_type_id", "kg_co2eq")
 
-    assert str(EmissionTypeEnum.plane.value) in result
-    assert str(EmissionTypeEnum.train.value) in result
-    assert result[str(EmissionTypeEnum.plane.value)] == pytest.approx(
-        400.0, rel=0.01
-    )  # 2 * 200
-    assert result[str(EmissionTypeEnum.train.value)] == pytest.approx(
-        150.0, rel=0.01
-    )  # 3 * 50
+    assert str(EmissionType.professional_travel__plane__business.value) in result
+    assert str(EmissionType.professional_travel__train__class_2.value) in result
+    assert result[
+        str(EmissionType.professional_travel__plane__business.value)
+    ] == pytest.approx(400.0, rel=0.01)  # 2 * 200
+    assert result[
+        str(EmissionType.professional_travel__train__class_2.value)
+    ] == pytest.approx(150.0, rel=0.01)  # 3 * 50
 
 
 @pytest.mark.asyncio
@@ -366,19 +366,19 @@ async def test_get_emission_breakdown_basic(db_session: AsyncSession):
         [
             DataEntryEmission(
                 data_entry_id=sci_entry.id,
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=EmissionType.equipment,
                 subcategory="Scientific",
                 kg_co2eq=5000.0,
             ),
             DataEntryEmission(
                 data_entry_id=it_entry.id,
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=EmissionType.equipment,
                 subcategory="It",
                 kg_co2eq=3000.0,
             ),
             DataEntryEmission(
                 data_entry_id=plane_entry.id,
-                emission_type_id=EmissionTypeEnum.plane,
+                emission_type_id=EmissionType.professional_travel__plane,
                 subcategory="plane",
                 kg_co2eq=2000.0,
             ),
@@ -436,13 +436,13 @@ async def test_get_emission_breakdown_validated_only(db_session: AsyncSession):
         [
             DataEntryEmission(
                 data_entry_id=entry_val.id,
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=EmissionType.equipment,
                 subcategory="Scientific",
                 kg_co2eq=5000.0,
             ),
             DataEntryEmission(
                 data_entry_id=entry_ip.id,
-                emission_type_id=EmissionTypeEnum.plane,
+                emission_type_id=EmissionType.professional_travel__plane,
                 subcategory="plane",
                 kg_co2eq=9999.0,
             ),
@@ -488,7 +488,7 @@ async def test_get_emission_breakdown_aggregates_same_subcategory(
         db_session.add(
             DataEntryEmission(
                 data_entry_id=entry.id,
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=EmissionType.equipment,
                 subcategory="Scientific",
                 kg_co2eq=1000.0,
             )
@@ -551,13 +551,13 @@ async def test_get_travel_stats_by_class_basic(db_session: AsyncSession):
     # Create emissions
     eco_emission = DataEntryEmission(
         data_entry_id=eco_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__eco,
         kg_co2eq=200.0,
     )
 
     business_emission = DataEntryEmission(
         data_entry_id=business_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=600.0,
     )
 
@@ -622,13 +622,13 @@ async def test_get_travel_stats_by_class_null_cabin(db_session: AsyncSession):
     # Create emissions
     plane_emission = DataEntryEmission(
         data_entry_id=plane_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=300.0,
     )
 
     train_emission = DataEntryEmission(
         data_entry_id=train_entry.id,
-        emission_type_id=EmissionTypeEnum.train,
+        emission_type_id=EmissionType.professional_travel__train__class_2,
         kg_co2eq=50.0,
     )
 
@@ -686,13 +686,13 @@ async def test_get_travel_stats_by_class_filters_zero_emissions(
     # Create emissions - one valid, one zero
     valid_emission = DataEntryEmission(
         data_entry_id=valid_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=200.0,
     )
 
     zero_emission = DataEntryEmission(
         data_entry_id=zero_entry.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=0.0,  # Zero emission
     )
 
@@ -782,19 +782,19 @@ async def test_get_travel_evolution_over_time(db_session: AsyncSession):
     # Create emissions
     emission_plane_2023 = DataEntryEmission(
         data_entry_id=plane_2023.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=500.0,
     )
 
     emission_plane_2024 = DataEntryEmission(
         data_entry_id=plane_2024.id,
-        emission_type_id=EmissionTypeEnum.plane,
+        emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=600.0,
     )
 
     emission_train_2024 = DataEntryEmission(
         data_entry_id=train_2024.id,
-        emission_type_id=EmissionTypeEnum.train,
+        emission_type_id=EmissionType.professional_travel__train__class_2,
         kg_co2eq=100.0,
     )
 
@@ -850,7 +850,7 @@ async def _seed_emission(db_session, module, name, kg):
     db_session.add(
         DataEntryEmission(
             data_entry_id=entry.id,
-            emission_type_id=EmissionTypeEnum.equipment,
+            emission_type_id=EmissionType.equipment,
             kg_co2eq=kg,
         )
     )
