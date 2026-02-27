@@ -137,7 +137,7 @@ _AI_USE_MAP: dict[str, EmissionType] = {
     "mistral_ai": EmissionType.external__ai__provider_mistral_ai,
     "anthropic": EmissionType.external__ai__provider_anthropic,
     "openai": EmissionType.external__ai__provider_openai,
-    "adhere": EmissionType.external__ai__provider_cohere,
+    "cohere": EmissionType.external__ai__provider_cohere,
     "others": EmissionType.external__ai__provider_others,
 }
 
@@ -186,20 +186,50 @@ def _resolve_clouds(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_ai(data: dict) -> list[EmissionType] | None:
-    ai_provider = (data.get("ai_provider") or "").lower()
+    ai_provider = (data.get("ai_provider") or "").lower().replace(" ", "_")
     et = _AI_USE_MAP.get(ai_provider)
-    return [et] if et else None
+    # default to "others" if provider is missing/unknown
+    return [et] if et else [EmissionType.external__ai__provider_others]
 
 
 def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
-    gas = (data.get("emitted_gas") or data.get("sub_category") or "").lower()
+    gas = (data.get("kind", "") or "").lower()
     et = _PROCESS_GAS_MAP.get(gas)
     return [et] if et else None  # None = unknown gas, caller should warn + skip
+
+
+# not sure about that logic
+# for building factors, we have multiple emission types per factor (heating_elec..)
+# like headcount
+def _resolve_building(data: dict) -> list[EmissionType] | None:
+    category = (data.get("category") or "").lower()
+    energy_type = (data.get("energy_type") or "").lower()
+    if category == "heating":
+        if energy_type == "elec":
+            return [EmissionType.buildings__rooms__heating_elec]
+        elif energy_type == "thermal":
+            # never happend in seed data, but if energy type is thermal
+            # (e.g. district heating), we want to use the correct factor,
+            # not the electric one
+            return [EmissionType.buildings__rooms__heating_thermal]
+    if category == "cooling":
+        return [EmissionType.buildings__rooms__cooling]
+    if category == "ventilation":
+        return [EmissionType.buildings__rooms__ventilation]
+    if category == "lighting":
+        return [EmissionType.buildings__rooms__lighting]
+
+    return None  # unknown category or energy type
 
 
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
+    # no, it won't since we call the public API below!
+    # building resolver is for factor only
+    # it works because static as priority,
+    # so it will be used for emission rows but not for factor loading
+    DataEntryTypeEnum.building: _resolve_building,
     DataEntryTypeEnum.external_ai: _resolve_ai,
     DataEntryTypeEnum.external_clouds: _resolve_clouds,
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,
@@ -209,6 +239,42 @@ _RUNTIME_RESOLVERS = {
 # =============================================================================
 # Public API
 # =============================================================================
+
+
+def resolve_factor_emission_type(
+    data_entry_type: DataEntryTypeEnum,
+    factor: dict,
+) -> EmissionType | None:
+    """
+    Returns the single EmissionType for a factor row of the given DataEntryTypeEnum.
+
+    For most types this is a simple static mapping. For some (plane, train,
+    process_emissions, external_clouds), the emission type depends on the data
+    payload and is resolved at runtime by resolve_emission_types().
+
+    This function is for factor loading only — it returns a single EmissionType
+    (or None if unknown) because each factor row must be associated with exactly
+    one EmissionType. For emission rows, use resolve_emission_types() which can
+    return multiple types for a single data entry.
+    """
+    resolver = _RUNTIME_RESOLVERS.get(data_entry_type)
+    types = None
+    if resolver:
+        types = resolver(factor)
+    if types is None:
+        # static mapping (covers both single and multiple types)
+        types = DATA_ENTRY_TO_EMISSION_TYPES.get(data_entry_type)
+    if types is None:
+        return None  # unknown type, caller should log and skip
+    if len(types) == 0:
+        return None  # known type that intentionally emits nothing (e.g. energy_mix)
+    if len(types) > 1:
+        raise ValueError(
+            f"Expected exactly one emission type for factor of type {data_entry_type},"
+            f" but got multiple: {types}"
+            f" for row: {factor}"
+        )
+    return types[0]
 
 
 def resolve_emission_types(

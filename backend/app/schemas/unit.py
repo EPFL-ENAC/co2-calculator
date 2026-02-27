@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.unit import Unit
+from app.models.unit import Unit, UnitBase
 
 
 class UnitWithUserRole(BaseModel):
@@ -39,7 +39,7 @@ class UnitCreate(Unit):
     pass
 
 
-class UnitRead(Unit):
+class UnitRead(UnitBase):
     """Schema for reading resource data."""
 
     id: int

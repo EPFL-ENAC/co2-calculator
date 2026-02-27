@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.utils.emission_breakdown import (
     HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
@@ -205,16 +205,14 @@ def test_build_chart_breakdown_headcount_per_fte():
     food_entry = next(
         d for d in result["additional_breakdown"] if d["category"] == "Food"
     )
-    expected_food_tonnes = (
-        HEADCOUNT_PER_FTE_KG[EmissionTypeEnum.food] * total_fte / 1000.0
-    )
+    expected_food_tonnes = HEADCOUNT_PER_FTE_KG[EmissionType.food] * total_fte / 1000.0
     assert food_entry["food"] == pytest.approx(expected_food_tonnes)
 
     commuting_entry = next(
         d for d in result["additional_breakdown"] if d["category"] == "Commuting"
     )
     expected_commuting_tonnes = (
-        HEADCOUNT_PER_FTE_KG[EmissionTypeEnum.commuting] * total_fte / 1000.0
+        HEADCOUNT_PER_FTE_KG[EmissionType.commuting] * total_fte / 1000.0
     )
     assert commuting_entry["commuting"] == pytest.approx(expected_commuting_tonnes)
 

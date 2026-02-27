@@ -10,12 +10,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.models.location import TransportModeEnum
-
-# from app.modules.professional_travel.schemas import (
-#     ,
-# )  # This ensures the handlers are registered
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 logger = get_logger(__name__)
 CSV_PATH = (
@@ -36,12 +31,7 @@ async def seed_plane_factors() -> None:
         def match_plane_emission_type(factor: Factor) -> bool:
             if not factor.emission_type_id:
                 return False
-            return factor.emission_type_id in {
-                EmissionType.professional_travel__plane__first,
-                EmissionType.professional_travel__plane__business,
-                EmissionType.professional_travel__plane__eco_plus,
-                EmissionType.professional_travel__plane__eco,
-            }
+            return factor.emission_type_id in {EmissionType.professional_travel__plane}
 
         ids = [
             f.id for f in existing if match_plane_emission_type(f) if f.id is not None
@@ -61,22 +51,13 @@ async def seed_plane_factors() -> None:
                     "rfi_adjustement"
                 )
 
-                emission_types = resolve_emission_types(
-                    data_entry_type=DataEntryTypeEnum.plane,
-                    data={
-                        "cabin_class": row.get("cabin_class") or "",
-                    },
-                )
-                emission_type_id = emission_types[0] if emission_types else None
-                if emission_type_id is None:
-                    logger.warning(
-                        f"Skipping factor for category {category} and"
-                        f" cabin class {row.get('cabin_class')}"
-                        f"due to unknown emission type resolution."
-                    )
-                    continue
                 factor = await service.prepare_create(
-                    emission_type_id=emission_type_id,
+                    # no need to dynamically resolve the emission type
+                    # since it's not dependent on the factor but the cabin_class data of
+                    # the data_entry, and all rows in the CSV are for plane factors
+                    # we'll just need to make sure the data_entry handler correctly
+                    # assigns the emission type
+                    emission_type_id=EmissionType.professional_travel__plane,
                     is_conversion=False,
                     data_entry_type_id=DataEntryTypeEnum.plane.value,
                     classification={

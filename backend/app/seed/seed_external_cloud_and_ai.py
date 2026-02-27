@@ -8,21 +8,19 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.modules.external_cloud_and_ai import (
     schemas as schemas,
 )  # This ensures the handlers are registered
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
+    get_factor_emission_type_id,
     load_factors_map,
     lookup_factor,
-    normalize_kind,
 )
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -181,9 +179,12 @@ async def seed_factor_clouds(session: AsyncSession) -> None:
         for row in reader:
             #  for cloud emission_type depends on service_type
 
-            emission_type = normalize_kind(row.get("service_type", ""))
+            emission_type_id = get_factor_emission_type_id(
+                DataEntryTypeEnum.external_clouds,
+                row,
+            )
             factor = await service.prepare_create(
-                emission_type_id=EmissionType[emission_type],
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
@@ -224,19 +225,10 @@ async def seed_factor_ai(session: AsyncSession) -> None:
                 continue
             # we're sure that for externa_ai we have one factor per provider/use,
             # so we can directly resolve the emission type here
-            emission_type_result = resolve_emission_types(
-                data_entry_type=DataEntryTypeEnum.external_ai,
-                data={
-                    "ai_provider": row.get("ai_provider") or "",
-                },
+            emission_type_id = get_factor_emission_type_id(
+                DataEntryTypeEnum.external_ai,
+                row,
             )
-            emission_type_id = emission_type_result[0] if emission_type_result else None
-            if emission_type_id is None:
-                logger.warning(
-                    f"Skipping factor for provider {row.get('ai_provider')}"
-                    f"due to unknown emission type resolution."
-                )
-                continue
             factor = await service.prepare_create(
                 emission_type_id=emission_type_id,
                 is_conversion=False,

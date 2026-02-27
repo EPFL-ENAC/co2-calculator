@@ -9,7 +9,8 @@ import asyncio
 import csv
 from pathlib import Path
 
-from sqlmodel import select
+from sqlalchemy import or_
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -78,7 +79,13 @@ async def seed_power_factors(session: AsyncSession) -> None:
 
     # Check if power factors already exist
     result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionType.equipment)
+        select(Factor).where(
+            or_(
+                col(Factor.emission_type_id) == EmissionType.equipment__it,
+                col(Factor.emission_type_id) == EmissionType.equipment__scientific,
+                col(Factor.emission_type_id) == EmissionType.equipment__other,
+            )
+        )
     )
     existing = result.first()
 
@@ -125,8 +132,14 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 logger.warning(f"Invalid power values in row: {row}")
                 continue
 
+            if current_submodule == "it":
+                emission_type_id = EmissionType.equipment__it
+            elif current_submodule == "other":
+                emission_type_id = EmissionType.equipment__other
+            elif current_submodule == "scientific":
+                emission_type_id = EmissionType.equipment__scientific
             power_factor = Factor(
-                emission_type_id=EmissionType.equipment,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=(
                     DataEntryTypeEnum[current_submodule].value

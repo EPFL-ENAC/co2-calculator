@@ -8,13 +8,13 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.modules.purchase import (
     schemas as schemas,
 )  # This ensures the handlers are registered
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
+    get_factor_emission_type_id,
     load_factors_map,
     lookup_factor,
 )
@@ -78,7 +78,9 @@ async def seed_factor_commons(session: AsyncSession, entry_type: str) -> None:
             ):
                 continue
             factor = await service.prepare_create(
-                emission_type_id=EmissionType[f"purchase_{entry_type}"],
+                emission_type_id=get_factor_emission_type_id(
+                    DataEntryTypeEnum[entry_type], row
+                ),
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum[entry_type],
                 classification={
@@ -115,8 +117,9 @@ async def seed_factor_additional(session: AsyncSession) -> None:
         reader = csv.DictReader(csvfile)
         for row in reader:
             factor = await service.prepare_create(
-                # todo: fix emission_type here
-                emission_type_id=EmissionType.purchases__consumable_accessories,
+                emission_type_id=get_factor_emission_type_id(
+                    DataEntryTypeEnum.additional_purchases, row
+                ),
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.additional_purchases,
                 classification={
