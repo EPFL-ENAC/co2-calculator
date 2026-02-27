@@ -1210,6 +1210,7 @@ function onDownloadTemplate() {
   const csvDefaultContent = 'not_implemented_yet';
 
   const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
+  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:

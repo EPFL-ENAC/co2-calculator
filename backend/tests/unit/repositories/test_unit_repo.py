@@ -8,6 +8,7 @@ import pytest
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.repositories.unit_repo import UnitRepository
+from app.schemas.unit import UnitUpdate
 
 
 @pytest.fixture
@@ -101,12 +102,15 @@ async def test_create(repo):
     repo.session.refresh = AsyncMock()
 
     result = await repo.create(
-        institutional_code="U1",
-        name="Unit 1",
-        principal_user_institutional_id="user1",
-        path_name=None,
-        provider=UserProvider.DEFAULT,
-        institutional_id=None,
+        Unit(
+            institutional_code="U1",
+            name="Unit 1",
+            level=4,
+            principal_user_institutional_id="user1",
+            path_name=None,
+            provider=UserProvider.DEFAULT,
+            institutional_id=None,
+        )
     )
 
     assert result.institutional_code == "U1"
@@ -124,7 +128,7 @@ async def test_update(repo):
     repo.session.flush = AsyncMock()
     repo.session.refresh = AsyncMock()
 
-    result = await repo.update(1, name="new")
+    result = await repo.update(UnitUpdate(id=1, name="new"))
 
     assert result == unit
     assert unit.name == "new"
@@ -137,8 +141,8 @@ async def test_update_not_found(repo):
     result_mock.one_or_none.return_value = None
     repo.session.exec = AsyncMock(return_value=result_mock)
 
-    with pytest.raises(ValueError, match="Unit not found"):
-        await repo.update(999, name="new")
+    result = await repo.update(UnitUpdate(id=999, name="new"))
+    assert result is None
 
 
 @pytest.mark.asyncio
@@ -150,7 +154,7 @@ async def test_upsert_create(repo):
     repo.session.flush = AsyncMock()
     repo.session.refresh = AsyncMock()
 
-    unit_data = Unit(institutional_code="U1", name="Unit 1")
+    unit_data = Unit(institutional_code="U1", name="Unit 1", level=4)
 
     result = await repo.upsert(unit_data)
 
@@ -171,7 +175,7 @@ async def test_upsert_update(repo):
     repo.session.flush = AsyncMock()
     repo.session.refresh = AsyncMock()
 
-    unit_data = Unit(institutional_code="U1", name="new")
+    unit_data = Unit(institutional_code="U1", name="new", level=4)
 
     result = await repo.upsert(unit_data)
 

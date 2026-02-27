@@ -218,7 +218,12 @@ class UnitRepository:
         # so provider is wrong
         # And cost_centers are not updated
         if existing and existing.id:
-            updated_value = await self.update(UnitUpdate.model_validate(unit_data))
+            update_payload = UnitUpdate(
+                id=existing.id,
+                name=unit_data.name,
+                principal_user_institutional_id=unit_data.principal_user_institutional_id,
+            )
+            updated_value = await self.update(update_payload)
             if updated_value is None:
                 raise ValueError("Failed to update existing unit")
             return updated_value

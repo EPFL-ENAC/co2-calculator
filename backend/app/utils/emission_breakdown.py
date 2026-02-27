@@ -49,7 +49,21 @@ BARS: list[ChartBar] = [
     ChartBar("External cloud & AI", mod.external_cloud_and_ai, etype.virtualisation),
     ChartBar("External cloud & AI", mod.external_cloud_and_ai, etype.calcul),
     ChartBar("External cloud & AI", mod.external_cloud_and_ai, etype.ai_provider),
-    ChartBar("Purchases", mod.purchase, None),
+    ChartBar(
+        "Purchases",
+        mod.purchase,
+        None,
+        chart_keys=(
+            "scientific_equipment",
+            "it_equipment",
+            "consumable_accessories",
+            "biological_chemical_gaseous_product",
+            "services",
+            "vehicles",
+            "other_purchases",
+            "additional_purchases",
+        ),
+    ),
     ChartBar("Research facilities", mod.internal_services, None),
     ChartBar("Professional travel", mod.professional_travel, etype.plane),
     ChartBar("Professional travel", mod.professional_travel, etype.train),
@@ -116,16 +130,18 @@ for _b in BARS:
 def _build_category_chart_keys() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {cat: [] for cat in MODULE_BREAKDOWN_ORDER}
     for b in BARS:
-        if b.emission_type is None or b.category not in result:
+        if b.category not in result:
             continue
         if b.chart_keys:
             result[b.category].extend(
                 k for k in b.chart_keys if k not in result[b.category]
             )
-        else:
-            key = etype(b.emission_type).name
-            if key not in result[b.category]:
-                result[b.category].append(key)
+            continue
+        if b.emission_type is None:
+            continue
+        key = etype(b.emission_type).name
+        if key not in result[b.category]:
+            result[b.category].append(key)
     return result
 
 
