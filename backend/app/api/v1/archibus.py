@@ -8,8 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_active_user, get_db
 from app.models.user import User
 from app.repositories.archibus_room_repo import ArchibusRoomRepository
-from app.schemas.archibus import ArchibusBuildingResponse, ArchibusRoomResponse
 from app.repositories.unit_repo import UnitRepository
+from app.schemas.archibus import ArchibusBuildingResponse, ArchibusRoomResponse
 
 router = APIRouter()
 
@@ -38,10 +38,12 @@ async def get_archibus_rooms(
     unit_institutional_ids = UnitRepository.build_archibus_unit_ids(unit)
 
     if building_location or building_name:
-        return await repo.list_rooms(
+        rooms = await repo.list_rooms(
             unit_institutional_ids=unit_institutional_ids,
             building_location=building_location,
             building_name=building_name,
         )
+        return [ArchibusRoomResponse.model_validate(room) for room in rooms]
 
-    return await repo.list_buildings(unit_institutional_ids=unit_institutional_ids)
+    buildings = await repo.list_buildings(unit_institutional_ids=unit_institutional_ids)
+    return [ArchibusBuildingResponse.model_validate(building) for building in buildings]

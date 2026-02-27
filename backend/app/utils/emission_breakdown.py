@@ -21,6 +21,7 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
 # Splits Building into two separate x-axis bars by emission type
 _MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
     (3, EmissionTypeEnum.energy): "Buildings energy consumption",
+    (3, EmissionTypeEnum.combustion): "Energy combustion",
     (3, EmissionTypeEnum.grey_energy): "Buildings room",
 }
 
@@ -66,17 +67,18 @@ for (_mid, _etype), _cat in _MODULE_EMISSION_CATEGORY.items():
         CATEGORY_TO_MODULE_TYPE_IDS[_cat].append(_mid)
 
 # Headcount placeholder per-FTE values (kg CO2eq per FTE per year)
-HEADCOUNT_PER_FTE_KG: dict[str, float] = {
-    "food": 420.0,
-    "waste": 125.0,
-    "commuting": 1375.0,
-    "greyEnergy": 500.0,
+HEADCOUNT_PER_FTE_KG: dict[EmissionTypeEnum, float] = {
+    EmissionTypeEnum.food: 420.0,
+    EmissionTypeEnum.waste: 125.0,
+    EmissionTypeEnum.commuting: 1375.0,
+    EmissionTypeEnum.grey_energy: 500.0,
 }
 
 MODULE_BREAKDOWN_ORDER = [
     # Scope 1
     "Process Emissions",
     "Buildings energy consumption",
+    "Energy combustion",
     # Scope 2
     "Buildings room",
     "Equipment",
@@ -92,6 +94,7 @@ MODULE_BREAKDOWN_ORDER = [
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
     "Process Emissions": ["process_emissions"],
     "Buildings energy consumption": ["energy"],
+    "Energy combustion": ["combustion"],
     "Buildings room": ["grey_energy"],
     "Equipment": ["scientific", "it", "other"],
     "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
@@ -215,7 +218,8 @@ def build_chart_breakdown(
     headcount_totals_kg: dict[str, float] = {}
 
     if headcount_validated and total_fte > 0:
-        for hc_key, per_fte_kg in HEADCOUNT_PER_FTE_KG.items():
+        for hc_emission_type, per_fte_kg in HEADCOUNT_PER_FTE_KG.items():
+            hc_key = HEADCOUNT_KEY_MAP[hc_emission_type]
             headcount_totals_kg[hc_key] = per_fte_kg * total_fte
 
     for cat_name in ADDITIONAL_BREAKDOWN_ORDER:

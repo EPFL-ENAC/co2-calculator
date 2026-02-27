@@ -65,6 +65,7 @@ export interface ModuleField {
   inputTypeName?: string;
   editableInline?: boolean;
   readOnly?: boolean;
+  readOnlyWhenFilled?: boolean;
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;

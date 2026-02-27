@@ -200,7 +200,7 @@
                 :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
-                :readonly="inp.disable || inp.readOnly"
+                :readonly="isReadOnly(inp)"
                 :disable="inp.disable"
                 :color="inp.type === 'checkbox' ? 'accent' : undefined"
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
@@ -303,6 +303,7 @@ import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptio
 import { useArchibusRoomDynamicOptions } from 'src/composables/useArchibusRoomDynamicOptions';
 import {
   MODULES,
+  SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
@@ -401,6 +402,16 @@ function getDynamicRatio(inp: ModuleField): string | undefined {
   }
 
   return inp.ratio;
+}
+
+function isReadOnly(inp: ModuleField): boolean {
+  if (inp.disable || inp.readOnly) return true;
+  if (!inp.readOnlyWhenFilled) return false;
+
+  const value = form[inp.id];
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
 }
 
 // Generic conditional options filtering - made reactive with computed
@@ -503,6 +514,11 @@ const useEquipmentClassOptionsConfig: Record<string, string> = {};
 if (props.moduleType === MODULES.EquipmentElectricConsumption) {
   useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'active_power_w';
   useEquipmentClassOptionsConfig['secondaryValueFieldId'] = 'standby_power_w';
+} else if (
+  props.moduleType === MODULES.Buildings &&
+  props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
+) {
+  useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'unit';
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =

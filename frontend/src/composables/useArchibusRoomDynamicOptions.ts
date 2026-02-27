@@ -38,7 +38,10 @@ export function useArchibusRoomDynamicOptions(
       if (!currentUnitId) return;
 
       try {
-        const rooms = await archibusStore.fetchRooms(currentUnitId, buildingName);
+        const rooms = await archibusStore.fetchRooms(
+          currentUnitId,
+          buildingName,
+        );
         const match = rooms.find((r) => r.room_name === newVal);
         if (!match) return;
 
