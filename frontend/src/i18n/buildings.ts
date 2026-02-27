@@ -35,9 +35,17 @@ export default {
     en: 'Add a room',
     fr: 'Ajouter un local',
   },
+  [`${MODULES.Buildings}-building-form-title-info-label`]: {
+    en: 'Information about adding a room',
+    fr: "Information sur l'ajout d'un local",
+  },
   [`${MODULES.Buildings}-energy_combustion-form-title`]: {
     en: 'Add an energy source',
     fr: "Ajouter une source d'énergie",
+  },
+  [`${MODULES.Buildings}-energy_combustion-form-tooltip`]: {
+    en: 'Enter the sources of fossil or non-fossil energy combustion if they are not taken into account in the main module.',
+    fr: 'Entrez les sources de combustion d’énergie fossiles ou non-fossiles si celles-ci ne sont pas prises en compte dans le module principal.',
   },
 
   // Rooms fields
@@ -126,8 +134,8 @@ export default {
     fr: "Ajouter une source d'énergie",
   },
   [`${MODULES.Buildings}.combustion-form-title`]: {
-    en: 'Add an energy source',
-    fr: "Ajouter une source d'énergie",
+    en: 'Add a heating type',
+    fr: 'Ajouter un type de chauffage',
   },
 
   // Combustion fields

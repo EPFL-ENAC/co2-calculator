@@ -1,4 +1,4 @@
-import { computed, watch, type Ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -43,11 +43,107 @@ export function useArchibusRoomDynamicOptions(
 ) {
   const workspaceStore = useWorkspaceStore();
   const archibusStore = useArchibusRoomStore();
+  const archibusBuildingOptions = ref<Array<{ value: string; label: string }>>(
+    [],
+  );
+  const archibusRoomOptions = ref<Array<{ value: string; label: string }>>([]);
+  const loadingArchibusBuildings = ref(false);
+  const loadingArchibusRooms = ref(false);
 
   const isBuildingsRoomSubmodule = computed(
     () =>
       moduleType.value === MODULES.Buildings &&
       submoduleType.value === SUBMODULE_BUILDINGS_TYPES.Building,
+  );
+
+  const dynamicOptionsById = computed<
+    Record<string, Array<{ value: string; label: string }>>
+  >(() => {
+    if (!isBuildingsRoomSubmodule.value) return {};
+    return {
+      kind: archibusBuildingOptions.value,
+      subkind: archibusRoomOptions.value,
+    };
+  });
+
+  const loadingByOptionsId = computed<Record<string, boolean>>(() => {
+    if (!isBuildingsRoomSubmodule.value) return {};
+    return {
+      kind: loadingArchibusBuildings.value,
+      subkind: loadingArchibusRooms.value,
+    };
+  });
+
+  watch(
+    [isBuildingsRoomSubmodule, unitId, () => workspaceStore.selectedUnit?.id],
+    async () => {
+      if (!isBuildingsRoomSubmodule.value) {
+        archibusBuildingOptions.value = [];
+        return;
+      }
+
+      const currentUnitId = unitId.value ?? workspaceStore.selectedUnit?.id;
+      if (!currentUnitId) {
+        archibusBuildingOptions.value = [];
+        return;
+      }
+
+      loadingArchibusBuildings.value = true;
+      try {
+        const buildings = await archibusStore.fetchBuildings(currentUnitId);
+        archibusBuildingOptions.value = buildings.map((building) => ({
+          value: building.building_name,
+          label: building.building_name,
+        }));
+      } finally {
+        loadingArchibusBuildings.value = false;
+      }
+    },
+    { immediate: true },
+  );
+
+  watch(
+    () => form['building_name'],
+    async (newValue, oldValue) => {
+      if (!isBuildingsRoomSubmodule.value) return;
+
+      const buildingName = normalizeSelectValue(form['building_name']);
+      const currentUnitId = unitId.value ?? workspaceStore.selectedUnit?.id;
+      if (!buildingName || !currentUnitId) {
+        archibusRoomOptions.value = [];
+        return;
+      }
+
+      loadingArchibusRooms.value = true;
+      try {
+        const rooms = await archibusStore.fetchRooms(currentUnitId, buildingName);
+        archibusRoomOptions.value = rooms.map((room) => ({
+          value: room.room_name,
+          label: room.room_name,
+        }));
+
+        const oldBuildingName = normalizeSelectValue(oldValue);
+        const newBuildingName = normalizeSelectValue(newValue);
+        if (oldBuildingName && newBuildingName && oldBuildingName !== newBuildingName) {
+          const currentRoomName = normalizeSelectValue(form['room_name']);
+          const roomStillValid = archibusRoomOptions.value.some(
+            (roomOption) => roomOption.value === currentRoomName,
+          );
+          if (!roomStillValid) {
+            form['room_name'] = null;
+            form['room_surface_square_meter'] = null;
+            form['room_type'] = null;
+            form['heating_kwh'] = null;
+            form['cooling_kwh'] = null;
+            form['ventilation_kwh'] = null;
+            form['lighting_kwh'] = null;
+          }
+        }
+      } finally {
+        loadingArchibusRooms.value = false;
+      }
+    },
+    { immediate: true },
   );
 
   watch(
@@ -75,7 +171,7 @@ export function useArchibusRoomDynamicOptions(
         );
         if (!match) return;
 
-        form['room_type'] = match.room_type ?? '';
+        form['room_type'] = match.room_type ?? null;
         const surface = parseNumericValue(match.room_surface_square_meter);
         const heatingPerSquareMeter =
           parseNumericValue(match.heating_kwh_per_square_meter) ?? 0;
@@ -101,4 +197,13 @@ export function useArchibusRoomDynamicOptions(
       }
     },
   );
+
+  return {
+    archibusBuildingOptions,
+    archibusRoomOptions,
+    loadingArchibusBuildings,
+    loadingArchibusRooms,
+    dynamicOptionsById,
+    loadingByOptionsId,
+  };
 }

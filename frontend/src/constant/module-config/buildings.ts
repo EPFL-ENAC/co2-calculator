@@ -46,7 +46,6 @@ const roomFields: ModuleField[] = [
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     options: [
-      { value: '', label: '-' },
       { value: 'Office', label: 'Office' },
       { value: 'Miscels', label: 'Miscellaneous' },
       {
@@ -201,6 +200,7 @@ export const buildings: ModuleConfig = {
       type: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion as BuildingsSubType,
       tableNameKey: `${MODULES.Buildings}.combustion_table_title`,
       moduleFields: energyCombustionFields,
+      hasFormTooltip: `${MODULES.Buildings}-energy_combustion-form-tooltip`,
       hasTableAction: true,
       addButtonLabelKey: `${MODULES.Buildings}.add_combustion_button`,
     },
