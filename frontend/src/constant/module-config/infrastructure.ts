@@ -1,7 +1,7 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_INFRASTRUCTURE_TYPES } from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
-import type { InfrastructureSubType } from 'src/constant/modules';
+import type { AllSubmoduleTypes } from 'src/constant/modules';
 
 const buildingFields: ModuleField[] = [
   {
@@ -48,7 +48,7 @@ export const infrastructure: ModuleConfig = {
   submodules: [
     {
       id: 'sub_building',
-      type: SUBMODULE_INFRASTRUCTURE_TYPES.Building as InfrastructureSubType,
+      type: SUBMODULE_INFRASTRUCTURE_TYPES.Building as AllSubmoduleTypes,
       name: 'Building',
       moduleFields: buildingFields,
     },

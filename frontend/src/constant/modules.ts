@@ -52,7 +52,7 @@ export type ExternalCloudSubType =
 
 type ExternalCloudProps = {
   moduleType: typeof MODULES.ExternalCloudAndAI;
-  submoduleType?: ExternalCloudSubType;
+  submoduleType?: AllSubmoduleTypes; // ExternalCloudSubType;
 };
 
 export const SUBMODULE_PURCHASE_TYPES = {
@@ -71,7 +71,7 @@ export type PurchaseSubType =
 
 type PurchaseProps = {
   moduleType: typeof MODULES.Purchase;
-  submoduleType?: PurchaseSubType;
+  submoduleType?: AllSubmoduleTypes; // PurchaseSubType;
 };
 
 export const SUBMODULE_PROCESSES_TYPES = {
@@ -83,7 +83,7 @@ export type ProcessesSubType =
 
 type ProcessesProps = {
   moduleType: typeof MODULES.ProcessEmissions;
-  submoduleType?: ProcessesSubType;
+  submoduleType?: AllSubmoduleTypes; // ProcessesSubType;
 };
 
 export const enumSubmodule = {
@@ -134,17 +134,17 @@ export type InfrastructureSubType =
 
 type InfrastructureProps = {
   moduleType: typeof MODULES.Infrastructure;
-  submoduleType?: InfrastructureSubType;
+  submoduleType?: AllSubmoduleTypes; // InfrastructureSubType;
 };
 
 type EquipmentElectricConsumptionProps = {
   moduleType: typeof MODULES.EquipmentElectricConsumption;
-  submoduleType?: EquipmentElectricConsumptionSubType;
+  submoduleType?: AllSubmoduleTypes; // EquipmentElectricConsumptionSubType;
 };
 
 export type HeadcountProps = {
   moduleType: typeof MODULES.Headcount;
-  submoduleType?: HeadcountSubType;
+  submoduleType?: AllSubmoduleTypes; // HeadcountSubType;
 };
 
 export const SUBMODULE_PROFESSIONAL_TRAVEL_TYPES = {
@@ -157,7 +157,7 @@ export type ProfessionalTravelSubType =
 
 type ProfessionalTravelProps = {
   moduleType: typeof MODULES.ProfessionalTravel;
-  submoduleType?: ProfessionalTravelSubType;
+  submoduleType?: AllSubmoduleTypes; // ProfessionalTravelSubType;
 };
 
 export const SUBMODULE_INTERNAL_SERVICES_TYPES = {
@@ -171,18 +171,10 @@ export type InternalServicesSubType =
 
 type InternalServicesProps = {
   moduleType: typeof MODULES.InternalServices;
-  submoduleType?: InternalServicesSubType;
+  submoduleType?: AllSubmoduleTypes; // InternalServicesSubType;
 };
 
-export type AllSubmoduleTypes =
-  | EquipmentElectricConsumptionSubType
-  | HeadcountSubType
-  | PurchaseSubType
-  | InfrastructureSubType
-  | ProfessionalTravelSubType
-  | InternalServicesSubType
-  | ExternalCloudSubType
-  | ProcessesSubType;
+export type AllSubmoduleTypes = keyof typeof enumSubmodule;
 
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps

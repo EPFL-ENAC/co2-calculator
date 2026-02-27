@@ -42,7 +42,7 @@ const baseModuleFields: ModuleField[] = [
     placeholder: 'e.g., Agitator, Centrifuge',
     sortable: true,
     align: 'left',
-    readOnly: true,
+    readOnly: false,
     ratio: '1/1',
   },
   {
@@ -117,7 +117,7 @@ const baseModuleFields: ModuleField[] = [
     ratio: '3/12',
     icon: 'o_electric_bolt',
     hideIn: {
-      form: true,
+      form: false,
     },
     maxColumnWidth: 150,
   },
@@ -133,7 +133,7 @@ const baseModuleFields: ModuleField[] = [
     tooltip: powerTooltip,
     readOnly: true,
     hideIn: {
-      form: true,
+      form: false,
     },
     editableInline: false,
     ratio: '3/12',
