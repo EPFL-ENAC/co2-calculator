@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport
 from app.models.unit import Unit
-from app.models.user import UserProvider
+from app.schemas.unit import UnitUpdate
 
 
 @dataclass
@@ -157,26 +157,14 @@ class UnitRepository:
 
     async def create(
         self,
-        institutional_code: str,
-        name: str,
-        principal_user_institutional_id: Optional[str] = None,
-        path_name: Optional[str] = None,
-        provider: Optional[UserProvider] = None,
-        institutional_id: Optional[str] = None,
+        data: Unit,
     ) -> Unit:
         """Create a new unit."""
-        entity = Unit(
-            institutional_code=institutional_code,
-            name=name,
-            principal_user_institutional_id=principal_user_institutional_id,
-            path_name=path_name,
-            provider=provider,
-            institutional_id=institutional_id,
-        )
-        self.session.add(entity)
+        db_obj = Unit.model_validate({**data.model_dump()})
+        self.session.add(db_obj)
         await self.session.flush()
-        await self.session.refresh(entity)
-        return entity
+        await self.session.refresh(db_obj)
+        return db_obj
 
     async def bulk_create(self, units: List[Unit]) -> List[Unit]:
         """Bulk create units."""
@@ -202,37 +190,22 @@ class UnitRepository:
             created=created, updated=updated, total=len(units), data=merged
         )
 
-    async def update(
-        self,
-        id: int,
-        name: Optional[str] = None,
-        principal_user_institutional_id: Optional[str] = None,
-        path_name: Optional[str] = None,
-        provider: Optional[UserProvider] = None,
-        institutional_id: Optional[str] = None,
-        institutional_code: Optional[str] = None,
-    ) -> Unit:
+    async def update(self, data: UnitUpdate) -> Optional[Unit]:
         """Update an existing unit."""
-        result = await self.session.exec(select(Unit).where(Unit.id == id))
-        entity = result.one_or_none()
-        if not entity:
-            raise ValueError("Unit not found")
+        statement = await self.session.exec(select(Unit).where(col(Unit.id) == data.id))
+        db_obj = statement.one_or_none()
 
-        if name is not None:
-            entity.name = name
-        if principal_user_institutional_id is not None:
-            entity.principal_user_institutional_id = principal_user_institutional_id
-        if path_name is not None:
-            entity.path_name = path_name
+        if not db_obj:
+            return None
 
-        entity.provider = provider or entity.provider
-        if institutional_id is not None:
-            entity.institutional_id = institutional_id
-        if institutional_code is not None:
-            entity.institutional_code = institutional_code
+        # 2. Update fields from input model (only provided fields)
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_obj, field, value)
+        # 4. Save
+        self.session.add(db_obj)
         await self.session.flush()
-        await self.session.refresh(entity)
-        return entity
+        return db_obj
 
     async def upsert(
         self,
@@ -245,26 +218,15 @@ class UnitRepository:
         # so provider is wrong
         # And cost_centers are not updated
         if existing and existing.id:
-            return await self.update(
-                id=existing.id,
-                name=unit_data.name,
-                principal_user_institutional_id=unit_data.principal_user_institutional_id,
-                path_name=unit_data.path_name,
-                provider=unit_data.provider,
-                institutional_id=unit_data.institutional_id,
-            )
+            updated_value = await self.update(UnitUpdate.model_validate(unit_data))
+            if updated_value is None:
+                raise ValueError("Failed to update existing unit")
+            return updated_value
         else:
             if not unit_data.institutional_code:
                 raise ValueError("Unit institutional code is required")
 
-            return await self.create(
-                institutional_code=unit_data.institutional_code,
-                name=unit_data.name,
-                principal_user_institutional_id=unit_data.principal_user_institutional_id,
-                path_name=unit_data.path_name,
-                institutional_id=unit_data.institutional_id,
-                provider=unit_data.provider,
-            )
+            return await self.create(unit_data)
 
     async def count(self, filters: Optional[dict] = None) -> int:
         """Count units with optional filters."""

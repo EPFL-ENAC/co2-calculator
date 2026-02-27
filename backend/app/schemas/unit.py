@@ -47,6 +47,16 @@ class UnitRead(Unit):
     principal_user_institutional_id: str
 
 
+class UnitUpdate(BaseModel):
+    """Schema for updating resource data."""
+
+    id: int
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    principal_user_institutional_id: Optional[str] = Field(
+        None, description="Principal user provider code"
+    )
+
+
 class UnitList(BaseModel):
     """Schema for paginated resource list."""
 

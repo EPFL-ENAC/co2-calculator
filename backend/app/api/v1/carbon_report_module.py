@@ -46,18 +46,18 @@ router = APIRouter()
 
 
 def _unit_institutional_ids(
-    cost_centers: list, provider_code: Optional[str]
+    institutional_id: Optional[str], institutional_code: Optional[str]
 ) -> list[str]:
-    """Return Archibus unit IDs from cost centers plus provider code."""
+    """Return Archibus unit IDs from institutional_id plus institutional_code."""
     normalized: list[str] = []
     seen: set[str] = set()
-    for item in cost_centers:
-        value = str(item).strip()
-        if value and value not in seen:
-            seen.add(value)
-            normalized.append(value)
-    if provider_code:
-        provider = str(provider_code).strip()
+
+    value = str(institutional_id).strip()
+    if value and value not in seen:
+        seen.add(value)
+        normalized.append(value)
+    if institutional_code:
+        provider = str(institutional_code).strip()
         if provider and provider not in seen:
             seen.add(provider)
             normalized.append(provider)
@@ -113,8 +113,8 @@ async def get_archibus_rooms(
     if unit is None:
         return []
     unit_institutional_ids = _unit_institutional_ids(
-        unit.cost_centers or [],
-        unit.provider_code,
+        unit.institutional_id or None,
+        unit.institutional_code or None,
     )
 
     if building_location or building_name:

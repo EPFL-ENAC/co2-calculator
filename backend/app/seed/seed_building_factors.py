@@ -21,7 +21,9 @@ CSV_PATH_BUILDING_ENERGY = (
 )
 
 CSV_PATH_COMBUSTION = (
-    Path(__file__).parent.parent.parent / "seed_data" / "seed_buildings_combustion_factors.csv"
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_buildings_combustion_factors.csv"
 )
 
 
