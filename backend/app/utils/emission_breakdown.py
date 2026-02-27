@@ -21,8 +21,9 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
 
 # (module_type_id, emission_type_id) → category override
 # Splits Building into two separate x-axis bars by emission type
+# TODO fix this without harcoding!
 _MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
-    (3, EmissionType.energy): "Buildings energy consumption",
+    (3, EmissionType.buildings__rooms): "Buildings energy consumption",
     (3, EmissionType.buildings__combustion): "Energy combustion",
     (3, EmissionType.grey_energy): "Buildings room",
 }

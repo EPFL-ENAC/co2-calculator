@@ -3,6 +3,7 @@
 import pytest
 
 from app.models.data_entry_emission import EmissionType
+from app.models.module_type import ModuleTypeEnum
 from app.utils.emission_breakdown import (
     HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
@@ -18,14 +19,41 @@ from app.utils.emission_breakdown import (
 def test_build_chart_breakdown_basic():
     """Equipment splits by subcategory; travel splits by emission type."""
     rows = [
+        # new rows are
+        # # (module_type_id, emission_type_id, scope, kg_co2eq)
         # Equipment (module_type_id=4): all share emission_type=equipment(2),
         # subcategory determines chart key
-        (4, 2, "Scientific", 10_000.0),
-        (4, 2, "It", 3_000.0),
-        (4, 2, "Other", 200.0),
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+            "Scientific",
+            10_000.0,
+        ),  # scientific_equipment
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__it.value,
+            "It",
+            3_000.0,
+        ),  # it_equipment
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__other.value,
+            "Other",
+            200.0,
+        ),  # other_purchases (no scientific/it classification)
         # Travel (module_type_id=2): emission_type distinguishes plane/train
-        (2, 7, "plane", 3_000.0),
-        (2, 8, "train", 1_500.0),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane.value,
+            "plane",
+            3_000.0,
+        ),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__train.value,
+            "train",
+            1_500.0,
+        ),
     ]
     result = build_chart_breakdown(rows)
 
@@ -46,7 +74,12 @@ def test_build_chart_breakdown_basic():
 def test_build_chart_breakdown_emission_type_for_buildings():
     """Buildings energy → 'Buildings energy consumption' bar."""
     rows = [
-        (3, 1, "Building", 9_000.0),
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms.value,
+            "Building",
+            9_000.0,
+        ),
     ]
     result = build_chart_breakdown(rows)
 
@@ -55,14 +88,24 @@ def test_build_chart_breakdown_emission_type_for_buildings():
         for d in result["module_breakdown"]
         if d["category"] == "Buildings energy consumption"
     )
-    assert infra["energy"] == pytest.approx(9.0)
+    assert infra["rooms"] == pytest.approx(9.0)
 
 
 def test_build_chart_breakdown_energy_combustion():
     """Buildings combustion → 'Energy combustion' bar."""
     rows = [
-        (3, 1, "Building", 4_000.0),  # energy → Buildings energy consumption
-        (3, 15, "Energy_Combustion", 2_000.0),  # combustion → Energy combustion
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms.value,
+            1,
+            4_000.0,
+        ),  # energy → Buildings energy consumption
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__combustion.value,
+            1,
+            2_000.0,
+        ),  # combustion → Energy combustion
     ]
     result = build_chart_breakdown(rows)
 
@@ -71,7 +114,7 @@ def test_build_chart_breakdown_energy_combustion():
         for d in result["module_breakdown"]
         if d["category"] == "Buildings energy consumption"
     )
-    assert energy_bar["energy"] == pytest.approx(4.0)
+    assert energy_bar["rooms"] == pytest.approx(4.0)
 
     combustion_bar = next(
         d for d in result["module_breakdown"] if d["category"] == "Energy combustion"
@@ -84,11 +127,36 @@ def test_build_chart_breakdown_energy_combustion():
 def test_build_chart_breakdown_emission_type_for_cloud():
     """External cloud & AI uses emission type as chart key (all 4 types)."""
     rows = [
-        (7, 10, "External_Clouds", 800.0),  # stockage
-        (7, 11, "External_Clouds", 600.0),  # virtualisation
-        (7, 12, "External_Clouds", 2_000.0),  # calcul
-        (7, 12, "External_Clouds", 500.0),  # calcul (aggregated)
-        (7, 13, "External_Ai", 1_000.0),  # ai_provider
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__stockage.value,
+            "External_Clouds",
+            800.0,
+        ),  # stockage
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__virtualisation.value,
+            "External_Clouds",
+            600.0,
+        ),  # virtualisation
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__calcul.value,
+            "External_Clouds",
+            2_000.0,
+        ),  # calcul
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__calcul.value,
+            "External_Clouds",
+            500.0,
+        ),  # calcul (aggregated)
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__ai__provider_others.value,
+            "External_Ai",
+            1_000.0,
+        ),  # ai_provider
     ]
     result = build_chart_breakdown(rows)
 
@@ -98,7 +166,7 @@ def test_build_chart_breakdown_emission_type_for_cloud():
     assert cloud["stockage"] == pytest.approx(0.8)
     assert cloud["virtualisation"] == pytest.approx(0.6)
     assert cloud["calcul"] == pytest.approx(2.5)
-    assert cloud["ai_provider"] == pytest.approx(1.0)
+    assert cloud["provider_others"] == pytest.approx(1.0)
 
 
 def test_build_chart_breakdown_empty_input():
@@ -125,10 +193,25 @@ def test_build_chart_breakdown_empty_input():
 def test_build_chart_breakdown_category_ordering():
     """All categories appear in MODULE_BREAKDOWN_ORDER."""
     rows = [
-        (2, 7, "plane", 1_000.0),
-        (3, 1, "Building", 500.0),
-        (4, 2, "Scientific", 800.0),
-        (7, 12, "External_Ai", 300.0),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane.value,
+            1,
+            1_000.0,
+        ),
+        (ModuleTypeEnum.buildings.value, EmissionType.buildings__rooms.value, 1, 500.0),
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+            1,
+            800.0,
+        ),
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__calcul.value,
+            1,
+            300.0,
+        ),
     ]
     result = build_chart_breakdown(rows)
 
@@ -145,7 +228,7 @@ def test_build_chart_breakdown_category_ordering():
         for d in result["module_breakdown"]
         if d["category"] == "Buildings energy consumption"
     )
-    assert infra["energy"] == pytest.approx(0.5)
+    assert infra["rooms"] == pytest.approx(0.5)
 
     rcf = next(
         d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
@@ -157,16 +240,16 @@ def test_build_chart_breakdown_category_ordering():
     )
     assert purchases == {
         "category": "Purchases",
-        "additional_purchases": 0.0,
-        "additional_purchasesStdDev": 0.0,
-        "biological_chemical_gaseous_product": 0.0,
-        "biological_chemical_gaseous_productStdDev": 0.0,
+        "additional": 0.0,
+        "additionalStdDev": 0.0,
+        "biological_chemical_gaseous": 0.0,
+        "biological_chemical_gaseousStdDev": 0.0,
         "consumable_accessories": 0.0,
         "consumable_accessoriesStdDev": 0.0,
         "it_equipment": 0.0,
         "it_equipmentStdDev": 0.0,
-        "other_purchases": 0.0,
-        "other_purchasesStdDev": 0.0,
+        "other": 0.0,
+        "otherStdDev": 0.0,
         "scientific_equipment": 0.0,
         "scientific_equipmentStdDev": 0.0,
         "services": 0.0,
@@ -256,7 +339,7 @@ def test_build_chart_breakdown_per_person():
 def test_build_chart_breakdown_per_person_zero_fte():
     """When FTE=0, per-person values are all 0 (no division by zero)."""
     rows = [
-        (4, 2, "Scientific", 5_000.0),
+        (4, EmissionType.equipment__scientific.value, 1, 5_000.0),
     ]
     result = build_chart_breakdown(rows, total_fte=0.0)
 
@@ -268,8 +351,13 @@ def test_build_chart_breakdown_per_person_zero_fte():
 def test_build_chart_breakdown_stddev_keys():
     """Each value key has a corresponding *StdDev key (0.0 placeholder)."""
     rows = [
-        (4, 2, "Scientific", 10_000.0),
-        (3, 1, "Building", 9_000.0),  # maps to "Buildings energy consumption"
+        (4, EmissionType.equipment__scientific.value, 1, 10_000.0),
+        (
+            3,
+            EmissionType.buildings__rooms.value,
+            1,
+            9_000.0,
+        ),  # maps to "Buildings energy consumption"
     ]
     result = build_chart_breakdown(rows)
 
@@ -284,8 +372,8 @@ def test_build_chart_breakdown_stddev_keys():
 def test_build_chart_breakdown_null_filtered():
     """None/null kg_co2eq values excluded from aggregation."""
     rows = [
-        (4, 2, "Scientific", 5_000.0),
-        (4, 2, "It", None),  # type: ignore[arg-type]
+        (4, EmissionType.equipment__scientific.value, 1, 5_000.0),
+        (4, EmissionType.equipment__it.value, 1, None),  # type: ignore[arg-type]
     ]
     result = build_chart_breakdown(rows)
 
@@ -297,9 +385,9 @@ def test_build_chart_breakdown_null_filtered():
 def test_build_chart_breakdown_emission_type_aggregation():
     """Multiple rows with same subcategory aggregate correctly."""
     rows = [
-        (4, 2, "Scientific", 4_000.0),
-        (4, 2, "Scientific", 2_000.0),
-        (4, 2, "It", 3_000.0),
+        (4, EmissionType.equipment__scientific.value, 1, 4_000.0),
+        (4, EmissionType.equipment__scientific.value, 1, 2_000.0),
+        (4, EmissionType.equipment__it.value, 1, 3_000.0),
     ]
     result = build_chart_breakdown(rows)
 
@@ -310,19 +398,29 @@ def test_build_chart_breakdown_emission_type_aggregation():
 
 def test_build_chart_breakdown_validated_categories():
     """validated_categories reflects which modules are validated."""
-    rows = [(4, 2, "Scientific", 1_000.0)]
+    rows = [
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+            1,
+            1_000.0,
+        )
+    ]
     result = build_chart_breakdown(
         rows,
-        validated_module_type_ids={4, 2},
+        validated_module_type_ids={
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+        },
     )
     assert "Equipment" in result["validated_categories"]
-    assert "Professional travel" in result["validated_categories"]
+    assert "Professional travel" not in result["validated_categories"]
     assert "Buildings energy consumption" not in result["validated_categories"]
 
 
 def test_build_chart_breakdown_validated_includes_additional_when_headcount():
     """Additional categories are validated when headcount is validated."""
-    rows = [(4, 2, "Scientific", 1_000.0)]
+    rows = [(4, EmissionType.equipment__scientific.value, 1, 1_000.0)]
     result = build_chart_breakdown(
         rows,
         total_fte=10.0,
