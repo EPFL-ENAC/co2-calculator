@@ -279,7 +279,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed, ref, toRef } from 'vue';
+import { reactive, watch, computed, ref } from 'vue';
 
 import type { ModuleField } from 'src/constant/moduleConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -299,10 +299,12 @@ import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
-import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import { getArchibusRooms } from 'src/api/archibus';
 import {
   MODULES,
+  SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
+  type TaxonomyNode,
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -409,7 +411,7 @@ const filteredOptionsMap = computed(() => {
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
     // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp?.id ?? ''];
+    const dynamicOpts = dynamicOptions.value[inp?.id ?? ''];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -486,20 +488,53 @@ const emit = defineEmits<{
 const form = reactive<Record<string, any>>({});
 const errors = reactive<Record<string, string | null>>({});
 
-const treeLevels = computed<TreeLevelConfig[]>(() =>
-  visibleFields.value
-    .filter((f) => f.treeLevel !== undefined)
-    .sort((a, b) => a.treeLevel! - b.treeLevel!)
-    .map((f) => ({ fieldId: f.id, optionKey: f.id })),
+function normalizeSelection(raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'object' && raw !== null && 'value' in raw) {
+    return String((raw as { value: unknown }).value);
+  }
+  return String(raw);
+}
+
+function toOptions(nodes?: TaxonomyNode[]): Option[] {
+  return (nodes ?? []).map((node) => ({
+    label: node.label || node.name,
+    value: node.name,
+  }));
+}
+
+const moduleTypeForTaxonomy = computed<Module | null>(() =>
+  Object.values(MODULES).includes(props.moduleType as Module)
+    ? (props.moduleType as Module)
+    : null,
 );
 
-const treeLevels = computed<TreeLevelConfig[]>(() => {
-  const levels: TreeLevelConfig[] = [];
-  for (const optId of TREE_OPTION_IDS) {
-    const field = visibleFields.value.find((f) => f.optionsId === optId);
-    if (field) levels.push({ fieldId: field.id, optionKey: optId });
+const taxonomyNode = computed(
+  () => moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''] ?? null,
+);
+
+const kindFieldId = computed(
+  () => visibleFields.value.find((f) => f.optionsId === 'kind')?.id ?? null,
+);
+const subkindFieldId = computed(
+  () => visibleFields.value.find((f) => f.optionsId === 'subkind')?.id ?? null,
+);
+
+const dynamicOptions = computed<Record<string, Option[]>>(() => {
+  const map: Record<string, Option[]> = {};
+  const classes = toOptions(taxonomyNode.value?.children);
+  if (kindFieldId.value) map[kindFieldId.value] = classes;
+
+  if (subkindFieldId.value) {
+    const selectedKind = kindFieldId.value
+      ? normalizeSelection(form[kindFieldId.value])
+      : null;
+    const selectedNode = taxonomyNode.value?.children?.find(
+      (node) => node.name === selectedKind,
+    );
+    map[subkindFieldId.value] = toOptions(selectedNode?.children);
   }
-  return levels;
+  return map;
 });
 
 const useEquipmentClassOptionsConfig: Record<string, string> = {};
@@ -575,10 +610,6 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
-// legacy helpers kept only for typing compatibility; logic lives
-// entirely in the useEquipmentClassOptions composable.
-// They are intentionally not used here.
-
 function init() {
   if (props.rowData) {
     Object.keys(props.rowData).forEach((key) => {
@@ -607,7 +638,7 @@ function init() {
           case 'radio-group':
             form[i.id] = (() => {
               const options =
-                dynamicOptions[i.optionsId] ??
+                dynamicOptions.value[i.id] ??
                 i.options?.map((o) => ({
                   label: o.label,
                   value: o.value,
@@ -851,7 +882,7 @@ function reset() {
     else if (effectiveType === 'radio-group') {
       // Set first option as default
       const options =
-        dynamicOptions[i.optionsId] ??
+        dynamicOptions.value[i.id] ??
         i.options?.map((o) => ({
           label: o.label,
           value: o.value,
