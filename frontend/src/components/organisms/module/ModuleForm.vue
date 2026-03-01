@@ -520,6 +520,10 @@ if (props.moduleType === MODULES.EquipmentElectricConsumption) {
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
   useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
+    enabled: !(
+      props.moduleType === MODULES.Buildings &&
+      props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
+    ),
     classFieldId: kindFieldId.value ?? undefined,
     subClassFieldId: subkindFieldId.value ?? undefined,
     fetchFactorValuesOnChange: true,

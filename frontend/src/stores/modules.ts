@@ -327,13 +327,19 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleTaxonomy(moduleType: Module) {
+  async function getModuleTaxonomy(moduleType: Module, unitId?: number) {
     state.loading = true;
     state.error = null;
     state.taxonomy = null;
     try {
+      const params =
+        typeof unitId === 'number'
+          ? `?unit_id=${encodeURIComponent(String(unitId))}`
+          : '';
       state.taxonomy = (await api
-        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
+        .get(
+          `taxonomies/module_type/${encodeURIComponent(moduleType)}${params}`,
+        )
         .json()) as TaxonomyNode;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -420,14 +426,19 @@ export const useModuleStore = defineStore('modules', () => {
   async function getSubmoduleTaxonomy(
     moduleType: Module,
     submoduleType: string,
+    unitId?: number,
   ) {
     state.loading = true;
     state.error = null;
     state.taxonomySubmodule[submoduleType] = null;
     try {
+      const params =
+        typeof unitId === 'number'
+          ? `?unit_id=${encodeURIComponent(String(unitId))}`
+          : '';
       const taxonomy = (await api
         .get(
-          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}`,
+          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}${params}`,
         )
         .json()) as TaxonomyNode;
       state.taxonomySubmodule[submoduleType] = taxonomy;

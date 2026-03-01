@@ -3,6 +3,7 @@ from typing import Any, Optional
 from pydantic import field_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.archibus_room import ArchibusRoom
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -12,6 +13,9 @@ from app.models.data_entry_emission import (
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.models.taxonomy import TaxonomyNode
+from app.repositories.archibus_room_repo import ArchibusRoomRepository
+from app.repositories.unit_repo import UnitRepository
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
@@ -115,57 +119,63 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         payload["primary_factor_id"] = None
         return payload
 
-    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """Pre-compute per-subcategory kWh from kwh_per_m2 × surface."""
-        surface = data_entry.data.get("room_surface_square_meter") or 0
-        return {
-            "lighting_kwh": (data_entry.data.get("lighting_kwh_per_square_meter") or 0)
-            * surface,
-            "cooling_kwh": (data_entry.data.get("cooling_kwh_per_square_meter") or 0)
-            * surface,
-            "ventilation_kwh": (
-                data_entry.data.get("ventilation_kwh_per_square_meter") or 0
+    async def get_taxonomy(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        db: AsyncSession,
+        unit_id: int | None = None,
+    ) -> TaxonomyNode:
+        """Build building/room taxonomy from Archibus room data scoped to a unit."""
+        if unit_id is None:
+            return TaxonomyNode(
+                name=data_entry_type.name,
+                label=self.to_label(data_entry_type.name),
+                children=[],
             )
-            * surface,
-            "heating_kwh": (data_entry.data.get("heating_kwh_per_square_meter") or 0)
-            * surface,
-        }
 
-    # Maps each building EmissionType leaf → (factor subkind, context quantity_key)
-    _EMISSION_TO_SUBCATEGORY: dict = {
-        EmissionType.buildings__rooms__lighting: ("lighting", "lighting_kwh"),
-        EmissionType.buildings__rooms__cooling: ("cooling", "cooling_kwh"),
-        EmissionType.buildings__rooms__ventilation: ("ventilation", "ventilation_kwh"),
-        EmissionType.buildings__rooms__heating_elec: ("heating_elec", "heating_kwh"),
-        EmissionType.buildings__rooms__heating_thermal: (
-            "heating_thermal",
-            "heating_kwh",
-        ),
-    }
-
-    def resolve_computations(
-        self, data_entry: Any, emission_type: Any, ctx: dict
-    ) -> list:
-
-        mapping = self._EMISSION_TO_SUBCATEGORY.get(emission_type)
-        if not mapping:
-            return []
-        subkind, quantity_key = mapping
-        building_name = data_entry.data.get("building_name", "")
-        return [
-            EmissionComputation(
-                emission_type=emission_type,
-                factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.building,
-                    kind=building_name,
-                    subkind=subkind,
-                ),
-                formula_key="ef_kg_co2eq_per_kwh",
-                quantity_key=quantity_key,
-                multiplier_key="conversion_factor",
-                multiplier_default=1.0,
+        unit_ids = await UnitRepository(db).get_archibus_unit_ids_by_id(unit_id)
+        if not unit_ids:
+            return TaxonomyNode(
+                name=data_entry_type.name,
+                label=self.to_label(data_entry_type.name),
+                children=[],
             )
-        ]
+
+        rooms = await ArchibusRoomRepository(db).list_rooms(
+            unit_institutional_ids=unit_ids
+        )
+        by_building: dict[str, set[str]] = {}
+        for room in rooms:
+            if not isinstance(room, ArchibusRoom):
+                continue
+            building_name = (room.building_name or "").strip()
+            room_name = (room.room_name or "").strip()
+            if not building_name:
+                continue
+            if building_name not in by_building:
+                by_building[building_name] = set()
+            if room_name:
+                by_building[building_name].add(room_name)
+
+        children: list[TaxonomyNode] = []
+        for building_name in sorted(by_building.keys()):
+            room_children = [
+                TaxonomyNode(name=room_name, label=room_name)
+                for room_name in sorted(by_building[building_name])
+            ]
+            children.append(
+                TaxonomyNode(
+                    name=building_name,
+                    label=building_name,
+                    children=room_children,
+                )
+            )
+
+        return TaxonomyNode(
+            name=data_entry_type.name,
+            label=self.to_label(data_entry_type.name),
+            children=children,
+        )
 
     def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
         d = data_entry.data

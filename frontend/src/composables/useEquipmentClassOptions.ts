@@ -26,6 +26,8 @@ interface FieldConfig {
   // a table row, they might not want to trigger power factor fetch
   // until they have finished editing both class and subclass, and automatic fetching on change could lead to multiple unnecessary API calls and potentially inconsistent intermediate states.
   fetchFactorValuesOnChange?: boolean;
+  // Disable this composable for submodules that don't use factor class/subclass.
+  enabled?: boolean;
 }
 
 export function useEquipmentClassOptions<
@@ -46,6 +48,7 @@ export function useEquipmentClassOptions<
 
   const fetchFactorValuesOnChange: boolean =
     config.fetchFactorValuesOnChange ?? false;
+  const enabled = config.enabled ?? true;
 
   const dynamicOptions = reactive<Record<string, Option[]>>({});
   const loadingClasses = ref(false);
@@ -64,6 +67,10 @@ export function useEquipmentClassOptions<
   }
 
   async function loadClassOptions() {
+    if (!enabled) {
+      dynamicOptions[classOptionId] = [];
+      return;
+    }
     const sub = submoduleType.value;
     if (!sub) return;
     loadingClasses.value = true;
@@ -77,6 +84,11 @@ export function useEquipmentClassOptions<
   }
 
   async function loadSubclassOptions() {
+    if (!enabled) {
+      dynamicOptions[subClassOptionId] = [];
+      subclassLoadError.value = false;
+      return;
+    }
     const sub = submoduleType.value;
     const cls = normalizeValue(entity[classFieldId]);
     if (!sub || !cls) {
@@ -120,6 +132,7 @@ export function useEquipmentClassOptions<
   }
 
   async function loadPowerFactor() {
+    if (!enabled) return;
     const sub = submoduleType.value;
     if (!sub) return;
 
@@ -171,6 +184,11 @@ export function useEquipmentClassOptions<
   watch(
     submoduleType,
     async () => {
+      if (!enabled) {
+        dynamicOptions[classOptionId] = [];
+        dynamicOptions[subClassOptionId] = [];
+        return;
+      }
       if (!submoduleType.value) {
         dynamicOptions[classFieldId] = [];
         dynamicOptions[subClassFieldId] = [];
@@ -197,6 +215,7 @@ export function useEquipmentClassOptions<
   watch(
     () => entity[classFieldId],
     async (newVal, oldVal) => {
+      if (!enabled) return;
       // maybe oldVal is undefined on first run, but we only want to
       // reset subclass if the class actually changed.
       if (oldVal === newVal) {
@@ -227,6 +246,7 @@ export function useEquipmentClassOptions<
   watch(
     () => entity[subClassFieldId],
     async () => {
+      if (!enabled) return;
       if (fetchFactorValuesOnChange) {
         await loadPowerFactor();
       }

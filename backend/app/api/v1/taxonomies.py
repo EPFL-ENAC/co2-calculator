@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -17,13 +17,14 @@ router = APIRouter()
 )
 async def get_taxonomy_for_module_type(
     module_type: ModuleTypeEnum,
+    unit_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module type."""
     nodes = []
     for data_entry_type in get_data_entry_types_for_module_type(module_type):
         handler = BaseModuleHandler.get_by_type(data_entry_type)
-        nodes.append(await handler.get_taxonomy(data_entry_type, db))
+        nodes.append(await handler.get_taxonomy(data_entry_type, db, unit_id=unit_id))
 
     return TaxonomyNode(
         name=module_type.name,
@@ -39,11 +40,12 @@ async def get_taxonomy_for_module_type(
 )
 async def get_taxonomy_for_data_entry_type(
     data_entry_type: DataEntryTypeEnum,
+    unit_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> TaxonomyNode:
     """Get taxonomy for a given data entry type."""
     handler = BaseModuleHandler.get_by_type(data_entry_type)
-    return await handler.get_taxonomy(data_entry_type, db)
+    return await handler.get_taxonomy(data_entry_type, db, unit_id=unit_id)
 
 
 @router.get(
@@ -53,11 +55,13 @@ async def get_taxonomy_for_data_entry_type(
 )
 async def get_taxonomy_for_module(
     module: str,
+    unit_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
-    module_type = ModuleTypeEnum[module]
-    return await get_taxonomy_for_module_type(module_type, db)
+    module_key = module.replace("-", "_")
+    module_type = ModuleTypeEnum[module_key]
+    return await get_taxonomy_for_module_type(module_type, unit_id=unit_id, db=db)
 
 
 @router.get(
@@ -68,8 +72,11 @@ async def get_taxonomy_for_module(
 async def get_taxonomy_for_module_data_entry(
     module: str,
     data_entry: str,
+    unit_id: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     data_entry_type = DataEntryTypeEnum[data_entry]
-    return await get_taxonomy_for_data_entry_type(data_entry_type, db)
+    return await get_taxonomy_for_data_entry_type(
+        data_entry_type, unit_id=unit_id, db=db
+    )

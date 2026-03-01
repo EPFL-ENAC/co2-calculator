@@ -140,7 +140,10 @@ class ModuleHandler(Protocol[T]):
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
     async def get_taxonomy(
-        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        db: AsyncSession,
+        unit_id: int | None = None,
     ) -> TaxonomyNode: ...
     async def pre_compute(
         self,
@@ -237,7 +240,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         return payload
 
     async def get_taxonomy(
-        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        db: AsyncSession,
+        unit_id: int | None = None,
     ) -> TaxonomyNode:
         """Default implementation to get taxonomy based on factors for this handler's
         data entry type. Specific handlers can override this method to implement
