@@ -165,7 +165,7 @@ class EmissionType(int, Enum):
     def children(self) -> list["EmissionType"]:
         """Returns direct children (one level down)."""
         results = []
-        for e in EmissionType:
+        for e in type(self):
             if e.parent_value == self.value and e != self:
                 results.append(e)
         return results
