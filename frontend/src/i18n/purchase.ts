@@ -22,8 +22,12 @@ export default {
     fr: 'Description de l’article',
   },
   [`${MODULES.Purchase}.inputs.purchase_institutional_code`]: {
-    en: 'UNSPC Code',
-    fr: 'Code UNSPC',
+    en: 'UNSPSC Code',
+    fr: 'Code UNSPSC',
+  },
+  [`${MODULES.Purchase}.inputs.purchase_institutional_code-hint`]: {
+    en: 'To identify the corresponding UNSPSC Code, please consult the reference table.',
+    fr: 'Pour identifier le code UNSPSC correspondant, veuillez consulter le tableau de référence.',
   },
   [`${MODULES.Purchase}.inputs.supplier`]: {
     en: 'Supplier',
@@ -36,6 +40,10 @@ export default {
   [`${MODULES.Purchase}.inputs.total_spent_amount`]: {
     en: 'Total Spent Amount',
     fr: 'Montant total dépensé',
+  },
+  [`${MODULES.Purchase}.inputs.total_spent_amount-hint`]: {
+    en: 'Amounts should be entered in CHF.',
+    fr: 'Les montants sont à saisir en CHF.',
   },
   [`${MODULES.Purchase}.inputs.annual_consumption`]: {
     en: 'Annual Consumption',
@@ -58,6 +66,11 @@ export default {
     {
       en: 'Add Scientific Equipment',
       fr: 'Ajouter un équipement scientifique',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title-info-tooltip`]:
+    {
+      en: 'For this category, EPFL-specific emission factors are used.',
+      fr: 'Pour cette catégorie, les facteurs d’émission spécifiques à l’EPFL sont utilisés.',
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
     {
@@ -124,9 +137,9 @@ export default {
       en: 'Additional Purchases',
       fr: 'Achats supplémentaires',
     },
-  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-form-title`]:
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title-info-tooltip`]:
     {
-      en: 'Add Additional Purchase',
-      fr: 'Ajouter un achat supplémentaire',
+      en: 'Saisissez les consommations annuelles si votre unité utilise les éléments listés ci-dessous.',
+      fr: 'Enter annual consumption values if your unit uses any of the items listed below.',
     },
 } as const;

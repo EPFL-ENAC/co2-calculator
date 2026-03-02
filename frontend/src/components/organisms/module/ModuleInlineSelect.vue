@@ -21,6 +21,7 @@
       class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
+      :title="props.hint ? $t(props.hint) : undefined"
       @update:model-value="onChange"
     />
   </div>
@@ -53,6 +54,7 @@ type CommonProps = {
   row: ModuleRow;
   fieldId: string;
   optionsId: string;
+  hint?: string;
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;

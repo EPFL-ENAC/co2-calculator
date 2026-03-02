@@ -162,6 +162,7 @@ const hasModuleForm = computed(() => {
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
   const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
+  console.log('Checking tooltip key:', tooltipKey, te(tooltipKey));
   return te(tooltipKey);
 });
 

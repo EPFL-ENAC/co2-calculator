@@ -183,7 +183,8 @@
                     submoduleTitle: $t(`${moduleType}-${submoduleType}`),
                   })
                 "
-                :placeholder="inp.placeholder"
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
