@@ -211,9 +211,6 @@
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
                 </template>
-                <template v-if="inp.type === 'select'" #hint>
-                  <div class="text-subtle">Select a value</div>
-                </template>
               </component>
             </div>
           </div>

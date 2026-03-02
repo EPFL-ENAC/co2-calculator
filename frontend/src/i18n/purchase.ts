@@ -139,7 +139,7 @@ export default {
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title-info-tooltip`]:
     {
-      en: 'Saisissez les consommations annuelles si votre unité utilise les éléments listés ci-dessous.',
       fr: 'Enter annual consumption values if your unit uses any of the items listed below.',
+      en: 'Saisissez les consommations annuelles si votre unité utilise les éléments listés ci-dessous.',
     },
 } as const;

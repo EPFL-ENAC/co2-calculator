@@ -129,7 +129,7 @@
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
-              :hint="col.hint ? $t(col.hint) : undefined"
+              :hint="col.hint"
               :unit-id="unitId"
               :year="year"
               :disable="isDisabled"
