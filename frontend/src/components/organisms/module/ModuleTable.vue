@@ -1087,12 +1087,7 @@ function isComplete(row: ModuleRow) {
     return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    const required = [
-      'origin',
-      'destination',
-      'transport_mode',
-      'traveler_name',
-    ];
+    const required = ['origin', 'destination', 'traveler_name'];
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );

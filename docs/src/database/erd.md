@@ -95,7 +95,7 @@ erDiagram
     BOOLEAN is_conversion "indexed"
     JSON values
   }
-  locations {
+  locations_plane {
     VARCHAR airport_size
     VARCHAR continent "indexed"
     VARCHAR country_code "indexed"
@@ -106,7 +106,18 @@ erDiagram
     FLOAT longitude
     VARCHAR municipality "indexed"
     VARCHAR name "indexed"
-    VARCHAR transport_mode "indexed"
+  }
+  locations_train {
+    VARCHAR airport_size
+    VARCHAR continent "indexed"
+    VARCHAR country_code "indexed"
+    VARCHAR iata_code "indexed"
+    INTEGER id PK
+    VARCHAR keywords
+    FLOAT latitude
+    FLOAT longitude
+    VARCHAR municipality "indexed"
+    VARCHAR name "indexed"
   }
   unit_users {
     VARCHAR role "indexed"

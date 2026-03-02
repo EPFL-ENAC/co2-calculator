@@ -9,7 +9,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
 from app.models.factor import Factor
-from app.models.location import Location
+from app.models.location import PlaneLocation, TrainLocation
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
@@ -401,8 +401,11 @@ async def compute_travel(
         logger.warning("Missing origin or destination location for trip")
         return response
 
-    OriginLoc = aliased(Location, name="origin")
-    DestLoc = aliased(Location, name="dest")
+    location_model: type[PlaneLocation] | type[TrainLocation] = (
+        PlaneLocation if selected_type == DataEntryTypeEnum.plane else TrainLocation
+    )
+    OriginLoc = aliased(location_model, name="origin")
+    DestLoc = aliased(location_model, name="dest")
 
     stmt = (
         select(OriginLoc, DestLoc, Factor)

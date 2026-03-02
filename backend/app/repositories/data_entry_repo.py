@@ -14,7 +14,7 @@ from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
-from app.models.location import Location
+from app.models.location import PlaneLocation, TrainLocation
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -247,8 +247,14 @@ class DataEntryRepository:
 
         # Build query based on entry type
         entities: list[Any] = [DataEntry, DataEntryEmission, Factor]
-        OriginLocation = aliased(Location)
-        DestLocation = aliased(Location)
+        location_model: type[PlaneLocation] | type[TrainLocation] | None = None
+        if data_entry_type_id == DataEntryTypeEnum.plane.value:
+            location_model = PlaneLocation
+        elif data_entry_type_id == DataEntryTypeEnum.train.value:
+            location_model = TrainLocation
+
+        OriginLocation = aliased(location_model) if location_model is not None else None
+        DestLocation = aliased(location_model) if location_model is not None else None
 
         if is_travel_entry:
             entities.extend([OriginLocation, DestLocation])
@@ -266,7 +272,7 @@ class DataEntryRepository:
             )
         )
 
-        if is_travel_entry:
+        if is_travel_entry and OriginLocation is not None and DestLocation is not None:
             statement = statement.join(
                 OriginLocation,
                 DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,

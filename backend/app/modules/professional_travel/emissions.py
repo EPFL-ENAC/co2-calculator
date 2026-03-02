@@ -5,7 +5,11 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.factor import Factor
-from app.models.location import Location, TransportModeEnum
+from app.models.location import (
+    PlaneLocation,
+    TrainLocation,
+    TransportModeEnum,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.utils.distance_geography import (
@@ -23,16 +27,12 @@ async def compute_trips(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
     """Compute emissions for professional travel (trips)."""
-    raw_transport_mode = data_entry.data.get("transport_mode")
-    try:
-        transport_mode = (
-            TransportModeEnum(raw_transport_mode)
-            if raw_transport_mode is not None
-            else None
-        )
-    except ValueError:
-        logger.warning(f"Unknown transport_mode: {raw_transport_mode}")
-        transport_mode = None
+    selected_type = DataEntryTypeEnum(data_entry.data_entry_type)
+    mode = (
+        TransportModeEnum.plane
+        if selected_type == DataEntryTypeEnum.plane
+        else TransportModeEnum.train
+    )
     cabin_class = data_entry.data.get("cabin_class")
     number_of_trips = data_entry.data.get("number_of_trips", 1)
     distance_km = None
@@ -45,7 +45,6 @@ async def compute_trips(
     response = {
         "kg_co2eq": None,
         "distance_km": distance_km,
-        "transport_mode": transport_mode.value if transport_mode else None,
         "cabin_class": cabin_class,
         "number_of_trips": number_of_trips,
         "origin_location_id": data_entry.data.get("origin_location_id"),
@@ -56,14 +55,11 @@ async def compute_trips(
         logger.warning("Missing origin or destination location for trip")
         return response
 
-    if transport_mode is None:
-        logger.warning(f"Unknown transport_mode: {raw_transport_mode}")
-        return response
-
-    OriginLoc = aliased(Location, name="origin")
-    DestLoc = aliased(Location, name="dest")
-
-    selected_type = DataEntryTypeEnum(data_entry.data_entry_type)
+    location_model: type[PlaneLocation] | type[TrainLocation] = (
+        PlaneLocation if selected_type == DataEntryTypeEnum.plane else TrainLocation
+    )
+    OriginLoc = aliased(location_model, name="origin")
+    DestLoc = aliased(location_model, name="dest")
 
     stmt = (
         select(OriginLoc, DestLoc, Factor)
@@ -73,7 +69,7 @@ async def compute_trips(
             Factor,
             and_(
                 col(Factor.data_entry_type_id) == selected_type.value,
-                Factor.classification["kind"].as_string() == transport_mode.value,
+                Factor.classification["kind"].as_string() == mode.value,
             ),
         )
         .where(col(OriginLoc.id) == origin_id)
@@ -93,7 +89,7 @@ async def compute_trips(
         logger.warning("No factor provided for trip emission calculation")
         return response
 
-    if transport_mode == TransportModeEnum.plane:
+    if mode == TransportModeEnum.plane:
         distance_km, matched_factor = resolve_flight_factor(
             origin_loc, dest_loc, factors
         )
@@ -103,7 +99,7 @@ async def compute_trips(
         distance_km = distance_km * number_of_trips
         factor_values = matched_factor.values or {}
         result = compute_travel_plane(distance_km, factor_values)
-    elif transport_mode == TransportModeEnum.train:
+    elif mode == TransportModeEnum.train:
         distance_km, matched_factor = resolve_train_factor(
             origin_loc, dest_loc, factors
         )
@@ -114,7 +110,7 @@ async def compute_trips(
         factor_values = matched_factor.values or {}
         result = compute_travel_train(distance_km, factor_values)
     else:
-        logger.warning(f"Unknown transport_mode: {transport_mode}")
+        logger.warning(f"Unknown mode: {mode}")
         return response
 
     response["distance_km"] = distance_km

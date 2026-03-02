@@ -16,9 +16,6 @@ export interface Location {
   /** Unique identifier for the location */
   id: number;
 
-  /** Transport mode: 'train' or 'plane' */
-  transport_mode: TransportMode;
-
   /** Location name (e.g., 'Lyndhurst Halt', 'Utirik Airport') */
   name: string;
 
@@ -50,9 +47,6 @@ export interface LocationSearchParams {
 
   /** Maximum number of results to return (default: 5, max: 20) */
   limit?: number;
-
-  /** Filter by transport mode. If not provided, returns both types */
-  transport_mode?: TransportMode;
 }
 
 /**
@@ -61,11 +55,11 @@ export interface LocationSearchParams {
 export type LocationSearchResponse = Location[];
 
 /**
- * Response type for airport search - locations with transport_mode 'plane'.
+ * Response type for airport search.
  */
 export type AirportResponse = Location;
 
 /**
- * Response type for railway station search - locations with transport_mode 'train'.
+ * Response type for railway station search.
  */
 export type RailwayStationResponse = Location;
