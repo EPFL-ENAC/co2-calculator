@@ -239,3 +239,206 @@ Option A if external systems (exports, dashboards) hardcode old int values.
 - [x] Drop `subcategory` column — use `EmissionType.path` instead ✓
 - [x] Add `scope` column — fast aggregations ✓
 - [x] Update `emission_breakdown.py` to use `parent`/`path` instead of `subcategory` ✓
+
+-- DESISION RECORD --
+
+## Design Recommendation: **Don't aggregate into the tree — keep leaves only**
+
+Storing intermediate nodes is a classic premature optimization that creates more problems than it solves.
+
+### Problems with storing intermediate nodes
+
+**Data integrity nightmare.** Every time you update/delete a leaf emission, you need to cascade-update all ancestor nodes. With concurrent writes, you'll get race conditions and stale aggregates. This is essentially a cache invalidation problem in your DB.
+
+**Double-counting risk.** Any query that doesn't carefully filter out non-leaf nodes will silently overcount. This will bite you (or a future dev) eventually.
+
+**Write amplification.** One leaf insert = N writes (leaf + subcategory + category + root). For your headcount case that already produces 4 rows, you'd be writing ~12 rows.
+
+**Schema confusion.** `DataEntryEmission` linked to `data_entry_id` makes sense for a leaf. What does it mean for a `buildings` aggregate row? Which `data_entry_id` does it belong to? What `primary_factor_id`?
+
+---
+
+### The right approach: **Compute aggregates at query time**
+
+Your `EmissionType` enum already has everything you need — `parent`, `level`, `children()`. Use that structure in your queries/services.
+
+```python
+def get_subtree_values(root: EmissionType) -> list[int]:
+    """Get all leaf emission_type_ids under a given node."""
+    if not root.children():
+        return [root.value]
+    result = []
+    for child in root.children():
+        result.extend(get_subtree_values(child))
+    return result
+
+# Then in your query layer:
+def sum_kg_co2eq_for_node(session, node: EmissionType, filters=...) -> float:
+    leaf_ids = get_subtree_values(node)
+    return session.exec(
+        select(func.sum(DataEntryEmission.kg_co2eq))
+        .where(DataEntryEmission.emission_type_id.in_(leaf_ids))
+        .where(...)  # date range, org, etc.
+    ).one()
+```
+
+For treemaps, you'd do one query per top-level category, or a single query grouped by `emission_type_id` and then roll up in Python using your enum hierarchy — which is fast since it's just dict operations.
+
+---
+
+### If performance becomes a real concern later
+
+Add a **materialized view** or a **separate `emission_aggregates` table** that's explicitly a cache, clearly decoupled from `data_entry_emissions`. Rebuild it async on a schedule or after bulk imports. But don't do this now — you almost certainly won't need it.
+
+---
+
+**TL;DR:** Leaves only. Aggregate in the service/query layer using your `EmissionType` tree. Your enum already made the right design decision — trust it.
+
+--
+
+# For carbon_report_modules
+
+## Recommended `stats` shape
+
+```python
+{
+  # --- Totals by scope ---
+  "scope1": 1234.5,
+  "scope2": 5678.9,
+  "scope3": 9012.3,
+  "total": 15925.7,
+
+  # --- By emission type (leaves only, sparse — omit zeros) ---
+  "by_emission_type": {
+    "60101": 123.4,   # buildings__rooms__lighting
+    "60102": 456.7,   # buildings__rooms__cooling
+    "60104": 789.0,   # buildings__rooms__heating_elec
+    "60105": 100.0,   # buildings__rooms__heating_thermal
+    "60200": 50.0,    # buildings__combustion
+  },
+
+  # --- Meta ---
+  "computed_at": "2025-03-01T12:00:00Z",
+  "formula_version": "abc123",
+  "entry_count": 342,     # how many data_entries were included
+  "missing_factors": 3,   # data quality signal
+}
+```
+
+**Store leaves only** in `by_emission_type`. Any subtree rollup (e.g. `buildings__rooms`) is derived at read-time using your `EmissionType` enum — same pattern as before, just over a dict instead of 8M DB rows.
+
+```python
+def rollup(stats: dict, node: EmissionType) -> float:
+    leaf_ids = get_subtree_values(node)  # your existing helper
+    by_et = stats.get("by_emission_type", {})
+    return sum(by_et.get(str(lid), 0.0) for lid in leaf_ids)
+
+# e.g.
+rollup(stats, EmissionType.buildings__rooms)  # → sum of 60101+60102+60103+60104+60105
+rollup(stats, EmissionType.buildings)         # → all buildings leaves
+```
+
+---
+
+## When to recompute
+
+Invalidate and recompute the module stats when:
+
+- Any `data_entry` under that module is created/updated/deleted
+- Any `data_entry_emission` is recomputed (factor change, formula version bump)
+- On-demand via an admin action
+
+Set `status` to a `stale` value during invalidation so the API can signal to the frontend that stats are being recalculated — your `status` field on `carbon_report_modules` is perfect for this.
+
+---
+
+## What this gives you
+
+| Need                    | How                                                             |
+| ----------------------- | --------------------------------------------------------------- |
+| Treemap for a report    | iterate `carbon_report_modules`, rollup each node from `stats`  |
+| Scope breakdown         | direct from `stats.scope1/2/3`                                  |
+| Cross-report comparison | query `carbon_report_modules` by `module_type_id`, read `stats` |
+| Drill-down to entries   | still go to `data_entry_emissions` — now rare/intentional       |
+| Data freshness signal   | `stats.computed_at` + module `status`                           |
+
+The 8M-row scan becomes a `SELECT stats FROM carbon_report_modules WHERE carbon_report_id = ?` — effectively free.
+
+Got it. Here's my read of the cleanest architecture given everything:
+
+**Core insight:** There are exactly two retrieval strategies, and one computation pattern:
+
+```
+Strategy A — primary_factor_id:  factor = get(id)           → 1 factor → 1 row
+Strategy B — classification:     factors = get_by(kind, subkind, **ctx) → N factors → N rows
+```
+
+The handler per `DataEntryType` declares:
+
+1. Which strategy to use per `EmissionType`
+2. What context to extract from `data_entry.data` for the query
+3. Which formula key to apply (`kg_co2eq_per_fte`, `kg_co2eq_per_kwh`, etc.)
+
+---
+
+## Implementation Plan
+
+### Layer 1 — Data structures (pure, no DB)
+
+```python
+@dataclass
+class FactorQuery:
+    """Descriptor returned by a handler telling FactorService what to fetch."""
+    data_entry_type: DataEntryTypeEnum
+    kind: str | None = None        # e.g. "food", "heating", "plane"
+    subkind: str | None = None     # e.g. "vegetarian", "elec", "business"
+    # Extra runtime context passed as filters to FactorService
+    # e.g. {"building_name": "BC", "distance_km": 1200}
+    context: dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class EmissionComputation:
+    """One unit of work: factor query + formula key + emission type."""
+    emission_type: EmissionType
+    # Either factor_id (Strategy A) or a query descriptor (Strategy B)
+    factor_id: int | None = None
+    factor_query: FactorQuery | None = None
+    # Key in factor.values used by the formula
+    formula_key: str = "kg_co2eq_per_kwh"
+    # Key in data_entry.data used by the formula
+    quantity_key: str = "quantity"
+```
+
+### Layer 2 — Handler contract
+
+Each handler implements **one method** per `EmissionType` it owns, registered via a decorator:
+
+```python
+class BaseModuleHandler:
+    _registry: dict[EmissionType, Callable] = {}
+
+    @classmethod
+    def register(cls, *emission_types: EmissionType):
+        """Decorator: maps EmissionType(s) → resolver method."""
+        def decorator(fn):
+            for et in emission_types:
+                cls._registry[et] = fn
+            return fn
+        return decorator
+
+    def resolve_computations(
+        self,
+        data_entry: DataEntry | DataEntryResponse,
+        emission_types: list[EmissionType],
+    ) -> list[EmissionComputation]:
+        """Dispatch each emission_type to its registered resolver."""
+        results = []
+        for et in emission_types:
+            resolver = self._registry.get(et)
+            if resolver is None:
+                logger.warning(f"No resolver for {et.name!r}")
+                continue
+            computations = resolver(self, data_entry, et)
+            results.extend(computations)  # always a list
+        return results
+```

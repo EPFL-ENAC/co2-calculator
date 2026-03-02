@@ -19,20 +19,11 @@ logger = get_logger(__name__)
 
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.plane)
 @DataEntryEmissionService.register_formula(DataEntryTypeEnum.train)
-async def compute_trips(
+async def compute_travel(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
-    """Compute emissions for professional travel (trips)."""
-    raw_transport_mode = data_entry.data.get("transport_mode")
-    try:
-        transport_mode = (
-            TransportModeEnum(raw_transport_mode)
-            if raw_transport_mode is not None
-            else None
-        )
-    except ValueError:
-        logger.warning(f"Unknown transport_mode: {raw_transport_mode}")
-        transport_mode = None
+    """Compute emissions for professional travel (plane/train)."""
+    selected_type = DataEntryTypeEnum(data_entry.data_entry_type)
     cabin_class = data_entry.data.get("cabin_class")
     number_of_trips = data_entry.data.get("number_of_trips", 1)
     distance_km = None
@@ -45,7 +36,6 @@ async def compute_trips(
     response = {
         "kg_co2eq": None,
         "distance_km": distance_km,
-        "transport_mode": transport_mode.value if transport_mode else None,
         "cabin_class": cabin_class,
         "number_of_trips": number_of_trips,
         "origin_location_id": data_entry.data.get("origin_location_id"),
@@ -56,14 +46,8 @@ async def compute_trips(
         logger.warning("Missing origin or destination location for trip")
         return response
 
-    if transport_mode is None:
-        logger.warning(f"Unknown transport_mode: {raw_transport_mode}")
-        return response
-
     OriginLoc = aliased(Location, name="origin")
     DestLoc = aliased(Location, name="dest")
-
-    selected_type = DataEntryTypeEnum(data_entry.data_entry_type)
 
     stmt = (
         select(OriginLoc, DestLoc, Factor)
@@ -73,7 +57,6 @@ async def compute_trips(
             Factor,
             and_(
                 col(Factor.data_entry_type_id) == selected_type.value,
-                Factor.classification["kind"].as_string() == transport_mode.value,
             ),
         )
         .where(col(OriginLoc.id) == origin_id)
@@ -93,7 +76,7 @@ async def compute_trips(
         logger.warning("No factor provided for trip emission calculation")
         return response
 
-    if transport_mode == TransportModeEnum.plane:
+    if selected_type == DataEntryTypeEnum.plane:
         distance_km, matched_factor = resolve_flight_factor(
             origin_loc, dest_loc, factors
         )
@@ -103,7 +86,7 @@ async def compute_trips(
         distance_km = distance_km * number_of_trips
         factor_values = matched_factor.values or {}
         result = compute_travel_plane(distance_km, factor_values)
-    elif transport_mode == TransportModeEnum.train:
+    elif selected_type == DataEntryTypeEnum.train:
         distance_km, matched_factor = resolve_train_factor(
             origin_loc, dest_loc, factors
         )
@@ -114,7 +97,7 @@ async def compute_trips(
         factor_values = matched_factor.values or {}
         result = compute_travel_train(distance_km, factor_values)
     else:
-        logger.warning(f"Unknown transport_mode: {transport_mode}")
+        logger.warning("Unknown travel data_entry_type: %s", selected_type)
         return response
 
     response["distance_km"] = distance_km
@@ -132,8 +115,8 @@ def compute_travel_plane(
         distance_km: Total distance.
         factor_values: Factor values containing impact_score and rfi_adjustment.
     """
-    impact_score = factor_values.get("impact_score", 0)
-    rfi_adjustment = factor_values.get("rfi_adjustment", 1)
+    impact_score = factor_values.get("ef_kg_co2eq_per_km", 0)
+    rfi_adjustment = factor_values.get("rfi_adjustement", 1)
     kg_co2eq = distance_km * impact_score * rfi_adjustment
 
     logger.debug(
@@ -154,7 +137,7 @@ def compute_travel_train(
         distance_km: Total distance.
         factor_values: Factor values containing impact_score.
     """
-    impact_score = factor_values.get("impact_score", 0)
+    impact_score = factor_values.get("ef_kg_co2eq_per_km", 0)
     kg_co2eq = distance_km * impact_score
 
     logger.debug(f"Train: {distance_km}km × {impact_score} = {kg_co2eq:.2f} kg CO2eq")
