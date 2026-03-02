@@ -53,6 +53,10 @@ interface CarbonReportModuleResponse {
   status: number;
 }
 
+interface UnitIdentityResponse {
+  institutional_code?: string | number | null;
+}
+
 export const useTimelineStore = defineStore('timeline', () => {
   // Initialize all modules with default status
   const itemStates = reactive<ModuleStates>({
@@ -485,7 +489,20 @@ export const useModuleStore = defineStore('modules', () => {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
       }
-
+      if (
+        moduleType === MODULES.Headcount &&
+        submoduleType === 'member' &&
+        !normalized.unit_institutional_id
+      ) {
+        const unit = await api.get(`units/${unitId}`).json<UnitIdentityResponse>();
+        const institutionalCode = String(unit?.institutional_code ?? '').trim();
+        if (!institutionalCode) {
+          throw new Error(
+            `Missing institutional_code for unit ${unitId}; cannot create headcount member`,
+          );
+        }
+        normalized.unit_institutional_id = institutionalCode;
+      }
       const isRoundTrip =
         moduleType === MODULES.ProfessionalTravel && !!normalized.is_round_trip;
       const body =

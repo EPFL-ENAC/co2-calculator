@@ -7,12 +7,14 @@ import type { Module } from 'src/constant/modules';
 import {
   outlinedFilterDrama,
   outlinedAssignmentInd,
+  outlinedBadge,
   outlinedTimer,
 } from '@quasar/extras/material-icons-outlined';
 
 export const iconMap: Record<string, string> = {
   o_filter_drama: outlinedFilterDrama,
   o_assignment_ind: outlinedAssignmentInd,
+  o_badge: outlinedBadge,
   o_timer: outlinedTimer,
   // Add more mappings as needed
 };
@@ -26,17 +28,49 @@ const memberFields: ModuleField[] = [
     type: 'text',
     sortable: true,
     required: true,
-    ratio: '4/12',
+    ratio: '1/4',
     icon: 'o_filter_drama',
   },
   {
-    id: 'function',
+    id: 'position_category',
     labelKey: 'headcount-member-form-field-position-label',
-    type: 'text',
+    type: 'select',
+    options: [
+      { value: 'professor', label: 'headcount-position-professor' },
+      {
+        value: 'scientific_collaborator',
+        label: 'headcount-position-scientific-collaborator',
+      },
+      {
+        value: 'postdoctoral_assistant',
+        label: 'headcount-position-postdoctoral-assistant',
+      },
+      {
+        value: 'doctoral_assistant',
+        label: 'headcount-position-doctoral-assistant',
+      },
+      { value: 'trainee', label: 'headcount-position-trainee' },
+      {
+        value: 'technical_administrative_staff',
+        label: 'headcount-position-technical-administrative-staff',
+      },
+      { value: 'student', label: 'headcount-position-student' },
+      { value: 'other', label: 'headcount-position-other' },
+    ],
     sortable: true,
-    ratio: '4/12',
+    ratio: '1/4',
     editableInline: true,
     icon: 'o_assignment_ind',
+  },
+  {
+    id: 'user_institutional_id',
+    labelKey: 'headcount-member-form-field-institutional-id-label',
+    type: 'text',
+    required: true,
+    sortable: true,
+    editableInline: false,
+    ratio: '1/4',
+    icon: 'o_badge',
   },
   {
     id: 'fte',
@@ -48,7 +82,7 @@ const memberFields: ModuleField[] = [
     step: 0.1,
     sortable: true,
     editableInline: true,
-    ratio: '4/12',
+    ratio: '1/4',
     icon: 'o_timer',
   },
 ];

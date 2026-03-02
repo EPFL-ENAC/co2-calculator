@@ -1,3 +1,14 @@
+POSITION_CATEGORIES = (
+    "professor",
+    "scientific_collaborator",
+    "postdoctoral_assistant",
+    "doctoral_assistant",
+    "trainee",
+    "technical_administrative_staff",
+    "student",
+    "other",
+)
+
 # Mapping from French HR roles to broad English categories (snake_case)
 ROLE_CATEGORY_MAPPING = {
     # Professor roles
@@ -15,8 +26,8 @@ ROLE_CATEGORY_MAPPING = {
     "Étudiant en échange": "student",
     "Stagiaire étudiant": "student",
     "Student": "student",  # English variant
-    # Postdoctoral Researcher
-    "Post-Doctorant": "postdoctoral_researcher",
+    # Postdoctoral Assistant
+    "Post-Doctorant": "postdoctoral_assistant",
     # Doctoral Assistant
     "Assistant-doctorant": "doctoral_assistant",
     "Doctorant-e en échange": "doctoral_assistant",

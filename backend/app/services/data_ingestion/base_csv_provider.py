@@ -11,6 +11,7 @@ from app.models.data_ingestion import (
     IngestionStatus,
     TargetType,
 )
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -227,8 +228,24 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Check required columns: fail if ALL first rows are missing them
         if required_columns:
+
+            def _has_required_columns(row: dict[str, str]) -> bool:
+                row_keys = set(row.keys())
+                if required_columns.issubset(row_keys):
+                    return True
+                # Backward-compatible alias for headcount CSV imports.
+                if (
+                    "unit_institutional_id" in required_columns
+                    and "unit_institutional_id" not in row_keys
+                    and "unit_id" in row_keys
+                ):
+                    aliased_required = set(required_columns)
+                    aliased_required.discard("unit_institutional_id")
+                    return aliased_required.issubset(row_keys)
+                return False
+
             all_missing_required = all(
-                not required_columns.issubset(set(row.keys())) for row in first_rows
+                not _has_required_columns(row) for row in first_rows
             )
 
             if all_missing_required:
@@ -316,7 +333,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         - Upsert each unit via unit_service.upsert()
 
         Args:
-            missing_codes: List of unit provider_codes to fetch
+            missing_codes: List of unit institutional codes to fetch
             batch_size: Number of units to fetch per API call (default: 100)
 
         Raises:
@@ -412,18 +429,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
         """
-        Pre-scan CSV to extract unique unit_ids (provider_codes)
-        and resolve carbon_report_module_id.
+        Pre-scan CSV to extract unique unit identifiers and resolve
+        carbon_report_module_id.
 
-        Note: CSV column is named 'unit_id' but contains provider_codes
-        (strings), not DB IDs.
+        Accepted unit identifier columns:
+        - unit_institutional_id (preferred)
+        - unit_id (legacy alias)
 
-        For each unique provider_code:
+        For each unique unit identifier:
         - Check if carbon_report exists for (unit_id, year)
         - Create report if missing (auto-creates all 7 modules)
         - Extract carbon_report_module_id for self.module_type_id
 
-        Returns: {provider_code: carbon_report_module_id} mapping
+        Returns: {unit_identifier: carbon_report_module_id} mapping
         """
         from app.repositories.unit_repo import UnitRepository
         from app.schemas.carbon_report import CarbonReportCreate
@@ -440,40 +458,54 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not module_type_id:
             raise ValueError("module_type_id is required for MODULE_PER_YEAR")
 
-        # Extract unique unit provider_codes from CSV (column is named 'unit_id')
-        csv_reader = csv.DictReader(io.StringIO(csv_text))
-        unit_codes = set()
-        for row in csv_reader:
-            unit_code = row.get("unit_id")
-            if unit_code and unit_code.strip():
-                unit_codes.add(unit_code.strip())
+        is_headcount = module_type_id == ModuleTypeEnum.headcount.value
 
-        if not unit_codes:
+        # Extract unique unit identifiers from CSV.
+        csv_reader = csv.DictReader(io.StringIO(csv_text))
+        unit_identifiers = set()
+        for row in csv_reader:
+            # Temporary distinction: headcount uses unit_institutional_id while
+            # other modules still use unit_id. Other MODULE_PER_YEAR imports
+            # should likely align to unit_institutional_id in a future cleanup.
+            unit_identifier = (
+                (row.get("unit_institutional_id") or row.get("unit_id"))
+                if is_headcount
+                else row.get("unit_id")
+            )
+            if unit_identifier and str(unit_identifier).strip():
+                unit_identifiers.add(str(unit_identifier).strip())
+
+        if not unit_identifiers:
+            if is_headcount:
+                raise ValueError(
+                    "No valid unit identifier values found in CSV. "
+                    "Expected unit_institutional_id (alias: unit_id)."
+                )
             raise ValueError(
                 "No valid unit_id values found in CSV. "
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
         logger.info(
-            f"Found {len(unit_codes)} unique unit provider_codes in CSV: "
-            f"{sorted(unit_codes)}"
+            f"Found {len(unit_identifiers)} unique unit identifiers in CSV: "
+            f"{sorted(unit_identifiers)}"
         )
 
-        # Validate unit provider_codes exist to avoid FK violations
+        # Validate unit identifiers exist to avoid FK violations
         unit_repo = UnitRepository(self.data_session)
-        existing_units = await unit_repo.get_by_codes(list(unit_codes))
+        existing_units = await unit_repo.get_by_codes(list(unit_identifiers))
         existing_codes = {unit.institutional_code for unit in existing_units}
-        missing_codes = sorted(unit_codes - existing_codes)
+        missing_codes = sorted(unit_identifiers - existing_codes)
         if missing_codes:
-            # Attempt to fetch and upsert missing units from provider
+            # Attempt to fetch and upsert missing units.
             logger.info(
                 f"Found {len(missing_codes)} missing units in database, "
-                f"attempting to fetch from provider"
+                f"attempting to fetch and upsert"
             )
             try:
                 await self._fetch_and_upsert_missing_units(missing_codes)
             except Exception as e:
-                logger.error(f"Failed to fetch missing units from provider: {str(e)}")
+                logger.error(f"Failed to fetch missing units: {str(e)}")
                 raise
 
             # Commit the upserted units so they're visible to subsequent queries
@@ -484,12 +516,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             unit_repo = UnitRepository(self.data_session)
             logger.info(
                 f"Reloading units after upsert - checking for "
-                f"{len(unit_codes)} provider_codes"
+                f"{len(unit_identifiers)} unit identifiers"
             )
 
-            existing_units = await unit_repo.get_by_codes(list(unit_codes))
+            existing_units = await unit_repo.get_by_codes(list(unit_identifiers))
             existing_codes = {unit.institutional_code for unit in existing_units}
-            missing_codes = sorted(unit_codes - existing_codes)
+            missing_codes = sorted(unit_identifiers - existing_codes)
 
             logger.info(
                 f"After upsert: found {len(existing_codes)} units, "
@@ -499,25 +531,33 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # If still missing after fetch attempt, fail
             if missing_codes:
                 raise ValueError(
-                    "Unknown unit_id values in CSV (could not fetch from provider): "
-                    f"{', '.join(missing_codes)}"
+                    (
+                        "Unknown unit_institutional_id values in CSV: "
+                        f"{', '.join(missing_codes)}"
+                    )
+                    if is_headcount
+                    else (
+                        "Unknown unit identifiers in CSV "
+                        "(unit_id): "
+                        f"{', '.join(missing_codes)}"
+                    )
                 )
 
-        # Build mapping of provider_code to unit.id for DB operations
+        # Build mapping of unit identifier to unit.id for DB operations.
         unit_code_to_id = {unit.institutional_code: unit.id for unit in existing_units}
 
-        # Resolve carbon_report_module_id for each provider_code
+        # Resolve carbon_report_module_id for each unit identifier.
         carbon_report_service = CarbonReportService(self.data_session)
         code_to_module_map: Dict[str, int] = {}
         reports_created = 0
         reports_reused = 0
 
-        for provider_code in unit_codes:
-            # Get the database ID for this provider_code
-            unit_id = unit_code_to_id.get(provider_code)
+        for unit_identifier in unit_identifiers:
+            # Get the database ID for this unit identifier.
+            unit_id = unit_code_to_id.get(unit_identifier)
             if not unit_id:
                 raise ValueError(
-                    f"Unit with provider_code={provider_code} not found "
+                    f"Unit with unit_identifier={unit_identifier} not found "
                     f"after validation"
                 )
 
@@ -529,7 +569,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if not carbon_report:
                 # Create new carbon report (auto-creates all 7 modules)
                 logger.info(
-                    f"Creating carbon_report for provider_code={provider_code} "
+                    f"Creating carbon_report for unit_identifier={unit_identifier} "
                     f"(unit_id={unit_id}), year={self.year}"
                 )
                 carbon_report = await carbon_report_service.create(
@@ -552,8 +592,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     f"module_type_id={module_type_id}"
                 )
 
-            # Map provider_code (from CSV) to carbon_report_module_id
-            code_to_module_map[provider_code] = carbon_report_module.id
+            # Map unit identifier (from CSV) to carbon_report_module_id
+            code_to_module_map[unit_identifier] = carbon_report_module.id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
@@ -776,7 +816,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         If error_msg is not None, row processing failed and error was recorded.
 
         Args:
-            unit_to_module_map: Optional mapping of provider_code
+            unit_to_module_map: Optional mapping of unit identifier
                                to carbon_report_module_id
                                for MODULE_PER_YEAR imports
         """
@@ -827,20 +867,43 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             carbon_report_module_id = None
 
             if unit_to_module_map is not None:
-                # MODULE_PER_YEAR: resolve from unit_id
-                # (which is actually provider_code)
-                provider_code = row.get("unit_id")
-                if provider_code is None or str(provider_code).strip() == "":
-                    error_msg = "Missing unit_id in row"
+                # MODULE_PER_YEAR: resolve from unit identifier.
+                module_type_id = self.module_type_id or (
+                    self.job.module_type_id if self.job else None
+                )
+                is_headcount = module_type_id == ModuleTypeEnum.headcount.value
+
+                unit_identifier = (
+                    (row.get("unit_institutional_id") or row.get("unit_id"))
+                    if is_headcount
+                    else row.get("unit_id")
+                )
+                if unit_identifier is None or str(unit_identifier).strip() == "":
+                    error_msg = (
+                        "Missing unit_institutional_id in row (alias: unit_id)"
+                        if is_headcount
+                        else "Missing unit_id in row"
+                    )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
 
-                provider_code = str(provider_code).strip()
-                carbon_report_module_id = unit_to_module_map.get(provider_code)
+                unit_identifier = str(unit_identifier).strip()
+                if (
+                    self.job is not None
+                    and self.job.module_type_id == ModuleTypeEnum.headcount.value
+                    and not unit_identifier.isdigit()
+                ):
+                    error_msg = (
+                        "Invalid unit identifier: unit_institutional_id "
+                        "must contain digits only"
+                    )
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
+                carbon_report_module_id = unit_to_module_map.get(unit_identifier)
                 if not carbon_report_module_id:
                     error_msg = (
                         f"No carbon_report_module_id mapped for "
-                        f"provider_code={provider_code}"
+                        f"unit_identifier={unit_identifier}"
                     )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None

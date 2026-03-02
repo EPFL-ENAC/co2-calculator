@@ -100,8 +100,15 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
 
         # Get expected and required columns
         expected_columns = _get_expected_columns_from_handlers(handlers)
-        # unit_id is required for MODULE_PER_YEAR to resolve carbon_report_module_id
-        required_columns: set[str] = {"unit_id"}
+        # Headcount now uses unit_institutional_id only.
+        # Other MODULE_PER_YEAR imports still use unit_id.
+        # TODO(cleanup): align MODULE_PER_YEAR imports on a single
+        # unit identifier convention across all modules.
+        required_columns: set[str] = (
+            {"unit_institutional_id"}
+            if module_type == ModuleTypeEnum.headcount
+            else {"unit_id"}
+        )
 
         logger.info(
             f"Setup complete for MODULE_PER_YEAR: "

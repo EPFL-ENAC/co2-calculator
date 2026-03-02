@@ -518,6 +518,60 @@ async def test_get_stats_by_function(db_session: AsyncSession):
     assert len(result) > 0
 
 
+@pytest.mark.asyncio
+async def test_get_stats_by_position_category_with_function_fallback(
+    db_session: AsyncSession,
+):
+    """Aggregate by position_category with fallback to legacy function."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entries = [
+        # New format row: explicit position_category.
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={"position_category": "scientific_collaborator", "fte": 1.0},
+        ),
+        # Legacy row: only function should be used via COALESCE fallback.
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={"function": "Collaborateur scientifique", "fte": 0.5},
+        ),
+        # Both present: position_category should take precedence over function.
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            status=DataEntryStatusEnum.PENDING,
+            data={
+                "position_category": "other",
+                "function": "scientific_collaborator",
+                "fte": 0.2,
+            },
+        ),
+    ]
+
+    db_session.add_all(entries)
+    await db_session.flush()
+
+    result = await repo.get_stats(
+        module.id, aggregate_by="position_category", aggregate_field="fte"
+    )
+
+    assert result["scientific_collaborator"] == pytest.approx(1.5, rel=0.01)
+    assert result["other"] == pytest.approx(0.2, rel=0.01)
+
+
 # ======================================================================
 # Filter and Sort Tests
 # ======================================================================

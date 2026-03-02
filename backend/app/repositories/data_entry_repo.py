@@ -23,7 +23,7 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     ModuleHandler,
 )
-from app.utils.headcount_role_category import get_function_role
+from app.utils.headcount_role_category import POSITION_CATEGORIES, get_function_role
 
 logger = get_logger(__name__)
 
@@ -424,6 +424,11 @@ class DataEntryRepository:
         # 1. Get the model attributes dynamically
         if hasattr(DataEntry, aggregate_by):
             group_field = getattr(DataEntry, aggregate_by)
+        elif aggregate_by == "position_category":
+            group_field = func.coalesce(
+                DataEntry.data["position_category"].as_string(),
+                DataEntry.data["function"].as_string(),
+            )
         else:
             group_field = DataEntry.data[aggregate_by].as_string()
         if hasattr(DataEntry, aggregate_field):
@@ -452,8 +457,12 @@ class DataEntryRepository:
         aggregation: Dict[str, Optional[float]] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
-            # special edge case for headcount : TO BE FIX by PM
+            # Keep headcount buckets stable when legacy role names appear.
             if aggregate_by == "function":
+                label = get_function_role(label)
+            elif (
+                aggregate_by == "position_category" and label not in POSITION_CATEGORIES
+            ):
                 label = get_function_role(label)
             if label not in aggregation:
                 aggregation[label] = None

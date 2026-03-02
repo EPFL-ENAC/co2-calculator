@@ -42,6 +42,7 @@ const colorMap: Record<string, string> = {
   professor: colors.value.mint.dark,
   scientific_collaborator: colors.value.mint.light,
   postdoctoral_researcher: colors.value.mint.darker,
+  postdoctoral_assistant: colors.value.mint.darker,
   doctoral_assistant: colors.value.mint.default,
   trainee: colors.value.mint.lighter,
   student: colors.value.mint.default,

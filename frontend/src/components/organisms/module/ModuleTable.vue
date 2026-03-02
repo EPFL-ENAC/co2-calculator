@@ -120,7 +120,7 @@
           :class="getColumnClasses(slotProps.row, col)"
           :style="getColumnStyle(col)"
         >
-          <template v-if="col.editableInline">
+          <template v-if="isInlineEditable(slotProps.row, col)">
             <module-inline-select
               v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
               :row="slotProps.row"
@@ -680,7 +680,14 @@ const qCols = computed<TableViewColumn[]>(() => {
         !readOnly &&
         f.id !== 'act_power' &&
         f.id !== 'pas_power';
-      const options = f.options ?? undefined;
+      const options =
+        f.options?.map((opt) => {
+          const translated = $t(opt.label);
+          return {
+            value: opt.value,
+            label: translated !== opt.label ? translated : opt.label,
+          };
+        }) ?? undefined;
       const inputComponent: typeof QInput | typeof QSelect =
         f.type === 'select' ? QSelect : QInput;
 
@@ -773,6 +780,25 @@ function renderCell(
     options?: Array<{ value: string; label: string }>;
   },
 ) {
+  if (
+    props.moduleType === MODULES.Headcount &&
+    props.submoduleType === 'member' &&
+    col.field === 'position_category' &&
+    hasInstitutionalUserId(row)
+  ) {
+    const title = row.position_title;
+    if (typeof title === 'string' && title.trim() !== '') {
+      // If title is just the raw category value, let option lookup translate it.
+      if (
+        typeof row.position_category === 'string' &&
+        title === row.position_category
+      ) {
+        // fall through
+      } else {
+        return title;
+      }
+    }
+  }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
@@ -787,7 +813,8 @@ function renderCell(
   if (col.options && typeof val === 'string') {
     const option = col.options.find((opt) => opt.value === val);
     if (option) {
-      return option.label;
+      const translated = $t(option.label);
+      return translated !== option.label ? translated : option.label;
     }
   }
   if (typeof val === 'string') return val;
@@ -796,6 +823,26 @@ function renderCell(
   }
   console.warn('Unexpected cell value type', val);
   return String(val);
+}
+
+function hasInstitutionalUserId(row: ModuleRow) {
+  return hasValue(row.user_institutional_id);
+}
+
+function isInlineEditable(
+  row: ModuleRow,
+  col: { editableInline: boolean; field: string },
+) {
+  if (!col.editableInline) return false;
+  if (
+    props.moduleType === MODULES.Headcount &&
+    props.submoduleType === 'member' &&
+    col.field === 'position_category' &&
+    hasInstitutionalUserId(row)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function getItemName(row: ModuleRow): string {
@@ -1015,12 +1062,24 @@ function isCompleteEquipement(row: ModuleRow) {
 }
 
 function isCompleteHeadcount(row: ModuleRow) {
-  const requiredMember = ['name', 'fte', 'function'];
+  const hasPosition = Boolean(
+    hasValue(row.position_category) ||
+      hasValue(row.position_title) ||
+      hasValue(row.function),
+  );
   const requiredStudent = ['fte'];
   // implicit behavior: if sciper is set, it's a member
   // todo: sciper field should not exist: maybe user_id to be agnostic
   if (hasValue(row.sciper)) {
-    return hasRequiredValues(row, requiredMember);
+    return hasRequiredValues(row, ['name', 'fte']) && hasPosition;
+  }
+
+  if (hasInstitutionalUserId(row)) {
+    return hasRequiredValues(row, ['name', 'fte']) && hasPosition;
+  }
+
+  if (hasValue(row.name)) {
+    return hasRequiredValues(row, ['name', 'fte']) && hasPosition;
   }
 
   return hasRequiredValues(row, requiredStudent);
@@ -1205,7 +1264,8 @@ function onUploadCsv() {
 function onDownloadTemplate() {
   const csvEquipmentContent =
     'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
-  const csvHeadcountContent = 'name,function,fte';
+  const csvHeadcountContent =
+    'name,position_title,position_category,user_institutional_id,fte,note';
   const csvProfessionalTravelContent =
     'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
   const csvExternalCloudContent = 'service_type,cloud_provider,spending';
