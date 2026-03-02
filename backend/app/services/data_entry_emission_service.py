@@ -142,7 +142,7 @@ class DataEntryEmissionService:
                     subkind=None,
                 )
             return [factor] if factor else []
-
+        # We should return the list of factors for HEADCOUNT, and BUILDING
         return []
 
     def _apply_formula(
