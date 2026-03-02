@@ -1,6 +1,7 @@
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -9,7 +10,11 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_clouds)
+@DataEntryEmissionService.register_formula(
+    EmissionType.external__clouds__virtualisation
+)
+@DataEntryEmissionService.register_formula(EmissionType.external__clouds__calcul)
+@DataEntryEmissionService.register_formula(EmissionType.external__clouds__stockage)
 async def compute_external_clouds(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
@@ -28,7 +33,16 @@ async def compute_external_clouds(
     return {"kg_co2eq": kg_co2eq}
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.external_ai)
+@DataEntryEmissionService.register_formula(EmissionType.external__ai__provider_google)
+@DataEntryEmissionService.register_formula(
+    EmissionType.external__ai__provider_mistral_ai
+)
+@DataEntryEmissionService.register_formula(
+    EmissionType.external__ai__provider_anthropic
+)
+@DataEntryEmissionService.register_formula(EmissionType.external__ai__provider_openai)
+@DataEntryEmissionService.register_formula(EmissionType.external__ai__provider_cohere)
+@DataEntryEmissionService.register_formula(EmissionType.external__ai__provider_others)
 async def compute_external_ai(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:

@@ -1,6 +1,7 @@
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -9,9 +10,9 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.it)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.other)
+@DataEntryEmissionService.register_formula(EmissionType.equipment__it)
+@DataEntryEmissionService.register_formula(EmissionType.equipment__scientific)
+@DataEntryEmissionService.register_formula(EmissionType.equipment__other)
 async def compute_scientific_it_other(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
@@ -21,6 +22,8 @@ async def compute_scientific_it_other(
     response = {"kg_co2eq": kg_co2eq}
     if not factors or len(factors) == 0:
         return response
+
+    # TODO: refactor this to use pre_compute in the handler!
 
     factor = factors[0]
     active_usage_hours = data_entry.data.get("active_usage_hours", None)

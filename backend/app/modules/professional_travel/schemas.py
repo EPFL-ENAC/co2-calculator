@@ -5,7 +5,11 @@ from pydantic import BaseModel, field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    FactorQuery,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -152,9 +156,100 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     update_dto = ProfessionalTravelPlaneHandlerUpdate
     response_dto = ProfessionalTravelPlaneHandlerResponse
 
+    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
+        """Compute flight distance and haul category
+        from origin/destination airports."""
+        origin_id = data_entry.data.get("origin_location_id")
+        dest_id = data_entry.data.get("destination_location_id")
+        if not origin_id or not dest_id:
+            return {}
+        from app.services.location_service import LocationService
+        from app.utils.distance_geography import (
+            calculate_plane_distance,
+            get_haul_category,
+        )
+
+        loc_service = LocationService(session)
+        origin = await loc_service.get_location_by_id(origin_id)
+        dest = await loc_service.get_location_by_id(dest_id)
+        if not origin or not dest:
+            return {}
+        number_of_trips = data_entry.data.get("number_of_trips", 1) or 1
+        distance_km = calculate_plane_distance(origin, dest) * number_of_trips
+        haul_category = get_haul_category(distance_km)
+        return {"distance_km": distance_km, "haul_category": haul_category}
+
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        cabin_class = data_entry.data.get("cabin_class")
+        haul_category = ctx.get("haul_category")
+        context: dict = {}
+        if haul_category:
+            context["category"] = haul_category
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.plane,
+                    kind="plane",
+                    subkind=cabin_class,
+                    context=context,
+                ),
+                formula_key="ef_kg_co2eq_per_km",
+                quantity_key="distance_km",
+                multiplier_key="rfi_adjustement",
+                multiplier_default=1.0,
+            )
+        ]
+
 
 class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
     create_dto = ProfessionalTravelTrainHandlerCreate
     update_dto = ProfessionalTravelTrainHandlerUpdate
     response_dto = ProfessionalTravelTrainHandlerResponse
+
+    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
+        """Compute train distance and determine relevant country code."""
+        origin_id = data_entry.data.get("origin_location_id")
+        dest_id = data_entry.data.get("destination_location_id")
+        if not origin_id or not dest_id:
+            return {}
+        from app.services.location_service import LocationService
+        from app.utils.distance_geography import (
+            _determine_train_countrycode,
+            calculate_train_distance,
+        )
+
+        loc_service = LocationService(session)
+        origin = await loc_service.get_location_by_id(origin_id)
+        dest = await loc_service.get_location_by_id(dest_id)
+        if not origin or not dest:
+            return {}
+        number_of_trips = data_entry.data.get("number_of_trips", 1) or 1
+        distance_km = calculate_train_distance(origin, dest) * number_of_trips
+        country_code = _determine_train_countrycode(origin, dest)
+        return {"distance_km": distance_km, "country_code": country_code}
+
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        cabin_class = data_entry.data.get("cabin_class")
+        country_code = ctx.get("country_code", "RoW")
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.train,
+                    kind="train",
+                    subkind=cabin_class,
+                    context={"country_code": country_code},
+                    fallbacks={"country_code": "RoW"},
+                ),
+                formula_key="ef_kg_co2eq_per_km",
+                quantity_key="distance_km",
+            )
+        ]

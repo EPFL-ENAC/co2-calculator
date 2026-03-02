@@ -34,6 +34,7 @@ class ModuleTypeEnum(IntEnum):
     food = 10
     waste = 11
     grey_energy = 12
+
     global_energy = 99
 
 

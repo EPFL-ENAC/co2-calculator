@@ -2,9 +2,10 @@ from typing import Optional
 
 from pydantic import field_validator
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
@@ -103,6 +104,47 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "equipment_class": Factor.classification["kind"].as_string(),
         "sub_class": Factor.classification["subkind"].as_string(),
     }
+
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+
+        settings = get_settings()
+
+        def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            active_hours = ctx.get("active_usage_hours")
+            if active_hours is None:
+                return None
+            passive_hours = ctx.get("passive_usage_hours")
+            if passive_hours is None:
+                return None
+            active_w = factor_values.get("active_power_w")
+            if active_w is None:
+                return None
+            standby_w = factor_values.get("standby_power_w")
+            if standby_w is None:
+                return None
+            ef = factor_values.get("ef_kg_co2eq_per_kwh")
+            if any(
+                v is None
+                for v in [active_hours, passive_hours, active_w, standby_w, ef]
+            ):
+                return None
+            active_w = float(active_hours) * active_w
+            standby_w = float(passive_hours) * standby_w
+            weekly_wh = active_w + standby_w
+            annual_kwh = (weekly_wh * settings.WEEKS_PER_YEAR) / 1000
+            return annual_kwh * ef
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_func=_equipment_formula,
+            )
+        ]
 
     def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
         new_entry = {

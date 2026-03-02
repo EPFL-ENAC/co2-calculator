@@ -4,7 +4,7 @@ from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
@@ -137,6 +137,20 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
     def validate_update(self, payload: dict) -> ExternalCloudHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_key="factor_kgco2_per_eur",
+                quantity_key="spending",
+            )
+        ]
+
 
 class ExternalAIModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
@@ -180,3 +194,25 @@ class ExternalAIModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> DataEntryUpdate:
         return self.update_dto.model_validate(payload)
+
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+
+        def _ai_formula(ctx: dict, factor_values: dict):
+            frequency = ctx.get("frequency_use_per_day", 0)
+            users = ctx.get("user_count", 0)
+            factor_g = factor_values.get("factor_gCO2eq", 0)
+            if not frequency or not users or not factor_g:
+                return None
+            return (frequency * 5 * 46 * users * factor_g) / 1000
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_func=_ai_formula,
+            )
+        ]

@@ -1,6 +1,7 @@
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -9,7 +10,10 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.process_emissions)
+@DataEntryEmissionService.register_formula(EmissionType.process_emissions__ch4)
+@DataEntryEmissionService.register_formula(EmissionType.process_emissions__co2)
+@DataEntryEmissionService.register_formula(EmissionType.process_emissions__n2o)
+@DataEntryEmissionService.register_formula(EmissionType.process_emissions__refrigerants)
 async def compute_process_emissions(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:

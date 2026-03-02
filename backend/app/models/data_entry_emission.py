@@ -1,11 +1,14 @@
 """Data entry emission models for storing computed emission results."""
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy import ForeignKey
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
+
+from app.models.data_entry import DataEntryTypeEnum
 
 
 class EmissionType(int, Enum):
@@ -241,6 +244,78 @@ def get_scope(e: EmissionType) -> Scope | None:
     makes sense at the leaf level where data is actually recorded.
     """
     return EMISSION_SCOPE.get(e)
+
+
+### =============================================================================
+# DataEntryEmission model
+# =============================================================================
+
+
+@dataclass
+class FactorQuery:
+    """Describes how to look up factors via classification query (Strategy B).
+
+    Args:
+        data_entry_type: Scopes the DB query to a specific data entry type.
+        kind: Primary classification key (e.g. 'food', 'plane', building_name).
+        subkind: Optional secondary classification key (e.g. cabin class, subcategory).
+        context: Additional classification filters forwarded to the DB query
+                 (e.g. ``{"category": "short_haul"}`` for flights,
+                 ``{"country_code": "CH"}`` for trains).
+        fallbacks: Fallback values for context keys when the exact match fails
+                   (e.g. ``{"country_code": "RoW"}`` to fall back to a global factor).
+    """
+
+    data_entry_type: DataEntryTypeEnum
+    kind: str
+    subkind: Optional[str] = None
+    context: dict = field(default_factory=dict)
+    fallbacks: dict = field(default_factory=dict)
+
+
+@dataclass
+class EmissionComputation:
+    """Describes one emitted row and how to compute its kg_co2eq.
+
+    Exactly one of ``factor_id`` (Strategy A) or ``factor_query`` (Strategy B)
+    should be set.
+
+    For simple formulas::
+
+        kg_co2eq = ctx[quantity_key] * factor.values[formula_key]
+                   * factor.values.get(multiplier_key, multiplier_default)
+
+    For complex formulas, set ``formula_func`` and it takes precedence over
+    the key-based approach::
+
+        kg_co2eq = formula_func(ctx, factor.values)
+    """
+
+    emission_type: EmissionType
+
+    # --- Factor retrieval ---
+    # Strategy A: direct factor ID (primary_factor_id already resolved at creation)
+    factor_id: Optional[int] = None
+    # Strategy B: classification query resolved at compute time
+    factor_query: Optional[FactorQuery] = None
+
+    # --- Formula (key-based, simple) ---
+    # Name of the factor value key giving the emission intensity
+    formula_key: str = ""
+    # Name of the context key giving the physical quantity
+    quantity_key: str = ""
+    # Optional second multiplier from factor values (e.g. "rfi_adjustement")
+    multiplier_key: Optional[str] = None
+    # Value used when multiplier_key is absent from factor values
+    multiplier_default: float = 1.0
+
+    # --- Formula (callable, complex) ---
+    # When set, takes precedence over key-based formula.
+    # Signature: (ctx: dict, factor_values: dict) -> Optional[float]
+    formula_func: Optional[Callable[[dict, dict], Optional[float]]] = None
+
+
+####
 
 
 class DataEntryEmissionBase(SQLModel):

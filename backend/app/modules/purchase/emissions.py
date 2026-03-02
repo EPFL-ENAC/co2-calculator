@@ -1,6 +1,7 @@
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -9,15 +10,18 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.scientific_equipment)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.it_equipment)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.consumable_accessories)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__goods_and_services)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__scientific_equipment)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__it_equipment)
 @DataEntryEmissionService.register_formula(
-    DataEntryTypeEnum.biological_chemical_gaseous_product
+    EmissionType.purchases__consumable_accessories
 )
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.services)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.vehicles)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.other_purchases)
+@DataEntryEmissionService.register_formula(
+    EmissionType.purchases__biological_chemical_gaseous
+)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__services)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__vehicles)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__other)
 async def compute_purchase(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
@@ -59,7 +63,7 @@ async def compute_purchase(
     return {"kg_co2eq": kg_co2eq}
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.additional_purchases)
+@DataEntryEmissionService.register_formula(EmissionType.purchases__additional)
 async def compute_additional_purchase(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:

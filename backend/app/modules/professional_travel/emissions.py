@@ -4,8 +4,9 @@ from sqlmodel import and_, col, select
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
-from app.models.location import Location, TransportModeEnum
+from app.models.location import Location
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.utils.distance_geography import (
@@ -17,8 +18,22 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.plane)
-@DataEntryEmissionService.register_formula(DataEntryTypeEnum.train)
+@DataEntryEmissionService.register_formula(
+    EmissionType.professional_travel__train__class_1
+)
+@DataEntryEmissionService.register_formula(
+    EmissionType.professional_travel__train__class_2
+)
+@DataEntryEmissionService.register_formula(
+    EmissionType.professional_travel__plane__first
+)
+@DataEntryEmissionService.register_formula(
+    EmissionType.professional_travel__plane__business
+)
+@DataEntryEmissionService.register_formula(
+    EmissionType.professional_travel__plane__eco_plus
+)
+@DataEntryEmissionService.register_formula(EmissionType.professional_travel__plane__eco)
 async def compute_travel(
     self, data_entry: DataEntry | DataEntryResponse, factors: list[Factor]
 ) -> dict:
@@ -31,6 +46,9 @@ async def compute_travel(
     origin_id = data_entry.data.get("origin_location_id")
     dest_id = data_entry.data.get("destination_location_id")
 
+    ## TODO: use pre_compute in handler for that
+    ## and split into two separate formulas for plane and train
+    # to avoid the complexity of handling both in one function
     ## define response
 
     response = {
