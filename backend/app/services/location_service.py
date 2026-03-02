@@ -1,6 +1,6 @@
 """Location service for business logic."""
 
-from typing import List, Optional
+from typing import List
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,7 +26,7 @@ class LocationService:
     async def search_locations(
         self,
         query: str,
-        transport_mode: TransportModeEnum,
+        mode: TransportModeEnum,
         limit: int = 10,
     ) -> List[LocationRead]:
         """
@@ -35,22 +35,14 @@ class LocationService:
         Args:
             query: Search query string
             limit: Maximum number of results
-            transport_mode: Filter by location transport mode ('train' or 'plane')
+            mode: Location mode (plane or train)
 
         Returns:
             List of LocationRead DTOs ordered by relevance
 
         Raises:
-            HTTPException 400: If location transport_mode is invalid
-                or query is too short
+            HTTPException 400: If query is too short
         """
-        # Validate location transport_mode
-        if transport_mode is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="location transport_mode must be either 'train' or 'plane'",
-            )
-
         # Normalize and validate query
         query = query.strip()
         if len(query) < 2:
@@ -63,13 +55,15 @@ class LocationService:
         locations = await self.repo.search_location(
             query=query,
             limit=limit,
-            transport_mode=transport_mode,
+            mode=mode,
         )
 
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
-    async def get_location_by_id(self, location_id: int) -> Optional[Location]:
+    async def get_location_by_id(
+        self, location_id: int, mode: TransportModeEnum
+    ) -> Location | None:
         """
         Get location by ID.
 
@@ -79,13 +73,13 @@ class LocationService:
         Returns:
             Location if found, None otherwise
         """
-        return await self.repo.get_by_id(location_id)
+        return await self.repo.get_by_id(location_id, mode)
 
     async def calculate_distance(
         self,
         origin_location_id: int,
         destination_location_id: int,
-        transport_mode: TransportModeEnum,
+        mode: TransportModeEnum,
         number_of_trips: int = 1,
     ) -> dict[str, float]:
         """
@@ -99,26 +93,25 @@ class LocationService:
         Args:
             origin_location_id: Origin location ID
             destination_location_id: Destination location ID
-            transport_mode: Location transport mode ('plane' or 'train')
+            mode: Location mode (plane or train)
             number_of_trips: Number of trips (default: 1)
 
         Returns:
             Dict with distance_km in kilometers
 
         Raises:
-            HTTPException 400: If location transport_mode is invalid
-                or coordinates are invalid
+            HTTPException 400: If coordinates are invalid
             HTTPException 404: If location not found
         """
         # Fetch locations
-        origin_location = await self.repo.get_by_id(origin_location_id)
+        origin_location = await self.repo.get_by_id(origin_location_id, mode)
         if not origin_location:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Origin location with ID {origin_location_id} not found",
             )
 
-        destination_location = await self.repo.get_by_id(destination_location_id)
+        destination_location = await self.repo.get_by_id(destination_location_id, mode)
         if not destination_location:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -139,21 +132,19 @@ class LocationService:
         origin_corrected = Location(
             id=origin_location.id,
             name=origin_location.name,
-            transport_mode=origin_location.transport_mode,
             latitude=origin_lat,
             longitude=origin_lon,
         )
         dest_corrected = Location(
             id=destination_location.id,
             name=destination_location.name,
-            transport_mode=destination_location.transport_mode,
             latitude=dest_lat,
             longitude=dest_lon,
         )
 
         # Calculate distance
         try:
-            if transport_mode == TransportModeEnum.plane:
+            if mode == TransportModeEnum.plane:
                 distance_km = calculate_plane_distance(origin_corrected, dest_corrected)
             else:  # train
                 distance_km = calculate_train_distance(origin_corrected, dest_corrected)

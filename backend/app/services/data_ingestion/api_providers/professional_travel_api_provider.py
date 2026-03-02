@@ -14,7 +14,7 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionStatus
-from app.models.location import Location
+from app.models.location import PlaneLocation
 from app.models.user import User
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
@@ -120,7 +120,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             async def get_location_id_by_code(code: str) -> Optional[int]:
                 async with SessionLocal() as db:
                     result = await db.execute(
-                        select(Location).where(Location.iata_code == code)
+                        select(PlaneLocation).where(PlaneLocation.iata_code == code)
                     )
                     location = result.scalar_one_or_none()
                 return location.id if location else None

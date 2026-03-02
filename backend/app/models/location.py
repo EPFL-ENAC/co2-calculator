@@ -5,117 +5,41 @@ from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
-# ==========================================
-# 1. BASE MODEL
-# ==========================================
 
-
-# enum - used in other files
 class TransportModeEnum(str, Enum):
-    """
-    Location classification for transport networks.
-    Used to distinguish airport locations from train station locations.
-    """
-
     plane = "plane"
     train = "train"
 
 
-class LocationBase(SQLModel):
-    """
-    Shared fields for location records.
-    Stores train stations and airports with their geographic coordinates.
-    """
+class LocationFields(SQLModel):
+    """Shared location fields used by both plane/train tables."""
 
-    transport_mode: TransportModeEnum = Field(
-        nullable=False,
-        index=True,
-        description="Location transport mode: 'plane' (airport) or 'train' (station)",
-    )
-    name: str = Field(
-        max_length=255,
-        nullable=False,
-        index=True,
-        description="Location name (e.g., 'Lyndhurst Halt', 'Utirik Airport')",
-    )
-    airport_size: Optional[str] = Field(
-        default=None,
-        description="Airport size: 'medium_airport' or 'large_airport'",
-    )
-    latitude: float = Field(
-        nullable=False,
-        description="Latitude coordinate (decimal degrees)",
-    )
-    longitude: float = Field(
-        nullable=False,
-        description="Longitude coordinate (decimal degrees)",
-    )
-    continent: Optional[str] = Field(
-        default=None,
-        max_length=2,
-        index=True,
-        description="Continent (e.g., 'EU', 'NA', 'SA')",
-    )
-    country_code: Optional[str] = Field(
-        default=None,
-        max_length=2,
-        index=True,
-        description="ISO country code (e.g., 'AE', 'AL', 'AM')",
-    )
-    iata_code: Optional[str] = Field(
-        default=None,
-        max_length=3,
-        index=True,
-        description="IATA airport code (e.g., 'UTK', 'OCA') - only for planes",
-    )
-    municipality: Optional[str] = Field(
-        default=None,
-        max_length=255,
-        index=True,
-        description="Municipality (e.g., 'Dubai', 'Berlin')",
-    )
-    keywords: Optional[str] = Field(
-        default=None,
-        max_length=255,
-        description="Keywords (e.g., ['airport', 'train station'])",
-    )
+    name: str = Field(max_length=255, nullable=False, index=True)
+    airport_size: Optional[str] = Field(default=None)
+    latitude: float = Field(nullable=False)
+    longitude: float = Field(nullable=False)
+    continent: Optional[str] = Field(default=None, max_length=2, index=True)
+    country_code: Optional[str] = Field(default=None, max_length=2, index=True)
+    iata_code: Optional[str] = Field(default=None, max_length=3, index=True)
+    municipality: Optional[str] = Field(default=None, max_length=255, index=True)
+    keywords: Optional[str] = Field(default=None, max_length=255)
 
 
-# ==========================================
-# 2. TABLE MODEL (Database)
-# ==========================================
-
-
-class Location(LocationBase, table=True):
-    """
-    Database table for train stations and airports.
-    Inherits Base fields + Audit fields + Adds ID.
-    """
-
-    __tablename__ = "locations"
-
-    # ID: Integer, Primary Key, Auto-Increment
+class PlaneLocation(LocationFields, table=True):
+    __tablename__ = "locations_plane"
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    def __repr__(self) -> str:
-        return (
-            f"<Location id={self.id} "
-            f"mode={self.transport_mode} "
-            f"name={self.name} "
-            f"({self.latitude}, {self.longitude}) "
-            f"country={self.country_code}>"
-        )
+
+class TrainLocation(LocationFields, table=True):
+    __tablename__ = "locations_train"
+    id: Optional[int] = Field(default=None, primary_key=True)
 
 
-# ==========================================
-# 3. API OUTPUT MODELS (DTOs)
-# ==========================================
+class Location(LocationFields):
+    """Compatibility DTO used by services/utilities."""
+
+    id: Optional[int] = None
 
 
-class LocationRead(LocationBase):
-    """
-    Response schema for GET requests.
-    Returns Data + ID + Audit timestamps.
-    """
-
-    id: int
+class LocationRead(Location):
+    """API read DTO."""

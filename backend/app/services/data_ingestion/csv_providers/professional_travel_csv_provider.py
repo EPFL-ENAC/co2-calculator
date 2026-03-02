@@ -15,7 +15,7 @@ from sqlmodel import col, select
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionStatus
-from app.models.location import Location, TransportModeEnum
+from app.models.location import PlaneLocation, TrainLocation
 from app.models.user import User
 from app.schemas.data_entry import BaseModuleHandler, ModuleHandler
 from app.services.data_ingestion.base_csv_provider import (
@@ -98,9 +98,8 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
 
     async def _build_iata_cache(self) -> Dict[str, int]:
         """Build in-memory IATA code → location ID lookup for planes."""
-        stmt = select(col(Location.iata_code), col(Location.id)).where(
-            Location.transport_mode == TransportModeEnum.plane,
-            col(Location.iata_code).isnot(None),
+        stmt = select(col(PlaneLocation.iata_code), col(PlaneLocation.id)).where(
+            col(PlaneLocation.iata_code).isnot(None),
         )
         result = await self.data_session.execute(stmt)
         cache = {row.iata_code.upper(): row.id for row in result.all()}
@@ -109,9 +108,7 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
 
     async def _build_train_name_cache(self) -> Dict[str, int]:
         """Build in-memory exact name → location ID lookup for train stations."""
-        stmt = select(col(Location.name), col(Location.id)).where(
-            Location.transport_mode == TransportModeEnum.train,
-        )
+        stmt = select(col(TrainLocation.name), col(TrainLocation.id))
         result = await self.data_session.execute(stmt)
         cache = {row.name: row.id for row in result.all()}
         logger.info("Built train name cache with %d entries", len(cache))
@@ -219,7 +216,6 @@ class ProfessionalTravelCSVProvider(BaseCSVProvider):
         data_entry_type = DataEntryTypeEnum(int(self.config["data_entry_type_id"]))
 
         # Resolve origin and destination based on configured data_entry_type
-        # (location transport_mode is only used internally by location caches)
         if data_entry_type == DataEntryTypeEnum.plane:
             origin_location_id = self._iata_cache.get(origin_raw.upper())
             destination_location_id = self._iata_cache.get(destination_raw.upper())

@@ -20,7 +20,6 @@ export async function searchAirports(
 ): Promise<AirportResponse[]> {
   const params = new URLSearchParams({
     query: query.trim(),
-    transport_mode: 'plane',
   });
 
   if (limit !== undefined) {
@@ -28,7 +27,7 @@ export async function searchAirports(
   }
 
   const res = await api
-    .get(`locations/search?${params.toString()}`)
+    .get(`locations/search/plane?${params.toString()}`)
     .json<AirportResponse[]>();
   return res;
 }
@@ -46,7 +45,6 @@ export async function searchRailwayStations(
 ): Promise<RailwayStationResponse[]> {
   const params = new URLSearchParams({
     query: query.trim(),
-    transport_mode: 'train',
   });
 
   if (limit !== undefined) {
@@ -54,7 +52,7 @@ export async function searchRailwayStations(
   }
 
   const res = await api
-    .get(`locations/search?${params.toString()}`)
+    .get(`locations/search/train?${params.toString()}`)
     .json<RailwayStationResponse[]>();
   return res;
 }
@@ -72,23 +70,14 @@ export async function searchLocations(
   transportMode: TransportMode,
   limit?: number,
 ): Promise<Location[]> {
-  const params = new URLSearchParams({
-    query: query.trim(),
-    transport_mode: transportMode,
-  });
-
-  if (limit !== undefined) {
-    params.append('limit', limit.toString());
+  if (transportMode === 'plane') {
+    return searchAirports(query, limit);
   }
-
-  const res = await api
-    .get(`locations/search?${params.toString()}`)
-    .json<Location[]>();
-  return res;
+  return searchRailwayStations(query, limit);
 }
 
 /**
- * Calculate distance between two locations based on transport mode.
+ * Calculate distance between two locations.
  *
  * For planes: Haversine distance + 95 km (airport approaches, routing, taxiing)
  * For trains: Haversine distance × 1.2 (track routing, curves, detours)
@@ -97,7 +86,6 @@ export async function searchLocations(
  *
  * @param originLocationId - Origin location ID
  * @param destinationLocationId - Destination location ID
- * @param transportMode - Transport mode: 'plane' or 'train'
  * @param numberOfTrips - Number of trips (default: 1)
  * @returns Promise resolving to total distance in kilometers
  */
@@ -110,12 +98,11 @@ export async function calculateDistance(
   const params = new URLSearchParams({
     origin_location_id: originLocationId.toString(),
     destination_location_id: destinationLocationId.toString(),
-    transport_mode: transportMode,
     number_of_trips: numberOfTrips.toString(),
   });
 
   const res = await api
-    .get(`locations/calculate-distance?${params.toString()}`)
+    .get(`locations/calculate-distance/${transportMode}?${params.toString()}`)
     .json<{ distance_km: number }>();
   return res.distance_km;
 }

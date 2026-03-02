@@ -20,7 +20,6 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionTypeEnum
-from app.models.location import TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.modules import (
     EquipmentHandlerCreate,
@@ -176,7 +175,6 @@ def build_professional_travel():
         "traveler_id": maybe(random.randint(1, 1000)),  # nosec B311
         "origin_location_id": random.randint(1, 200),  # nosec B311
         "destination_location_id": random.randint(1, 200),  # nosec B311
-        "transport_mode": random.choice(list(TransportModeEnum)).value,  # nosec B311
         "cabin_class": maybe(random.choice(["eco", "business", "first"])),  # nosec B311
         "departure_date": maybe(date.today()),
         "number_of_trips": random.randint(1, 10),  # nosec B311

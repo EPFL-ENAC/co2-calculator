@@ -9,7 +9,7 @@ from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
 from .factor import Factor
-from .location import Location
+from .location import Location, PlaneLocation, TrainLocation
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User
@@ -55,6 +55,8 @@ __all__ = [
     "CarbonReport",
     "CarbonReportModule",
     "Location",
+    "PlaneLocation",
+    "TrainLocation",
     "DataEntry",
     "DataEntryEmission",
 ]
