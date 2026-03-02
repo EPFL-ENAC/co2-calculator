@@ -1,13 +1,16 @@
-from typing import Callable, Optional
+from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType, get_scope
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    get_scope,
+)
 from app.models.factor import Factor
-from app.modules.emission_computation import EmissionComputation
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
@@ -263,88 +266,89 @@ class DataEntryEmissionService:
         """Get travel emissions aggregated by year and category."""
         return await self.repo.get_travel_evolution_over_time(unit_id)
 
-    # Dict of dataEntryTypeEnum , func to calculation formulas
-    FORMULAS: dict[EmissionType, Callable] = {}
+    # # Dict of dataEntryTypeEnum , func to calculation formulas
+    # FORMULAS: dict[EmissionType, Callable] = {}
 
-    # create a decorator to register formulas
-    @classmethod
-    def register_formula(cls, name: EmissionType):
-        # should register only for leaf!
-        def decorator(func):
-            cls.FORMULAS[name] = func
-            return func
+    # # create a decorator to register formulas
+    # @classmethod
+    # def register_formula(cls, name: EmissionType):
+    #     # should register only for leaf!
+    #     def decorator(func):
+    #         cls.FORMULAS[name] = func
+    #         return func
 
-        return decorator
+    #     return decorator
 
-    async def _prepare_headcount_emissions_old(
-        self,
-        data_entry: DataEntry | DataEntryResponse,
-        emission_types: list[EmissionType],
-        factor_service: FactorService,
-    ) -> list[DataEntryEmission]:
-        """Prepare emissions for member/student types (one row per emission type).
+    # async def _prepare_headcount_emissions_old(
+    #     self,
+    #     data_entry: DataEntry | DataEntryResponse,
+    #     emission_types: list[EmissionType],
+    #     factor_service: FactorService,
+    # ) -> list[DataEntryEmission]:
+    #     """Prepare emissions for member/student types (one row per emission type).
 
-        Each emission type (food, waste, commuting, grey_energy) uses its own factor.
-        The kg_co2eq is calculated as: fte × factor_value.kg_co2eq_per_fte
+    #     Each emission type (food, waste, commuting, grey_energy) uses its own factor.
+    #     The kg_co2eq is calculated as: fte × factor_value.kg_co2eq_per_fte
 
-        Args:
-            data_entry: The data entry (member or student)
-            emission_types: List of emission types (food, waste, commuting, grey_energy)
-            factor_service: FactorService for looking up factors
+    #     Args:
+    #         data_entry: The data entry (member or student)
+    #         emission_types: List of emission types (food, waste
+    #  commuting, grey_energy)
+    #         factor_service: FactorService for looking up factors
 
-        Returns:
-            List of DataEntryEmission objects (one per emission type)
-        """
-        emissions: list[DataEntryEmission] = []
-        fte = data_entry.data.get("fte", 0)
+    #     Returns:
+    #         List of DataEntryEmission objects (one per emission type)
+    #     """
+    #     emissions: list[DataEntryEmission] = []
+    #     fte = data_entry.data.get("fte", 0)
 
-        for emission_type in emission_types:
-            # Look up the specific factor for this emission type
-            factor = await factor_service.get_by_classification(
-                data_entry_type=data_entry.data_entry_type,
-                kind=emission_type.name,
-                subkind=None,
-            )
+    #     for emission_type in emission_types:
+    #         # Look up the specific factor for this emission type
+    #         factor = await factor_service.get_by_classification(
+    #             data_entry_type=data_entry.data_entry_type,
+    #             kind=emission_type.name,
+    #             subkind=None,
+    #         )
 
-            if not factor or not factor.values:
-                logger.warning(
-                    f"Missing factor for emission_type={emission_type} "
-                    f"for data_entry_id={data_entry.id}"
-                )
-                continue
+    #         if not factor or not factor.values:
+    #             logger.warning(
+    #                 f"Missing factor for emission_type={emission_type} "
+    #                 f"for data_entry_id={data_entry.id}"
+    #             )
+    #             continue
 
-            # Calculate kg_co2eq = fte × kg_co2eq_per_fte
-            kg_co2eq_per_fte = factor.values.get("kg_co2eq_per_fte", 0)
-            kg_co2eq = fte * kg_co2eq_per_fte
+    #         # Calculate kg_co2eq = fte × kg_co2eq_per_fte
+    #         kg_co2eq_per_fte = factor.values.get("kg_co2eq_per_fte", 0)
+    #         kg_co2eq = fte * kg_co2eq_per_fte
 
-            emissions.append(
-                DataEntryEmission(
-                    data_entry_id=data_entry.id,
-                    emission_type_id=emission_type.value,
-                    primary_factor_id=factor.id,
-                    scope=get_scope(emission_type),
-                    kg_co2eq=kg_co2eq,
-                    meta={
-                        "fte": fte,
-                        "kg_co2eq_per_fte": kg_co2eq_per_fte,
-                    },
-                )
-            )
+    #         emissions.append(
+    #             DataEntryEmission(
+    #                 data_entry_id=data_entry.id,
+    #                 emission_type_id=emission_type.value,
+    #                 primary_factor_id=factor.id,
+    #                 scope=get_scope(emission_type),
+    #                 kg_co2eq=kg_co2eq,
+    #                 meta={
+    #                     "fte": fte,
+    #                     "kg_co2eq_per_fte": kg_co2eq_per_fte,
+    #                 },
+    #             )
+    #         )
 
-        return emissions
+    #     return emissions
 
-    async def _calculate_emissions(
-        self,
-        data_entry: DataEntry | DataEntryResponse,
-        factors: list[Factor],
-        emission_type: EmissionType,
-    ) -> dict:
-        """Placeholder method for emissions calculation logic."""
-        # Implement actual calculation based on data_entry data
-        if emission_type is None:
-            raise ValueError("emission_type is required for emissions calculation")
-        formula_func = self.FORMULAS.get(emission_type)
-        if formula_func:
-            return await formula_func(self, data_entry, factors, emission_type)
-        else:
-            raise ValueError(f"No formula registered for: {emission_type}")
+    # async def _calculate_emissions(
+    #     self,
+    #     data_entry: DataEntry | DataEntryResponse,
+    #     factors: list[Factor],
+    #     emission_type: EmissionType,
+    # ) -> dict:
+    #     """Placeholder method for emissions calculation logic."""
+    #     # Implement actual calculation based on data_entry data
+    #     if emission_type is None:
+    #         raise ValueError("emission_type is required for emissions calculation")
+    #     formula_func = self.FORMULAS.get(emission_type)
+    #     if formula_func:
+    #         return await formula_func(self, data_entry, factors, emission_type)
+    #     else:
+    #         raise ValueError(f"No formula registered for: {emission_type}")
