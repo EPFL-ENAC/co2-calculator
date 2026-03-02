@@ -9,7 +9,6 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
-from app.models.location import TransportModeEnum
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
@@ -61,9 +60,7 @@ async def seed_plane_factors() -> None:
                     is_conversion=False,
                     data_entry_type_id=DataEntryTypeEnum.plane.value,
                     classification={
-                        "kind": TransportModeEnum.plane.value,
-                        "subkind": category,
-                        "category": category,
+                        "kind": category,
                     },
                     values={
                         # Keep both key variants for backward compatibility.

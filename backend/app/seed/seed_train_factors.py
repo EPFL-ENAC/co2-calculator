@@ -9,7 +9,6 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
-from app.models.location import TransportModeEnum
 from app.modules.professional_travel import (
     schemas as schemas,
 )  # This ensures the handlers are registered
@@ -56,9 +55,8 @@ async def seed_train_factors() -> None:
                     is_conversion=False,
                     data_entry_type_id=DataEntryTypeEnum.train.value,
                     classification={
-                        "kind": TransportModeEnum.train.value,
-                        "subkind": country_code,
-                        "country_code": country_code,
+                        "kind": country_code,
+                        "subkind": None,
                     },
                     values={
                         # Keep both key variants for backward compatibility.

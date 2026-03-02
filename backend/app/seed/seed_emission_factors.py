@@ -33,6 +33,7 @@ CSV_PATH = (
 )
 
 
+# DEPRECATED -
 async def seed_emission_factors(session: AsyncSession) -> None:
     """Seed initial emission factors."""
     logger.info("Seeding emission factors...")
@@ -157,6 +158,11 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 values={
                     "active_power_w": active_power,
                     "standby_power_w": standby_power,
+                    # will be in CSV in the future when we have specific emission
+                    # factors per equipment, but for now we set it to the Swiss mix
+                    # EF as a default value to allow computations to work
+                    # Default value for emission factor
+                    "ef_kg_co2eq_per_kwh": 0.125,
                 },
             )
             power_factors.append(power_factor)
@@ -172,7 +178,7 @@ async def main() -> None:
     logger.info("Starting emission factors seeding...")
 
     async with SessionLocal() as session:
-        await seed_emission_factors(session)
+        # await seed_emission_factors(session)
         await seed_power_factors(session)
         await session.commit()
         # commit all changes at the end of seeding emission factors and power factors

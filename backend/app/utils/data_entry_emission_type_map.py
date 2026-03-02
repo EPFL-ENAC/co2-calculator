@@ -193,7 +193,7 @@ def _resolve_ai(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
-    gas = (data.get("kind", "") or "").lower()
+    gas = (data.get("emitted_gas", "") or "").lower()
     et = _PROCESS_GAS_MAP.get(gas)
     return [et] if et else None  # None = unknown gas, caller should warn + skip
 

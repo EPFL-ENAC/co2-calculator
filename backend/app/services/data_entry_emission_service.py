@@ -125,7 +125,8 @@ class DataEntryEmissionService:
             classification: dict = {}
             if q.subkind is not None:
                 classification["subkind"] = q.subkind
-            classification.update(q.context)
+            if q.context is not None:
+                classification.update(q.context)
 
             if classification or q.fallbacks:
                 factor = await factor_service.get_factor(

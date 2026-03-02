@@ -183,19 +183,22 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
 
-        cabin_class = data_entry.data.get("cabin_class")
+        # cabin_class = data_entry.data.get("cabin_class")
         haul_category = ctx.get("haul_category")
-        context: dict = {}
-        if haul_category:
-            context["category"] = haul_category
+        # context: dict = {}
+        if haul_category is None:
+            logger.warning(
+                f"Haul category could not be determined for data entry {data_entry.id}"
+            )
+            haul_category = "unknown"
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.plane,
-                    kind="plane",
-                    subkind=cabin_class,
-                    context=context,
+                    kind=haul_category,
+                    subkind=None,
+                    context={},
                 ),
                 formula_key="ef_kg_co2eq_per_km",
                 quantity_key="distance_km",
