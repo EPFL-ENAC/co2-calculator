@@ -316,11 +316,7 @@ async def get_submodule(
 
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-        List[DataEntryResponse],
-    ],
+    response_model=DataEntryResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create(
@@ -442,18 +438,25 @@ async def create(
             detail="Failed to create item",
         )
 
-    emission = await DataEntryEmissionService(db).upsert_by_data_entry(
+    await DataEntryEmissionService(db).upsert_by_data_entry(
         data_entry_response=item,
     )
     await db.commit()
 
     response = DataEntryResponse.model_validate(item)
-    if emission and emission.meta:
-        response.data = {
-            **response.data,
-            **emission.meta,
-            "kg_co2eq": emission.kg_co2eq,
-        }
+    # emissions_meta = {}
+    # for emission in emissions:
+    #     if emission and emission.meta:
+    #         emissions_meta.update(emission.meta)
+    # kg_co2eq = sum(
+    #     emission_local.kg_co2eq
+    #     for emission_local in emissions
+    #     if emission_local and emission_local.kg_co2eq is not None
+    # )
+    response.data = {
+        **response.data,
+        "kg_co2eq": 0,
+    }
     logger.info(
         f"Created {sanitize(module_id)}:{sanitize(response.id)} for {sanitize(unit_id)}"
     )

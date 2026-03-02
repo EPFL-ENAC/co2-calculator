@@ -275,42 +275,50 @@ class DataEntryService:
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
-        if not user or not user.id:
-            logger.error("User context is required for updating data entry")
-            raise PermissionError("User context is required for updating data entry")
-        entry = await self.repo.update(
-            id=id,
-            data=data,
-            user_id=user.id,
-        )
-        if entry is None:
-            raise ValueError(f"Data entry with id={id} not found")
-        await self.session.refresh(entry)
+        try:
+            if not user or not user.id:
+                logger.error("User context is required for updating data entry")
+                raise PermissionError(
+                    "User context is required for updating data entry"
+                )
+            entry = await self.repo.update(
+                id=id,
+                data=data,
+                user_id=user.id,
+            )
+            if entry is None:
+                raise ValueError(f"Data entry with id={id} not found")
+            await self.session.refresh(entry)
 
-        # Extract context information
-        request_context = request_context or {}
-        handled_ids = extract_handled_ids(
-            entry, DataEntryTypeEnum(entry.data_entry_type_id)
-        )
+            # Extract context information
+            request_context = request_context or {}
+            handled_ids = extract_handled_ids(
+                entry, DataEntryTypeEnum(entry.data_entry_type_id)
+            )
 
-        # Serialize data_snapshot to handle datetime objects
-        data_snapshot_str = json.dumps(entry.model_dump(), default=_serialize_datetime)
-        data_snapshot = json.loads(data_snapshot_str)
+            # Serialize data_snapshot to handle datetime objects
+            data_snapshot_str = json.dumps(
+                entry.model_dump(), default=_serialize_datetime
+            )
+            data_snapshot = json.loads(data_snapshot_str)
 
-        await self.versioning.create_version(
-            entity_type=self.repo.entity_type,
-            entity_id=entry.id or 0,
-            data_snapshot=data_snapshot,
-            change_type=AuditChangeTypeEnum.UPDATE,
-            changed_by=user.id,
-            change_reason="Data entry updated",
-            handler_id=user.provider_code,
-            handled_ids=handled_ids,
-            ip_address=request_context.get("ip_address"),
-            route_path=request_context.get("route_path"),
-            route_payload=request_context.get("route_payload"),
-            background_tasks=background_tasks,
-        )
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=entry.id or 0,
+                data_snapshot=data_snapshot,
+                change_type=AuditChangeTypeEnum.UPDATE,
+                changed_by=user.id,
+                change_reason="Data entry updated",
+                handler_id=user.provider_code,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
+        except Exception as e:
+            logger.error(f"Error updating data entry id={id}: {str(e)}")
+            raise e
 
         return DataEntryResponse.model_validate(entry)
 

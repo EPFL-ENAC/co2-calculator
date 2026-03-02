@@ -6,7 +6,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 
 
@@ -36,7 +36,7 @@ class FactorRepository:
 
     async def get_current_factor(
         self,
-        emission_type_id: EmissionTypeEnum,
+        emission_type_id: EmissionType,
         data_entry_type_id: DataEntryTypeEnum,
     ) -> Optional[Factor]:
         """

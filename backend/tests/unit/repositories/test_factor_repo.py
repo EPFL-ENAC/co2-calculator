@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -33,7 +33,7 @@ async def test_get(repo):
 @pytest.mark.asyncio
 async def test_create(repo):
     factor = Factor(
-        emission_type_id=EmissionTypeEnum.energy,
+        emission_type_id=EmissionType.energy,
         data_entry_type_id=DataEntryTypeEnum.member,
         classification={},
         values={},
@@ -54,7 +54,7 @@ async def test_create(repo):
 async def test_bulk_create(repo):
     factors = [
         Factor(
-            emission_type_id=EmissionTypeEnum.energy,
+            emission_type_id=EmissionType.energy,
             data_entry_type_id=DataEntryTypeEnum.member,
             classification={},
             values={},

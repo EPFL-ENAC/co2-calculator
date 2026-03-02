@@ -86,20 +86,27 @@ type ProcessesProps = {
   submoduleType?: AllSubmoduleTypes; // ProcessesSubType;
 };
 
+// beware came straight from backend enum, make sure to keep in sync if backend changes
+// backend/app/models/data_entry.py
 export const enumSubmodule = {
   member: 1,
   student: 2,
   // todo replace with equipment types
-  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 9,
-  [SUBMODULE_EQUIPMENT_TYPES.IT]: 10,
-  [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
+  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 10,
+  [SUBMODULE_EQUIPMENT_TYPES.IT]: 11,
+  [SUBMODULE_EQUIPMENT_TYPES.Other]: 12,
+  // travel
   plane: 20,
   train: 21,
+  // building room
   building: 30,
   energy_combustion: 31,
+  // external cloud and ai
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
+  // process emissions
   process_emissions: 50,
+  // purchase submodules
   [SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases]: 60,
   [SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases]: 61,
   [SUBMODULE_PURCHASE_TYPES.ConsumablePurchases]: 62,
@@ -108,6 +115,12 @@ export const enumSubmodule = {
   [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
   [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
   [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
+
+  // research facilities
+  research_facilities: 70,
+  mice_and_fish_animal_facilities: 71,
+  other_research_facilities: 72,
+  // not a module per se
   energy_mix: 100,
 } as const;
 

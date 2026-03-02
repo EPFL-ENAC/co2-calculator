@@ -1,10 +1,15 @@
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import field_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    EmissionType,
+    FactorQuery,
+)
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
@@ -110,6 +115,58 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         payload["primary_factor_id"] = None
         return payload
 
+    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
+        """Pre-compute per-subcategory kWh from kwh_per_m2 × surface."""
+        surface = data_entry.data.get("room_surface_square_meter") or 0
+        return {
+            "lighting_kwh": (data_entry.data.get("lighting_kwh_per_square_meter") or 0)
+            * surface,
+            "cooling_kwh": (data_entry.data.get("cooling_kwh_per_square_meter") or 0)
+            * surface,
+            "ventilation_kwh": (
+                data_entry.data.get("ventilation_kwh_per_square_meter") or 0
+            )
+            * surface,
+            "heating_kwh": (data_entry.data.get("heating_kwh_per_square_meter") or 0)
+            * surface,
+        }
+
+    # Maps each building EmissionType leaf → (factor subkind, context quantity_key)
+    _EMISSION_TO_SUBCATEGORY: dict = {
+        EmissionType.buildings__rooms__lighting: ("lighting", "lighting_kwh"),
+        EmissionType.buildings__rooms__cooling: ("cooling", "cooling_kwh"),
+        EmissionType.buildings__rooms__ventilation: ("ventilation", "ventilation_kwh"),
+        EmissionType.buildings__rooms__heating_elec: ("heating_elec", "heating_kwh"),
+        EmissionType.buildings__rooms__heating_thermal: (
+            "heating_thermal",
+            "heating_kwh",
+        ),
+    }
+
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        mapping = self._EMISSION_TO_SUBCATEGORY.get(emission_type)
+        if not mapping:
+            return []
+        subkind, quantity_key = mapping
+        building_name = data_entry.data.get("building_name", "")
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.building,
+                    kind=building_name,
+                    subkind=subkind,
+                ),
+                formula_key="ef_kg_co2eq_per_kwh",
+                quantity_key=quantity_key,
+                multiplier_key="conversion_factor",
+                multiplier_default=1.0,
+            )
+        ]
+
     def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
         d = data_entry.data
         pf = d.get("primary_factor", {})
@@ -194,6 +251,22 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     filter_map = {
         "heating_type": Factor.classification["kind"].as_string(),
     }
+
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_key="kg_co2eq_per_unit",
+                quantity_key="quantity",
+            )
+        ]
 
     def to_response(self, data_entry: DataEntry) -> EnergyCombustionHandlerResponse:
         primary_factor = data_entry.data.get("primary_factor", {})

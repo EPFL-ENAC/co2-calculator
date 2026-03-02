@@ -23,7 +23,7 @@ from app.db import SessionLocal
 
 # from app.models.equipment import Equipment, EquipmentEmission
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
@@ -31,10 +31,10 @@ from app.models.module_type import ModuleTypeEnum
 from app.modules.equipment_electric_consumption import (
     schemas as schemas,
 )  # This ensures the handlers are registered
-from app.modules.equipment_electric_consumption.emissions import (
-    compute_scientific_it_other,
-)
 
+# from app.modules.equipment_electric_consumption.schemas import (
+#     handle_equipment_emission_computation as compute_scientific_it_other,
+# )
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
@@ -270,7 +270,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
     # Get emission factor
     ef_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.energy)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.energy)
     )
     emission_factor = ef_result.one_or_none()
     if not emission_factor:
@@ -288,7 +288,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     # Get power factors map for lookup
     power_factors_map = {}
     pf_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.equipment)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.equipment)
     )
     for pf_ in pf_result.all():
         power_factors_map[pf_.id] = pf_
@@ -330,10 +330,10 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             continue
 
         # Prepare equipment data for calculation
-        equipment_data = {
-            "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
-            "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
-        }
+        # equipment_data = {
+        #     "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
+        #     "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
+        # }
 
         if (emission_factor.values is None) or (emission_factor.id is None):
             logger.error(
@@ -344,11 +344,11 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         if mix_energy is None:
             raise ValueError("Emission factor missing 'kgco2eq_per_kwh' value")
         # Calculate emissions using the versioned calculation service
-        emission_result = compute_scientific_it_other(
-            self=None,
-            data_entry=equipment_data,
-            factors=[pf, emission_factor],
-        )
+        # emission_result = compute_scientific_it_other(
+        #     self=None,
+        #     data_entry=equipment_data,
+        #     factors=[pf, emission_factor],
+        # )
 
         # Create EquipmentEmission record
         if equipment.id is None:
@@ -358,14 +358,14 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             raise ValueError("Equipment must have data_entry_type_id")
         equipment_emission = DataEntryEmission(
             data_entry_id=equipment.id,
-            emission_type_id=EmissionTypeEnum.equipment,
+            emission_type_id=EmissionType.equipment,
             primary_factor_id=power_factor_id,
             subcategory=DataEntryTypeEnum(
                 equipment.data_entry_type_id
             ).name.title(),  # TODO: should be an enum somwhere
-            kg_co2eq=emission_result["kg_co2eq"],
+            kg_co2eq=None,  # emission_result,
             meta={
-                "annual_kwh": emission_result["annual_kwh"],
+                "annual_kwh": 0,
                 "calculation_inputs": equipment.data,
                 "emission_factor_id": emission_factor.id,
             },

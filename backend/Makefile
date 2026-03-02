@@ -116,14 +116,15 @@ test-cov-xml: ## Run tests with coverage and output XML report
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
-# custom seeds from accred
+# seeds units from accred
 # 	$(UV) run -m app.seed.seed_units_from_accred
-# 	# Mandatory seeds
+# Random seeds
 #	$(UV) run -m app.seed.seed_all
+# custom seeds from ./backend/seed_data folder
 	$(UV) run -m app.seed.seed_fake_user_unit
 	$(UV) run -m app.seed.seed_emission_factors
-	$(UV) run -m app.seed.seed_process_emissions_factors
 	$(UV) run -m app.seed.seed_equipment
+	$(UV) run -m app.seed.seed_process_emissions_factors
 	$(UV) run -m app.seed.seed_locations
 	$(UV) run -m app.seed.seed_plane_factors
 	$(UV) run -m app.seed.seed_train_factors
@@ -131,6 +132,7 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_purchase
 	$(UV) run -m app.seed.seed_archibus_rooms
 	$(UV) run -m app.seed.seed_building_factors
+	$(UV) run -m app.seed.seed_headcount_factors
 
 .PHONY: dev
 dev: install ## Start backend development server

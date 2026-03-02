@@ -19,13 +19,13 @@ class DataEntryTypeEnum(int, Enum):
     member = 1
     student = 2
     # equipment
-    scientific = 9
-    it = 10
-    other = 11
+    scientific = 10
+    it = 11
+    other = 12
     # travel
     plane = 20
     train = 21
-    #
+    # building/room
     building = 30
     energy_combustion = 31
     # external clouds and ai
@@ -42,6 +42,14 @@ class DataEntryTypeEnum(int, Enum):
     vehicles = 65
     other_purchases = 66
     additional_purchases = 67
+
+    # Research facilities: Was internal services
+    # Implementation of the module "Research facilities" and its sub-modules:
+    research_facilities = 70
+    mice_and_fish_animal_facilities = 71
+    other_research_facilities = 72
+    # not a module per se but we need a data_entry_type to link the factor
+    # energy_mix will disapear when we add the info in the factor equipment table
     # energy mix
     energy_mix = 100
 

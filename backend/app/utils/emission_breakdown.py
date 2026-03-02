@@ -2,9 +2,11 @@
 
 Used by the emission-breakdown endpoint to serve both
 ModuleCarbonFootprintChart and CarbonFootPrintPerPersonChart.
+
+Uses emission_type.path for chart keys and emission_type.parent for categories.
 """
 
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 
 # module_type_id → chart category (x-axis grouping)
 # Building (module_type_id=3) is split by emission type; see _MODULE_EMISSION_CATEGORY
@@ -19,30 +21,27 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
 
 # (module_type_id, emission_type_id) → category override
 # Splits Building into two separate x-axis bars by emission type
+# TODO fix this without harcoding!
 _MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
-    (3, EmissionTypeEnum.energy): "Buildings energy consumption",
-    (3, EmissionTypeEnum.combustion): "Energy combustion",
-    (3, EmissionTypeEnum.grey_energy): "Buildings room",
+    (3, EmissionType.buildings__rooms): "Buildings energy consumption",
+    (3, EmissionType.buildings__combustion): "Energy combustion",
+    (3, EmissionType.grey_energy): "Buildings room",
 }
-
-# Modules where the DB subcategory field provides meaningful subdivisions;
-# for all others, EmissionTypeEnum.name is used as the chart key.
-_SUBCATEGORY_PREFERRED_MODULES: set[int] = {4, 2}  # Equipment, Professional Travel
 
 # Headcount emission types — routed to additional_breakdown, not the main chart
 HEADCOUNT_EMISSION_TYPES: set[int] = {
-    EmissionTypeEnum.food,
-    EmissionTypeEnum.waste,
-    EmissionTypeEnum.commuting,
-    EmissionTypeEnum.grey_energy,
+    EmissionType.food,
+    EmissionType.waste,
+    EmissionType.commuting,
+    EmissionType.grey_energy,
 }
 
 # Headcount key names (camelCase for frontend)
 HEADCOUNT_KEY_MAP: dict[int, str] = {
-    EmissionTypeEnum.food: "food",
-    EmissionTypeEnum.waste: "waste",
-    EmissionTypeEnum.commuting: "commuting",
-    EmissionTypeEnum.grey_energy: "greyEnergy",
+    EmissionType.food: "food",
+    EmissionType.waste: "waste",
+    EmissionType.commuting: "commuting",
+    EmissionType.grey_energy: "greyEnergy",
 }
 
 # Maps module_type_id → per-person chart key
@@ -67,13 +66,14 @@ for (_mid, _etype), _cat in _MODULE_EMISSION_CATEGORY.items():
         CATEGORY_TO_MODULE_TYPE_IDS[_cat].append(_mid)
 
 # Headcount placeholder per-FTE values (kg CO2eq per FTE per year)
-HEADCOUNT_PER_FTE_KG: dict[EmissionTypeEnum, float] = {
-    EmissionTypeEnum.food: 420.0,
-    EmissionTypeEnum.waste: 125.0,
-    EmissionTypeEnum.commuting: 1375.0,
-    EmissionTypeEnum.grey_energy: 500.0,
+HEADCOUNT_PER_FTE_KG: dict[EmissionType, float] = {
+    EmissionType.food: 420.0,
+    EmissionType.waste: 125.0,
+    EmissionType.commuting: 1375.0,
+    EmissionType.grey_energy: 500.0,
 }
 
+# Category order for consistent display
 MODULE_BREAKDOWN_ORDER = [
     # Scope 1
     "Process Emissions",
@@ -90,7 +90,7 @@ MODULE_BREAKDOWN_ORDER = [
 ]
 
 # Expected chart keys per category for zero-filling.
-# Equipment/Travel: subcategory-based; others: emission-type-based.
+# Now uses emission_type.name (path) for all modules.
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
     "Process Emissions": ["process_emissions"],
     "Buildings energy consumption": ["energy"],
@@ -102,11 +102,11 @@ CATEGORY_CHART_KEYS: dict[str, list[str]] = {
         "scientific_equipment",
         "it_equipment",
         "consumable_accessories",
-        "biological_chemical_gaseous_product",
+        "biological_chemical_gaseous",
         "services",
         "vehicles",
-        "other_purchases",
-        "additional_purchases",
+        "other",
+        "additional",
     ],
     "Research facilities": [],
     "Professional travel": ["plane", "train"],
@@ -135,6 +135,28 @@ def _is_headcount_only(emission_type_id: int, module_type_id: int) -> bool:
     return (module_type_id, emission_type_id) not in _MODULE_EMISSION_CATEGORY
 
 
+def _get_category_from_emission_type(emission_type: EmissionType) -> str | None:
+    """Resolve the chart category from an EmissionType using parent.
+
+    For leaf emission types, returns the parent category name.
+    For example: "professional_travel__planes__eco" → "Professional Travel"
+    """
+    parent = emission_type.parent
+    if parent is None:
+        return None
+    # Convert "professional_travel" → "Professional Travel"
+    return parent.name.replace("_", " ").title()
+
+
+def _to_chart_key_from_path(emission_type: EmissionType) -> str | None:
+    """Derive chart key from emission_type.path.
+
+    Uses the last part of the path for all modules.
+    For example: "professional_travel__planes__eco" → "eco"
+    """
+    return emission_type.name.split("__")[-1]
+
+
 def _get_category(module_type_id: int, emission_type_id: int) -> str | None:
     """Resolve the chart category for a (module, emission_type) pair.
 
@@ -155,31 +177,40 @@ def _to_chart_key(
     """Derive chart key automatically from the row data.
 
     For modules in _SUBCATEGORY_PREFERRED_MODULES (Equipment, Travel),
-    uses the subcategory field. For everything else, uses EmissionTypeEnum.name.
+    uses the subcategory field. For everything else, uses EmissionType.name.
     """
-    if module_type_id in _SUBCATEGORY_PREFERRED_MODULES and subcategory is not None:
-        return subcategory[0].lower() + subcategory[1:]
+    # Use parent path for chart key
     try:
-        return EmissionTypeEnum(emission_type_id).name
+        emission_type = EmissionType(emission_type_id)
+        # Get last part of path (e.g., "professional_travel__planes__eco" → "eco")
+        return emission_type.name.split("__")[-1]
     except ValueError:
         return None
 
 
 def build_chart_breakdown(
-    rows: list[tuple[int, int, str | None, float | None]],
+    rows: list[
+        tuple[int, int, int | None, float | None]
+    ],  # (module_type_id, emission_type_id, scope, kg_co2eq)
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
 ) -> dict:
     """Transform raw DB emission rows into chart-ready format.
 
-    Chart key is derived automatically: subcategory for Equipment/Travel,
-    EmissionTypeEnum.name for everything else. Category from module_type_id.
+    Chart key is derived from emission_type.path (last segment).
+    Category is derived from emission_type.parent.name.
+
+    Args:
+        rows: List of (module_type_id, emission_type_id, scope, kg_co2eq)
+        total_fte: Total FTE count for per-person calculations
+        headcount_validated: Whether headcount data is validated
+        validated_module_type_ids: Set of validated module type IDs
     """
     # Accumulate by (category, chart_key)
     category_data: dict[str, dict[str, float]] = {}
 
-    for module_type_id, emission_type_id, subcategory, kg_co2eq in rows:
+    for module_type_id, emission_type_id, scope, kg_co2eq in rows:
         if kg_co2eq is None:
             continue
         if _is_headcount_only(emission_type_id, module_type_id):
@@ -189,7 +220,7 @@ def build_chart_breakdown(
         if cat is None:
             continue
 
-        chart_key = _to_chart_key(emission_type_id, subcategory, module_type_id)
+        chart_key = _to_chart_key(emission_type_id, None, module_type_id)
         if chart_key is None:
             continue
 
@@ -242,7 +273,7 @@ def build_chart_breakdown(
     per_person: dict[str, float] = {}
 
     module_totals_kg: dict[int, float] = {}
-    for module_type_id, emission_type_id, _subcategory, kg_co2eq in rows:
+    for module_type_id, emission_type_id, _scope, kg_co2eq in rows:
         if kg_co2eq is None:
             continue
         if _is_headcount_only(emission_type_id, module_type_id):

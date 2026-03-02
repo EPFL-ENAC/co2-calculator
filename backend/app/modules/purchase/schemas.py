@@ -4,7 +4,7 @@ from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -189,6 +189,20 @@ class PurchaseModuleHandler(BaseModuleHandler):
     def validate_update(self, payload: dict) -> PurchaseHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_key="ef_kg_co2eq_per_currency",
+                quantity_key="total_spent_amount",
+            )
+        ]
+
 
 class PurchaseAdditionalModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
@@ -230,3 +244,25 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> PurchaseAdditionalHandlerUpdate:
         return self.update_dto.model_validate(payload)
+
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+
+        def _additional_purchase_formula(ctx: dict, factor_values: dict):
+            annual_consumption = ctx.get("annual_consumption", 0)
+            coef_to_kg = ctx.get("coef_to_kg", 0)
+            ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
+            if not annual_consumption or not coef_to_kg or not ef:
+                return None
+            return annual_consumption * coef_to_kg * ef
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_func=_additional_purchase_formula,
+            )
+        ]

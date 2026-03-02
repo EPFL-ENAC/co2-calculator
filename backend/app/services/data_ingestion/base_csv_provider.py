@@ -969,11 +969,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
-                emission_obj = await emission_service.prepare_create(
+                emission_objs = await emission_service.prepare_create(
                     data_entry_response
                 )
-                if emission_obj is not None:
-                    emissions_to_create.append(emission_obj)
+                if emission_objs is not None:
+                    emissions_to_create.extend(emission_objs)
             except Exception as emission_error:
                 logger.warning(
                     f"Failed to prepare emission for "

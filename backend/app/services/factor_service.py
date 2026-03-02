@@ -53,6 +53,32 @@ class FactorService:
             subkind=subkind,
         )
 
+    async def get_factor(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        fallbacks: Optional[Dict[str, Any]] = None,
+        **classification: Any,
+    ) -> Optional[Factor]:
+        """Flexible factor lookup with dynamic classification filters and fallbacks.
+
+        Forwards to ``FactorRepository.get_factor``.
+
+        Args:
+            data_entry_type: Scopes the query to this data entry type.
+            fallbacks: Optional fallback values for classification keys
+                       (e.g. ``{"country_code": "RoW"}``).
+            **classification: Arbitrary classification key/value filters
+                              (e.g. ``kind="plane"``, ``category="short_haul"``).
+
+        Returns:
+            Matching factor or ``None``.
+        """
+        return await self.repo.get_factor(
+            data_entry_type=data_entry_type,
+            fallbacks=fallbacks,
+            **classification,
+        )
+
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,

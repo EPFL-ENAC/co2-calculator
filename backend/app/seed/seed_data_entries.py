@@ -19,7 +19,7 @@ from faker import Faker
 
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.location import TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.modules import (
@@ -291,7 +291,7 @@ def generate_emissions_for_entry(entry_id, data_entry_type_id):
     now = datetime.now(timezone.utc)
 
     # simple placeholder logic for speed  # nosec B311
-    emission_type = random.choice(list(EmissionTypeEnum))  # nosec B311
+    emission_type = random.choice(list(EmissionType))  # nosec B311
 
     rows.append(
         (
