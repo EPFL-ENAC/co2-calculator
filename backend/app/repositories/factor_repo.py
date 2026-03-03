@@ -115,6 +115,15 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return [id for id in result.all() if id is not None]
 
+    async def list_by_emission_type(
+        self,
+        emission_type: EmissionType,
+    ) -> List[Factor]:
+        """List all factors for a given emission type."""
+        stmt = select(Factor).where(col(Factor.emission_type_id) == emission_type.value)
+        result = await self.session.exec(stmt)
+        return list(result.all())
+
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,

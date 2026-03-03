@@ -38,7 +38,7 @@ async def seed_headcount_factors() -> None:
 
                 type = row["type"]
                 category = row["category"]
-                sub_category = row["sub_category"]
+                sub_category = row["sub_category"] or None
 
                 ef_kg_co2eq_per_fte
 

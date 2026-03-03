@@ -1,4 +1,5 @@
 from typing import Optional
+from unittest import result
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -8,6 +9,7 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
+    FactorQuery,
     get_scope,
 )
 from app.models.factor import Factor
@@ -40,7 +42,7 @@ class DataEntryEmissionService:
         1. ``resolve_emission_types`` → which EmissionType leaves to produce
         2. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
         3. ``handler.resolve_computations`` → one EmissionComputation per factor
-        4. ``_fetch_factor``          → look up Factor (Strategy A or B)
+        4. ``_fetch_factors``          → look up Factor (Strategy A or B)
         5. ``_apply_formula``         → kg_co2eq = f(ctx, factor.values)
 
         Args:
@@ -80,16 +82,26 @@ class DataEntryEmissionService:
             computations = handler.resolve_computations(data_entry, emission_type, ctx)
 
             for comp in computations:
-                factors = await self._fetch_factor(comp)
+                factors = await self._fetch_factors(comp)
+                kg_co2eq = None
                 for factor in factors:
-                    kg_co2eq = self._apply_formula(ctx, factor.values or {}, comp)
-                    if kg_co2eq is None:
+                    # If there are multiple factors for this computation,
+                    # we sum their contributions
+                    # only use case for now is headcount because because we don't have a
+                    # finer grain emission_type despite having factors
+                    # representing a new depth
+                    kg_co2eq = 0 if kg_co2eq is None else kg_co2eq
+                    temp_kg_co2eq = self._apply_formula(ctx, factor.values or {}, comp)
+                    if temp_kg_co2eq is not None:
+                        kg_co2eq += temp_kg_co2eq
+                    if temp_kg_co2eq is None:
                         logger.warning(
                             f"Formula returned None for "
                             f"emission_type={emission_type.name!r} "
                             f"data_entry_id={data_entry.id!r}"
                         )
                         continue
+                if kg_co2eq is not None:
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
@@ -108,20 +120,25 @@ class DataEntryEmissionService:
 
         return results
 
-    async def _fetch_factor(self, comp: EmissionComputation) -> list[Factor]:
+    async def _fetch_factors(self, comp: EmissionComputation) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
 
         Strategy A: direct look-up by ``factor_id``.
         Strategy B: classification query via ``factor_query``.
         """
         factor_service = FactorService(self.session)
-
+        result: list[Factor] = []
+        # strategy A: direct look-up by factor_id
         if comp.factor_id is not None:
             factor = await factor_service.get(comp.factor_id)
-            return [factor] if factor else []
+            result.append(factor) if factor else None
+            return result
 
+        # strategy B: look up by classification
+        #   (data_entry_type, kind, subkind, context)
+        #  or if nothing: emission_type
         if comp.factor_query is not None:
-            q = comp.factor_query
+            q: FactorQuery = comp.factor_query
             classification: dict = {}
             if q.subkind is not None:
                 classification["subkind"] = q.subkind
@@ -135,15 +152,24 @@ class DataEntryEmissionService:
                     kind=q.kind,
                     **classification,
                 )
-            else:
+                result.append(factor) if factor else None
+            elif q.kind is not None:
                 factor = await factor_service.get_by_classification(
                     data_entry_type=q.data_entry_type,
                     kind=q.kind,
                     subkind=None,
                 )
-            return [factor] if factor else []
+                result.append(factor) if factor else None
+            elif q.emission_type is not None:
+                # This is a more generic look-up that doesn't require the handler to specify the kind/subkind
+                factors = await factor_service.list_by_emission_type(q.emission_type)
+                result.extend(factors)
+            elif q.data_entry_type is not None:
+                result.extend(
+                    await factor_service.list_by_data_entry_type(q.data_entry_type)
+                )
         # We should return the list of factors for HEADCOUNT, and BUILDING
-        return []
+        return result
 
     def _apply_formula(
         self,
@@ -157,6 +183,12 @@ class DataEntryEmissionService:
         Otherwise uses the key-based approach:
             ``kg_co2eq = ctx[quantity_key] * factor_values[formula_key]
                          * factor_values.get(multiplier_key, multiplier_default)``
+        # maybe too complex: we should always have a formula_func
+        and the formula_func can decide to use or not the factor_values and ctx
+        as it wants, and we can deprecate the key-based approach
+        after a transition period
+
+        # right now only Headcount use default
         """
         if comp.formula_func is not None:
             return comp.formula_func(ctx, factor_values)
