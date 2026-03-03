@@ -122,28 +122,49 @@ class DataEntryEmissionService:
     async def _fetch_factors(self, comp: EmissionComputation) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
 
-        Strategy A: direct look-up by ``factor_id``.
-        Strategy B: classification query via ``factor_query``.
+        Two mutually exclusive strategies (see implementation plan §Factor
+        Retrieval Strategies):
+
+        **Strategy A** — Direct look-up by ``factor_id``.
+          Used by equipment, purchases, process emissions, etc.
+          Always returns 0 or 1 factor.
+
+        **Strategy B** — Classification query via ``factor_query``.
+          Used by headcount, travel, building.
+          Progressively less specific look-ups are tried in order:
+
+          1. Full classification (subkind / context / fallbacks)
+             → e.g. train with country_code, plane with cabin_class
+          2. Kind only (no subkind/context)
+             → e.g. headcount food, headcount waste
+          3. By emission_type → returns N factors
+             → e.g. all food sub-factors (vegetarian + non-vegetarian)
+          4. By data_entry_type → broadest, returns all factors for the type
         """
         factor_service = FactorService(self.session)
         result: list[Factor] = []
-        # strategy A: direct look-up by factor_id
+
+        # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
             factor = await factor_service.get(comp.factor_id)
             result.append(factor) if factor else None
             return result
 
-        # strategy B: look up by classification
-        #   (data_entry_type, kind, subkind, context)
-        #  or if nothing: emission_type
+        # ── Strategy B: classification query ────────────────────────────
         if comp.factor_query is not None:
             q: FactorQuery = comp.factor_query
+
+            # Build the classification dict from optional subkind + context
+            # e.g. {"subkind": "business", "country_code": "CH"}
             classification: dict = {}
             if q.subkind is not None:
                 classification["subkind"] = q.subkind
             if q.context is not None:
                 classification.update(q.context)
 
+            # B1: Most specific — subkind/context/fallbacks present
+            #     e.g. plane(kind="plane", subkind="business", category="long_haul")
+            #     with fallback {"country_code": "RoW"}
             if classification or q.fallbacks:
                 factor = await factor_service.get_factor(
                     data_entry_type=q.data_entry_type,
@@ -152,6 +173,9 @@ class DataEntryEmissionService:
                     **classification,
                 )
                 result.append(factor) if factor else None
+
+            # B2: Kind only — no subkind/context
+            #     e.g. headcount(kind="food", subkind=None)
             elif q.kind is not None:
                 factor = await factor_service.get_by_classification(
                     data_entry_type=q.data_entry_type,
@@ -159,15 +183,21 @@ class DataEntryEmissionService:
                     subkind=None,
                 )
                 result.append(factor) if factor else None
+
+            # B3: By emission_type — returns multiple factors
+            #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
+            #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                # This is a more generic look-up that doesn't require the handler to specify the kind/subkind
                 factors = await factor_service.list_by_emission_type(q.emission_type)
                 result.extend(factors)
+
+            # B4: Broadest — by data_entry_type only
+            #     Returns all factors for this entry type
             elif q.data_entry_type is not None:
                 result.extend(
                     await factor_service.list_by_data_entry_type(q.data_entry_type)
                 )
-        # We should return the list of factors for HEADCOUNT, and BUILDING
+
         return result
 
     def _apply_formula(
