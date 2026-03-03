@@ -61,6 +61,25 @@ lint: ## Check code formatting
 		fi; \
 	fi
 
+.PHONY: lint-fix
+lint-fix: ## Fix linting issues
+	@set -e; \
+	if [ "$(FILES)" = "." ]; then \
+		npx prettier --write . --ignore-unknown && \
+		npx eslint --fix . && \
+		npx stylelint --fix "**/*.{css,scss}"; \
+	else \
+		if [ -n "$(PRETTIER_FILES)" ]; then \
+			npx prettier --write $(PRETTIER_FILES) --ignore-unknown; \
+		fi; \
+		if [ -n "$(JS_FILES)" ]; then \
+			npx eslint --fix $(JS_FILES); \
+		fi; \
+		if [ -n "$(CSS_FILES)" ]; then \
+			npx stylelint --fix $(CSS_FILES); \
+		fi; \
+	fi
+
 TSGO := $(shell which tsgo)
 
 

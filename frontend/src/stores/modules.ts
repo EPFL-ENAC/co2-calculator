@@ -494,7 +494,9 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType === 'member' &&
         !normalized.unit_institutional_id
       ) {
-        const unit = await api.get(`units/${unitId}`).json<UnitIdentityResponse>();
+        const unit = await api
+          .get(`units/${unitId}`)
+          .json<UnitIdentityResponse>();
         const institutionalCode = String(unit?.institutional_code ?? '').trim();
         if (!institutionalCode) {
           throw new Error(

@@ -16,7 +16,7 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
-from app.utils.headcount_role_category import POSITION_CATEGORIES
+from app.utils.headcount_role_category import POSITION_CATEGORIES, get_function_role
 
 logger = get_logger(__name__)
 
@@ -31,6 +31,20 @@ def _normalize_position_category(value: Optional[str]) -> Optional[str]:
         allowed_categories = ", ".join(sorted(POSITION_CATEGORIES))
         raise ValueError(f"position_category must be one of: {allowed_categories}")
     return normalized
+
+
+def _normalize_function_to_position_category(function: Optional[str]) -> Optional[str]:
+    if function is None:
+        return None
+    normalized_function = function.strip()
+    if normalized_function == "":
+        return None
+    if normalized_function in POSITION_CATEGORIES:
+        return normalized_function
+    # Backward compatibility: map legacy role labels (e.g. French values)
+    # into canonical position categories.
+    mapped_category = get_function_role(normalized_function)
+    return _normalize_position_category(mapped_category)
 
 
 class HeadcountItemResponse(DataEntryResponseGen):
@@ -49,7 +63,7 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 
 class HeadCountCreate(DataEntryCreate):
-    unit_institutional_id: str
+    unit_institutional_id: Optional[str] = None
     name: str
     position_title: Optional[str] = None
     position_category: Optional[str] = None
@@ -82,10 +96,12 @@ class HeadCountCreate(DataEntryCreate):
 
     @field_validator("unit_institutional_id", mode="after")
     @classmethod
-    def validate_unit_institutional_id(cls, v: str) -> str:
+    def validate_unit_institutional_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
         normalized = v.strip()
         if normalized == "":
-            raise ValueError("unit_institutional_id is required")
+            raise ValueError("unit_institutional_id cannot be empty")
         if not normalized.isdigit():
             raise ValueError("unit_institutional_id must contain digits only")
         return normalized
@@ -113,7 +129,9 @@ class HeadCountCreate(DataEntryCreate):
     @model_validator(mode="after")
     def normalize_position_fields(self) -> "HeadCountCreate":
         if self.position_category is None and self.function is not None:
-            self.position_category = _normalize_position_category(self.function)
+            self.position_category = _normalize_function_to_position_category(
+                self.function
+            )
         if self.function is None and self.position_category is not None:
             self.function = self.position_category
         if self.position_title is not None and self.position_title.strip() == "":
@@ -200,7 +218,7 @@ class HeadCountUpdate(DataEntryUpdate):
             return None
         normalized = v.strip()
         if normalized == "":
-            return None
+            raise ValueError("user_institutional_id cannot be empty")
         if not normalized.isdigit():
             raise ValueError("user_institutional_id must contain digits only")
         return normalized
@@ -218,7 +236,9 @@ class HeadCountUpdate(DataEntryUpdate):
     @model_validator(mode="after")
     def normalize_position_fields(self) -> "HeadCountUpdate":
         if self.position_category is None and self.function is not None:
-            self.position_category = _normalize_position_category(self.function)
+            self.position_category = _normalize_function_to_position_category(
+                self.function
+            )
         if self.function is None and self.position_category is not None:
             self.function = self.position_category
         if self.position_title is not None and self.position_title.strip() == "":

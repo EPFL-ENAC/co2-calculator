@@ -22,6 +22,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.modules.headcount.schemas import HeadcountItemResponse
+from app.repositories.unit_repo import UnitRepository
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -68,6 +69,37 @@ async def get_carbon_report_id(
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
     return carbon_report_module.id
+
+
+async def _attach_headcount_unit_identifier(
+    payload: dict,
+    *,
+    module_type: ModuleTypeEnum,
+    data_entry_type: DataEntryTypeEnum,
+    unit_id: int,
+    db: AsyncSession,
+) -> dict:
+    """Derive headcount unit identifier from request context."""
+    if (
+        module_type != ModuleTypeEnum.headcount
+        or data_entry_type != DataEntryTypeEnum.member
+    ):
+        return payload
+
+    unit = await UnitRepository(db).get_by_id(unit_id)
+    if unit is None or not unit.institutional_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Cannot resolve unit_institutional_id for unit_id={unit_id}. "
+                "Missing unit or institutional_code."
+            ),
+        )
+
+    return {
+        **payload,
+        "unit_institutional_id": str(unit.institutional_code).strip(),
+    }
 
 
 @router.get("/{unit_id}/{year}/{module_id}", response_model=ModuleResponse)
@@ -383,11 +415,19 @@ async def create(
         )
 
     try:
+        module_type = ModuleTypeEnum[module_key]
         create_payload = {
             **item_data,
             "data_entry_type_id": data_entry_type_id,
             "carbon_report_module_id": carbon_report_module_id,
         }
+        create_payload = await _attach_headcount_unit_identifier(
+            create_payload,
+            module_type=module_type,
+            data_entry_type=data_entry_type,
+            unit_id=unit_id,
+            db=db,
+        )
         handler = BaseModuleHandler.get_by_type(data_entry_type)
         create_payload = await handler.resolve_primary_factor_id(
             create_payload, data_entry_type, db
@@ -559,11 +599,19 @@ async def update(
     try:
         existing_entry = await DataEntryService(db).get(id=item_id)
         existing_data = existing_entry.data if existing_entry else {}
+        module_type = ModuleTypeEnum[module_key]
         update_payload = {
             **item_data,
             "data_entry_type_id": data_entry_type_id,
             "carbon_report_module_id": carbon_report_module_id,
         }
+        update_payload = await _attach_headcount_unit_identifier(
+            update_payload,
+            module_type=module_type,
+            data_entry_type=data_entry_type,
+            unit_id=unit_id,
+            db=db,
+        )
         handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
         # If kind or subkind is being updated
         # we may need to resolve a new primary factor ID

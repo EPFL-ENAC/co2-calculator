@@ -1067,6 +1067,7 @@ function isCompleteHeadcount(row: ModuleRow) {
       hasValue(row.position_title) ||
       hasValue(row.function),
   );
+  const requiredMember = ['name', 'fte', 'user_institutional_id'];
   const requiredStudent = ['fte'];
   // implicit behavior: if sciper is set, it's a member
   // todo: sciper field should not exist: maybe user_id to be agnostic
@@ -1075,11 +1076,11 @@ function isCompleteHeadcount(row: ModuleRow) {
   }
 
   if (hasInstitutionalUserId(row)) {
-    return hasRequiredValues(row, ['name', 'fte']) && hasPosition;
+    return hasRequiredValues(row, requiredMember) && hasPosition;
   }
 
   if (hasValue(row.name)) {
-    return hasRequiredValues(row, ['name', 'fte']) && hasPosition;
+    return hasRequiredValues(row, requiredMember) && hasPosition;
   }
 
   return hasRequiredValues(row, requiredStudent);
@@ -1265,7 +1266,7 @@ function onDownloadTemplate() {
   const csvEquipmentContent =
     'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
   const csvHeadcountContent =
-    'name,position_title,position_category,user_institutional_id,fte,note';
+    'name,position_title,position_category,user_institutional_id, unit_institutional_id, fte,note';
   const csvProfessionalTravelContent =
     'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
   const csvExternalCloudContent = 'service_type,cloud_provider,spending';
