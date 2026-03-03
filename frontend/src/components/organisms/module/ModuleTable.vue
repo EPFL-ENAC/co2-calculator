@@ -1266,7 +1266,7 @@ function onDownloadTemplate() {
   const csvEquipmentContent =
     'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
   const csvHeadcountContent =
-    'name,position_title,position_category,user_institutional_id, unit_institutional_id, fte,note';
+    'name,position_title,position_category,user_institutional_id,unit_institutional_id, fte,note';
   const csvProfessionalTravelContent =
     'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
   const csvExternalCloudContent = 'service_type,cloud_provider,spending';

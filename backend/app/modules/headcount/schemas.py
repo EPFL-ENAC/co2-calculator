@@ -310,10 +310,6 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
             data["position_title"] = data["position_category"]
         if not data.get("function") and data.get("position_category"):
             data["function"] = data["position_category"]
-        if not data.get("unit_institutional_id"):
-            data["unit_institutional_id"] = ""
-        if not data.get("user_institutional_id"):
-            data["user_institutional_id"] = ""
 
         return self.response_dto.model_validate(
             {

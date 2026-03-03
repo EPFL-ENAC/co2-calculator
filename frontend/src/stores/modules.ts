@@ -53,10 +53,6 @@ interface CarbonReportModuleResponse {
   status: number;
 }
 
-interface UnitIdentityResponse {
-  institutional_code?: string | number | null;
-}
-
 export const useTimelineStore = defineStore('timeline', () => {
   // Initialize all modules with default status
   const itemStates = reactive<ModuleStates>({
@@ -147,6 +143,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
       useModuleStore().invalidateValidatedTotals();
+      useModuleStore().invalidateEmissionBreakdown();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -489,22 +486,7 @@ export const useModuleStore = defineStore('modules', () => {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
       }
-      if (
-        moduleType === MODULES.Headcount &&
-        submoduleType === 'member' &&
-        !normalized.unit_institutional_id
-      ) {
-        const unit = await api
-          .get(`units/${unitId}`)
-          .json<UnitIdentityResponse>();
-        const institutionalCode = String(unit?.institutional_code ?? '').trim();
-        if (!institutionalCode) {
-          throw new Error(
-            `Missing institutional_code for unit ${unitId}; cannot create headcount member`,
-          );
-        }
-        normalized.unit_institutional_id = institutionalCode;
-      }
+
       const isRoundTrip =
         moduleType === MODULES.ProfessionalTravel && !!normalized.is_round_trip;
       const body =
@@ -574,6 +556,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -627,6 +611,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -661,6 +647,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -708,24 +696,79 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  // Track which carbon report the cached emission breakdown belongs to
+  const emissionBreakdownCarbonReportId = ref<number | null>(null);
+  const emissionBreakdownInFlightReportId = ref<number | null>(null);
+  const emissionBreakdownInFlightToken = ref(0);
+  const emissionBreakdownRefreshRequested = ref(false);
+  let emissionBreakdownInFlight: Promise<void> | null = null;
+
+  function requestEmissionBreakdownRefresh() {
+    emissionBreakdownRefreshRequested.value = true;
+  }
+
+  function consumeEmissionBreakdownRefreshRequest(): boolean {
+    if (!emissionBreakdownRefreshRequested.value) return false;
+    emissionBreakdownRefreshRequested.value = false;
+    return true;
+  }
+
+  function invalidateEmissionBreakdown() {
+    emissionBreakdownCarbonReportId.value = null;
+  }
+
   async function getEmissionBreakdown(carbonReportId: number) {
+    if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
+    if (
+      emissionBreakdownInFlight &&
+      emissionBreakdownInFlightReportId.value === carbonReportId
+    ) {
+      await emissionBreakdownInFlight;
+      return;
+    }
+
     state.loadingEmissionBreakdown = true;
     state.errorEmissionBreakdown = null;
-    state.emissionBreakdown = null;
-    try {
-      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
-      const data = await api.get(path).json<EmissionBreakdownResponse>();
-      state.emissionBreakdown = data;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.errorEmissionBreakdown = err.message ?? 'Unknown error';
-        state.emissionBreakdown = null;
-      } else {
-        state.errorEmissionBreakdown = 'Unknown error';
-        state.emissionBreakdown = null;
+    emissionBreakdownInFlightReportId.value = carbonReportId;
+    const currentRequestToken = ++emissionBreakdownInFlightToken.value;
+    const currentRequest = (async () => {
+      // Only the latest in-flight request is allowed to update state.
+      const isLatestRequest = () =>
+        emissionBreakdownInFlightToken.value === currentRequestToken &&
+        emissionBreakdownInFlightReportId.value === carbonReportId;
+
+      try {
+        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
+        const data = await api.get(path).json<EmissionBreakdownResponse>();
+        if (!isLatestRequest()) {
+          return;
+        }
+        state.emissionBreakdown = data;
+        emissionBreakdownCarbonReportId.value = carbonReportId;
+      } catch (err: unknown) {
+        if (!isLatestRequest()) {
+          return;
+        }
+        if (err instanceof Error) {
+          state.errorEmissionBreakdown = err.message ?? 'Unknown error';
+          state.emissionBreakdown = null;
+        } else {
+          state.errorEmissionBreakdown = 'Unknown error';
+          state.emissionBreakdown = null;
+        }
+        emissionBreakdownCarbonReportId.value = null;
       }
+    })();
+    emissionBreakdownInFlight = currentRequest;
+
+    try {
+      await currentRequest;
     } finally {
-      state.loadingEmissionBreakdown = false;
+      if (emissionBreakdownInFlightToken.value === currentRequestToken) {
+        state.loadingEmissionBreakdown = false;
+        emissionBreakdownInFlight = null;
+        emissionBreakdownInFlightReportId.value = null;
+      }
     }
   }
 
@@ -794,6 +837,9 @@ export const useModuleStore = defineStore('modules', () => {
     invalidateValidatedTotals,
     getYearlyValidatedEmissions,
     getEmissionBreakdown,
+    invalidateEmissionBreakdown,
+    requestEmissionBreakdownRefresh,
+    consumeEmissionBreakdownRefreshRequest,
     validatedTotalsCarbonReportId,
     state,
   };

@@ -181,7 +181,6 @@ const downloadPDF = () => {
           </div>
         </div>
       </q-card>
-
       <q-card v-if="resultsSummary" flat class="grid-3-col">
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
@@ -281,7 +280,27 @@ const downloadPDF = () => {
         />
       </q-card>
 
-      <div class="q-mt-xl">
+      <q-card flat bordered class="q-pa-xl">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-h2 text-weight-medium">
+              {{ $t('results_objectives_2040_title') }}
+            </h2>
+            <span class="text-body1 text-secondary">{{
+              $t('results_objectives_2040_subtitle')
+            }}</span>
+          </div>
+        </div>
+        <q-card-section class="q-px-none q-pt-lg q-pb-none">
+          <img
+            src="/placeholder.svg"
+            alt="Objectives 2040 placeholder"
+            class="objectives-placeholder-image"
+          />
+        </q-card-section>
+      </q-card>
+
+      <div>
         <q-card bordered flat class="q-pa-xl">
           <div class="flex justify-between items-center">
             <div>
@@ -334,16 +353,13 @@ const downloadPDF = () => {
               <div class="q-px-lg">
                 <!-- Module has results in the summary -->
                 <template v-if="getModuleResult(module)">
-                  <!-- Professional travel specific charts -->
-                  <template
-                    v-if="
-                      module === MODULES.ProfessionalTravel &&
-                      isModuleValidated(module)
-                    "
-                  >
+                  <!-- Per-module treemap -->
+                  <template v-if="isModuleValidated(module)">
                     <ModuleCharts
-                      :type="MODULES.ProfessionalTravel"
-                      :show-evolution-chart="true"
+                      :type="module"
+                      :show-evolution-chart="
+                        module === MODULES.ProfessionalTravel
+                      "
                     />
                   </template>
                   <q-card flat class="grid-3-col q-mb-lg">
@@ -481,20 +497,6 @@ const downloadPDF = () => {
           </q-card>
         </template>
       </div>
-      <div class="q-mt-xl">
-        <q-card flat bordered class="q-pa-xl">
-          <div class="flex justify-between items-center">
-            <div>
-              <h2 class="text-h2 text-weight-medium">
-                {{ $t('results_objectives_2040_title') }}
-              </h2>
-              <span class="text-body1 text-secondary">{{
-                $t('results_objectives_2040_subtitle')
-              }}</span>
-            </div>
-          </div>
-        </q-card>
-      </div>
     </div>
   </q-page>
 </template>
@@ -523,5 +525,11 @@ const downloadPDF = () => {
   :deep(.text-h1) {
     color: rgba(0, 0, 0, 0.38) !important;
   }
+}
+
+.objectives-placeholder-image {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 </style>

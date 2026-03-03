@@ -5,6 +5,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { useI18n } from 'vue-i18n';
+import { MODULES } from 'src/constant/modules';
 import {
   TooltipComponent,
   LegendComponent,
@@ -63,7 +64,7 @@ const chartOptions = computed<EChartsOption>(() => {
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
-        category: t(`app_headcount_${key}`),
+        category: t(`${MODULES.Headcount}-position-${key.replace(/_/g, '-')}`),
         value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },

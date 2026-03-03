@@ -286,6 +286,40 @@ export const colors = computed(() => {
   };
 });
 
+// Maps chart category name → hex color (matches ModuleCarbonFootprintChart color ordering)
+export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
+  'Process Emissions': colors.value.apricot.darker,
+  'Buildings energy consumption': colors.value.lilac.darker,
+  'Energy combustion': colors.value.lilac.dark,
+  'Buildings room': colors.value.skyBlue.darker,
+  Equipment: colors.value.mauve.darker,
+  'External cloud & AI': colors.value.paleYellowGreen.darker,
+  Purchases: colors.value.lavender.darker,
+  'Research facilities': colors.value.peach.darker,
+  'Professional travel': colors.value.babyBlue.darker,
+  Commuting: colors.value.aqua.darker,
+  Food: colors.value.mint.darker,
+  Waste: colors.value.periwinkle.darker,
+  'Grey Energy': colors.value.skyBlue.dark,
+}));
+
+// Maps Module enum value → category names present in module_breakdown
+export const MODULE_TO_CATEGORIES = computed(
+  (): Record<string, string[]> => ({
+    'process-emissions': ['Process Emissions'],
+    buildings: [
+      'Buildings energy consumption',
+      'Energy combustion',
+      'Buildings room',
+    ],
+    'equipment-electric-consumption': ['Equipment'],
+    purchase: ['Purchases'],
+    'internal-services': ['Research facilities'],
+    'external-cloud-and-ai': ['External cloud & AI', 'External clouds & AI'],
+    'professional-travel': ['Professional travel'],
+  }),
+);
+
 // Helper function to add 0.5 opacity to hex color for uncertainty visualization using hex8 format
 export const uncertaintyColor = (hex: string): string => {
   const alphaHex = '80';
