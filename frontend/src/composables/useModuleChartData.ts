@@ -1,50 +1,39 @@
-import { watch, type Ref } from 'vue';
-import { Module, MODULES } from 'src/constant/modules';
+import { watch } from 'vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
-
-type ChartDataFetcher = (unitId: number, year: string) => Promise<void> | void;
-
-/**
- * Configuration map for module-specific chart data fetching
- * Add new modules here by mapping their type to a fetch function
- */
-const moduleChartFetchers: Partial<Record<Module, ChartDataFetcher>> = {
-  [MODULES.ProfessionalTravel]: (unitId: number, year: string) => {
-    const moduleStore = useModuleStore();
-    return moduleStore.getTravelStatsByClass(unitId, year);
-  },
-  // Add more modules here as needed:
-  // [MODULES.Buildings]: (unitId: string, year: string) => {
-  //   const moduleStore = useModuleStore();
-  //   return moduleStore.getBuildingsStats(unitId, year);
-  // },
-};
 
 /**
  * Composable to handle module-specific chart data fetching
  * Automatically watches for unit/year changes and triggers appropriate fetchers
  */
-export function useModuleChartData(moduleType: Ref<Module>) {
+export function useModuleChartData() {
   const workspaceStore = useWorkspaceStore();
   const moduleStore = useModuleStore();
 
-  const fetchChartData = (unitId: number | undefined, year: number | null) => {
-    if (!unitId || !year) return;
-
-    const fetcher = moduleChartFetchers[moduleType.value];
-    if (fetcher) {
-      fetcher(unitId, String(year));
-    }
-  };
-
-  // Watch for unit/year changes and fetch chart data when available
+  // Fetch emission breakdown whenever the carbon report changes.
+  // Registered per composable call so watcher lifecycle follows the component.
   watch(
-    [() => workspaceStore.selectedUnit?.id, () => workspaceStore.selectedYear],
-    ([unitId, year]) => {
-      fetchChartData(unitId, year);
+    () => workspaceStore.selectedCarbonReport?.id,
+    (carbonReportId) => {
+      if (carbonReportId) {
+        void moduleStore.getEmissionBreakdown(carbonReportId);
+      }
     },
     { immediate: true },
+  );
+
+  // Re-fetch emission breakdown after data-entry mutations only.
+  // retrieved_at also changes on plain module refreshes, so we gate this
+  // with a mutation-driven refresh request from the module store.
+  watch(
+    () => moduleStore.state.data?.retrieved_at,
+    () => {
+      if (!moduleStore.consumeEmissionBreakdownRefreshRequest()) return;
+      const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+      if (!carbonReportId) return;
+      moduleStore.invalidateEmissionBreakdown();
+      void moduleStore.getEmissionBreakdown(carbonReportId);
+    },
   );
 
   return {

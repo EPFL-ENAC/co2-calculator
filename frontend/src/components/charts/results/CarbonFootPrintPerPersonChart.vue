@@ -37,6 +37,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const SHOW_EPFL_REFERENCE_ROW = false;
+const SHOW_OBJECTIVE_ROW = false;
+const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
   'Process Emissions': [' '],
@@ -100,16 +103,20 @@ const epflReferenceRow = computed<Record<string, unknown>>(() => {
   return row;
 });
 
+const objectiveRow = computed<Record<string, unknown>>(() => ({
+  category: t('charts-objective-tick'),
+  objective2030: 12,
+  stdDev: 5,
+}));
+
 const datasetSource = computed(() => {
-  const baseData = [
-    myUnitRow.value,
-    epflReferenceRow.value,
-    {
-      category: t('charts-objective-tick'),
-      objective2030: 12,
-      stdDev: 5,
-    },
-  ];
+  const baseData = [myUnitRow.value];
+  if (SHOW_EPFL_REFERENCE_ROW) {
+    baseData.push(epflReferenceRow.value);
+  }
+  if (SHOW_OBJECTIVE_ROW) {
+    baseData.push(objectiveRow.value);
+  }
   return baseData;
 });
 
@@ -131,7 +138,7 @@ const allValueKeys = computed(() => {
       'food',
       'waste',
       'grey_energy',
-      'objective2030',
+      ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
     ];
   }
   return baseKeys;
@@ -146,7 +153,7 @@ const markLineData = computed(() => {
         allValueKeys.value.reduce(
           (sum, key) => sum + (Number(item[key]) || 0),
           0,
-        ) + (Number(item.objective2030) || 0);
+        ) + (SHOW_OBJECTIVE_BAR ? Number(item.objective2030) || 0 : 0);
 
       const stdDev = Number(item.stdDev) || 0;
 
@@ -345,21 +352,25 @@ const chartOption = computed((): EChartsOption => {
         show: false,
       },
     },
-    {
-      name: t('charts-objective-tick'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'objective2030',
-      },
-      itemStyle: {
-        color: colors.value.skyBlue.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
+    ...(SHOW_OBJECTIVE_BAR
+      ? [
+          {
+            name: t('charts-objective-tick'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'objective2030',
+            },
+            itemStyle: {
+              color: colors.value.skyBlue.darker,
+            },
+            label: {
+              show: false,
+            },
+          },
+        ]
+      : []),
     ...additionalSeriesData.value,
   ];
 
@@ -470,7 +481,7 @@ const chartOption = computed((): EChartsOption => {
         'food',
         'waste',
         'grey_energy',
-        'objective2030',
+        ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
         'stdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,

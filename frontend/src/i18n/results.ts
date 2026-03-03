@@ -173,8 +173,8 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-building-energy-subcategory': {
-    en: 'Buildings energy consumption',
-    fr: "Consommation d'énergie des bâtiments",
+    en: 'Buildings energy Combustion',
+    fr: "Combustion d'énergie des bâtiments",
   },
   'charts-energy-combustion-subcategory': {
     en: 'Energy combustion',
@@ -332,6 +332,14 @@ export default {
   'charts-additional-category': {
     en: 'Additional Categories',
     fr: 'Catégories supplémentaires',
+  },
+  results_treemap_title: {
+    en: 'Emissions Breakdown',
+    fr: 'Répartition des émissions',
+  },
+  'no-chart-data': {
+    en: 'No chart data available yet',
+    fr: 'Aucune donnée de graphique disponible',
   },
   'charts-scope': {
     en: 'Scope',
