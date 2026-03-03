@@ -71,7 +71,7 @@ erDiagram
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
-    VARCHAR subcategory
+    INTEGER scope
   }
   data_ingestion_jobs {
     INTEGER data_entry_type_id

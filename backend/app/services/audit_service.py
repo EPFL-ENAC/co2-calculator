@@ -6,6 +6,7 @@ Provides append-only versioning with hash chain integrity for any entity type.
 import hashlib
 import json
 from datetime import datetime, timezone
+from sqlite3 import IntegrityError
 from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks
@@ -100,12 +101,21 @@ class AuditDocumentService:
     async def get_current_version(
         self, entity_type: str, entity_id: int
     ) -> Optional[AuditDocument]:
-        """Get the current (is_current=True) version for an entity."""
-        stmt = select(AuditDocument).where(
-            col(AuditDocument.entity_type) == entity_type,
-            col(AuditDocument.entity_id) == entity_id,
-            col(AuditDocument.is_current) == True,  # noqa: E712
+        """
+        Get the current (is_current=True) version for an entity.
+        Get current version and lock it (FOR UPDATE)
+        to prevent concurrent version creation.
+        """
+        stmt = (
+            select(AuditDocument)
+            .where(
+                AuditDocument.entity_type == entity_type,
+                AuditDocument.entity_id == entity_id,
+                AuditDocument.is_current == True,  # noqa: E712
+            )
+            .with_for_update()
         )
+
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
@@ -245,7 +255,16 @@ class AuditDocumentService:
         )
 
         self.session.add(doc_version)
-        await self.session.flush()
+
+        try:
+            await self.session.flush()
+        except IntegrityError as e:
+            await self.session.rollback()
+            logger.warning(
+                f"Concurrent version creation detected for {entity_type}:{entity_id}"
+            )
+            raise e
+
         await self.session.refresh(doc_version)
 
         logger.info(

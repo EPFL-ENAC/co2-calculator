@@ -4,6 +4,10 @@ from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import (
+    EmissionComputation,
+    FactorQuery,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -103,6 +107,23 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
         "fte": DataEntry.data["fte"].as_float(),
     }
 
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.member,
+                    kind=emission_type.name,
+                    subkind=None,
+                ),
+                formula_key="kg_co2eq_per_fte",
+                quantity_key="fte",
+            )
+        ]
+
     def to_response(self, data_entry: DataEntry) -> HeadcountItemResponse:
         return self.response_dto.model_validate(
             {
@@ -138,6 +159,23 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
     }
 
     filter_map: dict[str, Any] = {}
+
+    def resolve_computations(
+        self, data_entry: Any, emission_type: Any, ctx: dict
+    ) -> list:
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.student,
+                    kind=emission_type.name,
+                    subkind=None,
+                ),
+                formula_key="kg_co2eq_per_fte",
+                quantity_key="fte",
+            )
+        ]
 
     def to_response(self, data_entry: DataEntry) -> HeadCountStudentResponse:
         return self.response_dto.model_validate(

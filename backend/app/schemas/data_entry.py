@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryBase, DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionComputation
 from app.models.module_type import ModuleTypeEnum
 from app.models.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
@@ -141,6 +142,17 @@ class ModuleHandler(Protocol[T]):
     async def get_taxonomy(
         self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
     ) -> TaxonomyNode: ...
+    async def pre_compute(
+        self,
+        data_entry: Any,
+        session: AsyncSession,
+    ) -> dict: ...
+    def resolve_computations(
+        self,
+        data_entry: Any,
+        emission_type: Any,
+        ctx: dict,
+    ) -> list[EmissionComputation]: ...
 
 
 # ----------- ModuleHandlers --------------------------------- #
@@ -314,6 +326,63 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
             label=self.to_label(data_entry_type.name),
             children=children,
         )
+
+    async def pre_compute(
+        self,
+        data_entry: Any,
+        session: AsyncSession,
+    ) -> dict:
+        """Pre-computation hook called before factor retrieval.
+
+        Override in subclasses to enrich the context dict with values that
+        require DB access or non-trivial arithmetic (e.g. distance_km for
+        plane travel, annual_kwh for equipment).
+
+        The returned dict is merged into the context that is passed to both
+        ``resolve_computations`` and ``_apply_formula``.
+
+        Args:
+            data_entry: Fully hydrated DataEntry or DataEntryResponse.
+            session: Async DB session.
+
+        Returns:
+            Dict of additional context keys (empty by default).
+        """
+        return {}
+
+    def resolve_computations(
+        self,
+        data_entry: Any,
+        emission_type: Any,
+        ctx: dict,
+    ) -> list:
+        """Resolve emission computations for a given emission type.
+
+        Override in subclasses to return one ``EmissionComputation`` per factor
+        that must be applied for this emission type.
+
+        The default implementation looks for a ``primary_factor_id`` in *ctx*
+        (Strategy A).  Handlers that use classification queries (Strategy B)
+        must override this method.
+
+        Args:
+            data_entry: The data entry being processed.
+            emission_type: The ``EmissionType`` leaf being computed.
+            ctx: Merged dict of ``data_entry.data`` + ``pre_compute()`` output.
+
+        Returns:
+            List of ``EmissionComputation`` objects (may be empty).
+        """
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+            )
+        ]
 
     @staticmethod
     def to_label(name: str) -> str:

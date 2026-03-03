@@ -7,8 +7,8 @@ from pathlib import Path
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
-from app.models.location import TransportModeEnum
+from app.models.data_entry_emission import EmissionType
+from app.models.factor import Factor
 from app.modules.professional_travel import (
     schemas as schemas,
 )  # This ensures the handlers are registered
@@ -29,10 +29,14 @@ async def seed_train_factors() -> None:
 
         # Delete existing train factors
         existing = await service.list_by_data_entry_type(DataEntryTypeEnum.train)
+
+        def match_train_emission_type(factor: Factor) -> bool:
+            if not factor.emission_type_id:
+                return False
+            return factor.emission_type_id in {EmissionType.professional_travel__train}
+
         ids = [
-            f.id
-            for f in existing
-            if f.emission_type_id == EmissionTypeEnum.train.value and f.id
+            f.id for f in existing if match_train_emission_type(f) and f.id is not None
         ]
         if ids:
             await service.bulk_delete(ids)
@@ -45,14 +49,14 @@ async def seed_train_factors() -> None:
                 impact_score_raw = row.get("impact_score") or row.get(
                     "ef_kg_co2eq_per_km"
                 )
+
                 factor = await service.prepare_create(
-                    emission_type_id=EmissionTypeEnum.train.value,
+                    emission_type_id=EmissionType.professional_travel__train,
                     is_conversion=False,
                     data_entry_type_id=DataEntryTypeEnum.train.value,
                     classification={
-                        "kind": TransportModeEnum.train.value,
-                        "subkind": country_code,
-                        "country_code": country_code,
+                        "kind": country_code,
+                        "subkind": None,
                     },
                     values={
                         # Keep both key variants for backward compatibility.

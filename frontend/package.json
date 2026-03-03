@@ -42,7 +42,7 @@
     "@intlify/unplugin-vue-i18n": "=11.0.1",
     "@playwright/experimental-ct-vue": "^1.56.1",
     "@playwright/test": "^1.56.1",
-    "@quasar/app-vite": "=2.4.0",
+    "@quasar/app-vite": "=2.4.1",
     "@storybook/addon-a11y": "=10.1.8",
     "@storybook/addon-docs": "^10.1.8",
     "@storybook/test-runner": "=0.24.2",
@@ -74,7 +74,8 @@
     "wait-on": "=9.0.1"
   },
   "overrides": {
-    "minimatch": "^10.2.4"
+    "minimatch": "^10.2.4",
+    "serialize-javascript": "^7.0.4"
   },
   "type": "module",
   "engines": {

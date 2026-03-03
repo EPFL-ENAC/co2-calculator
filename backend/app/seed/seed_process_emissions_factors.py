@@ -9,10 +9,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
 from app.modules.process_emissions import (
     schemas as schemas,
 )  # This ensures the handlers are registered
+from app.seed.seed_helper import (
+    get_factor_emission_type_id,
+)
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
@@ -42,14 +44,19 @@ async def seed_process_emissions_factors(session: AsyncSession) -> None:
             gwp = get_float_or_none(row.get("gwp_kg_co2eq_per_kg"))
             if gwp is None:
                 continue
+            emission_type_id = get_factor_emission_type_id(
+                data_entry_type=DataEntryTypeEnum.process_emissions,
+                factor=row,
+            )
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum.process_emissions,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
                 classification={
                     "kind": row.get("kind", ""),
                     "subkind": row.get("subkind") or None,
                     "source": row.get("source", ""),
+                    "emitted_gas": row.get("emitted_gas", row.get("kind", "")),
                 },
                 values={
                     "gwp_kg_co2eq_per_kg": gwp,

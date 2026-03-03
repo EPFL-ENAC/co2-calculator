@@ -4,7 +4,7 @@ from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
@@ -95,3 +95,24 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> ProcessEmissionsHandlerUpdate:
         return self.update_dto.model_validate(payload)
+
+    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
+
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+
+        def _process_formula(ctx: dict, factor_values: dict):
+            quantity_kg = ctx.get("quantity_kg", 0)
+            if quantity_kg < 0:
+                return None
+            gwp = factor_values.get("gwp_kg_co2eq_per_kg", 0)
+            return quantity_kg * gwp
+
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_func=_process_formula,
+            )
+        ]

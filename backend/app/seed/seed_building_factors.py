@@ -9,7 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
+from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
@@ -66,9 +67,11 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
             category = (row.get("category") or "").strip().lower()
             if not building_name or not category:
                 continue
-
+            emission_type_id = get_factor_emission_type_id(
+                data_entry_type=DataEntryTypeEnum.building, factor=row
+            )
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum.energy,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.building.value,
                 classification={
@@ -101,7 +104,7 @@ async def seed_combustion_factors(session: AsyncSession) -> None:
             if kgco2 is None:
                 continue
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum.combustion,
+                emission_type_id=EmissionType.buildings__combustion,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
                 classification={

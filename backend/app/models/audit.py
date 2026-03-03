@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column
+from sqlalchemy import Column, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
@@ -136,3 +136,12 @@ class AuditDocument(AuditDocumentBase, table=True):
     __tablename__ = "audit_documents"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    __table_args__ = (
+        Index(
+            "audit_document_one_current_idx",
+            "entity_id",
+            "entity_type",
+            unique=True,
+            postgresql_where=text("is_current = true"),
+        ),
+    )

@@ -13,10 +13,26 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.factor_service import FactorService
 from app.services.unit_service import UnitService
+from app.utils.data_entry_emission_type_map import resolve_factor_emission_type
 
 logger = get_logger(__name__)
 settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
+
+
+def get_factor_emission_type_id(
+    data_entry_type: DataEntryTypeEnum, factor: dict
+) -> int:
+    emission_type_result = resolve_factor_emission_type(
+        data_entry_type=data_entry_type,
+        factor=factor,
+    )
+    if emission_type_result is None:
+        raise ValueError(
+            f"Unknown emission type resolution for data entry type "
+            f"{data_entry_type} with factor {factor}"
+        )
+    return emission_type_result.value
 
 
 async def get_carbon_report_module_id(

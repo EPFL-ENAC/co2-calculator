@@ -8,7 +8,7 @@ from sqlmodel import JSON, Column, Field, SQLModel
 class FactorBase(SQLModel):
     """Base factor model with shared fields."""
 
-    # EmissionTypeEnum value
+    # EmissionType value
     emission_type_id: int = Field(
         nullable=False,
         index=True,
