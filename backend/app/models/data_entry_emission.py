@@ -267,8 +267,11 @@ class FactorQuery:
     """
 
     data_entry_type: DataEntryTypeEnum
-    kind: str
+    kind: Optional[str] = None
     subkind: Optional[str] = None
+    emission_type: Optional[EmissionType] = (
+        None  # Optional, can be used for additional filtering in repo queries
+    )
     context: dict = field(default_factory=dict)
     fallbacks: dict = field(default_factory=dict)
 

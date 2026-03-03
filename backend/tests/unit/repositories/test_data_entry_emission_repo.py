@@ -124,19 +124,19 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
 
     result = await repo.get_by_data_entry_id(data_entry.id)
 
-    assert result is not None
-    assert result.data_entry_id == data_entry.id
-    assert result.kg_co2eq == 250.5
+    assert len(result) == 1
+    assert result[0].data_entry_id == data_entry.id
+    assert result[0].kg_co2eq == 250.5
 
 
 @pytest.mark.asyncio
 async def test_get_by_data_entry_id_not_found(db_session: AsyncSession):
-    """Test retrieving emission for non-existent data entry returns None."""
+    """Test retrieving emission for non-existent data entry returns empty list."""
     repo = DataEntryEmissionRepository(db_session)
 
     result = await repo.get_by_data_entry_id(99999)
 
-    assert result is None
+    assert result == []
 
 
 @pytest.mark.asyncio
@@ -174,7 +174,7 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
 
     # Verify deletion
     result = await repo.get_by_data_entry_id(data_entry.id)
-    assert result is None
+    assert result == []
 
 
 @pytest.mark.asyncio

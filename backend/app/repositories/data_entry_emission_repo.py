@@ -31,23 +31,22 @@ class DataEntryEmissionRepository:
         await self.session.flush()
         return obj
 
-    async def get_by_data_entry_id(
-        self, data_entry_id: int
-    ) -> DataEntryEmission | None:
+    async def get_by_data_entry_id(self, data_entry_id: int) -> list[DataEntryEmission]:
         query = select(DataEntryEmission).where(
             DataEntryEmission.data_entry_id == data_entry_id
         )
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return list(result.scalars().all())
 
     async def delete_by_data_entry_id(self, data_entry_id: int) -> None:
         query = select(DataEntryEmission).where(
             DataEntryEmission.data_entry_id == data_entry_id
         )
         result = await self.session.execute(query)
-        obj = result.scalar_one_or_none()
-        if obj:
+        objs = result.scalars().all()
+        for obj in objs:
             await self.session.delete(obj)
+        if objs:
             await self.session.flush()
 
     async def bulk_create(

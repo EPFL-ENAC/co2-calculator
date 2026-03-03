@@ -6,6 +6,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     EmissionComputation,
+    EmissionType,
     FactorQuery,
 )
 from app.models.module_type import ModuleTypeEnum
@@ -108,7 +109,7 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     }
 
     def resolve_computations(
-        self, data_entry: Any, emission_type: Any, ctx: dict
+        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
     ) -> list:
 
         return [
@@ -116,10 +117,11 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.member,
-                    kind=emission_type.name,
+                    emission_type=emission_type,
+                    kind=None,
                     subkind=None,
                 ),
-                formula_key="kg_co2eq_per_fte",
+                formula_key="ef_kg_co2eq_per_fte",
                 quantity_key="fte",
             )
         ]
@@ -161,7 +163,7 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
     filter_map: dict[str, Any] = {}
 
     def resolve_computations(
-        self, data_entry: Any, emission_type: Any, ctx: dict
+        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
     ) -> list:
 
         return [
@@ -169,10 +171,11 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.student,
-                    kind=emission_type.name,
+                    emission_type=emission_type,
+                    kind=None,
                     subkind=None,
                 ),
-                formula_key="kg_co2eq_per_fte",
+                formula_key="ef_kg_co2eq_per_fte",
                 quantity_key="fte",
             )
         ]

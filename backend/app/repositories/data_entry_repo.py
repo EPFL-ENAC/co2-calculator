@@ -245,23 +245,41 @@ class DataEntryRepository:
             DataEntryTypeEnum.train.value,
         )
 
-        # Build query based on entry type
-        entities: list[Any] = [DataEntry, DataEntryEmission, Factor]
+        # Aggregate emissions per data_entry to avoid row duplication
+        # (one data_entry can have multiple emissions for headcount/building)
+        emission_agg = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                func.min(DataEntryEmission.primary_factor_id).label(
+                    "primary_factor_id"
+                ),
+            )
+            .group_by(col(DataEntryEmission.data_entry_id))
+            .subquery()
+        )
+
         OriginLocation = aliased(Location)
         DestLocation = aliased(Location)
 
+        # Build query: one row per DataEntry
+        entities: list[Any] = [
+            DataEntry,
+            emission_agg.c.total_kg_co2eq,
+            Factor,
+        ]
         if is_travel_entry:
             entities.extend([OriginLocation, DestLocation])
         statement: Select[Any] = (
             sa_select(*entities)
             .join(
-                DataEntryEmission,
-                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                emission_agg,
+                col(DataEntry.id) == emission_agg.c.data_entry_id,
                 isouter=True,
             )
             .join(
                 Factor,
-                col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                emission_agg.c.primary_factor_id == col(Factor.id),
                 isouter=True,
             )
         )
@@ -317,25 +335,18 @@ class DataEntryRepository:
             if is_travel_entry:
                 (
                     data_entry,
-                    data_entry_emission,
+                    total_kg_co2eq,
                     primary_factor,
                     origin_loc,
                     dest_loc,
                 ) = row
             else:
-                data_entry, data_entry_emission, primary_factor = row
+                data_entry, total_kg_co2eq, primary_factor = row
                 origin_loc, dest_loc = None, None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
-            kg_co2eq = None
-            emission_meta = {}
-            if data_entry_emission is not None:
-                kg_co2eq = data_entry_emission.kg_co2eq
-                # Extract meta fields (e.g., distance_km for travel)
-                if data_entry_emission.meta:
-                    emission_meta = data_entry_emission.meta
             # If primary_factor is None, try to fetch it
             # from DataEntry.data["primary_factor_id"]
             if primary_factor is None:
@@ -347,10 +358,9 @@ class DataEntryRepository:
 
             data_entry.data = {
                 **data_entry.data,
-                **emission_meta,
                 **({"origin": origin_loc.name} if origin_loc else {}),
                 **({"destination": dest_loc.name} if dest_loc else {}),
-                "kg_co2eq": kg_co2eq,
+                "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
                     **primary_factor.classification,
