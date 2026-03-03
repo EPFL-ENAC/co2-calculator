@@ -1,5 +1,4 @@
 from typing import Optional
-from unittest import result
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
