@@ -9,7 +9,6 @@ import {
   getModulePermissionPath,
 } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
-import { MODULES } from 'src/constant/modules';
 import type { Module } from 'src/constant/modules';
 
 /**
@@ -92,11 +91,6 @@ export function requireModuleEditPermission() {
     if (!hasViewPermission) {
       // User doesn't have view permission - block access entirely
       return { name: 'unauthorized' };
-    }
-
-    // Professional-travel module allows view permission (read-only access for API data)
-    if (module === MODULES.ProfessionalTravel) {
-      return true;
     }
 
     // Check if user has edit permission (required for data entry for other modules)
