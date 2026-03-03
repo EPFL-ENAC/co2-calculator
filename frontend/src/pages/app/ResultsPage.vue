@@ -334,16 +334,13 @@ const downloadPDF = () => {
               <div class="q-px-lg">
                 <!-- Module has results in the summary -->
                 <template v-if="getModuleResult(module)">
-                  <!-- Professional travel specific charts -->
-                  <template
-                    v-if="
-                      module === MODULES.ProfessionalTravel &&
-                      isModuleValidated(module)
-                    "
-                  >
+                  <!-- Per-module treemap -->
+                  <template v-if="isModuleValidated(module)">
                     <ModuleCharts
-                      :type="MODULES.ProfessionalTravel"
-                      :show-evolution-chart="true"
+                      :type="module"
+                      :show-evolution-chart="
+                        module === MODULES.ProfessionalTravel
+                      "
                     />
                   </template>
                   <q-card flat class="grid-3-col q-mb-lg">

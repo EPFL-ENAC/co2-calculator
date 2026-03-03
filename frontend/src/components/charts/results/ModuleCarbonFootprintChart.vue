@@ -67,6 +67,7 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   'Energy combustion': 'charts-energy-combustion-subcategory',
   Equipment: 'equipment-electric-consumption',
   'External cloud & AI': 'external-cloud-and-ai',
+  'External clouds & AI': 'external-cloud-and-ai',
   Purchases: 'purchase',
   'Research facilities': 'charts-research-facilities-category',
   'Professional travel': 'professional-travel',
@@ -76,6 +77,8 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   'Grey Energy': 'charts-grey-energy-category',
 };
 
+const HIDDEN_MAIN_CATEGORIES = new Set(['Energy combustion']);
+
 function translateCategory(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -84,14 +87,138 @@ function translateCategory(
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
 }
 
+function getNumber(entry: Record<string, unknown>, key: string): number {
+  return Number(entry[key]) || 0;
+}
+
+function getPrimaryOrSum(
+  entry: Record<string, unknown>,
+  primaryKey: string,
+  fallbackKeys: string[],
+): number {
+  const primary = getNumber(entry, primaryKey);
+  if (primary !== 0) return primary;
+  return fallbackKeys.reduce((sum, key) => sum + getNumber(entry, key), 0);
+}
+
+function normalizeBreakdownEntry(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  // Keep compatibility with both legacy and new backend chart keys.
+  return {
+    ...entry,
+    // Buildings
+    energy: getPrimaryOrSum(entry, 'energy', ['rooms']),
+    energyStdDev: getPrimaryOrSum(entry, 'energyStdDev', ['roomsStdDev']),
+    // Process emissions can arrive split by gas type.
+    process_emissions: getPrimaryOrSum(entry, 'process_emissions', [
+      'co2',
+      'ch4',
+      'n2o',
+      'refrigerants',
+    ]),
+    process_emissionsStdDev: getPrimaryOrSum(entry, 'process_emissionsStdDev', [
+      'co2StdDev',
+      'ch4StdDev',
+      'n2oStdDev',
+      'refrigerantsStdDev',
+    ]),
+    // Equipment/Purchases naming drift
+    scientific: getPrimaryOrSum(entry, 'scientific', ['scientific_equipment']),
+    scientificStdDev: getPrimaryOrSum(entry, 'scientificStdDev', [
+      'scientific_equipmentStdDev',
+    ]),
+    it: getPrimaryOrSum(entry, 'it', ['it_equipment']),
+    itStdDev: getPrimaryOrSum(entry, 'itStdDev', ['it_equipmentStdDev']),
+    // Professional travel can arrive split by travel classes.
+    plane: getPrimaryOrSum(entry, 'plane', [
+      'eco',
+      'eco_plus',
+      'business',
+      'first',
+    ]),
+    planeStdDev: getPrimaryOrSum(entry, 'planeStdDev', [
+      'ecoStdDev',
+      'eco_plusStdDev',
+      'businessStdDev',
+      'firstStdDev',
+    ]),
+    train: getPrimaryOrSum(entry, 'train', ['class_1', 'class_2']),
+    trainStdDev: getPrimaryOrSum(entry, 'trainStdDev', [
+      'class_1StdDev',
+      'class_2StdDev',
+    ]),
+    // Additional categories naming drift
+    grey_energy: getPrimaryOrSum(entry, 'grey_energy', ['greyEnergy']),
+    grey_energyStdDev: getPrimaryOrSum(entry, 'grey_energyStdDev', [
+      'greyEnergyStdDev',
+    ]),
+    // External AI providers can arrive as individual provider_* keys.
+    ai_provider: getPrimaryOrSum(entry, 'ai_provider', [
+      'provider_others',
+      'provider_google',
+      'provider_mistral_ai',
+      'provider_anthropic',
+      'provider_openai',
+      'provider_cohere',
+    ]),
+    ai_providerStdDev: getPrimaryOrSum(entry, 'ai_providerStdDev', [
+      'provider_othersStdDev',
+      'provider_googleStdDev',
+      'provider_mistral_aiStdDev',
+      'provider_anthropicStdDev',
+      'provider_openaiStdDev',
+      'provider_cohereStdDev',
+    ]),
+  };
+}
+
+function collapseByCategory(
+  rows: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const merged = new Map<string, Record<string, unknown>>();
+
+  rows.forEach((row) => {
+    const category = String(row.category ?? '');
+    const existing = merged.get(category);
+
+    if (!existing) {
+      merged.set(category, { ...row });
+      return;
+    }
+
+    Object.entries(row).forEach(([key, value]) => {
+      if (key === 'category') return;
+      const n = Number(value);
+      if (!Number.isNaN(n)) {
+        existing[key] = (Number(existing[key]) || 0) + n;
+      } else if (existing[key] == null || existing[key] === '') {
+        existing[key] = value;
+      }
+    });
+  });
+
+  return Array.from(merged.values());
+}
+
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
 
-  const baseData = props.breakdownData.module_breakdown.map(translateCategory);
+  const baseData = collapseByCategory(
+    props.breakdownData.module_breakdown
+      .filter(
+        (entry) => !HIDDEN_MAIN_CATEGORIES.has(String(entry.category ?? '')),
+      )
+      .map((entry) => normalizeBreakdownEntry(entry))
+      .map(translateCategory),
+  );
 
   if (toggleAdditionalData.value) {
-    const additionalData =
-      props.breakdownData.additional_breakdown.map(translateCategory);
+    const additionalData = collapseByCategory(
+      props.breakdownData.additional_breakdown
+        .map((entry) => normalizeBreakdownEntry(entry))
+        .map(translateCategory),
+    );
     return [...baseData, ...additionalData];
   }
   return baseData;
@@ -101,7 +228,6 @@ const allValueKeys = computed(() => {
   const baseKeys = [
     'process_emissions',
     'energy',
-    'combustion',
     'scientific',
     'it',
     'other',
@@ -123,7 +249,6 @@ const allStdDevKeys = computed(() => {
   const baseKeys = [
     'process_emissionsStdDev',
     'energyStdDev',
-    'combustionStdDev',
     'scientificStdDev',
     'itStdDev',
     'otherStdDev',
@@ -303,16 +428,6 @@ const chartOption = computed((): EChartsOption => {
       encode: { x: 'category', y: 'energy' },
       animation: true,
       itemStyle: { color: colors.value.lilac.darker },
-      label: { show: false },
-    },
-    // Energy combustion
-    {
-      name: t('charts-energy-combustion-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'combustion' },
-      itemStyle: { color: colors.value.lilac.dark },
       label: { show: false },
     },
     // Equipment — subcategories: scientific, it, other
