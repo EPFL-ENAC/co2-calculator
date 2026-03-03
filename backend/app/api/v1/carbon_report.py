@@ -7,7 +7,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import get_logger
-from app.models.user import User
+from app.core.policy import is_module_permitted
+from app.models.module_type import ModuleTypeEnum
 from app.schemas.carbon_report import (
     CarbonReportCreate,
     CarbonReportModuleRead,
@@ -25,7 +26,7 @@ router = APIRouter()
 async def list_carbon_reports_by_unit(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """List all carbon reports for a given unit."""
     service = CarbonReportService(db)
@@ -37,7 +38,7 @@ async def get_carbon_report_by_unit_and_year(
     unit_id: int,
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """Return 404 if not found, else retrieve carbon report for unit and year."""
     service = CarbonReportService(db)
@@ -51,7 +52,7 @@ async def get_carbon_report_by_unit_and_year(
 async def create_carbon_report(
     report: CarbonReportCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """Create a new carbon report for a given unit and year."""
     service = CarbonReportService(db)
@@ -64,7 +65,7 @@ async def create_carbon_report(
 async def get_carbon_report(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """Get a carbon report by ID."""
     service = CarbonReportService(db)
@@ -81,7 +82,7 @@ async def get_carbon_report(
 async def list_carbon_report_modules(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """List all modules for a carbon report with their statuses."""
     # First verify carbon report exists
@@ -91,7 +92,16 @@ async def list_carbon_report_modules(
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
     module_service = CarbonReportModuleService(db)
-    return await module_service.list_modules(carbon_report_id)
+    modules = await module_service.list_modules(carbon_report_id)
+    # Filter out modules without permission to read
+    modules = [
+        module
+        for module in modules
+        if await is_module_permitted(
+            _current_user, ModuleTypeEnum(module.module_type_id).name, "view"
+        )
+    ]
+    return modules
 
 
 @router.patch(
@@ -103,7 +113,7 @@ async def update_carbon_report_module_status(
     module_type_id: int,
     update: CarbonReportModuleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    _current_user=Depends(get_current_active_user),
 ):
     """
     Update the status of a carbon report module.

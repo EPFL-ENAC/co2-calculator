@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
+from app.core.security import get_current_active_user
 from app.models.data_entry import DataEntryTypeEnum
 from app.services.factor_service import FactorService
 
@@ -17,6 +18,7 @@ router = APIRouter()
 async def get_class_subclass_map(
     data_entry_type: DataEntryTypeEnum,
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ) -> dict[str, list[str]]:
     """Get mapping of equipment classes to subclasses for a given submodule."""
     response = await FactorService(db).get_class_subclass_map(
@@ -38,6 +40,7 @@ async def get_factor(
     kind: str,
     subkind: str = Query(default=None, alias="sub_class"),
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ):
     """Get factor for a given equipment class in a submodule."""
     if not kind:

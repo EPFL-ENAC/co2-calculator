@@ -507,7 +507,7 @@ async def get_filter_units(
     ),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     unit_repo = UnitRepository(db)
@@ -550,8 +550,8 @@ async def list_backoffice_units(
     ),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_active_user),
 ):
     """
     List units with reporting data for backoffice.
@@ -595,7 +595,7 @@ async def export_detailed_reporting(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    _current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """
     Export detailed reporting data for all units, including module-level details.
@@ -818,7 +818,7 @@ async def export_reporting(
         years=years,
         page=page,
         page_size=page_size,
-        current_user=current_user,
+        _current_user=current_user,
         db=db,
     )
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -888,14 +888,14 @@ async def get_backoffice_unit(
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
-    current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(get_current_active_user),
 ):
     return {"message": f"Details for unit {unit_id} with year filter {years}"}
 
 
 @router.get("/years")
 async def get_available_years(
-    current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(get_current_active_user),
 ):
     """
     Get all available years from all units combined.

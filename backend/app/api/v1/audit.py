@@ -214,7 +214,7 @@ async def get_audit_stats(
     search: Optional[str] = Query(None),
     module: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    _current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """Get summary statistics for audit logs, respecting current filters."""
     repo = AuditDocumentRepository(db)
@@ -250,7 +250,7 @@ async def get_audit_stats(
 async def get_audit_log_detail(
     log_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    _current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """Get full details of a single audit log entry."""
     repo = AuditDocumentRepository(db)
@@ -297,7 +297,7 @@ async def export_audit_logs(
     module: Optional[str] = Query(None),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    _current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """Export audit logs as CSV or JSON file download."""
     repo = AuditDocumentRepository(db)

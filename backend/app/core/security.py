@@ -178,6 +178,79 @@ def _build_permission_input(user: User, path: str, action: str) -> dict:
     return input_data
 
 
+async def get_permission_decision(user: User, path: str, action: str = "view") -> dict:
+    """Get OPA decision for a permission check.
+    This can be used in cases where you want to get the full decision details instead
+    of just the allow/deny result.
+
+    Args:
+      user: Current user
+      path: Permission path (e.g., "modules.headcount")
+      action: Permission action (e.g., "view", "edit", "export", default: "view")
+
+    Returns:
+      OPA decision dictionary, e.g. {"allow": True}
+        or {"allow": False, "reason": "User does not have required role"}
+    """
+    # Build OPA input with user context
+    input_data = _build_permission_input(user, path, action)
+
+    # Query policy for authorization decision
+    decision = await query_policy("authz/permission/check", input_data)
+    logger.info(
+        "Permission check requested",
+        extra={
+            "user_id": sanitize(user.id),
+            "path": path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+    return decision
+
+
+async def is_permitted(user: User, path: str, action: str = "view") -> bool:
+    """
+    Check if the user has the specified permission.
+
+    This is a helper function that can be used in cases where you want to check
+    permissions programmatically within your code instead of using the
+    require_permission dependency.
+
+    Args:
+        user: Current user
+        path: Permission path (e.g., "modules.headcount")
+        action: Permission action (e.g., "view", "edit", "export", default: "view")
+
+    Returns:
+        True if user has permission, False otherwise
+    """
+    decision = await get_permission_decision(user, path, action)
+    return decision.get("allow", False)
+
+
+async def check_permission(user: User, path: str, action: str = "view"):
+    """
+    Check if the user has the specified permission and raise HTTPException if not.
+
+    This is a helper function that can be used in cases where you want to enforce
+    permissions programmatically within your code instead of using the
+    require_permission dependency.
+
+    Args:
+        user: Current user
+        path: Permission path (e.g., "modules.headcount")
+        action: Permission action (e.g., "view", "edit", "export", default: "view")
+    Raises:
+        HTTPException with status 403 if user does not have permission
+    """
+    if not await is_permitted(user, path, action):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action",
+        )
+
+
 def require_permission(path: str, action: str = "view") -> Callable:
     """
     Create a FastAPI dependency that checks permissions using OPA pattern.
@@ -210,20 +283,7 @@ def require_permission(path: str, action: str = "view") -> Callable:
     async def require_permission_impl(
         user: User = Depends(get_current_active_user),
     ) -> User:
-        # Build OPA input with user context
-        input_data = _build_permission_input(user, path, action)
-
-        # Query policy for authorization decision
-        decision = await query_policy("authz/permission/check", input_data)
-        logger.info(
-            "Permission check requested",
-            extra={
-                "user_id": sanitize(user.id),
-                "path": path,
-                "action": action,
-                "decision": decision,
-            },
-        )
+        decision = await get_permission_decision(user, path, action)
 
         # Check decision
         if not decision.get("allow", False):

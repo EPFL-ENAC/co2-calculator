@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
+from app.core.security import get_current_active_user
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum, get_data_entry_types_for_module_type
 from app.models.taxonomy import TaxonomyNode
@@ -18,6 +19,7 @@ router = APIRouter()
 async def get_taxonomy_for_module_type(
     module_type: ModuleTypeEnum,
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module type."""
     nodes = []
@@ -40,6 +42,7 @@ async def get_taxonomy_for_module_type(
 async def get_taxonomy_for_data_entry_type(
     data_entry_type: DataEntryTypeEnum,
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given data entry type."""
     handler = BaseModuleHandler.get_by_type(data_entry_type)
@@ -54,6 +57,7 @@ async def get_taxonomy_for_data_entry_type(
 async def get_taxonomy_for_module(
     module: str,
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     module_type = ModuleTypeEnum[module]
@@ -69,6 +73,7 @@ async def get_taxonomy_for_module_data_entry(
     module: str,
     data_entry: str,
     db: AsyncSession = Depends(get_db),
+    _current_user=Depends(get_current_active_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     data_entry_type = DataEntryTypeEnum[data_entry]
