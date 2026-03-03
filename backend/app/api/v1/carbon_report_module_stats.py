@@ -31,7 +31,7 @@ router = APIRouter()
 async def get_validated_totals(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
     Get validated totals for a carbon report.
@@ -116,7 +116,7 @@ async def get_module_stats(
 async def get_results_summary(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
     Get results summary for a carbon report, broken down by module.
@@ -148,7 +148,7 @@ async def get_results_summary(
 async def get_emission_breakdown(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Return chart-ready emission breakdown for a carbon report.
 
