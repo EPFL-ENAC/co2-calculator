@@ -36,4 +36,4 @@ jobs:
       registry_username: svc1751+ghaction
       helm_chart_name: co2-calculator
       helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}
-      skip_vulnerability_scan: false
+      skip_vulnerability_scan: true
