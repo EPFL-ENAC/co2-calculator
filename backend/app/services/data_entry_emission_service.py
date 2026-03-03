@@ -184,6 +184,16 @@ class DataEntryEmissionService:
                     kind=q.kind,
                     subkind=None,
                 )
+                if (
+                    factor is None
+                    and q.fallbacks
+                    and isinstance(q.fallbacks.get("kind"), str)
+                ):
+                    factor = await factor_service.get_by_classification(
+                        data_entry_type=q.data_entry_type,
+                        kind=q.fallbacks["kind"],
+                        subkind=None,
+                    )
                 result.append(factor) if factor else None
 
             # B3: By emission_type — returns multiple factors

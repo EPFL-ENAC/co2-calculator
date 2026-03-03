@@ -173,7 +173,7 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-building-energy-subcategory': {
-    en: 'Buildings energy Combustion',
+    en: 'Buildings energy combustion',
     fr: "Combustion d'énergie des bâtiments",
   },
   'charts-energy-combustion-subcategory': {
@@ -271,6 +271,30 @@ export default {
   'charts-plane-subcategory': {
     en: 'Plane',
     fr: 'Avion',
+  },
+  'charts-clouds-subcategory': {
+    en: 'Clouds',
+    fr: 'Clouds',
+  },
+  'charts-ai-subcategory': {
+    en: 'AI',
+    fr: 'IA',
+  },
+  'charts-co2-subcategory': {
+    en: 'CO2',
+    fr: 'CO2',
+  },
+  'charts-ch4-subcategory': {
+    en: 'CH4',
+    fr: 'CH4',
+  },
+  'charts-n2o-subcategory': {
+    en: 'N2O',
+    fr: 'N2O',
+  },
+  'charts-refrigerants-subcategory': {
+    en: 'Refrigerants',
+    fr: 'Réfrigérants',
   },
   'charts-heating-subcategory': {
     en: 'Heating',

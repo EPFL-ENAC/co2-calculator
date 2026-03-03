@@ -15,7 +15,25 @@ import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { formatTonnesForChart } from 'src/utils/number';
-import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
+import {
+  CHART_CATEGORY_COLOR_SCALES,
+  getChartSubcategoryColor,
+} from 'src/constant/charts';
+
+interface EmissionTreemapChild {
+  name: string;
+  value: number;
+  percentage?: number;
+  color?: string;
+  children?: EmissionTreemapChild[];
+}
+
+interface EmissionTreemapCategory {
+  name: string;
+  value: number;
+  color: string;
+  children: EmissionTreemapChild[];
+}
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
@@ -35,31 +53,180 @@ const props = defineProps<{
   showEvolutionDialog?: boolean;
 }>();
 
+const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
+  // Core subcategories
+  scientific: 'charts-scientific-subcategory',
+  it: 'charts-equipment-it',
+  other: 'charts-other-purchases-subcategory',
+  plane: 'charts-plane-subcategory',
+  train: 'charts-train-subcategory',
+  clouds: 'charts-clouds-subcategory',
+  ai: 'charts-ai-subcategory',
+  // Process emissions gases
+  co2: 'charts-co2-subcategory',
+  ch4: 'charts-ch4-subcategory',
+  n2o: 'charts-n2o-subcategory',
+  refrigerants: 'charts-refrigerants-subcategory',
+  // Purchases
+  scientific_equipment: 'charts-scientific-subcategory',
+  it_equipment: 'charts-equipment-it',
+  consumable_accessories: 'charts-consumables-subcategory',
+  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
+  services: 'charts-services-subcategory',
+  vehicles: 'charts-other-purchases-subcategory',
+  additional: 'charts-other-purchases-subcategory',
+  // External cloud & AI leaves
+  stockage: 'charts-stockage-subcategory',
+  virtualisation: 'charts-virtualisation-subcategory',
+  calcul: 'charts-calcul-subcategory',
+  ai_provider: 'charts-ai-provider-subcategory',
+};
+
+function resolveLabel(raw: string): string {
+  const key = TREEMAP_LABEL_KEY_MAP[raw];
+  return key ? t(key) : raw.replace(/_/g, ' ');
+}
+
+type ColorScale = {
+  darker: string;
+  dark: string;
+  default: string;
+  light: string;
+  lighter: string;
+};
+
+function getCategoryScale(
+  categoryName: string,
+  fallbackColor: string,
+): ColorScale {
+  const byCategory =
+    CHART_CATEGORY_COLOR_SCALES.value[
+      categoryName as keyof typeof CHART_CATEGORY_COLOR_SCALES.value
+    ];
+  if (byCategory) return byCategory;
+  return {
+    darker: fallbackColor,
+    dark: fallbackColor,
+    default: fallbackColor,
+    light: fallbackColor,
+    lighter: fallbackColor,
+  };
+}
+
+function levelColor(
+  scale: ColorScale,
+  level: number,
+  siblingIndex: number,
+): string {
+  if (level === 0) return scale.darker;
+  if (level === 1) {
+    const shades = [
+      scale.darker,
+      scale.dark,
+      scale.default,
+      scale.light,
+      scale.lighter,
+    ];
+    return shades[siblingIndex % shades.length];
+  }
+  const leafShades = [scale.default, scale.light, scale.lighter];
+  return leafShades[siblingIndex % leafShades.length];
+}
+
+function getFixedSubcategoryColor(
+  categoryName: string,
+  subcategoryKey: string,
+): string | null {
+  const resolved = getChartSubcategoryColor(categoryName, subcategoryKey, '');
+  return resolved || null;
+}
+
+type TreemapNode = {
+  name: string;
+  value: number;
+  itemStyle: { color: string };
+  children?: TreemapNode[];
+};
+
+function toTreemapNode(
+  node: EmissionTreemapCategory | EmissionTreemapChild,
+  categoryName: string,
+  scale: ColorScale,
+  level: number,
+  siblingIndex: number,
+  parentColor?: string,
+): TreemapNode {
+  const isYyLevel = level === 1;
+  const inheritParentColor = level >= 2 ? parentColor : undefined;
+  const color =
+    node.color ??
+    (isYyLevel ? getFixedSubcategoryColor(categoryName, node.name) : null) ??
+    inheritParentColor ??
+    levelColor(scale, level, siblingIndex);
+
+  const label = resolveLabel(node.name);
+  const percentage =
+    'percentage' in node && typeof node.percentage === 'number'
+      ? node.percentage
+      : undefined;
+
+  const treeNode: TreemapNode = {
+    name:
+      percentage !== undefined
+        ? `${label} (${Math.round(percentage)}%)`
+        : label,
+    value: node.value,
+    itemStyle: { color },
+  };
+
+  if (Array.isArray(node.children) && node.children.length > 0) {
+    treeNode.children = node.children.map((child, index) =>
+      toTreemapNode(child, categoryName, scale, level + 1, index, color),
+    );
+  }
+
+  return treeNode;
+}
+
 const treemapData = computed(() => {
   return props.data
     .filter((item) => item.value > 0 && item.children.length > 0)
-    .map((item) => ({
-      name: t(item.name, item.name),
-      value: item.value,
-      itemStyle: { color: item.color },
-      children: item.children
-        .filter((c) => c.value > 0)
-        .map((c) => ({
-          name:
-            c.percentage !== undefined
-              ? `${t(c.name, c.name)} (${Math.round(c.percentage)}%)`
-              : t(c.name, c.name),
-          value: c.value,
-          itemStyle: { color: item.color },
-        })),
-    }));
+    .map((item, index) =>
+      toTreemapNode(
+        item,
+        item.name,
+        getCategoryScale(item.name, item.color),
+        0,
+        index,
+      ),
+    );
 });
 
-const legendData = computed(() =>
+const legendData = computed(() => {
+  const yyLegend: Array<{ name: string; color: string }> = [];
+
   props.data
-    .filter((item) => item.value > 0)
-    .map((item) => ({ name: t(item.name, item.name), color: item.color })),
-);
+    .filter((category) => category.value > 0)
+    .forEach((category) => {
+      const scale = getCategoryScale(category.name, category.color);
+      category.children
+        .filter((yy) => yy.value > 0)
+        .forEach((yy, yyIndex) => {
+          const fixed = getFixedSubcategoryColor(category.name, yy.name);
+          yyLegend.push({
+            name: resolveLabel(yy.name),
+            color: fixed ?? levelColor(scale, 1, yyIndex),
+          });
+        });
+    });
+
+  const seen = new Set<string>();
+  return yyLegend.filter((item) => {
+    if (seen.has(item.name)) return false;
+    seen.add(item.name);
+    return true;
+  });
+});
 
 const chartOption = computed(
   (): EChartsOption => ({
@@ -86,34 +253,10 @@ const chartOption = computed(
           p.color ??
           '#999999';
 
-        // Resolve category name by walking treemapData
-        let categoryName = '';
-        let displayName = name;
-
-        for (const cat of treemapData.value) {
-          if (cat.name === name) {
-            categoryName = cat.name;
-            displayName = cat.name;
-            break;
-          }
-          const child = cat.children.find((c) => {
-            const base = c.name.split(' (')[0];
-            const nameBase = name.split(' (')[0];
-            return c.name === name || base === nameBase;
-          });
-          if (child) {
-            categoryName = cat.name;
-            displayName = child.name;
-            break;
-          }
-        }
-
-        // Fallback to treePathInfo
-        if (!categoryName) {
-          const path = p.treePathInfo?.map((i) => i.name) ?? [];
-          categoryName = path[0] ?? name;
-          displayName = path[path.length - 1] ?? name;
-        }
+        const path = (p.treePathInfo?.map((i) => i.name) ?? []).filter(Boolean);
+        const levels = path.length > 1 ? path.slice(1) : path;
+        const categoryName = levels[0] ?? name;
+        const displayName = levels[levels.length - 1] ?? name;
 
         return (
           `<span style="display:inline-block;margin-right:5px;border-radius:10px;` +
@@ -143,7 +286,7 @@ const chartOption = computed(
           fontWeight: 'bold',
           color: 'white',
         },
-        upperLabel: { show: true, height: 0, color: 'white' },
+        upperLabel: { show: false, height: 0, color: 'white' },
         itemStyle: { borderColor: 'transparent', borderWidth: 0, gapWidth: 1 },
         emphasis: {
           itemStyle: { borderColor: 'transparent', borderWidth: 0 },
@@ -155,16 +298,31 @@ const chartOption = computed(
             itemStyle: {
               borderColor: 'transparent',
               borderWidth: 0,
-              gapWidth: 1,
+              gapWidth: 5,
             },
             upperLabel: {
-              show: true,
+              show: false,
               fontSize: 16,
               fontWeight: 'bold',
               color: '#333',
               height: 0,
             },
-            label: { show: true, fontSize: 14, color: '#333' },
+            label: { show: false, fontSize: 14, color: '#333' },
+          },
+          {
+            itemStyle: {
+              borderColor: 'transparent',
+              borderWidth: 0,
+              gapWidth: 3,
+            },
+            upperLabel: {
+              show: false,
+              fontSize: 12,
+              fontWeight: 'bold',
+              color: '#fff',
+              height: 22,
+            },
+            label: { show: true, fontSize: 12, color: '#fff' },
           },
           {
             itemStyle: {
@@ -173,7 +331,7 @@ const chartOption = computed(
               gapWidth: 1,
             },
             upperLabel: { show: false },
-            label: { show: true, fontSize: 12, color: '#333' },
+            label: { show: true, fontSize: 11, color: '#fff' },
           },
         ],
       },

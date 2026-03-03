@@ -168,13 +168,14 @@ def _resolve_plane(data: dict) -> list[EmissionType] | None:
     return [et] if et else None
 
 
-def _resolve_train(data: dict) -> list[EmissionType] | None:
-    # trains also use cabin_class (class_1 / class_2)
-    # no default, return None if no cabin_class or
-    # unknown value — caller should log and skip
-    cabin = (data.get("cabin_class") or "").lower()
-    et = _TRAIN_CLASS_MAP.get(cabin)
-    return [et] if et else None
+def _resolve_train(data: dict) -> list[EmissionType]:
+    # Trains use cabin_class (class_1 / class_2).
+    # To avoid silently dropping emissions on incomplete payloads,
+    # default to class_2 when value is missing or unrecognized.
+    cabin_raw = str(data.get("cabin_class") or "").strip().lower()
+    cabin = cabin_raw.replace("-", "_").replace(" ", "_")
+    et = _TRAIN_CLASS_MAP.get(cabin, EmissionType.professional_travel__train__class_2)
+    return [et]
 
 
 def _resolve_clouds(data: dict) -> list[EmissionType] | None:

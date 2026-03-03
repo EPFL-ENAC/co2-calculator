@@ -303,6 +303,72 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   'Grey Energy': colors.value.skyBlue.dark,
 }));
 
+// Maps chart category name -> full color scale (shared across charts)
+export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
+  'Process Emissions': colors.value.apricot,
+  'Buildings energy consumption': colors.value.lilac,
+  'Energy combustion': colors.value.lilac,
+  'Buildings room': colors.value.skyBlue,
+  Equipment: colors.value.mauve,
+  'External cloud & AI': colors.value.paleYellowGreen,
+  Purchases: colors.value.lavender,
+  'Research facilities': colors.value.peach,
+  'Professional travel': colors.value.babyBlue,
+  Commuting: colors.value.aqua,
+  Food: colors.value.mint,
+  Waste: colors.value.periwinkle,
+  'Grey Energy': colors.value.skyBlue,
+}));
+
+// Maps category -> subcategory key -> exact shade, shared across charts.
+export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
+  (): Record<string, Record<string, string>> => ({
+    'Process Emissions': {
+      co2: colors.value.apricot.darker,
+      ch4: colors.value.apricot.dark,
+      n2o: colors.value.apricot.default,
+      refrigerants: colors.value.apricot.light,
+    },
+    Equipment: {
+      scientific: colors.value.mauve.darker,
+      it: colors.value.mauve.dark,
+      other: colors.value.mauve.default,
+    },
+    'Professional travel': {
+      plane: colors.value.babyBlue.darker,
+      train: colors.value.babyBlue.dark,
+    },
+    'External cloud & AI': {
+      clouds: colors.value.paleYellowGreen.darker,
+      ai: colors.value.paleYellowGreen.dark,
+      stockage: colors.value.paleYellowGreen.default,
+      virtualisation: colors.value.paleYellowGreen.light,
+      calcul: colors.value.paleYellowGreen.lighter,
+      ai_provider: colors.value.paleYellowGreen.light,
+    },
+    Purchases: {
+      scientific_equipment: colors.value.lavender.darker,
+      it_equipment: colors.value.lavender.dark,
+      consumable_accessories: colors.value.lavender.default,
+      biological_chemical_gaseous: colors.value.lavender.light,
+      services: colors.value.lavender.lighter,
+      vehicles: colors.value.lavender.default,
+      other: colors.value.lavender.dark,
+      additional: colors.value.lavender.light,
+    },
+  }),
+);
+
+export function getChartSubcategoryColor(
+  category: string,
+  key: string,
+  fallback: string,
+): string {
+  const byCategory = CHART_SUBCATEGORY_COLOR_SCHEMES.value[category];
+  if (!byCategory) return fallback;
+  return byCategory[key] ?? fallback;
+}
+
 // Maps Module enum value → category names present in module_breakdown
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({

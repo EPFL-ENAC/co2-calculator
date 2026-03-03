@@ -169,6 +169,103 @@ def test_build_chart_breakdown_emission_type_for_cloud():
     assert cloud["provider_others"] == pytest.approx(1.0)
 
 
+def test_build_chart_breakdown_external_cloud_parents_map():
+    """External cloud/AI exposes top-level parent mapping for level-2 types."""
+    rows = [
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__calcul.value,
+            "External_Clouds",
+            1_000.0,
+        ),
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__ai__provider_google.value,
+            "External_Ai",
+            2_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    assert result["module_breakdown_parents"]["External cloud & AI"] == {
+        "calcul": "clouds",
+        "provider_google": "ai",
+    }
+    cloud = next(
+        d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
+    )
+    assert "__parents" not in cloud
+    # Parent aggregations are emitted as chart keys too (in tonnes).
+    assert cloud["clouds"] == pytest.approx(1.0)
+    assert cloud["ai"] == pytest.approx(2.0)
+
+
+def test_build_chart_breakdown_exposes_backend_canonical_aggregates():
+    """Canonical aggregate keys are computed server-side for chart consumers."""
+    rows = [
+        # Buildings leaf should expose aggregate "energy"
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms.value,
+            1,
+            900.0,
+        ),
+        # Travel leaves should expose aggregate "plane" / "train"
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            3,
+            1_200.0,
+        ),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__train__class_1.value,
+            3,
+            800.0,
+        ),
+        # External cloud/AI leaves should expose aggregate "clouds" / "ai"
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__clouds__stockage.value,
+            3,
+            600.0,
+        ),
+        (
+            ModuleTypeEnum.external_cloud_and_ai.value,
+            EmissionType.external__ai__provider_openai.value,
+            3,
+            400.0,
+        ),
+    ]
+    result = build_chart_breakdown(rows)
+
+    buildings = next(
+        d
+        for d in result["module_breakdown"]
+        if d["category"] == "Buildings energy consumption"
+    )
+    assert buildings["energy"] == pytest.approx(0.9)
+
+    travel = next(
+        d for d in result["module_breakdown"] if d["category"] == "Professional travel"
+    )
+    assert travel["plane"] == pytest.approx(1.2)
+    assert travel["train"] == pytest.approx(0.8)
+
+    external = next(
+        d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
+    )
+    assert external["clouds"] == pytest.approx(0.6)
+    assert external["ai"] == pytest.approx(0.4)
+
+    external_treemap = next(
+        d for d in result["module_treemap"] if d["name"] == "External cloud & AI"
+    )
+    assert external_treemap["value"] == pytest.approx(1.0)
+    child_names = {c["name"] for c in external_treemap["children"]}
+    assert child_names == {"clouds", "ai"}
+
+
 def test_build_chart_breakdown_empty_input():
     """Empty rows still produce all categories with zero values."""
     result = build_chart_breakdown([])
