@@ -1,5 +1,6 @@
 """CarbonReportModule service for business logic."""
 
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -7,11 +8,75 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.carbon_report import ModuleStatus
-from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
+from app.models.data_entry_emission import (
+    EMISSION_SCOPE,
+    EmissionType,
+    get_all_nodes,
+    get_subtree_leaves,
+)
+from app.models.module_type import (
+    ALL_MODULE_TYPE_IDS,
+    MODULE_TYPE_TO_EMISSION_ROOTS,
+    ModuleTypeEnum,
+)
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
+from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 
 logger = get_logger(__name__)
+
+
+def compute_module_stats(
+    leaf_emissions: dict[str, float | None],
+    emission_roots: list[EmissionType],
+    entry_count: int = 0,
+) -> dict:
+    """Build the stats dict from leaf-level emission totals.
+
+    Args:
+        leaf_emissions: {str(emission_type_id): kg_co2eq} from DB aggregation.
+        emission_roots: EmissionType roots for this module.
+        entry_count: Number of data entries in this module.
+
+    Returns:
+        Stats dict with scope totals, by_emission_type (leaves + rollups),
+        computed_at, and entry_count.
+    """
+    by_et: dict[str, float] = {}
+    scope_totals: dict[str, float] = {"scope1": 0.0, "scope2": 0.0, "scope3": 0.0}
+
+    # Collect all nodes across all roots for this module
+    all_nodes: list[EmissionType] = []
+    for root in emission_roots:
+        all_nodes.extend(get_all_nodes(root))
+
+    # 1. Populate leaf values from DB results + accumulate scope totals
+    for node in all_nodes:
+        val = leaf_emissions.get(str(node.value))
+        if val is not None and val != 0:
+            by_et[str(node.value)] = val
+            # Scope totals only for actual leaves (data rows)
+            scope = EMISSION_SCOPE.get(node)
+            if scope is not None:
+                scope_totals[f"scope{scope.value}"] += val
+
+    # 2. Compute rollups for non-leaf nodes from their subtree leaves
+    for node in all_nodes:
+        if node.children():  # non-leaf
+            leaf_ids = get_subtree_leaves(node)
+            rollup = sum(leaf_emissions.get(str(lid), 0) or 0 for lid in leaf_ids)
+            if rollup != 0:
+                by_et[str(node.value)] = rollup
+
+    total = scope_totals["scope1"] + scope_totals["scope2"] + scope_totals["scope3"]
+
+    return {
+        **scope_totals,
+        "total": total,
+        "by_emission_type": by_et,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "entry_count": entry_count,
+    }
 
 
 class CarbonReportModuleService:
@@ -108,6 +173,55 @@ class CarbonReportModuleService:
         if carbon_report_module is None:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
+
+    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+        """Recompute and persist the stats JSON for a module."""
+        module = await self.repo.get(carbon_report_module_id)
+        if module is None:
+            logger.warning(
+                f"recompute_stats: module {sanitize(carbon_report_module_id)} "
+                "not found, skipping"
+            )
+            return
+
+        emission_roots = MODULE_TYPE_TO_EMISSION_ROOTS.get(
+            ModuleTypeEnum(module.module_type_id)
+        )
+        if not emission_roots:
+            # Module type has no emission mapping (e.g. global_energy)
+            return
+
+        emission_repo = DataEntryEmissionRepository(self.session)
+        leaf_emissions = await emission_repo.get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+            aggregate_by="emission_type_id",
+            aggregate_field="kg_co2eq",
+        )
+
+        # entry_count: count data entries for this module
+        from sqlmodel import func, select
+
+        from app.models.data_entry import DataEntry
+
+        result = await self.session.execute(
+            select(func.count()).where(
+                DataEntry.carbon_report_module_id == carbon_report_module_id
+            )
+        )
+        entry_count = result.scalar_one()
+
+        stats = compute_module_stats(
+            leaf_emissions=leaf_emissions,
+            emission_roots=emission_roots,
+            entry_count=entry_count,
+        )
+
+        await self.repo.update_stats(carbon_report_module_id, stats)
+        logger.info(
+            f"Stats recomputed for module {sanitize(carbon_report_module_id)}: "
+            f"total={stats['total']:.2f} kgCO2eq, "
+            f"{len(stats['by_emission_type'])} emission types"
+        )
 
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""

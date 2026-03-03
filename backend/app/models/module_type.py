@@ -3,6 +3,7 @@
 from enum import IntEnum
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionType
 
 
 # enum - used in other files
@@ -99,3 +100,22 @@ def get_data_entry_types_for_module_type(
 ) -> list[DataEntryTypeEnum]:
     """Get the data entry types for a given module type."""
     return MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+
+# Maps each ModuleTypeEnum to the EmissionType root(s) whose subtree
+# covers all emission_type_ids that can appear under that module.
+# headcount is special: its 4 emission types are independent flat leaves.
+MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
+    ModuleTypeEnum.headcount: [
+        EmissionType.food,
+        EmissionType.waste,
+        EmissionType.commuting,
+        EmissionType.grey_energy,
+    ],
+    ModuleTypeEnum.professional_travel: [EmissionType.professional_travel],
+    ModuleTypeEnum.buildings: [EmissionType.buildings],
+    ModuleTypeEnum.equipment_electric_consumption: [EmissionType.equipment],
+    ModuleTypeEnum.purchase: [EmissionType.purchases],
+    ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
+    ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
+}

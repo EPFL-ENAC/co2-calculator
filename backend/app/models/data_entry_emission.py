@@ -171,6 +171,25 @@ class EmissionType(int, Enum):
         return results
 
 
+def get_subtree_leaves(root: EmissionType) -> list[int]:
+    """Get all leaf emission_type_id values under a given node (recursive)."""
+    kids = root.children()
+    if not kids:
+        return [root.value]
+    result: list[int] = []
+    for child in kids:
+        result.extend(get_subtree_leaves(child))
+    return result
+
+
+def get_all_nodes(root: EmissionType) -> list[EmissionType]:
+    """Get all nodes (root + intermediates + leaves) under a given node."""
+    result: list[EmissionType] = [root]
+    for child in root.children():
+        result.extend(get_all_nodes(child))
+    return result
+
+
 # =============================================================================
 # Scope
 # =============================================================================
