@@ -248,14 +248,14 @@ class DataEntryRepository:
         # Aggregate emissions per data_entry to avoid row duplication
         # (one data_entry can have multiple emissions for headcount/building)
         emission_agg = (
-            sa_select(
+            select(
                 DataEntryEmission.data_entry_id,
                 func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
                 func.min(DataEntryEmission.primary_factor_id).label(
                     "primary_factor_id"
                 ),
             )
-            .group_by(DataEntryEmission.data_entry_id)
+            .group_by(col(DataEntryEmission.data_entry_id))
             .subquery()
         )
 

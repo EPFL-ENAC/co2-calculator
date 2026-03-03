@@ -82,7 +82,7 @@ class DataEntryEmissionService:
 
             for comp in computations:
                 factors = await self._fetch_factors(comp)
-                kg_co2eq = None
+                kg_co2eq: float | None = None
                 for factor in factors:
                     # If there are multiple factors for this computation,
                     # we sum their contributions
@@ -90,9 +90,11 @@ class DataEntryEmissionService:
                     # finer grain emission_type despite having factors
                     # representing a new depth
                     kg_co2eq = 0 if kg_co2eq is None else kg_co2eq
-                    temp_kg_co2eq = self._apply_formula(ctx, factor.values or {}, comp)
+                    temp_kg_co2eq: float | None = self._apply_formula(
+                        ctx, factor.values or {}, comp
+                    )
                     if temp_kg_co2eq is not None:
-                        kg_co2eq += temp_kg_co2eq
+                        kg_co2eq = kg_co2eq + temp_kg_co2eq
                     if temp_kg_co2eq is None:
                         logger.warning(
                             f"Formula returned None for "
