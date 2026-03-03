@@ -129,6 +129,7 @@
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
+              :hint="col.hint"
               :unit-id="unitId"
               :year="year"
               :disable="isDisabled"
@@ -143,6 +144,7 @@
               :dense="true"
               hide-bottom-space
               outlined
+              :title="col.hint ? $t(col.hint) : undefined"
               :min="col.min"
               :max="col.max"
               :step="col.step"
@@ -648,6 +650,7 @@ type TableViewColumn = {
   field: string;
   sortable: boolean;
   align: 'left' | 'right' | 'center';
+  hint?: string;
   min?: number;
   max?: number;
   step?: number;
@@ -695,6 +698,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             label: labelText,
             field: f.id, // All columns use the same field
             sortable,
+            hint: f.hint,
             min: f.min,
             max: f.max,
             step: f.step,
@@ -722,6 +726,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           label: labelText,
           field: f.id,
           sortable,
+          hint: f.hint,
           min: f.min,
           max: f.max,
           step: f.step,
@@ -745,6 +750,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       align: 'right',
       sortable: false,
       inputComponent: QInput,
+      hint: undefined,
       min: undefined,
       max: undefined,
       step: undefined,

@@ -50,6 +50,7 @@ export interface ModuleField {
   type: FieldType;
   required?: boolean;
   placeholder?: string;
+  hint?: string;
   min?: number;
   max?: number;
   step?: number;

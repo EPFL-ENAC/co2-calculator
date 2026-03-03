@@ -183,7 +183,8 @@
                     submoduleTitle: $t(`${moduleType}-${submoduleType}`),
                   })
                 "
-                :placeholder="inp.placeholder"
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
                 :type="inp.type === 'number' ? 'number' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
@@ -209,9 +210,6 @@
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
-                </template>
-                <template v-if="inp.type === 'select'" #hint>
-                  <div class="text-subtle">Select a value</div>
                 </template>
               </component>
             </div>
