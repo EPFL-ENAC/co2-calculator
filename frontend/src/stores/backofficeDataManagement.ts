@@ -326,6 +326,10 @@ provider_type
         'internal-services': 6,
         'external-cloud-and-ai': 7,
         'process-emissions': 8,
+        commuting: 9,
+        food: 10,
+        waste: 11,
+        'grey-energy': 12,
       };
       return moduleTypeIds[module];
     }

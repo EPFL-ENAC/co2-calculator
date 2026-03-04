@@ -320,6 +320,10 @@ export function getModulePermissionPath(module: Module): string | null {
     [MODULES.InternalServices]: 'modules.internal_services',
     [MODULES.ExternalCloudAndAI]: 'modules.external_cloud_and_ai',
     [MODULES.ProcessEmissions]: 'modules.process_emissions',
+    [MODULES.Commuting]: null,
+    [MODULES.Food]: null,
+    [MODULES.Waste]: null,
+    [MODULES.GreyEnergy]: null,
   };
   return modulePermissionMap[module] || null;
 }

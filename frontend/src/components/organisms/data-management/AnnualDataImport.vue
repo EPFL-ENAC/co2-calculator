@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from 'vue';
-import { MODULES_LIST } from 'src/constant/modules';
+import { ref, onUnmounted } from 'vue';
 import FilesUploadDialog from './FilesUploadDialog.vue';
 import { useFilesStore } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
@@ -25,21 +24,168 @@ const uploadTargetType = ref<'data_entries' | 'factors'>('data_entries');
 const uploadFactorVariant = ref<string | null>(null);
 const uploadDataEntryTypeId = ref<number | null>(null);
 
-type ImportRow = {
+interface ImportRow {
   key: string;
   labelKey: string;
   moduleTypeId: number;
   dataEntryTypeId?: number;
   factorVariant?: 'plane' | 'train';
-};
+  hasFactors: boolean;
+  hasApi: boolean;
+  other?: string;
+  hasOtherUpload?: boolean;
+  isDisabled?: boolean;
+}
 
-const importRows = computed<ImportRow[]>(() => {
-  return MODULES_LIST.map((module, index) => ({
-    key: module,
-    labelKey: module,
-    moduleTypeId: index + 1,
-  }));
-});
+const importRows: ImportRow[] = [
+  {
+    key: 'headcount_members',
+    labelKey: 'data_management_row_headcount_members',
+    moduleTypeId: 1,
+    dataEntryTypeId: 1,
+    hasFactors: false,
+    hasApi: false,
+  },
+  {
+    key: 'headcount_students',
+    labelKey: 'data_management_row_headcount_students',
+    moduleTypeId: 1,
+    dataEntryTypeId: 2,
+    hasFactors: false,
+    hasApi: false,
+  },
+  {
+    key: 'travel_train',
+    labelKey: 'data_management_row_travel_train',
+    moduleTypeId: 2,
+    dataEntryTypeId: 21,
+    factorVariant: 'train',
+    hasFactors: true,
+    hasApi: false,
+    other: 'data_management_other_train_stations',
+    hasOtherUpload: true,
+  },
+  {
+    key: 'travel_plane',
+    labelKey: 'data_management_row_travel_plane',
+    moduleTypeId: 2,
+    dataEntryTypeId: 20,
+    factorVariant: 'plane',
+    hasFactors: true,
+    hasApi: true,
+    other: 'data_management_other_airports',
+    hasOtherUpload: true,
+  },
+  {
+    key: 'buildings_rooms',
+    labelKey: 'data_management_row_buildings_rooms',
+    moduleTypeId: 3,
+    dataEntryTypeId: 30,
+    hasFactors: true,
+    hasApi: false,
+    other: 'data_management_other_institution_rooms',
+    hasOtherUpload: true,
+  },
+  {
+    key: 'buildings_energy_combustion',
+    labelKey: 'data_management_row_buildings_energy_combustion',
+    moduleTypeId: 3,
+    dataEntryTypeId: 31,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'process_emissions',
+    labelKey: 'data_management_row_process_emissions',
+    moduleTypeId: 8,
+    dataEntryTypeId: 50,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'equipment',
+    labelKey: 'data_management_row_equipment',
+    moduleTypeId: 4,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'purchases_common',
+    labelKey: 'data_management_row_purchases_common',
+    moduleTypeId: 5,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'purchases_additional',
+    labelKey: 'data_management_row_purchases_additional',
+    moduleTypeId: 5,
+    dataEntryTypeId: 67,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'research_facilities',
+    labelKey: 'data_management_row_research_facilities',
+    moduleTypeId: 6,
+    dataEntryTypeId: 70,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'research_facilities_animal',
+    labelKey: 'data_management_row_research_facilities_animal',
+    moduleTypeId: 6,
+    dataEntryTypeId: 71,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'external_clouds',
+    labelKey: 'data_management_row_external_clouds',
+    moduleTypeId: 7,
+    dataEntryTypeId: 40,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'external_ai',
+    labelKey: 'data_management_row_external_ai',
+    moduleTypeId: 7,
+    dataEntryTypeId: 41,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'food',
+    labelKey: 'data_management_row_food',
+    moduleTypeId: 10,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'waste',
+    labelKey: 'data_management_row_waste',
+    moduleTypeId: 11,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'commuting',
+    labelKey: 'data_management_row_commuting',
+    moduleTypeId: 9,
+    hasFactors: true,
+    hasApi: false,
+  },
+  {
+    key: 'grey_energy',
+    labelKey: 'data_management_row_grey_energy',
+    moduleTypeId: 12,
+    hasFactors: false,
+    hasApi: false,
+    isDisabled: true,
+  },
+];
 
 /**
  * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
@@ -241,28 +387,11 @@ onUnmounted(() => {
             :label="$t('data_management_download_csv_templates')"
             class="text-weight-medium"
           />
-          <!-- <q-btn
-            no-caps
-            color="accent"
-            icon="file_upload"
-            size="sm"
-            :label="$t('data_management_upload_csv_files')"
-            class="text-weight-medium on-right"
-            @click="showUploadDialog = true"
-          />
-          <q-btn
-            no-caps
-            color="accent"
-            icon="file_copy"
-            size="sm"
-            :label="$t('data_management_copy_previous_year')"
-            class="text-weight-medium on-right"
-          /> -->
         </template>
         <div>
           {{
             $t('data_management_data_imports_count', {
-              count: MODULES_LIST.length,
+              count: importRows.length,
             })
           }}
         </div>
@@ -271,28 +400,31 @@ onUnmounted(() => {
         <thead>
           <tr>
             <th align="left">{{ $t('data_management_category') }}</th>
-            <th align="left">
-              {{ $t('data_management_description') }}
-            </th>
             <th align="left">{{ $t('data_management_data') }}</th>
             <th align="left">{{ $t('data_management_factor') }}</th>
+            <th align="left">{{ $t('data_management_column_other') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in importRows" :key="row.key">
             <td class="text-weight-medium" align="left">
               {{ $t(row.labelKey) }}
+              <q-badge
+                v-if="row.isDisabled"
+                color="grey-4"
+                text-color="grey-8"
+                :label="$t('data_management_tbd')"
+                class="q-ml-sm"
+              />
             </td>
-            <td align="left"></td>
             <td align="left">
               <div class="q-mb-sm">
                 <q-icon name="warning" size="xs" color="warning" />
-                <span class="q-ml-sm text-negative">{{
-                  $t('data_management_no_data')
+                <span class="q-ml-sm text-warning">{{
+                  $t('data_management_no_data_warning')
                 }}</span>
               </div>
               <div>
-                <!-- DATA buttons -->
                 <q-btn
                   no-caps
                   color="accent"
@@ -300,16 +432,18 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_upload_csv_files')"
                   class="text-weight-medium"
+                  :disable="row.isDisabled"
                   @click="openUploadCsvDialog(row, year)"
                 />
-                <!-- TODO: use enum for data_module_type_id -->
                 <q-btn
+                  v-if="row.hasApi"
                   no-caps
                   color="accent"
                   icon="link"
                   size="sm"
                   :label="$t('data_management_connect_api')"
                   class="text-weight-medium on-right"
+                  :disable="row.isDisabled"
                   @click="dataEntrySync(row.moduleTypeId, year)"
                 />
                 <q-btn
@@ -319,44 +453,61 @@ onUnmounted(() => {
                   size="sm"
                   :label="$t('data_management_copy_previous_year')"
                   class="text-weight-medium on-right"
+                  :disable="row.isDisabled"
                 />
               </div>
             </td>
             <td align="left">
-              <div class="q-mb-sm">
-                <q-icon name="warning" size="xs" color="warning" />
-                <span class="q-ml-sm text-negative">{{
-                  $t('data_management_no_data')
-                }}</span>
-              </div>
-              <div>
-                <!-- FACTORS buttons -->
+              <template v-if="row.hasFactors">
+                <div class="q-mb-sm">
+                  <q-icon name="error" size="xs" color="negative" />
+                  <span class="q-ml-sm text-negative">{{
+                    $t('data_management_no_factors_error')
+                  }}</span>
+                </div>
+                <div>
+                  <q-btn
+                    no-caps
+                    color="accent"
+                    icon="file_upload"
+                    size="sm"
+                    :label="$t('data_management_upload_csv_files')"
+                    class="text-weight-medium"
+                    :disable="row.isDisabled"
+                    @click="openUploadFactorsDialog(row, year)"
+                  />
+                  <q-btn
+                    no-caps
+                    color="accent"
+                    icon="file_copy"
+                    size="sm"
+                    :label="$t('data_management_copy_previous_year')"
+                    class="text-weight-medium on-right"
+                    :disable="row.isDisabled"
+                  />
+                </div>
+              </template>
+              <span v-else class="text-grey-5">—</span>
+            </td>
+            <td align="left">
+              <template v-if="row.other">
+                <div class="q-mb-xs text-caption text-grey-7">
+                  {{ $t(row.other) }}
+                </div>
                 <q-btn
+                  v-if="row.hasOtherUpload"
                   no-caps
+                  outline
                   color="accent"
                   icon="file_upload"
                   size="sm"
-                  :label="$t('data_management_upload_csv_files')"
+                  :label="$t('data_management_upload_reference')"
                   class="text-weight-medium"
-                  @click="openUploadFactorsDialog(row, year)"
-                />
-                <q-btn
-                  no-caps
-                  color="accent"
-                  icon="link"
-                  size="sm"
-                  :label="$t('data_management_connect_api')"
-                  class="text-weight-medium on-right"
-                />
-                <q-btn
-                  no-caps
-                  color="accent"
-                  icon="file_copy"
-                  size="sm"
-                  :label="$t('data_management_copy_previous_year')"
-                  class="text-weight-medium on-right"
-                />
-              </div>
+                  disable
+                >
+                  <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
+                </q-btn>
+              </template>
             </td>
           </tr>
         </tbody>
