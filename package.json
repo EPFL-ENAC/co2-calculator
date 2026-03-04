@@ -3,7 +3,7 @@
     "lint": "lefthook run pre-commit"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.1.2",
+    "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^17.1.0",
     "@evilmartians/lefthook": "^1.5.0",
     "lighthouse-plugin-ecoindex-core": "^6.0.6",
