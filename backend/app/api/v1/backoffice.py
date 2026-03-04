@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_db
 from app.core.logging import get_logger
 from app.core.security import require_permission
 from app.models.carbon_report import (
@@ -507,7 +507,7 @@ async def get_filter_units(
     ),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     unit_repo = UnitRepository(db)
@@ -550,7 +550,7 @@ async def list_backoffice_units(
     ),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -595,7 +595,7 @@ async def export_detailed_reporting(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "edit")),
 ):
     """
     Export detailed reporting data for all units, including module-level details.
@@ -804,7 +804,7 @@ async def export_reporting(
     # - maybe we should stream the data instead of loading it all in memory?
     page_size: int = Query(100, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "edit")),
 ):
     """Export unit reporting data as CSV or JSON file download."""
     # Get all matching records for export
@@ -888,14 +888,14 @@ async def get_backoffice_unit(
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     return {"message": f"Details for unit {unit_id} with year filter {years}"}
 
 
 @router.get("/years")
 async def get_available_years(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     """
     Get all available years from all units combined.
