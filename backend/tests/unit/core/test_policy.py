@@ -57,8 +57,8 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("process-emissions")
         assert result == "modules.process_emissions"
 
-    def test_unknown_module_returns_none(self):
-        """Test that unknown module ID returns None."""
+    def test_unknown_module_returns_default_path(self):
+        """Test that unknown module ID returns default path."""
         result = _get_module_permission_path("unknown-module")
         assert result == "modules.unknown_module"
 
@@ -67,8 +67,8 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("")
         assert result is None
 
-    def test_case_sensitive_module_id(self):
-        """Test that module ID is case-sensitive."""
+    def test_case_insensitive_module_id(self):
+        """Test that module ID is case-insensitive."""
         # Wrong case should return None
         result = _get_module_permission_path("Professional-Travel")
         assert (
