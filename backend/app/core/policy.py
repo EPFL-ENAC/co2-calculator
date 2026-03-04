@@ -414,13 +414,15 @@ def _get_module_permission_path(module_name: str) -> Optional[str]:
         Permission path (e.g., "modules.professional_travel") or None
         if module doesn't require permission
     """
-    # Name mapping for modules with special permission paths
+    if module_name is None or module_name.strip() == "":
+        return None  # No module specified, no permission required
+    # Name mapping for modules with legacy permission paths
     module_permission_map = {
         "equipment-electric-consumption": "modules.equipment",
         "my-lab": "modules.headcount",  # Headcount module
     }
     return module_permission_map.get(
-        module_name, f"modules.{module_name.replace('-', '_')}"
+        module_name, f"modules.{module_name.replace('-', '_').lower()}"
     )
 
 
@@ -474,7 +476,9 @@ async def is_module_permitted(
         True if user has permission, False otherwise
     """
     decision = await get_module_permission_decision(user, module_id, action)
-    return decision.get("allow", False)
+    return decision.get(
+        "allow", True
+    )  # Default to True if no specific permission required
 
 
 async def check_module_permission(

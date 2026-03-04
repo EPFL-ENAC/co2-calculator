@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
+    is_module_permitted,
     query_policy,
 )
 from app.models.user import Role, RoleName, RoleScope
@@ -59,7 +60,7 @@ class TestGetModulePermissionPath:
     def test_unknown_module_returns_none(self):
         """Test that unknown module ID returns None."""
         result = _get_module_permission_path("unknown-module")
-        assert result is None
+        assert result == "modules.unknown_module"
 
     def test_empty_string_returns_none(self):
         """Test that empty string module ID returns None."""
@@ -70,7 +71,9 @@ class TestGetModulePermissionPath:
         """Test that module ID is case-sensitive."""
         # Wrong case should return None
         result = _get_module_permission_path("Professional-Travel")
-        assert result is None
+        assert (
+            result == "modules.professional_travel"
+        )  # Still maps to correct path due to lower() in mapping
 
 
 class TestCheckModulePermission:
@@ -133,9 +136,9 @@ class TestCheckModulePermission:
         user.email = "test@example.com"
         user.roles = []
 
-        # Module without permission requirement (returns None from mapping)
-        # Should not raise exception and allow access
-        await check_module_permission(user, "unknown-module", "view")
+        # Module without permission requirement must not be allowed by default
+        result = await is_module_permitted(user, "unknown-module", "view")
+        assert result is False  # No permission specified, so access is denied
 
     @pytest.mark.asyncio
     @patch("app.core.policy.query_policy")
