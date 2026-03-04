@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlmodel import col, desc, select
@@ -20,7 +20,7 @@ class DataIngestionRepository:
     ) -> DataIngestionJob:
         job = DataIngestionJob.model_validate(data)
         self.session.add(job)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(job)
         return job
 
@@ -64,14 +64,14 @@ class DataIngestionRepository:
                     completed_at.isoformat()
                     if completed_at
                     else (
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                         if status_code == IngestionStatus.COMPLETED
                         else None
                     )
                 ),
             }
             result_job.meta = merged_meta
-            await self.session.commit()
+            await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
 

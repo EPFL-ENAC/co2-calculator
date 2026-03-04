@@ -3,17 +3,18 @@ services:
     image: traefik:v3.6.4
     command:
       - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:80"
       - "--api.insecure=true"
+      - "--entryPoints.traefik.address=:8833"  # ← isolate the API/dashboard entrypoint
       - "--api.dashboard=true"
-      - "--providers.docker"
       - "--log.level=DEBUG"
       - "--ping=true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
       - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=traefik"
     container_name: co2-calculator-traefik
     restart: unless-stopped
     healthcheck:
@@ -23,10 +24,10 @@ services:
       retries: 5
     ports:
       - "80:80"
-      - "8080:8080"
+      - "8080:8833"
     expose:
       - "80"
-      - "8080"
+      - "8833"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
@@ -41,6 +42,8 @@ services:
       POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
       - "5432:5432"
+    labels:
+      - "traefik.enable=false"
     volumes:
       - postgres-data-18:/var/lib/postgresql/data
     command: ["postgres", "-c", "listen_addresses=*"]
@@ -54,6 +57,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: co2-calculator-pgadmin
     restart: always
+    labels:
+      - "traefik.enable=false"
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -70,42 +75,40 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: co2-backend
+    environment:
+      DEBUG: "True"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      WORKERS: "1"
     command: >
-      sh -c "
+      sh -c '
         alembic upgrade head &&
-        # uvicorn app.main:app --host 0.0.0.0 --port 8000
-        opentelemetry-instrument uvicorn app.main:app --host 0.0.0.0 --port 8000
-      "
+        exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
+      '
     env_file:
       - ./backend/.env
-    environment:
-      DEBUG: "False"
-    ports:
-      - "8008:8000"
     # volumes:
     #   - ./app:/app/app:ro
     labels:
-      # match localhost/api/*
-      - "traefik.http.routers.backend.priority=200"
+      - "traefik.enable=true"
+
+      # Router
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=web"
-      # remove /api before sending to backend
+      - "traefik.http.routers.backend.priority=200"
+      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+
+      # Middleware
       - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=backend-stripprefix,compress"
-      - "traefik.http.middlewares.compress.compress=true"
+
+      # Service
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python3",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health');",
-        ]
-      interval: 1s
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/health"]
+      interval: 10s
       timeout: 3s
-      retries: 2
-      start_period: 3s
+      retries: 3
+      start_period: 3s   # give alembic time to run migrations first
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,23 +123,31 @@ services:
     volumes:
       - ./frontend:/app:ro
     labels:
+      - "traefik.enable=true"
       # match everything else
       - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.routers.frontend.priority=100"
-      - "traefik.http.routers.frontend.middlewares=compress"
-      - "traefik.http.middlewares.compress.compress=true"
+      - "traefik.http.routers.frontend.middlewares=frontend-compress"
+      - "traefik.http.middlewares.frontend-compress.compress=true"
       - "traefik.http.services.frontend.loadbalancer.server.port=8080"
     depends_on:
       - backend
 
   otel:
-    image: otel/opentelemetry-collector-contrib:0.85.0
+    image: otel/opentelemetry-collector-contrib:0.86.0
     command: ["--config=/etc/otel-collector-config.yaml"]
+    labels:
+      - "traefik.enable=false"
     ports:
-      - "9464:9464" # Prometheus metrics
+      - "9464:9464"   # Prometheus — host access
+      - "4317:4317"   # gRPC OTLP — add if you need host access too
+    expose:
+      - "4317"        # gRPC OTLP — makes it reachable by other containers
+      - "4318"        # HTTP OTLP
     volumes:
       - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+
 
 volumes:
   pgadmin_data:

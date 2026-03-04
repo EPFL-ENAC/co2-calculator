@@ -1,50 +1,78 @@
-from typing import Optional, cast
+from typing import Optional
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import IngestionMethod, TargetType
+from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.data_ingestion.data_entries_csv_provider import (
-    DataEntriesCSVProvider,
-)
-from app.services.data_ingestion.professional_travel_api_provider import (
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
 )
-
-# from app.services.data_ingestion.csv_provider import (
-#     CSVDataEntriesProvider,
-#     CSVFactorsProvider,
-# )
+from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.csv_providers import (
+    BuildingRoomCSVProvider,
+    ModulePerYearCSVProvider,
+    ModulePerYearFactorCSVProvider,
+    ModuleUnitSpecificCSVProvider,
+)
+from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
+    ProfessionalTravelCSVProvider,
+)
 
 
 class ProviderFactory:
-    """Factory to create the right provider based on module + provider type"""
+    """Factory to create the right provider based on module + provider
+    type + entity type"""
 
     # Registry of available providers
-    # TODO: use data_entry_type_id when we have factors providers!!
+    # Key: (module_type, ingestion_method, target_type, entity_type)
     PROVIDERS: dict[
-        tuple[ModuleTypeEnum, IngestionMethod, TargetType, None],
+        tuple[ModuleTypeEnum, IngestionMethod, TargetType, EntityType],
         type[DataIngestionProvider],
     ] = {
-        # Data Entries providers
-        # ("travel", "tableau_api", "data_entries"): ProfessionalTravelApiProvider,
+        # MODULE_UNIT_SPECIFIC CSV Providers
         **{
             (
                 module_type,
                 IngestionMethod.csv,
                 TargetType.DATA_ENTRIES,
-                None,
-            ): DataEntriesCSVProvider
+                EntityType.MODULE_UNIT_SPECIFIC,
+            ): ModuleUnitSpecificCSVProvider
             for module_type in ModuleTypeEnum
         },
+        # MODULE_PER_YEAR CSV Providers
+        **{
+            (
+                module_type,
+                IngestionMethod.csv,
+                TargetType.DATA_ENTRIES,
+                EntityType.MODULE_PER_YEAR,
+            ): ModulePerYearCSVProvider
+            for module_type in ModuleTypeEnum
+        },
+        # MODULE_PER_YEAR factor CSV Providers
+        **{
+            (
+                module_type,
+                IngestionMethod.csv,
+                TargetType.FACTORS,
+                EntityType.MODULE_PER_YEAR,
+            ): ModulePerYearFactorCSVProvider
+            for module_type in ModuleTypeEnum
+        },
+        # API Providers
         (
             ModuleTypeEnum.professional_travel,
             IngestionMethod.api,
             TargetType.DATA_ENTRIES,
-            None,
+            EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
-        # ("travel", "csv_upload", "data_entries"): CSVDataEntriesProvider,
+        (
+            ModuleTypeEnum.professional_travel,
+            IngestionMethod.csv,
+            TargetType.DATA_ENTRIES,
+            EntityType.MODULE_UNIT_SPECIFIC,
+        ): ProfessionalTravelCSVProvider,
+        # TODO: Add more providers as needed
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # # Factors providers
@@ -55,6 +83,11 @@ class ProviderFactory:
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
         v.__name__: v for _, v in PROVIDERS.items()
     }
+    PROVIDERS_BY_CLASS_NAME.update(
+        {
+            BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
+        }
+    )
 
     @staticmethod
     def get_provider_class(
@@ -70,23 +103,27 @@ class ProviderFactory:
         module_type_id: ModuleTypeEnum,
         ingestion_method: IngestionMethod,
         target_type: TargetType,
+        entity_type: EntityType,
         data_entry_type_id: DataEntryTypeEnum | int | None = None,
     ) -> Optional[type[DataIngestionProvider]]:
         """
-        Get the appropriate provider class.
+        Get the appropriate provider class by routing keys.
+
+        entity_type determines which provider variant to use
+        (e.g., MODULE_UNIT_SPECIFIC vs MODULE_PER_YEAR).
         """
-        # Try to get provider with specific data_entry_type_id first,
-        # then fall back to None
-        provider = ProviderFactory.PROVIDERS.get(
-            cast(
-                tuple[ModuleTypeEnum, IngestionMethod, TargetType, None],
-                (module_type_id, ingestion_method, target_type, data_entry_type_id),
-            )
-        )
-        if provider:
-            return provider
+        if (
+            module_type_id == ModuleTypeEnum.buildings
+            and ingestion_method == IngestionMethod.csv
+            and target_type == TargetType.DATA_ENTRIES
+            and entity_type == EntityType.MODULE_UNIT_SPECIFIC
+            and data_entry_type_id is not None
+            and int(data_entry_type_id) == DataEntryTypeEnum.building.value
+        ):
+            return BuildingRoomCSVProvider
+
         return ProviderFactory.PROVIDERS.get(
-            (module_type_id, ingestion_method, target_type, None)
+            (module_type_id, ingestion_method, target_type, entity_type)
         )
 
     @classmethod
@@ -97,28 +134,37 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
+        job_session=None,
+        data_session=None,
     ) -> Optional[DataIngestionProvider]:
         """
         Create the appropriate provider instance.
-        """
-        data_entry_type_id = config.get("data_entry_type_id") if config else None
 
-        # Try to get provider with specific data_entry_type_id first,
-        # then fall back to None
-        provider_class = cls.PROVIDERS.get(
-            cast(
-                tuple[ModuleTypeEnum, IngestionMethod, TargetType, None],
-                (module_type_id, ingestion_method, target_type, data_entry_type_id),
-            )
-        )
-        if not provider_class:
-            provider_class = cls.PROVIDERS.get(
-                (module_type_id, ingestion_method, target_type, None)
-            )
-        if not provider_class:
+        Determines entity_type from config (carbon_report_module_id presence)
+        and uses it to select the correct provider class.
+        """
+        # Safely extract and validate entity_type from config
+        entity_type_value = config.get("entity_type")
+        if not entity_type_value:
             return None
 
+        try:
+            entity_type = EntityType(entity_type_value)
+        except (ValueError, KeyError):
+            # Invalid entity_type value - return None to signal configuration error
+            return None
+
+        data_entry_type_id = config.get("data_entry_type_id")
+        provider_class = cls.get_provider_by_keys(
+            module_type_id=module_type_id,
+            ingestion_method=ingestion_method,
+            target_type=target_type,
+            entity_type=entity_type,
+            data_entry_type_id=data_entry_type_id,
+        )
+
+        if not provider_class:
+            return None
         return provider_class(
-            config=config or {},
-            user=user,
+            config=config, user=user, job_session=job_session, data_session=data_session
         )

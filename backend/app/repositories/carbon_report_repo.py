@@ -22,7 +22,7 @@ class CarbonReportRepository:
         """Create a new carbon report."""
         db_obj = CarbonReport.model_validate(data.model_dump())
         self.session.add(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(db_obj)
         return db_obj
 
@@ -61,7 +61,7 @@ class CarbonReportRepository:
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         self.session.add(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(db_obj)
         return db_obj
 
@@ -73,5 +73,5 @@ class CarbonReportRepository:
         if not db_obj:
             return False
         await self.session.delete(db_obj)
-        await self.session.commit()
+        await self.session.flush()
         return True

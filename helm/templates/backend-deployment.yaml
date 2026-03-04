@@ -26,8 +26,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      {{- with .Values.backend.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
@@ -161,6 +163,28 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.s3PathPrefixKey | default "S3_PATH_PREFIX" }}
+            - name: ELASTICSEARCH_HOSTS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.elasticsearchHostsKey | default "ELASTICSEARCH_HOSTS" }}
+            - name: ELASTICSEARCH_INDEX
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.elasticsearchIndexKey | default "ELASTICSEARCH_INDEX" }}
+            - name: ELASTICSEARCH_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.elasticsearchIdKey | default "ELASTICSEARCH_ID" }}
+            - name: ELASTICSEARCH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: {{ .Values.backend.existingSecret.keys.elasticsearchApiKeyKey | default "ELASTICSEARCH_API_KEY" }}
+            - name: ELASICSEARCH_CA_CERT
+              value: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -180,10 +204,20 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: backend-secret
+              mountPath: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
+              subPath: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
+              readOnly: true
       
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: backend-secret
+          secret:
+            secretName: {{ include "co2-calculator.backendSecretName" . }}
+            items:
+              - key: {{ .Values.backend.existingSecret.keys.elasticsearchCaCertFileKey | default "ELASTICSEARCH_CA_CERT_FILE" }}
+                path: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
       
       {{- with .Values.backend.nodeSelector }}
       nodeSelector:

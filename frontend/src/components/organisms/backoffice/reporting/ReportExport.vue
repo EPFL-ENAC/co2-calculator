@@ -1,36 +1,38 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { REPORT_TYPES, type ReportType } from 'src/constant/report';
-import type { ModuleState } from 'src/constant/moduleStates';
-
+import { REPORT_TYPES } from 'src/constant/report';
+// import type { ModuleState } from 'src/constant/moduleStates';
+import { Notify } from 'quasar';
+import { exportReport } from 'src/api/reporting';
+import type { ReportFormat, ReportType } from 'src/api/reporting';
 const { t } = useI18n();
 
-interface ModuleCompletion {
-  status: ModuleState;
-  outlier_values: number;
-}
+// interface ModuleCompletion {
+//   status: ModuleState;
+//   outlier_values: number;
+// }
 
-interface UnitData {
-  id: string | number;
-  completion:
-    | Record<string, ModuleCompletion>
-    | Record<string, Record<string, ModuleCompletion>>;
-  completion_counts: {
-    validated: number;
-    in_progress: number;
-    default: number;
-  };
-  unit: number;
-  affiliation: string;
-  principal_user: string;
-  last_update: string;
-  outlier_values: number;
-}
+// interface UnitData {
+//   id: string | number;
+//   completion:
+//     | Record<string, ModuleCompletion>
+//     | Record<string, Record<string, ModuleCompletion>>;
+//   completion_counts: {
+//     validated: number;
+//     in_progress: number;
+//     default: number;
+//   };
+//   unit: number;
+//   affiliation: string;
+//   principal_user: string;
+//   last_update: string;
+//   outlier_values: number;
+// }
 
-const props = defineProps<{
-  units?: UnitData[];
-}>();
+// const props = defineProps<{
+//   units?: UnitData[];
+// }>();
 
 const selectedReport = ref<ReportType>('combined');
 
@@ -38,58 +40,89 @@ const selectedReport = ref<ReportType>('combined');
  * Escapes a CSV field value by wrapping it in quotes if it contains
  * commas, quotes, or newlines, and escaping any quotes within the value.
  */
-function escapeCsvField(value: string | number): string {
-  const stringValue = String(value);
-  // If value contains comma, quote, or newline, wrap in quotes and escape quotes
-  if (/[,"\n]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
+// function escapeCsvField(value: string | number): string {
+//   const stringValue = String(value);
+//   // If value contains comma, quote, or newline, wrap in quotes and escape quotes
+//   if (/[,"\n]/.test(stringValue)) {
+//     return `"${stringValue.replace(/"/g, '""')}"`;
+//   }
+//   return stringValue;
+// }
+
+async function downloadCSV(format: 'csv' | 'json') {
+  try {
+    const blob = await exportReport(
+      {
+        type: selectedReport.value as ReportType,
+      },
+      format as ReportFormat,
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const today = new Date().toISOString().slice(0, 10);
+    a.download = `audit_export_${today}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Notify.create({
+      color: 'positive',
+      message: t('audit_msg_exported', { format: format.toUpperCase() }),
+      position: 'top',
+      timeout: 2000,
+    });
+  } catch {
+    Notify.create({
+      color: 'negative',
+      message: t('audit_msg_export_failed'),
+      position: 'top',
+      timeout: 3000,
+    });
   }
-  return stringValue;
 }
 
-function downloadCSV() {
-  if (!props.units || props.units.length === 0) return;
+// function downloadCSV() {
+//   if (!props.units || props.units.length === 0) return;
 
-  const headers =
-    [
-      t('backoffice_reporting_row_unit_label'),
-      t('backoffice_reporting_row_affiliation_label'),
-      t('backoffice_reporting_row_principal_user_label'),
-      t('backoffice_reporting_row_last_update_label'),
-      t('backoffice_reporting_csv_validated'),
-      t('backoffice_reporting_csv_in_progress'),
-      t('backoffice_reporting_csv_default'),
-      t('backoffice_reporting_row_outlier_values_label'),
-    ]
-      .map(escapeCsvField)
-      .join(',') + '\n';
+//   const headers =
+//     [
+//       t('backoffice_reporting_row_unit_label'),
+//       t('backoffice_reporting_row_affiliation_label'),
+//       t('backoffice_reporting_row_principal_user_label'),
+//       t('backoffice_reporting_row_last_update_label'),
+//       t('backoffice_reporting_csv_validated'),
+//       t('backoffice_reporting_csv_in_progress'),
+//       t('backoffice_reporting_csv_default'),
+//       t('backoffice_reporting_row_outlier_values_label'),
+//     ]
+//       .map(escapeCsvField)
+//       .join(',') + '\n';
 
-  const rows = props.units
-    .map((u) =>
-      [
-        u.unit,
-        u.affiliation,
-        u.principal_user,
-        u.last_update,
-        u.completion_counts.validated,
-        u.completion_counts.in_progress,
-        u.completion_counts.default,
-        u.outlier_values,
-      ]
-        .map(escapeCsvField)
-        .join(','),
-    )
-    .join('\n');
+//   const rows = props.units
+//     .map((u) =>
+//       [
+//         u.unit,
+//         u.affiliation,
+//         u.principal_user,
+//         u.last_update,
+//         u.completion_counts.validated,
+//         u.completion_counts.in_progress,
+//         u.completion_counts.default,
+//         u.outlier_values,
+//       ]
+//         .map(escapeCsvField)
+//         .join(','),
+//     )
+//     .join('\n');
 
-  const csv = headers + rows;
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'report.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
+//   const csv = headers + rows;
+//   const blob = new Blob([csv], { type: 'text/csv' });
+//   const url = URL.createObjectURL(blob);
+//   const a = document.createElement('a');
+//   a.href = url;
+//   a.download = 'report.csv';
+//   a.click();
+//   URL.revokeObjectURL(url);
+// }
 </script>
 
 <template>
@@ -167,7 +200,7 @@ function downloadCSV() {
       no-caps
       size="md"
       class="text-weight-medium"
-      @click="downloadCSV"
+      @click="() => downloadCSV('csv')"
     />
   </div>
 </template>

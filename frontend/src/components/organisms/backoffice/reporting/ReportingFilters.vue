@@ -1,111 +1,69 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
-
-const props = defineProps<{
-  affiliations: string[];
-  units: number[];
-}>();
+import { useUnitFiltersStore } from 'src/stores/unitFilters';
 
 const emit = defineEmits<{
-  (
-    e: 'update:filters',
-    filters: {
-      affiliation: string[];
-      units: number[];
-      completion: string;
-      outlier_values: boolean | null;
-      search: string;
-    },
-  ): void;
+  (e: 'update:filters', selectedUnits: number[]): void;
 }>();
 
-const affiliation = ref<string[]>([]);
-const currentUnits = ref<number[]>([]);
+const { t } = useI18n();
+const unitFiltersStore = useUnitFiltersStore();
+
+// Selected units for each level
+const selectedLevel2Units = ref<number[]>([]);
+const selectedLevel3Units = ref<number[]>([]);
+const selectedLevel4Units = ref<number[]>([]);
+
 const completion = ref('');
 
-const affiliationOptions = computed(() =>
-  props.affiliations.map((aff) => ({ label: aff, value: aff })),
-);
+// Initialize with first page of data for each level
+// unitFiltersStore.setSearchQueryLevel2('');
+// unitFiltersStore.setSearchQueryLevel3('');
+// unitFiltersStore.setSearchQueryLevel4('');
 
-const unitOptions = computed(() =>
-  props.units.map((unit) => ({ label: String(unit), value: unit })),
-);
+// LVL2: http://localhost:8000/api/v1/backoffice-reporting/units?level=2&unit_type_labels=Service%20central&unit_type_labels=Facult%C3%A9
+// LVL3: http://localhost:8000/api/v1/backoffice-reporting/units?level=3&unit_type_label=Institut
+// LVL4: http://localhost:8000/api/v1/backoffice-reporting/units?level=4&parent_unit_type_label=Institut
 
-const filteredUnitOptions = ref<Array<{ label: string; value: number }>>([]);
+// Combine all selected units (OR logic)
+const selectedUnits = computed(() => [
+  ...selectedLevel2Units.value,
+  ...selectedLevel3Units.value,
+  ...selectedLevel4Units.value,
+]);
 
-// Initialize filtered options with all options
-watch(
-  unitOptions,
-  (newOptions) => {
-    filteredUnitOptions.value = newOptions;
-  },
-  { immediate: true },
-);
-
-function filterUnits(val: string, update: (callback: () => void) => void) {
-  if (val === '') {
-    update(() => {
-      filteredUnitOptions.value = unitOptions.value;
-    });
-    return;
-  }
-
-  update(() => {
-    const needle = val.toLowerCase();
-    filteredUnitOptions.value = unitOptions.value.filter(
-      (v) => v.label.toLowerCase().indexOf(needle) > -1,
-    );
-  });
+function handleFiltersChange() {
+  emit('update:filters', selectedUnits.value);
 }
-
-const search = ref('');
-
-const outlier_values = ref<boolean | null>(null);
-
-function extractValue<T>(value: T | null | undefined, defaultValue: T): T {
-  if (value === null || value === undefined) {
-    return defaultValue;
-  }
-  if (typeof value === 'object' && 'value' in value) {
-    return (value as { value: T }).value ?? defaultValue;
-  }
-  return value;
-}
-
-watch(
-  [affiliation, currentUnits, completion, outlier_values, search],
-  ([newAffiliation, newUnits, newCompletion, newOutlierValues, newSearch]) => {
-    // Backend handles validation and filtering, so just pass the values directly
-    const affiliationValue = Array.isArray(newAffiliation)
-      ? newAffiliation
-      : [];
-    const unitsValue = Array.isArray(newUnits) ? newUnits : [];
-    const completionValue = extractValue(newCompletion, '');
-    const outlierValuesResult = extractValue(
-      newOutlierValues,
-      null as boolean | null,
-    );
-
-    emit('update:filters', {
-      affiliation: affiliationValue,
-      units: unitsValue,
-      completion: String(completionValue),
-      outlier_values: outlierValuesResult,
-      search: String(newSearch || ''),
-    });
-  },
-  { immediate: true },
-);
 </script>
 <template>
   <div class="row q-mb-md">
     <div class="grid-4-col full-width">
+      <!-- Error message display for Level 2 -->
+      <q-banner
+        v-if="unitFiltersStore.errorLevel2 !== null"
+        dense
+        class="bg-negative text-white q-mb-sm"
+      >
+        <template #avatar>
+          <q-icon name="error" />
+        </template>
+        {{ $t('common_error_message') }}
+        <template #action>
+          <q-btn
+            flat
+            color="white"
+            :label="$t('common_retry')"
+            @click="unitFiltersStore.setSearchQueryLevel2('')"
+          />
+        </template>
+      </q-banner>
+
+      <!-- Level 2 Units Dropdown -->
       <q-select
-        v-model="currentUnits"
-        :options="filteredUnitOptions"
+        v-model="selectedLevel2Units"
+        :options="unitFiltersStore.dataLevel2"
         option-value="value"
         option-label="label"
         multiple
@@ -113,36 +71,119 @@ watch(
         dense
         outlined
         use-input
-        input-debounce="0"
+        input-debounce="300"
         emit-value
         map-options
-        :label="$t('backoffice_reporting_filter_units_label')"
+        :loading="unitFiltersStore.loadingLevel2"
+        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 2)`"
+        filled
+        clearable
         class="full-width"
-        @filter="filterUnits"
+        @filter="unitFiltersStore.filterLevel2Units"
+        @virtual-scroll="unitFiltersStore.onScrollLevel2"
+        @update:model-value="handleFiltersChange"
       >
         <template #prepend>
           <q-icon name="o_business" color="grey-6" size="xs" />
         </template>
       </q-select>
+
+      <!-- Error message display for Level 3 -->
+      <q-banner
+        v-if="unitFiltersStore.errorLevel3 !== null"
+        dense
+        class="bg-negative text-white q-mb-sm"
+      >
+        <template #avatar>
+          <q-icon name="error" />
+        </template>
+        {{ $t('common_error_message') }}
+        <template #action>
+          <q-btn
+            flat
+            color="white"
+            :label="$t('common_retry')"
+            @click="unitFiltersStore.setSearchQueryLevel3('')"
+          />
+        </template>
+      </q-banner>
+
+      <!-- Level 3 Units Dropdown -->
       <q-select
-        v-model="affiliation"
-        :options="affiliationOptions"
+        v-model="selectedLevel3Units"
+        :options="unitFiltersStore.dataLevel3"
         option-value="value"
         option-label="label"
         multiple
         use-chips
-        outlined
         dense
+        outlined
+        use-input
+        input-debounce="300"
         emit-value
         map-options
-        :label="$t('backoffice_reporting_row_affiliation_label')"
+        :loading="unitFiltersStore.loadingLevel3"
+        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 3)`"
+        filled
+        clearable
         class="full-width"
-        style="flex-grow: 1"
+        @filter="unitFiltersStore.filterLevel3Units"
+        @virtual-scroll="unitFiltersStore.onScrollLevel3"
+        @update:model-value="handleFiltersChange"
       >
         <template #prepend>
-          <q-icon name="o_school" color="grey-6" size="xs" />
+          <q-icon name="o_business" color="grey-6" size="xs" />
         </template>
       </q-select>
+
+      <!-- Error message display for Level 4 -->
+      <q-banner
+        v-if="unitFiltersStore.errorLevel4 !== null"
+        dense
+        class="bg-negative text-white q-mb-sm"
+      >
+        <template #avatar>
+          <q-icon name="error" />
+        </template>
+        {{ $t('common_error_message') }}
+        <template #action>
+          <q-btn
+            flat
+            color="white"
+            :label="$t('common_retry')"
+            @click="unitFiltersStore.setSearchQueryLevel4('')"
+          />
+        </template>
+      </q-banner>
+
+      <!-- Level 4 Units Dropdown -->
+      <q-select
+        v-model="selectedLevel4Units"
+        :options="unitFiltersStore.dataLevel4"
+        option-value="value"
+        option-label="label"
+        multiple
+        use-chips
+        dense
+        outlined
+        use-input
+        input-debounce="300"
+        emit-value
+        map-options
+        :loading="unitFiltersStore.loadingLevel4"
+        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 4)`"
+        filled
+        clearable
+        class="full-width"
+        @filter="unitFiltersStore.filterLevel4Units"
+        @virtual-scroll="unitFiltersStore.onScrollLevel4"
+        @update:model-value="handleFiltersChange"
+      >
+        <template #prepend>
+          <q-icon name="o_business" color="grey-6" size="xs" />
+        </template>
+      </q-select>
+
       <q-select
         v-model="completion"
         outlined
@@ -162,38 +203,6 @@ watch(
           <q-icon name="o_check_small" color="grey-6" size="xs" />
         </template>
       </q-select>
-      <q-select
-        v-model="outlier_values"
-        outlined
-        dense
-        :options="[
-          { label: t('common_filter_all'), value: null },
-          { label: t('common_filter_yes'), value: true },
-          { label: t('common_filter_no'), value: false },
-        ]"
-        option-value="value"
-        option-label="label"
-        :label="$t('backoffice_reporting_row_outlier_values_label')"
-        class="full-width"
-        style="flex-grow: 1"
-      >
-        <template #prepend>
-          <q-icon name="o_report" color="grey-6" size="xs" />
-        </template>
-      </q-select>
     </div>
   </div>
-  <q-input
-    v-model="search"
-    outlined
-    dense
-    type="search"
-    color="text-grey-6"
-    :label="$t('common_filters_search_label')"
-    class="text-weight-medium"
-  >
-    <template #prepend>
-      <q-icon name="o_search" color="grey-6" size="xs" />
-    </template>
-  </q-input>
 </template>

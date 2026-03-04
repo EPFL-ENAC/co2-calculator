@@ -224,6 +224,26 @@ export default {
     en: 'Add with note',
     fr: 'Ajouter avec note',
   },
+  common_comment_entry_title: {
+    en: 'Comment Entry',
+    fr: "Commenter l'entrée",
+  },
+  common_edit_comment_title: {
+    en: 'Edit Comment',
+    fr: 'Modifier le commentaire',
+  },
+  common_comment_placeholder: {
+    en: 'Comment...',
+    fr: 'Commentaire...',
+  },
+  common_note_hint: {
+    en: "*The note is personal and won't be shared with anyone outside the unit",
+    fr: "*La note est personnelle et ne sera partagée avec personne en dehors de l'unité",
+  },
+  common_save_error: {
+    en: 'Failed to save. Please try again.',
+    fr: 'Échec de la sauvegarde. Veuillez réessayer.',
+  },
   common_actions: {
     en: 'Actions',
     fr: 'Actions',
@@ -300,13 +320,25 @@ export default {
     en: 'CSV sync completed.',
     fr: 'Synchronisation CSV terminée.',
   },
+  csv_sync_completed_with_errors: {
+    en: 'CSV sync completed with {count} row error(s).',
+    fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
+  },
+  csv_sync_row_error: {
+    en: 'Row {row}: {reason}',
+    fr: 'Ligne {row} : {reason}',
+  },
+  csv_sync_and_more_errors: {
+    en: '... and {count} more error(s)',
+    fr: '... et {count} autre(s) erreur(s)',
+  },
   csv_sync_failed: {
     en: 'CSV sync failed. Please check the logs for details.',
     fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
   },
   csv_sync_initiated: {
-    en: 'CSV sync initiated',
-    fr: 'Synchronisation CSV lancée',
+    en: 'Data upload in progress...',
+    fr: 'Importation des données en cours...',
   },
   csv_sync_failed_to_initiate: {
     en: 'Failed to initiate sync',

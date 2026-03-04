@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -53,12 +54,45 @@ class FactorService:
             subkind=subkind,
         )
 
+    async def get_factor(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        fallbacks: Optional[Dict[str, Any]] = None,
+        **classification: Any,
+    ) -> Optional[Factor]:
+        """Flexible factor lookup with dynamic classification filters and fallbacks.
+
+        Forwards to ``FactorRepository.get_factor``.
+
+        Args:
+            data_entry_type: Scopes the query to this data entry type.
+            fallbacks: Optional fallback values for classification keys
+                       (e.g. ``{"country_code": "RoW"}``).
+            **classification: Arbitrary classification key/value filters
+                              (e.g. ``kind="plane"``, ``category="short_haul"``).
+
+        Returns:
+            Matching factor or ``None``.
+        """
+        return await self.repo.get_factor(
+            data_entry_type=data_entry_type,
+            fallbacks=fallbacks,
+            **classification,
+        )
+
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
     ) -> List[int]:
         """List all factors for a data entry type and emission type."""
         return await self.repo.list_id_by_data_entry_type(data_entry_type_id)
+
+    async def list_by_emission_type(
+        self,
+        emission_type: EmissionType,
+    ):
+        """List all factors for a given emission type."""
+        return await self.repo.list_by_emission_type(emission_type)
 
     async def list_by_data_entry_type(
         self,
@@ -82,7 +116,7 @@ class FactorService:
         is_conversion: bool,
         data_entry_type_id: int,  # DataEntryTypeEnum,
         classification: Dict[str, Any],
-        values: Dict[str, float | int | None],
+        values: Dict[str, float | int | str | None],
     ) -> Factor:
         """Prepare a factor for creation."""
 

@@ -59,7 +59,7 @@ onMounted(() => {
 const chartData = computed(() => {
   const rawData = moduleStore.state.travelEvolutionOverTime as Array<{
     year: number;
-    transport_mode: string;
+    category: string;
     kg_co2eq: number;
   }>;
 
@@ -80,14 +80,14 @@ const chartData = computed(() => {
   });
   const years = Array.from(yearsSet).sort((a, b) => a - b);
 
-  // Group data by transport mode and year
+  // Group data by category and year
   const dataByMode: Record<string, Record<number, number>> = {
-    flight: {},
+    plane: {},
     train: {},
   };
 
   rawData.forEach((item) => {
-    const mode = item.transport_mode === 'flight' ? 'flight' : 'train';
+    const mode = item.category === 'plane' ? 'plane' : 'train';
     const year = item.year;
     const value = item.kg_co2eq || 0;
 
@@ -102,7 +102,7 @@ const chartData = computed(() => {
   const train: number[] = [];
 
   years.forEach((year) => {
-    plane.push(dataByMode.flight[year] || 0);
+    plane.push(dataByMode.plane[year] || 0);
     train.push(dataByMode.train[year] || 0);
   });
 
@@ -145,7 +145,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     legend: {
-      data: [t('flight', 'flight'), t('train', 'train')],
+      data: [t('plane', 'plane'), t('train', 'train')],
       top: 0,
       left: 'center',
     },
@@ -173,7 +173,7 @@ const chartOption = computed((): EChartsOption => {
     },
     series: [
       {
-        name: t('flight', 'flight'),
+        name: t('plane', 'plane'),
         type: 'line',
         data: chartData.value.plane,
         smooth: false,

@@ -16,6 +16,17 @@ export default {
     'selector-class-pattern': null,
 
     // Add custom rules here as needed
+    // `no-invalid-position-at-import-rule` is disabled for `@layer` blocks because
+    // our CSS architecture intentionally uses `@import` inside `@layer` declarations
+    // to control cascade order (ITCSS-inspired layering via native CSS `@layer`).
+    //
+    // This is valid modern CSS — stylelint just doesn't recognize `@import` inside
+    // `@layer` as a legitimate position.
+    //
+    // ⚠️  Do NOT migrate to `@use` as a quick fix — it changes SCSS namespacing
+    // and requires a deliberate refactor. See src/css/app.scss for the full layer
+    // architecture and docs/src/frontend/02-design-tokens for the decision rationale.
+    'no-invalid-position-at-import-rule': [true, { ignoreAtRules: ['layer'] }],
   },
   ignoreFiles: [
     '**/*.min.css',

@@ -2,45 +2,20 @@
 
 from sqlmodel import Relationship
 
+from .archibus_room import ArchibusRoom
+from .audit import AuditDocument
 from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
 from .factor import Factor
-from .headcount import (
-    HeadCount,
-    HeadCountBase,
-    HeadCountCreate,
-    HeadCountRead,
-    HeadCountUpdate,
-)
-from .location import (
-    Location,
-    LocationBase,
-    LocationRead,
-)
-from .professional_travel import (
-    ProfessionalTravel,
-    ProfessionalTravelBase,
-    ProfessionalTravelCreate,
-    ProfessionalTravelEmission,
-    ProfessionalTravelEmissionBase,
-    ProfessionalTravelItemResponse,
-    ProfessionalTravelList,
-    ProfessionalTravelRead,
-    ProfessionalTravelUpdate,
-)
-from .travel_impact_factor import (
-    PlaneImpactFactor,
-    PlaneImpactFactorBase,
-    TrainImpactFactor,
-    TrainImpactFactorBase,
-)
+from .location import Location
 from .unit import Unit
 from .unit_user import UnitUser
-from .user import User, UserBase
+from .user import User
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
+AuditDocument.model_rebuild()
 Unit.model_rebuild()
 User.model_rebuild()
 UnitUser.model_rebuild()
@@ -70,36 +45,16 @@ DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
 DataEntryEmission.data_entry = Relationship()
 
 __all__ = [
+    "ArchibusRoom",
+    "AuditDocument",
     "Unit",
     "User",
-    "UserBase",
     "UnitUser",
     "DataIngestionJob",
-    "Resource",
     "Factor",
-    "HeadCount",
-    "HeadCountBase",
-    "HeadCountCreate",
-    "HeadCountRead",
-    "HeadCountUpdate",
     "CarbonReport",
     "CarbonReportModule",
     "Location",
-    "LocationBase",
-    "LocationRead",
-    "ProfessionalTravel",
-    "ProfessionalTravelBase",
-    "ProfessionalTravelCreate",
-    "ProfessionalTravelEmission",
-    "ProfessionalTravelEmissionBase",
-    "ProfessionalTravelItemResponse",
-    "ProfessionalTravelList",
-    "ProfessionalTravelRead",
-    "ProfessionalTravelUpdate",
     "DataEntry",
     "DataEntryEmission",
-    "PlaneImpactFactor",
-    "PlaneImpactFactorBase",
-    "TrainImpactFactor",
-    "TrainImpactFactorBase",
 ]

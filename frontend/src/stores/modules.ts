@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
-import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   MODULE_STATES,
   ModuleState,
@@ -15,12 +14,36 @@ import type {
   AllSubmoduleTypes,
   ModuleResponse,
   Submodule,
+  TaxonomyNode,
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
-import {
-  getModuleTotals as fetchModuleTotals,
-  type ModuleTotalsResponse,
-} from 'src/api/modules';
+
+/**
+ * API response for validated totals endpoint.
+ * `modules` maps module_type_id to its display value
+ * (FTE for headcount, tonnes CO2eq for others).
+ */
+interface ValidatedTotalsResponse {
+  modules: Record<number, number>;
+  total_tonnes_co2eq: number;
+  total_fte: number;
+}
+
+interface YearlyValidatedEmission {
+  year: number;
+  total_tonnes_co2eq: number;
+}
+
+export interface EmissionBreakdownResponse {
+  module_breakdown: Array<Record<string, unknown>>;
+  module_breakdown_parents?: Record<string, Record<string, string>>;
+  module_treemap?: Array<Record<string, unknown>>;
+  additional_breakdown: Array<Record<string, unknown>>;
+  per_person_breakdown: Record<string, number>;
+  validated_categories: string[];
+  total_tonnes_co2eq: number;
+  total_fte: number;
+}
 
 /**
  * API response for inventory module
@@ -37,11 +60,12 @@ export const useTimelineStore = defineStore('timeline', () => {
   const itemStates = reactive<ModuleStates>({
     [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
-    [MODULES.Infrastructure]: MODULE_STATES.Default,
+    [MODULES.Buildings]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.InternalServices]: MODULE_STATES.Default,
     [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
+    [MODULES.ProcessEmissions]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);
@@ -120,6 +144,8 @@ export const useTimelineStore = defineStore('timeline', () => {
         )
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
+      useModuleStore().invalidateValidatedTotals();
+      useModuleStore().invalidateEmissionBreakdown();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -161,10 +187,12 @@ export const useModuleStore = defineStore('modules', () => {
     loading: boolean;
     error: string | null;
     data: ModuleResponse | null;
+    taxonomy: TaxonomyNode | null;
     expandedSubmodules: Record<string, boolean>; // key: submodule ID
     loadingSubmodule: Record<string, boolean>; // key: submodule ID
     errorSubmodule: Record<string, string | null>; // key: submodule ID
     dataSubmodule: Record<string, Submodule | null>; // key: submodule ID
+    taxonomySubmodule: Record<string, TaxonomyNode | null>; // key: submodule ID
     filterTermSubmodule: Record<string, string>; // key: submodule ID
     paginationSubmodule: Record<
       string,
@@ -183,18 +211,26 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: Array<Record<string, unknown>>;
     loadingTravelEvolutionOverTime: boolean;
     errorTravelEvolutionOverTime: string | null;
-    moduleTotals: ModuleTotalsResponse | null;
-    loadingModuleTotals: boolean;
-    errorModuleTotals: string | null;
+    validatedTotals: ValidatedTotalsResponse | null;
+    loadingValidatedTotals: boolean;
+    errorValidatedTotals: string | null;
+    yearlyValidatedEmissions: YearlyValidatedEmission[];
+    loadingYearlyValidatedEmissions: boolean;
+    errorYearlyValidatedEmissions: string | null;
+    emissionBreakdown: EmissionBreakdownResponse | null;
+    loadingEmissionBreakdown: boolean;
+    errorEmissionBreakdown: string | null;
   }>({
     loading: false,
     error: null,
     data: null,
+    taxonomy: null,
     filterTermSubmodule: reactive({}),
     expandedSubmodules: reactive({}),
     loadingSubmodule: reactive({}),
     errorSubmodule: reactive({}),
     dataSubmodule: reactive({}),
+    taxonomySubmodule: reactive({}),
     paginationSubmodule: reactive({}),
     loadedSubmodules: reactive({}),
     travelStatsByClass: [],
@@ -203,9 +239,15 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: [],
     loadingTravelEvolutionOverTime: false,
     errorTravelEvolutionOverTime: null,
-    moduleTotals: null,
-    loadingModuleTotals: false,
-    errorModuleTotals: null,
+    validatedTotals: null,
+    loadingValidatedTotals: false,
+    errorValidatedTotals: null,
+    yearlyValidatedEmissions: [],
+    loadingYearlyValidatedEmissions: false,
+    errorYearlyValidatedEmissions: null,
+    emissionBreakdown: null,
+    loadingEmissionBreakdown: false,
+    errorEmissionBreakdown: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -228,6 +270,9 @@ export const useModuleStore = defineStore('modules', () => {
     }
     if (!(submoduleId in state.dataSubmodule)) {
       state.dataSubmodule[submoduleId] = null;
+    }
+    if (!(submoduleId in state.taxonomySubmodule)) {
+      state.taxonomySubmodule[submoduleId] = null;
     }
     // always initialize pagination with defaults
     state.paginationSubmodule[submoduleId] = {
@@ -278,6 +323,27 @@ export const useModuleStore = defineStore('modules', () => {
         state.error = err.message ?? 'Unknown error';
       } else {
         state.error = 'Unknown error';
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  async function getModuleTaxonomy(moduleType: Module) {
+    state.loading = true;
+    state.error = null;
+    state.taxonomy = null;
+    try {
+      state.taxonomy = (await api
+        .get(`taxonomies/module_type/${encodeURIComponent(moduleType)}`)
+        .json()) as TaxonomyNode;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+        state.taxonomy = null;
+      } else {
+        state.error = 'Unknown error';
+        state.taxonomy = null;
       }
     } finally {
       state.loading = false;
@@ -353,6 +419,33 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getSubmoduleTaxonomy(
+    moduleType: Module,
+    submoduleType: string,
+  ) {
+    state.loading = true;
+    state.error = null;
+    state.taxonomySubmodule[submoduleType] = null;
+    try {
+      const taxonomy = (await api
+        .get(
+          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}`,
+        )
+        .json()) as TaxonomyNode;
+      state.taxonomySubmodule[submoduleType] = taxonomy;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.error = err.message ?? 'Unknown error';
+        state.taxonomySubmodule[submoduleType] = null;
+      } else {
+        state.error = 'Unknown error';
+        state.taxonomySubmodule[submoduleType] = null;
+      }
+    } finally {
+      state.loading = false;
+    }
+  }
+
   interface Option {
     label: string;
     value: string;
@@ -394,12 +487,19 @@ export const useModuleStore = defineStore('modules', () => {
       if (moduleType === MODULES.EquipmentElectricConsumption) {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
-      } else if (moduleType === MODULES.ProfessionalTravel) {
-        // Add unit_id for professional travel (required by backend)
-        normalized.unit_id = unitId;
       }
 
-      const body = normalized;
+      const isRoundTrip =
+        moduleType === MODULES.ProfessionalTravel && !!normalized.is_round_trip;
+      const body =
+        moduleType === MODULES.ProfessionalTravel
+          ? (() => {
+              const rest = { ...normalized };
+              delete rest.is_round_trip;
+              return rest;
+            })()
+          : normalized;
+
       try {
         await api.post(path, { json: body }).json();
       } catch (error: unknown) {
@@ -418,11 +518,36 @@ export const useModuleStore = defineStore('modules', () => {
         throw error;
       }
 
+      if (isRoundTrip) {
+        const returnBody = {
+          ...body,
+          origin_location_id: normalized.destination_location_id,
+          destination_location_id: normalized.origin_location_id,
+        };
+        try {
+          await api.post(path, { json: returnBody }).json();
+        } catch (error: unknown) {
+          if (
+            error &&
+            typeof error === 'object' &&
+            'response' in error &&
+            error.response &&
+            typeof error.response === 'object' &&
+            'json' in error.response &&
+            typeof error.response.json === 'function'
+          ) {
+            const errorBody = await error.response.json();
+            console.error(
+              '[ModuleStore] Backend error response (return leg):',
+              errorBody,
+            );
+          }
+          throw error;
+        }
+      }
+
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unitId, year);
-
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unitId, Number(year));
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -432,10 +557,9 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType: submoduleType,
       });
 
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unitId, String(year));
-      }
+      invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -476,39 +600,10 @@ export const useModuleStore = defineStore('modules', () => {
             : (value as string | number | boolean | null);
       });
 
-      // Module-specific payload adjustments
-      if (moduleType === MODULES.ProfessionalTravel) {
-        // Ensure number_of_trips is an integer if present and prevent negative values
-        if (
-          'number_of_trips' in normalized &&
-          normalized.number_of_trips !== null
-        ) {
-          const tripsValue = normalized.number_of_trips;
-          let parsed: number;
-          if (typeof tripsValue === 'string') {
-            parsed = parseInt(tripsValue, 10);
-            if (isNaN(parsed)) {
-              throw new Error('number_of_trips must be a valid integer');
-            }
-          } else if (typeof tripsValue === 'number') {
-            parsed = Math.floor(tripsValue);
-          } else {
-            throw new Error('number_of_trips must be a number');
-          }
-          if (parsed < 1) {
-            throw new Error('number_of_trips must be at least 1');
-          }
-          normalized.number_of_trips = parsed;
-        }
-      }
-
       await api.patch(path, { json: normalized }).json();
 
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unit, year);
-
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unit, Number(year));
 
       await getSubmoduleData({
         submoduleType,
@@ -517,10 +612,9 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unit, year);
-      }
+      invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -546,9 +640,6 @@ export const useModuleStore = defineStore('modules', () => {
       // Refresh module totals
       await getModuleTotals(moduleType, unit, year);
 
-      // Refresh aggregated module totals (used by home page)
-      await getModuleTotalsAggregated(unit, Number(year));
-
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
         moduleType,
@@ -557,10 +648,9 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
-      // Auto-refetch travel stats if this is professional travel module
-      if (moduleType === MODULES.ProfessionalTravel) {
-        await getTravelStatsByClass(unit, year);
-      }
+      invalidateValidatedTotals();
+      requestEmissionBreakdownRefresh();
+      invalidateEmissionBreakdown();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -572,7 +662,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
-      const path = `professional-travel/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/stats-by-class`;
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/stats-by-class`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelStatsByClass = data;
     } catch (err: unknown) {
@@ -592,7 +682,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelEvolutionOverTime = true;
     state.errorTravelEvolutionOverTime = null;
     try {
-      const path = `professional-travel/${encodeURIComponent(unit)}/evolution-over-time`;
+      const path = `modules/${encodeURIComponent(unit)}/evolution-over-time`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelEvolutionOverTime = data;
     } catch (err: unknown) {
@@ -608,79 +698,153 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  // Track which unit/year the current totals are for
-  const moduleTotalsUnitId = ref<number | null>(null);
-  const moduleTotalsYear = ref<number | null>(null);
+  // Track which carbon report the cached emission breakdown belongs to
+  const emissionBreakdownCarbonReportId = ref<number | null>(null);
+  const emissionBreakdownInFlightReportId = ref<number | null>(null);
+  const emissionBreakdownInFlightToken = ref(0);
+  const emissionBreakdownRefreshSequence = ref(0);
+  const emissionBreakdownLastConsumedSequence = ref(0);
+  let emissionBreakdownInFlight: Promise<void> | null = null;
 
-  /**
-   * Fetch module totals (aggregated across equipment and professional-travel modules).
-   *
-   * @param unitId - Unit ID
-   * @param year - Year for the data (must be a number)
-   */
-  async function getModuleTotalsAggregated(unitId: number, year: number) {
-    state.loadingModuleTotals = true;
-    state.errorModuleTotals = null;
+  function requestEmissionBreakdownRefresh() {
+    emissionBreakdownRefreshSequence.value += 1;
+  }
+
+  function consumeEmissionBreakdownRefreshRequest(sequence: number): boolean {
+    if (sequence <= emissionBreakdownLastConsumedSequence.value) return false;
+    emissionBreakdownLastConsumedSequence.value = sequence;
+    return true;
+  }
+
+  function invalidateEmissionBreakdown() {
+    emissionBreakdownCarbonReportId.value = null;
+  }
+
+  async function getEmissionBreakdown(carbonReportId: number) {
+    if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
+    if (
+      emissionBreakdownInFlight &&
+      emissionBreakdownInFlightReportId.value === carbonReportId
+    ) {
+      await emissionBreakdownInFlight;
+      return;
+    }
+
+    state.loadingEmissionBreakdown = true;
+    state.errorEmissionBreakdown = null;
+    emissionBreakdownInFlightReportId.value = carbonReportId;
+    const currentRequestToken = ++emissionBreakdownInFlightToken.value;
+    const currentRequest = (async () => {
+      // Only the latest in-flight request is allowed to update state.
+      const isLatestRequest = () =>
+        emissionBreakdownInFlightToken.value === currentRequestToken &&
+        emissionBreakdownInFlightReportId.value === carbonReportId;
+
+      try {
+        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
+        const data = await api.get(path).json<EmissionBreakdownResponse>();
+        if (!isLatestRequest()) {
+          return;
+        }
+        state.emissionBreakdown = data;
+        emissionBreakdownCarbonReportId.value = carbonReportId;
+      } catch (err: unknown) {
+        if (!isLatestRequest()) {
+          return;
+        }
+        if (err instanceof Error) {
+          state.errorEmissionBreakdown = err.message ?? 'Unknown error';
+          state.emissionBreakdown = null;
+        } else {
+          state.errorEmissionBreakdown = 'Unknown error';
+          state.emissionBreakdown = null;
+        }
+        emissionBreakdownCarbonReportId.value = null;
+      }
+    })();
+    emissionBreakdownInFlight = currentRequest;
+
     try {
-      state.moduleTotals = await fetchModuleTotals(unitId, year);
-      moduleTotalsUnitId.value = unitId;
-      moduleTotalsYear.value = year;
+      await currentRequest;
+    } finally {
+      if (emissionBreakdownInFlightToken.value === currentRequestToken) {
+        state.loadingEmissionBreakdown = false;
+        emissionBreakdownInFlight = null;
+        emissionBreakdownInFlightReportId.value = null;
+      }
+    }
+  }
+
+  // Track which carbon report the cached validated totals belong to
+  const validatedTotalsCarbonReportId = ref<number | null>(null);
+
+  function invalidateValidatedTotals() {
+    validatedTotalsCarbonReportId.value = null;
+  }
+
+  async function getValidatedTotals(carbonReportId: number) {
+    state.loadingValidatedTotals = true;
+    state.errorValidatedTotals = null;
+    try {
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/validated-totals`;
+      const data = await api.get(path).json<ValidatedTotalsResponse>();
+      state.validatedTotals = data;
+      validatedTotalsCarbonReportId.value = carbonReportId;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        state.errorModuleTotals = err.message ?? 'Unknown error';
-        state.moduleTotals = null;
+        state.errorValidatedTotals = err.message ?? 'Unknown error';
+        state.validatedTotals = null;
       } else {
-        state.errorModuleTotals = 'Unknown error';
-        state.moduleTotals = null;
+        state.errorValidatedTotals = 'Unknown error';
+        state.validatedTotals = null;
       }
-      moduleTotalsUnitId.value = null;
-      moduleTotalsYear.value = null;
+      validatedTotalsCarbonReportId.value = null;
     } finally {
-      state.loadingModuleTotals = false;
+      state.loadingValidatedTotals = false;
     }
   }
 
-  /**
-   * Get module total for a specific module.
-   *
-   * @param module - Module name (e.g., "equipment-electric-consumption", "professional-travel")
-   * @returns Module total in tCO2eq, or null if not available
-   */
-  function getModuleTotal(module: string): number | null {
-    if (!state.moduleTotals) {
-      return null;
+  async function getYearlyValidatedEmissions(unitId: number) {
+    state.loadingYearlyValidatedEmissions = true;
+    state.errorYearlyValidatedEmissions = null;
+    try {
+      const path = `unit/${encodeURIComponent(unitId)}/yearly-validated-emissions`;
+      const data = await api.get(path).json<YearlyValidatedEmission[]>();
+      state.yearlyValidatedEmissions = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorYearlyValidatedEmissions = err.message ?? 'Unknown error';
+        state.yearlyValidatedEmissions = [];
+      } else {
+        state.errorYearlyValidatedEmissions = 'Unknown error';
+        state.yearlyValidatedEmissions = [];
+      }
+    } finally {
+      state.loadingYearlyValidatedEmissions = false;
     }
-    return state.moduleTotals[module] ?? null;
   }
-
-  const workspaceStore = useWorkspaceStore();
-  const moduleTotals = computed(() => {
-    const unitId = workspaceStore.selectedUnit?.id;
-    const year = workspaceStore.selectedYear ?? new Date().getFullYear();
-
-    if (
-      unitId &&
-      year &&
-      (moduleTotalsUnitId.value !== unitId || moduleTotalsYear.value !== year)
-    ) {
-      getModuleTotalsAggregated(unitId, year);
-    }
-    return state.moduleTotals;
-  });
 
   return {
     initializeSubmoduleState,
     getModuleData,
     getModuleTotals,
+    getModuleTaxonomy,
     getSubmoduleData,
+    getSubmoduleTaxonomy,
     postItem,
     patchItem,
     deleteItem,
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
-    getModuleTotalsAggregated,
-    getModuleTotal,
-    moduleTotals,
+    getValidatedTotals,
+    invalidateValidatedTotals,
+    getYearlyValidatedEmissions,
+    getEmissionBreakdown,
+    invalidateEmissionBreakdown,
+    requestEmissionBreakdownRefresh,
+    consumeEmissionBreakdownRefreshRequest,
+    emissionBreakdownRefreshSequence,
+    validatedTotalsCarbonReportId,
     state,
   };
 });

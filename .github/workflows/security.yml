@@ -1,6 +1,9 @@
 name: Security Checks
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches: [main, dev, stage] # Scan PRs targeting these branches
   schedule:
@@ -19,13 +22,13 @@ jobs:
           node-version: ">=24.0.0"
 
       - name: Run npm audit (root)
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: npm audit --audit-level=high
+        continue-on-error: false
 
       - name: Run npm audit (frontend)
         working-directory: ./frontend
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: npm audit --audit-level=high
+        continue-on-error: false
 
   python-security:
     name: Python Security Audit
@@ -50,11 +53,11 @@ jobs:
 
       - name: Run Safety check
         run: uvx uv-audit --verbose
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Run Bandit security linter
         run: uvx bandit -r ./app/ -x tests,.venv
-        continue-on-error: true
+        continue-on-error: false
 
   codeql:
     name: CodeQL Analysis
@@ -73,17 +76,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
 

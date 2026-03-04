@@ -2,11 +2,51 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
+  archibus_rooms {
+    VARCHAR building_location "indexed"
+    VARCHAR building_name "indexed"
+    FLOAT cooling_kwh_per_square_meter
+    FLOAT heating_kwh_per_square_meter
+    INTEGER id PK
+    FLOAT kg_co2eq
+    FLOAT lighting_kwh_per_square_meter
+    VARCHAR note
+    VARCHAR room_name "indexed"
+    FLOAT room_surface_square_meter
+    VARCHAR room_type
+    VARCHAR unit_institutional_id "indexed"
+    FLOAT ventilation_kwh_per_square_meter
+  }
+  audit_documents {
+    VARCHAR change_reason
+    VARCHAR change_type
+    DATETIME changed_at
+    INTEGER changed_by
+    VARCHAR current_hash
+    JSON data_diff
+    JSON data_snapshot
+    INTEGER entity_id "indexed"
+    VARCHAR entity_type "indexed"
+    JSON handled_ids
+    VARCHAR handler_id
+    INTEGER id PK
+    VARCHAR ip_address
+    BOOLEAN is_current
+    VARCHAR previous_hash
+    VARCHAR route_path
+    JSON route_payload
+    VARCHAR sync_error
+    VARCHAR sync_status
+    DATETIME synced_at
+    INTEGER version "indexed"
+  }
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
+    INTEGER last_updated
     INTEGER module_type_id "indexed"
-    INTEGER status
+    JSON stats
+    INTEGER status "indexed"
   }
   carbon_reports {
     INTEGER id PK
@@ -15,10 +55,12 @@ erDiagram
   }
   data_entries {
     INTEGER carbon_report_module_id FK
+    DATETIME created_at
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
     VARCHAR status
+    DATETIME updated_at
   }
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
@@ -29,7 +71,7 @@ erDiagram
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
-    VARCHAR subcategory
+    INTEGER scope
   }
   data_ingestion_jobs {
     INTEGER data_entry_type_id
@@ -53,34 +95,10 @@ erDiagram
     BOOLEAN is_conversion "indexed"
     JSON values
   }
-  headcounts {
-    VARCHAR cf
-    VARCHAR cf_name
-    VARCHAR cf_user_id
-    DATETIME created_at
-    INTEGER created_by "indexed"
-    DATE date
-    VARCHAR display_name
-    FLOAT fte
-    VARCHAR function
-    VARCHAR function_role
-    INTEGER id PK
-    VARCHAR provider
-    VARCHAR provider_source
-    VARCHAR sciper "indexed"
-    VARCHAR status
-    VARCHAR submodule "indexed"
-    INTEGER unit_id "indexed"
-    VARCHAR unit_name
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-  }
   locations {
     VARCHAR airport_size
     VARCHAR continent "indexed"
-    VARCHAR countrycode "indexed"
-    DATETIME created_at
-    INTEGER created_by "indexed"
+    VARCHAR country_code "indexed"
     VARCHAR iata_code "indexed"
     INTEGER id PK
     VARCHAR keywords
@@ -89,68 +107,6 @@ erDiagram
     VARCHAR municipality "indexed"
     VARCHAR name "indexed"
     VARCHAR transport_mode "indexed"
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-  }
-  plane_impact_factors {
-    VARCHAR category "indexed"
-    DATETIME created_at
-    INTEGER created_by "indexed"
-    VARCHAR factor_type "indexed"
-    INTEGER id PK
-    FLOAT impact_score
-    FLOAT max_distance
-    FLOAT min_distance
-    FLOAT rfi_adjustment
-    VARCHAR source
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-    TIMESTAMP valid_from
-    TIMESTAMP valid_to
-  }
-  professional_travel_emissions {
-    JSON calculation_inputs
-    TIMESTAMP computed_at "indexed"
-    FLOAT distance_km
-    VARCHAR formula_version
-    INTEGER id PK
-    BOOLEAN is_current "indexed"
-    FLOAT kg_co2eq
-    INTEGER plane_impact_factor_id FK
-    INTEGER professional_travel_id FK
-    INTEGER train_impact_factor_id FK
-  }
-  professional_travels {
-    VARCHAR class
-    DATETIME created_at
-    INTEGER created_by "indexed"
-    DATE departure_date
-    INTEGER destination_location_id FK
-    INTEGER id PK
-    BOOLEAN is_round_trip
-    INTEGER number_of_trips
-    INTEGER origin_location_id FK
-    VARCHAR provider
-    VARCHAR provider_source
-    VARCHAR transport_mode
-    INTEGER traveler_id
-    VARCHAR traveler_name
-    INTEGER unit_id "indexed"
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-    INTEGER year "indexed"
-  }
-  train_impact_factors {
-    VARCHAR countrycode "indexed"
-    DATETIME created_at
-    INTEGER created_by "indexed"
-    INTEGER id PK
-    FLOAT impact_score
-    VARCHAR source
-    DATETIME updated_at
-    INTEGER updated_by "indexed"
-    TIMESTAMP valid_from
-    TIMESTAMP valid_to
   }
   unit_users {
     VARCHAR role "indexed"
@@ -158,13 +114,23 @@ erDiagram
     INTEGER user_id PK
   }
   units {
-    JSON affiliations
-    JSON cost_centers
     INTEGER id PK
+    VARCHAR institutional_code "indexed"
+    VARCHAR institutional_id "indexed"
+    BOOLEAN is_active
+    VARCHAR label_en
+    VARCHAR label_fr
+    INTEGER level "indexed"
     VARCHAR name "indexed"
-    VARCHAR principal_user_provider_code FK
+    VARCHAR parent_institutional_code "indexed"
+    VARCHAR parent_institutional_id
+    VARCHAR path_institutional_code "indexed"
+    VARCHAR path_institutional_id
+    VARCHAR path_name
+    VARCHAR principal_user_institutional_id "indexed"
     VARCHAR provider
-    VARCHAR provider_code "indexed"
+    INTEGER unit_type_id
+    VARCHAR unit_type_label
   }
   users {
     VARCHAR display_name
@@ -180,15 +146,9 @@ erDiagram
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
-  locations ||--}o professional_travels : "destination_location_id"
-  locations ||--}o professional_travels : "origin_location_id"
-  plane_impact_factors ||--}o professional_travel_emissions : "plane_impact_factor_id"
-  professional_travels ||--}o professional_travel_emissions : "professional_travel_id"
-  train_impact_factors ||--}o professional_travel_emissions : "train_impact_factor_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
   users ||--}o unit_users : "user_id"
-  users ||--}o units : "principal_user_provider_code"
 ```
 
 Mermaid ERD generation complete.

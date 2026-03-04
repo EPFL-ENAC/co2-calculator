@@ -4,17 +4,19 @@ import { professionalTravel } from 'src/constant/module-config/professional-trav
 import { headcount } from 'src/constant/module-config/headcount';
 import { internalServices } from 'src/constant/module-config/internal-services';
 import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-and-ai';
-import { infrastructure } from 'src/constant/module-config/infrastructure';
+import { buildings } from 'src/constant/module-config/buildings';
 import { purchase } from 'src/constant/module-config/purchase';
+import { processEmissions } from 'src/constant/module-config/process_emissions';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   'equipment-electric-consumption': equipmentElectricConsumption,
   'professional-travel': professionalTravel,
   headcount: headcount,
   'internal-services': internalServices,
-  infrastructure: infrastructure,
+  buildings: buildings,
   purchase: purchase,
   'external-cloud-and-ai': externalCloudAndAi,
+  'process-emissions': processEmissions,
 };
 
 export {
@@ -22,7 +24,8 @@ export {
   professionalTravel,
   headcount,
   internalServices,
-  infrastructure,
+  buildings,
   purchase,
   externalCloudAndAi,
+  processEmissions,
 };

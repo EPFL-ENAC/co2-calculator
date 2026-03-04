@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.core.constants import ModuleStatus
+from app.models.carbon_report import ModuleStatus
 
 
 class CarbonReportBase(BaseModel):

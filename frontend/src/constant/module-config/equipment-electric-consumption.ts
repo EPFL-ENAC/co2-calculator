@@ -1,4 +1,5 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type {
   Module,
   EquipmentElectricConsumptionSubType,
@@ -41,7 +42,7 @@ const baseModuleFields: ModuleField[] = [
     placeholder: 'e.g., Agitator, Centrifuge',
     sortable: true,
     align: 'left',
-    readOnly: true,
+    readOnly: false,
     ratio: '1/1',
   },
   {
@@ -116,7 +117,7 @@ const baseModuleFields: ModuleField[] = [
     ratio: '3/12',
     icon: 'o_electric_bolt',
     hideIn: {
-      form: true,
+      form: false,
     },
     maxColumnWidth: 150,
   },
@@ -132,7 +133,7 @@ const baseModuleFields: ModuleField[] = [
     tooltip: powerTooltip,
     readOnly: true,
     hideIn: {
-      form: true,
+      form: false,
     },
     editableInline: false,
     ratio: '3/12',
@@ -141,7 +142,7 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: {
       form: true,
@@ -183,6 +184,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
   hasSubmodules: true,
   isCollapsible: true,
   uncertainty: 'high',
+  totalFormatter: formatTonnesCO2,
 
   formStructure: 'perSubmodule',
 

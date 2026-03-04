@@ -38,7 +38,7 @@ async def test_create_and_get_carbon_report(async_session):
 async def test_list_inventories_by_unit(async_session):
     repo = CarbonReportRepository(async_session)
     await repo.create(CarbonReportCreate(year=2025, unit_id=1))
-    await repo.create(CarbonReportCreate(year=2025, unit_id=1))
+    await repo.create(CarbonReportCreate(year=2024, unit_id=1))
     await repo.create(CarbonReportCreate(year=2025, unit_id=2))
     items = await repo.list_by_unit(1)
     assert len(items) == 2

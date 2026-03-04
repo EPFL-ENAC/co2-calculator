@@ -13,6 +13,7 @@ interface User {
   id: string;
   email: string;
   display_name?: string;
+  is_user_test?: boolean;
   roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
@@ -80,9 +81,17 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
-      user.value = null;
-      loading.value = false;
-      router.replace({ name: 'login' });
+      // Check server-issued is_user_test flag to determine routing.
+      if (user.value?.is_user_test) {
+        // For test users, just go to home login-test page
+        user.value = null;
+        loading.value = false;
+        router.replace({ name: 'login-test' });
+      } else {
+        user.value = null;
+        loading.value = false;
+        router.replace({ name: 'login' });
+      }
     }
   }
 

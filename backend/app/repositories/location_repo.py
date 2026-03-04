@@ -8,7 +8,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.location import Location
+from app.models.location import Location, TransportModeEnum
 
 logger = get_logger(__name__)
 
@@ -22,8 +22,8 @@ class LocationRepository:
     async def search_location(
         self,
         query: str,
+        transport_mode: TransportModeEnum,
         limit: int = 20,
-        transport_mode: Optional[str] = None,
     ) -> List[Location]:
         """
         Search locations by keywords, municipality, and name with relevance ordering.
@@ -37,8 +37,8 @@ class LocationRepository:
         collations.
 
         Results are prioritized by:
-        1. Switzerland (countrycode == "CH") first
-        2. For flights (transport_mode='plane'): large_airport first
+        1. Switzerland (country_code == "CH") first
+        2. For airports (location transport_mode='plane'): large_airport first
         3. Then by relevance (exact match, starts with, contains)
 
         Results are ordered by relevance:
@@ -49,12 +49,11 @@ class LocationRepository:
         Args:
             query: Search query string
             limit: Maximum number of results to return (default: 20)
-            transport_mode: Filter by transport mode ('train' or 'plane').
-            If None, returns both types.
+            transport_mode: Filter by location transport mode ('train' or 'plane').
 
         Returns:
             List of Location objects ordered by country (Switzerland first),
-            relevance, and airport_size (for flights)
+            relevance, and airport_size (for airport searches)
         """
 
         query = query.strip()
@@ -98,7 +97,7 @@ class LocationRepository:
 
         statement = statement.where(search_condition)
 
-        # Filter by transport_mode if provided
+        # Filter by location transport_mode
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
@@ -146,12 +145,12 @@ class LocationRepository:
 
         # Prioritize Switzerland
         switzerland_priority = case(
-            (col(Location.countrycode) == "CH", 1),
+            (col(Location.country_code) == "CH", 1),
             else_=2,
         )
 
-        # For flights, prioritize large_airport first
-        if transport_mode == "plane":
+        # For airport searches, prioritize large_airport first
+        if transport_mode == TransportModeEnum.plane.value:
             airport_priority = case(
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,
@@ -163,7 +162,7 @@ class LocationRepository:
                 col(Location.name).asc(),
             )
         else:
-            # For trains or mixed results, order by Switzerland first
+            # For train searches, order by Switzerland first
             statement = statement.order_by(
                 switzerland_priority.asc(),
                 relevance.asc(),

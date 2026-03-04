@@ -9,17 +9,21 @@ import asyncio
 import csv
 from pathlib import Path
 
-from sqlmodel import select
+from sqlalchemy import or_
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import EmissionType
 
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.models.factor import Factor
+from app.modules.process_emissions import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -29,13 +33,14 @@ CSV_PATH = (
 )
 
 
+# DEPRECATED -
 async def seed_emission_factors(session: AsyncSession) -> None:
     """Seed initial emission factors."""
     logger.info("Seeding emission factors...")
 
     # Check if Swiss mix factor already exists
     result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionTypeEnum.energy)
+        select(Factor).where(Factor.emission_type_id == EmissionType.energy)
     )
     existing = result.first()
 
@@ -45,7 +50,7 @@ async def seed_emission_factors(session: AsyncSession) -> None:
 
     # Create Swiss electricity mix emission factor
     factor = Factor(
-        emission_type_id=EmissionTypeEnum.energy,  # energy
+        emission_type_id=EmissionType.energy,  # energy
         is_conversion=True,
         data_entry_type_id=DataEntryTypeEnum.energy_mix,
         classification={
@@ -60,9 +65,12 @@ async def seed_emission_factors(session: AsyncSession) -> None:
 
     session.add(factor)
     await session.commit()
+    factor_value = factor.values.get("kgco2eq_per_kwh") or factor.values.get(
+        "kg_co2eq_per_kwh"
+    )
     logger.info(
         f"Created emission factor: {factor.classification['description']}"
-        f" = {factor.values['kgco2eq_per_kwh']} kgCO2eq/kWh"
+        f" = {factor_value} kgCO2eq/kWh"
     )
 
 
@@ -72,7 +80,13 @@ async def seed_power_factors(session: AsyncSession) -> None:
 
     # Check if power factors already exist
     result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionTypeEnum.equipment)
+        select(Factor).where(
+            or_(
+                col(Factor.emission_type_id) == EmissionType.equipment__it,
+                col(Factor.emission_type_id) == EmissionType.equipment__scientific,
+                col(Factor.emission_type_id) == EmissionType.equipment__other,
+            )
+        )
     )
     existing = result.first()
 
@@ -95,17 +109,13 @@ async def seed_power_factors(session: AsyncSession) -> None:
         reader = csv.DictReader(f)
         for row in reader:
             # Track submodule and sub-category (they persist across rows when empty)
-            submodule_val = row.get("Submodule", "").strip()
+            submodule_val = row.get("data_entry_type", "").strip()
             if submodule_val:
                 current_submodule = submodule_val
 
-            # sub_category_val = row.get("Sub-category", "").strip()
-            # if sub_category_val:
-            #     current_sub_category = sub_category_val
-
             # Get class and sub-class
-            equipment_class = row.get("Class", "").strip()
-            sub_class = row.get("Sub-class", "").strip()
+            equipment_class = row.get("equipment_class", "").strip()
+            sub_class = row.get("sub_class", "").strip()
 
             # Skip if no class defined
             if not equipment_class:
@@ -113,22 +123,30 @@ async def seed_power_factors(session: AsyncSession) -> None:
 
             # Parse power values
             try:
-                active_power = float(
-                    row.get("Average power --Active mode (W)", "0") or "0"
-                )
-                standby_power = float(
-                    row.get("Average power --Stand-by mode (W)", "0") or "0"
-                )
+                active_power_raw = row.get("active_power_w", None)
+                standby_power_raw = row.get("standby_power_w", None)
+                if active_power_raw is None or standby_power_raw is None:
+                    raise ValueError("Missing power values")
+                active_power = float(active_power_raw)
+                standby_power = float(standby_power_raw)
             except ValueError:
                 logger.warning(f"Invalid power values in row: {row}")
                 continue
 
+            if current_submodule == "it":
+                emission_type_id = EmissionType.equipment__it
+            elif current_submodule == "other":
+                emission_type_id = EmissionType.equipment__other
+            elif current_submodule == "scientific":
+                emission_type_id = EmissionType.equipment__scientific
             power_factor = Factor(
-                emission_type_id=EmissionTypeEnum.equipment,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
-                data_entry_type_id=DataEntryTypeEnum[
-                    current_submodule or "other"
-                ].value,
+                data_entry_type_id=(
+                    DataEntryTypeEnum[current_submodule].value
+                    if current_submodule
+                    else DataEntryTypeEnum["other"].value
+                ),
                 classification={
                     "class": equipment_class,
                     "kind": equipment_class,
@@ -140,6 +158,11 @@ async def seed_power_factors(session: AsyncSession) -> None:
                 values={
                     "active_power_w": active_power,
                     "standby_power_w": standby_power,
+                    # will be in CSV in the future when we have specific emission
+                    # factors per equipment, but for now we set it to the Swiss mix
+                    # EF as a default value to allow computations to work
+                    # Default value for emission factor
+                    "ef_kg_co2eq_per_kwh": 0.125,
                 },
             )
             power_factors.append(power_factor)
@@ -155,8 +178,10 @@ async def main() -> None:
     logger.info("Starting emission factors seeding...")
 
     async with SessionLocal() as session:
-        await seed_emission_factors(session)
+        # await seed_emission_factors(session)
         await seed_power_factors(session)
+        await session.commit()
+        # commit all changes at the end of seeding emission factors and power factors
 
     logger.info("Emission factors seeding complete!")
 

@@ -77,6 +77,7 @@ nav:
       - ADR-010 Background Job Processing: architecture-decision-records/010-background-job-processing.md
       - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
       - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
+      - ADR-014 Security Checklist: architecture-decision-records/014-security-checklist.md
 
   - Frontend:
       - Overview: frontend/01-overview.md
@@ -89,6 +90,7 @@ nav:
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
       - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
+      - Location Search: backend/09-LOCATION-SEARCH.md
 
   - Database:
       - Overview: database/01-overview.md

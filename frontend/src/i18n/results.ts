@@ -19,7 +19,7 @@ export default {
     en: 'Compare years',
     fr: 'Comparer les années',
   },
-  results_units: {
+  results_units_kg: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',
   },
@@ -163,13 +163,26 @@ export default {
     en: 'Unit-gas',
     fr: 'Gaz unitaire',
   },
-  'charts-infrastructure-gas-category': {
-    en: 'Infrastructure-gas',
-    fr: 'Gaz infrastructure',
+  'charts-buildings-gas-category': {
+    en: 'Buildings-gas',
+    fr: 'Gaz bâtiments',
   },
-  'charts-infrastructure-category': {
-    en: 'Infrastructure',
-    fr: 'Infrastructure',
+
+  'charts-process-emissions-category': {
+    en: 'Process emissions',
+    fr: 'Emissions de procédés',
+  },
+  'charts-building-energy-subcategory': {
+    en: 'Buildings energy combustion',
+    fr: "Combustion d'énergie des bâtiments",
+  },
+  'charts-energy-combustion-subcategory': {
+    en: 'Energy combustion',
+    fr: "Combustion d'énergie",
+  },
+  'charts-research-facilities-category': {
+    en: 'Research core facilities',
+    fr: 'Infrastructures de recherche',
   },
   'charts-equipment-category': {
     en: 'Equipment',
@@ -259,6 +272,30 @@ export default {
     en: 'Plane',
     fr: 'Avion',
   },
+  'charts-clouds-subcategory': {
+    en: 'Clouds',
+    fr: 'Clouds',
+  },
+  'charts-ai-subcategory': {
+    en: 'AI',
+    fr: 'IA',
+  },
+  'charts-co2-subcategory': {
+    en: 'CO2',
+    fr: 'CO2',
+  },
+  'charts-ch4-subcategory': {
+    en: 'CH4',
+    fr: 'CH4',
+  },
+  'charts-n2o-subcategory': {
+    en: 'N2O',
+    fr: 'N2O',
+  },
+  'charts-refrigerants-subcategory': {
+    en: 'Refrigerants',
+    fr: 'Réfrigérants',
+  },
   'charts-heating-subcategory': {
     en: 'Heating',
     fr: 'Chauffage',
@@ -279,12 +316,28 @@ export default {
     en: 'Scientific Equipment',
     fr: 'Équipement scientifique',
   },
+  'charts-stockage-subcategory': {
+    en: 'Cloud Storage',
+    fr: 'Stockage cloud',
+  },
+  'charts-virtualisation-subcategory': {
+    en: 'Cloud Virtualisation',
+    fr: 'Virtualisation cloud',
+  },
+  'charts-calcul-subcategory': {
+    en: 'Cloud Compute',
+    fr: 'Calcul cloud',
+  },
+  'charts-ai-provider-subcategory': {
+    en: 'AI Provider',
+    fr: 'Fournisseur IA',
+  },
 
   'charts-equipment-it': {
     en: 'IT Equipment',
     fr: 'IT Équipement',
   },
-  'charts-infrastructure-it': {
+  'charts-buildings-it': {
     en: 'IT',
     fr: 'IT',
   },
@@ -303,6 +356,14 @@ export default {
   'charts-additional-category': {
     en: 'Additional Categories',
     fr: 'Catégories supplémentaires',
+  },
+  results_treemap_title: {
+    en: 'Emissions Breakdown',
+    fr: 'Répartition des émissions',
+  },
+  'no-chart-data': {
+    en: 'No chart data available yet',
+    fr: 'Aucune donnée de graphique disponible',
   },
   'charts-scope': {
     en: 'Scope',

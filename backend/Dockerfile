@@ -1,5 +1,5 @@
 # =========================
-# 1️⃣ Builder Stage
+# 1- Builder Stage
 # =========================
 FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
 
@@ -14,7 +14,7 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies into a Linux-native venv
 RUN uv sync --frozen --no-dev --no-cache --compile-bytecode
 
-# Install OpenTelemetry dependencies
+# Install OpenTelemetry instrumentation packages
 # https://opentelemetry.io/docs/zero-code/python/troubleshooting/#bootstrap-using-uv
 ENV PATH="/app/.venv/bin:$PATH"
 RUN uv run opentelemetry-bootstrap -a requirements | uv pip install --requirement -
@@ -25,14 +25,16 @@ COPY alembic/ alembic/
 COPY alembic.ini ./
 
 # =========================
-# 2️⃣ Runtime Stage
+# 2-  Runtime Stage
 # =========================
-FROM ghcr.io/astral-sh/uv:python3.12-alpine AS runtime
+FROM python:3.12-alpine3.21 AS runtime
 
 WORKDIR /app
+
 RUN addgroup -g 1001 appgroup && \
     adduser -D -H -u 1001 -G appgroup appuser && \
     chown -R appuser:appgroup /app
+
 USER appuser
 
 COPY --from=builder /app/.venv /app/.venv
@@ -40,9 +42,18 @@ COPY --from=builder /app/app /app/app
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 
-
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    HOST=0.0.0.0 \
+    PORT=8000 \
+    WORKERS=1 \
+    OTEL_PYTHON_FORK_SAFE=true
 
 EXPOSE 8000
 
-CMD ["opentelemetry-instrument", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${PORT}/health || exit 1
+
+# Use environment variables in CMD
+CMD ["sh", "-c", "exec opentelemetry-instrument uvicorn app.main:app --host $HOST --port $PORT --workers $WORKERS"]

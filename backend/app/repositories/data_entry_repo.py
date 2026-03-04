@@ -1,16 +1,20 @@
 """Data entry repository for database operations."""
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
+from sqlalchemy import select as sa_select
+from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
@@ -32,6 +36,7 @@ class DataEntryRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.entity_type = DataEntry.__name__
         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
 
     async def get(self, id: int) -> Optional[DataEntry]:
@@ -235,22 +240,74 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
-        statement = (
-            select(DataEntry, DataEntryEmission, Factor)
+        is_travel_entry = data_entry_type_id in (
+            DataEntryTypeEnum.plane.value,
+            DataEntryTypeEnum.train.value,
+        )
+
+        # Aggregate emissions per data_entry to avoid row duplication
+        # (one data_entry can have multiple emissions for headcount/building)
+        emission_agg = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+                func.min(DataEntryEmission.primary_factor_id).label(
+                    "primary_factor_id"
+                ),
+            )
+            .group_by(col(DataEntryEmission.data_entry_id))
+            .subquery()
+        )
+
+        OriginLocation = aliased(Location)
+        DestLocation = aliased(Location)
+
+        # Build query: one row per DataEntry
+        entities: list[Any] = [
+            DataEntry,
+            emission_agg.c.total_kg_co2eq,
+            Factor,
+        ]
+        if is_travel_entry:
+            entities.extend([OriginLocation, DestLocation, DataEntryEmission])
+        statement: Select[Any] = (
+            sa_select(*entities)
             .join(
-                DataEntryEmission,
-                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+                emission_agg,
+                col(DataEntry.id) == emission_agg.c.data_entry_id,
                 isouter=True,
             )
             .join(
                 Factor,
-                col(DataEntryEmission.primary_factor_id) == col(Factor.id),
+                emission_agg.c.primary_factor_id == col(Factor.id),
                 isouter=True,
             )
-            .where(
-                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
-                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+
+        if is_travel_entry:
+            statement = (
+                statement.join(
+                    OriginLocation,
+                    DataEntry.data["origin_location_id"].as_integer()
+                    == OriginLocation.id,
+                    isouter=True,
+                )
+                .join(
+                    DestLocation,
+                    DataEntry.data["destination_location_id"].as_integer()
+                    == DestLocation.id,
+                    isouter=True,
+                )
+                .join(
+                    DataEntryEmission,
+                    col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                    isouter=True,
+                )
             )
+
+        statement = statement.where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
 
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
@@ -282,13 +339,24 @@ class DataEntryRepository:
 
         items: list[BaseModel] = []
 
-        for data_entry, data_entry_emission, primary_factor in rows:
+        for row in rows:
+            # Unpack based on query shape
+            if is_travel_entry:
+                (
+                    data_entry,
+                    total_kg_co2eq,
+                    primary_factor,
+                    origin_loc,
+                    dest_loc,
+                    emission,
+                ) = row
+            else:
+                data_entry, total_kg_co2eq, primary_factor = row
+                origin_loc, dest_loc, emission = None, None, None
+
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
-            kg_co2eq = None
-            if data_entry_emission is not None:
-                kg_co2eq = data_entry_emission.kg_co2eq
             # If primary_factor is None, try to fetch it
             # from DataEntry.data["primary_factor_id"]
             if primary_factor is None:
@@ -300,7 +368,7 @@ class DataEntryRepository:
 
             data_entry.data = {
                 **data_entry.data,
-                "kg_co2eq": kg_co2eq,
+                "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
                     **primary_factor.classification,
@@ -308,6 +376,19 @@ class DataEntryRepository:
                 if primary_factor
                 else {},
             }
+
+            if is_travel_entry:
+                data_entry.data = {
+                    **data_entry.data,
+                    **({"origin": origin_loc.name} if origin_loc else {}),
+                    **({"destination": dest_loc.name} if dest_loc else {}),
+                    **(
+                        {"distance_km": emission.meta.get("distance_km")}
+                        if emission and emission.meta and "distance_km" in emission.meta
+                        else {}
+                    ),
+                }
+
             items.append(handler.to_response(data_entry))
 
         response = SubmoduleResponse(
@@ -359,7 +440,7 @@ class DataEntryRepository:
         carbon_report_module_id,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Optional[float]]:
         """Aggregate DataEntry data by submodule or function.
                 SELECT
             dee.*
@@ -398,14 +479,70 @@ class DataEntryRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, float] = {}
+        aggregation: Dict[str, Optional[float]] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
             # special edge case for headcount : TO BE FIX by PM
             if aggregate_by == "function":
                 label = get_function_role(label)
             if label not in aggregation:
-                aggregation[label] = 0.0
-            aggregation[label] += float(total_count or 0.0)
+                aggregation[label] = None
+            if total_count is not None:
+                aggregation[label] = (aggregation[label] or 0.0) + total_count
+
+        return aggregation
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+        aggregate_by: str = "module_type_id",
+        aggregate_field: str = "fte",
+    ) -> Dict[str, float]:
+        """Aggregate DataEntry data by module_type_id for a whole carbon report.
+
+        Joins DataEntry → CarbonReportModule.
+        Filters: carbon_report_id, module status == VALIDATED.
+        Default aggregation: SUM(fte) grouped by module_type_id.
+
+        Returns:
+            {"1": 4532.0}  (headcount module FTE)
+        """
+        # Resolve group field
+        if aggregate_by == "module_type_id":
+            group_field = col(CarbonReportModule.module_type_id)
+        elif hasattr(DataEntry, aggregate_by):
+            group_field = getattr(DataEntry, aggregate_by)
+        else:
+            group_field = DataEntry.data[aggregate_by].as_string()
+
+        # Resolve sum field
+        if hasattr(DataEntry, aggregate_field):
+            sum_field = getattr(DataEntry, aggregate_field)
+        else:
+            sum_field = DataEntry.data[aggregate_field].as_float()
+
+        query = (
+            select(
+                group_field,
+                func.sum(sum_field).label("total"),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+            )
+            .group_by(group_field)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        aggregation: Dict[str, float] = {}
+        for key, total in rows:
+            label = str(key) if key is not None else "unknown"
+            aggregation[label] = float(total) if total is not None else 0.0
 
         return aggregation

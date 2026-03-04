@@ -1,0 +1,13 @@
+{{- if and .Values.backend.enabled .Values.backend.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-backend
+  labels:
+    {{- include "co2-calculator.componentLabels" (dict "ctx" . "component" "backend") | nindent 4 }}
+spec:
+  minAvailable:  {{ .Values.backend.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "backend") | nindent 6 }}
+{{- end }}

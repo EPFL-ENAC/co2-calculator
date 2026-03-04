@@ -1,5 +1,5 @@
 import { reactive, ref, watch, type Ref } from 'vue';
-import { useFactorsStore } from 'src/stores/powerFactors';
+import { useFactorsStore } from 'src/stores/factors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
 
 type Option = { label: string; value: string };
@@ -13,8 +13,19 @@ interface FieldConfig {
   classOptionId?: string;
   subClassOptionId?: string;
   // values of the fields in the entity record (real value we want to use)
-  actPowerFieldId?: string;
-  pasPowerFieldId?: string;
+  primaryValueFieldId?: string; // was actPowerFieldId
+  secondaryValueFieldId?: string; // was pasPowerFieldId
+
+  // Whether to automatically fetch power factor values when class/subclass changes.
+  // Default is false to avoid unexpected API calls and allow the user to explicitly
+  //  trigger fetch (for example with a button), but can be enabled if desired.
+  // case where it might be desirable to set this to true: when the form
+  // is primarily for data viewing rather than editing, so automatic fetching on change would be more intuitive and efficient.
+  // ALSO: table row where class/subclass are  editable shoudl have this
+  // flag as false: because -> if user is editing class/subclass in
+  // a table row, they might not want to trigger power factor fetch
+  // until they have finished editing both class and subclass, and automatic fetching on change could lead to multiple unnecessary API calls and potentially inconsistent intermediate states.
+  fetchFactorValuesOnChange?: boolean;
 }
 
 export function useEquipmentClassOptions<
@@ -30,8 +41,11 @@ export function useEquipmentClassOptions<
   const classOptionId = config.classOptionId ?? 'kind';
   const subClassOptionId = config.subClassOptionId ?? 'subkind';
   // #  TODO: make power field IDs configurable
-  const actPowerFieldId = config.actPowerFieldId ?? 'act_power';
-  const pasPowerFieldId = config.pasPowerFieldId ?? 'pas_power';
+  const primaryValueFieldId = config.primaryValueFieldId ?? '';
+  const secondaryValueFieldId = config.secondaryValueFieldId ?? '';
+
+  const fetchFactorValuesOnChange: boolean =
+    config.fetchFactorValuesOnChange ?? false;
 
   const dynamicOptions = reactive<Record<string, Option[]>>({});
   const loadingClasses = ref(false);
@@ -125,15 +139,16 @@ export function useEquipmentClassOptions<
     try {
       const pf = await store.fetchPowerFactor(sub, cls, subCls);
       if (pf) {
-        if (actPowerFieldId in entity)
+        if (primaryValueFieldId && primaryValueFieldId in entity)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (entity as any)[actPowerFieldId] = pf.active_power_w;
-        if (pasPowerFieldId in entity)
+          (entity as any)[primaryValueFieldId] = pf[primaryValueFieldId];
+        if (secondaryValueFieldId && secondaryValueFieldId in entity)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (entity as any)[pasPowerFieldId] = pf.standby_power_w;
+          (entity as any)[secondaryValueFieldId] = pf[secondaryValueFieldId];
       }
     } catch {
       // ignore, user can still fill manually
+      // should set error though
     } finally {
       loadingPowerFactor.value = false;
     }
@@ -143,12 +158,12 @@ export function useEquipmentClassOptions<
     if (subClassFieldId in entity)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (entity as any)[subClassFieldId] = '';
-    if (actPowerFieldId in entity)
+    if (primaryValueFieldId in entity)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (entity as any)[actPowerFieldId] = null;
-    if (pasPowerFieldId in entity)
+      (entity as any)[primaryValueFieldId] = null;
+    if (secondaryValueFieldId in entity)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (entity as any)[pasPowerFieldId] = null;
+      (entity as any)[secondaryValueFieldId] = null;
   }
 
   // React to submodule type changes
@@ -201,7 +216,9 @@ export function useEquipmentClassOptions<
 
       await loadSubclassOptions();
 
-      await loadPowerFactor();
+      if (fetchFactorValuesOnChange) {
+        await loadPowerFactor();
+      }
     },
     { immediate: true },
   );
@@ -210,7 +227,9 @@ export function useEquipmentClassOptions<
   watch(
     () => entity[subClassFieldId],
     async () => {
-      await loadPowerFactor();
+      if (fetchFactorValuesOnChange) {
+        await loadPowerFactor();
+      }
     },
   );
 

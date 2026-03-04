@@ -21,6 +21,7 @@
       class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
+      :title="props.hint ? $t(props.hint) : undefined"
       @update:model-value="onChange"
     />
   </div>
@@ -31,6 +32,9 @@ import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
+
+const moduleStore = useModuleStore();
 
 interface ModuleRow {
   id: string | number;
@@ -50,6 +54,7 @@ type CommonProps = {
   row: ModuleRow;
   fieldId: string;
   optionsId: string;
+  hint?: string;
   cols: TableViewColumnSubset[];
   unitId: number;
   year: string | number;
@@ -78,8 +83,36 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     subClassFieldId: subkindFieldId.value,
   });
 
-const classOptions = computed(() => dynamicOptions['kind'] ?? []);
-const subClassOptions = computed(() => dynamicOptions['subkind'] ?? []);
+const classOptions = computed(() => {
+  const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
+  const opts = dynamicOptions['kind'] ?? [];
+  return opts.map((opt) => {
+    // Find node that includes the kind option
+    const kindNode = taxo?.children?.find((node) => node.name === opt.value);
+    return {
+      value: opt.value,
+      label: kindNode ? kindNode.label : opt.label || opt.value,
+    };
+  });
+});
+const subClassOptions = computed(() => {
+  const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
+  const opts = dynamicOptions['subkind'] ?? [];
+  return opts.map((opt) => {
+    // Find node that includes the subkind option
+    const kindNode = taxo?.children?.find((node) =>
+      node.children?.some((child) => child.name === opt.value),
+    );
+    // Then find the subkind node to get the label
+    const subKindNode = kindNode?.children?.find(
+      (child) => child.name === opt.value,
+    );
+    return {
+      value: opt.value,
+      label: subKindNode ? subKindNode.label : opt.label || opt.value,
+    };
+  });
+});
 
 const options = computed(() => {
   return isClass.value ? classOptions.value : subClassOptions.value;
@@ -98,8 +131,6 @@ const model = computed({
 async function onChange() {
   // Persist only the changed class/sub_class field.
   // Backend will auto-resolve power_factor_id and power values.
-  const { useModuleStore } = await import('src/stores/modules');
-  const store = useModuleStore();
   const idNum = Number(props.row.id);
   if (!Number.isFinite(idNum)) return;
 
@@ -107,7 +138,7 @@ async function onChange() {
     [props.fieldId]: model.value as string | number | boolean | null,
   };
 
-  await store.patchItem(
+  await moduleStore.patchItem(
     props.moduleType as Module,
     props.submoduleType,
     props.unitId,

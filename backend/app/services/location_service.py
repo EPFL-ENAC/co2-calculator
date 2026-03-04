@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.location import Location, LocationRead
+from app.models.location import Location, LocationRead, TransportModeEnum
 from app.repositories.location_repo import LocationRepository
 from app.utils.distance_geography import (
     calculate_plane_distance,
@@ -26,8 +26,8 @@ class LocationService:
     async def search_locations(
         self,
         query: str,
+        transport_mode: TransportModeEnum,
         limit: int = 10,
-        transport_mode: Optional[str] = None,
     ) -> List[LocationRead]:
         """
         Search locations by name with relevance ordering.
@@ -35,19 +35,20 @@ class LocationService:
         Args:
             query: Search query string
             limit: Maximum number of results
-            transport_mode: Filter by transport mode ('train' or 'plane')
+            transport_mode: Filter by location transport mode ('train' or 'plane')
 
         Returns:
             List of LocationRead DTOs ordered by relevance
 
         Raises:
-            HTTPException 400: If transport_mode is invalid or query is too short
+            HTTPException 400: If location transport_mode is invalid
+                or query is too short
         """
-        # Validate transport_mode if provided
-        if transport_mode and transport_mode not in ["train", "plane"]:
+        # Validate location transport_mode
+        if transport_mode is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="transport_mode must be either 'train' or 'plane'",
+                detail="location transport_mode must be either 'train' or 'plane'",
             )
 
         # Normalize and validate query
@@ -84,33 +85,31 @@ class LocationService:
         self,
         origin_location_id: int,
         destination_location_id: int,
-        transport_mode: str,
+        transport_mode: TransportModeEnum,
+        number_of_trips: int = 1,
     ) -> dict[str, float]:
         """
-        Calculate distance between two locations based on transport mode.
+        Calculate distance between two locations based on location transport mode.
 
         For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
         For trains: Haversine distance × 1.2 (track routing, curves, detours)
 
+        Total distance = per-trip distance × number_of_trips.
+
         Args:
             origin_location_id: Origin location ID
             destination_location_id: Destination location ID
-            transport_mode: 'flight' or 'train'
+            transport_mode: Location transport mode ('plane' or 'train')
+            number_of_trips: Number of trips (default: 1)
 
         Returns:
             Dict with distance_km in kilometers
 
         Raises:
-            HTTPException 400: If transport_mode is invalid or coordinates are invalid
+            HTTPException 400: If location transport_mode is invalid
+                or coordinates are invalid
             HTTPException 404: If location not found
         """
-        # Validate transport_mode
-        if transport_mode not in ["flight", "train"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="transport_mode must be either 'flight' or 'train'",
-            )
-
         # Fetch locations
         origin_location = await self.repo.get_by_id(origin_location_id)
         if not origin_location:
@@ -154,7 +153,7 @@ class LocationService:
 
         # Calculate distance
         try:
-            if transport_mode == "flight":
+            if transport_mode == TransportModeEnum.plane:
                 distance_km = calculate_plane_distance(origin_corrected, dest_corrected)
             else:  # train
                 distance_km = calculate_train_distance(origin_corrected, dest_corrected)
@@ -172,7 +171,7 @@ class LocationService:
                 detail=f"Distance calculation failed: {str(e)}",
             )
 
-        return {"distance_km": round(distance_km, 2)}
+        return {"distance_km": distance_km * number_of_trips}
 
     def _validate_and_correct_coordinates(
         self, location: Location, location_type: str

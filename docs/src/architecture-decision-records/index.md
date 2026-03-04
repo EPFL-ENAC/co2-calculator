@@ -36,6 +36,7 @@ understand why certain choices were made.
 | ----------------------------------------------- | ------------------------ | ----------- | ------------------------------ |
 | [ADR-005](./005-authorization-strategy.md)      | In-code RBAC, reject OPA | ✅ Accepted | Simpler, sufficient for needs  |
 | [ADR-012](./012-jwt-authentication-strategy.md) | JWT-based authentication | ✅ Accepted | Stateless, microservices-ready |
+| [ADR-014](./014-security-checklist.md)          | Security checklist       | ✅ Accepted | Security maintenance plan      |
 
 ### Infrastructure & Operations
 

@@ -9,46 +9,52 @@ export interface ModuleCardBadge {
 
 export interface ModuleCard {
   module: Module;
-  badge?: ModuleCardBadge;
-  value?: string;
   active: boolean;
+  badge?: ModuleCardBadge;
 }
 
 export const MODULE_CARDS: ModuleCard[] = [
   {
     module: MODULES.Headcount,
-    value: '5',
     active: true,
+    badge: {
+      label: 'New',
+      color: 'primary',
+      textColor: 'white',
+    },
   },
   {
     module: MODULES.ProfessionalTravel,
-    value: "8'250",
-    active: false,
+    active: true,
+    badge: {
+      label: 'New',
+      color: 'primary',
+      textColor: 'white',
+    },
   },
   {
-    module: MODULES.Infrastructure,
-    value: "8'250",
-    active: false,
+    module: MODULES.ProcessEmissions,
+    active: true,
+  },
+  {
+    module: MODULES.Buildings,
+    active: true,
   },
   {
     module: MODULES.EquipmentElectricConsumption,
-    value: "8'250",
-    active: false,
+    active: true,
   },
   {
     module: MODULES.Purchase,
-    value: "8'250",
-    active: false,
+    active: true,
   },
   {
     module: MODULES.InternalServices,
-    value: "8'250",
-    active: false,
+    active: true,
   },
   {
     module: MODULES.ExternalCloudAndAI,
-    value: "8'250",
-    active: false,
+    active: true,
   },
 ];
 

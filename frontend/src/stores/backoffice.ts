@@ -1,29 +1,43 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { api } from 'src/api/http';
 import type { ModuleState } from 'src/constant/moduleStates';
 
-interface ModuleCompletion {
-  status: ModuleState;
-  outlier_values: number;
-}
+// interface ModuleCompletion {
+//   status: ModuleState;
+//   outlier_values: number;
+// }
+
+// "id": 1574,
+// "unit_name": "Abbott, Guerrero and Rhodes",
+// "affiliation": "SV",
+// "validation_status": "3/9",
+// "principal_user": "Melissa Paul",
+// "last_update": "2026-02-20T15:19:37.859926",
+// "highest_result_category": "Module infrastructure",
+// "total_carbon_footprint": 231.91,
+// "view_url": "/backoffice/unit/1574"
 
 interface BackofficeUnitData {
   id: string | number;
-  completion:
-    | Record<string, Record<string, ModuleCompletion>>
-    | Record<string, ModuleCompletion>;
-  completion_counts: {
-    validated: number;
-    in_progress: number;
-    default: number;
-  };
-  unit: number;
+  unit_name: string;
   affiliation: string;
+  validation_status: string;
   principal_user: string;
   last_update: string;
-  outlier_values: number;
-  expected_total?: number;
+  highest_result_category: string;
+  total_carbon_footprint: number;
+  view_url: string;
+}
+
+interface BackofficeUnitDataPagination {
+  data: BackofficeUnitData[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_pages: number;
+    total: number;
+  };
 }
 
 interface UnitFilters {
@@ -37,7 +51,10 @@ interface UnitFilters {
 }
 
 export const useBackofficeStore = defineStore('backoffice', () => {
-  const units = ref<BackofficeUnitData[]>([]);
+  // should be paginated already!
+  const units = ref<BackofficeUnitDataPagination | null>(null);
+  const unit = ref<BackofficeUnitData | null>(null);
+
   const allUnits = ref<BackofficeUnitData[]>([]);
   const selectedUnit = ref<BackofficeUnitData | null>(null);
   const unitsLoading = ref(false);
@@ -51,44 +68,44 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   const yearsLoading = ref(false);
   const yearsErrors = ref<Error[]>([]);
 
-  const affiliations = computed(() => {
-    const uniqueAffiliations = new Set<string>();
-    allUnits.value.forEach((unit) => {
-      if (unit.affiliation) {
-        uniqueAffiliations.add(unit.affiliation);
-      }
-    });
-    return Array.from(uniqueAffiliations).sort();
-  });
+  // const affiliations = computed(() => {
+  //   const uniqueAffiliations = new Set<string>();
+  //   allUnits.value.forEach((unit) => {
+  //     if (unit.affiliation) {
+  //       uniqueAffiliations.add(unit.affiliation);
+  //     }
+  //   });
+  //   return Array.from(uniqueAffiliations).sort();
+  // });
 
-  const availableUnits = computed(() => {
-    const uniqueUnits = new Set<number>();
-    allUnits.value.forEach((unit) => {
-      if (unit.unit) {
-        uniqueUnits.add(unit.unit);
-      }
-    });
-    return Array.from(uniqueUnits).sort();
-  });
+  // const availableUnits = computed(() => {
+  //   const uniqueUnits = new Set<number>();
+  //   allUnits.value.forEach((unit) => {
+  //     if (unit.unit) {
+  //       uniqueUnits.add(unit.unit);
+  //     }
+  //   });
+  //   return Array.from(uniqueUnits).sort();
+  // });
 
-  async function getAllUnits() {
-    try {
-      allUnitsLoading.value = true;
-      allUnitsErrors.value = [];
-      const data = await api
-        .get('backoffice/units')
-        .json<BackofficeUnitData[]>();
-      allUnits.value = data || [];
-    } catch (error) {
-      console.error('Error getting all units:', error);
-      const errorObj =
-        error instanceof Error ? error : new Error('Failed to get all units');
-      allUnitsErrors.value = [errorObj];
-      allUnits.value = [];
-    } finally {
-      allUnitsLoading.value = false;
-    }
-  }
+  // async function getAllUnits() {
+  //   try {
+  //     allUnitsLoading.value = true;
+  //     allUnitsErrors.value = [];
+  //     const data = await api
+  //       .get('backoffice/units')
+  //       .json<BackofficeUnitData[]>();
+  //     allUnits.value = data || [];
+  //   } catch (error) {
+  //     console.error('Error getting all units:', error);
+  //     const errorObj =
+  //       error instanceof Error ? error : new Error('Failed to get all units');
+  //     allUnitsErrors.value = [errorObj];
+  //     allUnits.value = [];
+  //   } finally {
+  //     allUnitsLoading.value = false;
+  //   }
+  // }
 
   async function getUnits(filters?: UnitFilters) {
     try {
@@ -148,14 +165,14 @@ export const useBackofficeStore = defineStore('backoffice', () => {
         ? `backoffice/units?${queryString}`
         : 'backoffice/units';
 
-      const data = await api.get(url).json<BackofficeUnitData[]>();
-      units.value = data || [];
+      const data = await api.get(url).json<BackofficeUnitDataPagination>();
+      units.value = data || null;
     } catch (error) {
       console.error('Error getting units:', error);
       const errorObj =
         error instanceof Error ? error : new Error('Failed to get units');
       unitsErrors.value = [errorObj];
-      units.value = [];
+      units.value = null;
     } finally {
       unitsLoading.value = false;
     }
@@ -168,6 +185,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
       const data = await api
         .get(`backoffice/unit/${id}`)
         .json<BackofficeUnitData>();
+      unit.value = data;
       selectedUnit.value = data;
       return data;
     } catch (error) {
@@ -229,9 +247,9 @@ export const useBackofficeStore = defineStore('backoffice', () => {
     latestYear,
     yearsLoading,
     yearsErrors,
-    affiliations,
-    availableUnits,
-    getAllUnits,
+    // affiliations,
+    // availableUnits,
+    // getAllUnits,
     getUnits,
     getUnit,
     getAvailableYears,

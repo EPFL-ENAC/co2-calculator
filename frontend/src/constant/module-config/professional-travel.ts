@@ -1,21 +1,9 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type { ProfessionalTravelSubType } from 'src/constant/modules';
 
-const moduleFields: ModuleField[] = [
-  {
-    id: 'transport_mode',
-    labelKey: `${MODULES.ProfessionalTravel}-field-type`,
-    type: 'radio-group',
-    required: true,
-    sortable: true,
-    ratio: '2/12',
-    options: [
-      { value: 'train', label: 'Train' },
-      { value: 'flight', label: 'Flight' },
-    ],
-    editableInline: false,
-  },
+const commonTravelFields: ModuleField[] = [
   {
     id: 'round_trip',
     labelKey: [
@@ -120,8 +108,12 @@ const moduleFields: ModuleField[] = [
       form: true,
     },
   },
+];
+
+const planeFields: ModuleField[] = [
+  ...commonTravelFields,
   {
-    id: 'class',
+    id: 'cabin_class',
     labelKey: `${MODULES.ProfessionalTravel}-field-class`,
     type: 'select',
     required: true,
@@ -132,26 +124,30 @@ const moduleFields: ModuleField[] = [
       table: true,
     },
     options: [
-      // Train classes
-      { value: 'class_1', label: 'Class 1' },
-      { value: 'class_2', label: 'Class 2' },
-      // Plane classes
       { value: 'first', label: 'First' },
       { value: 'business', label: 'Business' },
       { value: 'eco', label: 'Eco' },
       { value: 'eco_plus', label: 'Eco+' },
     ],
-    conditionalOptions: [
-      // Show train classes when transport_mode is 'train'
-      {
-        when: { fieldId: 'transport_mode', value: 'train' },
-        showOptions: ['class_2', 'class_1'],
-      },
-      // Show plane classes when transport_mode is 'flight'
-      {
-        when: { fieldId: 'transport_mode', value: 'flight' },
-        showOptions: ['eco', 'eco_plus', 'business', 'first'],
-      },
+  },
+];
+
+const trainFields: ModuleField[] = [
+  ...commonTravelFields,
+  {
+    id: 'cabin_class',
+    labelKey: `${MODULES.ProfessionalTravel}-field-class`,
+    type: 'select',
+    required: true,
+    sortable: true,
+    ratio: '1/1',
+    editableInline: false,
+    hideIn: {
+      table: true,
+    },
+    options: [
+      { value: 'class_1', label: 'Class 1' },
+      { value: 'class_2', label: 'Class 2' },
     ],
   },
 ];
@@ -162,12 +158,13 @@ export const professionalTravel: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
-  hasSubmodules: false,
+  hasSubmodules: true,
   formStructure: 'perSubmodule',
   numberFormatOptions: {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   },
+  totalFormatter: formatTonnesCO2,
   unit: 't CO₂-eq',
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0],
@@ -175,14 +172,56 @@ export const professionalTravel: ModuleConfig = {
   },
   submodules: [
     {
-      id: 'trips',
-      type: 'trips' as ProfessionalTravelSubType,
-      tableNameKey: `${MODULES.ProfessionalTravel}-table-title`,
-      moduleFields,
+      id: 'plane',
+      type: 'plane' as ProfessionalTravelSubType,
+      tableNameKey: `${MODULES.ProfessionalTravel}-plane-table-title`,
+      moduleFields: planeFields,
+      requiredFieldIds: [
+        'origin',
+        'destination',
+        'traveler_name',
+        'cabin_class',
+      ],
+      csvTemplateHeaders: [
+        'from',
+        'to',
+        'departure_date',
+        'number_of_trips',
+        'traveler_name',
+        'cabin_class',
+        'sciper',
+      ],
       hasTableTopBar: true,
       hasTablePagination: true,
       hasTableAction: true,
       hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
+      addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-plane-button`,
+    },
+    {
+      id: 'train',
+      type: 'train' as ProfessionalTravelSubType,
+      tableNameKey: `${MODULES.ProfessionalTravel}-train-table-title`,
+      moduleFields: trainFields,
+      requiredFieldIds: [
+        'origin',
+        'destination',
+        'traveler_name',
+        'cabin_class',
+      ],
+      csvTemplateHeaders: [
+        'from',
+        'to',
+        'departure_date',
+        'number_of_trips',
+        'traveler_name',
+        'cabin_class',
+        'sciper',
+      ],
+      hasTableTopBar: true,
+      hasTablePagination: true,
+      hasTableAction: true,
+      hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
+      addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-train-button`,
     },
   ],
 } as ModuleConfig & { unit?: string };

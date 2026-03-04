@@ -1,14 +1,16 @@
 """DataEntry service for business logic."""
 
+import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
+from fastapi import BackgroundTasks
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.audit import AuditChangeTypeEnum
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.user import User
 
 # from app.repositories.headcount_repo import HeadCountRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -18,26 +20,54 @@ from app.schemas.carbon_report_response import (
     SubmoduleResponse,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
+from app.schemas.user import UserRead
+from app.services.audit_service import AuditDocumentService
+from app.utils.audit_helpers import extract_handled_ids, extract_handled_ids_from_list
 
 logger = get_logger(__name__)
+
+
+def _serialize_datetime(obj: Any) -> Any:
+    """Convert datetime objects to ISO format strings for JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class DataEntryService:
     """Service for data entry business logic."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(
+        self,
+        session: AsyncSession,
+        versioning_service: Optional[AuditDocumentService] = None,
+    ):
         self.session = session
         self.repo = DataEntryRepository(session)
+        self.versioning = versioning_service or AuditDocumentService(session)
 
     async def get_stats(
         self,
         carbon_report_module_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         """Get module statistics such as total items and submodules."""
         return await self.repo.get_stats(
             carbon_report_module_id=carbon_report_module_id,
+            aggregate_by=aggregate_by,
+            aggregate_field=aggregate_field,
+        )
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+        aggregate_by: str = "data_entry_type_id",
+        aggregate_field: str = "fte",
+    ) -> dict[str, float]:
+        """Get validated DataEntry totals across modules for a carbon report."""
+        return await self.repo.get_stats_by_carbon_report_id(
+            carbon_report_id=carbon_report_id,
             aggregate_by=aggregate_by,
             aggregate_field=aggregate_field,
         )
@@ -46,8 +76,10 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: int,
-        user: User,
+        user: UserRead,
         data: DataEntryCreate,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -64,23 +96,107 @@ class DataEntryService:
 
         # 3. replace by flush; commit should happen in 'orchestrator' or 'route'
         # top level domain)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(created_entry)
+
+        # Extract context information
+        request_context = request_context or {}
+        handled_ids = extract_handled_ids(
+            created_entry, DataEntryTypeEnum(data_entry_type_id)
+        )
+
+        # Serialize data_snapshot to handle datetime objects
+        data_snapshot_str = json.dumps(
+            created_entry.model_dump(), default=_serialize_datetime
+        )
+        data_snapshot = json.loads(data_snapshot_str)
+
+        await self.versioning.create_version(
+            entity_type=self.repo.entity_type,
+            entity_id=created_entry.id or 0,
+            data_snapshot=data_snapshot,
+            change_type=AuditChangeTypeEnum.CREATE,
+            changed_by=user.id,
+            change_reason="Initial creation",
+            handler_id=user.provider_code,
+            handled_ids=handled_ids,
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
+            background_tasks=background_tasks,
+        )
 
         # 5. return response
         return DataEntryResponse.model_validate(created_entry)
 
     async def bulk_create(
-        self, data_entries: list[DataEntry]
+        self,
+        data_entries: list[DataEntry],
+        user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
+        job_id: Optional[str | int] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> list[DataEntryResponse]:
         """Bulk create data entries."""
         logger.info(f"Bulk creating {len(data_entries)} data entries")
         db_objs = await self.repo.bulk_create(data_entries)
-        # await self.session.flush()  # Ensure data_entry IDs are populated
+        await self.session.flush()  # Ensure data_entry IDs are populated
+
+        # Create versions for all entries (only if user context available)
+        if user or job_id:
+            request_context = request_context or {}
+            changed_by = user.id if user else None
+            if changed_by is None and job_id is not None:
+                try:
+                    changed_by = int(job_id)
+                except (TypeError, ValueError):
+                    changed_by = None
+            handler_id = user.provider_code if user else "csv_ingestion"
+
+            # Build list of version metadata for bulk creation
+            versions_data = []
+            for obj in db_objs:
+                handled_ids = extract_handled_ids(
+                    obj, DataEntryTypeEnum(obj.data_entry_type_id)
+                )
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    obj.model_dump(), default=_serialize_datetime
+                )
+                data_snapshot = json.loads(data_snapshot_str)
+                versions_data.append(
+                    {
+                        "entity_id": obj.id or 0,
+                        "data_snapshot": data_snapshot,
+                        "change_type": AuditChangeTypeEnum.CREATE,
+                        "changed_by": changed_by,
+                        "change_reason": "Bulk data entry creation"
+                        if user
+                        else f"Imported via CSV job {job_id}",
+                        "handler_id": handler_id,
+                        "handled_ids": handled_ids,
+                        "ip_address": request_context.get("ip_address"),
+                        "route_path": request_context.get("route_path"),
+                        "route_payload": request_context.get("route_payload"),
+                    }
+                )
+
+            # Bulk create all versions at once
+            await self.versioning.bulk_create_versions(
+                entity_type=self.repo.entity_type,
+                versions_data=versions_data,
+                background_tasks=background_tasks,
+            )
+
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
 
     async def bulk_delete(
-        self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: DataEntryTypeEnum,
+        user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> None:
         """Bulk delete data entries by module and type."""
         logger.info(
@@ -88,42 +204,175 @@ class DataEntryService:
             f"for module_id={sanitize(carbon_report_module_id)}\n"
             f"data_entry_type_id={sanitize(data_entry_type_id.value)}"
         )
+
+        # Fetch entries before deletion to capture snapshots (only if versioning needed)
+        entries_to_delete = []
+        snapshots = {}
+        handled_ids_map = {}
+        if user:
+            entries_to_delete = await self.repo.get_list(
+                carbon_report_module_id=carbon_report_module_id,
+                limit=10000,
+                offset=0,
+                sort_by="id",
+                sort_order="asc",
+            )
+            # Filter to only the type being deleted
+            entries_to_delete = [
+                e
+                for e in entries_to_delete
+                if e.data_entry_type_id == data_entry_type_id
+            ]
+
+            # Capture snapshots and handled_ids before deletion
+            for e in entries_to_delete:
+                # Serialize data_snapshot to handle datetime objects
+                data_snapshot_str = json.dumps(
+                    e.model_dump(), default=_serialize_datetime
+                )
+                snapshots[e.id] = json.loads(data_snapshot_str)
+                handled_ids_map[e.id] = extract_handled_ids(
+                    e, DataEntryTypeEnum(e.data_entry_type_id)
+                )
+
         await self.repo.bulk_delete(carbon_report_module_id, data_entry_type_id)
         await self.session.flush()
+
+        # Create versions for all deleted entries (only if user context available)
+        if user and entries_to_delete:
+            request_context = request_context or {}
+
+            # Build list of version metadata for bulk creation
+            versions_data = [
+                {
+                    "entity_id": entry.id or 0,
+                    "data_snapshot": snapshots[entry.id],
+                    "change_type": AuditChangeTypeEnum.DELETE,
+                    "changed_by": user.id,
+                    "change_reason": "Bulk data entry deletion",
+                    "handler_id": user.provider_code,
+                    "handled_ids": handled_ids_map.get(entry.id, []),
+                    "ip_address": request_context.get("ip_address"),
+                    "route_path": request_context.get("route_path"),
+                    "route_payload": request_context.get("route_payload"),
+                }
+                for entry in entries_to_delete
+            ]
+
+            # Bulk create all versions at once
+            await self.versioning.bulk_create_versions(
+                entity_type=self.repo.entity_type,
+                versions_data=versions_data,
+                background_tasks=background_tasks,
+            )
 
     async def update(
         self,
         id: int,
         data: DataEntryUpdate,
-        user: User,
+        user: UserRead,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
-        if not user or not user.id:
-            logger.error("User context is required for updating data entry")
-            raise PermissionError("User context is required for updating data entry")
-        entry = await self.repo.update(
-            id=id,
-            data=data,
-            user_id=user.id,
-        )
-        await self.session.refresh(entry)
-        if entry is None:
-            raise ValueError(f"Data entry with id={id} not found")
+        try:
+            if not user or not user.id:
+                logger.error("User context is required for updating data entry")
+                raise PermissionError(
+                    "User context is required for updating data entry"
+                )
+            entry = await self.repo.update(
+                id=id,
+                data=data,
+                user_id=user.id,
+            )
+            if entry is None:
+                raise ValueError(f"Data entry with id={id} not found")
+            await self.session.refresh(entry)
+
+            # Extract context information
+            request_context = request_context or {}
+            handled_ids = extract_handled_ids(
+                entry, DataEntryTypeEnum(entry.data_entry_type_id)
+            )
+
+            # Serialize data_snapshot to handle datetime objects
+            data_snapshot_str = json.dumps(
+                entry.model_dump(), default=_serialize_datetime
+            )
+            data_snapshot = json.loads(data_snapshot_str)
+
+            await self.versioning.create_version(
+                entity_type=self.repo.entity_type,
+                entity_id=entry.id or 0,
+                data_snapshot=data_snapshot,
+                change_type=AuditChangeTypeEnum.UPDATE,
+                changed_by=user.id,
+                change_reason="Data entry updated",
+                handler_id=user.provider_code,
+                handled_ids=handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
+        except Exception as e:
+            logger.error(f"Error updating data entry id={id}: {str(e)}")
+            raise e
+
         return DataEntryResponse.model_validate(entry)
 
-    async def delete(self, id: int, current_user: User) -> bool:
+    async def delete(
+        self,
+        id: int,
+        current_user: UserRead,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
+    ) -> bool:
         """Delete a record."""
+        # Fetch entry before deletion to capture snapshot
+        entry = await self.repo.get(id)
+        if entry is None:
+            raise ValueError(f"Data entry with id={id} not found")
+
+        # Capture snapshot and handled_ids before deletion
+        # Serialize data_snapshot to handle datetime objects
+        data_snapshot_str = json.dumps(entry.model_dump(), default=_serialize_datetime)
+        snapshot = json.loads(data_snapshot_str)
+        handled_ids = extract_handled_ids(
+            entry, DataEntryTypeEnum(entry.data_entry_type_id)
+        )
+
         result = await self.repo.delete(id)
         await self.session.flush()
 
         if result is False:
             raise ValueError(f"Data entry with id={id} not found")
+
+        # Extract context information
+        request_context = request_context or {}
+
+        # Create version record for deletion
+        await self.versioning.create_version(
+            entity_type=self.repo.entity_type,
+            entity_id=id,
+            data_snapshot=snapshot,
+            change_type=AuditChangeTypeEnum.DELETE,
+            changed_by=current_user.id,
+            change_reason="Data entry deleted",
+            handler_id=current_user.provider_code,
+            handled_ids=handled_ids,
+            ip_address=request_context.get("ip_address"),
+            route_path=request_context.get("route_path"),
+            route_payload=request_context.get("route_payload"),
+            background_tasks=background_tasks,
+        )
+
         return True
 
     async def get(self, id: int) -> DataEntryResponse:
         """Get record by ID."""
         entry = await self.repo.get(id)
-        await self.session.commit()
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)
@@ -178,9 +427,12 @@ class DataEntryService:
         sort_by: str = "date",
         sort_order: str = "asc",
         filter: Optional[str] = None,
+        current_user: Optional[UserRead] = None,
+        request_context: Optional[dict] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> SubmoduleResponse:
         """Get module data for a unit and year."""
-        return await self.repo.get_submodule_data(
+        response = await self.repo.get_submodule_data(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
             limit=limit,
@@ -189,6 +441,49 @@ class DataEntryService:
             sort_order=sort_order,
             filter=filter,
         )
+
+        if (
+            (current_user is not None and current_user.id is not None)
+            and (request_context is not None)
+            and (response is not None)
+            and (
+                data_entry_type_id == DataEntryTypeEnum.plane.value
+                or data_entry_type_id == DataEntryTypeEnum.train.value
+                or data_entry_type_id == DataEntryTypeEnum.member.value
+            )
+        ):
+            # for headcount and travel (plane/train), keep a READ audit record
+            # Create version record for read
+            extracted_handled_ids = extract_handled_ids_from_list(
+                list(response.items), DataEntryTypeEnum(data_entry_type_id)
+            )
+            # Note: To query all READ data_entries for a carbon_report_module_id,
+            # use entity_type='CarbonReportModule'.
+            # This is a temporary special case;
+            # future implementation will use a generic entity type
+            # (e.g., via AuditEntityTypeEnum).
+            await self.versioning.create_version(
+                entity_type="CarbonReportModule",
+                entity_id=carbon_report_module_id,
+                data_snapshot={},  # No snapshot for read operations
+                change_type=AuditChangeTypeEnum.READ,
+                changed_by=current_user.id,
+                change_reason=(
+                    f"Data entry read for "
+                    f"carbon_report_module_id {carbon_report_module_id} "
+                    f"and data_entry_type_id {data_entry_type_id}"
+                ),
+                handler_id=current_user.provider_code,
+                handled_ids=extracted_handled_ids,
+                ip_address=request_context.get("ip_address"),
+                route_path=request_context.get("route_path"),
+                route_payload=request_context.get("route_payload"),
+                background_tasks=background_tasks,
+            )
+            # special case, we want to commit here, cause we don't commit in READ routes
+            await self.session.commit()
+
+        return response
 
     async def get_total_per_field(
         self,

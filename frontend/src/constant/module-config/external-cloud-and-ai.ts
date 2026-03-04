@@ -1,4 +1,5 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
+import { formatTonnesCO2 } from 'src/utils/number';
 import {
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
   MODULES,
@@ -60,7 +61,7 @@ const cloudFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -128,7 +129,7 @@ const externalAIFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -153,6 +154,7 @@ export const externalCloudAndAi: ModuleConfig = {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   },
+  totalFormatter: formatTonnesCO2,
   submodules: [
     {
       id: SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds,

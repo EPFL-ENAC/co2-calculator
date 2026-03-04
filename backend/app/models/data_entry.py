@@ -1,9 +1,11 @@
 """Generic module model for storing dynamic data across different module types."""
 
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlmodel import JSON, Column, Field, SQLModel
+from sqlalchemy import Column, DateTime
+from sqlmodel import JSON, Field, SQLModel
 
 
 class DataEntryStatusEnum(int, Enum):
@@ -17,16 +19,37 @@ class DataEntryTypeEnum(int, Enum):
     member = 1
     student = 2
     # equipment
-    scientific = 9
-    it = 10
-    other = 11
+    scientific = 10
+    it = 11
+    other = 12
     # travel
-    trips = 20
-    #
+    plane = 20
+    train = 21
+    # building/room
     building = 30
+    energy_combustion = 31
     # external clouds and ai
     external_clouds = 40
     external_ai = 41
+    # process emissions
+    process_emissions = 50
+    # purchase
+    scientific_equipment = 60
+    it_equipment = 61
+    consumable_accessories = 62
+    biological_chemical_gaseous_product = 63
+    services = 64
+    vehicles = 65
+    other_purchases = 66
+    additional_purchases = 67
+
+    # Research facilities: Was internal services
+    # Implementation of the module "Research facilities" and its sub-modules:
+    research_facilities = 70
+    mice_and_fish_animal_facilities = 71
+    other_research_facilities = 72
+    # not a module per se but we need a data_entry_type to link the factor
+    # energy_mix will disapear when we add the info in the factor equipment table
     # energy mix
     energy_mix = 100
 
@@ -90,6 +113,16 @@ class DataEntry(DataEntryBase, table=True):
     __tablename__ = "data_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(
+            DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        ),
+    )
 
     def __repr__(self) -> str:
         return (
