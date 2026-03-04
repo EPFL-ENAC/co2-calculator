@@ -1,0 +1,119 @@
+<svg width="238" height="238" viewBox="0 0 238 238" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#fff" d="M0 0h238v238H0z"/>
+
+  <!--
+    7 unique icons defined at origin (drawn within a 24×24 box starting at 0,0).
+    Original icons were shifted by their first-cell mask offset so they render at (0,0).
+    Each <use> then translates to the cell's center (17 + col*34, 17 + row*34).
+
+    Grid layout (decoded from original SVG mask-path assignments):
+    Row 0: people  plane    building bolt    tag      grid     cloud
+    Row 1: cloud   tag      people   plane   building bolt     grid
+    Row 2: grid    people   cloud    bolt    plane    tag      building
+    Row 3: plane   building grid     tag     cloud    people   bolt
+    Row 4: bolt    tag      cloud    people  grid     plane    building
+    Row 5: cloud   building bolt     grid    plane    tag      people
+    Row 6: plane   grid     tag      building people  cloud    bolt
+  -->
+
+  <defs>
+    <!-- PEOPLE: original mask at (5,5), paths shifted by (-5,-5) -->
+    <g id="icon-people">
+      <path d="M19 8q.424 0 .712-.287A.97.97 0 0 0 20 7a.97.97 0 0 0-.288-.713A.97.97 0 0 0 19 6a.97.97 0 0 0-.712.287A.97.97 0 0 0 18 7q0 .424.288.713.287.287.712.287m0 2q-1.275 0-2.137-.863Q16 8.276 16 7q0-1.25.863-2.125Q17.725 4 19 4q1.25 0 2.125.875T22 7q0 1.275-.875 2.137T19 10m-7-3q.625 0 1.063-.425T13.5 5.5q0-.625-.437-1.062A1.45 1.45 0 0 0 12 4q-.65 0-1.075.438A1.47 1.47 0 0 0 10.5 5.5q0 .65.425 1.075T12 7m0 2q-1.474 0-2.488-1.012Q8.5 6.975 8.5 5.5q0-1.45 1.012-2.475T12 2q1.45 0 2.475 1.025A3.37 3.37 0 0 1 15.5 5.5q0 1.475-1.025 2.488A3.4 3.4 0 0 1 12 9m-4 4.375q0 .75.8 1.75T12 18.3q2.35-2.125 3.175-3.125t.825-1.8q0-.575-.375-.975T14.7 12q-.35 0-.662.15t-.513.425L12.325 14h-.675l-1.2-1.425a1.34 1.34 0 0 0-.512-.425Q9.625 12 9.3 12q-.575 0-.937.4a1.4 1.4 0 0 0-.363.975m-2 0q0-1.325.9-2.35T9.3 10q.775 0 1.487.35T12 11.3q.5-.6 1.2-.95t1.5-.35q1.5 0 2.4 1.038.9 1.036.9 2.337 0 1.325-.962 2.613Q16.075 17.275 13.1 20L12 21l-1.1-1q-3.025-2.75-3.963-4.025Q6 14.7 6 13.375M5 8q.424 0 .713-.287A.97.97 0 0 0 6 7a.97.97 0 0 0-.287-.713A.97.97 0 0 0 5 6a.97.97 0 0 0-.713.287A.97.97 0 0 0 4 7q0 .424.287.713Q4.576 8 5 8m7.075 14v-2H20v-7h-2.95v-2H20q.824 0 1.413.587Q22 12.176 22 13v9zM4 20h8.075v2H2v-9q0-.824.575-1.413A1.9 1.9 0 0 1 4 11h2.95v2H4zm1-10q-1.275 0-2.137-.863Q2 8.276 2 7q0-1.25.862-2.125Q3.726 4 5 4q1.25 0 2.125.875T8 7q0 1.275-.875 2.137T5 10" fill="red"/>
+    </g>
+
+    <!-- PLANE: original mask at (39,5), paths shifted by (-39,-5) -->
+    <g id="icon-plane">
+      <path d="M7.356 21.5v-2.02l2.923-2.051v-3.965L2.5 16.587v-2.481l7.779-5.466V4.221q0-.71.506-1.215A1.66 1.66 0 0 1 12 2.5q.71 0 1.215.506.507.505.506 1.215v4.42l7.779 5.465v2.48l-7.779-3.122v3.965l2.914 2.052V21.5L12 20.096z" fill="red"/>
+    </g>
+
+    <!-- BUILDING: original mask at (73,5), paths shifted by (-73,-5) -->
+    <g id="icon-building">
+      <path d="M3 21V7h4V3h10v8h4v10h-8v-4h-2v4zm2-2h2v-2H5zm0-4h2v-2H5zm0-4h2v-2H5zm4 4h2v-2H9zm0-4h2v-2H9zm0-4h2v-2H9zm4 8h2v-2h-2zm0-4h2v-2h-2zm0-4h2v-2h-2zm4 12h2v-2h-2zm0-4h2v-2h-2z" fill="red"/>
+    </g>
+
+    <!-- BOLT: original mask at (107,5), paths shifted by (-107,-5) -->
+    <g id="icon-bolt">
+      <path d="m10.55 18.2 5.175-6.2h-4l.725-5.675L7.825 13h3.475zM8 22l1-7H4l9-13h2l-1 8h6L10 22z" fill="red"/>
+    </g>
+
+    <!-- TAG: original mask at (141,5), paths shifted by (-141,-5) -->
+    <g id="icon-tag">
+      <path d="M11.15 22q-.375 0-.75-.15t-.675-.45l-7.15-7.15q-.3-.3-.437-.663a2.06 2.06 0 0 1 0-1.487q.137-.375.437-.675l8.8-8.825q.275-.276.65-.437Q12.4 2 12.8 2h7.175q.825 0 1.413.588.587.587.587 1.412v7.175a1.98 1.98 0 0 1-.575 1.4l-8.825 8.825q-.3.3-.675.45t-.75.15m0-2 8.825-8.85V4h-7.15L4 12.85zm6.325-12q.625 0 1.063-.437.437-.438.437-1.063t-.437-1.062A1.45 1.45 0 0 0 17.475 5q-.625 0-1.062.438a1.45 1.45 0 0 0-.438 1.062q0 .624.438 1.063.437.437 1.062.437" fill="red"/>
+    </g>
+
+    <!-- GRID: original mask at (175,5), paths shifted by (-175,-5) -->
+    <g id="icon-grid">
+      <path d="M6 20q-.825 0-1.412-.587A1.93 1.93 0 0 1 4 18q0-.824.588-1.413A1.92 1.92 0 0 1 6 16q.825 0 1.413.587.587.588.587 1.413 0 .824-.587 1.413A1.93 1.93 0 0 1 6 20m6 0q-.825 0-1.412-.587A1.93 1.93 0 0 1 10 18q0-.824.588-1.413A1.92 1.92 0 0 1 12 16q.825 0 1.413.587.587.588.587 1.413 0 .824-.587 1.413A1.93 1.93 0 0 1 12 20m6 0q-.825 0-1.412-.587A1.93 1.93 0 0 1 16 18q0-.824.588-1.413A1.92 1.92 0 0 1 18 16q.825 0 1.413.587.587.588.587 1.413 0 .824-.587 1.413A1.93 1.93 0 0 1 18 20M6 14q-.825 0-1.412-.587A1.93 1.93 0 0 1 4 12q0-.825.588-1.412A1.92 1.92 0 0 1 6 10q.825 0 1.413.588.587.587.587 1.412 0 .824-.587 1.413A1.93 1.93 0 0 1 6 14m6 0q-.825 0-1.412-.587A1.93 1.93 0 0 1 10 12q0-.825.588-1.412A1.92 1.92 0 0 1 12 10q.825 0 1.413.588.587.587.587 1.412 0 .824-.587 1.413A1.93 1.93 0 0 1 12 14m6 0q-.825 0-1.412-.587A1.93 1.93 0 0 1 16 12q0-.825.588-1.412A1.92 1.92 0 0 1 18 10q.825 0 1.413.588.587.587.587 1.412 0 .824-.587 1.413A1.93 1.93 0 0 1 18 14M6 8q-.825 0-1.412-.588A1.93 1.93 0 0 1 4 6q0-.825.588-1.412A1.92 1.92 0 0 1 6 4q.825 0 1.413.588.587.587.587 1.412T7.413 7.412A1.93 1.93 0 0 1 6 8m6 0q-.825 0-1.412-.588A1.93 1.93 0 0 1 10 6q0-.825.588-1.412A1.92 1.92 0 0 1 12 4q.825 0 1.413.588.587.587.587 1.412t-.587 1.412A1.93 1.93 0 0 1 12 8m6 0q-.825 0-1.412-.588A1.93 1.93 0 0 1 16 6q0-.825.588-1.412A1.92 1.92 0 0 1 18 4q.825 0 1.413.588.587.587.587 1.412t-.587 1.412A1.93 1.93 0 0 1 18 8" fill="red"/>
+    </g>
+
+    <!-- CLOUD: original mask at (209,5), paths shifted by (-209,-5) -->
+    <g id="icon-cloud">
+      <path d="M6.5 20q-2.3 0-3.9-1.6T1 14.5q0-1.95 1.212-3.437 1.213-1.488 3.038-1.913a6.96 6.96 0 0 1 2.475-3.7Q9.575 4 12 4q2.975 0 4.988 2.063Q19 8.124 19 11q1.875.2 2.938 1.55Q23 13.9 23 15.475q0 1.875-1.312 3.2Q20.374 20 18.5 20zm0-2h12q1.05 0 1.775-.725A2.42 2.42 0 0 0 21 15.5q0-1.05-.725-1.775T18.5 13H17v-2q0-2.075-1.462-3.537Q14.074 6 12 6q-1.575 0-2.8.863a5.1 5.1 0 0 0-1.8 2.212q1.95.326 3.275 1.838T12 14.5h-2q0-1.45-1.025-2.475A3.37 3.37 0 0 0 6.5 11q-1.45 0-2.475 1.025A3.37 3.37 0 0 0 3 14.5q0 1.45 1.025 2.475A3.37 3.37 0 0 0 6.5 18" fill="red"/>
+    </g>
+  </defs>
+
+  <!-- Row 0 (y=5) -->
+  <use href="#icon-people"   transform="translate(5,5)"/>
+  <use href="#icon-plane"    transform="translate(39,5)"/>
+  <use href="#icon-building" transform="translate(73,5)"/>
+  <use href="#icon-bolt"     transform="translate(107,5)"/>
+  <use href="#icon-tag"      transform="translate(141,5)"/>
+  <use href="#icon-grid"     transform="translate(175,5)"/>
+  <use href="#icon-cloud"    transform="translate(209,5)"/>
+
+  <!-- Row 1 (y=39) -->
+  <use href="#icon-cloud"    transform="translate(5,39)"/>
+  <use href="#icon-tag"      transform="translate(39,39)"/>
+  <use href="#icon-people"   transform="translate(73,39)"/>
+  <use href="#icon-plane"    transform="translate(107,39)"/>
+  <use href="#icon-building" transform="translate(141,39)"/>
+  <use href="#icon-bolt"     transform="translate(175,39)"/>
+  <use href="#icon-grid"     transform="translate(209,39)"/>
+
+  <!-- Row 2 (y=73) -->
+  <use href="#icon-grid"     transform="translate(5,73)"/>
+  <use href="#icon-people"   transform="translate(39,73)"/>
+  <use href="#icon-cloud"    transform="translate(73,73)"/>
+  <use href="#icon-bolt"     transform="translate(107,73)"/>
+  <use href="#icon-plane"    transform="translate(141,73)"/>
+  <use href="#icon-tag"      transform="translate(175,73)"/>
+  <use href="#icon-building" transform="translate(209,73)"/>
+
+  <!-- Row 3 (y=107) -->
+  <use href="#icon-plane"    transform="translate(5,107)"/>
+  <use href="#icon-building" transform="translate(39,107)"/>
+  <use href="#icon-grid"     transform="translate(73,107)"/>
+  <use href="#icon-tag"      transform="translate(107,107)"/>
+  <use href="#icon-cloud"    transform="translate(141,107)"/>
+  <use href="#icon-people"   transform="translate(175,107)"/>
+  <use href="#icon-bolt"     transform="translate(209,107)"/>
+
+  <!-- Row 4 (y=141) -->
+  <use href="#icon-bolt"     transform="translate(5,141)"/>
+  <use href="#icon-tag"      transform="translate(39,141)"/>
+  <use href="#icon-cloud"    transform="translate(73,141)"/>
+  <use href="#icon-people"   transform="translate(107,141)"/>
+  <use href="#icon-grid"     transform="translate(141,141)"/>
+  <use href="#icon-plane"    transform="translate(175,141)"/>
+  <use href="#icon-building" transform="translate(209,141)"/>
+
+  <!-- Row 5 (y=175) -->
+  <use href="#icon-cloud"    transform="translate(5,175)"/>
+  <use href="#icon-building" transform="translate(39,175)"/>
+  <use href="#icon-bolt"     transform="translate(73,175)"/>
+  <use href="#icon-grid"     transform="translate(107,175)"/>
+  <use href="#icon-plane"    transform="translate(141,175)"/>
+  <use href="#icon-tag"      transform="translate(175,175)"/>
+  <use href="#icon-people"   transform="translate(209,175)"/>
+
+  <!-- Row 6 (y=209) -->
+  <use href="#icon-plane"    transform="translate(5,209)"/>
+  <use href="#icon-grid"     transform="translate(39,209)"/>
+  <use href="#icon-tag"      transform="translate(73,209)"/>
+  <use href="#icon-building" transform="translate(107,209)"/>
+  <use href="#icon-people"   transform="translate(141,209)"/>
+  <use href="#icon-cloud"    transform="translate(175,209)"/>
+  <use href="#icon-bolt"     transform="translate(209,209)"/>
+
+</svg>
