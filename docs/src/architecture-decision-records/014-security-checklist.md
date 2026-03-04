@@ -8,6 +8,7 @@
 ## 1. Dependency and Library Management
 
 ### Mitigation Measures
+
 - Ensure automated dependency monitoring with **GitHub Dependabot**.
 - Configure `dependabot.yml` to:
   - Scan all ecosystems used by the project (`npm`, `pip`, and optionally `github-actions`).
@@ -17,34 +18,40 @@
 ### Actions
 
 #### Development Phase
+
 - [ ] Add or update `.github/dependabot.yml` with appropriate ecosystems and update schedule (e.g., `weekly`).
 - [x] Configure Dependabot settings in repository.
 - [ ] Assign a maintainer to be responsible for managing dependabot alerts and PRs.
 
 #### Exploitation Phase
+
 - [ ] Review and merge Dependabot PRs promptly.
 - [ ] Monitor and triage security alerts.
 - [ ] Update dependencies when vulnerabilities are reported.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** code reviewer
 
 ### Frequency
+
 - **Development Phase:** One-time setup
-- **Exploitation Phase:** 
+- **Exploitation Phase:**
   - Dependabot PR review: within 48 hours of creation
   - Security alert triage: within 24 hours
   - Critical vulnerability updates: within 24 hours
   - High vulnerability updates: within 1 week
 
 ### Validation
+
 - Check repository settings to ensure Dependabot alerts are enabled.
 - Confirm that Dependabot PRs appear regularly.
 - Verify CI successfully runs and passes on Dependabot PRs.
 - Periodically inspect the dependency graph for unresolved alerts.
 
 ### Failure Handling
+
 - If a high/critical vulnerability is reported:
   - Mark the corresponding PR as high priority.
   - If an update cannot be merged, document the risk in an issue.
@@ -56,6 +63,7 @@
 ## 2. Automated Security Scanning in CI/CD
 
 ### Mitigation Measures
+
 - Integrate security scanning into GitHub Actions workflows.
 - Security scans should run on:
   - Every pull request
@@ -63,6 +71,7 @@
   - Scheduled periodic runs (e.g., nightly)
 
 ### Tools to Enable
+
 - **CodeQL Static Analysis** via GitHub’s `codeql-action` for code scanning.
 - GitHub **Secret scanning** (enabled by default for public repos).
 - Optionally SonarCloud or other SAST tools for additional coverage.
@@ -70,21 +79,25 @@
 ### Actions
 
 #### Development Phase
+
 - [x] Add a `codeql-analysis.yml` workflow under `.github/workflows`.
 - [x] Configure security scanning tools and integration.
 - [ ] Set up scheduled periodic scans.
 - [ ] Ensure secret scanning is enabled in the repository's Security tab.
 
 #### Exploitation Phase
+
 - [ ] Monitor security scan results on each PR and merge.
 - [ ] Review and triage security findings.
 - [ ] Fix detected vulnerabilities or document false positives.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** code reviewer
 
 ### Frequency
+
 - **Development Phase:** One-time setup
 - **Exploitation Phase:**
   - Security scan review: on every PR (before approval)
@@ -94,11 +107,13 @@
   - High findings: fix within 1 week
 
 ### Validation
+
 - Review CI logs to confirm CodeQL runs and reports results.
 - Confirm that failing findings block PR merges when configured.
 - Periodically simulate a failure (e.g., introduce a detectable issue) to confirm enforcement.
 
 ### Failure Handling
+
 - A workflow failure due to a detected issue:
   - Must be fixed before merge.
   - If false positive, document justification and escalate to the team.
@@ -108,6 +123,7 @@
 ## 3. Secure Coding and Code Review Practices
 
 ### Mitigation Measures
+
 - Require **code reviews** for all merge requests into protected branches.
 - Enforce GitHub **branch protection rules**:
   - Require status checks to pass (including security scans)
@@ -117,6 +133,7 @@
 ### Actions
 
 #### Development Phase
+
 - [ ] Enable branch protection in repo settings:
   - [ ] Require pull request reviews
   - [ ] Require passing status checks before merge
@@ -124,15 +141,18 @@
 - [ ] Define code review guidelines with security focus.
 
 #### Exploitation Phase
+
 - [ ] Perform code reviews on all pull requests.
 - [ ] Verify security checks pass before approving merges.
 - [ ] Ensure branch protection rules remain enforced.
 
 ### Responsibility
+
 - **Development Phase:** project manager
 - **Exploitation Phase:** code reviewer
 
 ### Frequency
+
 - **Development Phase:** One-time setup
 - **Exploitation Phase:**
   - Code review: on every PR (mandatory before merge)
@@ -140,11 +160,13 @@
   - PR template review: quarterly
 
 ### Validation
+
 - Periodically verify that:
   - Branch protection rules remain enabled
   - Merges occur only after CI and reviews pass
 
 ### Failure Handling
+
 - If merging bypasses security checks:
   - Flag immediately
   - Restore branch protection rules
@@ -155,6 +177,7 @@
 ## 4. Authentication Integration Hardening
 
 ### Mitigation Measures
+
 - Centralize authentication logic and do not trust frontend-provided identity or role information.
 - Explicitly validate authentication claims from the university identity provider.
 - Document authentication assumptions in code and documentation.
@@ -163,6 +186,7 @@
 ### Actions
 
 #### Development Phase
+
 - [ ] Design and implement centralized authentication logic.
 - [ ] Add tests for:
   - [ ] Missing or invalid authentication tokens
@@ -171,15 +195,18 @@
 - [ ] Document authentication assumptions and architecture.
 
 #### Exploitation Phase
+
 - [ ] Review authentication logic during code reviews.
 - [ ] Maintain and update authentication tests.
 - [ ] Monitor and address authentication-related issues.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** code reviewer
 
 ### Frequency
+
 - **Development Phase:** One-time implementation
 - **Exploitation Phase:**
   - Code review for auth changes: on every auth-related PR
@@ -188,10 +215,12 @@
   - Test coverage verification: before each release
 
 ### Validation
+
 - Reviews that validate test coverage for authentication logic.
 - Automated tests must cover key failure cases.
 
 ### Failure Handling
+
 - If authentication or authorization failures are discovered:
   - Treat as high priority.
   - Fix immediately with regression tests.
@@ -201,6 +230,7 @@
 ## 5. Periodic Manual Security Review
 
 ### Mitigation Measures
+
 - Schedule periodic manual reviews focusing on:
   - Authorization logic
   - Newly added endpoints
@@ -210,6 +240,7 @@
 ### Actions
 
 #### Development Phase
+
 - [ ] Create a security review checklist covering:
   - [ ] Authorization logic
   - [ ] Authentication integration
@@ -218,15 +249,18 @@
 - [ ] Define review schedule and procedures.
 
 #### Exploitation Phase
+
 - [ ] Conduct manual security reviews once per semester or before major releases.
 - [ ] Document findings and create remediation issues.
 - [ ] Track and verify issue resolution.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** lead dev
 
 ### Frequency
+
 - **Development Phase:** One-time setup
 - **Exploitation Phase:**
   - Manual security reviews: twice per year (February & August)
@@ -235,10 +269,12 @@
   - Issue resolution: according to severity (critical: 1 week, high: 1 month)
 
 ### Validation
+
 - Produce a short summary report of findings after each review.
 - Track remediation via issues.
 
 ### Failure Handling
+
 - If significant issues are identified:
   - Address before additional releases
   - Update test coverage and documentation as needed
@@ -248,9 +284,11 @@
 ## 6. Container Security (OpenShift Deployment)
 
 ### Objective
+
 Reduce the risk of vulnerabilities and misconfigurations in container images deployed on the OpenShift platform, within the responsibility boundaries of the application development team.
 
 ### Mitigation Measures
+
 - Use minimal and trusted base images for all application containers.
 - Avoid including unnecessary packages, tools, or debugging utilities in container images.
 - Ensure containers do not require root privileges and are compatible with OpenShift Security Context Constraints (SCCs).
@@ -260,6 +298,7 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 ### Actions
 
 #### Development Phase
+
 - [ ] Review and document the base images used for backend and frontend containers.
 - [ ] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`).
 - [ ] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent).
@@ -267,17 +306,20 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 - [ ] Test containers under OpenShift Security Context Constraints.
 
 #### Exploitation Phase
+
 - [ ] Monitor container scan results on each build.
 - [ ] Update base images when vulnerabilities are detected.
 - [ ] Verify containers run successfully in OpenShift environment.
 - [ ] Periodically review and update container configurations.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** code reviewer
 - **Out of scope:** OpenShift cluster configuration and runtime security enforcement
 
 ### Frequency
+
 - **Development Phase:** One-time setup
 - **Exploitation Phase:**
   - Container scans: on every image build (automated)
@@ -287,12 +329,14 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
   - Configuration review: quarterly
 
 ### Validation
+
 - Verify that container images build and run successfully under OpenShift SCC constraints.
 - Review CI logs to confirm container scans are executed on each build.
 - Periodically review scan reports for unresolved high or critical vulnerabilities.
 - Confirm that no secrets are present in container images or Dockerfiles.
 
 ### Failure Handling
+
 - If critical vulnerabilities are detected in a container image:
   - Block the release until the issue is resolved or mitigated.
   - Update base images or dependencies as required.
@@ -305,9 +349,11 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 ## 7. Security Documentation
 
 ### Objective
+
 Maintain comprehensive and up-to-date security documentation to ensure compliance with security requirements, facilitate knowledge transfer, and support incident response.
 
 ### Mitigation Measures
+
 - Document all security-related procedures, architectures, and processes.
 - Keep documentation current and accessible to team members.
 - Document compliance with legal, regulatory, and contractual security requirements.
@@ -352,6 +398,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 ### Actions
 
 #### Development Phase
+
 - [x] Create documentation structure and templates.
 - [x] Document current authentication/authorization architecture.
 - [ ] Create incident response procedure document.
@@ -361,6 +408,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 - [ ] Establish documentation ownership and review schedule.
 
 #### Exploitation Phase
+
 - [ ] Update documentation when changes occur:
   - [ ] Authentication/authorization modifications
   - [ ] New third-party dependencies
@@ -374,10 +422,12 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 - [ ] Update documentation after each security incident or major change.
 
 ### Responsibility
+
 - **Development Phase:** lead dev
 - **Exploitation Phase:** project manager
 
 ### Frequency
+
 - **Development Phase:** One-time creation
 - **Exploitation Phase:**
   - Documentation updates: within 1 week of relevant changes
@@ -387,6 +437,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
   - Compliance documentation: before each major release
 
 ### Validation
+
 - Verify documentation reflects current implementation.
 - Ensure new team members can understand security procedures from documentation.
 - Confirm all required documentation items are present and current.
@@ -394,6 +445,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 - Check that third-party list is complete and up-to-date.
 
 ### Failure Handling
+
 - If documentation is outdated or incomplete:
   - Schedule immediate update session.
   - Assign responsibility for specific sections.
