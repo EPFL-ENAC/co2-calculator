@@ -10,7 +10,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'filesUploaded'): void;
+  (e: 'filesUploaded', filePaths: string[]): void;
 }>();
 const showDialog = ref<boolean>(false);
 watch(
@@ -30,8 +30,9 @@ const uploadFiles = async () => {
   if (!selectedFiles.value) return;
   isUploading.value = true;
   try {
-    await filesStore.uploadTempFiles(selectedFiles.value);
-    emit('filesUploaded');
+    const uploadedFiles = await filesStore.uploadTempFiles(selectedFiles.value);
+    const filePaths = uploadedFiles.map((file) => file.path);
+    emit('filesUploaded', filePaths);
     showDialog.value = false;
   } catch (error) {
     console.error('Error uploading files:', error);

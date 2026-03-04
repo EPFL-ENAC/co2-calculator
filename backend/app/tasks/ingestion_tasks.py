@@ -28,12 +28,20 @@ async def run_sync_task(
         if not provider_class:
             logger.error(f"Provider class '{provider_class_name}' not found.")
             return
+
+        # Extract config from job.meta if available, otherwise use job.__dict__
+        job_config = {}
+        if hasattr(job, "meta") and job.meta and "config" in job.meta:
+            job_config = job.meta["config"]
+
         provider = provider_class(
-            config={**job.__dict__, "job_id": job.id},
+            config={**job.__dict__, **job_config, "job_id": job.id},
             user=job.user
             if hasattr(job, "user")
             else None,  # User info can be added if needed
         )
+        if hasattr(provider, "set_job_id") and job is not None and job.id is not None:
+            await provider.set_job_id(job.id)
         # Use job.meta as filters if present, else fallback to provided filters
         filters_to_use = (
             job.meta if hasattr(job, "meta") and job.meta else (filters or {})
@@ -41,19 +49,25 @@ async def run_sync_task(
         if not job.id:
             logger.error("Job ID is missing in the job record.")
             return
-        # Ensure job_id is set
-        await provider.set_job_id(job.id)
         # Run ingestion
-        result = await provider.ingest(filters_to_use)
+        try:
+            result = await provider.ingest(filters_to_use)
+            # Update module's last_sync_status
+            await provider._update_job(
+                status_code=result["status_code"],
+                status_message=result["status_message"],
+                extra_metadata=result.get("data", {}),
+            )
 
-        # Update module's last_sync_status
-        await provider._update_job(
-            status_code=result["status_code"],
-            status_message=result["status_message"],
-            extra_metadata=result.get("data", {}),
-        )
-
-        logger.info("Sync completed successfully ")
+            logger.info("Sync completed successfully ")
+        except Exception as e:
+            logger.error(f"Sync failed for job ID {job.id}: {str(e)}")
+            await provider._update_job(
+                status_code=IngestionStatus.FAILED,
+                status_message=str(e),
+                extra_metadata={"message": "run_sync_task failure"},
+            )
+            raise  # propagate exception
 
 
 # @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)

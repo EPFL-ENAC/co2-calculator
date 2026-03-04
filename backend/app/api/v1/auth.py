@@ -17,7 +17,7 @@ from app.core.security import (
     create_refresh_token,
     decode_jwt,
 )
-from app.models.user import RoleName
+from app.models.user import UserProvider
 from app.providers.role_provider import get_role_provider
 from app.schemas.user import UserRead
 from app.services.user_service import UserService
@@ -43,7 +43,7 @@ def _set_auth_cookies(
     response: Response,
     sub: str,
     email: str,
-    user_id: str,
+    user_id: int,
 ) -> None:
     """
     Helper function to create and set authentication cookies.
@@ -96,7 +96,7 @@ def _set_auth_cookies(
     "/login-test",
 )
 async def login_test(
-    role: str = RoleName.CO2_USER_STD.value,
+    role: str = "co2.user.std",
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -115,21 +115,20 @@ async def login_test(
     sanitized_role = role.replace("\r\n", "").replace("\n", "")
 
     # Fetch roles using configured role provider
-    provider = "test"
-    role_provider = get_role_provider(provider)
+    role_provider = get_role_provider(UserProvider.TEST)
     user_info = {
         "requested_role": sanitized_role,
         "email": f"testuser_{sanitized_role}@example.org",
         "sub": f"testuser_{sanitized_role}_sub",
     }
-    user_id = role_provider.get_user_id(user_info)
+    code = role_provider.get_user_id(user_info)
     roles = await role_provider.get_roles(user_info)
 
     logger.info(
         "Test User info",
         extra={
             "email": user_info.get("email"),
-            "has_user_id": bool(user_id),
+            "has_user_id": bool(code),
             "role": sanitized_role,
         },
     )
@@ -142,11 +141,12 @@ async def login_test(
 
     # Get or create user
     user = await UserService(db).upsert_user(
+        id=None,
         email=email,
-        user_id=user_id,
+        provider_code=code,
         display_name=f"Test User: {sanitized_role}",
         roles=roles,
-        provider=provider,
+        provider=UserProvider.TEST,
     )
 
     # Create response
@@ -154,7 +154,11 @@ async def login_test(
         url=settings.FRONTEND_URL + "/",
         status_code=status.HTTP_302_FOUND,
     )
-
+    if user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing",
+        )
     _set_auth_cookies(
         response=response,
         sub=user_info.get("sub", ""),
@@ -227,25 +231,29 @@ async def auth_callback(
 
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        user_id = role_provider.get_user_id(user_info)
-        roles = await role_provider.get_roles(user_info)
+        provider_code = role_provider.get_user_id(user_info)
+        # fetch user and roles?
+        provider_user = await role_provider.get_user_by_user_id(provider_code)
 
         logger.info(
             "User info retrieved from OAuth2",
             extra={
-                "email": email,
-                "display_name": display_name,
-                "has_user_id": bool(user_id),
-                "roles_count": len(roles),
+                "email": provider_user.get("email", email),
+                "function": provider_user.get("function", None),
+                "display_name": provider_user.get("display_name", display_name),
+                "has_user_id": bool(provider_code),
+                "roles_count": len(provider_user.get("roles", [])),
             },
         )
 
         # Get or create user
         user = await UserService(db).upsert_user(
-            email=email,
-            display_name=display_name,
-            user_id=user_id,
-            roles=roles,
+            id=None,
+            email=provider_user.get("email", email),
+            provider_code=provider_user.get("code", provider_code),
+            display_name=provider_user.get("display_name", display_name),
+            roles=provider_user.get("roles", []),
+            function=provider_user.get("function", None),
             provider=role_provider.type,
         )
 
@@ -254,7 +262,11 @@ async def auth_callback(
             url=settings.FRONTEND_URL + "/",
             status_code=status.HTTP_302_FOUND,
         )
-
+        if user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID missing",
+            )
         _set_auth_cookies(
             response=response,
             sub=user_info.get("sub", ""),
@@ -301,9 +313,7 @@ async def get_me(
     """
     Get current authenticated user information.
 
-    Returns user details including id, email, roles, and calculated permissions.
-    Permissions are calculated dynamically from user roles using
-    calculate_user_permissions().
+    Returns user details including id, email, roles.
     Requires valid auth_token cookie.
     Refreshes roles from provider on each call.
     """
@@ -331,71 +341,22 @@ async def get_me(
             )
 
         # Get user from database
-        user = await UserService(db).get_by_id(user_id)
+        user = await UserService(db).get_by_id(id=user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
             )
 
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive",
-            )
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User email missing",
             )
 
-        # Refresh roles from provider
-        role_provider = get_role_provider(user.provider)
-        # Check it is a test user in DEBUG mode
-        if settings.DEBUG and user.email.startswith("testuser_"):
-            role_provider = get_role_provider("test")
+        # create an issue background to refresh roles periodically? cf #334
 
-        fresh_roles = await role_provider.get_roles_by_user_id(user.id)
-
-        if fresh_roles != user.roles:
-            user = await UserService(db).upsert_user(
-                email=user.email,
-                display_name=user.display_name,
-                user_id=user.id,
-                roles=fresh_roles,
-                stop_recursion=False,
-                provider=role_provider.type,
-            )
-            logger.info(
-                "Refreshed user roles",
-                extra={"user_id": user.id, "roles_count": len(fresh_roles)},
-            )
-        else:
-            user = await UserService(db).get_by_id(user.id)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found after refresh",
-                )
-
-        # Create UserRead instance - the @computed_field will automatically
-        # calculate permissions when serialized using calculate_user_permissions()
-        user_read = UserRead.model_validate(user)
-
-        # Verify permissions are calculated by accessing the computed field
-        # The computed field calls calculate_permissions() which internally
-        # calls calculate_user_permissions()
-        # Access via model_dump to get the actual dict value for type checking
-        permissions_dict = user_read.model_dump().get("permissions", {})
-
-        logger.debug(
-            "Returning user with calculated permissions",
-            extra={
-                "user_id": user.id,
-                "permissions_count": len(permissions_dict),
-                "roles_count": len(user.roles),
-            },
-        )
+        user_read = UserRead.from_orm(user)
         return user_read
 
     except HTTPException:
@@ -450,18 +411,20 @@ async def refresh_token(
             )
 
         user = await UserService(db).get_by_id(user_id)
-
-        # Verify user still exists and is active
-        if not user or not user.is_active:
+        if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
+                detail="User not found",
             )
-
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User email missing",
+            )
+        if user.id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User ID missing",
             )
         # Set new tokens
         _set_auth_cookies(
@@ -471,7 +434,7 @@ async def refresh_token(
             email=user.email,
         )
 
-        logger.info("Token refreshed successfully", extra={"user_id": user_id})
+        logger.info("Token refreshed successfully", extra={"user_id": user.id})
         return {"message": "Token refreshed successfully"}
 
     except HTTPException:

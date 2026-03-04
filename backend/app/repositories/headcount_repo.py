@@ -8,8 +8,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionMethod
 from app.models.headcount import HeadCount, HeadCountCreate, HeadCountUpdate
-from app.schemas.equipment import SubmoduleResponse, SubmoduleSummary
+from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 
 logger = get_logger(__name__)
 
@@ -109,7 +111,7 @@ class HeadCountRepository:
         self.session = session
 
     async def get_module_stats(
-        self, unit_id: str, year: int, aggregate_by: str = "submodule"
+        self, unit_id: int, year: int, aggregate_by: str = "submodule"
     ) -> Dict[str, float]:
         """Aggregate headcount data by submodule or function."""
         group_field = getattr(HeadCount, aggregate_by)
@@ -141,7 +143,7 @@ class HeadCountRepository:
         return aggregation
 
     async def create_headcount(
-        self, data: HeadCountCreate, provider_source: str, user_id: str
+        self, data: HeadCountCreate, provider_source: IngestionMethod, user_id: int
     ) -> HeadCount:
         """Create a new headcount record."""
         # 1. Convert Input Model to Table Model
@@ -154,7 +156,7 @@ class HeadCountRepository:
         )
 
         # 2. Add System-Determined Fields
-        db_obj.provider = provider_source  # e.g., "csv_upload"
+        db_obj.provider_source = provider_source  # e.g., "csv_upload"
         db_obj.created_by = user_id
         db_obj.updated_by = user_id
 
@@ -165,7 +167,7 @@ class HeadCountRepository:
         return db_obj
 
     async def update_headcount(
-        self, headcount_id: int, data: HeadCountUpdate, user_id: str
+        self, headcount_id: int, data: HeadCountUpdate, user_id: int
     ) -> Optional[HeadCount]:
         """Update an existing headcount record."""
         # 1. Fetch the existing record
@@ -277,8 +279,8 @@ class HeadCountRepository:
         return list(result.scalars().all())
 
     async def get_summary_by_submodule(
-        self, unit_id: str, year: int
-    ) -> Dict[str, Dict[str, Any]]:
+        self, unit_id: int, year: int
+    ) -> Dict[int, Dict[str, Any]]:
         """
         Get aggregated summary statistics grouped by submodule.
 
@@ -314,7 +316,7 @@ class HeadCountRepository:
         rows = result.all()
 
         # Convert to dict
-        summary: Dict[str, Dict[str, Any]] = {}
+        summary: Dict[int, Dict[str, Any]] = {}
         for submodule, total_items, annual_fte in rows:
             summary[submodule] = {
                 "total_items": int(total_items),
@@ -329,7 +331,7 @@ class HeadCountRepository:
 
     async def get_submodule_data(
         self,
-        unit_id: str,
+        unit_id: int,
         year: int,
         submodule_key: str,
         limit: int,
@@ -380,8 +382,7 @@ class HeadCountRepository:
         items = list(result.scalars().all())
         count = len(items)
         response = SubmoduleResponse(
-            id=submodule_key,
-            name=submodule_key,
+            id=DataEntryTypeEnum[submodule_key].value,
             count=count,
             items=items,
             summary=SubmoduleSummary(
@@ -401,7 +402,7 @@ class HeadCountRepository:
         return result.scalar_one_or_none()
 
     async def get_by_unit_and_date(
-        self, unit_id: str, date: str
+        self, unit_id: int, date: str
     ) -> Optional[HeadCount]:
         """Get headcount record by unit_id and date."""
         statement = select(HeadCount).where(

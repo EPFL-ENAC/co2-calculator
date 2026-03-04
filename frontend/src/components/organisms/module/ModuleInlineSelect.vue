@@ -20,6 +20,7 @@
       hide-bottom-space
       class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
+      :disable="props.disable"
       @update:model-value="onChange"
     />
   </div>
@@ -38,30 +39,51 @@ interface ModuleRow {
   [key: string]: any;
 }
 
+type TableViewColumnSubset = {
+  name: string;
+  label: string;
+  field: string;
+  optionsId?: string;
+};
+
 type CommonProps = {
   row: ModuleRow;
   fieldId: string;
-
-  unitId: string;
+  optionsId: string;
+  cols: TableViewColumnSubset[];
+  unitId: number;
   year: string | number;
+  disable?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
+const isClass = computed(() => props.optionsId === 'kind');
+const isSubClass = computed(() => props.optionsId === 'subkind');
 
-const isClass = computed(() => props.fieldId === 'class');
-const isSubClass = computed(() => props.fieldId === 'sub_class');
+const kindFieldId = computed(() => {
+  const kindField = props.cols.find((f) => f.optionsId === 'kind');
+  return kindField ? kindField.field : null;
+});
+
+const subkindFieldId = computed(() => {
+  const subkindField = props.cols.find((f) => f.optionsId === 'subkind');
+  return subkindField ? subkindField.field : null;
+});
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'));
+  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'), {
+    classFieldId: kindFieldId.value,
+    subClassFieldId: subkindFieldId.value,
+  });
 
-const classOptions = computed(() => dynamicOptions['class'] ?? []);
-const subClassOptions = computed(() => dynamicOptions['sub_class'] ?? []);
+const classOptions = computed(() => dynamicOptions['kind'] ?? []);
+const subClassOptions = computed(() => dynamicOptions['subkind'] ?? []);
 
-const options = computed(() =>
-  isClass.value ? classOptions.value : subClassOptions.value,
-);
+const options = computed(() => {
+  return isClass.value ? classOptions.value : subClassOptions.value;
+});
 
 const model = computed({
   get() {

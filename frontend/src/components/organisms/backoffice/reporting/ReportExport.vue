@@ -21,7 +21,7 @@ interface UnitData {
     in_progress: number;
     default: number;
   };
-  unit: string;
+  unit: number;
   affiliation: string;
   principal_user: string;
   last_update: string;

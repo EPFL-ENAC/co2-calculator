@@ -8,47 +8,42 @@ import { nOrDash } from 'src/utils/number';
 const LOCALE_COOKIE_KEY = 'locale';
 
 export type MessageLanguages = keyof typeof messages;
-// Type-define 'en-US' as the master schema for the resource
+
+// 1. Define the schema
 export type MessageSchema = (typeof messages)['en-US'];
 
-// See https://vue-i18n.intlify.dev/guide/advanced/typescript.html#global-resource-schema-type-definition
-
 declare module 'vue-i18n' {
-  // define the locale messages schema
-  export interface DefineLocaleMessage extends MessageSchema {
-    title: string;
+  export interface DefineLocaleMessage {
+    [key: string]: string | DefineLocaleMessage;
   }
-
-  // define the datetime format schema
   export interface DefineDateTimeFormat {
     short: Intl.DateTimeFormatOptions;
     long: Intl.DateTimeFormatOptions;
   }
 
-  // // define the number format schema
   export interface DefineNumberFormat {
-    currency: Intl.NumberFormat;
-    decimal: Intl.NumberFormat;
-    percent: Intl.NumberFormat;
+    currency: Intl.NumberFormatOptions;
+    decimal: Intl.NumberFormatOptions;
+    percent: Intl.NumberFormatOptions;
   }
 }
 
-const defaultFormat = {
+const defaultFormat: { [key: string]: Intl.NumberFormatOptions } = {
   currency: {
-    style: 'currency' as const,
+    style: 'currency',
     currency: 'CHF',
-    notation: 'standard' as const,
+    notation: 'standard',
     useGrouping: true,
-    currencyDisplay: 'symbol' as const,
+    currencyDisplay: 'symbol',
   },
   decimal: {
-    style: 'decimal' as const,
+    style: 'decimal',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
     useGrouping: true,
   },
   percent: {
-    style: 'percent' as const,
+    style: 'percent',
     useGrouping: false,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,

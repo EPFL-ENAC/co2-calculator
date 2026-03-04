@@ -6,7 +6,7 @@ import { api } from 'src/api/http';
 export const WORKSPACE_DEFAULT_YEAR = 2025;
 
 export interface Unit {
-  id: string;
+  id: number;
   name: string;
   principal_user_id: string;
   principal_user_function: string;
@@ -24,7 +24,7 @@ interface YearResult {
 }
 
 interface UnitResults {
-  id: string;
+  id: number;
   name: string;
   updated_at: number;
   years: YearResult[];
@@ -34,7 +34,7 @@ interface SelectedParams {
   year: number;
   unit: string; // unit id-name string
 }
-export interface Inventory {
+export interface CarbonReport {
   id: number;
   unit_id: string;
   year: number;
@@ -55,54 +55,55 @@ export const useWorkspaceStore = defineStore(
     const unitErrors = ref<Error[]>([]);
     const unitResultsErrors = ref<Error[]>([]);
 
-    // --- Inventory logic ---
-    const inventories = ref<Inventory[]>([]); // backend inventory objects
-    const inventoriesLoading = ref(false);
-    const inventoriesError = ref<Error | null>(null);
-    const selectedInventory = ref<Inventory | null>(null);
-
-    // Fetch all inventories for a unit
-    async function fetchInventoriesForUnit(unitId: string) {
+    // --- CarbonReport logic ---
+    const carbonReports = ref<CarbonReport[]>([]); // backend carbon reports objects
+    const carbonReportsLoading = ref(false);
+    const carbonReportsError = ref<Error | null>(null);
+    const selectedCarbonReport = ref<CarbonReport | null>(null);
+    // Fetch all carbon reports for a unit
+    async function fetchCarbonReportsForUnit(unitId: number) {
       try {
-        inventoriesLoading.value = true;
-        inventoriesError.value = null;
-        inventories.value = await api.get(`inventories/unit/${unitId}/`).json();
+        carbonReportsLoading.value = true;
+        carbonReportsError.value = null;
+        carbonReports.value = await api
+          .get(`carbon-reports/unit/${unitId}/`)
+          .json();
       } catch (error) {
-        inventoriesError.value =
+        carbonReportsError.value =
           error instanceof Error
             ? error
-            : new Error('Failed to fetch inventories');
-        inventories.value = [];
+            : new Error('Failed to fetch carbon reports for unit');
+        carbonReports.value = [];
       } finally {
-        inventoriesLoading.value = false;
+        carbonReportsLoading.value = false;
       }
     }
 
-    // Fetch inventory for a unit of a given year
+    // Fetch carbon report for a unit of a given year
     // /unit/{unit_id}/year/{year}/
-    async function fetchInventoryForUnitYear(unitId: string, year: number) {
+    async function fetchCarbonReportForUnitYear(unitId: number, year: number) {
       try {
-        inventoriesLoading.value = true;
-        inventoriesError.value = null;
-        const inv: Inventory | null = await api
-          .get(`inventories/unit/${unitId}/year/${year}/`)
+        carbonReportsLoading.value = true;
+        carbonReportsError.value = null;
+        const inv: CarbonReport | null = await api
+          .get(`carbon-reports/unit/${unitId}/year/${year}/`)
           .json();
         return inv;
       } catch (error) {
-        inventoriesError.value =
+        carbonReportsError.value =
           error instanceof Error
             ? error
-            : new Error('Failed to fetch inventory for year');
+            : new Error('Failed to fetch carbon report for year');
         return null;
       } finally {
-        inventoriesLoading.value = false;
+        carbonReportsLoading.value = false;
       }
     }
 
-    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to current year or WORKSPACE_DEFAULT_YEAR)
-    const availableInventoryYears = computed(() => {
+    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to N-1)
+    const availableCarbonReportYears = computed(() => {
       const currentYear = new Date().getFullYear();
-      const yearsInDb = inventories.value.map((inv) => inv.year);
+      const yearsInDb = carbonReports.value.map((inv) => inv.year);
       // Find the minimum year in DB, but never less than WORKSPACE_DEFAULT_YEAR
       const minDbYear =
         yearsInDb.length > 0 ? Math.min(...yearsInDb) : WORKSPACE_DEFAULT_YEAR;
@@ -115,55 +116,58 @@ export const useWorkspaceStore = defineStore(
       return years;
     });
 
-    // Helper: does inventory exist for year?
-    function inventoryForYear(year: number) {
-      return inventories.value.find((inv) => inv.year === year) || null;
+    // Helper: does carbon report exist for year?
+    function carbonReportForYear(year: number) {
+      return carbonReports.value.find((inv) => inv.year === year) || null;
     }
 
-    // Create inventory for a unit/year
-    async function createInventory(
-      unitId: string,
+    // Create carbon report for a unit/year
+    async function createCarbonReport(
+      unitId: number,
       year: number,
-    ): Promise<Inventory> {
+    ): Promise<CarbonReport> {
       try {
-        inventoriesLoading.value = true;
-        inventoriesError.value = null;
-        const inv: Inventory = await api
-          .post(`inventories/`, { json: { unit_id: unitId, year } })
+        carbonReportsLoading.value = true;
+        carbonReportsError.value = null;
+        const inv: CarbonReport = await api
+          .post(`carbon-reports/`, { json: { unit_id: unitId, year } })
           .json();
-        inventories.value.push(inv);
+        carbonReports.value.push(inv);
         return inv;
       } catch (error) {
-        inventoriesError.value =
+        carbonReportsError.value =
           error instanceof Error
             ? error
-            : new Error('Failed to create inventory');
-        throw inventoriesError.value;
+            : new Error('Failed to create carbon report');
+        throw carbonReportsError.value;
       } finally {
-        inventoriesLoading.value = false;
+        carbonReportsLoading.value = false;
       }
     }
 
-    // Set selected inventory by year (create if needed)
-    async function selectInventoryForYear(unitId: string, year: number) {
-      let inv: Inventory | null = await fetchInventoryForUnitYear(unitId, year);
+    // Set selected carbon report by year (create if needed)
+    async function selectCarbonReportForYear(unitId: number, year: number) {
+      let inv: CarbonReport | null = await fetchCarbonReportForUnitYear(
+        unitId,
+        year,
+      );
       if (!inv) {
-        inv = await createInventory(unitId, year);
+        inv = await createCarbonReport(unitId, year);
       }
-      selectedInventory.value = inv;
+      selectedCarbonReport.value = inv;
       return inv;
     }
 
-    // Set selected inventory by year (create if needed)
-    async function selectWithoutFetchingInventoryForYear(
-      unitId: string,
+    // Set selected carbon report by year (create if needed)
+    async function selectWithoutFetchingCarbonReportForYear(
+      unitId: number,
       year: number,
     ) {
-      let inv = await inventoryForYear(year);
+      let inv = await carbonReportForYear(year);
       if (!inv) {
-        inv = await createInventory(unitId, year);
+        inv = await createCarbonReport(unitId, year);
       }
-      selectedInventory.value = inv;
+      selectedCarbonReport.value = inv;
       return inv;
     }
 
@@ -187,7 +191,7 @@ export const useWorkspaceStore = defineStore(
       return unitResults.value.years.find((y) => y.year === selectedYear.value);
     });
 
-    function getLatestYear(unitId: string): number | null {
+    function getLatestYear(unitId: number): number | null {
       if (
         !unitResults.value ||
         unitResults.value.id !== unitId ||
@@ -217,7 +221,7 @@ export const useWorkspaceStore = defineStore(
       }
     }
 
-    async function getUnit(id: string) {
+    async function getUnit(id: number) {
       try {
         unitLoading.value = true;
         unitErrors.value = [];
@@ -234,7 +238,7 @@ export const useWorkspaceStore = defineStore(
     }
 
     async function getUnitResults(
-      id: string,
+      id: number,
       options?: {
         offset?: number;
         limit?: number;
@@ -290,17 +294,17 @@ export const useWorkspaceStore = defineStore(
       setYear,
       setSelectedParams,
       reset,
-      // Inventory logic
-      inventories,
-      inventoriesLoading,
-      inventoriesError,
-      selectedInventory,
-      fetchInventoriesForUnit,
-      availableInventoryYears,
-      inventoryForYear,
-      createInventory,
-      selectInventoryForYear,
-      selectWithoutFetchingInventoryForYear,
+      // CarbonReport logic
+      carbonReports,
+      carbonReportsLoading,
+      carbonReportsError,
+      selectedCarbonReport,
+      fetchCarbonReportsForUnit,
+      availableCarbonReportYears,
+      carbonReportForYear,
+      createCarbonReport,
+      selectCarbonReportForYear,
+      selectWithoutFetchingCarbonReportForYear,
     };
   },
   {

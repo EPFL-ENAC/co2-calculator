@@ -1,3 +1,4 @@
+# codeql[py/unused-global-variable]
 """${message}
 
 Revision ID: ${up_revision}
@@ -5,12 +6,20 @@ Revises: ${down_revision | comma,n}
 Create Date: ${create_date}
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 import sqlmodel
 
 from alembic import op
+
+__all__ = [
+    "revision",
+    "down_revision",
+    "branch_labels",
+    "depends_on",
+]
 
 ${imports if imports else ""}
 

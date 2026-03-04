@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/{unit_id}/evolution-over-time")
 async def get_professional_travel_evolution_over_time(
-    unit_id: str,
+    unit_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> List[dict[str, Any]]:
@@ -53,7 +53,7 @@ async def get_professional_travel_evolution_over_time(
 
 @router.get("/{unit_id}/{year}/stats-by-class")
 async def get_professional_travel_stats_by_class(
-    unit_id: str,
+    unit_id: int,
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

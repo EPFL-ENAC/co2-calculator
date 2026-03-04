@@ -6,7 +6,8 @@ async function validateUnit() {
   const routeUnit = String(workspaceStore.selectedParams?.unit || '');
   const unitIdFromRoute = routeUnit.split('-')[0];
   const validUnit = workspaceStore.units.find(
-    (unit) => unit.id === unitIdFromRoute || unit.name === routeUnit,
+    (unit) =>
+      unit.id === parseInt(unitIdFromRoute, 10) || unit.name === routeUnit,
   );
 
   if (validUnit) {
@@ -30,21 +31,21 @@ export default async function validateUnitGuard(to) {
   const workspaceStore = useWorkspaceStore();
   await workspaceStore.getUnits();
   const response = await validateUnit();
-  // if unit is valid retrieve inventory!
-  let inventoryId = null;
+  // if unit is valid retrieve carbon report  !
+  let carbonReportId = null;
   if (response) {
-    await workspaceStore.selectInventoryForYear(
+    await workspaceStore.selectCarbonReportForYear(
       workspaceStore.selectedUnit.id,
       workspaceStore.selectedYear,
     );
-    inventoryId = workspaceStore.selectedInventory?.id;
-    if (inventoryId) {
+    carbonReportId = workspaceStore.selectedCarbonReport?.id;
+    if (carbonReportId) {
       const timelineStore = useTimelineStore();
-      await timelineStore.fetchModuleStates(inventoryId);
+      await timelineStore.fetchModuleStates(carbonReportId);
     }
   }
   // then we can retrieve modules
-  if (!response && !inventoryId) {
+  if (!response && !carbonReportId) {
     return {
       name: 'workspace-setup',
       params: {

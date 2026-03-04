@@ -6,7 +6,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   affiliations: string[];
-  units: string[];
+  units: number[];
 }>();
 
 const emit = defineEmits<{
@@ -14,7 +14,7 @@ const emit = defineEmits<{
     e: 'update:filters',
     filters: {
       affiliation: string[];
-      units: string[];
+      units: number[];
       completion: string;
       outlier_values: boolean | null;
       search: string;
@@ -23,7 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const affiliation = ref<string[]>([]);
-const currentUnits = ref<string[]>([]);
+const currentUnits = ref<number[]>([]);
 const completion = ref('');
 
 const affiliationOptions = computed(() =>
@@ -31,10 +31,10 @@ const affiliationOptions = computed(() =>
 );
 
 const unitOptions = computed(() =>
-  props.units.map((unit) => ({ label: unit, value: unit })),
+  props.units.map((unit) => ({ label: String(unit), value: unit })),
 );
 
-const filteredUnitOptions = ref<Array<{ label: string; value: string }>>([]);
+const filteredUnitOptions = ref<Array<{ label: string; value: number }>>([]);
 
 // Initialize filtered options with all options
 watch(

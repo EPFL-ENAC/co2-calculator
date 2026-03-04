@@ -11,36 +11,22 @@
       />
       <!-- module summary -->
       <module-total-result
-        v-if="
-          (
-            [
-              MODULES.EquipmentElectricConsumption,
-              MODULES.MyLab,
-              MODULES.ProfessionalTravel,
-            ] as Module[]
-          ).includes(currentModuleType)
-        "
+        v-if="!forbiddenModules.includes(currentModuleType)"
         :data="totalResult"
         :type="currentModuleType"
         :module-config="currentModuleConfig"
       />
-      <q-card class="container container--pa-none" flat style="padding: 0">
-        <module-charts
-          :type="currentModuleType"
-          :show-evolution-chart="false"
-        />
+      <q-card class="container container--pa-none" flat>
+        <div class="q-px-lg">
+          <module-charts
+            :type="currentModuleType"
+            :show-evolution-chart="false"
+          />
+        </div>
       </q-card>
       <!-- module tables iteration -->
       <module-table-section
-        v-if="
-          (
-            [
-              MODULES.EquipmentElectricConsumption,
-              MODULES.MyLab,
-              MODULES.ProfessionalTravel,
-            ] as Module[]
-          ).includes(currentModuleType)
-        "
+        v-if="!forbiddenModules.includes(currentModuleType)"
         :type="currentModuleType"
         :data="data"
         :loading="loading"
@@ -83,22 +69,22 @@ const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
+const forbiddenModules: Module[] = [
+  MODULES.Infrastructure,
+  MODULES.InternalServices,
+  MODULES.Purchase,
+];
+
 // COMPUTED
 const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);
 const totalResult = computed(() => {
-  if (currentModuleType.value === MODULES.MyLab) {
+  if (currentModuleType.value === MODULES.Headcount) {
     return moduleStore.state.data?.totals?.total_annual_fte;
   }
   return moduleStore.state.data?.totals?.total_tonnes_co2eq;
 });
-
-const AuthorizedModules: Module[] = [
-  MODULES.EquipmentElectricConsumption,
-  MODULES.MyLab,
-  MODULES.ProfessionalTravel,
-];
 
 // ACTIONS
 // get data on mount and when route params change
@@ -106,7 +92,7 @@ const getData = () => {
   if (!currentModuleType.value) return;
   if (
     currentModuleType.value &&
-    !AuthorizedModules.includes(currentModuleType.value)
+    forbiddenModules.includes(currentModuleType.value)
   ) {
     console.warn(
       `ModulePage: No data fetching implemented for module type ${currentModuleType.value}`,
@@ -118,7 +104,7 @@ const getData = () => {
   }
   moduleStore.getModuleTotals(
     currentModuleType.value,
-    String(workspaceStore.selectedUnit?.id),
+    workspaceStore.selectedUnit?.id,
     String(workspaceStore.selectedYear),
   );
 };

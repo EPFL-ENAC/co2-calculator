@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-from asyncio.log import logger
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set
@@ -11,12 +10,15 @@ from joserfc.jwk import OctKey
 from sqlmodel import select
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_ingestion import IngestionStatus
 from app.models.location import Location
 from app.models.user import User
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.professional_travel_service import ProfessionalTravelService
+
+logger = get_logger(__name__)
 
 
 # todo: hard code travel ?

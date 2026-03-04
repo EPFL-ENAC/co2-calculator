@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserProvider
 from app.providers.role_provider import (
     AccredRoleProvider,
     DefaultRoleProvider,
@@ -73,9 +73,11 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(sample_userinfo)
 
         assert len(roles) == 3
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="12345")
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="12345")
         )
         assert roles[2] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
@@ -124,7 +126,9 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
 
     @pytest.mark.asyncio
     async def test_skip_role_without_scope(self):
@@ -140,7 +144,9 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
 
     @pytest.mark.asyncio
     async def test_skip_role_with_invalid_scope_format(self):
@@ -156,7 +162,9 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
 
     @pytest.mark.asyncio
     async def test_parse_role_with_whitespace(self):
@@ -169,7 +177,9 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
 
     @pytest.mark.asyncio
     async def test_parse_multiple_roles_with_different_units(self):
@@ -186,9 +196,11 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 3
-        assert roles[0].on == RoleScope(unit="12345")
-        assert roles[1].on == RoleScope(unit="67890")
-        assert roles[2].on == RoleScope(unit="11111")
+        assert roles[0].on == RoleScope(provider_code="12345")
+        assert roles[1] == Role(
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="67890")
+        )
+        assert roles[2].on == RoleScope(provider_code="11111")
 
 
 # ============================================================================
@@ -244,9 +256,11 @@ class TestAccredRoleProvider:
             roles = await accred_provider.get_roles_by_user_id(sample_user_id)
 
         assert len(roles) == 2
-        assert roles[0] == Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))
+        assert roles[0] == Role(
+            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+        )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="67890")
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="67890")
         )
 
     @pytest.mark.asyncio
@@ -541,7 +555,7 @@ class TestGetRoleProvider:
     def test_get_default_role_provider(self):
         """Test that DefaultRoleProvider is returned for 'default' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = "default"
+            mock_settings.PROVIDER_PLUGIN = UserProvider.DEFAULT
 
             provider = get_role_provider()
 
@@ -550,7 +564,7 @@ class TestGetRoleProvider:
     def test_get_accred_role_provider(self):
         """Test that AccredRoleProvider is returned for 'accred' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = "accred"
+            mock_settings.PROVIDER_PLUGIN = UserProvider.ACCRED
             mock_settings.ACCRED_API_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"

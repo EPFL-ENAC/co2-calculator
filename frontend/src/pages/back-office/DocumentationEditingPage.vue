@@ -15,10 +15,10 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/common.ts',
   },
   {
-    topic: t('documentation_editing_rows_my_lab_topic'),
-    description: t('documentation_editing_rows_my_lab_description'),
+    topic: t('documentation_editing_rows_headcount_topic'),
+    description: t('documentation_editing_rows_headcount_description'),
     githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/my_lab.ts',
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/headcount.ts',
   },
   {
     topic: t('documentation_editing_rows_professional_travel_topic'),

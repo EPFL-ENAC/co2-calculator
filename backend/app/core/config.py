@@ -3,8 +3,10 @@
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.models.user import UserProvider
 
 
 class Settings(BaseSettings):
@@ -153,8 +155,8 @@ class Settings(BaseSettings):
     TABLEAU_MAX_FIELDS: int = 50
 
     # Role Provider Plugin Configuration
-    PROVIDER_PLUGIN: str = Field(
-        default="default",
+    PROVIDER_PLUGIN: UserProvider = Field(
+        default=UserProvider.DEFAULT,
         description=(
             "Role provider plugin to use for fetching user roles. "
             "Options:"
@@ -166,6 +168,24 @@ class Settings(BaseSettings):
             "to fetch authorizations and maps them to roles based on accredunitid."
         ),
     )
+
+    @field_validator("PROVIDER_PLUGIN", mode="before")
+    @classmethod
+    def provider_plugin_coerce(cls, v):
+        if isinstance(v, UserProvider):
+            return v
+        if isinstance(v, int):
+            return UserProvider(v)
+        if isinstance(v, str):
+            try:
+                return UserProvider[v.upper()]
+            except KeyError:
+                # Try by value
+                for member in UserProvider:
+                    if member.name == v.upper() or str(member.value) == v:
+                        return member
+                raise ValueError(f"Invalid provider: {v}")
+        raise ValueError(f"Invalid provider: {v}")
 
     # EPFL Accred API Configuration (for 'accred' role provider)
     ACCRED_API_URL: Optional[str] = Field(
@@ -224,6 +244,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = Field(
         default="http://localhost:9000",
         description="Frontend application URL for OAuth redirects",
+    )
+    FORMULA_VERSION_SHA256_SHORT: str = Field(
+        default="",
+        description="SHA256 short hash of formula (e.g., git commit)",
     )
 
     @computed_field

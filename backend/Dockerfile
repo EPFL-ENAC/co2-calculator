@@ -14,6 +14,11 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies into a Linux-native venv
 RUN uv sync --frozen --no-dev --no-cache --compile-bytecode
 
+# Install OpenTelemetry dependencies
+# https://opentelemetry.io/docs/zero-code/python/troubleshooting/#bootstrap-using-uv
+ENV PATH="/app/.venv/bin:$PATH"
+RUN uv run opentelemetry-bootstrap -a requirements | uv pip install --requirement -
+
 # Copy application source and config only
 COPY app/ app/
 COPY alembic/ alembic/
@@ -40,4 +45,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["opentelemetry-instrument", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

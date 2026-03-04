@@ -3,8 +3,12 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import Column, text
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
+
+from app.models.data_ingestion import IngestionMethod
+from app.models.user import UserProvider
 
 # ==========================================
 # 1. SHARED MIXINS
@@ -31,8 +35,8 @@ class AuditMixin(SQLModel):
         nullable=False,
     )
     # Assuming user IDs are strings (e.g., Keycloak ID or Sciper)
-    created_by: Optional[str] = Field(default=None, index=True)
-    updated_by: Optional[str] = Field(default=None, index=True)
+    created_by: Optional[int] = Field(default=None, index=True)
+    updated_by: Optional[int] = Field(default=None, index=True)
 
 
 # ==========================================
@@ -48,9 +52,7 @@ class HeadCountBase(SQLModel):
 
     date: dt_date = Field(description="Date of headcount from HR files")
 
-    unit_id: str = Field(
-        index=True, max_length=50, description="EPFL unit/department ID"
-    )
+    unit_id: int = Field(index=True, description="EPFL unit/department ID")
     unit_name: str = Field(max_length=255, description="Unit name")
 
     cf: str = Field(max_length=50, description="Cost factor code")
@@ -94,10 +96,21 @@ class HeadCount(HeadCountBase, AuditMixin, table=True):
     # ID: Integer, Primary Key, Auto-Increment (Serial/Identity)
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Provider: Set by system/logic, not by user input directly
-    # Literal["api", "csv", "manual"]
-    provider: Optional[str] = Field(
-        default=None, max_length=50, description="api | csv | manual"
+    provider: UserProvider = Field(
+        default=UserProvider.DEFAULT,
+        sa_column=Column(
+            SAEnum(UserProvider, name="user_provider_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Sync source provider (accred, default, test)",
+    )
+    provider_source: IngestionMethod = Field(
+        default=IngestionMethod.manual,
+        sa_column=Column(
+            SAEnum(IngestionMethod, name="ingestion_method_enum", native_enum=True),
+            nullable=False,
+        ),
+        description="Data ingestion method (manual, csv_upload, api_sync)",
     )
     # valid function_role: "doctoral_assistant",
     # "other", "postdoctoral_researcher", "professor",
@@ -146,7 +159,7 @@ class HeadCountUpdate(SQLModel):
     """
 
     date: Optional[dt_date] = None
-    unit_id: Optional[str] = None
+    unit_id: Optional[int] = None
     unit_name: Optional[str] = None
     cf: Optional[str] = None
     cf_name: Optional[str] = None
@@ -157,7 +170,7 @@ class HeadCountUpdate(SQLModel):
     sciper: Optional[str] = None
     fte: Optional[float] = None
     # We might allow updating the provider manually, or handle it in code
-    provider: Optional[str] = None
+    provider: Optional[UserProvider] = None
     function_role: Optional[str] = None
 
 
@@ -171,6 +184,7 @@ class HeadCountUpdateRequest(BaseModel):
     display_name: Optional[str] = None
     function: Optional[str] = None
     fte: Optional[float] = None
+    provider: Optional[UserProvider] = None
 
 
 # ==========================================
@@ -185,7 +199,7 @@ class HeadCountRead(HeadCountBase, AuditMixin):
     """
 
     id: int
-    provider: Optional[str]
+    provider: Optional[UserProvider] = None
 
 
 class HeadcountItemResponse(SQLModel):
@@ -198,6 +212,9 @@ class HeadcountItemResponse(SQLModel):
     function: Optional[str] = Field(None, description="Function or role")
     sciper: Optional[str] = Field(None, description="Sciper number")
     fte: float = Field(..., description="Full-time equivalent percentage (0.0 to 1.0)")
+    provider: Optional[UserProvider] = Field(
+        None, description="User Provider (accred, default, etc.)"
+    )
 
 
 class HeadCountList(SQLModel):

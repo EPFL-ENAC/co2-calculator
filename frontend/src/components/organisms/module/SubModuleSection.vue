@@ -9,11 +9,7 @@
     <template #header>
       <div class="row flex items-center full-width">
         <div class="col">
-          {{
-            $t(submodule.tableNameKey, {
-              count: submoduleCount || 0,
-            })
-          }}
+          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
         </div>
         <q-icon
           v-if="hasTableTooltip"
@@ -97,7 +93,9 @@ import type {
   ModuleResponse,
   Threshold,
   ConditionalSubmoduleProps,
+  EnumSubmoduleType,
 } from 'src/constant/modules';
+import { enumSubmodule } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 interface Option {
   label: string;
@@ -112,7 +110,7 @@ type CommonProps = {
   loading?: boolean;
   error?: string | null;
   data?: ModuleResponse | null;
-  unitId: string;
+  unitId: number;
   year: string | number;
   threshold: Threshold;
   disable: boolean;
@@ -140,12 +138,13 @@ const canEdit = computed(() => {
 
 const submoduleCount = computed(
   () =>
-    moduleStore.state.data?.submodules?.[props.submodule.id]?.summary
-      ?.total_items || 0,
+    moduleStore.state.data?.data_entry_types_total_items?.[
+      enumSubmodule[props.submodule.id as EnumSubmoduleType]
+    ] || 0,
 );
 
 const item = computed(() => {
-  if (props.moduleType === 'my-lab' && props.submoduleType === 'student') {
+  if (props.moduleType === 'headcount' && props.submoduleType === 'student') {
     return moduleStore.state.dataSubmodule?.[props.submodule.id]?.items[0];
   }
   return null;
@@ -161,12 +160,12 @@ const hasTableTooltip = computed(() => {
 // actions
 
 function submitForm(payload: Record<string, FieldValue>) {
-  // if update! (for my-lab student for instance)
+  // if update! (for headcount student for instance)
   if (item.value && item.value.id) {
     return moduleStore.patchItem(
       props.moduleType,
       props.submoduleType,
-      String(props.unitId),
+      props.unitId,
       String(props.year),
       item.value.id,
       payload,

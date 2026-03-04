@@ -19,12 +19,12 @@ export interface ModuleTotalsResponse {
  * @returns Dictionary with `total` tCO2eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
  */
 export async function getModuleTotals(
-  unitId: string,
+  unitId: number,
   year: number | string,
 ): Promise<ModuleTotalsResponse> {
   const unitEncoded = encodeURIComponent(unitId);
   const yearEncoded = encodeURIComponent(String(year));
-  const path = `modules/${unitEncoded}/${yearEncoded}/totals`;
+  const path = `modules-stats/${unitEncoded}/${yearEncoded}/totals`;
 
   const response = await api.get(path).json<ModuleTotalsResponse>();
   return response;

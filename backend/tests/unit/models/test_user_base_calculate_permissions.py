@@ -21,7 +21,9 @@ class TestUserBaseCalculatePermissions:
     def test_calculate_permissions_with_roles(self):
         """Test calculate_permissions with roles set via property."""
         user_base = UserBase()
-        user_base.roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345"))]
+        user_base.roles = [
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345"))
+        ]
         perms = user_base.calculate_permissions()
         assert "modules.professional_travel" in perms
         assert perms["modules.professional_travel"]["view"] is True
@@ -50,7 +52,7 @@ class TestUserBaseCalculatePermissions:
         user_base = UserBase()
         user_base.roles = [
             Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope()),
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="12345")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")),
         ]
         perms = user_base.calculate_permissions()
         # Should have both backoffice and module permissions

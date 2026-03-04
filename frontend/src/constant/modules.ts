@@ -1,22 +1,37 @@
 export const MODULES = {
-  MyLab: 'my-lab',
+  Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
   Infrastructure: 'infrastructure',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
   InternalServices: 'internal-services',
-  ExternalCloud: 'external-cloud',
+  ExternalCloudAndAI: 'external-cloud-and-ai',
 } as const;
 
 export const MODULES_DESCRIPTIONS = {
-  MyLab: 'my-lab-description',
+  Headcount: 'headcount-description',
   ProfessionalTravel: 'professional-travel-description',
   Infrastructure: 'infrastructure-description',
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
   Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
-  ExternalCloud: 'external-cloud-description',
+  ExternalCloudAndAI: 'external-cloud-and-ai-description',
 } as const;
+
+// TODO: implement something like this
+// export const MODULES: Record<string, string> = {
+//   headcount: 'modules.headcount',
+//   professional_travel: 'modules.professional_travel',
+//   infrastructure: 'modules.infrastructure',
+//   equipment_electric_consumption: 'modules.equipment',
+//   purchase: 'modules.purchase',
+//   internal_services: 'modules.internal_services',
+//   external_cloud_and_ai: 'modules.external_cloud_and_ai',
+//   global_energy: 'modules.global_energy', // if needed
+// };
+
+export type BackendModule = keyof typeof MODULES;
+export type ModulePermission = (typeof MODULES)[BackendModule];
 
 export type Module = (typeof MODULES)[keyof typeof MODULES];
 
@@ -26,6 +41,35 @@ export const SUBMODULE_EQUIPMENT_TYPES = {
   Other: 'other',
 } as const;
 
+export const SUBMODULE_EXTERNAL_CLOUD_TYPES = {
+  external_clouds: 'external_clouds',
+  external_ai: 'external_ai',
+} as const;
+
+export type ExternalCloudSubType =
+  (typeof SUBMODULE_EXTERNAL_CLOUD_TYPES)[keyof typeof SUBMODULE_EXTERNAL_CLOUD_TYPES];
+
+type ExternalCloudProps = {
+  moduleType: typeof MODULES.ExternalCloudAndAI;
+  submoduleType?: ExternalCloudSubType;
+};
+
+export const enumSubmodule = {
+  member: 1,
+  student: 2,
+  // todo replace with equipment types
+  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 9,
+  [SUBMODULE_EQUIPMENT_TYPES.IT]: 10,
+  [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
+  trips: 20,
+  building: 30,
+  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
+  [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
+  energy_mix: 100,
+} as const;
+
+export type EnumSubmoduleType = keyof typeof enumSubmodule;
+
 export type EquipmentElectricConsumptionSubType =
   (typeof SUBMODULE_EQUIPMENT_TYPES)[keyof typeof SUBMODULE_EQUIPMENT_TYPES];
 
@@ -34,7 +78,7 @@ export const SUBMODULE_HEADCOUNT_TYPES = {
   Student: 'student',
 } as const;
 
-// MyLab subtypes are the same as Headcount subtypes
+// Headcount subtypes are the same as Headcount subtypes
 export type HeadcountSubType =
   (typeof SUBMODULE_HEADCOUNT_TYPES)[keyof typeof SUBMODULE_HEADCOUNT_TYPES];
 
@@ -70,8 +114,8 @@ type EquipmentElectricConsumptionProps = {
   submoduleType?: EquipmentElectricConsumptionSubType;
 };
 
-export type MyLabProps = {
-  moduleType: typeof MODULES.MyLab;
+export type HeadcountProps = {
+  moduleType: typeof MODULES.Headcount;
   submoduleType?: HeadcountSubType;
 };
 
@@ -104,21 +148,6 @@ type InternalServicesProps = {
   submoduleType?: InternalServicesSubType;
 };
 
-export const SUBMODULE_EXTERNAL_CLOUD_TYPES = {
-  SaaS: 'saas',
-  IaaS: 'iaas',
-  PaaS: 'paas',
-  Other: 'other',
-} as const;
-
-export type ExternalCloudSubType =
-  (typeof SUBMODULE_EXTERNAL_CLOUD_TYPES)[keyof typeof SUBMODULE_EXTERNAL_CLOUD_TYPES];
-
-type ExternalCloudProps = {
-  moduleType: typeof MODULES.ExternalCloud;
-  submoduleType?: ExternalCloudSubType;
-};
-
 export type AllSubmoduleTypes =
   | EquipmentElectricConsumptionSubType
   | HeadcountSubType
@@ -130,7 +159,7 @@ export type AllSubmoduleTypes =
 
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
-  | MyLabProps
+  | HeadcountProps
   | PurchaseProps
   | InfrastructureProps
   | ProfessionalTravelProps
@@ -160,14 +189,13 @@ export interface ModuleItem {
   name: string;
   class?: string;
   sub_class?: string;
-  act_usage?: number;
-  pas_usage?: number;
+  active_usage_hours?: number;
+  passive_usage_hours?: number;
   act_power?: number;
   pas_power?: number;
   kg_co2eq?: number;
   fte?: number;
   note?: string;
-  display_name?: string;
   position?: string;
   status?: string;
   is_new?: boolean;
@@ -197,23 +225,26 @@ export interface Totals {
 
 export interface ModuleResponse {
   module_type: string;
-  unit: string;
+  unit: number;
   year: string;
+  data_entry_types_total_items: Record<number, number>;
+  carbon_report_module_id: number;
   stats?: Record<string, number>;
   retrieved_at: string;
   submodules: Record<string, Submodule>;
   totals: Totals;
 }
 
+// TODO refactor: delete this vibe coded code and use your brain
 export function getBackendModuleName(frontendModule: Module): string {
   const moduleMap: Record<Module, string> = {
-    [MODULES.MyLab]: 'my_lab',
+    [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
     [MODULES.Infrastructure]: 'infrastructure',
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',
-    [MODULES.ExternalCloud]: 'external_cloud',
+    [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

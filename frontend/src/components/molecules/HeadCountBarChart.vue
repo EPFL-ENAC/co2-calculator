@@ -39,14 +39,14 @@ const props = withDefaults(
 const OVERRIDE = false;
 // Define colors for each key
 const colorMap: Record<string, string> = {
-  professor: colors.value.oliveGreen.dark,
-  scientific_collaborator: colors.value.oliveGreen.light,
-  postdoctoral_researcher: colors.value.oliveGreen.darker,
-  doctoral_assistant: colors.value.oliveGreen.default,
-  trainee: colors.value.oliveGreen.lighter,
-  student: colors.value.limeGreen.default,
-  technical_administrative_staff: colors.value.limeGreen.light,
-  other: colors.value.limeGreen.darker,
+  professor: colors.value.mint.dark,
+  scientific_collaborator: colors.value.mint.light,
+  postdoctoral_researcher: colors.value.mint.darker,
+  doctoral_assistant: colors.value.mint.default,
+  trainee: colors.value.mint.lighter,
+  student: colors.value.mint.default,
+  technical_administrative_staff: colors.value.mint.light,
+  other: colors.value.mint.darker,
 };
 
 const chartOptions = computed<EChartsOption>(() => {

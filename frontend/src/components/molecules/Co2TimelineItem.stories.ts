@@ -43,7 +43,7 @@ export const Default: Story = {
     item: timelineItems[0],
     currentState: MODULE_STATES.Default,
     selected: false,
-    to: '/en/unit/2024/module/my-lab',
+    to: '/en/unit/2024/module/headcount',
   },
 };
 

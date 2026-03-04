@@ -3,6 +3,8 @@ import csv
 from datetime import datetime
 from pathlib import Path
 
+from fastapi import HTTPException
+from fastapi import status as HttpStatus
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -10,6 +12,9 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.headcount import HeadCount
+from app.models.unit import Unit
+from app.models.user import User, UserProvider
+from app.services.unit_service import UnitService
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -129,6 +134,7 @@ async def seed_headcount(session: AsyncSession) -> None:
     with open(csv_path, mode="r", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
         upserted = 0
+        unit_service = UnitService(session)
         for row in reader:
             # Parse fields from CSV, adjust as needed to match your CSV columns
             date = row.get("date")
@@ -138,7 +144,23 @@ async def seed_headcount(session: AsyncSession) -> None:
                 logger.warning(f"Missing date in row: {row}")
                 continue
 
-            unit_id = row.get("unit_id")
+            # Ensure the 'unknown' principal user exists
+            user_stmt = select(User).where(User.provider_code == "unknown")
+            user_result = await session.exec(user_stmt)
+            unknown_user = user_result.one_or_none()
+            if unknown_user is None:
+                unknown_user = User(
+                    provider_code="unknown",
+                    email="unknown@placeholder",
+                    provider=UserProvider.ACCRED,
+                    display_name="Unknown Principal User",
+                )
+                session.add(unknown_user)
+                await session.commit()
+                logger.info("Created placeholder 'unknown' principal user.")
+            # Extract other fields
+
+            unit_provider_code = row.get("unit_id")
             unit_name = row.get("unit_name")
             cf = row.get("cf")
             cf_name = row.get("cf_name")
@@ -149,22 +171,31 @@ async def seed_headcount(session: AsyncSession) -> None:
             sciper = row.get("sciper")
             fte = float(row.get("fte", 0))
             submodule = row.get("submodule")
-            provider = "csv"
+            provider = UserProvider.ACCRED
             if not function:
                 function = "other"
             function_role = get_role_category(function) or "other"
             if submodule == "student" and function_role != "student":
                 function_role = "student"
 
+            # Get unit by provider code to find unit_id
+            unit_stmt = select(Unit).where(
+                Unit.provider_code == unit_provider_code,
+                Unit.provider == UserProvider.ACCRED,
+            )
+            unit_result = await session.exec(unit_stmt)
+            unit = unit_result.one_or_none()
+            unit_id = unit.id if unit else None
+
             # Compose unique filter
-            stmt = select(HeadCount).where(
+            headcount_stmt = select(HeadCount).where(
                 HeadCount.date == date,
                 HeadCount.unit_id == unit_id,
                 HeadCount.cf == cf,
                 HeadCount.sciper == sciper,
             )
-            result = await session.exec(stmt)
-            existing = result.first()
+            headcount_result = await session.exec(headcount_stmt)
+            existing = headcount_result.first()
 
             if existing:
                 # Update all fields
@@ -179,10 +210,32 @@ async def seed_headcount(session: AsyncSession) -> None:
                 existing.provider = provider
                 existing.function_role = function_role or "other"
             else:
+                # check if unit_id is provided if not create unit with default values
+                if not unit_id:
+                    new_unit = await unit_service.upsert(
+                        unit_data=Unit(
+                            provider_code=unit_provider_code or "unknown",
+                            provider=UserProvider.ACCRED,
+                            name=unit_name or "Unknown Unit",
+                            principal_user_provider_code=unknown_user.provider_code,
+                            cost_centers=[cf] if cf else [],
+                            affiliations=[],
+                        ),
+                    )
+                    if new_unit is None or new_unit.id is None:
+                        logger.warning(f"Missing unit_id in row: {row}")
+                        raise HTTPException(
+                            status_code=HttpStatus.HTTP_400_BAD_REQUEST,
+                            detail=f"Failed to create unit for row: {row}",
+                        )
+                    unit_id = new_unit.id
+                if unit_id is None:
+                    logger.error(f"Failed to upsert unit for row: {row}")
+                    continue
                 # Insert new record
                 headcount = HeadCount(
                     date=date,
-                    unit_id=unit_id or "",
+                    unit_id=unit_id or 0,
                     unit_name=unit_name or "",
                     cf=cf or "",
                     cf_name=cf_name or "",
