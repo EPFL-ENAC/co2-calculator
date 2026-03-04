@@ -19,9 +19,9 @@ COPY . .
 RUN npm run build
 
 # ==============================================================================
-# Production Stage: Serve the built application with Nginx
+# Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginx:stable-alpine-slim
+FROM nginxinc/nginx-unprivileged:stable
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
@@ -32,7 +32,12 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built static files from build stage
 COPY --from=builder /app/dist/spa /usr/share/nginx/html
 
-# Expose port 8080 for security reasons (non-privileged)
+# Ensure writable temp paths for any runtime needs
+# (important for OpenShift random UID compatibility)
+RUN mkdir -p /tmp/nginx \
+    && chmod -R 777 /tmp/nginx
+
+# Expose non-privileged port
 EXPOSE 8080
 
 # Start nginx in foreground
