@@ -12,7 +12,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserProvider
+from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -27,6 +27,10 @@ class RoleProvider(ABC):
     """
 
     type: UserProvider = UserProvider.DEFAULT
+
+    def map_api_user(self, user_raw: dict) -> User:
+        """Map a raw API user dict to User field values."""
+        return User(provider=self.type, **user_raw)
 
     @abstractmethod
     async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
@@ -236,19 +240,27 @@ class TestRoleProvider(RoleProvider):
         """
         requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         # Create roles based on requested role
+        TEST_UNIT_PROVIDER_CODE = "12345"
+        # TEST_UNIT_PROVIDER_CODE = "10446"
         roles: List[Role] = []
         if requested_role == RoleName.CO2_USER_STD.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_STD,
-                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
+                    on=RoleScope(
+                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        affiliation="testaffiliation",
+                    ),
                 )
             ]
         elif requested_role == RoleName.CO2_USER_PRINCIPAL.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_PRINCIPAL,
-                    on=RoleScope(provider_code="12345", affiliation="testaffiliation"),
+                    on=RoleScope(
+                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        affiliation="testaffiliation",
+                    ),
                 )
             ]
         elif requested_role == RoleName.CO2_BACKOFFICE_METIER.value:
@@ -420,6 +432,14 @@ class AccredRoleProvider(RoleProvider):
             user_insert["roles"] = roles
             return user_insert
 
+        except httpx.ConnectError as e:
+            logger.error(
+                "Cannot connect to Accred API - network unavailable",
+                extra={"user_id": user_id, "error": str(e)},
+            )
+            raise RoleProviderNetworkError(
+                f"Cannot connect to Accred API: {str(e)}"
+            ) from e
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Accred API HTTP error",
@@ -442,6 +462,21 @@ class AccredRoleProvider(RoleProvider):
             )
             logger.exception("Unexpected error fetching user from Accred API")
             raise
+
+    def map_api_user(self, user_raw: dict) -> User:
+        """Map a raw API user dict to User field values.
+        should work with principal user (missing fields) and full user
+        (e.g. from separate users endpoint)
+        """
+        return User(
+            provider=self.type,
+            provider_code=str(user_raw.get("id")),
+            display_name=user_raw.get("display"),
+            email=user_raw.get("email") or f"{user_raw.get('canon')}@epfl.ch",
+            function=user_raw.get("function", None),
+            # Assuming roles are provided in the raw data
+            roles=user_raw.get("roles", []),
+        )
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Fetch roles from EPFL Accred API.
@@ -614,3 +649,9 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
             extra={"provider_type": provider_type},
         )
         return DefaultRoleProvider()
+
+
+class RoleProviderNetworkError(Exception):
+    """Raised when role provider cannot connect to external service."""
+
+    pass

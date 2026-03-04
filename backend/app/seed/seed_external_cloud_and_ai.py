@@ -8,15 +8,15 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.emission_type import EmissionTypeEnum
 from app.models.module_type import ModuleTypeEnum
-
-# from app.models.emission_type import EmissionTypeEnum
+from app.modules.external_cloud_and_ai import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
+    get_factor_emission_type_id,
     load_factors_map,
     lookup_factor,
-    normalize_kind,
 )
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
@@ -71,16 +71,16 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
     with open(CSV_PATH_EXTERNAL_CLOUDS, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            kind = normalize_kind(row.get("cloud_provider", ""))
-            subkind = normalize_kind(row.get("service_type", ""))
+            kind = row.get("cloud_provider", "")
+            subkind = row.get("service_type", "")
             factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
                 data={
                     "primary_factor_id": factor.id if factor else None,
                     "spending": float(row.get("spending", 0)),
-                    "service_type": (row.get("service_type") or "").lower(),
-                    "cloud_provider": (row.get("cloud_provider") or "").lower(),
+                    "service_type": (row.get("service_type") or ""),
+                    "cloud_provider": (row.get("cloud_provider") or ""),
                 },
             )
             data_entry.data_entry_type = DataEntryTypeEnum.external_clouds
@@ -96,7 +96,7 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
         # service_type is stored in lower case in the CSV?
         emission_obj = await emission_service.prepare_create(data_entry_response)
         if emission_obj is not None:
-            emissions_to_create.append(emission_obj)
+            emissions_to_create.extend(emission_obj)
 
     # 3. Bulk create the emissions
     await emission_service.bulk_create(emissions_to_create)
@@ -118,8 +118,8 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
     with open(CSV_PATH_EXTERNAL_AI, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            kind = normalize_kind(row.get("ai_provider", ""))
-            subkind = normalize_kind(row.get("ai_use", ""))
+            kind = row.get("ai_provider", "")
+            subkind = row.get("ai_use", "")
             factor = lookup_factor(kind, subkind, factors_map)
             data_entry = DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
@@ -128,8 +128,8 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
                     "primary_factor_id": factor.id if factor else None,
                     "frequency_use_per_day": int(row.get("frequency_use_per_day", 0)),
                     "user_count": int(row.get("user_count", 0)),
-                    "ai_provider": (row.get("ai_provider") or "").lower(),
-                    "ai_use": (row.get("ai_use") or "").lower(),
+                    "ai_provider": (row.get("ai_provider") or ""),
+                    "ai_use": (row.get("ai_use") or ""),
                 },
             )
             data_entries.append(data_entry)
@@ -144,7 +144,7 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
         # service_type is stored in lower case in the CSV?
         emission_obj = await emission_service.prepare_create(data_entry_response)
         if emission_obj is not None:
-            emissions_to_create.append(emission_obj)
+            emissions_to_create.extend(emission_obj)
 
     # 3. Bulk create the emissions
     await emission_service.bulk_create(emissions_to_create)
@@ -179,17 +179,19 @@ async def seed_factor_clouds(session: AsyncSession) -> None:
         for row in reader:
             #  for cloud emission_type depends on service_type
 
+            emission_type_id = get_factor_emission_type_id(
+                DataEntryTypeEnum.external_clouds,
+                row,
+            )
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum[
-                    (row.get("service_type") or "").lower()
-                ],
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": (row.get("cloud_provider") or "").lower(),
-                    "service_type": (row.get("service_type") or "").lower(),
-                    "kind": (row.get("cloud_provider") or "").lower(),
-                    "subkind": (row.get("service_type") or "").lower(),
+                    "cloud_provider": (row.get("cloud_provider") or ""),
+                    "service_type": (row.get("service_type") or ""),
+                    "kind": (row.get("cloud_provider") or ""),
+                    "subkind": (row.get("service_type") or ""),
                 },
                 values={
                     "factor_kgco2_per_eur": get_float_or_none(
@@ -221,17 +223,23 @@ async def seed_factor_ai(session: AsyncSession) -> None:
             if factor_gCO2eq is None:
                 # // skip rows without factor
                 continue
+            # we're sure that for externa_ai we have one factor per provider/use,
+            # so we can directly resolve the emission type here
+            emission_type_id = get_factor_emission_type_id(
+                DataEntryTypeEnum.external_ai,
+                row,
+            )
             factor = await service.prepare_create(
-                emission_type_id=EmissionTypeEnum.ai_provider,
+                emission_type_id=emission_type_id,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_ai.value,
                 # TODO: unify data model with kind/subkind so
                 # it corresponds to ai_provider/ai_use?
                 classification={
-                    "ai_provider": (row.get("ai_provider") or "").lower(),
-                    "ai_use": (row.get("ai_use") or "").lower(),
-                    "kind": (row.get("ai_provider") or "").lower(),
-                    "subkind": (row.get("ai_use") or "").lower(),
+                    "ai_provider": (row.get("ai_provider") or ""),
+                    "ai_use": (row.get("ai_use") or ""),
+                    "kind": (row.get("ai_provider") or ""),
+                    "subkind": (row.get("ai_use") or ""),
                 },
                 values={
                     "factor_gCO2eq": factor_gCO2eq,

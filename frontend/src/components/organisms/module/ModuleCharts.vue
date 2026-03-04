@@ -12,37 +12,34 @@
         {{ $t(`${type}-charts-no-data-message`) }}
       </span>
     </template>
-    <template v-else-if="type === 'professional-travel'">
-      <tree-map-module-chart
-        v-if="
-          !loadingTravelData &&
-          travelDatasetSource &&
-          travelDatasetSource.length > 0
+    <template v-else>
+      <generic-emission-tree-map-chart
+        v-if="moduleTreemapData.length"
+        :data="moduleTreemapData"
+        :show-evolution-dialog="
+          type === MODULES.ProfessionalTravel && showEvolutionChart
         "
-        :show-evolution-dialog="showEvolutionChart"
-        :color-scheme="colors.babyBlue"
-        :dataset-source="travelDatasetSource"
       />
-      <div v-else-if="loadingTravelData" class="text-body2 text-secondary">
-        Loading chart data...
-      </div>
-      <div v-else class="text-body2 text-secondary">
-        No travel data available
-      </div>
+      <span v-else class="text-body2 text-secondary">
+        {{ $t('no-chart-data') }}
+      </span>
     </template>
-    <h2 v-else class="text-h3 q-mb-none text-bold text-uppercase">
-      {{ $t(`${type}-charts-title`) }}
-    </h2>
   </q-card-section>
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue';
-import { Module } from 'src/constant/modules';
+import { storeToRefs } from 'pinia';
+import { computed, watch } from 'vue';
+import { Module, MODULES } from 'src/constant/modules';
+import {
+  CHART_CATEGORY_COLOR_SCHEMES,
+  MODULE_TO_CATEGORIES,
+} from 'src/constant/charts';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
-import TreeMapModuleChart from 'src/components/charts/TreeMapModuleChart.vue';
-import { useModuleChartData } from 'src/composables/useModuleChartData';
-import { colors } from 'src/constant/charts';
+import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
+import { useModuleStore } from 'src/stores/modules';
+import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import { useWorkspaceStore } from 'src/stores/workspace';
 
 const props = defineProps<{
   type: Module;
@@ -50,20 +47,96 @@ const props = defineProps<{
   showEvolutionChart?: boolean;
 }>();
 
-// Use composable to handle module-specific chart data fetching
-// This automatically watches for unit/year changes
-const { moduleStore } = useModuleChartData(toRef(props, 'type'));
+const moduleStore = useModuleStore();
+const workspaceStore = useWorkspaceStore();
+const { emissionBreakdownRefreshSequence } = storeToRefs(moduleStore);
+
+watch(
+  () => workspaceStore.selectedCarbonReport?.id,
+  (carbonReportId) => {
+    if (carbonReportId) {
+      void moduleStore.getEmissionBreakdown(carbonReportId);
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  emissionBreakdownRefreshSequence,
+  (sequence) => {
+    if (!moduleStore.consumeEmissionBreakdownRefreshRequest(sequence)) return;
+    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+    if (!carbonReportId) return;
+    moduleStore.invalidateEmissionBreakdown();
+    void moduleStore.getEmissionBreakdown(carbonReportId);
+  },
+  { immediate: true },
+);
 
 const hasStats = computed(() => {
   const stats = moduleStore.state.data?.stats;
   return !!stats && Object.keys(stats).length > 0;
 });
 
-const travelDatasetSource = computed(
-  () => moduleStore.state.travelStatsByClass,
-);
-const loadingTravelData = computed(
-  () => moduleStore.state.loadingTravelStatsByClass,
+type EmissionTreemapChild = {
+  name: string;
+  value: number;
+  percentage?: number;
+  color?: string;
+  children?: EmissionTreemapChild[];
+};
+
+type EmissionTreemapCategory = {
+  name: string;
+  value: number;
+  color: string;
+  children: EmissionTreemapChild[];
+};
+
+type BackendTreemapCategory = {
+  name: string;
+  value: number;
+  children: EmissionTreemapChild[];
+};
+
+function buildTreemapFromRows(
+  breakdown: EmissionBreakdownResponse,
+  categories: string[],
+): EmissionTreemapCategory[] {
+  const colorSchemes = CHART_CATEGORY_COLOR_SCHEMES.value;
+  const backendTreemap = (breakdown.module_treemap ??
+    []) as BackendTreemapCategory[];
+
+  return backendTreemap
+    .filter(
+      (item) =>
+        item &&
+        typeof item.name === 'string' &&
+        categories.includes(item.name) &&
+        Number(item.value) > 0 &&
+        Array.isArray(item.children) &&
+        item.children.length > 0,
+    )
+    .map((item) => ({
+      name: item.name,
+      value: Number(item.value),
+      color: colorSchemes[item.name] ?? '#999999',
+      children: item.children,
+    }));
+}
+
+function buildModuleTreemapData(
+  breakdown: EmissionBreakdownResponse | null,
+  moduleKey: string,
+): EmissionTreemapCategory[] {
+  if (!breakdown) return [];
+  const categories = MODULE_TO_CATEGORIES.value[moduleKey] ?? [];
+  if (categories.length === 0) return [];
+  return buildTreemapFromRows(breakdown, categories);
+}
+
+const moduleTreemapData = computed(() =>
+  buildModuleTreemapData(moduleStore.state.emissionBreakdown, props.type),
 );
 </script>
 

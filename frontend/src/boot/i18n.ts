@@ -3,7 +3,12 @@ import { createI18n } from 'vue-i18n';
 import { Cookies } from 'quasar';
 import { LOCALE_MAP, Language } from 'src/constant/languages';
 import messages from 'src/i18n';
-import { nOrDash } from 'src/utils/number';
+import {
+  nOrDash,
+  formatTonnesCO2,
+  formatKgCO2,
+  formatFTE,
+} from 'src/utils/number';
 
 const LOCALE_COOKIE_KEY = 'locale';
 
@@ -50,10 +55,33 @@ const defaultFormat: { [key: string]: Intl.NumberFormatOptions } = {
   },
 };
 
+const defaultDateTimeFormat: { [key: string]: Intl.DateTimeFormatOptions } = {
+  short: {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  },
+  long: {
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: 'numeric',
+    timeZoneName: 'shortOffset',
+  },
+};
+
 const numberFormats = {
   'en-US': defaultFormat,
   'de-CH': defaultFormat,
   'fr-CH': defaultFormat,
+  // Add other locales as needed, all using the same config
+};
+
+const datetimeFormats = {
+  'en-US': defaultDateTimeFormat,
+  'de-CH': defaultDateTimeFormat,
+  'fr-CH': defaultDateTimeFormat,
   // Add other locales as needed, all using the same config
 };
 
@@ -72,6 +100,7 @@ export const i18n = createI18n({
   legacy: false,
   messages,
   numberFormats,
+  datetimeFormats,
   // Show i18n warnings only in dev
   missingWarn: import.meta.env.DEV,
   fallbackWarn: import.meta.env.DEV,
@@ -80,4 +109,7 @@ export const i18n = createI18n({
 export default boot(({ app }) => {
   app.use(i18n);
   app.config.globalProperties.$nOrDash = nOrDash;
+  app.config.globalProperties.$formatTonnesCO2 = formatTonnesCO2;
+  app.config.globalProperties.$formatKgCO2 = formatKgCO2;
+  app.config.globalProperties.$formatFTE = formatFTE;
 });

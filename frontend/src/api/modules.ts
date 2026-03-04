@@ -29,3 +29,45 @@ export async function getModuleTotals(
   const response = await api.get(path).json<ModuleTotalsResponse>();
   return response;
 }
+
+/**
+ * Per-module result in the results summary response.
+ */
+export interface ModuleResult {
+  module_type_id: number;
+  total_tonnes_co2eq: number;
+  total_fte: number | null;
+  tonnes_co2eq_per_fte: number | null;
+  equivalent_car_km: number;
+  previous_year_total_tonnes_co2eq: number | null;
+  year_comparison_percentage: number | null;
+}
+
+/**
+ * Response type for the results-summary endpoint.
+ */
+export interface ResultsSummary {
+  unit_totals: {
+    total_tonnes_co2eq: number | null;
+    total_fte: number | null;
+    tonnes_co2eq_per_fte: number | null;
+    equivalent_car_km: number | null;
+    previous_year_total_tonnes_co2eq: number | null;
+    year_comparison_percentage: number | null;
+  };
+  co2_per_km_kg: number;
+  module_results: ModuleResult[];
+}
+
+/**
+ * Fetch the results summary for a carbon report.
+ *
+ * @param carbonReportId - Carbon report ID
+ * @returns Unit-wide totals and per-module breakdowns
+ */
+export async function getResultsSummary(
+  carbonReportId: number,
+): Promise<ResultsSummary> {
+  const path = `modules-stats/${encodeURIComponent(carbonReportId)}/results-summary`;
+  return api.get(path).json<ResultsSummary>();
+}

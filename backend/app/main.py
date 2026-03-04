@@ -296,10 +296,11 @@ def run_main():
 
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=settings.HOST,
+        port=settings.PORT,
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),
+        workers=settings.WORKERS if not settings.DEBUG else 1,
     )
 
 

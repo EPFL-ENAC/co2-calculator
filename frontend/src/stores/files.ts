@@ -27,6 +27,9 @@ export const useFilesStore = defineStore(
   () => {
     const tempFiles = ref<FileNode[]>([]);
 
+    const currentUploadModuleTypeId = ref<number | null>(null);
+    const currentUploadYear = ref<number | null>(null);
+
     /**
      * List files and directories at a given path (backend admin only).
      * @param path The path to list files from.
@@ -42,7 +45,7 @@ export const useFilesStore = defineStore(
      * List all temporary files stored in the backend (backend admin only).
      */
     async function listTempFiles(): Promise<FileNode[]> {
-      const response = await api.get<FileNode[]>('files/tmp');
+      const response = await api.get<FileNode[]>('files/temp-upload');
       const nodes = await response.json();
       return nodes;
     }
@@ -58,7 +61,7 @@ export const useFilesStore = defineStore(
         formData.append('files', file, file.name);
       });
 
-      const response = await api.post<FileNode[]>('files/tmp', {
+      const response = await api.post<FileNode[]>('files/temp-upload', {
         body: formData,
       });
       const nodes = await response.json();
@@ -122,6 +125,8 @@ export const useFilesStore = defineStore(
 
     return {
       tempFiles,
+      currentUploadModuleTypeId,
+      currentUploadYear,
       listFiles,
       listTempFiles,
       uploadTempFiles,

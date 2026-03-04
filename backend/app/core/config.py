@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     See .env.example for reference configuration.
     """
 
+    # General to avoid B104:hardcoded_bind_all_interfaces
+    HOST: str = "127.0.0.1"
+    PORT: int = 8000
+    WORKERS: int = 1
+
     # Application
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
@@ -130,6 +135,13 @@ class Settings(BaseSettings):
     WEEKS_PER_YEAR: int = Field(
         default=52,
         description="Weeks per year for annual CO2 calculation",
+    )
+
+    # CO2 Calculation Constants
+    CO2_PER_KM_KG: float = Field(
+        default=0.34,
+        gt=0,
+        description="CO2 per km in kg",
     )
 
     # Loki (optional)
@@ -261,6 +273,52 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+    )
+
+    # NOTE: Elastic SEARCH OPDO/27001/27701 compatiblity
+
+    ELASTICSEARCH_HOSTS: str = Field(
+        default="https://locahost:9200",
+        description="Comma-separated list of Elasticsearch hosts",
+    )
+    ELASTICSEARCH_INDEX: str = Field(
+        default="UNDEFINED_INDEX", description="Elasticsearch index name"
+    )
+    ELASTICSEARCH_ID: str = Field(
+        default="", description="Elasticsearch ID for authentication"
+    )
+    ELASTICSEARCH_API_KEY: str = Field(
+        default="", description="Elasticsearch API key for authentication"
+    )
+    # // use a secret in kube to mount the path
+    ELASTICSEARCH_CA_CERT: str = Field(
+        default="/etc/ssl/certs/http_ca_test.crt",
+        description="Path to Elasticsearch CA certificate",
+    )
+    ELASTICSEARCH_TIMEOUT: int = Field(
+        default=30, description="Elasticsearch timeout in seconds"
+    )
+    ELASTICSEARCH_MAX_RETRIES: int = Field(
+        default=3, description="Maximum number of Elasticsearch retries"
+    )
+    ELASTICSEARCH_RETRY_ON_TIMEOUT: bool = Field(
+        default=True, description="Retry Elasticsearch on timeout"
+    )
+
+    # Audit Sync Filtering Configuration
+    AUDIT_SYNC_SKIP_ENTITY_TYPES: str = Field(
+        default="User",
+        description=(
+            "Comma-separated list of entity types to skip during sync "
+            "(e.g., 'User,Organization')"
+        ),
+    )
+    AUDIT_SYNC_SKIP_HANDLER_IDS: str = Field(
+        default="csv_ingestion",
+        description=(
+            "Comma-separated list of handler IDs to skip during "
+            "sync (e.g., 'csv_ingestion,api_import')"
+        ),
     )
 
 

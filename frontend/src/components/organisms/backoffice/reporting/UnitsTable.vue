@@ -3,35 +3,24 @@ import { computed, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { formatRelativeTime } from 'src/utils/date';
-import { ModuleState } from 'src/constant/moduleStates';
 
 const ROWS_PER_PAGE = 20;
 const { locale, t } = useI18n();
 const showAllRows = ref(false);
 
-interface ModuleCompletion {
-  status: ModuleState;
-  outlier_values: number;
+interface UnitReportingData {
+  id: string | number;
+  unit_name: string; // EN: Unit / FR: Unité
+  affiliation: string; // Affiliation filter value
+  validation_status: string; // e.g. "3/7"
+  principal_user: string; // Source: ACCRED
+  last_update: string; // Date of last validation
+  highest_result_category: string; // Module name with max tCO2-eq
+  total_carbon_footprint: number; // (tCO2-eq)
 }
 
 const props = defineProps<{
-  units: Array<{
-    id: string | number;
-    completion:
-      | Record<string, ModuleCompletion>
-      | Record<string, Record<string, ModuleCompletion>>;
-    completion_counts: {
-      validated: number;
-      in_progress: number;
-      default: number;
-    };
-    unit: number;
-    affiliation: string;
-    principal_user: string;
-    last_update: string;
-    outlier_values: number;
-    expected_total?: number;
-  }>;
+  units: Array<UnitReportingData>;
   loading: boolean;
 }>();
 
@@ -39,176 +28,149 @@ const emit = defineEmits<{
   viewUnit: [unitId: string | number];
 }>();
 
-function handleView(unitId: string | number) {
-  emit('viewUnit', unitId);
-}
-
 const columns = computed<QTableColumn[]>(() => [
   {
-    name: 'completion',
-    label: t('backoffice_reporting_row_completion_label'),
-    field: 'completion',
-    align: 'left',
-    sortable: true,
-    sort: (a: (typeof props.units)[0], b: (typeof props.units)[0]) => {
-      return a.completion_counts.validated - b.completion_counts.validated;
-    },
-  },
-  {
-    name: 'unit',
-    label: t('backoffice_reporting_row_unit_label'),
-    field: 'unit',
+    name: 'unit_name',
+    label: t('backoffice_reporting_column_unit'),
+    field: 'unit_name',
     align: 'left',
     sortable: true,
   },
   {
     name: 'affiliation',
-    label: t('backoffice_reporting_row_affiliation_label'),
+    label: t('backoffice_reporting_column_affiliation'),
     field: 'affiliation',
     align: 'left',
     sortable: true,
   },
   {
+    name: 'validation_status',
+    label: t('backoffice_reporting_column_validation_status'),
+    field: 'validation_status',
+    align: 'center',
+    sortable: true,
+  },
+  {
     name: 'principal_user',
-    label: t('backoffice_reporting_row_principal_user_label'),
+    label: t('backoffice_reporting_column_principal_user'),
     field: 'principal_user',
     align: 'left',
     sortable: true,
   },
   {
     name: 'last_update',
-    label: t('backoffice_reporting_row_last_update_label'),
+    label: t('backoffice_reporting_column_last_update'),
     field: 'last_update',
     align: 'left',
     sortable: true,
   },
   {
-    name: 'outlier_values',
-    label: t('backoffice_reporting_row_outlier_values_label'),
-    field: 'outlier_values',
+    name: 'highest_result_category',
+    label: t('backoffice_reporting_column_highest_category'),
+    field: 'highest_result_category',
     align: 'left',
     sortable: true,
   },
   {
-    name: 'action',
-    label: t('backoffice_reporting_row_action_label'),
-    field: 'action',
+    name: 'total_carbon_footprint',
+    label: t('backoffice_reporting_column_total_footprint'),
+    field: 'total_carbon_footprint',
     align: 'right',
-    sortable: false,
+    sortable: true,
+  },
+  {
+    name: 'action',
+    label: t('backoffice_reporting_column_view'),
+    field: 'id',
+    align: 'center',
   },
 ]);
 
-const pagination = computed(() => {
-  if (showAllRows.value) {
-    return {
-      rowsPerPage: 0, // 0 means show all rows
-    };
-  }
-  return {
-    rowsPerPage: ROWS_PER_PAGE,
-  };
-});
+const pagination = computed(() => ({
+  rowsPerPage: showAllRows.value ? 0 : ROWS_PER_PAGE,
+}));
 </script>
 
 <template>
   <div class="flex justify-between items-center q-mb-sm">
-    <span class="text-body1 text-weight-medium">{{
-      $t('backoffice_reporting_units_status_label', {
-        count: props.units.length,
-      })
-    }}</span>
+    <span class="text-body1 text-weight-medium">
+      {{
+        t('backoffice_reporting_units_status_label', {
+          count: props.units.length,
+        })
+      }}
+    </span>
     <q-checkbox
       v-model="showAllRows"
-      :label="$t('common_show_all_rows')"
-      color="accent"
+      :label="t('common_show_all_rows')"
+      color="primary"
       size="sm"
     />
   </div>
+
   <q-table
-    class="co2-table border"
-    flat
+    class="co2-table border shadow-0"
     :rows="props.units"
     :columns="columns"
     row-key="id"
     :pagination="pagination"
-    :rows-per-page-options="showAllRows ? [] : [ROWS_PER_PAGE]"
     :loading="props.loading"
-    :hide-pagination="showAllRows"
-    :virtual-scroll="showAllRows"
-    :virtual-scroll-item-size="48"
-    :virtual-scroll-sticky-size-start="48"
+    flat
+    bordered
   >
-    <template #body="{ row, rowIndex }">
-      <q-tr
-        class="q-tr--no-hover"
-        :class="{
-          'bg-grey-1': rowIndex % 2 === 1,
-        }"
-      >
-        <!-- Completion -->
-        <q-td key="completion">
-          <q-badge
-            :color="
-              row.expected_total &&
-              typeof row.expected_total === 'number' &&
-              row.completion_counts.validated === row.expected_total
-                ? 'green'
-                : 'red'
-            "
-            :label="
-              row.expected_total &&
-              typeof row.expected_total === 'number' &&
-              row.completion_counts.validated === row.expected_total
-                ? t('common_filter_complete')
-                : t('common_filter_incomplete')
-            "
-            class="text-white"
-          />
-        </q-td>
+    <template #body-cell-unit_name="p">
+      <q-td :props="p" class="text-weight-bold">
+        {{ p.row.unit_name }}
+      </q-td>
+    </template>
 
-        <!-- Unit -->
-        <q-td key="unit">
-          <span>{{ row.unit }}</span>
-        </q-td>
+    <template #body-cell-validation_status="p">
+      <q-td :props="p">
+        <q-badge outline color="primary" :label="p.row.validation_status" />
+      </q-td>
+    </template>
 
-        <!-- Affiliation -->
-        <q-td key="affiliation">
-          <span>{{ row.affiliation }}</span>
-        </q-td>
+    <template #body-cell-last_update="p">
+      <q-td :props="p">
+        {{
+          p.row.last_update
+            ? formatRelativeTime(p.row.last_update, locale)
+            : '—'
+        }}
+      </q-td>
+    </template>
 
-        <!-- Principal User -->
-        <q-td key="principal_user">
-          <span>{{ row.principal_user }}</span>
-        </q-td>
+    <template #body-cell-highest_result_category="p">
+      <q-td :props="p">
+        <div class="ellipsis" style="max-width: 150px">
+          {{ p.row.highest_result_category || '—' }}
+        </div>
+        <q-tooltip v-if="p.row.highest_result_category">
+          {{ p.row.highest_result_category }}
+        </q-tooltip>
+      </q-td>
+    </template>
 
-        <!-- Last Update -->
-        <q-td key="last_update">
-          <span>{{ formatRelativeTime(row.last_update, locale) }}</span>
-        </q-td>
+    <template #body-cell-total_carbon_footprint="p">
+      <q-td :props="p" class="text-weight-medium">
+        {{ p.row.total_carbon_footprint.toLocaleString() }}
+        <small>tCO₂-eq</small>
+      </q-td>
+    </template>
 
-        <!-- Outlier Values -->
-        <q-td key="outlier_values">
-          <q-badge
-            v-if="row.outlier_values > 0"
-            color="red"
-            :label="`${row.outlier_values} ${t('backoffice_reporting_errors_label')}`"
-            class="text-white"
-          />
-          <span v-else class="text-grey-6">—</span>
-        </q-td>
-
-        <!-- Action -->
-        <q-td key="action" class="text-center">
-          <q-btn
-            icon="o_visibility"
-            unelevated
-            no-caps
-            size="sm"
-            class="btn-secondary"
-            @click="handleView(row.id)"
-          />
-        </q-td>
-      </q-tr>
+    <template #body-cell-action="p">
+      <q-td :props="p">
+        <q-btn
+          flat
+          round
+          color="grey-7"
+          icon="o_visibility"
+          size="sm"
+          @click="emit('viewUnit', p.row.id)"
+        >
+          <q-tooltip>{{ t('common_view_details') }}</q-tooltip>
+        </q-btn>
+      </q-td>
     </template>
   </q-table>
 </template>

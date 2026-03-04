@@ -25,8 +25,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.frontend.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: frontend
           image: {{ include "co2-calculator.frontend.image" . }}

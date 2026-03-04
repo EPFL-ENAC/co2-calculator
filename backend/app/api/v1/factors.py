@@ -7,16 +7,7 @@ from app.api.deps import get_db
 from app.models.data_entry import DataEntryTypeEnum
 from app.services.factor_service import FactorService
 
-# from app.schemas.factor import FactorRead
-
 router = APIRouter()
-
-
-"""Would be a great idea to return directly
- with value being the 'id ' from the power factor table
- Example response for submodule = scientific equipment
- [ { "label": "30 to 37°C incubators", "value": "30 to 37°C incubators" }
- """
 
 
 @router.get(
@@ -36,11 +27,11 @@ async def get_class_subclass_map(
 
 # example of call
 #
-# http://localhost:9000/api/v1/factors/scientific/classes/Milling%20machine/power
-# http://localhost:9000/api/v1/factors/scientific/classes/Agitator%20%2F%20Incubator/power?sub_class=Simple%20agitators%2Fincubators
+# http://localhost:9000/api/v1/factors/scientific/classes/Milling%20machine/values
+# http://localhost:9000/api/v1/factors/scientific/classes/Agitator%20%2F%20Incubator/values?sub_class=Simple%20agitators%2Fincubators
 @router.get(
-    "/{data_entry_type_id}/classes/{kind:path}/power",
-    response_model=Optional[dict[str, float]],
+    "/{data_entry_type_id}/classes/{kind:path}/values",
+    response_model=Optional[dict[str, float | str]],
 )
 async def get_factor(
     data_entry_type_id: DataEntryTypeEnum,

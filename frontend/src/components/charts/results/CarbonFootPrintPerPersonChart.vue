@@ -26,66 +26,109 @@ use([
   GraphicComponent,
 ]);
 
+import { formatTonnesForChart } from 'src/utils/number';
+
 const props = defineProps<{
   viewUncertainties?: boolean;
+  perPersonBreakdown?: Record<string, number> | null;
+  validatedCategories?: string[] | null;
+  headcountValidated?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const SHOW_EPFL_REFERENCE_ROW = false;
+const SHOW_OBJECTIVE_ROW = false;
+const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
+
+const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
+  'Process Emissions': [' '],
+  'Buildings energy consumption': ['buildings'],
+  'Energy combustion': ['buildings'],
+  Equipment: ['equipment'],
+  'External cloud & AI': ['externalCloudAndAI'],
+  Purchases: ['purchases'],
+  'Research facilities': ['researchFacilities'],
+  'Professional travel': ['professionalTravel'],
+  Commuting: ['commuting'],
+  Food: ['food'],
+  Waste: ['waste'],
+  'Grey Energy': ['grey_energy'],
+};
+
+const validatedPPKeys = computed(() => {
+  if (!props.validatedCategories) return new Set<string>();
+  const keys = new Set<string>();
+  for (const cat of props.validatedCategories) {
+    for (const k of CATEGORY_TO_PP_KEYS[cat] ?? []) {
+      keys.add(k);
+    }
+  }
+  return keys;
+});
+
+const myUnitRow = computed<Record<string, unknown>>(() => {
+  if (!props.perPersonBreakdown) {
+    return { category: t('charts-my-unit-tick') };
+  }
+  return {
+    category: t('charts-my-unit-tick'),
+    ...props.perPersonBreakdown,
+  };
+});
+
+const EPFL_REFERENCE_VALUES: Record<string, number> = {
+  processEmissions: 2.5,
+  infrastructure: 6.6,
+  equipment: 4.4,
+  researchFacilities: 4.0,
+  professionalTravel: 14.7,
+  purchases: 31.3,
+  externalCloudAndAI: 3.0,
+  commuting: 8.8,
+  food: 10.4,
+  waste: 0.0,
+  grey_energy: 0.0,
+};
+
+const epflReferenceRow = computed<Record<string, unknown>>(() => {
+  const row: Record<string, unknown> = { category: t('charts-epf-tick') };
+  const validated = validatedPPKeys.value;
+  for (const [key, val] of Object.entries(EPFL_REFERENCE_VALUES)) {
+    if (validated.has(key)) {
+      row[key] = val;
+    }
+  }
+  row.stdDev = 10;
+  return row;
+});
+
+const objectiveRow = computed<Record<string, unknown>>(() => ({
+  category: t('charts-objective-tick'),
+  objective2030: 12,
+  stdDev: 5,
+}));
 
 const datasetSource = computed(() => {
-  const baseData = [
-    {
-      category: t('charts-my-unit-tick'),
-      unitGas: 2.5,
-      infrastructureGas: 2.0,
-      infrastructure: 8.3,
-      equipment: 5.5,
-      itInfrastructure: 5.0,
-      professionalTravel: 18.4,
-      purchases: 39.1,
-      researchCoreFacilities: 3.0,
-      commuting: 11.0,
-      food: 13.0,
-      waste: 0.0,
-      greyEnergy: 0.0,
-      stdDev: 10,
-    },
-    {
-      category: t('charts-epf-tick'),
-      unitGas: 2.0,
-      infrastructureGas: 1.6,
-      infrastructure: 6.6,
-      equipment: 4.4,
-      itInfrastructure: 4.0,
-      professionalTravel: 14.7,
-      purchases: 31.3,
-      researchCoreFacilities: 3.0,
-      commuting: 8.8,
-      food: 10.4,
-      waste: 0.0,
-      greyEnergy: 0.0,
-      stdDev: 10,
-    },
-    {
-      category: t('charts-objective-tick'),
-      objective2030: 12,
-      stdDev: 5,
-    },
-  ];
+  const baseData = [myUnitRow.value];
+  if (SHOW_EPFL_REFERENCE_ROW) {
+    baseData.push(epflReferenceRow.value);
+  }
+  if (SHOW_OBJECTIVE_ROW) {
+    baseData.push(objectiveRow.value);
+  }
   return baseData;
 });
 
 const allValueKeys = computed(() => {
   const baseKeys = [
-    'unitGas',
-    'infrastructureGas',
-    'infrastructure',
+    'processEmissions',
+    'buildings',
     'equipment',
-    'itInfrastructure',
+    'researchFacilities',
     'professionalTravel',
     'purchases',
-    'researchCoreFacilities',
+    'externalCloudAndAI',
   ];
 
   if (toggleAdditionalData.value) {
@@ -94,8 +137,8 @@ const allValueKeys = computed(() => {
       'commuting',
       'food',
       'waste',
-      'greyEnergy',
-      'objective2030',
+      'grey_energy',
+      ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
     ];
   }
   return baseKeys;
@@ -110,7 +153,7 @@ const markLineData = computed(() => {
         allValueKeys.value.reduce(
           (sum, key) => sum + (Number(item[key]) || 0),
           0,
-        ) + (Number(item.objective2030) || 0);
+        ) + (SHOW_OBJECTIVE_BAR ? Number(item.objective2030) || 0 : 0);
 
       const stdDev = Number(item.stdDev) || 0;
 
@@ -179,7 +222,7 @@ const additionalSeriesData = computed(() => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'greyEnergy',
+        y: 'grey_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -195,12 +238,12 @@ const chartOption = computed((): EChartsOption => {
   const showUncertainties = props.viewUncertainties ?? false;
   const seriesArray = [
     {
-      name: t('charts-unit-gas-category'),
+      name: t('charts-process-emissions-category'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'unitGas',
+        y: 'processEmissions',
       },
       markLine: {
         silent: true,
@@ -213,21 +256,6 @@ const chartOption = computed((): EChartsOption => {
         data: markLineData.value,
       },
       itemStyle: {
-        color: colors.value.peach.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
-    {
-      name: t('charts-infrastructure-gas-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'infrastructureGas',
-      },
-      itemStyle: {
         color: colors.value.apricot.darker,
       },
       label: {
@@ -235,12 +263,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-infrastructure-category'),
+      name: t('buildings'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'infrastructure',
+        y: 'buildings',
       },
       itemStyle: {
         color: colors.value.lilac.darker,
@@ -250,7 +278,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-equipment-category'),
+      name: t('equipment-electric-consumption'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -265,12 +293,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-it-category'),
+      name: t('internal-services'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'itInfrastructure',
+        y: 'researchFacilities',
       },
       itemStyle: {
         color: colors.value.lavender.darker,
@@ -280,7 +308,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-professional-travel-category'),
+      name: t('professional-travel'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -295,7 +323,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-purchases-category'),
+      name: t('purchase'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
@@ -310,12 +338,12 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('charts-research-core-facilities-category'),
+      name: t('external-cloud-and-ai'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'researchCoreFacilities',
+        y: 'externalCloudAndAI',
       },
       itemStyle: {
         color: colors.value.paleYellowGreen.darker,
@@ -324,21 +352,25 @@ const chartOption = computed((): EChartsOption => {
         show: false,
       },
     },
-    {
-      name: t('charts-objective-tick'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'objective2030',
-      },
-      itemStyle: {
-        color: colors.value.skyBlue.darker,
-      },
-      label: {
-        show: false,
-      },
-    },
+    ...(SHOW_OBJECTIVE_BAR
+      ? [
+          {
+            name: t('charts-objective-tick'),
+            type: 'bar' as const,
+            stack: 'total',
+            encode: {
+              x: 'category',
+              y: 'objective2030',
+            },
+            itemStyle: {
+              color: colors.value.skyBlue.darker,
+            },
+            label: {
+              show: false,
+            },
+          },
+        ]
+      : []),
     ...additionalSeriesData.value,
   ];
 
@@ -367,16 +399,16 @@ const chartOption = computed((): EChartsOption => {
           const dataValue = Number(data?.[key]) || 0;
 
           if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${dataValue.toFixed(1)} </strong><br/>`;
+            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
             total += dataValue;
           }
         });
 
-        let totalDisplay = total.toFixed(1);
+        let totalDisplay = formatTonnesForChart(total);
         if (showUncertainties && data) {
           const stdDev = Number(data.stdDev) || 0;
           if (stdDev > 0)
-            totalDisplay = `${total.toFixed(1)} ± ${stdDev.toFixed(1)}`;
+            totalDisplay = `${formatTonnesForChart(total)} ± ${formatTonnesForChart(stdDev)}`;
         }
 
         return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
@@ -434,45 +466,22 @@ const chartOption = computed((): EChartsOption => {
           ]),
         },
       },
-      {
-        type: 'rect',
-        left: '335px',
-        top: '0px',
-        shape: {
-          width: 1,
-          height: 420,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(0,0,0)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(240,240,240,0.1)',
-            },
-          ]),
-        },
-        z: 100,
-      },
     ],
     dataset: {
       dimensions: [
         'category',
-        'unitGas',
-        'infrastructureGas',
-        'infrastructure',
+        'processEmissions',
+        'buildings',
         'equipment',
-        'itInfrastructure',
+        'researchFacilities',
         'professionalTravel',
         'purchases',
-        'researchCoreFacilities',
+        'externalCloudAndAI',
         'commuting',
         'food',
         'waste',
-        'greyEnergy',
-        'objective2030',
+        'grey_energy',
+        ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
         'stdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
@@ -544,7 +553,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div>
+      <div v-if="headcountValidated">
         <q-btn
           unelevated
           no-caps
@@ -567,21 +576,73 @@ const downloadCSV = () => {
         />
       </div>
       <q-checkbox
+        v-if="headcountValidated"
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
         size="xs"
         color="accent"
       />
     </q-card-section>
-    <q-card-section class="chart-container flex justify-center items-center">
-      <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
-    </q-card-section>
+
+    <template v-if="headcountValidated">
+      <q-card-section class="chart-container flex justify-center items-center">
+        <v-chart
+          ref="chartRef"
+          class="chart"
+          autoresize
+          :option="chartOption"
+        />
+      </q-card-section>
+    </template>
+
+    <template v-else>
+      <q-card-section class="col validation-placeholder">
+        <div class="validation-required-card">
+          <div class="validation-required-card__content">
+            <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
+            <div class="text-h6 text-weight-medium text-center q-mb-sm">
+              {{
+                $t('results_validate_module_title', { module: $t('headcount') })
+              }}
+            </div>
+            <div class="text-body2 text-secondary text-center">
+              {{ $t('results_validate_module_message') }}
+            </div>
+          </div>
+        </div>
+      </q-card-section>
+    </template>
   </q-card>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+.container--pa-none {
+  display: flex;
+  flex-direction: column;
+}
+
 .chart {
   width: 500px;
   min-height: 500px;
+}
+
+.validation-placeholder {
+  flex: 1;
+  display: flex;
+}
+
+.validation-required-card {
+  flex: 1;
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 3rem;
+  }
 }
 </style>

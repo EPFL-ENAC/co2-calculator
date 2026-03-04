@@ -1,7 +1,8 @@
 export const MODULES = {
   Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
-  Infrastructure: 'infrastructure',
+  ProcessEmissions: 'process-emissions',
+  Buildings: 'buildings',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
   InternalServices: 'internal-services',
@@ -11,18 +12,18 @@ export const MODULES = {
 export const MODULES_DESCRIPTIONS = {
   Headcount: 'headcount-description',
   ProfessionalTravel: 'professional-travel-description',
-  Infrastructure: 'infrastructure-description',
+  Buildings: 'buildings-description',
   EquipmentElectricConsumption: 'equipment-electric-consumption-description',
-  Purchase: 'purchase-description',
   InternalServices: 'internal-services-description',
   ExternalCloudAndAI: 'external-cloud-and-ai-description',
+  ProcessEmissions: 'process-emissions-description',
 } as const;
 
 // TODO: implement something like this
 // export const MODULES: Record<string, string> = {
 //   headcount: 'modules.headcount',
 //   professional_travel: 'modules.professional_travel',
-//   infrastructure: 'modules.infrastructure',
+//   buildings: 'modules.buildings',
 //   equipment_electric_consumption: 'modules.equipment',
 //   purchase: 'modules.purchase',
 //   internal_services: 'modules.internal_services',
@@ -51,20 +52,75 @@ export type ExternalCloudSubType =
 
 type ExternalCloudProps = {
   moduleType: typeof MODULES.ExternalCloudAndAI;
-  submoduleType?: ExternalCloudSubType;
+  submoduleType?: AllSubmoduleTypes; // ExternalCloudSubType;
 };
 
+export const SUBMODULE_PURCHASE_TYPES = {
+  ScientificEquipmentPurchases: 'scientific_equipment',
+  ITEquipmentPurchases: 'it_equipment',
+  ConsumablePurchases: 'consumable_accessories',
+  BioProductPurchases: 'biological_chemical_gaseous_product',
+  ServicePurchases: 'services',
+  VehiclePurchases: 'vehicles',
+  OtherPurchases: 'other_purchases',
+  AdditionalPurchases: 'additional_purchases',
+} as const;
+
+export type PurchaseSubType =
+  (typeof SUBMODULE_PURCHASE_TYPES)[keyof typeof SUBMODULE_PURCHASE_TYPES];
+
+type PurchaseProps = {
+  moduleType: typeof MODULES.Purchase;
+  submoduleType?: AllSubmoduleTypes; // PurchaseSubType;
+};
+
+export const SUBMODULE_PROCESSES_TYPES = {
+  ProcessEmissions: 'process_emissions',
+} as const;
+
+export type ProcessesSubType =
+  (typeof SUBMODULE_PROCESSES_TYPES)[keyof typeof SUBMODULE_PROCESSES_TYPES];
+
+type ProcessesProps = {
+  moduleType: typeof MODULES.ProcessEmissions;
+  submoduleType?: AllSubmoduleTypes; // ProcessesSubType;
+};
+
+// beware came straight from backend enum, make sure to keep in sync if backend changes
+// backend/app/models/data_entry.py
 export const enumSubmodule = {
   member: 1,
   student: 2,
   // todo replace with equipment types
-  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 9,
-  [SUBMODULE_EQUIPMENT_TYPES.IT]: 10,
-  [SUBMODULE_EQUIPMENT_TYPES.Other]: 11,
-  trips: 20,
+  [SUBMODULE_EQUIPMENT_TYPES.Scientific]: 10,
+  [SUBMODULE_EQUIPMENT_TYPES.IT]: 11,
+  [SUBMODULE_EQUIPMENT_TYPES.Other]: 12,
+  // travel
+  plane: 20,
+  train: 21,
+  // building room
   building: 30,
+  energy_combustion: 31,
+  // external cloud and ai
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds]: 40,
   [SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai]: 41,
+  // process emissions
+  process_emissions: 50,
+  // purchase submodules
+  [SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases]: 60,
+  [SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases]: 61,
+  [SUBMODULE_PURCHASE_TYPES.ConsumablePurchases]: 62,
+  [SUBMODULE_PURCHASE_TYPES.BioProductPurchases]: 63,
+  [SUBMODULE_PURCHASE_TYPES.ServicePurchases]: 64,
+  [SUBMODULE_PURCHASE_TYPES.VehiclePurchases]: 65,
+  [SUBMODULE_PURCHASE_TYPES.OtherPurchases]: 66,
+  [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
+
+  // research facilities
+  research_facilities: 70,
+  mice_and_fish_animal_facilities: 71,
+  other_research_facilities: 72,
+  // not a module per se
   energy_mix: 100,
 } as const;
 
@@ -82,48 +138,32 @@ export const SUBMODULE_HEADCOUNT_TYPES = {
 export type HeadcountSubType =
   (typeof SUBMODULE_HEADCOUNT_TYPES)[keyof typeof SUBMODULE_HEADCOUNT_TYPES];
 
-export const SUBMODULE_PURCHASE_TYPES = {
-  Consumable: 'consumable',
-  Durable: 'durable',
-  Good: 'good',
-} as const;
-
-export type PurchaseSubType =
-  (typeof SUBMODULE_PURCHASE_TYPES)[keyof typeof SUBMODULE_PURCHASE_TYPES];
-
-type PurchaseProps = {
-  moduleType: typeof MODULES.Purchase;
-  submoduleType?: PurchaseSubType;
-};
-
-export const SUBMODULE_INFRASTRUCTURE_TYPES = {
+export const SUBMODULE_BUILDINGS_TYPES = {
   Building: 'building',
-  Facility: 'facility',
+  EnergyCombustion: 'energy_combustion',
 } as const;
 
-export type InfrastructureSubType =
-  (typeof SUBMODULE_INFRASTRUCTURE_TYPES)[keyof typeof SUBMODULE_INFRASTRUCTURE_TYPES];
+export type BuildingsSubType =
+  (typeof SUBMODULE_BUILDINGS_TYPES)[keyof typeof SUBMODULE_BUILDINGS_TYPES];
 
-type InfrastructureProps = {
-  moduleType: typeof MODULES.Infrastructure;
-  submoduleType?: InfrastructureSubType;
+type BuildingsProps = {
+  moduleType: typeof MODULES.Buildings;
+  submoduleType?: BuildingsSubType;
 };
 
 type EquipmentElectricConsumptionProps = {
   moduleType: typeof MODULES.EquipmentElectricConsumption;
-  submoduleType?: EquipmentElectricConsumptionSubType;
+  submoduleType?: AllSubmoduleTypes; // EquipmentElectricConsumptionSubType;
 };
 
 export type HeadcountProps = {
   moduleType: typeof MODULES.Headcount;
-  submoduleType?: HeadcountSubType;
+  submoduleType?: AllSubmoduleTypes; // HeadcountSubType;
 };
 
 export const SUBMODULE_PROFESSIONAL_TRAVEL_TYPES = {
-  Conference: 'conference',
-  Fieldwork: 'fieldwork',
-  Training: 'training',
-  Other: 'other',
+  Plane: 'plane',
+  Train: 'train',
 } as const;
 
 export type ProfessionalTravelSubType =
@@ -131,7 +171,7 @@ export type ProfessionalTravelSubType =
 
 type ProfessionalTravelProps = {
   moduleType: typeof MODULES.ProfessionalTravel;
-  submoduleType?: ProfessionalTravelSubType;
+  submoduleType?: AllSubmoduleTypes; // ProfessionalTravelSubType;
 };
 
 export const SUBMODULE_INTERNAL_SERVICES_TYPES = {
@@ -145,26 +185,20 @@ export type InternalServicesSubType =
 
 type InternalServicesProps = {
   moduleType: typeof MODULES.InternalServices;
-  submoduleType?: InternalServicesSubType;
+  submoduleType?: AllSubmoduleTypes; // InternalServicesSubType;
 };
 
-export type AllSubmoduleTypes =
-  | EquipmentElectricConsumptionSubType
-  | HeadcountSubType
-  | PurchaseSubType
-  | InfrastructureSubType
-  | ProfessionalTravelSubType
-  | InternalServicesSubType
-  | ExternalCloudSubType;
+export type AllSubmoduleTypes = keyof typeof enumSubmodule;
 
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
   | HeadcountProps
   | PurchaseProps
-  | InfrastructureProps
+  | BuildingsProps
   | ProfessionalTravelProps
   | InternalServicesProps
-  | ExternalCloudProps;
+  | ExternalCloudProps
+  | ProcessesProps;
 
 export const MODULES_LIST: Module[] = Object.values(MODULES);
 
@@ -240,11 +274,18 @@ export function getBackendModuleName(frontendModule: Module): string {
   const moduleMap: Record<Module, string> = {
     [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
-    [MODULES.Infrastructure]: 'infrastructure',
+    [MODULES.Buildings]: 'buildings',
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
     [MODULES.Purchase]: 'purchase',
     [MODULES.InternalServices]: 'internal_services',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
+    [MODULES.ProcessEmissions]: 'process_emissions',
   };
   return moduleMap[frontendModule] || frontendModule;
+}
+
+export interface TaxonomyNode {
+  name: string;
+  label: string;
+  children?: TaxonomyNode[];
 }

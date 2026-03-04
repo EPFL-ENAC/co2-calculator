@@ -21,11 +21,12 @@ export type ModuleStates = { [K in Module]: ModuleState };
 export const MODULE_TYPE_IDS = {
   headcount: 1,
   'professional-travel': 2,
-  infrastructure: 3,
+  buildings: 3,
   'equipment-electric-consumption': 4,
   purchase: 5,
   'internal-services': 6,
   'external-cloud-and-ai': 7,
+  'process-emissions': 8,
 } as const;
 
 export type ModuleTypeId =

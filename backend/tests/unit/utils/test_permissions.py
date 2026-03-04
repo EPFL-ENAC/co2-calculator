@@ -73,8 +73,8 @@ class TestCalculateUserPermissions:
         assert result["modules.equipment"]["edit"] is True
         assert result["modules.professional_travel"]["view"] is True
         assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.infrastructure"]["view"] is True
-        assert result["modules.infrastructure"]["edit"] is True
+        assert result["modules.buildings"]["view"] is True
+        assert result["modules.buildings"]["edit"] is True
         assert result["modules.purchase"]["view"] is True
         assert result["modules.purchase"]["edit"] is True
         assert result["modules.internal_services"]["view"] is True
@@ -95,8 +95,8 @@ class TestCalculateUserPermissions:
         assert result["modules.equipment"]["edit"] is False
         assert result["modules.professional_travel"]["view"] is True
         assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.infrastructure"]["view"] is False
-        assert result["modules.infrastructure"]["edit"] is False
+        assert result["modules.buildings"]["view"] is False
+        assert result["modules.buildings"]["edit"] is False
         assert result["modules.purchase"]["view"] is False
         assert result["modules.purchase"]["edit"] is False
         assert result["modules.internal_services"]["view"] is False

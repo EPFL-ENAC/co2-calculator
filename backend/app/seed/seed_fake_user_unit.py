@@ -47,16 +47,18 @@ async def seed_test_units(session: AsyncSession) -> None:
     unit_service = UnitService(session)
     await unit_service.upsert(
         unit_data=Unit(
-            provider_code="12345",
+            institutional_code="12345",
+            level=4,
             name="test unit 12345",
-            principal_user_provider_code="777777",
+            principal_user_institutional_id="777777",
         )
     )
     await unit_service.upsert(
         unit_data=Unit(
-            provider_code="10208",
+            institutional_code="10208",
+            level=4,
             name="enac test 10208",
-            principal_user_provider_code="777777",
+            principal_user_institutional_id="777777",
         )
     )
 
@@ -112,6 +114,9 @@ async def main() -> None:
         await seed_test_users(session)
         await seed_test_units(session)
         await seed_unit_users(session)
+        # Commit all changes at the end of the seeding process,
+        # after seeding users, units, and unit_user relationships
+        await session.commit()
         # seed unit_users relationships
 
     logger.info("Equipment and emissions seeding complete!")

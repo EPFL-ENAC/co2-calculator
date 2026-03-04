@@ -1,6 +1,6 @@
 """Security utilities for JWT authentication and authorization."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -37,7 +37,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta is None:
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
-    expire = datetime.utcnow() + expires_delta
+    expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
 
     key = OctKey.import_key(settings.SECRET_KEY.encode())
@@ -51,7 +51,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
     to_encode["type"] = "refresh"  # Mark as refresh token
-    expire = datetime.utcnow() + expires_delta
+    expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
 
     key = OctKey.import_key(settings.SECRET_KEY.encode())

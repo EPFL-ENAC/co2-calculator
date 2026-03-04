@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { QTableColumn } from 'quasar';
+// import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { useBackofficeStore } from 'src/stores/backoffice';
-import { Module, getBackendModuleName } from 'src/constant/modules';
-import { MODULE_STATES, ModuleState } from 'src/constant/moduleStates';
-import { MODULE_CARDS } from 'src/constant/moduleCards';
+// import { Module, getBackendModuleName } from 'src/constant/modules';
+import { MODULE_STATES } from 'src/constant/moduleStates';
+// import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ReportExport from './ReportExport.vue';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+// import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 const backofficeStore = useBackofficeStore();
 
@@ -22,10 +22,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-interface ModuleCompletion {
-  status: ModuleState;
-  outlier_values: number;
-}
+// interface ModuleCompletion {
+//   status: ModuleState;
+//   outlier_values: number;
+// }
 
 const selectedYearInDialog = ref<string>('');
 
@@ -38,26 +38,26 @@ const error = computed(() => {
 
 // Get available years from unit data
 const availableYears = computed(() => {
-  if (!unitData.value) return [];
+  // if (!unitData.value) return [];
 
-  const completion = unitData.value.completion;
+  // const completion = unitData.value?.validation_status;
 
-  // Check if it's year-based structure
-  const completionKeys = Object.keys(completion);
-  const isYearBased = completionKeys.some(
-    (key) => typeof key === 'string' && /^\d{4}$/.test(key),
-  );
+  // // Check if it's year-based structure
+  // const completionKeys = Object.keys(completion);
+  // const isYearBased = completionKeys.some(
+  //   (key) => typeof key === 'string' && /^\d{4}$/.test(key),
+  // );
 
-  if (isYearBased) {
-    const years = completionKeys
-      .filter((key) => /^\d{4}$/.test(key))
-      .sort()
-      .reverse(); // Sort descending (latest first)
+  // if (isYearBased) {
+  //   const years = completionKeys
+  //     .filter((key) => /^\d{4}$/.test(key))
+  //     .sort()
+  //     .reverse(); // Sort descending (latest first)
 
-    return years;
-  }
+  //   return years;
+  // }
 
-  return [];
+  return ['2024', '2025']; // Placeholder until backend provides year-based data
 });
 
 // Initialize selected year to latest when years are available
@@ -126,150 +126,92 @@ watch(
   },
 );
 
-interface ModuleRow {
-  module: Module;
+// interface ModuleRow {
+//   module: Module;
 
-  status: string;
-  statusColor: string;
-  statusTextColor?: string;
-  outlierValues: number;
-}
-
-// Get completion data for selected year
-const completionForSelectedYear = computed(() => {
-  if (!unitData.value) return null;
-
-  const completion = unitData.value.completion;
-  const selectedYear = selectedYearInDialog.value; // Explicitly track this dependency
-
-  // Check if it's year-based structure (keys are year strings like "2024", "2025")
-  const completionKeys = Object.keys(completion);
-  const isYearBased = completionKeys.some(
-    (key) => typeof key === 'string' && /^\d{4}$/.test(key),
-  );
-
-  if (isYearBased) {
-    // Get the year to use - prefer selected year, fallback to latest available
-    let yearKey = selectedYear;
-    if (!yearKey && availableYears.value.length > 0) {
-      yearKey = availableYears.value[0];
-    }
-
-    if (yearKey) {
-      // Access the year data directly
-      const yearData = (
-        completion as Record<string, Record<string, ModuleCompletion>>
-      )[yearKey];
-
-      if (
-        yearData &&
-        typeof yearData === 'object' &&
-        !Array.isArray(yearData)
-      ) {
-        // Verify it's the expected structure (module -> completion data)
-        return yearData as Record<string, ModuleCompletion>;
-      }
-    }
-    return null;
-  }
-
-  // Flat structure (old format) - return as-is
-  return completion as Record<string, ModuleCompletion>;
-});
+//   status: string;
+//   statusColor: string;
+//   statusTextColor?: string;
+//   outlierValues: number;
+// }
 
 // Calculate completion counts for selected year
 const completionCountsForYear = computed(() => {
-  const yearData = completionForSelectedYear.value;
-  if (!yearData) {
-    return { validated: 0, in_progress: 0, default: 0 };
-  }
-
-  const counts = { validated: 0, in_progress: 0, default: 0 };
-  Object.values(yearData).forEach((moduleData) => {
-    const status = moduleData?.status || MODULE_STATES.Default;
-    if (status === MODULE_STATES.Validated) {
-      counts.validated += 1;
-    } else if (status === MODULE_STATES.InProgress) {
-      counts.in_progress += 1;
-    } else {
-      counts.default += 1;
-    }
-  });
-  return counts;
+  return { validated: 0, in_progress: 0, default: 0 };
 });
 
-const moduleRows = computed<ModuleRow[]>(() => {
-  if (!unitData.value || !completionForSelectedYear.value) {
-    return [];
-  }
+// const moduleRows = computed<ModuleRow[]>(() => {
+//   if (!unitData.value || !completionForSelectedYear.value) {
+//     return [];
+//   }
 
-  const yearData = completionForSelectedYear.value;
+//   // const yearData = completionForSelectedYear.value;
 
-  return MODULE_CARDS.map((card) => {
-    const backendModuleName = getBackendModuleName(card.module);
-    const moduleData = yearData[backendModuleName];
+//   return MODULE_CARDS.map((card) => {
+//     const backendModuleName = getBackendModuleName(card.module);
+//     const moduleData = yearData[backendModuleName];
 
-    // Extract status and outlier_values from module data
-    const moduleStatus = moduleData?.status || 'default';
-    const outlierCount = moduleData?.outlier_values || 0;
-    let status;
-    let statusColor;
-    const statusTextColor = 'white';
+//     // Extract status and outlier_values from module data
+//     const moduleStatus = moduleData?.status || 'default';
+//     const outlierCount = moduleData?.outlier_values || 0;
+//     let status;
+//     let statusColor;
+//     const statusTextColor = 'white';
 
-    if (moduleStatus === MODULE_STATES.Validated) {
-      status = t(MODULE_STATES.Validated);
-      statusColor = 'green';
-    } else if (moduleStatus === MODULE_STATES.InProgress) {
-      status = t(MODULE_STATES.InProgress);
-      statusColor = 'orange';
-    } else {
-      status = t(MODULE_STATES.Default);
-      statusColor = 'grey';
-    }
+//     if (moduleStatus === MODULE_STATES.Validated) {
+//       status = t(MODULE_STATES.Validated);
+//       statusColor = 'green';
+//     } else if (moduleStatus === MODULE_STATES.InProgress) {
+//       status = t(MODULE_STATES.InProgress);
+//       statusColor = 'orange';
+//     } else {
+//       status = t(MODULE_STATES.Default);
+//       statusColor = 'grey';
+//     }
 
-    return {
-      module: card.module,
-      status,
-      statusColor,
-      statusTextColor,
-      outlierValues: outlierCount,
-    };
-  });
-});
+//     return {
+//       module: card.module,
+//       status,
+//       statusColor,
+//       statusTextColor,
+//       outlierValues: outlierCount,
+//     };
+//   });
+// });
 
-const columns = computed<QTableColumn[]>(() => [
-  {
-    name: 'module',
-    label: t('backoffice_reporting_row_module_label'),
-    field: 'module',
-    align: 'left',
-    sortable: true,
-  },
-  {
-    name: 'status',
-    label: t('backoffice_reporting_row_status_label'),
-    field: 'status',
-    align: 'left',
-    sortable: true,
-  },
-  {
-    name: 'outlier_values',
-    label: t('backoffice_reporting_row_outlier_values_label'),
-    field: 'outlierValues',
-    align: 'left',
-    sortable: true,
-    sort: (a: number, b: number, rowA: ModuleRow, rowB: ModuleRow) => {
-      return rowA.outlierValues - rowB.outlierValues;
-    },
-  },
-]);
+// const columns = computed<QTableColumn[]>(() => [
+//   {
+//     name: 'module',
+//     label: t('backoffice_reporting_row_module_label'),
+//     field: 'module',
+//     align: 'left',
+//     sortable: true,
+//   },
+//   {
+//     name: 'status',
+//     label: t('backoffice_reporting_row_status_label'),
+//     field: 'status',
+//     align: 'left',
+//     sortable: true,
+//   },
+//   {
+//     name: 'outlier_values',
+//     label: t('backoffice_reporting_row_outlier_values_label'),
+//     field: 'outlierValues',
+//     align: 'left',
+//     sortable: true,
+//     sort: (a: number, b: number, rowA: ModuleRow, rowB: ModuleRow) => {
+//       return rowA.outlierValues - rowB.outlierValues;
+//     },
+//   },
+// ]);
 </script>
 
 <template>
   <q-dialog v-model="dialogModel" class="modal-grid">
     <q-card class="column" :class="`modal modal--lg`">
       <q-card-section class="flex justify-between items-center flex-shrink">
-        <div class="text-h4 text-weight-medium">{{ unitData?.unit }}</div>
+        <div class="text-h4 text-weight-medium">{{ unitData?.unit_name }}</div>
         <q-btn
           v-close-popup
           flat
@@ -349,13 +291,13 @@ const columns = computed<QTableColumn[]>(() => [
             v-if="!loading && !error && unitData"
             class="flex justify-between q-mt-lg q-mb-sm"
           >
-            <span class="text-body1 text-weight-medium">{{
+            <!-- <span class="text-body1 text-weight-medium">{{
               t('backoffice_reporting_modules_label', {
                 count: moduleRows.length,
               })
-            }}</span>
+            }}</span> -->
           </div>
-          <q-table
+          <!-- <q-table
             v-if="!loading && !error && unitData"
             class="co2-table border"
             flat
@@ -373,7 +315,6 @@ const columns = computed<QTableColumn[]>(() => [
                   'bg-grey-1': rowIndex % 2 === 1,
                 }"
               >
-                <!-- Module -->
                 <q-td key="module">
                   <div class="flex items-center q-gutter-sm">
                     <ModuleIcon :name="row.module" color="accent" size="md" />
@@ -383,7 +324,6 @@ const columns = computed<QTableColumn[]>(() => [
                   </div>
                 </q-td>
 
-                <!-- Status -->
                 <q-td key="status">
                   <q-badge
                     :color="row.statusColor"
@@ -392,7 +332,6 @@ const columns = computed<QTableColumn[]>(() => [
                   />
                 </q-td>
 
-                <!-- Outlier Values -->
                 <q-td key="outlier_values">
                   <q-badge
                     v-if="row.outlierValues > 0"
@@ -404,7 +343,7 @@ const columns = computed<QTableColumn[]>(() => [
                 </q-td>
               </q-tr>
             </template>
-          </q-table>
+          </q-table> -->
 
           <ReportExport />
         </div>

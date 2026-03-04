@@ -401,7 +401,7 @@ Run security audits regularly:
 cd backend && uv pip audit
 
 # Node.js
-cd frontend && npm audit
+cd frontend && npm audit --omit=dev
 
 # Check Dependabot alerts
 # Visit GitHub Security tab

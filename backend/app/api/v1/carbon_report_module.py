@@ -1,8 +1,17 @@
 """Unit Results API endpoints."""
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -10,17 +19,9 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import IngestionMethod
-from app.models.headcount import (
-    HeadcountItemResponse,
-)
 from app.models.module_type import ModuleTypeEnum
-from app.models.professional_travel import (
-    ProfessionalTravelCreate,
-    ProfessionalTravelItemResponse,
-    ProfessionalTravelUpdate,
-)
 from app.models.user import User
+from app.modules.headcount.schemas import HeadcountItemResponse
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -32,11 +33,13 @@ from app.schemas.data_entry import (
     DataEntryResponse,
     DataEntryUpdate,
     ModuleHandler,
+    resolve_primary_factor_if_kind_or_subkind_changed,
 )
+from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
-from app.services.professional_travel_service import ProfessionalTravelService
+from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -103,7 +106,6 @@ async def get_module(
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
     module_key = module_id.replace("-", "_")
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
@@ -116,48 +118,97 @@ async def get_module(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
-    if module_id == "professional-travel":
-        # Fetch real data from database
-        module_data = await ProfessionalTravelService(db).get_module_data(
-            unit_id=unit_id,
-            year=year,
-            user=current_user,
-            preview_limit=preview_limit,
+    module_data = await DataEntryService(db).get_module_data(
+        carbon_report_module_id=carbon_report_module_id,
+    )
+
+    # if headcount compute FTE here
+    total_annual_fte = None
+    if module_id == "headcount":
+        total_annual_fte = await DataEntryService(db).get_total_per_field(
+            field_name="fte",
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=None,
+        )
+        module_data.stats = await DataEntryService(db).get_stats(
+            carbon_report_module_id=carbon_report_module_id,
+            aggregate_by="function",
+            aggregate_field="fte",
         )
     else:
-        module_data = await DataEntryService(db).get_module_data(
-            carbon_report_module_id=carbon_report_module_id,
-        )
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
         )
-        # if headcount compute FTE here
-        total_annual_fte = None
-        if module_id == "headcount":
-            total_annual_fte = await DataEntryService(db).get_total_per_field(
-                field_name="fte",
-                carbon_report_module_id=carbon_report_module_id,
-                data_entry_type_id=None,
-            )
-            module_data.stats = await DataEntryService(db).get_stats(
-                carbon_report_module_id=carbon_report_module_id,
-                aggregate_by="function",
-                aggregate_field="fte",
-            )
-        # if need other subtotal do it here
-        total_kg_co2eq = sum(module_data.stats.values())
-        module_data.totals = ModuleTotals(
-            total_kg_co2eq=total_kg_co2eq,
-            total_tonnes_co2eq=total_kg_co2eq / 1000.0,
-            total_annual_consumption_kwh=None,
-            total_annual_fte=total_annual_fte,
-        )
+    # if need other subtotal do it here
+    total_kg_co2eq = (
+        sum(v for v in module_data.stats.values() if v is not None)
+        if module_data.stats
+        else None
+    )
+    module_data.totals = ModuleTotals(
+        total_kg_co2eq=total_kg_co2eq,
+        total_tonnes_co2eq=total_kg_co2eq / 1000.0
+        if total_kg_co2eq is not None
+        else None,
+        total_annual_consumption_kwh=None,
+        total_annual_fte=total_annual_fte,
+    )
     if not module_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module not found",
         )
     return module_data
+
+
+@router.get(
+    "/{unit_id}/{year}/{module_id}/stats-by-class",
+)
+async def get_stats_by_class(
+    unit_id: int,
+    year: int,
+    module_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List:
+    """
+    Get travel emissions aggregated by travel category and cabin_class.
+
+    Returns treemap-format data for charts.
+    """
+    await _check_module_permission(current_user, module_id, "view")
+
+    module_key = module_id.replace("-", "_")
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key],
+        db=db,
+    )
+
+    stats = await DataEntryEmissionService(db).get_travel_stats_by_class(
+        carbon_report_module_id=carbon_report_module_id,
+    )
+    return stats
+
+
+@router.get(
+    "/{unit_id}/evolution-over-time",
+)
+async def get_evolution_over_time(
+    unit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List:
+    """
+    Get travel emissions aggregated by year and category for a unit.
+    """
+    await _check_module_permission(current_user, "professional-travel", "view")
+
+    stats = await DataEntryEmissionService(db).get_travel_evolution_over_time(
+        unit_id=unit_id,
+    )
+    return stats
 
 
 @router.get(
@@ -169,6 +220,8 @@ async def get_submodule(
     year: int,
     module_id: str,
     submodule_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
     page: int = Query(default=1, ge=1, description="Page number"),
     limit: int = Query(default=50, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
@@ -208,7 +261,6 @@ async def get_submodule(
     )
 
     module_key = module_id.replace("-", "_")
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
@@ -220,46 +272,34 @@ async def get_submodule(
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
-    submodule_data = None
-    if module_id == "professional-travel":
-        if submodule_id != "trips":
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Submodule {submodule_id} not found for professional-travel",
-            )
-        submodule_data = await ProfessionalTravelService(db).get_submodule_data(
-            unit_id=unit_id,
-            year=year,
-            user=current_user,
-            page=page,
-            limit=limit,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            filter=filter,
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+    if data_entry_type_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Submodule {submodule_id} not found",
         )
-    else:
-        # do the generic data-entry here
-        submodule_key = submodule_id.replace("-", "_")
-        data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-        if data_entry_type_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Submodule {submodule_id} not found",
-            )
-        if carbon_report_module_id is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Carbon report module ID could not be determined",
-            )
-        submodule_data = await DataEntryService(db).get_submodule_data(
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-            limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            filter=filter,
+    if carbon_report_module_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Carbon report module ID could not be determined",
         )
+    submodule_data = await DataEntryService(db).get_submodule_data(
+        carbon_report_module_id=carbon_report_module_id,
+        data_entry_type_id=data_entry_type_id,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        filter=filter,
+        current_user=UserRead.model_validate(current_user),
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
+        background_tasks=background_tasks,
+    )
 
     if not submodule_data:
         raise HTTPException(
@@ -276,11 +316,7 @@ async def get_submodule(
 
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
-    response_model=Union[
-        HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
-        DataEntryResponse,
-    ],
+    response_model=DataEntryResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create(
@@ -289,6 +325,8 @@ async def create(
     module_id: str,
     submodule_id: str,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -326,133 +364,111 @@ async def create(
     )
     item: Union[
         HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
 
     submodule_key = submodule_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
-    # Validate unit_id matches the one in request body
-    if module_id == "professional-travel":
-        # Parse as ProfessionalTravelCreate
-        try:
-            parsed_travel = ProfessionalTravelCreate(**item_data)
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid item_data for professional travel creation: {str(e)}",
-            )
-        if submodule_id != "trips":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid submodule_id {submodule_id} for professional-travel",
-            )
-        # Ensure unit_id matches
-        if parsed_travel.unit_id != unit_id:
-            raise HTTPException(
-                status_code=400,
-                detail="unit_id in path must match unit_id in request body",
-            )
-        # Log user info for debugging
-        logger.info(
-            f"Creating professional travel: unit_id={sanitize(unit_id)}, "
-            f"year={year}, user_id={sanitize(current_user.id)}, "
-            f"user_email={sanitize(current_user.email)}, "
-            f"traveler_name={sanitize(parsed_travel.traveler_name)}"
-        )
-        travel_result = await ProfessionalTravelService(db).create_travel(
-            data=parsed_travel,
-            user=current_user,
-            year=year,
-            unit_id=unit_id,
-            provider_source=IngestionMethod.manual,
-            provider=current_user.provider,
-        )
-        # Handle round trip (returns list) or single trip
-        travel = travel_result[0] if isinstance(travel_result, list) else travel_result
-        # Convert to item response with related data
-        service = ProfessionalTravelService(db)
-        item = await service._get_travel_item_response(travel, current_user)
-    else:
-        try:
-            create_payload = {
-                **item_data,
-                "data_entry_type_id": data_entry_type_id,
-                "carbon_report_module_id": carbon_report_module_id,
-            }
-            handler = BaseModuleHandler.get_by_type(data_entry_type)
-            create_payload = await handler.resolve_primary_factor_id(
-                create_payload, data_entry_type, db
-            )
-            validated_data = handler.validate_create(create_payload)
 
-            data_entry_create = DataEntryCreate(
-                **validated_data.model_dump(exclude_unset=True)
-            )
-
-        except Exception as e:
-            logger.error(
-                "Error validating item_data for data entry creation",
-                extra={"error": str(e), "item_data": sanitize(item_data)},
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid item_data for creation: {str(e)}",
-            )
-        if current_user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current user ID is required to delete item",
-            )
-        if carbon_report_module_id is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Carbon report module ID could not be determined",
-            )
-        item = await DataEntryService(db).create(
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-            user=current_user,
-            data=data_entry_create,
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current user ID is required to create item",
         )
-        if item is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create headcount item",
-            )
-
-        await DataEntryEmissionService(db).create(item)
-        # upsert could fail if emission factor lookup fails, but we still want to
-        # return the updated item
-        await db.commit()
-        item = DataEntryResponse.model_validate(item)
-
-    if item is None:
-        logger.error(
-            "Failed to create item in module",
-            extra={
-                "module_id": sanitize(module_id),
-                "unit_id": sanitize(unit_id),
-                "user_id": sanitize(current_user.id),
-            },
-        )
+    if carbon_report_module_id is None:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create equipment item",
+            detail="Carbon report module ID could not be determined",
         )
+
+    try:
+        create_payload = {
+            **item_data,
+            "data_entry_type_id": data_entry_type_id,
+            "carbon_report_module_id": carbon_report_module_id,
+        }
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
+        create_payload = await handler.resolve_primary_factor_id(
+            create_payload, data_entry_type, db
+        )
+
+        # If kind or subkind is being updated
+        # we may need to resolve a new primary factor ID
+        create_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
+            handler,
+            create_payload,
+            data_entry_type,
+            item_data,
+            existing_data=None,
+            db=db,
+        )
+
+        validated_data = handler.validate_create(create_payload)
+
+        data_entry_create = DataEntryCreate(
+            **validated_data.model_dump(exclude_unset=True)
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error validating item_data for data entry creation",
+            extra={"error": str(e), "item_data": sanitize(item_data)},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid item_data for creation: {str(e)}",
+        )
+
+    item = await DataEntryService(db).create(
+        carbon_report_module_id=carbon_report_module_id,
+        data_entry_type_id=data_entry_type_id,
+        user=UserRead.model_validate(current_user),
+        data=data_entry_create,
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
+        background_tasks=background_tasks,
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create item",
+        )
+
+    await DataEntryEmissionService(db).upsert_by_data_entry(
+        data_entry_response=item,
+    )
+    await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
+    await db.commit()
+
+    response = DataEntryResponse.model_validate(item)
+    # emissions_meta = {}
+    # for emission in emissions:
+    #     if emission and emission.meta:
+    #         emissions_meta.update(emission.meta)
+    # kg_co2eq = sum(
+    #     emission_local.kg_co2eq
+    #     for emission_local in emissions
+    #     if emission_local and emission_local.kg_co2eq is not None
+    # )
+    response.data = {
+        **response.data,
+        "kg_co2eq": 0,
+    }
     logger.info(
-        f"Created {sanitize(module_id)}:{sanitize(item.id)} for {sanitize(unit_id)}"
+        f"Created {sanitize(module_id)}:{sanitize(response.id)} for {sanitize(unit_id)}"
     )
 
-    return item
+    return response
 
 
 @router.get(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     response_model=Union[
         HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
         DataEntryResponse,
     ],
 )
@@ -473,7 +489,6 @@ async def get(
     )
     item: Union[
         HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
     if ModuleTypeEnum[module_id.replace("-", "_")] is None:
@@ -481,26 +496,9 @@ async def get(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module not supported for retrieval",
         )
-    if module_id == "professional-travel":
-        if not isinstance(item_id, int):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid item_id type for professional travel retrieval",
-            )
-        travel = await ProfessionalTravelService(db).repo.get_by_id(
-            travel_id=item_id, user=current_user
-        )
-        if travel is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Professional travel item not found",
-            )
-        service = ProfessionalTravelService(db)
-        item = await service._get_travel_item_response(travel, current_user)
-    else:
-        item = await DataEntryService(db).get(
-            id=item_id,
-        )
+    item = await DataEntryService(db).get(
+        id=item_id,
+    )
     logger.info(f"Retrieved item {sanitize(item_id)}")
 
     return item
@@ -510,7 +508,6 @@ async def get(
     "/{unit_id}/{year}/{module_id}/{submodule_id}/{item_id}",
     response_model=Union[
         HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
         DataEntryResponse,
     ],
 )
@@ -522,6 +519,8 @@ async def update(
     submodule_id: str,
     item_id: int,
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -535,7 +534,6 @@ async def update(
     )
     item: Union[
         HeadcountItemResponse,
-        ProfessionalTravelItemResponse,
         DataEntryResponse,
     ]
     submodule_key = submodule_id.replace("-", "_")
@@ -552,7 +550,6 @@ async def update(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Submodule not supported for update",
         )
-    # TODO: remove once migration done in frontend
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
@@ -560,97 +557,75 @@ async def update(
         db=db,
     )
 
-    if module_id == "professional-travel":
-        # Parse as ProfessionalTravelUpdate
-        try:
-            parsed_travel = ProfessionalTravelUpdate(**item_data)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid item_data for professional travel update: {str(e)}",
-            )
-        travel = await ProfessionalTravelService(db).update_travel(
-            travel_id=item_id,
-            data=parsed_travel,
-            user=current_user,
+    try:
+        existing_entry = await DataEntryService(db).get(id=item_id)
+        existing_data = existing_entry.data if existing_entry else {}
+        update_payload = {
+            **item_data,
+            "data_entry_type_id": data_entry_type_id,
+            "carbon_report_module_id": carbon_report_module_id,
+        }
+        handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
+        # If kind or subkind is being updated
+        # we may need to resolve a new primary factor ID
+        update_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
+            handler, update_payload, data_entry_type, item_data, existing_data, db
         )
-        if travel is None:
+        validated_data = handler.validate_update(update_payload)
+
+        data_entry_update = DataEntryUpdate(
+            **validated_data.model_dump(exclude_unset=True)
+        )
+    except Exception as e:
+        logger.error(
+            f"Error validating update data for item_id={sanitize(item_id)}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid item_data for update: {str(e)}",
+        )
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current user ID is required to update item",
+        )
+    try:
+        item = await DataEntryService(db).update(
+            id=item_id,
+            data=data_entry_update,
+            user=UserRead.model_validate(current_user),
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
+            background_tasks=background_tasks,
+        )
+        await db.flush()
+        if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Professional travel item not found",
+                detail="Data entry item not found",
             )
-        service = ProfessionalTravelService(db)
-        item = await service._get_travel_item_response(travel, current_user)
-    else:
-        try:
-            existing_entry = await DataEntryService(db).get(id=item_id)
-            existing_data = existing_entry.data if existing_entry else {}
-            update_payload = {
-                **item_data,
-                "data_entry_type_id": data_entry_type_id,
-                "carbon_report_module_id": carbon_report_module_id,
-            }
-            handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_kind_field = handler.kind_field or ""
-            handler_subkind_field = handler.subkind_field or ""
-            if (handler_kind_field in item_data) and (
-                item_data[handler_kind_field] != existing_data.get(handler_kind_field)
-            ):
-                # If the kind field is being updated, we need to reset subkind and
-                # primary_factor_id to ensure data integrity
-                update_payload[handler_subkind_field] = None
-                update_payload["primary_factor_id"] = None
-            update_payload = await handler.resolve_primary_factor_id(
-                update_payload, data_entry_type, db, existing_data=existing_data
-            )
-            validated_data = handler.validate_update(update_payload)
-
-            data_entry_update = DataEntryUpdate(
-                **validated_data.model_dump(exclude_unset=True)
-            )
-        except Exception as e:
-            logger.error(
-                f"Error validating update data for item_id={sanitize(item_id)}: "
-                f"extra={str(e)}",
-                exc_info=True,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid item_data for equipment update: {str(e)}",
-            )
-        if current_user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current user ID is required to delete item",
-            )
-        try:
-            item = await DataEntryService(db).update(
-                id=item_id,
-                data=data_entry_update,
-                user=current_user,
-            )
-            if item is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Data entry item not found",
-                )
-            # Recalculate emission after update
-            await DataEntryEmissionService(db).upsert_by_data_entry(
-                data_entry_response=item,
-            )
-            # upsert could fail if emission factor lookup fails, but we still want to
-            # return the updated item
-            await db.commit()
-        except Exception as e:
-            await db.rollback()
-            logger.error(
-                f"Failed to update item_id={sanitize(item_id)}",
-                exc_info=True,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update data entry",
-            ) from e
+        # Recalculate emission after update
+        await DataEntryEmissionService(db).upsert_by_data_entry(
+            data_entry_response=item,
+        )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
+        # upsert could fail if emission factor lookup fails, but we still want to
+        # return the updated item
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Failed to update item_id={sanitize(item_id)}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update data entry",
+        ) from e
     logger.info(f"Updated item {sanitize(item_id)}")
     return item
 
@@ -665,6 +640,8 @@ async def delete(
     module_id: str,
     submodule_id: str,
     item_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -688,17 +665,27 @@ async def delete(
                 detail="Module not supported for deletion",
             )
 
-        if module_id == "professional-travel":
-            await ProfessionalTravelService(db).delete_travel(
-                travel_id=item_id,
-                user=current_user,
-            )
-        else:
-            await DataEntryService(db).delete(
-                id=item_id,
-                current_user=current_user,
-            )
-            await db.commit()
+        # Resolve module ID before deleting the entry (needed for stats recompute)
+        module_key = module_id.replace("-", "_")
+        carbon_report_module_id = await get_carbon_report_id(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum[module_key],
+            db=db,
+        )
+
+        await DataEntryService(db).delete(
+            id=item_id,
+            current_user=UserRead.model_validate(current_user),
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
+            background_tasks=background_tasks,
+        )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
+        await db.commit()
     except HTTPException:
         # Re-raise HTTP exceptions (404, 403, etc.) from services
         raise

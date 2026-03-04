@@ -30,6 +30,8 @@ dependencies = [
     "requests>=2.32.4",
     "opentelemetry-distro>=0.60b1",
     "opentelemetry-exporter-otlp>=1.39.1",
+    "elasticsearch>=8.0.0,<9.0.0",
+    "pyyaml>=6.0.3",
 ]
 
 [tool.pytest.ini_options]
@@ -45,6 +47,8 @@ env = [
     "OAUTH_SCOPE=openid profile email",
     "FRONTEND_URL=http://test-frontend",
     "DEBUG=False",
+    "ELASTICSEARCH_INDEX=opdo-test",
+
 ]
 
 filterwarnings = ["ignore::DeprecationWarning"]
@@ -70,6 +74,7 @@ dev = [
     "pytest-cov>=7.0",
     "pytest-benchmark>=5.1",
     "pytest-mock>=3.15",
+    "pytest-elasticsearch>=5.0",
     "mypy>=1.18",
     "ruff>=0.14",
     "httpx>=0.28",
@@ -78,6 +83,9 @@ dev = [
     "pytest-env>=1.2.0",
     "faker>=38.2.0",
     "types-requests>=2.32.4.20260107",
+    "docker>=7.1.0",
+    "asyncpg>=0.31.0",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.mypy]

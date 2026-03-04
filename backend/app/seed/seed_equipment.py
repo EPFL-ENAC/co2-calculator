@@ -23,18 +23,24 @@ from app.db import SessionLocal
 
 # from app.models.equipment import Equipment, EquipmentEmission
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
-from app.models.emission_type import EmissionTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
+# from app.services import calculation_service
+from app.modules.equipment_electric_consumption import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
+
+# from app.modules.equipment_electric_consumption.schemas import (
+#     handle_equipment_emission_computation as compute_scientific_it_other,
+# )
 # from app.models.emission_factor import EmissionFactor, PowerFactor
 from app.seed.seed_helper import (
     get_carbon_report_module_id,
     load_factors_map,
     lookup_factor,
 )
-from app.services import calculation_service
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -109,9 +115,8 @@ async def seed_equipment(session: AsyncSession) -> None:
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader, start=1):
-            name = row.get("Name 1", "").strip()
-            category = row.get("Category", "").strip()
-            equipment_class = row.get("Class", "").strip()
+            name = row.get("name", "").strip()
+            equipment_class = row.get("equipment_class", "").strip()
             # Find all matching power factors for this class
             all_matches = [
                 pf
@@ -126,7 +131,7 @@ async def seed_equipment(session: AsyncSession) -> None:
             else:
                 equipment_subclass = None
 
-            if not name or not category or not equipment_class:
+            if not name or not equipment_class:
                 logger.warning(f"Skipping row {idx} with missing data: {row}")
                 continue
 
@@ -265,7 +270,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
 
     # Get emission factor
     ef_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.energy)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.energy)
     )
     emission_factor = ef_result.one_or_none()
     if not emission_factor:
@@ -283,7 +288,7 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
     # Get power factors map for lookup
     power_factors_map = {}
     pf_result = await session.exec(
-        select(Factor).where(col(Factor.emission_type_id) == EmissionTypeEnum.equipment)
+        select(Factor).where(col(Factor.emission_type_id) == EmissionType.equipment)
     )
     for pf_ in pf_result.all():
         power_factors_map[pf_.id] = pf_
@@ -311,8 +316,6 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
                 continue
             if pf:
                 power_factor_id = pf.id
-                active_power_w = pf.values.get("active_power_w", 0) or 0
-                standby_power_w = pf.values.get("standby_power_w", 0) or 0
             else:
                 logger.warning(f"""not found for equipment {equipment.id}
                                 ({equipment.data.get("name", "unknown")})""")
@@ -327,10 +330,10 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
             continue
 
         # Prepare equipment data for calculation
-        equipment_data = {
-            "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
-            "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
-        }
+        # equipment_data = {
+        #     "active_usage_hours": equipment.data.get("active_usage_hours") or 0,
+        #     "passive_usage_hours": equipment.data.get("passive_usage_hours") or 0,
+        # }
 
         if (emission_factor.values is None) or (emission_factor.id is None):
             logger.error(
@@ -341,34 +344,30 @@ async def seed_equipment_emissions(session: AsyncSession) -> None:
         if mix_energy is None:
             raise ValueError("Emission factor missing 'kgco2eq_per_kwh' value")
         # Calculate emissions using the versioned calculation service
-        emission_result = calculation_service.calculate_equipment_emission(
-            equipment_data=equipment_data,
-            emission_electric_factor=mix_energy,
-            active_power_w=active_power_w,
-            standby_power_w=standby_power_w,
-        )
+        # emission_result = compute_scientific_it_other(
+        #     self=None,
+        #     data_entry=equipment_data,
+        #     factors=[pf, emission_factor],
+        # )
 
         # Create EquipmentEmission record
-        assert equipment.id is not None, (
-            "Equipment must be saved before creating emission"
-        )
-        assert equipment.data_entry_type_id is not None, (
-            "Equipment must have data_entry_type_id"
-        )
+        if equipment.id is None:
+            raise ValueError("Equipment must be saved before creating emission")
+
+        if equipment.data_entry_type_id is None:
+            raise ValueError("Equipment must have data_entry_type_id")
         equipment_emission = DataEntryEmission(
             data_entry_id=equipment.id,
-            emission_type_id=EmissionTypeEnum.equipment,
+            emission_type_id=EmissionType.equipment,
             primary_factor_id=power_factor_id,
             subcategory=DataEntryTypeEnum(
                 equipment.data_entry_type_id
             ).name.title(),  # TODO: should be an enum somwhere
-            kg_co2eq=emission_result["kg_co2eq"],
+            kg_co2eq=None,  # emission_result,
             meta={
-                "annual_kwh": emission_result["annual_kwh"],
+                "annual_kwh": 0,
                 "calculation_inputs": equipment.data,
                 "emission_factor_id": emission_factor.id,
-                # "power_factor_id": emission_result["power_factor_id"],
-                # "formula_version": emission_result["formula_version"],
             },
             formula_version=versionapi,
             computed_at=datetime.now(timezone.utc),
@@ -398,7 +397,12 @@ async def main() -> None:
 
     async with SessionLocal() as session:
         await seed_equipment(session)
+        # Commit after seeding equipment before calculating emissions
+        await session.commit()
         await seed_equipment_emissions(session)
+        # Commit all changes at the end of the seeding process,
+        # after seeding equipment and emissions
+        await session.commit()
 
     logger.info("Equipment and emissions seeding complete!")
 

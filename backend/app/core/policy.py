@@ -416,10 +416,11 @@ def _get_module_permission_path(module_id: str) -> Optional[str]:
     module_permission_map = {
         "professional-travel": "modules.professional_travel",
         "equipment-electric-consumption": "modules.equipment",
-        "infrastructure": "modules.infrastructure",
+        "buildings": "modules.buildings",
         "purchase": "modules.purchase",
         "internal-services": "modules.internal_services",
         "external-cloud-and-ai": "modules.external_cloud_and_ai",
+        "process-emissions": "modules.process_emissions",
         "my-lab": "modules.headcount",  # Headcount module
     }
     return module_permission_map.get(module_id)

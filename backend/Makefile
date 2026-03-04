@@ -77,6 +77,23 @@ lint: ## Check code formatting
 		npx prettier --check . --ignore-unknown; \
 	fi
 
+.PHONY: lint-fix
+lint-fix: ## Fix code formatting issues
+	@set -e; \
+	if [ -n "$(PY_FILES)" ]; then \
+		$(RUFF) format $(PY_FILES) && \
+		$(RUFF) check --fix $(PY_FILES); \
+	else \
+		$(RUFF) format . && \
+		$(RUFF) check --fix .; \
+	fi
+
+.PHONY: audit
+audit: ## Run security audits with uv-audit and bandit
+	@set -e; \
+	uvx uv-audit --verbose && \
+	uvx bandit -r ./app/ -x tests,.venv
+
 .PHONY: type-check
 type-check: ## Run type checking with mypy
 	@set -e; \
@@ -85,7 +102,7 @@ type-check: ## Run type checking with mypy
 .PHONY: test
 test: ## Run tests
 	@set -e; \
-	$(PYTEST) tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=45
+	$(PYTEST) tests/unit -vv --cov=app --cov-report=term-missing --cov-fail-under=60
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage
@@ -99,16 +116,24 @@ test-cov-xml: ## Run tests with coverage and output XML report
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
-# 	# Mandatory seeds
-	$(UV) run -m app.seed.seed_fake_user_unit
-	$(UV) run -m app.seed.seed_emission_factors
-	$(UV) run -m app.seed.seed_equipment
-# 	$(UV) run -m app.seed.seed_headcount
-	$(UV) run -m app.seed.seed_locations
-# 	TODO: seed_professionnal_travel should use current csv
-# 	$(UV) run -m app.seed.seed_professional_travel
-	$(UV) run -m app.seed.seed_travel_impact_factors
-	$(UV) run -m app.seed.seed_external_cloud_and_ai
+# seeds units from accred
+# 	$(UV) run -m app.seed.seed_units_from_accred
+# Random seeds
+#	$(UV) run -m app.seed.seed_all
+# custom seeds from ./backend/seed_data folder
+# 	$(UV) run -m app.seed.seed_fake_user_unit
+# 	$(UV) run -m app.seed.seed_emission_factors
+# 	$(UV) run -m app.seed.seed_equipment
+# 	$(UV) run -m app.seed.seed_process_emissions_factors
+# 	$(UV) run -m app.seed.seed_locations
+# 	$(UV) run -m app.seed.seed_plane_factors
+# 	$(UV) run -m app.seed.seed_train_factors
+# 	$(UV) run -m app.seed.seed_external_cloud_and_ai
+# 	$(UV) run -m app.seed.seed_purchase
+# 	$(UV) run -m app.seed.seed_archibus_rooms
+# 	$(UV) run -m app.seed.seed_building_factors
+	$(UV) run -m app.seed.seed_headcount_factors
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \

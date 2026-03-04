@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div class="q-gutter-sm">
+    <div v-if="hasModuleUpload" class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -10,6 +10,7 @@
         no-caps
         size="sm"
         class="text-weight-medium"
+        :disable="isDisabled"
         @click="onUploadCsv"
       />
       <q-btn
@@ -128,6 +129,7 @@
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
+              :hint="col.hint"
               :unit-id="unitId"
               :year="year"
               :disable="isDisabled"
@@ -142,6 +144,7 @@
               :dense="true"
               hide-bottom-space
               outlined
+              :title="col.hint ? $t(col.hint) : undefined"
               :min="col.min"
               :max="col.max"
               :step="col.step"
@@ -159,7 +162,24 @@
             "
           >
             <q-btn
-              v-if="canEdit"
+              :icon="slotProps.row.note ? 'o_comment' : 'o_add_comment'"
+              :color="slotProps.row.note ? 'accent' : 'grey-4'"
+              :text-color="slotProps.row.note ? 'white' : 'primary'"
+              :disable="isDisabled"
+              unelevated
+              no-caps
+              dense
+              round
+              :outline="!slotProps.row.note"
+              class="q-mr-sm"
+              @click="openNoteDialog(slotProps.row)"
+            >
+              <q-tooltip v-if="slotProps.row.note" class="tooltip">
+                {{ slotProps.row.note }}
+              </q-tooltip>
+            </q-btn>
+            <q-btn
+              v-if="canEdit && hasModuleUpload"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
@@ -243,6 +263,14 @@
     </q-card>
   </q-dialog>
 
+  <NoteDialog
+    v-model="noteDialogOpen"
+    :note="noteDialogCurrentNote"
+    :mode="noteDialogCurrentNote ? 'edit' : 'add'"
+    @save="saveNote"
+    @delete="deleteNote"
+  />
+
   <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
     <q-card class="column">
       <q-card-section class="flex justify-between items-center">
@@ -308,8 +336,9 @@ import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
+import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
@@ -321,10 +350,14 @@ import type {
   Threshold,
   EnumSubmoduleType,
 } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
+import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
 
-import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
-
+import {
+  MODULES,
+  SUBMODULE_BUILDINGS_TYPES,
+  SUBMODULE_EXTERNAL_CLOUD_TYPES,
+} from 'src/constant/modules';
+import { MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
 function getNumericRules(col: TableViewColumn) {
@@ -357,9 +390,81 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
 
+const noteDialogOpen = ref(false);
+const noteDialogCurrentNote = ref('');
+const noteDialogRowId = ref<number | null>(null);
+
+function openNoteDialog(row: ModuleRow) {
+  noteDialogRowId.value = getRowId(row);
+  noteDialogCurrentNote.value = (row.note as string) ?? '';
+  noteDialogOpen.value = true;
+}
+
+async function saveNote(note: string) {
+  if (noteDialogRowId.value == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      noteDialogRowId.value,
+      { note },
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  } finally {
+    noteDialogRowId.value = null;
+  }
+}
+
+async function deleteNote() {
+  if (noteDialogRowId.value == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      noteDialogRowId.value,
+      { note: null },
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  } finally {
+    noteDialogRowId.value = null;
+  }
+}
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
+
+const MAX_DISPLAYED_ROW_ERRORS = 5;
+
+const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
+  const rowErrors = payload?.meta?.row_errors ?? [];
+  if (rowErrors.length === 0) return undefined;
+  const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
+  const lines = rowErrors
+    .slice(0, MAX_DISPLAYED_ROW_ERRORS)
+    .map((e) => $t('csv_sync_row_error', { row: e.row, reason: e.reason }));
+  if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
+    lines.push(
+      $t('csv_sync_and_more_errors', {
+        count: totalErrorCount - MAX_DISPLAYED_ROW_ERRORS,
+      }),
+    );
+  }
+  return lines.join('\n');
+};
 
 const onFilesUploaded = async (filePaths: string[]) => {
   showUploadDialog.value = false;
@@ -401,30 +506,49 @@ const onFilesUploaded = async (filePaths: string[]) => {
 
     dataManagementStore.subscribeToJobUpdates(
       jobId,
-      () => {
+      (payload?: JobUpdatePayload) => {
         moduleStore.getSubmoduleData({
           submoduleType: props.submoduleType,
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
         });
-        // also call get module data to update overall stats
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
         );
-        $q.notify({
-          color: 'positive',
-          message: `${$t('csv_sync_completed')}`,
-          position: 'top',
-        });
+
+        const errorCaption = formatRowErrors(payload);
+        if (errorCaption) {
+          const totalErrorCount =
+            payload?.meta?.row_errors_count ??
+            payload?.meta?.row_errors?.length ??
+            0;
+          $q.notify({
+            color: 'negative',
+            message: $t('csv_sync_completed_with_errors', {
+              count: totalErrorCount,
+            }),
+            caption: errorCaption,
+            position: 'top',
+            multiLine: true,
+          });
+        } else {
+          $q.notify({
+            color: 'positive',
+            message: $t('csv_sync_completed'),
+            position: 'top',
+          });
+        }
       },
-      (payload: JobUpdatePayload) => {
+      (payload?: JobUpdatePayload) => {
         $q.notify({
           color: 'negative',
-          message: `${$t('csv_sync_failed')}: ${payload.status_message || ''}`,
+          message: $t('csv_sync_failed'),
+          caption: formatRowErrors(payload) || payload?.status_message || '',
           position: 'top',
+          multiLine: true,
         });
         console.error('CSV sync job failed:', payload);
       },
@@ -474,6 +598,14 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
 });
 const moduleStore = useModuleStore();
+const timelineStore = useTimelineStore();
+
+const hasModuleUpload = computed(() => {
+  return (
+    props.moduleFields &&
+    props.moduleFields.filter((field) => !field.hideIn?.form).length > 0
+  );
+});
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
@@ -489,8 +621,11 @@ const canEdit = computed(() => {
   );
 });
 
-// Combine prop disable with permission check
-const isDisabled = computed(() => props.disable || !canEdit.value);
+const isDisabled = computed(
+  () =>
+    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+    !canEdit.value,
+);
 
 const filterTerm = ref('');
 const confirmDelete = ref(false);
@@ -515,6 +650,7 @@ type TableViewColumn = {
   field: string;
   sortable: boolean;
   align: 'left' | 'right' | 'center';
+  hint?: string;
   min?: number;
   max?: number;
   step?: number;
@@ -552,8 +688,8 @@ const qCols = computed<TableViewColumn[]>(() => {
       if (Array.isArray(i18nLabelKey)) {
         i18nLabelKey.forEach((labelKey, index) => {
           let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
-          const translated = $t(labelKey);
-          if (translated && translated !== labelKey) {
+          const translated = $t(labelKey, { unit });
+          if (translated) {
             labelText = translated;
           }
 
@@ -562,6 +698,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             label: labelText,
             field: f.id, // All columns use the same field
             sortable,
+            hint: f.hint,
             min: f.min,
             max: f.max,
             step: f.step,
@@ -578,8 +715,8 @@ const qCols = computed<TableViewColumn[]>(() => {
         // Single labelKey - create one column
         let labelText = unit ? `${f.label ?? ''} (${unit})` : (f.label ?? '');
         if (i18nLabelKey) {
-          const translated = $t(i18nLabelKey as string);
-          if (translated && translated !== i18nLabelKey) {
+          const translated = $t(i18nLabelKey as string, { unit });
+          if (translated) {
             labelText = translated;
           }
         }
@@ -589,6 +726,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           label: labelText,
           field: f.id,
           sortable,
+          hint: f.hint,
           min: f.min,
           max: f.max,
           step: f.step,
@@ -612,6 +750,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       align: 'right',
       sortable: false,
       inputComponent: QInput,
+      hint: undefined,
       min: undefined,
       max: undefined,
       step: undefined,
@@ -820,11 +959,15 @@ function rowClasses(row: ModuleRow) {
 
 function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
   if (col.name === 'kg_co2eq') {
-    if (row.status && String(row.status).toLowerCase() !== 'in service')
-      return '';
-    const thresholdVal = props.threshold?.value ?? null;
-    const val = Number(row[col.field]);
-    if (thresholdVal !== null && Number.isFinite(val) && val > thresholdVal) {
+    const thresholdVal = Number(props.threshold?.value);
+    const rawVal = row?.[col.field];
+    const val = typeof rawVal === 'number' ? rawVal : Number(rawVal);
+
+    if (
+      Number.isFinite(thresholdVal) &&
+      Number.isFinite(val) &&
+      val > thresholdVal
+    ) {
       return 'text-negative';
     }
   }
@@ -848,6 +991,16 @@ function isNew(row: ModuleRow) {
   return Boolean(row.is_new);
 }
 
+function hasValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+function hasRequiredValues(row: ModuleRow, fields: string[]) {
+  return fields.every((fieldId) => hasValue(row[fieldId]));
+}
+
 function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
@@ -858,9 +1011,7 @@ function isCompleteEquipement(row: ModuleRow) {
     'standby_power_w',
   ];
 
-  return required.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, required);
 }
 
 function isCompleteHeadcount(row: ModuleRow) {
@@ -868,23 +1019,17 @@ function isCompleteHeadcount(row: ModuleRow) {
   const requiredStudent = ['fte'];
   // implicit behavior: if sciper is set, it's a member
   // todo: sciper field should not exist: maybe user_id to be agnostic
-  if (row.sciper !== '') {
-    return requiredMember.every(
-      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-    );
+  if (hasValue(row.sciper)) {
+    return hasRequiredValues(row, requiredMember);
   }
 
-  return requiredStudent.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, requiredStudent);
 }
 
 //  dependence on the submodule type
 function isCompleteExternalCloud(row: ModuleRow) {
   const required = ['service_type', 'cloud_provider', 'spending'];
-  return required.every(
-    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-  );
+  return hasRequiredValues(row, required);
 }
 
 function isCompleteExternalAI(row: ModuleRow) {
@@ -894,13 +1039,33 @@ function isCompleteExternalAI(row: ModuleRow) {
     'frequency_use_per_day',
     'user_count',
   ];
+  return hasRequiredValues(row, required);
+}
+
+function isCompletePurchase(row: ModuleRow) {
+  const required = [
+    'name',
+    'quantity',
+    'purchase_institutional_code',
+    'total_spent_amount',
+  ];
+  return required.every(
+    (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+  );
+}
+
+function isCompletePurchaseAdditional(row: ModuleRow) {
+  const required = ['name', 'annual_consumption', 'coef_to_kg'];
   return required.every(
     (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
   );
 }
 
 function isComplete(row: ModuleRow) {
-  // # TODO : move isComplete to module definition
+  const requiredFieldIds = props.submoduleConfig?.requiredFieldIds ?? [];
+  if (requiredFieldIds.length > 0) {
+    return hasRequiredValues(row, requiredFieldIds);
+  }
 
   if (props.moduleType === MODULES.Headcount) {
     // For Headcount, consider complete if name and status are set
@@ -921,13 +1086,51 @@ function isComplete(row: ModuleRow) {
   ) {
     return isCompleteExternalAI(row);
   }
+  if (props.moduleType === MODULES.Purchase) {
+    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.AdditionalPurchases) {
+      return isCompletePurchaseAdditional(row);
+    }
+    return isCompletePurchase(row);
+  }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    // For Professional Travel, consider complete if origin, destination, and transport_mode are set
     const required = [
       'origin',
       'destination',
       'transport_mode',
       'traveler_name',
+    ];
+    return required.every(
+      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+    );
+  }
+  if (props.moduleType === MODULES.ProcessEmissions) {
+    const baseRequired = ['emitted_gas', 'quantity_kg'];
+    const hasBaseRequired = hasRequiredValues(row, baseRequired);
+    if (!hasBaseRequired) {
+      return false;
+    }
+
+    if (row.emitted_gas === 'Refrigerants') {
+      return (
+        row.sub_category !== null &&
+        row.sub_category !== undefined &&
+        row.sub_category !== ''
+      );
+    }
+    return true;
+  }
+  if (props.moduleType === MODULES.Buildings) {
+    if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
+      const required = ['heating_type', 'quantity'];
+      return required.every(
+        (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
+      );
+    }
+    const required = [
+      'building_name',
+      'room_name',
+      'room_type',
+      'room_surface_square_meter',
     ];
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
@@ -1000,18 +1203,21 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  //
-  const csvEquipmentContent = `name,equipment_class,sub_class,active_usage_hours,passive_usage_hours`;
+  const csvEquipmentContent =
+    'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
+  const csvHeadcountContent = 'name,function,fte';
+  const csvProfessionalTravelContent =
+    'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
+  const csvExternalCloudContent = 'service_type,cloud_provider,spending';
+  const csvExternalAIContent =
+    'ai_provider,ai_use,frequency_use_per_day,user_count';
+  const csvPurchaseContent =
+    'name,purchase_institutional_code,quantity,total_spent_amount';
+  const csvProcessesContent = 'emitted_gas,sub_category,quantity_kg';
+  const csvDefaultContent = 'not_implemented_yet';
 
-  const csvHeadcountContent = `name,function,fte`;
-
-  const csvProfessionalTravelContent = `Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes`;
-
-  const csvExternalCloudContent = `service_type,cloud_provider,spending`;
-  const csvExternalAIContent = `ai_provider,ai_use,frequency_use_per_day,user_count`;
-
-  const csvDefaultContent = `not_implemented_yet`;
-
+  const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
+  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:
@@ -1019,6 +1225,13 @@ function onDownloadTemplate() {
       break;
     case MODULES.ProfessionalTravel:
       csvContent = csvProfessionalTravelContent;
+      break;
+    case MODULES.Buildings:
+      if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
+        csvContent = csvBuildingsCombustionContent;
+      } else {
+        csvContent = csvBuildingsContent;
+      }
       break;
     case MODULES.EquipmentElectricConsumption:
       csvContent = csvEquipmentContent;
@@ -1036,6 +1249,12 @@ function onDownloadTemplate() {
         csvContent = csvDefaultContent;
       }
       break;
+    case MODULES.ProcessEmissions:
+      csvContent = csvProcessesContent;
+      break;
+    case MODULES.Purchase:
+      csvContent = csvPurchaseContent;
+      break;
     default:
       csvContent = csvDefaultContent;
       break;
@@ -1046,16 +1265,15 @@ function onDownloadTemplate() {
 
   const a = document.createElement('a');
   a.href = csvUrl;
-  a.download = `${props.moduleType}-template.csv`; // filename for the user
+  a.download = `${props.moduleType}-template.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  URL.revokeObjectURL(csvUrl);
 
   $q.notify({
     color: 'info',
-    message:
-      $t('common_download_csv_template_mock') ||
-      'CSV template download (mocked)',
+    message: $t('common_download_csv_template_mock') || 'CSV template download',
     position: 'top',
   });
 }
@@ -1142,6 +1360,7 @@ watch(
           unit: props.unitId,
           year: String(props.year),
         });
+        moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
       }
     }
   },
@@ -1165,6 +1384,7 @@ onMounted(() => {
       unit: props.unitId,
       year: String(props.year),
     });
+    moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
   }
 
   // Clear inline errors on mount
@@ -1214,5 +1434,9 @@ onUnmounted(() => {
 .tooltip {
   max-width: 280px;
   white-space: normal;
+}
+
+.co2-table .q-table td {
+  width: 100px;
 }
 </style>

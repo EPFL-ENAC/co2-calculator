@@ -2,13 +2,13 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.location import LocationRead
+from app.models.location import LocationRead, TransportModeEnum
 from app.models.user import User
 from app.services.location_service import LocationService
 
@@ -29,10 +29,10 @@ async def search_locations(
         le=20,
         description="Maximum number of results to return (default: 5, max: 20)",
     ),
-    transport_mode: Optional[str] = Query(
+    transport_mode: Optional[TransportModeEnum] = Query(
         None,
         description=(
-            "Filter by transport mode: 'train' or 'plane'. "
+            "Filter by location transport mode: 'train' or 'plane'. "
             "If not provided, returns both types."
         ),
     ),
@@ -50,7 +50,7 @@ async def search_locations(
     Args:
         query: Search query string (minimum 2 characters)
         limit: Maximum number of results (default: 5, max: 20)
-        transport_mode: Filter by transport mode ('train' or 'plane').
+        transport_mode: Filter by location transport mode ('train' or 'plane').
             If None, returns both types.
         db: Database session
         current_user: Authenticated user
@@ -58,6 +58,19 @@ async def search_locations(
     Returns:
         List of LocationRead DTOs ordered by relevance
     """
+    if transport_mode is None:
+        logger.warning(
+            "Search locations without transport_mode filter",
+            extra={
+                "user_id": current_user.id,
+                "query": sanitize(query),
+                "limit": limit,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="location transport_mode must be either 'train' or 'plane'",
+        )
     service = LocationService(db)
     locations = await service.search_locations(
         query=query,
@@ -83,23 +96,31 @@ async def search_locations(
 async def calculate_distance(
     origin_location_id: int = Query(..., description="Origin location ID"),
     destination_location_id: int = Query(..., description="Destination location ID"),
-    transport_mode: str = Query(
+    transport_mode: TransportModeEnum = Query(
         ...,
-        description="Transport mode: 'flight' (for plane) or 'train'",
+        description="Transport mode: 'plane' or 'train'",
+    ),
+    number_of_trips: int = Query(
+        1,
+        ge=1,
+        description="Number of trips (default: 1).",
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Calculate distance between two locations based on transport mode.
+    Calculate distance between two locations based on location transport mode.
 
     For flights: Haversine distance + 95 km (airport approaches, routing, taxiing)
     For trains: Haversine distance × 1.2 (track routing, curves, detours)
 
+    The returned distance is multiplied by number_of_trips to give the total distance.
+
     Args:
         origin_location_id: Origin location ID
         destination_location_id: Destination location ID
-        transport_mode: 'flight' or 'train'
+        transport_mode: Location transport mode ('plane' or 'train')
+        number_of_trips: Number of trips (default: 1)
         db: Database session
         current_user: Authenticated user
 
@@ -108,13 +129,15 @@ async def calculate_distance(
 
     Raises:
         HTTPException 404: If location not found
-        HTTPException 400: If transport_mode is invalid or coordinates are invalid
+        HTTPException 400: If location transport_mode is invalid
+            or coordinates are invalid
     """
     service = LocationService(db)
     result = await service.calculate_distance(
         origin_location_id=origin_location_id,
         destination_location_id=destination_location_id,
         transport_mode=transport_mode,
+        number_of_trips=number_of_trips,
     )
 
     logger.info(
@@ -124,6 +147,7 @@ async def calculate_distance(
             "origin_location_id": origin_location_id,
             "destination_location_id": destination_location_id,
             "transport_mode": transport_mode,
+            "number_of_trips": number_of_trips,
             "distance_km": result["distance_km"],
         },
     )

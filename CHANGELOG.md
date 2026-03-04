@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.6.0-rc.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.5.0...dev) (2026-03-04) — Sprint 6 pre-release (dev → stage)
+
+### Features
+
+* **process-emissions**: add new Process Emissions module for lab process emissions calculation ([#493](https://github.com/EPFL-ENAC/co2-calculator/pull/493), [#497](https://github.com/EPFL-ENAC/co2-calculator/pull/497))
+* **buildings**: rename Infrastructure module to Buildings with Archibus room data enrichment ([#524](https://github.com/EPFL-ENAC/co2-calculator/pull/524))
+* **purchase**: add purchase module with scientific/IT equipment, consumables, bio products, services, vehicles ([#514](https://github.com/EPFL-ENAC/co2-calculator/pull/514))
+* **travel-csv**: add CSV upload support for professional travel (planes and trains) ([#438](https://github.com/EPFL-ENAC/co2-calculator/pull/438), [#516](https://github.com/EPFL-ENAC/co2-calculator/pull/516))
+* **travel**: multiply distance by number_of_trips in calculation and UI ([#441](https://github.com/EPFL-ENAC/co2-calculator/pull/441))
+* **notes**: add "Add with note" dialog for data entries ([#486](https://github.com/EPFL-ENAC/co2-calculator/pull/486))
+* **results**: integrate dynamic emission breakdown API, validation states and chart visibility ([#449](https://github.com/EPFL-ENAC/co2-calculator/pull/449), [#479](https://github.com/EPFL-ENAC/co2-calculator/pull/479), [#490](https://github.com/EPFL-ENAC/co2-calculator/pull/490))
+* **results**: add placeholder chart and hide chart bars when no data ([#544](https://github.com/EPFL-ENAC/co2-calculator/pull/544), [#545](https://github.com/EPFL-ENAC/co2-calculator/pull/545))
+* **backoffice**: data management tab functional ([#439](https://github.com/EPFL-ENAC/co2-calculator/pull/439))
+* **audit**: implement Elasticsearch synchronization for audit logs ([#450](https://github.com/EPFL-ENAC/co2-calculator/pull/450), [#485](https://github.com/EPFL-ENAC/co2-calculator/pull/485))
+* **audit**: add pagination, search bar, stat cards and table ([#450](https://github.com/EPFL-ENAC/co2-calculator/pull/450))
+* **taxonomy**: add module taxonomy per module in backend and use it in form selects ([#521](https://github.com/EPFL-ENAC/co2-calculator/pull/521))
+* **reporting**: implement frontend filter functionality for reporting units ([#520](https://github.com/EPFL-ENAC/co2-calculator/pull/520))
+* **stats**: populate stats column on carbon report modules ([#550](https://github.com/EPFL-ENAC/co2-calculator/pull/550))
+* **emission-types**: refactor emission types with new breakdown structure ([#525](https://github.com/EPFL-ENAC/co2-calculator/pull/525))
+* **seeder**: add async seeder for data entries and emissions using asyncpg ([#519](https://github.com/EPFL-ENAC/co2-calculator/pull/519))
+* **helm**: add PodDisruptionBudget, imagePullSecrets to ServiceAccount, Elasticsearch vars and secret ([#445](https://github.com/EPFL-ENAC/co2-calculator/pull/445), [#464](https://github.com/EPFL-ENAC/co2-calculator/pull/464), [#515](https://github.com/EPFL-ENAC/co2-calculator/pull/515))
+* **formatting**: standardize number formatting for CO2 emissions and FTE ([#491](https://github.com/EPFL-ENAC/co2-calculator/pull/491))
+* **cicd**: add security scan with CodeQL v4 and Dependabot configuration ([#135](https://github.com/EPFL-ENAC/co2-calculator/pull/135), [#546](https://github.com/EPFL-ENAC/co2-calculator/pull/546))
+
+### Bug Fixes
+
+* fix factors used in train trips / cross-border train trips ([#437](https://github.com/EPFL-ENAC/co2-calculator/pull/437))
+* disable CSV upload when module is validated ([#443](https://github.com/EPFL-ENAC/co2-calculator/pull/443))
+* fix process card appearing twice ([#497](https://github.com/EPFL-ENAC/co2-calculator/pull/497))
+* override ajv and minimatch due to security vulnerabilities ([#494](https://github.com/EPFL-ENAC/co2-calculator/pull/494))
+* fix module table styling, process emissions data, and store cache invalidation ([#505](https://github.com/EPFL-ENAC/co2-calculator/pull/505))
+* fix headcount emission rows duplication and null kg_co2eq ([#549](https://github.com/EPFL-ENAC/co2-calculator/pull/549))
+* fix travel distance calculations for plane and train trips ([#548](https://github.com/EPFL-ENAC/co2-calculator/pull/548))
+* fix helm chart securityContext optional ([#474](https://github.com/EPFL-ENAC/co2-calculator/pull/474))
+* add postinstall script to prepare Quasar application ([#446](https://github.com/EPFL-ENAC/co2-calculator/pull/446))
+
+### Refactoring & Chore
+
+* refactor professional travel: replace `trips` with separate plane and train submodules ([#516](https://github.com/EPFL-ENAC/co2-calculator/pull/516))
+* reorganize code per module ([#517](https://github.com/EPFL-ENAC/co2-calculator/pull/517))
+* reduce login SVG size by ~94% ([#552](https://github.com/EPFL-ENAC/co2-calculator/pull/552))
+* rollback to uvicorn for OpenTelemetry compatibility ([#481](https://github.com/EPFL-ENAC/co2-calculator/pull/481))
+* correct npm ci without postinstall ([#475](https://github.com/EPFL-ENAC/co2-calculator/pull/475))
+
+### Sprint 6 Status
+
+**Validated**: CSV sync text fix, Upload CSV greyed in validated mode, "Add with note" button, Rounding numbers, Process Emissions module, DSI infrastructure, Backup mitigate, PR template, Logs extraction (observability), Unit level via cost center, Cookbook doc, Data formats clean-up
+
+**In Progress / Review**: Purchases module (in review), Buildings module (in progress), Backoffice reporting tab, Generic layout & behavior, BackOffice data management, Generic permissions enforcement
+
+**Backlog**: Frontend testing setup, Icons library migration, Headcount recategorization, Recalculate button, Aggregated/Usage statistics boxes
+
+---
+
 ## [0.5.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.4.0...v0.5.0) (2026-03-04)
 
 ## What's Changed

@@ -25,7 +25,7 @@ from app.models.unit import Unit
 from app.models.user import Role, RoleScope, User, UserProvider
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
-from app.repositories.user_repo import UserRepository
+from app.repositories.user_repo import UpsertUserResult, UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
 
@@ -78,44 +78,70 @@ class UserService:
             )
             raise ValueError("User provider mismatch during upsert")
         if existing_user and existing_user.id is not None:
-            return await self.user_repo.update(
+            user = await self.user_repo.update(
                 id=existing_user.id,
                 display_name=display_name,
                 roles=roles,
                 provider=provider,
                 function=function,
             )
-        return await self.user_repo.create(
-            provider_code=provider_code,
-            email=email,
-            display_name=display_name,
-            roles=roles,
-            provider=provider,
-            function=function,
-        )
+        else:
+            user = await self.user_repo.create(
+                provider_code=provider_code,
+                email=email,
+                display_name=display_name,
+                roles=roles,
+                provider=provider,
+                function=function,
+            )
+        await self.session.flush()
+        return user
 
     async def unit_sync_from_provider(
-        self, provider: UserProvider, provider_unit_codes: list[str], current_user: User
+        self,
+        provider: UserProvider,
+        provider_unit_codes: list[str],
+        skip_principal_user_for_provider_code: Optional[str] = None,
     ) -> list[int]:
-        """Sync units and their principals from provider."""
-        # step 3. Fetch full unit details from provider
+        """
+        Sync units and their principals from provider.
+
+        Args:
+            provider: The user provider type (e.g., UserProvider.ACCRED)
+            provider_unit_codes: List of unit codes to sync
+            skip_principal_user_for_provider_code: Optional - skip upserting
+                                                 the principal user
+                                                 if it matches this
+                                                 provider_code.
+                                                 Used to avoid upserting the
+                                                 current user.
+        """
+        # Fetch full unit details from provider
         unit_provider = get_unit_provider(provider_type=provider)
         units = await unit_provider.get_units(unit_ids=provider_unit_codes)
-
-        # 4. Upsert units with full metadata
-        role_provider = get_role_provider(provider_type=current_user.provider)
+        # Upsert units with full metadata
+        # TODO: simplify the code, by assuming that provider returns all needed info
+        # unit_provider.fetch_all_units() all principal info!
+        # and upserting in one step without fetching principal users separately.
+        role_provider = get_role_provider(provider_type=provider)
         unit_ids = []
         for unit in units:
-            if not unit.principal_user_provider_code:
-                raise ValueError(f"Unit {unit.id} missing principal_user_provider_code")
-            # Upsert principal user recursively
+            if not unit.principal_user_institutional_id:
+                raise ValueError(
+                    f"Unit {unit.id} missing principal_user_institutional_id"
+                )
+
+            # Upsert principal user if needed
             principal_user = await role_provider.get_user_by_user_id(
-                unit.principal_user_provider_code
+                unit.principal_user_institutional_id
             )
-            # // retriev display name and email from role provider if possible
+
+            # Skip upserting if it's the same as skip_principal_user_for_provider_code
             if (
-                unit.principal_user_provider_code != current_user.provider_code
-            ) and principal_user:
+                principal_user
+                and unit.principal_user_institutional_id
+                != skip_principal_user_for_provider_code
+            ):
                 await self.upsert_user(
                     email=principal_user.get("email", ""),
                     provider_code=principal_user.get("provider_code", ""),
@@ -126,12 +152,17 @@ class UserService:
                     provider=principal_user.get("provider", None),
                     function=principal_user.get("function", None),
                 )
+
             created_unit: Unit = await self.unit_service.upsert(
                 unit_data=unit,
             )
             if created_unit is None or created_unit.id is None:
                 raise ValueError(f"Failed to upsert unit {unit.id}")
             unit_ids.append(created_unit.id)
+
+        # Flush all unit operations together
+        await self.session.flush()
+
         return unit_ids
 
     async def unit_membership_sync_user(
@@ -164,6 +195,9 @@ class UserService:
                 user_id=user.id,
                 role=chosen_role,
             )
+
+        # Flush all unit_user operations together
+        await self.session.flush()
 
         logger.info(
             "User upserted with units",
@@ -213,7 +247,7 @@ class UserService:
         unit_ids = await self.unit_sync_from_provider(
             provider=user.provider,
             provider_unit_codes=provider_unit_codes,
-            current_user=user,
+            skip_principal_user_for_provider_code=user.provider_code,
         )
 
         if roles is None:
@@ -237,6 +271,23 @@ class UserService:
         )
 
         return user
+
+    async def bulk_create(
+        self,
+        users: List[User],
+    ) -> UpsertUserResult:
+        """Bulk create users."""
+        logger.info(f"Bulk creating/updating {len(users)} users")
+        db_objs = await self.user_repo.bulk_upsert(users)
+        await self.session.flush()  # Ensure user IDs are populated
+        return db_objs
+
+    async def bulk_upsert(self, users: List[User]) -> UpsertUserResult:
+        """Upsert users — business logic goes here if needed
+        (validation, enrichment, etc.)"""
+        db_objs = await self.user_repo.bulk_upsert(users)
+        await self.session.flush()  # Ensure user IDs are populated
+        return db_objs
 
     async def get_by_id(self, id: int) -> Optional[User]:
         """Get user by id."""
@@ -416,6 +467,7 @@ class UserService:
             roles=user_data.get("roles"),
             provider=user_data.get("provider", UserProvider.DEFAULT),
         )
+        await self.session.flush()
 
         logger.info(
             "User created",
@@ -448,6 +500,7 @@ class UserService:
             roles=user_data.get("roles"),
             provider=user_data.get("provider"),
         )
+        await self.session.flush()
 
         logger.info(
             "User updated",
@@ -476,6 +529,8 @@ class UserService:
         deleted = await self.user_repo.delete(user_id)
 
         if deleted:
+            await self.session.flush()
+
             logger.info(
                 "User deleted",
                 extra={

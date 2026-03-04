@@ -1,13 +1,16 @@
 """Data entry emission repository for database operations."""
 
-from typing import Dict
+from typing import Any, Dict, List, Optional
 
+from sqlalchemy import Select
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry
+from app.models.carbon_report import CarbonReport, CarbonReportModule, ModuleStatus
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
+from app.models.module_type import ModuleTypeEnum
 
 logger = get_logger(__name__)
 
@@ -28,23 +31,22 @@ class DataEntryEmissionRepository:
         await self.session.flush()
         return obj
 
-    async def get_by_data_entry_id(
-        self, data_entry_id: int
-    ) -> DataEntryEmission | None:
+    async def get_by_data_entry_id(self, data_entry_id: int) -> list[DataEntryEmission]:
         query = select(DataEntryEmission).where(
             DataEntryEmission.data_entry_id == data_entry_id
         )
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return list(result.scalars().all())
 
     async def delete_by_data_entry_id(self, data_entry_id: int) -> None:
         query = select(DataEntryEmission).where(
             DataEntryEmission.data_entry_id == data_entry_id
         )
         result = await self.session.execute(query)
-        obj = result.scalar_one_or_none()
-        if obj:
+        objs = result.scalars().all()
+        for obj in objs:
             await self.session.delete(obj)
+        if objs:
             await self.session.flush()
 
     async def bulk_create(
@@ -59,7 +61,7 @@ class DataEntryEmissionRepository:
         carbon_report_module_id,
         aggregate_by: str = "emission_type_id",
         aggregate_field: str = "kg_co2eq",
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Optional[float]]:
         """Aggregate DataEntryEmission data by emission_type_id
                 SELECT
             dee.*
@@ -93,9 +95,318 @@ class DataEntryEmissionRepository:
         rows = result.all()
 
         # 3. Format the results
-        aggregation: Dict[str, float] = {}
+        aggregation: Dict[str, Optional[float]] = {}
         for key, total_count in rows:
             label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total_count or 0.0)
+            aggregation[label] = total_count
 
         return aggregation
+
+    async def get_validated_totals_by_unit(
+        self,
+        unit_id: int,
+    ) -> List[Dict[str, Any]]:
+        """Aggregate validated emission totals by year for a unit.
+
+        Joins CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission
+        and sums kg_co2eq across ALL validated modules, grouped by year.
+
+        Returns:
+            [{"year": 2023, "kg_co2eq": 61700.0}, {"year": 2024, "kg_co2eq": 45000.0}]
+        """
+        year_expr = col(CarbonReport.year)
+
+        query: Select[Any] = (
+            select(
+                year_expr.label("year"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(year_expr)
+            .order_by(year_expr.asc())
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            {
+                "year": row.year,
+                "kg_co2eq": row.kg_co2eq or None,
+            }
+            for row in rows
+        ]
+
+    async def get_stats_by_carbon_report_id(
+        self,
+        carbon_report_id: int,
+    ) -> Dict[str, float]:
+        """Aggregate validated emission totals per module for a carbon report.
+
+        Joins DataEntryEmission → DataEntry → CarbonReportModule and returns
+        SUM(kg_co2eq) grouped by module_type_id, filtered to validated modules
+        only.
+
+        Returns:
+            Dict keyed by module_type_id (as string), e.g.:
+            {"2": 15000.0, "4": 41700.0, "7": 5000.0}
+        """
+        query = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(col(CarbonReportModule.module_type_id))
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        aggregation: Dict[str, float] = {}
+        for module_type_id, total in rows:
+            label = str(module_type_id) if module_type_id is not None else "unknown"
+            aggregation[label] = float(total) if total is not None else 0.0
+
+        return aggregation
+
+    async def get_emission_breakdown(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[int, int, int | None, float | None]]:
+        """Aggregate emissions by module_type_id, emission_type_id, and scope.
+
+        Same join pattern as get_stats_by_carbon_report_id but with finer
+        granularity (scope + emission_type_id) needed for chart breakdown.
+
+        Returns:
+            [(module_type_id, emission_type_id, scope, sum_kg_co2eq), ...]
+        """
+        query = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+                col(DataEntryEmission.scope),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+                col(DataEntryEmission.scope),
+            )
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            (
+                int(row.module_type_id),
+                int(row.emission_type_id),
+                row.scope,
+                float(row.total) if row.total is not None else 0.0,
+            )
+            for row in rows
+        ]
+
+    async def get_travel_stats_by_class(
+        self,
+        carbon_report_module_id: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        Aggregate travel emissions by data entry type and cabin_class.
+        """
+        category_expr = col(DataEntry.data_entry_type_id)
+        class_expr = DataEntry.data["cabin_class"].as_string()
+
+        query: Select[Any] = (
+            select(
+                category_expr.label("category"),
+                class_expr.label("class_key"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .where(
+                DataEntry.carbon_report_module_id == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id).in_(
+                    [DataEntryTypeEnum.plane.value, DataEntryTypeEnum.train.value]
+                ),
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.kg_co2eq) > 0,
+            )
+            .group_by(category_expr, class_expr)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        # Group by category, aggregate by class
+        data_dict: Dict[str, Dict[str, float]] = {}
+        for row in rows:
+            if row.category == DataEntryTypeEnum.plane.value:
+                category = "plane"
+            elif row.category == DataEntryTypeEnum.train.value:
+                category = "train"
+            else:
+                continue
+            class_key = row.class_key
+            kg_co2eq = float(row.kg_co2eq or 0.0)
+
+            if kg_co2eq <= 0:
+                continue
+
+            if category not in data_dict:
+                data_dict[category] = {}
+
+            # Default class when null
+            if class_key is None:
+                if category == "plane":
+                    class_key = "eco"
+                else:
+                    class_key = "class_2"
+
+            data_dict[category][class_key] = (
+                data_dict[category].get(class_key, 0.0) + kg_co2eq
+            )
+
+        # Build treemap format
+        total_kg_co2eq = sum(sum(classes.values()) for classes in data_dict.values())
+
+        result_list: List[Dict[str, Any]] = []
+        for category, classes in data_dict.items():
+            category_total = sum(classes.values())
+            children = []
+            for class_key, kg_co2eq in classes.items():
+                percentage = (
+                    (kg_co2eq / total_kg_co2eq * 100) if total_kg_co2eq > 0 else 0.0
+                )
+                children.append(
+                    {
+                        "name": class_key,
+                        "value": kg_co2eq,
+                        "percentage": percentage,
+                    }
+                )
+            if children and category_total > 0:
+                result_list.append(
+                    {
+                        "name": category,
+                        "value": category_total,
+                        "children": children,
+                    }
+                )
+
+        return result_list
+
+    async def get_travel_evolution_over_time(
+        self,
+        unit_id: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        Aggregate travel emissions by year and category across all years
+        for a given unit.
+
+        Returns:
+        [
+            {"year": 2023, "category": "plane", "kg_co2eq": 15000.0},
+            {"year": 2023, "category": "train", "kg_co2eq": 8000.0},
+            ...
+        ]
+        """
+        year_expr = col(CarbonReport.year)
+        category_expr = col(DataEntry.data_entry_type_id)
+
+        query: Select[Any] = (
+            select(
+                year_expr.label("year"),
+                category_expr.label("category"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReportModule.module_type_id
+                == ModuleTypeEnum.professional_travel.value,
+                col(DataEntry.data_entry_type_id).in_(
+                    [DataEntryTypeEnum.plane.value, DataEntryTypeEnum.train.value]
+                ),
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.kg_co2eq) > 0,
+            )
+            .group_by(year_expr, category_expr)
+            .order_by(year_expr.asc(), category_expr.asc())
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        result_list: List[Dict[str, Any]] = []
+        for row in rows:
+            if row.category == DataEntryTypeEnum.plane.value:
+                category = "plane"
+            elif row.category == DataEntryTypeEnum.train.value:
+                category = "train"
+            else:
+                continue
+            result_list.append(
+                {
+                    "year": row.year,
+                    "category": category,
+                    "kg_co2eq": row.kg_co2eq or None,
+                }
+            )
+        return result_list

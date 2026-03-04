@@ -50,12 +50,14 @@ export interface ModuleField {
   type: FieldType;
   required?: boolean;
   placeholder?: string;
+  hint?: string;
   min?: number;
   max?: number;
   step?: number;
   default?: string | number | boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
   tooltip?: string;
@@ -64,6 +66,7 @@ export interface ModuleField {
   inputTypeName?: string;
   editableInline?: boolean;
   readOnly?: boolean;
+  readOnlyWhenFilled?: boolean;
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
@@ -72,6 +75,8 @@ export interface ModuleField {
     table?: boolean;
     form?: boolean;
   };
+  // Grey out field until the referenced field has a value
+  disableUntilField?: string;
   // Conditional visibility based on another field's value
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value
@@ -98,6 +103,8 @@ export interface Submodule {
   hasTableAction?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
+  requiredFieldIds?: string[];
+  csvTemplateHeaders?: string[];
 }
 
 export interface ResultBigNumberConfig {
@@ -118,6 +125,7 @@ export interface ModuleConfig {
   type: string;
   name?: string;
   numberFormatOptions?: Intl.NumberFormatOptions;
+  totalFormatter: (value: number | string | null | undefined) => string;
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;

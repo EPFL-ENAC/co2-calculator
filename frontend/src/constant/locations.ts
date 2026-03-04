@@ -32,7 +32,7 @@ export interface Location {
   iata_code: string | null;
 
   /** ISO country code (e.g., 'AE', 'AL', 'AM') */
-  countrycode: string | null;
+  country_code: string | null;
 
   /** Timestamp when the location was created */
   created_at: string;

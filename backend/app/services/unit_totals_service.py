@@ -6,10 +6,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.module_type import ModuleTypeEnum
+from app.repositories.carbon_report_repo import CarbonReportRepository
+from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
-from app.services.headcount_service import HeadcountService
-from app.services.professional_travel_service import ProfessionalTravelService
 
 logger = get_logger(__name__)
 
@@ -20,20 +21,17 @@ class UnitTotalsService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def _calculate_totals_for_year(
-        self, unit_id: int, year: int, user
-    ) -> tuple[float, float]:
+    async def _calculate_totals_for_year(self, unit_id: int, year: int, user) -> float:
         """
         Calculate totals for a specific year without recursion.
 
         Returns:
-            Tuple of (total_kg_co2eq, total_fte)
+            Total kg CO2eq
         """
         total_kg_co2eq = 0.0
 
         # Equipment Electric Consumption
         try:
-            # ? retrieve carbon_report_module_id
             carbon_report_module = await CarbonReportModuleService(
                 self.session
             ).get_carbon_report_by_year_and_unit(
@@ -51,42 +49,14 @@ class UnitTotalsService:
             logger.warning(f"Error getting equipment stats: {e}")
             # Continue with other modules
 
-        # Professional Travel
-        try:
-            travel_stats = await ProfessionalTravelService(
-                self.session
-            ).get_module_stats(unit_id=unit_id, year=year, user=user)
-            travel_co2 = travel_stats.get("total_kg_co2eq", 0.0)
-            total_kg_co2eq += float(travel_co2 or 0.0)
-            logger.debug(f"Professional Travel module: {travel_co2} kg CO2eq")
-        except Exception as e:
-            logger.warning(f"Error getting professional travel stats: {e}")
-            # Continue with other modules
-
         # TODO: Add other modules as they become available:
-        # - Infrastructure
+        # - Buildings
         # - Purchase
         # - Internal Services
         # - External Cloud
+        # - Professional Travel
 
-        # Get FTE from headcount module
-        try:
-            headcount_service = HeadcountService(self.session, user=user)
-            headcount_stats = await headcount_service.get_module_stats(
-                unit_id=unit_id, year=year, aggregate_by="submodule"
-            )
-            # Sum all FTE values
-            total_fte = sum(
-                float(v)
-                for v in headcount_stats.values()
-                if isinstance(v, (int, float))
-            )
-            logger.debug(f"Total FTE: {total_fte}")
-        except Exception as e:
-            logger.warning(f"Error getting headcount stats: {e}")
-            total_fte = 0.0
-
-        return total_kg_co2eq, total_fte
+        return total_kg_co2eq
 
     async def get_unit_totals(
         self, unit_id: int, year: int, user
@@ -103,8 +73,6 @@ class UnitTotalsService:
             Dict with:
             - total_kg_co2eq: Total carbon footprint in kg CO2eq
             - total_tonnes_co2eq: Total carbon footprint in tonnes CO2eq
-            - total_fte: Total FTE count
-            - kg_co2eq_per_fte: Carbon footprint per FTE
             - previous_year_total_kg_co2eq: Previous year's total (if available)
             - previous_year_total_tonnes_co2eq: Previous year's total in tonnes
             - year_comparison_percentage: Percentage change from previous year
@@ -112,12 +80,9 @@ class UnitTotalsService:
         logger.info(f"Calculating unit totals for unit={unit_id}, year={year}")
 
         # Calculate current year totals
-        total_kg_co2eq, total_fte = await self._calculate_totals_for_year(
+        total_kg_co2eq = await self._calculate_totals_for_year(
             unit_id=unit_id, year=year, user=user
         )
-
-        # Calculate per FTE
-        kg_co2eq_per_fte = total_kg_co2eq / total_fte if total_fte > 0 else None
 
         # Get previous year's total for comparison
         previous_year = year - 1
@@ -125,7 +90,7 @@ class UnitTotalsService:
         year_comparison_percentage = None
 
         try:
-            previous_kg_co2eq, _ = await self._calculate_totals_for_year(
+            previous_kg_co2eq = await self._calculate_totals_for_year(
                 unit_id=unit_id, year=previous_year, user=user
             )
             previous_year_total_kg_co2eq = previous_kg_co2eq
@@ -142,10 +107,6 @@ class UnitTotalsService:
             "total_kg_co2eq": round(total_kg_co2eq, 2) if total_kg_co2eq else None,
             "total_tonnes_co2eq": round(total_kg_co2eq / 1000, 2)
             if total_kg_co2eq
-            else None,
-            "total_fte": round(total_fte, 2) if total_fte else None,
-            "kg_co2eq_per_fte": round(kg_co2eq_per_fte, 2)
-            if kg_co2eq_per_fte
             else None,
             "previous_year_total_kg_co2eq": (
                 round(previous_year_total_kg_co2eq, 2)
@@ -164,10 +125,79 @@ class UnitTotalsService:
             ),
         }
 
-        logger.info(
-            f"Unit totals calculated: {result['total_kg_co2eq']} kg CO2eq, "
-            f"{result['total_fte']} FTE, "
-            f"{result['kg_co2eq_per_fte']} kg CO2eq/FTE"
-        )
+        logger.info(f"Unit totals calculated: {result['total_kg_co2eq']} kg CO2eq")
 
         return result
+
+    async def get_validated_emissions_by_unit(self, unit_id: int) -> list[dict]:
+        """Get validated emission totals per year for a unit.
+
+        Returns:
+            [{"year": 2023, "kg_co2eq": 61700.0}, ...]
+        """
+        return await DataEntryEmissionRepository(
+            self.session
+        ).get_validated_totals_by_unit(unit_id=unit_id)
+
+    async def get_results_summary(self, carbon_report_id: int) -> dict:
+        """
+        Fetch raw emission and FTE data for a carbon report.
+
+        Steps:
+            1. Load CarbonReport to get unit_id and year.
+            2. Look up previous year's CarbonReport (if exists).
+            3. Fetch current emissions per module (DataEntryEmission aggregation).
+            4. Fetch current FTE per module (DataEntry aggregation).
+            5. If previous report exists, repeat step 3 for previous year.
+
+        Total DB queries: 3 (report + 2 stats) or 5 if previous year exists.
+
+        Returns:
+            Dict with raw data for the endpoint to format:
+            - current_emissions: {module_type_id_str: kg_co2eq}
+            - current_fte: {module_type_id_str: fte}
+            - prev_emissions: {module_type_id_str: kg_co2eq} (empty if no prev year)
+        """
+        logger.info(
+            f"Computing results summary for carbon_report_id={carbon_report_id}"
+        )
+
+        # 1. Load CarbonReport by id → unit_id, year
+        report_repo = CarbonReportRepository(self.session)
+        report = await report_repo.get(carbon_report_id)
+        if not report:
+            raise ValueError(f"CarbonReport {carbon_report_id} not found")
+
+        # 2. Look up previous year's CarbonReport
+        prev_report = await report_repo.get_by_unit_and_year(
+            unit_id=report.unit_id, year=report.year - 1
+        )
+
+        # 3. Current year: emissions per module + FTE per module
+        emission_repo = DataEntryEmissionRepository(self.session)
+        data_entry_repo = DataEntryRepository(self.session)
+
+        current_emissions = await emission_repo.get_stats_by_carbon_report_id(
+            carbon_report_id
+        )
+        current_fte = await data_entry_repo.get_stats_by_carbon_report_id(
+            carbon_report_id
+        )
+
+        # 4. Previous year data (if report exists)
+        prev_emissions: dict[str, float] = {}
+        if prev_report and prev_report.id is not None:
+            prev_emissions = await emission_repo.get_stats_by_carbon_report_id(
+                prev_report.id
+            )
+
+        logger.info(
+            f"Results summary data: {len(current_emissions)} modules, "
+            f"prev_year={'yes' if prev_report else 'no'}"
+        )
+
+        return {
+            "current_emissions": current_emissions,
+            "current_fte": current_fte,
+            "prev_emissions": prev_emissions,
+        }

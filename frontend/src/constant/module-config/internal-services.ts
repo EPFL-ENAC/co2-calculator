@@ -1,7 +1,8 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_INTERNAL_SERVICES_TYPES } from 'src/constant/modules';
+import { formatTonnesCO2 } from 'src/utils/number';
 
-import type { InternalServicesSubType } from 'src/constant/modules';
+import type { AllSubmoduleTypes } from 'src/constant/modules';
 const rootFields: ModuleField[] = [
   {
     id: 'waste_general',
@@ -61,7 +62,7 @@ const generalWasteFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -85,7 +86,7 @@ const recyclingFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -116,7 +117,7 @@ const organicFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
-    label: 'kg CO₂-eq',
+    labelKey: 'results_units_kg',
     type: 'number',
     hideIn: { form: true },
     sortable: true,
@@ -133,23 +134,24 @@ export const internalServices: ModuleConfig = {
   description: 'Categorize and track waste streams',
   hasSubmodules: true,
   formStructure: 'single',
+  totalFormatter: formatTonnesCO2,
   moduleFields: rootFields,
   submodules: [
     {
       id: 'sub_general_waste',
-      type: SUBMODULE_INTERNAL_SERVICES_TYPES.ITSupport as InternalServicesSubType,
+      type: SUBMODULE_INTERNAL_SERVICES_TYPES.ITSupport as AllSubmoduleTypes,
       name: 'General Waste',
       moduleFields: generalWasteFields,
     },
     {
       id: 'sub_recycling',
-      type: SUBMODULE_INTERNAL_SERVICES_TYPES.Maintenance as InternalServicesSubType,
+      type: SUBMODULE_INTERNAL_SERVICES_TYPES.Maintenance as AllSubmoduleTypes,
       name: 'Recycling',
       moduleFields: recyclingFields,
     },
     {
       id: 'sub_organic',
-      type: SUBMODULE_INTERNAL_SERVICES_TYPES.Other as InternalServicesSubType,
+      type: SUBMODULE_INTERNAL_SERVICES_TYPES.Other as AllSubmoduleTypes,
       name: 'Organic Waste',
       moduleFields: organicFields,
     },

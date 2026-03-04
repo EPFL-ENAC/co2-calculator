@@ -14,6 +14,11 @@ export interface DataIngestionJob {
   meta?: Record<string, unknown>;
 }
 
+export interface JobRowError {
+  row: number;
+  reason: string;
+}
+
 export interface JobUpdatePayload {
   job_id: number;
   module_type_id: number;
@@ -21,6 +26,14 @@ export interface JobUpdatePayload {
   year: number | null;
   status: string | number;
   status_message: string;
+  meta?: {
+    row_errors?: JobRowError[];
+    row_errors_count?: number;
+    rows_processed?: number;
+    rows_skipped?: number;
+    rows_with_factors?: number;
+    rows_without_factors?: number;
+  };
 }
 
 export interface SyncJobStatus {
@@ -170,12 +183,13 @@ provider_type
           if (!syncJobs[year]) {
             syncJobs[year] = [];
           }
+          const resolvedTargetType = target_type === 'data_entries' ? 0 : 1;
           syncJobs[year].push({
             job_id: response.job_id,
             module_type_id,
             year,
             provider_type,
-            target_type: 0, // data_entries
+            target_type: resolvedTargetType,
             status: 0, // pending
             status_message: 'Sync initiated',
             meta: {},
@@ -246,9 +260,9 @@ provider_type
             const year = update.year;
 
             // Find and update the job in the store
-            if (syncJobs[year]) {
+            if (year !== null && syncJobs[year]) {
               const jobIndex = syncJobs[year].findIndex(
-                (j) => j.job_id === job_id,
+                (j: DataIngestionJob) => j.job_id === job_id,
               );
               if (jobIndex !== -1) {
                 syncJobs[year][jobIndex] = {
@@ -306,11 +320,12 @@ provider_type
       const moduleTypeIds: Record<Module, number> = {
         headcount: 1,
         'professional-travel': 2,
-        infrastructure: 3,
+        buildings: 3,
         'equipment-electric-consumption': 4,
         purchase: 5,
         'internal-services': 6,
         'external-cloud-and-ai': 7,
+        'process-emissions': 8,
       };
       return moduleTypeIds[module];
     }

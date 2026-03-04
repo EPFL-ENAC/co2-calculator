@@ -16,13 +16,7 @@
             }}
           </div>
           <h1 class="text-h1 text-weight-bold q-mb-none">
-            {{
-              $nOrDash(data, {
-                options: {
-                  ...moduleConfig?.numberFormatOptions,
-                },
-              })
-            }}
+            {{ moduleConfig.totalFormatter(data) }}
           </h1>
           <p class="text-body2 text-secondary q-mb-none">
             {{ $t('module_total_result_title_unit', { type: type }) }}

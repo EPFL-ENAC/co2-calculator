@@ -56,7 +56,7 @@ class UnitUserRepository:
             role=role.value,
         )
         self.session.add(entity)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -77,7 +77,7 @@ class UnitUserRepository:
             raise ValueError("UnitUser association not found")
 
         entity.role = role
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(entity)
         return entity
 
@@ -110,7 +110,7 @@ class UnitUserRepository:
             return False
 
         await self.session.delete(entity)
-        await self.session.commit()
+        await self.session.flush()
         return True
 
     async def count(self, filters: Optional[dict] = None) -> int:

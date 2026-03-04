@@ -1,4 +1,5 @@
-export type ReportType = 'usage' | 'results' | 'combined';
+// export type ReportType = 'usage' | 'results' | 'combined';
+import type { ReportType } from 'src/api/reporting';
 
 export const REPORT_TYPES = [
   {
@@ -18,5 +19,11 @@ export const REPORT_TYPES = [
     icon: 'o_add_box',
     titleKey: 'backoffice_reporting_generate_combined_title',
     descriptionKey: 'backoffice_reporting_generate_combined_description',
+  },
+  {
+    value: 'detailed' as ReportType,
+    icon: 'o_assignment',
+    titleKey: 'backoffice_reporting_generate_detailed_title',
+    descriptionKey: 'backoffice_reporting_generate_detailed_description',
   },
 ];

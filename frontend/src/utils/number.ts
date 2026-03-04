@@ -42,3 +42,36 @@ export function nOrDash(
   // @ts-expect-error -- vue-i18n types issue
   return i18n.global.n(numValue, key, locale) || defaultNumberValue;
 }
+
+export function formatTonnesCO2(
+  value: number | string | null | undefined,
+): string {
+  if (value === null || value === undefined || value === '') {
+    return defaultNumberValue;
+  }
+  const numValue = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(numValue)) {
+    return defaultNumberValue;
+  }
+  const options: Intl.NumberFormatOptions =
+    Math.abs(numValue) < 1
+      ? { minimumFractionDigits: 1, maximumFractionDigits: 1 }
+      : { minimumFractionDigits: 0, maximumFractionDigits: 0 };
+  return nOrDash(numValue, { options });
+}
+
+export function formatKgCO2(value: number | string | null | undefined): string {
+  return nOrDash(value, {
+    options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
+  });
+}
+
+export function formatFTE(value: number | string | null | undefined): string {
+  return nOrDash(value, {
+    options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+  });
+}
+
+export function formatTonnesForChart(value: number): string {
+  return Math.abs(value) >= 1 ? value.toFixed(0) : value.toFixed(1);
+}

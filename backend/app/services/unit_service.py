@@ -1,9 +1,8 @@
 """Unit service for business logic with Policy integration."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.sql import Select
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -14,7 +13,7 @@ from app.core.role_priority import role_priority_case
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import User
-from app.repositories.unit_repo import UnitRepository
+from app.repositories.unit_repo import UnitRepository, UpsertResult
 from app.schemas.unit import UnitRead
 
 logger = get_logger(__name__)
@@ -73,7 +72,7 @@ class UnitService:
                 "id": "12345",
                 "name": "ENAC-IT4R",
                 "current_user_role": "co2.user.principal",
-                "principal_user_provider_code": "67890",
+                "principal_user_institutional_id": "67890",
                 "affiliations": ["ENAC", "ENAC-IT"],
             }
         """
@@ -96,7 +95,8 @@ class UnitService:
         filters = decision.get("filters", {})
 
         # 4. Build complex query with joins (service-level orchestration)
-        query: Select = (
+        # Define the query without the type hint on the variable yet
+        query: Any = (
             select(
                 Unit,
                 UnitUser.role,
@@ -104,10 +104,10 @@ class UnitService:
                 col(User.function).label("principal_user_function"),
             )
             .select_from(Unit)
-            # Wrap the join conditions in col()
             .join(UnitUser, col(UnitUser.unit_id) == col(Unit.id))
             .outerjoin(
-                User, col(User.provider_code) == col(Unit.principal_user_provider_code)
+                User,
+                col(User.provider_code) == col(Unit.principal_user_institutional_id),
             )
             .where(col(UnitUser.user_id) == user.id)
         )
@@ -123,7 +123,7 @@ class UnitService:
         role_case = role_priority_case(UnitUser.role)
         query = query.order_by(role_case).offset(skip).limit(limit)
 
-        result = await self.session.execute(query)
+        result = await self.session.exec(query)
         rows = result.all()
 
         # Convert to dict format
@@ -132,10 +132,10 @@ class UnitService:
                 "id": unit.id,
                 "name": unit.name,
                 "current_user_role": role,
-                "principal_user_provider_code": unit.principal_user_provider_code,
+                "principal_user_institutional_id": unit.principal_user_institutional_id,
                 "principal_user_name": principal_user_name,
                 "principal_user_function": principal_user_function,
-                "affiliations": unit.affiliations or [],
+                "affiliations": unit.path_name.split(" ") if unit.path_name else [],
             }
             for unit, role, principal_user_name, principal_user_function in rows
         ]
@@ -209,6 +209,9 @@ class UnitService:
         - System operations
 
         NO policy checks - this is internal.
+
+        NOTE: Caller is responsible for committing the transaction.
+        (This allows batching multiple upserts in a single transaction)
         """
         # Upsert unit
         unit = await self.unit_repo.upsert(unit_data)
@@ -221,6 +224,23 @@ class UnitService:
         )
 
         return unit
+
+    async def bulk_create(
+        self,
+        units: List[Unit],
+    ) -> UpsertResult:
+        """Bulk create units."""
+        logger.info(f"Bulk creating/updating {len(units)} units")
+        db_objs = await self.unit_repo.bulk_upsert(units)
+        await self.session.flush()  # Ensure unit IDs are populated
+        return db_objs
+
+    async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
+        """Upsert units — business logic goes here if needed
+        (validation, enrichment, etc.)"""
+        db_objs = await self.unit_repo.bulk_upsert(units)
+        await self.session.flush()  # Ensure unit IDs are populated
+        return db_objs
 
     async def count(self, filters: Optional[dict] = None) -> int:
         """Count units with optional filters."""

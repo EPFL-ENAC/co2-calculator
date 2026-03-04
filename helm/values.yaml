@@ -38,6 +38,9 @@ backend:
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
+    ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
+    ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
+    ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
@@ -57,9 +60,9 @@ backend:
   podAnnotations: {}
 
   podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    fsGroup: 1000
+    # runAsNonRoot: true
+    # runAsUser: 1000
+    # fsGroup: 1000
 
   securityContext:
     allowPrivilegeEscalation: false
@@ -96,6 +99,10 @@ backend:
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
 
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -121,6 +128,15 @@ backend:
       s3RegionKey: S3_REGION # Key in the existing secret for S3 region
       s3BucketKey: S3_BUCKET # Key in the existing secret for S3 bucket
       s3PathPrefixKey: S3_PATH_PREFIX # Key in the existing secret for S3 path prefix
+      elasticsearchHostsKey: ELASTICSEARCH_HOSTS # Key in the existing secret for Elasticsearch hosts
+      elasticsearchIndexKey: ELASTICSEARCH_INDEX # Key in the existing secret for Elasticsearch index
+      elasticsearchIdKey: ELASTICSEARCH_ID # Key in the existing secret for Elasticsearch document ID
+      elasticsearchApiKeyKey: ELASTICSEARCH_API_KEY # Key in the existing secret for Elasticsearch API key
+      elasticsearchCaCertFileKey: ELASTICSEARCH_CA_CERT_FILE # Key in the existing secret for Elasticsearch CA certificate
+  elasticsearch:
+    caCert:
+      filename: http_ca_test.crt
+      path: /tmp/
 
   initContainers:
     waitForPostgres:
@@ -170,9 +186,9 @@ frontend:
   podAnnotations: {}
 
   podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 101
-    fsGroup: 101
+    # runAsNonRoot: true
+    # runAsUser: 101
+    # fsGroup: 101
 
   securityContext:
     allowPrivilegeEscalation: false
@@ -208,6 +224,10 @@ frontend:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
   nodeSelector: {}
   tolerations: []
@@ -291,6 +311,10 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
+
+  # imagePullSecrets:
+  #   - name: docker-reg-cred
+  imagePullSecrets: []
 
 podDisruptionBudget:
   enabled: false

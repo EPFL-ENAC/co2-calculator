@@ -117,13 +117,13 @@ export default {
     en: 'Find all text related to professional travel within the application.',
     fr: "Trouvez tous les textes liés aux voyages professionnels dans l'application.",
   },
-  documentation_editing_rows_infrastructure_topic: {
-    en: 'Infrastructure',
-    fr: 'Infrastructures',
+  documentation_editing_rows_buildings_topic: {
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
-  documentation_editing_rows_infrastructure_description: {
-    en: 'Find all text related to infrastructure within the application.',
-    fr: "Trouvez tous les textes liés aux infrastructures dans l'application.",
+  documentation_editing_rows_buildings_description: {
+    en: 'Find all text related to buildings within the application.',
+    fr: "Trouvez tous les textes liés aux bâtiments dans l'application.",
   },
   documentation_editing_rows_equipment_electric_consumption_topic: {
     en: 'Equipment Electric Consumption',
