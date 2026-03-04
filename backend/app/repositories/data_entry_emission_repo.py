@@ -227,7 +227,6 @@ class DataEntryEmissionRepository:
             )
             .where(
                 CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
             )
             .group_by(

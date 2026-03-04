@@ -36,6 +36,8 @@ interface YearlyValidatedEmission {
 
 export interface EmissionBreakdownResponse {
   module_breakdown: Array<Record<string, unknown>>;
+  module_breakdown_parents?: Record<string, Record<string, string>>;
+  module_treemap?: Array<Record<string, unknown>>;
   additional_breakdown: Array<Record<string, unknown>>;
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
@@ -700,16 +702,17 @@ export const useModuleStore = defineStore('modules', () => {
   const emissionBreakdownCarbonReportId = ref<number | null>(null);
   const emissionBreakdownInFlightReportId = ref<number | null>(null);
   const emissionBreakdownInFlightToken = ref(0);
-  const emissionBreakdownRefreshRequested = ref(false);
+  const emissionBreakdownRefreshSequence = ref(0);
+  const emissionBreakdownLastConsumedSequence = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
   function requestEmissionBreakdownRefresh() {
-    emissionBreakdownRefreshRequested.value = true;
+    emissionBreakdownRefreshSequence.value += 1;
   }
 
-  function consumeEmissionBreakdownRefreshRequest(): boolean {
-    if (!emissionBreakdownRefreshRequested.value) return false;
-    emissionBreakdownRefreshRequested.value = false;
+  function consumeEmissionBreakdownRefreshRequest(sequence: number): boolean {
+    if (sequence <= emissionBreakdownLastConsumedSequence.value) return false;
+    emissionBreakdownLastConsumedSequence.value = sequence;
     return true;
   }
 
@@ -840,6 +843,7 @@ export const useModuleStore = defineStore('modules', () => {
     invalidateEmissionBreakdown,
     requestEmissionBreakdownRefresh,
     consumeEmissionBreakdownRefreshRequest,
+    emissionBreakdownRefreshSequence,
     validatedTotalsCarbonReportId,
     state,
   };

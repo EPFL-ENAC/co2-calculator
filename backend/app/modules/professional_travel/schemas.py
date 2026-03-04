@@ -17,6 +17,10 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.utils.distance_geography import (
+    calculate_plane_distance,
+    calculate_train_distance,
+)
 
 logger = get_logger(__name__)
 
@@ -161,23 +165,30 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         from origin/destination airports."""
         origin_id = data_entry.data.get("origin_location_id")
         dest_id = data_entry.data.get("destination_location_id")
+        number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
         from app.services.location_service import LocationService
-        from app.utils.distance_geography import (
-            calculate_plane_distance,
-            get_haul_category,
-        )
+        from app.utils.distance_geography import get_haul_category
 
         loc_service = LocationService(session)
         origin = await loc_service.get_location_by_id(origin_id)
         dest = await loc_service.get_location_by_id(dest_id)
         if not origin or not dest:
             return {}
-        number_of_trips = data_entry.data.get("number_of_trips", 1) or 1
-        distance_km = calculate_plane_distance(origin, dest) * number_of_trips
-        haul_category = get_haul_category(distance_km)
-        return {"distance_km": distance_km, "haul_category": haul_category}
+        distance_one_trip_km = calculate_plane_distance(
+            origin_airport=origin,
+            dest_airport=dest,
+        )
+        if distance_one_trip_km is None:
+            return {}
+        haul_category = get_haul_category(distance_one_trip_km)
+        distance_km = distance_one_trip_km * number_of_trips
+        return {
+            "distance_one_trip_km": distance_one_trip_km,
+            "haul_category": haul_category,
+            "distance_km": distance_km,
+        }
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
@@ -218,12 +229,12 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         """Compute train distance and determine relevant country code."""
         origin_id = data_entry.data.get("origin_location_id")
         dest_id = data_entry.data.get("destination_location_id")
+        number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
         from app.services.location_service import LocationService
         from app.utils.distance_geography import (
             _determine_train_countrycode,
-            calculate_train_distance,
         )
 
         loc_service = LocationService(session)
@@ -231,26 +242,38 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         dest = await loc_service.get_location_by_id(dest_id)
         if not origin or not dest:
             return {}
-        number_of_trips = data_entry.data.get("number_of_trips", 1) or 1
-        distance_km = calculate_train_distance(origin, dest) * number_of_trips
+        distance_one_trip_km = calculate_train_distance(
+            origin_station=origin,
+            dest_station=dest,
+        )
+        if distance_one_trip_km is None:
+            return {}
+        distance_km = distance_one_trip_km * number_of_trips
+
         country_code = _determine_train_countrycode(origin, dest)
-        return {"distance_km": distance_km, "country_code": country_code}
+        return {
+            "distance_km": distance_km,
+            "distance_one_trip_km": distance_one_trip_km,
+            "country_code": country_code,
+        }
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
-
-        cabin_class = data_entry.data.get("cabin_class")
-        country_code = ctx.get("country_code", "RoW")
+        country_code = str(ctx.get("country_code") or None)
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.train,
-                    kind="train",
-                    subkind=cabin_class,
-                    context={"country_code": country_code},
-                    fallbacks={"country_code": "RoW"},
+                    # Train factors are seeded with country code in "kind"
+                    # (e.g. "CH", "FR", "RoW"), without subkind.
+                    kind=country_code,
+                    subkind=None,
+                    context={},
+                    # Some countries may not have a dedicated train factor.
+                    # Fall back to RoW instead of leaving kg_co2eq empty.
+                    fallbacks={"kind": "RoW"},
                 ),
                 formula_key="ef_kg_co2eq_per_km",
                 quantity_key="distance_km",

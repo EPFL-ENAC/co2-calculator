@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors } from 'src/constant/charts';
+import { colors, getChartSubcategoryColor } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -37,6 +37,14 @@ const props = defineProps<{
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
 
+function getSubcategoryColor(
+  category: string,
+  key: string,
+  fallback: string,
+): string {
+  return getChartSubcategoryColor(category, key, fallback);
+}
+
 const scopeConfig = computed(() => {
   if (toggleAdditionalData.value) {
     return {
@@ -64,7 +72,8 @@ const scopeConfig = computed(() => {
 const CATEGORY_LABEL_MAP: Record<string, string> = {
   'Process Emissions': 'charts-process-emissions-category',
   'Buildings energy consumption': 'charts-building-energy-subcategory',
-  'Energy combustion': 'charts-energy-combustion-subcategory',
+  // Merge both building combustion categories into one display bucket.
+  'Energy combustion': 'charts-building-energy-subcategory',
   Equipment: 'equipment-electric-consumption',
   'External cloud & AI': 'external-cloud-and-ai',
   'External clouds & AI': 'external-cloud-and-ai',
@@ -77,8 +86,6 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   'Grey Energy': 'charts-grey-energy-category',
 };
 
-const HIDDEN_MAIN_CATEGORIES = new Set(['Energy combustion']);
-
 function translateCategory(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -87,90 +94,35 @@ function translateCategory(
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
 }
 
-function getNumber(entry: Record<string, unknown>, key: string): number {
-  return Number(entry[key]) || 0;
-}
-
-function getPrimaryOrSum(
-  entry: Record<string, unknown>,
-  primaryKey: string,
-  fallbackKeys: string[],
-): number {
-  const primary = getNumber(entry, primaryKey);
-  if (primary !== 0) return primary;
-  return fallbackKeys.reduce((sum, key) => sum + getNumber(entry, key), 0);
-}
-
 function normalizeBreakdownEntry(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
-  // Keep compatibility with both legacy and new backend chart keys.
-  return {
-    ...entry,
-    // Buildings
-    energy: getPrimaryOrSum(entry, 'energy', ['rooms']),
-    energyStdDev: getPrimaryOrSum(entry, 'energyStdDev', ['roomsStdDev']),
-    // Process emissions can arrive split by gas type.
-    process_emissions: getPrimaryOrSum(entry, 'process_emissions', [
-      'co2',
-      'ch4',
-      'n2o',
-      'refrigerants',
-    ]),
-    process_emissionsStdDev: getPrimaryOrSum(entry, 'process_emissionsStdDev', [
-      'co2StdDev',
-      'ch4StdDev',
-      'n2oStdDev',
-      'refrigerantsStdDev',
-    ]),
-    // Equipment/Purchases naming drift
-    scientific: getPrimaryOrSum(entry, 'scientific', ['scientific_equipment']),
-    scientificStdDev: getPrimaryOrSum(entry, 'scientificStdDev', [
-      'scientific_equipmentStdDev',
-    ]),
-    it: getPrimaryOrSum(entry, 'it', ['it_equipment']),
-    itStdDev: getPrimaryOrSum(entry, 'itStdDev', ['it_equipmentStdDev']),
-    // Professional travel can arrive split by travel classes.
-    plane: getPrimaryOrSum(entry, 'plane', [
-      'eco',
-      'eco_plus',
-      'business',
-      'first',
-    ]),
-    planeStdDev: getPrimaryOrSum(entry, 'planeStdDev', [
-      'ecoStdDev',
-      'eco_plusStdDev',
-      'businessStdDev',
-      'firstStdDev',
-    ]),
-    train: getPrimaryOrSum(entry, 'train', ['class_1', 'class_2']),
-    trainStdDev: getPrimaryOrSum(entry, 'trainStdDev', [
-      'class_1StdDev',
-      'class_2StdDev',
-    ]),
-    // Additional categories naming drift
-    grey_energy: getPrimaryOrSum(entry, 'grey_energy', ['greyEnergy']),
-    grey_energyStdDev: getPrimaryOrSum(entry, 'grey_energyStdDev', [
-      'greyEnergyStdDev',
-    ]),
-    // External AI providers can arrive as individual provider_* keys.
-    ai_provider: getPrimaryOrSum(entry, 'ai_provider', [
-      'provider_others',
-      'provider_google',
-      'provider_mistral_ai',
-      'provider_anthropic',
-      'provider_openai',
-      'provider_cohere',
-    ]),
-    ai_providerStdDev: getPrimaryOrSum(entry, 'ai_providerStdDev', [
-      'provider_othersStdDev',
-      'provider_googleStdDev',
-      'provider_mistral_aiStdDev',
-      'provider_anthropicStdDev',
-      'provider_openaiStdDev',
-      'provider_cohereStdDev',
-    ]),
-  };
+  // Drop backend metadata/object payloads from chart rows.
+  return Object.fromEntries(
+    Object.entries(entry).filter(([key, value]) => {
+      if (key.startsWith('__')) return false;
+      if (key !== 'category' && typeof value === 'object' && value !== null)
+        return false;
+      return true;
+    }),
+  );
+}
+
+function zeroNumericValues(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...entry };
+  Object.entries(next).forEach(([key, value]) => {
+    if (key === 'category') return;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      next[key] = 0;
+    }
+  });
+  return next;
+}
+
+function isCategoryValidated(category: string): boolean {
+  return props.breakdownData?.validated_categories?.includes(category) ?? false;
 }
 
 function collapseByCategory(
@@ -188,7 +140,8 @@ function collapseByCategory(
     }
 
     Object.entries(row).forEach(([key, value]) => {
-      if (key === 'category') return;
+      if (key === 'category' || key.startsWith('__')) return;
+      if (typeof value === 'object' && value !== null) return;
       const n = Number(value);
       if (!Number.isNaN(n)) {
         existing[key] = (Number(existing[key]) || 0) + n;
@@ -206,10 +159,11 @@ const datasetSource = computed(() => {
 
   const baseData = collapseByCategory(
     props.breakdownData.module_breakdown
-      .filter(
-        (entry) => !HIDDEN_MAIN_CATEGORIES.has(String(entry.category ?? '')),
-      )
       .map((entry) => normalizeBreakdownEntry(entry))
+      .map((entry) => {
+        const category = String(entry.category ?? '');
+        return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
+      })
       .map(translateCategory),
   );
 
@@ -217,6 +171,12 @@ const datasetSource = computed(() => {
     const additionalData = collapseByCategory(
       props.breakdownData.additional_breakdown
         .map((entry) => normalizeBreakdownEntry(entry))
+        .map((entry) => {
+          const category = String(entry.category ?? '');
+          return isCategoryValidated(category)
+            ? entry
+            : zeroNumericValues(entry);
+        })
         .map(translateCategory),
     );
     return [...baseData, ...additionalData];
@@ -226,17 +186,27 @@ const datasetSource = computed(() => {
 
 const allValueKeys = computed(() => {
   const baseKeys = [
-    'process_emissions',
+    'co2',
+    'ch4',
+    'n2o',
+    'refrigerants',
     'energy',
+    'combustion',
     'scientific',
     'it',
     'other',
+    // Purchases — YY subcategories
+    'scientific_equipment',
+    'it_equipment',
+    'consumable_accessories',
+    'biological_chemical_gaseous',
+    'services',
+    'vehicles',
+    'additional',
     'plane',
     'train',
-    'stockage',
-    'virtualisation',
-    'calcul',
-    'ai_provider',
+    'clouds',
+    'ai',
   ];
 
   if (toggleAdditionalData.value) {
@@ -247,17 +217,27 @@ const allValueKeys = computed(() => {
 
 const allStdDevKeys = computed(() => {
   const baseKeys = [
-    'process_emissionsStdDev',
+    'co2StdDev',
+    'ch4StdDev',
+    'n2oStdDev',
+    'refrigerantsStdDev',
     'energyStdDev',
+    'combustionStdDev',
     'scientificStdDev',
     'itStdDev',
     'otherStdDev',
+    // Purchases — YY subcategories
+    'scientific_equipmentStdDev',
+    'it_equipmentStdDev',
+    'consumable_accessoriesStdDev',
+    'biological_chemical_gaseousStdDev',
+    'servicesStdDev',
+    'vehiclesStdDev',
+    'additionalStdDev',
     'planeStdDev',
     'trainStdDev',
-    'stockageStdDev',
-    'virtualisationStdDev',
-    'calculStdDev',
-    'ai_providerStdDev',
+    'cloudsStdDev',
+    'aiStdDev',
   ];
 
   if (toggleAdditionalData.value) {
@@ -404,20 +384,71 @@ const chartOption = computed((): EChartsOption => {
 
   // Build series array first (will be used to extract mapping)
   const seriesArray = [
-    // Processes
+    // Process Emissions — YY subcategories
     {
-      name: t('charts-process-emissions-category'),
+      name: 'CO2',
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'process_emissions' },
+      encode: { x: 'category', y: 'co2' },
       markLine: {
         silent: true,
         symbol: ['none', 'none'],
         lineStyle: { color: '#333', width: 1.5, type: 'solid' as const },
         data: markLineData.value,
       },
-      itemStyle: { color: colors.value.apricot.darker },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Process Emissions',
+          'co2',
+          colors.value.apricot.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: 'CH4',
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'ch4' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Process Emissions',
+          'ch4',
+          colors.value.apricot.dark,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: 'N2O',
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'n2o' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Process Emissions',
+          'n2o',
+          colors.value.apricot.default,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: 'Refrigerants',
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'refrigerants' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Process Emissions',
+          'refrigerants',
+          colors.value.apricot.light,
+        ),
+      },
       label: { show: false },
     },
     // Buildings energy consumption
@@ -427,7 +458,29 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: { x: 'category', y: 'energy' },
       animation: true,
-      itemStyle: { color: colors.value.lilac.darker },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Buildings energy consumption',
+          'energy',
+          colors.value.lilac.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    // Energy combustion
+    {
+      name: t('charts-energy-combustion-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'combustion' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Energy combustion',
+          'combustion',
+          colors.value.lilac.dark,
+        ),
+      },
       label: { show: false },
     },
     // Equipment — subcategories: scientific, it, other
@@ -437,7 +490,13 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       animation: true,
       encode: { x: 'category', y: 'scientific' },
-      itemStyle: { color: colors.value.mauve.darker },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Equipment',
+          'scientific',
+          colors.value.mauve.darker,
+        ),
+      },
       label: { show: false },
     },
     {
@@ -446,7 +505,9 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       animation: true,
       encode: { x: 'category', y: 'it' },
-      itemStyle: { color: colors.value.mauve.dark },
+      itemStyle: {
+        color: getSubcategoryColor('Equipment', 'it', colors.value.mauve.dark),
+      },
       label: { show: false },
     },
     {
@@ -455,7 +516,119 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       animation: true,
       encode: { x: 'category', y: 'other' },
-      itemStyle: { color: colors.value.mauve.default },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Equipment',
+          'other',
+          colors.value.mauve.default,
+        ),
+      },
+      label: { show: false },
+    },
+    // Purchases — YY subcategories
+    {
+      name: t('charts-scientific-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'scientific_equipment' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'scientific_equipment',
+          colors.value.lavender.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-equipment-it'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'it_equipment' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'it_equipment',
+          colors.value.lavender.dark,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-consumables-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'consumable_accessories' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'consumable_accessories',
+          colors.value.lavender.default,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-bio-chemicals-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'biological_chemical_gaseous' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'biological_chemical_gaseous',
+          colors.value.lavender.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-services-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'services' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'services',
+          colors.value.lavender.lighter,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-other-purchases-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'vehicles' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'vehicles',
+          colors.value.lavender.default,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-other-purchases-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'additional' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Purchases',
+          'additional',
+          colors.value.lavender.light,
+        ),
+      },
       label: { show: false },
     },
     // Professional Travel — subcategories: plane, train
@@ -465,7 +638,13 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       animation: true,
       encode: { x: 'category', y: 'plane' },
-      itemStyle: { color: colors.value.babyBlue.darker },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Professional travel',
+          'plane',
+          colors.value.babyBlue.darker,
+        ),
+      },
       label: { show: false },
     },
     {
@@ -474,44 +653,44 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       animation: true,
       encode: { x: 'category', y: 'train' },
-      itemStyle: { color: colors.value.babyBlue.dark },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'Professional travel',
+          'train',
+          colors.value.babyBlue.dark,
+        ),
+      },
       label: { show: false },
     },
-    // External cloud & AI — emission types: stockage, virtualisation, calcul, ai_provider
+    // External cloud & AI — YY subcategories
     {
-      name: t('charts-stockage-subcategory'),
+      name: t('charts-clouds-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'stockage' },
-      itemStyle: { color: colors.value.paleYellowGreen.darker },
+      encode: { x: 'category', y: 'clouds' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'External cloud & AI',
+          'clouds',
+          colors.value.paleYellowGreen.darker,
+        ),
+      },
       label: { show: false },
     },
     {
-      name: t('charts-virtualisation-subcategory'),
+      name: t('charts-ai-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'virtualisation' },
-      itemStyle: { color: colors.value.paleYellowGreen.dark },
-      label: { show: false },
-    },
-    {
-      name: t('charts-calcul-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'calcul' },
-      itemStyle: { color: colors.value.paleYellowGreen.default },
-      label: { show: false },
-    },
-    {
-      name: t('charts-ai-provider-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ai_provider' },
-      itemStyle: { color: colors.value.paleYellowGreen.light },
+      encode: { x: 'category', y: 'ai' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'External cloud & AI',
+          'ai',
+          colors.value.paleYellowGreen.dark,
+        ),
+      },
       label: { show: false },
     },
     ...additionalSeriesData.value,
@@ -553,13 +732,18 @@ const chartOption = computed((): EChartsOption => {
         arr.reverse().forEach((param: unknown) => {
           const p = param as {
             seriesName?: string;
+            seriesIndex?: number;
             marker?: string;
             value?: number | number[];
             data?: Record<string, unknown>;
           };
-          const series = seriesArray.find((s) => s.name === p.seriesName);
+          const series =
+            typeof p.seriesIndex === 'number'
+              ? seriesArray[p.seriesIndex]
+              : seriesArray.find((s) => s.name === p.seriesName);
           const key = series?.encode.y;
 
+          if (!data || !key) return;
           const dataValue = Number(data[key]) || 0;
           if (dataValue > 0) {
             tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
@@ -771,6 +955,14 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
+        'co2',
+        'co2StdDev',
+        'ch4',
+        'ch4StdDev',
+        'n2o',
+        'n2oStdDev',
+        'refrigerants',
+        'refrigerantsStdDev',
         'process_emissions',
         'process_emissionsStdDev',
         'energy',
@@ -783,10 +975,28 @@ const chartOption = computed((): EChartsOption => {
         'itStdDev',
         'other',
         'otherStdDev',
+        'scientific_equipment',
+        'scientific_equipmentStdDev',
+        'it_equipment',
+        'it_equipmentStdDev',
+        'consumable_accessories',
+        'consumable_accessoriesStdDev',
+        'biological_chemical_gaseous',
+        'biological_chemical_gaseousStdDev',
+        'services',
+        'servicesStdDev',
+        'vehicles',
+        'vehiclesStdDev',
+        'additional',
+        'additionalStdDev',
         'plane',
         'planeStdDev',
         'train',
         'trainStdDev',
+        'clouds',
+        'cloudsStdDev',
+        'ai',
+        'aiStdDev',
         'stockage',
         'stockageStdDev',
         'virtualisation',
@@ -844,7 +1054,17 @@ const downloadCSV = () => {
   };
 
   const headers = [
-    ...new Set(datasetSource.value.flatMap((item) => Object.keys(item))),
+    ...new Set(
+      datasetSource.value.flatMap((item) =>
+        Object.entries(item)
+          .filter(([key, value]) => {
+            if (key.startsWith('__')) return false;
+            if (typeof value === 'object' && value !== null) return false;
+            return true;
+          })
+          .map(([key]) => key),
+      ),
+    ),
   ].sort((a, b) =>
     a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
   );

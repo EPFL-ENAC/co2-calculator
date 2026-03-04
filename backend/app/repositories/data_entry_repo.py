@@ -269,7 +269,7 @@ class DataEntryRepository:
             Factor,
         ]
         if is_travel_entry:
-            entities.extend([OriginLocation, DestLocation])
+            entities.extend([OriginLocation, DestLocation, DataEntryEmission])
         statement: Select[Any] = (
             sa_select(*entities)
             .join(
@@ -285,15 +285,24 @@ class DataEntryRepository:
         )
 
         if is_travel_entry:
-            statement = statement.join(
-                OriginLocation,
-                DataEntry.data["origin_location_id"].as_integer() == OriginLocation.id,
-                isouter=True,
-            ).join(
-                DestLocation,
-                DataEntry.data["destination_location_id"].as_integer()
-                == DestLocation.id,
-                isouter=True,
+            statement = (
+                statement.join(
+                    OriginLocation,
+                    DataEntry.data["origin_location_id"].as_integer()
+                    == OriginLocation.id,
+                    isouter=True,
+                )
+                .join(
+                    DestLocation,
+                    DataEntry.data["destination_location_id"].as_integer()
+                    == DestLocation.id,
+                    isouter=True,
+                )
+                .join(
+                    DataEntryEmission,
+                    col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                    isouter=True,
+                )
             )
 
         statement = statement.where(
@@ -339,10 +348,11 @@ class DataEntryRepository:
                     primary_factor,
                     origin_loc,
                     dest_loc,
+                    emission,
                 ) = row
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
-                origin_loc, dest_loc = None, None
+                origin_loc, dest_loc, emission = None, None, None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -358,8 +368,6 @@ class DataEntryRepository:
 
             data_entry.data = {
                 **data_entry.data,
-                **({"origin": origin_loc.name} if origin_loc else {}),
-                **({"destination": dest_loc.name} if dest_loc else {}),
                 "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
                     **primary_factor.values,
@@ -368,6 +376,18 @@ class DataEntryRepository:
                 if primary_factor
                 else {},
             }
+
+            if is_travel_entry:
+                data_entry.data = {
+                    **data_entry.data,
+                    **({"origin": origin_loc.name} if origin_loc else {}),
+                    **({"destination": dest_loc.name} if dest_loc else {}),
+                    **(
+                        {"distance_km": emission.meta.get("distance_km")}
+                        if emission and emission.meta and "distance_km" in emission.meta
+                        else {}
+                    ),
+                }
 
             items.append(handler.to_response(data_entry))
 
