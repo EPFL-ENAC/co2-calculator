@@ -148,6 +148,18 @@ class CarbonReportModuleRepository:
         await self.session.flush()
         return True
 
+    async def update_stats(self, carbon_report_module_id: int, stats: dict) -> None:
+        """Persist pre-computed stats JSON on a carbon report module."""
+        module = await self.get(carbon_report_module_id)
+        if module is None:
+            logger.warning(
+                f"Cannot update stats: module {carbon_report_module_id} not found"
+            )
+            return
+        module.stats = stats
+        self.session.add(module)
+        await self.session.flush()
+
     async def delete_by_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a given carbon report. Returns count deleted."""
         statement = select(CarbonReportModule).where(

@@ -441,6 +441,7 @@ async def create(
     await DataEntryEmissionService(db).upsert_by_data_entry(
         data_entry_response=item,
     )
+    await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
     await db.commit()
 
     response = DataEntryResponse.model_validate(item)
@@ -611,6 +612,7 @@ async def update(
         await DataEntryEmissionService(db).upsert_by_data_entry(
             data_entry_response=item,
         )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
         # upsert could fail if emission factor lookup fails, but we still want to
         # return the updated item
         await db.commit()
@@ -663,6 +665,15 @@ async def delete(
                 detail="Module not supported for deletion",
             )
 
+        # Resolve module ID before deleting the entry (needed for stats recompute)
+        module_key = module_id.replace("-", "_")
+        carbon_report_module_id = await get_carbon_report_id(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum[module_key],
+            db=db,
+        )
+
         await DataEntryService(db).delete(
             id=item_id,
             current_user=UserRead.model_validate(current_user),
@@ -673,6 +684,7 @@ async def delete(
             },
             background_tasks=background_tasks,
         )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
         await db.commit()
     except HTTPException:
         # Re-raise HTTP exceptions (404, 403, etc.) from services

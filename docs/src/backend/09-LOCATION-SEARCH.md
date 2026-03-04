@@ -232,16 +232,16 @@ uv run python -m app.seed.seed_locations
 
 ## Key Files
 
-| File                                                                                                                    | Description            |
-| ----------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| [backend/app/api/v1/locations.py](../../../backend/app/api/v1/locations.py)                                             | API endpoints          |
-| [backend/app/services/location_service.py](../../../backend/app/services/location_service.py)                           | Business logic         |
-| [backend/app/repositories/location_repo.py](../../../backend/app/repositories/location_repo.py)                         | Database queries       |
-| [backend/app/models/location.py](../../../backend/app/models/location.py)                                               | Data model             |
-| [backend/app/utils/distance_geography.py](../../../backend/app/utils/distance_geography.py)                             | Distance calculations  |
-| [frontend/src/api/locations.ts](../../../frontend/src/api/locations.ts)                                                 | Frontend API client    |
-| [frontend/src/components/atoms/CO2DestinationInput.vue](../../../frontend/src/components/atoms/CO2DestinationInput.vue) | Autocomplete component |
-| [frontend/src/constant/locations.ts](../../../frontend/src/constant/locations.ts)                                       | TypeScript types       |
+| File                                                    | Description            |
+| ------------------------------------------------------- | ---------------------- |
+| `backend/app/api/v1/locations.py`                       | API endpoints          |
+| `backend/app/services/location_service.py`              | Business logic         |
+| `backend/app/repositories/location_repo.py`             | Database queries       |
+| `backend/app/models/location.py`                        | Data model             |
+| `backend/app/utils/distance_geography.py`               | Distance calculations  |
+| `frontend/src/api/locations.ts`                         | Frontend API client    |
+| `frontend/src/components/atoms/CO2DestinationInput.vue` | Autocomplete component |
+| `frontend/src/constant/locations.ts`                    | TypeScript types       |
 
 ## Usage Example
 
