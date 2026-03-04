@@ -17,7 +17,10 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
-from app.utils.distance_geography import compute_travel_distance_km
+from app.utils.distance_geography import (
+    calculate_plane_distance,
+    calculate_train_distance,
+)
 
 logger = get_logger(__name__)
 
@@ -162,6 +165,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         from origin/destination airports."""
         origin_id = data_entry.data.get("origin_location_id")
         dest_id = data_entry.data.get("destination_location_id")
+        number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
         from app.services.location_service import LocationService
@@ -172,16 +176,19 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         dest = await loc_service.get_location_by_id(dest_id)
         if not origin or not dest:
             return {}
-        distance_km = compute_travel_distance_km(
-            data_entry_type_id=DataEntryTypeEnum.plane.value,
-            origin=origin,
-            destination=dest,
-            number_of_trips=data_entry.data.get("number_of_trips", 1),
+        distance_one_trip_km = calculate_plane_distance(
+            origin_airport=origin,
+            dest_airport=dest,
         )
-        if distance_km is None:
+        if distance_one_trip_km is None:
             return {}
-        haul_category = get_haul_category(distance_km)
-        return {"distance_km": distance_km, "haul_category": haul_category}
+        haul_category = get_haul_category(distance_one_trip_km)
+        distance_km = distance_one_trip_km * number_of_trips
+        return {
+            "distance_one_trip_km": distance_one_trip_km,
+            "haul_category": haul_category,
+            "distance_km": distance_km,
+        }
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
@@ -222,6 +229,7 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         """Compute train distance and determine relevant country code."""
         origin_id = data_entry.data.get("origin_location_id")
         dest_id = data_entry.data.get("destination_location_id")
+        number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
         from app.services.location_service import LocationService
@@ -234,16 +242,20 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         dest = await loc_service.get_location_by_id(dest_id)
         if not origin or not dest:
             return {}
-        distance_km = compute_travel_distance_km(
-            data_entry_type_id=DataEntryTypeEnum.train.value,
-            origin=origin,
-            destination=dest,
-            number_of_trips=data_entry.data.get("number_of_trips", 1),
+        distance_one_trip_km = calculate_train_distance(
+            origin_station=origin,
+            dest_station=dest,
         )
-        if distance_km is None:
+        if distance_one_trip_km is None:
             return {}
+        distance_km = distance_one_trip_km * number_of_trips
+
         country_code = _determine_train_countrycode(origin, dest)
-        return {"distance_km": distance_km, "country_code": country_code}
+        return {
+            "distance_km": distance_km,
+            "distance_one_trip_km": distance_one_trip_km,
+            "country_code": country_code,
+        }
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict

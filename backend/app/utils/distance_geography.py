@@ -4,46 +4,15 @@ This module provides functions for calculating distances between locations
 and determining travel categories based on distance.
 """
 
-from typing import Any, Optional
+from typing import Optional
 
 from haversine import Unit, haversine
 
-from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.location import Location
 
 FLIGHT_APPROACH_KM: int = 95
 TRAIN_ROUTING_FACTOR: float = 1.2
-
-
-def _parse_number_of_trips(raw_value: Any) -> int:
-    """Normalize number_of_trips to a positive integer."""
-    try:
-        return max(1, int(float(raw_value or 1)))
-    except (TypeError, ValueError):
-        return 1
-
-
-def compute_travel_distance_km(
-    data_entry_type_id: int,
-    origin: Location | None,
-    destination: Location | None,
-    number_of_trips: Any,
-) -> Optional[float]:
-    """Compute total travel distance in km for plane/train entries."""
-    if origin is None or destination is None:
-        return None
-
-    trips = _parse_number_of_trips(number_of_trips)
-
-    if data_entry_type_id == DataEntryTypeEnum.plane.value:
-        base_distance = calculate_plane_distance(origin, destination)
-    elif data_entry_type_id == DataEntryTypeEnum.train.value:
-        base_distance = calculate_train_distance(origin, destination)
-    else:
-        return None
-
-    return float(base_distance) * trips
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
