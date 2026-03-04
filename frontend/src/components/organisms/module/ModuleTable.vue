@@ -1121,7 +1121,7 @@ function isComplete(row: ModuleRow) {
   }
   if (props.moduleType === MODULES.Buildings) {
     if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-      const required = ['heating_type', 'quantity'];
+      const required = ['name', 'quantity'];
       return required.every(
         (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
       );
@@ -1217,7 +1217,7 @@ function onDownloadTemplate() {
   const csvDefaultContent = 'not_implemented_yet';
 
   const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
-  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
+  const csvBuildingsCombustionContent = 'name,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:

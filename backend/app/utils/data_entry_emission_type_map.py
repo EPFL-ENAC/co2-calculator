@@ -63,14 +63,8 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     # --- Professional Travel — resolved at runtime (cabin_class key) ----------
     DataEntryTypeEnum.plane: None,  # → _resolve_plane()
     DataEntryTypeEnum.train: None,  # → _resolve_train()
-    # --- Buildings (one data_entry produces one row per sub-emission) ---------
-    DataEntryTypeEnum.building: [
-        EmissionType.buildings__rooms__lighting,
-        EmissionType.buildings__rooms__cooling,
-        EmissionType.buildings__rooms__ventilation,
-        EmissionType.buildings__rooms__heating_elec,
-        EmissionType.buildings__rooms__heating_thermal,
-    ],
+    # --- Buildings (dynamic: kg_co2eq bypass → single aggregate row) ---------
+    DataEntryTypeEnum.building: None,  # → _resolve_building_data_entry()
     DataEntryTypeEnum.energy_combustion: [
         EmissionType.buildings__combustion
     ],  # scope 1
@@ -198,9 +192,7 @@ def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
     return [et] if et else None  # None = unknown gas, caller should warn + skip
 
 
-# not sure about that logic
-# for building factors, we have multiple emission types per factor (heating_elec..)
-# like headcount
+# Used for factor emission type resolution (single category per factor row)
 def _resolve_building(data: dict) -> list[EmissionType] | None:
     category = (data.get("category") or "").lower()
     energy_type = (data.get("energy_type") or "").lower()
@@ -208,9 +200,6 @@ def _resolve_building(data: dict) -> list[EmissionType] | None:
         if energy_type == "elec":
             return [EmissionType.buildings__rooms__heating_elec]
         elif energy_type == "thermal":
-            # never happend in seed data, but if energy type is thermal
-            # (e.g. district heating), we want to use the correct factor,
-            # not the electric one
             return [EmissionType.buildings__rooms__heating_thermal]
     if category == "cooling":
         return [EmissionType.buildings__rooms__cooling]
@@ -222,17 +211,34 @@ def _resolve_building(data: dict) -> list[EmissionType] | None:
     return None  # unknown category or energy type
 
 
+def _resolve_building_data_entry(data: dict) -> list[EmissionType]:
+    """For data entries: bypass to single aggregate row when kg_co2eq is set."""
+    if data.get("kg_co2eq") is not None:
+        return [EmissionType.buildings__rooms]
+    return [
+        EmissionType.buildings__rooms__lighting,
+        EmissionType.buildings__rooms__cooling,
+        EmissionType.buildings__rooms__ventilation,
+        EmissionType.buildings__rooms__heating_elec,
+        EmissionType.buildings__rooms__heating_thermal,
+    ]
+
+
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
-    # no, it won't since we call the public API below!
-    # building resolver is for factor only
-    # it works because static as priority,
-    # so it will be used for emission rows but not for factor loading
+    # Factor resolution uses _resolve_building (single emission type per factor row)
+    # Data entry resolution is handled by _resolve_building_data_entry (see below)
     DataEntryTypeEnum.building: _resolve_building,
     DataEntryTypeEnum.external_ai: _resolve_ai,
     DataEntryTypeEnum.external_clouds: _resolve_clouds,
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,
+}
+
+# Separate resolver used by resolve_emission_types() for data entries
+_DATA_ENTRY_RESOLVERS = {
+    **_RUNTIME_RESOLVERS,
+    DataEntryTypeEnum.building: _resolve_building_data_entry,
 }
 
 
@@ -305,7 +311,7 @@ def resolve_emission_types(
     if static is not None:
         return static  # covers both [] and [EmissionType, ...]
 
-    resolver = _RUNTIME_RESOLVERS.get(data_entry_type)
+    resolver = _DATA_ENTRY_RESOLVERS.get(data_entry_type)
     if resolver:
         return resolver(data)
 

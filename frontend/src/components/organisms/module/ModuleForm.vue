@@ -292,7 +292,7 @@ import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import { useArchibusRoomDynamicOptions } from 'src/composables/useArchibusRoomDynamicOptions';
+import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -531,9 +531,9 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
   });
 
 const {
-  dynamicOptionsById: archibusDynamicOptionsById,
-  loadingByOptionsId: archibusLoadingByOptionsId,
-} = useArchibusRoomDynamicOptions(
+  dynamicOptionsById: buildingDynamicOptionsById,
+  loadingByOptionsId: buildingLoadingByOptionsId,
+} = useBuildingRoomDynamicOptions(
   form,
   toRef(props, 'moduleType'),
   toRef(props, 'submoduleType'),
@@ -545,7 +545,7 @@ const dynamicOptionsById = computed<
 >(() => {
   return {
     ...dynamicOptions,
-    ...archibusDynamicOptionsById.value,
+    ...buildingDynamicOptionsById.value,
   };
 });
 
@@ -553,7 +553,7 @@ const loadingByOptionsId = computed<Record<string, boolean>>(() => {
   return {
     kind: loadingClasses.value,
     subkind: loadingSubclasses.value,
-    ...archibusLoadingByOptionsId.value,
+    ...buildingLoadingByOptionsId.value,
   };
 });
 

@@ -5,7 +5,7 @@ import {
   type AllSubmoduleTypes,
   type Module,
 } from 'src/constant/modules';
-import { useArchibusRoomStore } from 'src/stores/archibus';
+import { useBuildingRoomStore } from 'src/stores/building_rooms';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useModuleStore } from 'src/stores/modules';
 
@@ -15,14 +15,14 @@ function strOrNull(v: unknown): string | null {
   return typeof v === 'string' && v !== '' ? v : null;
 }
 
-export function useArchibusRoomDynamicOptions(
+export function useBuildingRoomDynamicOptions(
   form: FormLike,
   moduleType: Ref<Module | string>,
   submoduleType: Ref<AllSubmoduleTypes>,
   unitId: Ref<number | undefined>,
 ) {
   const workspaceStore = useWorkspaceStore();
-  const archibusStore = useArchibusRoomStore();
+  const buildingRoomStore = useBuildingRoomStore();
   const moduleStore = useModuleStore();
   let roomDetailsRequestId = 0;
 
@@ -33,7 +33,7 @@ export function useArchibusRoomDynamicOptions(
   );
 
   // Buildings from taxonomy (no API call — taxonomy fetched by ModuleTable)
-  const archibusBuildingOptions = computed(() => {
+  const buildingOptions = computed(() => {
     if (!isBuildingsRoomSubmodule.value) return [];
     const taxo =
       moduleStore.state.taxonomySubmodule[String(submoduleType.value)];
@@ -43,7 +43,7 @@ export function useArchibusRoomDynamicOptions(
   });
 
   // Rooms filtered by selected building (sync, no API call)
-  const archibusRoomOptions = computed(() => {
+  const buildingRoomOptions = computed(() => {
     if (!isBuildingsRoomSubmodule.value) return [];
     const buildingName = strOrNull(form['building_name']);
     if (!buildingName) return [];
@@ -61,8 +61,8 @@ export function useArchibusRoomDynamicOptions(
   >(() => {
     if (!isBuildingsRoomSubmodule.value) return {};
     return {
-      kind: archibusBuildingOptions.value,
-      subkind: archibusRoomOptions.value,
+      kind: buildingOptions.value,
+      subkind: buildingRoomOptions.value,
     };
   });
 
@@ -76,7 +76,7 @@ export function useArchibusRoomDynamicOptions(
     );
   });
 
-  // Clear room fields when building changes (sync — options are a computed)
+  // Clear room fields when building changes
   watch(
     () => form['building_name'],
     (newValue, oldValue) => {
@@ -84,22 +84,18 @@ export function useArchibusRoomDynamicOptions(
       const newBuilding = strOrNull(newValue);
       if (!oldBuilding || !newBuilding || oldBuilding === newBuilding) return;
       const currentRoomName = strOrNull(form['room_name']);
-      const roomStillValid = archibusRoomOptions.value.some(
+      const roomStillValid = buildingRoomOptions.value.some(
         (opt) => opt.value === currentRoomName,
       );
       if (!roomStillValid) {
         form['room_name'] = null;
         form['room_surface_square_meter'] = null;
         form['room_type'] = null;
-        form['heating_kwh'] = null;
-        form['cooling_kwh'] = null;
-        form['ventilation_kwh'] = null;
-        form['lighting_kwh'] = null;
       }
     },
   );
 
-  // Async watch: room_name → auto-fill surface/kWh from Archibus
+  // Async watch: room_name → auto-fill surface and room_type from reference
   watch(
     () => form['room_name'],
     async (newVal, oldVal) => {
@@ -116,7 +112,7 @@ export function useArchibusRoomDynamicOptions(
       if (!currentUnitId) return;
 
       try {
-        const rooms = await archibusStore.fetchRooms(
+        const rooms = await buildingRoomStore.fetchRooms(
           currentUnitId,
           buildingName,
         );
@@ -129,36 +125,17 @@ export function useArchibusRoomDynamicOptions(
         );
         if (!match) return;
 
-        const surface = match.room_surface_square_meter;
-        const heatingPerSquareMeter = match.heating_kwh_per_square_meter;
-        const coolingPerSquareMeter = match.cooling_kwh_per_square_meter;
-        const ventilationPerSquareMeter =
-          match.ventilation_kwh_per_square_meter;
-        const lightingPerSquareMeter = match.lighting_kwh_per_square_meter;
-
         form['room_type'] = match.room_type ?? null;
-        form['room_surface_square_meter'] = surface;
-        form['heating_kwh_per_square_meter'] = heatingPerSquareMeter;
-        form['cooling_kwh_per_square_meter'] = coolingPerSquareMeter;
-        form['ventilation_kwh_per_square_meter'] = ventilationPerSquareMeter;
-        form['lighting_kwh_per_square_meter'] = lightingPerSquareMeter;
-        form['heating_kwh'] =
-          surface === null ? null : heatingPerSquareMeter * surface;
-        form['cooling_kwh'] =
-          surface === null ? null : coolingPerSquareMeter * surface;
-        form['ventilation_kwh'] =
-          surface === null ? null : ventilationPerSquareMeter * surface;
-        form['lighting_kwh'] =
-          surface === null ? null : lightingPerSquareMeter * surface;
+        form['room_surface_square_meter'] = match.room_surface_square_meter;
       } catch {
-        // Archibus lookup is best-effort; users can still fill values manually.
+        // Room lookup is best-effort; users can still fill values manually.
       }
     },
   );
 
   return {
-    archibusBuildingOptions,
-    archibusRoomOptions,
+    buildingOptions,
+    buildingRoomOptions,
     dynamicOptionsById,
     loadingByOptionsId,
   };

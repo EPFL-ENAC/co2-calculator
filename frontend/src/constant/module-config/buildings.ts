@@ -46,18 +46,12 @@ const roomFields: ModuleField[] = [
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     options: [
-      { value: 'Office', label: 'Office' },
-      { value: 'Miscels', label: 'Miscellaneous' },
-      {
-        value: 'Laboratories',
-        label: 'Laboratories',
-      },
-      { value: 'Archives', label: 'Archives' },
-      { value: 'Libraries', label: 'Libraries' },
-      {
-        value: 'Auditoriums',
-        label: 'Auditoriums',
-      },
+      { value: 'office', label: 'Office' },
+      { value: 'miscellaneous', label: 'Miscellaneous' },
+      { value: 'laboratories', label: 'Laboratories' },
+      { value: 'archives', label: 'Archives' },
+      { value: 'libraries', label: 'Libraries' },
+      { value: 'auditoriums', label: 'Auditoriums' },
     ],
   },
   {
@@ -127,9 +121,9 @@ const roomFields: ModuleField[] = [
 
 const energyCombustionFields: ModuleField[] = [
   {
-    id: 'heating_type',
+    id: 'name',
     optionsId: 'kind',
-    labelKey: `${MODULES.Buildings}.inputs.heating_type`,
+    labelKey: `${MODULES.Buildings}.inputs.name`,
     type: 'select',
     required: true,
     sortable: true,
@@ -144,7 +138,7 @@ const energyCombustionFields: ModuleField[] = [
     id: 'unit',
     labelKey: `${MODULES.Buildings}.inputs.unit`,
     type: 'text',
-    readOnlyWhenFilled: true,
+    readOnly: true,
     sortable: false,
     align: 'left',
     ratio: '1/4',

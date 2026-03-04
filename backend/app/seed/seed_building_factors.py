@@ -17,14 +17,14 @@ logger = get_logger(__name__)
 
 CSV_PATH_BUILDING_ENERGY = (
     Path(__file__).parent.parent.parent
-    / "seed_data"
-    / "seed_buildings_rooms_factors.csv"
+    / "seed_data_building"
+    / "building_rooms_factors.csv"
 )
 
 CSV_PATH_COMBUSTION = (
     Path(__file__).parent.parent.parent
-    / "seed_data"
-    / "seed_buildings_combustion_factors.csv"
+    / "seed_data_building"
+    / "building_energycombustions_factors.csv"
 )
 
 
@@ -35,7 +35,7 @@ def _float_or_none(value: str | None) -> float | None:
 
 
 async def seed_building_energy_factors(session: AsyncSession) -> None:
-    """Seed building energy factors from normalized building/category CSV."""
+    """Seed building energy factors from normalized building/category/room_type CSV."""
     service = FactorService(session)
     await service.bulk_delete_by_data_entry_type(DataEntryTypeEnum.building)
 
@@ -43,19 +43,21 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
     with open(CSV_PATH_BUILDING_ENERGY, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         required_columns = {
-            "building_name",
             "category",
+            "heating_kwh_per_square_meter",
+            "cooling_kwh_per_square_meter",
+            "ventilation_kwh_per_square_meter",
+            "lighting_kwh_per_square_meter",
             "ef_kg_co2eq_per_kwh",
             "energy_type",
-            "conversion_factor",
+            "room_type",
         }
         present_columns = set(reader.fieldnames or [])
         missing_columns = required_columns - present_columns
         if missing_columns:
             missing = ", ".join(sorted(missing_columns))
             raise ValueError(
-                "seed_building_energy_factors.csv is missing required columns: "
-                f"{missing}"
+                f"building_rooms_factors.csv is missing required columns: {missing}"
             )
 
         for row in reader:
@@ -63,9 +65,9 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
             if ef_kg_co2eq_per_kwh is None:
                 continue
 
-            building_name = (row.get("building_name") or "").strip()
             category = (row.get("category") or "").strip().lower()
-            if not building_name or not category:
+            room_type = (row.get("room_type") or "").strip()
+            if not category:
                 continue
             emission_type_id = get_factor_emission_type_id(
                 data_entry_type=DataEntryTypeEnum.building, factor=row
@@ -75,10 +77,22 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.building.value,
                 classification={
-                    "kind": building_name,
                     "subkind": category,
+                    "room_type": room_type,
                 },
                 values={
+                    "heating_kwh_per_square_meter": _float_or_none(
+                        row.get("heating_kwh_per_square_meter")
+                    ),
+                    "cooling_kwh_per_square_meter": _float_or_none(
+                        row.get("cooling_kwh_per_square_meter")
+                    ),
+                    "ventilation_kwh_per_square_meter": _float_or_none(
+                        row.get("ventilation_kwh_per_square_meter")
+                    ),
+                    "lighting_kwh_per_square_meter": _float_or_none(
+                        row.get("lighting_kwh_per_square_meter")
+                    ),
                     "ef_kg_co2eq_per_kwh": ef_kg_co2eq_per_kwh,
                     "energy_type": (row.get("energy_type") or "").strip(),
                     "conversion_factor": _float_or_none(row.get("conversion_factor")),
@@ -100,21 +114,23 @@ async def seed_combustion_factors(session: AsyncSession) -> None:
     with open(CSV_PATH_COMBUSTION, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            kgco2 = _float_or_none(row.get("kg_co2eq_per_unit"))
-            if kgco2 is None:
+            ef = _float_or_none(row.get("ef_kg_co2eq_per_unit"))
+            if ef is None:
+                continue
+            name = (row.get("name") or "").strip()
+            unit = (row.get("unit") or "").strip()
+            if not name or not unit:
                 continue
             factor = await service.prepare_create(
                 emission_type_id=EmissionType.buildings__combustion,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
                 classification={
-                    "kind": row.get("kind", ""),
-                    "subkind": row.get("subkind") or None,
-                    "source": row.get("source", ""),
+                    "kind": name,
+                    "subkind": unit,
                 },
                 values={
-                    "kg_co2eq_per_unit": kgco2,
-                    "unit": row.get("unit", ""),
+                    "ef_kg_co2eq_per_unit": ef,
                 },
             )
             factors.append(factor)

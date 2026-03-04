@@ -1,15 +1,12 @@
-"""CSV provider for Buildings/Rooms ingestion with Archibus lookup enrichment."""
+"""CSV provider for Buildings/Rooms ingestion with building room reference lookup."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
 from app.models.user import User
-from app.repositories.archibus_room_repo import ArchibusRoomRepository
-from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
-from app.repositories.carbon_report_repo import CarbonReportRepository
-from app.repositories.unit_repo import UnitRepository
+from app.repositories.building_room_repo import BuildingRoomRepository
 from app.schemas.data_entry import BaseModuleHandler, ModuleHandler
 from app.services.data_ingestion.base_csv_provider import (
     BaseCSVProvider,
@@ -22,7 +19,7 @@ logger = get_logger(__name__)
 
 
 class BuildingRoomCSVProvider(BaseCSVProvider):
-    """Ingest building-room rows and enrich from `archibus_rooms`."""
+    """Ingest building-room rows and enrich from `building_rooms`."""
 
     def __init__(
         self,
@@ -33,8 +30,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
         data_session: Any,
     ):
         super().__init__(config, user, job_session, data_session=data_session)
-        self._room_repo = ArchibusRoomRepository(self.data_session)
-        self._unit_institutional_ids: Optional[list[str]] = None
+        self._room_repo = BuildingRoomRepository(self.data_session)
 
     @property
     def entity_type(self) -> EntityType:
@@ -51,8 +47,6 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
         configured_data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
         handler = BaseModuleHandler.get_by_type(configured_data_entry_type)
         handlers = [handler]
-
-        self._unit_institutional_ids = await self._load_unit_institutional_ids()
 
         return {
             "handlers": handlers,
@@ -89,26 +83,6 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             return None, None, error_msg
         return data_entry_type, handler, None
 
-    async def _load_unit_institutional_ids(self) -> Optional[list[str]]:
-        """Resolve allowed Archibus unit IDs from the ingestion's module context."""
-        if not self.carbon_report_module_id:
-            return None
-
-        module_repo = CarbonReportModuleRepository(self.data_session)
-        report_repo = CarbonReportRepository(self.data_session)
-        unit_repo = UnitRepository(self.data_session)
-
-        module = await module_repo.get(self.carbon_report_module_id)
-        if module is None:
-            return None
-
-        report = await report_repo.get(module.carbon_report_id)
-        if report is None:
-            return None
-
-        unit_ids = await unit_repo.get_archibus_unit_ids_by_id(report.unit_id)
-        return unit_ids or None
-
     async def _process_row(
         self,
         row: Dict[str, str],
@@ -118,7 +92,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
         max_row_errors: int,
         unit_to_module_map: Dict[str, int] | None = None,
     ) -> tuple[DataEntry | None, str | None, Any | None]:
-        """Resolve room from Archibus and transform row to building-room payload."""
+        """Resolve room from building_rooms reference and transform row to payload."""
         building_name = (row.get("building_name") or "").strip()
         room_name = (row.get("room_name") or "").strip()
         building_location = (row.get("building_location") or "").strip()
@@ -133,7 +107,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
-        room, room_error = await self._retrieve_archibus_room(
+        room, room_error = await self._retrieve_building_room(
             building_name=building_name,
             room_name=room_name,
             building_location=building_location,
@@ -143,11 +117,18 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             return None, room_error, None
 
         if room is None:
-            error_msg = "No Archibus room could be resolved"
+            error_msg = "No building room could be resolved"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
-        transformed_row = {**row, **room.model_dump(exclude_none=True)}
+        # Merge only reference fields — kWh data comes from factors at emit time
+        enrichment: dict = {}
+        if room.room_surface_square_meter is not None:
+            enrichment["room_surface_square_meter"] = room.room_surface_square_meter
+        if room.room_type:
+            enrichment["room_type"] = room.room_type
+
+        transformed_row = {**row, **enrichment}
 
         if note:
             transformed_row["note"] = note
@@ -161,16 +142,15 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             unit_to_module_map,
         )
 
-    async def _retrieve_archibus_room(
+    async def _retrieve_building_room(
         self,
         building_name: str,
         room_name: str,
         building_location: str,
     ) -> tuple[Any | None, str | None]:
-        """Retrieve and disambiguate room data from Archibus."""
+        """Retrieve and disambiguate room data from building_rooms reference."""
         if building_location:
             rooms = await self._room_repo.list_rooms(
-                unit_institutional_ids=self._unit_institutional_ids,
                 building_location=building_location,
             )
             rooms = [
@@ -180,7 +160,6 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             ]
         else:
             rooms = await self._room_repo.list_rooms(
-                unit_institutional_ids=self._unit_institutional_ids,
                 building_name=building_name,
             )
             rooms = [r for r in rooms if r.room_name == room_name]
@@ -192,7 +171,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
                 else ""
             )
             return None, (
-                f"No Archibus room found for {where}"
+                f"No building room found for {where}"
                 f"building_name='{building_name}', room_name='{room_name}'"
             )
 
@@ -210,7 +189,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             if len(unique_values) == 1:
                 return rooms[0], None
             return None, (
-                "Ambiguous Archibus match; provide building_location "
+                "Ambiguous building room match; provide building_location "
                 f"for building_name='{building_name}', room_name='{room_name}'"
             )
 
