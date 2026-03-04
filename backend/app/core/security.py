@@ -180,7 +180,7 @@ async def is_permitted(user: User, path: str, action: str = "view") -> bool:
     return decision.get("allow", False)
 
 
-async def check_permission(user: User, path: str, action: str = "view"):
+async def check_permission(user: User, path: str, action: str = "view") -> None:
     """
     Check if the user has the specified permission and raise HTTPException if not.
 

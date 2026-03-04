@@ -88,7 +88,14 @@ async def get_taxonomy_for_module_data_entry(
     current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
-    module_type = get_module_type_for_data_entry_type(DataEntryTypeEnum[data_entry])
+    data_entry_type = (
+        DataEntryTypeEnum[data_entry]
+        if data_entry in DataEntryTypeEnum.__members__
+        else None
+    )
+    if not data_entry_type:
+        raise HTTPException(status_code=404, detail="Data entry type not found")
+    module_type = get_module_type_for_data_entry_type(data_entry_type)
     if not module_type:
         raise HTTPException(status_code=404, detail="Module type not found")
     if module_type.name != module.replace("-", "_"):
@@ -96,6 +103,4 @@ async def get_taxonomy_for_module_data_entry(
             status_code=400,
             detail=f"Data entry type {data_entry} does not belong to module {module}",
         )
-    await check_module_permission(current_user, module_type.name, "view")
-    data_entry_type = DataEntryTypeEnum[data_entry]
     return await get_taxonomy_for_data_entry_type(data_entry_type, db, current_user)

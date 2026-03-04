@@ -117,14 +117,26 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
 def get_data_entry_types_for_module_type(
     module_type: ModuleTypeEnum,
 ) -> list[DataEntryTypeEnum]:
-    """Get the data entry types for a given module type."""
+    """Get the data entry types for a given module type.
+
+    Arguments:
+        module_type: The module type to get data entry types for.
+    Returns:
+        List of data entry types associated with the given module type.
+    """
     return MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
 
 def get_module_type_for_data_entry_type(
     data_entry_type: DataEntryTypeEnum,
 ) -> ModuleTypeEnum | None:
-    """Get the module type for a given data entry type."""
+    """Get the module type for a given data entry type.
+
+    Arguments:
+        data_entry_type: The data entry type to get the module type for.
+    Returns:
+        The module type associated with the given data entry type, or None if not found.
+    """
     for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
         if data_entry_type in data_entry_types:
             return module_type

@@ -125,6 +125,7 @@ const modulesCounterText = computed(() =>
         size="md"
         class="text-weight-medium q-mt-xl"
         :to="{ name: 'module', params: { module: firstEditableModule } }"
+        :disable="!firstEditableModule"
       />
     </q-card>
 

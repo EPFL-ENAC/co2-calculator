@@ -402,7 +402,7 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     }
 
 
-def _get_module_permission_path(module_name: str) -> Optional[str]:
+def _get_module_permission_path(module_name: str | None) -> Optional[str]:
     """
     Map module name to permission path.
 
@@ -418,12 +418,11 @@ def _get_module_permission_path(module_name: str) -> Optional[str]:
         return None  # No module specified, no permission required
     # Name mapping for modules with legacy permission paths
     module_permission_map = {
-        "equipment-electric-consumption": "modules.equipment",
-        "my-lab": "modules.headcount",  # Headcount module
+        "equipment_electric_consumption": "modules.equipment",
+        "my_lab": "modules.headcount",  # Headcount module
     }
-    return module_permission_map.get(
-        module_name, f"modules.{module_name.replace('-', '_').lower()}"
-    )
+    nomalized_name = module_name.replace("-", "_").lower().strip()
+    return module_permission_map.get(nomalized_name, f"modules.{nomalized_name}")
 
 
 async def get_module_permission_decision(
