@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.core.policy import check_module_permission
-from app.core.security import get_current_active_user
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     ModuleTypeEnum,
@@ -25,7 +24,7 @@ router = APIRouter()
 async def get_taxonomy_for_module_type(
     module_type: ModuleTypeEnum,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module type."""
     await check_module_permission(current_user, module_type.name, "view")
@@ -49,7 +48,7 @@ async def get_taxonomy_for_module_type(
 async def get_taxonomy_for_data_entry_type(
     data_entry_type: DataEntryTypeEnum,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given data entry type."""
     module_type = get_module_type_for_data_entry_type(data_entry_type)
@@ -68,13 +67,13 @@ async def get_taxonomy_for_data_entry_type(
 async def get_taxonomy_for_module(
     module: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     module_name = module.replace("-", "_")
     module_type = ModuleTypeEnum[module_name]
     await check_module_permission(current_user, module_type.name, "view")
-    return await get_taxonomy_for_module_type(module_type, db)
+    return await get_taxonomy_for_module_type(module_type, db, current_user)
 
 
 @router.get(
@@ -86,7 +85,7 @@ async def get_taxonomy_for_module_data_entry(
     module: str,
     data_entry: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     module_type = get_module_type_for_data_entry_type(DataEntryTypeEnum[data_entry])
@@ -99,4 +98,4 @@ async def get_taxonomy_for_module_data_entry(
         )
     await check_module_permission(current_user, module_type.name, "view")
     data_entry_type = DataEntryTypeEnum[data_entry]
-    return await get_taxonomy_for_data_entry_type(data_entry_type, db)
+    return await get_taxonomy_for_data_entry_type(data_entry_type, db, current_user)

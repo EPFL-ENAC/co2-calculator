@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
@@ -31,7 +31,7 @@ router = APIRouter()
 async def get_validated_totals(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     Get validated totals for a carbon report.
@@ -70,7 +70,7 @@ async def get_module_stats(
     year: int,
     module_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, float | None]:
     """
     Get module statistics such as total items and submodules.
@@ -116,7 +116,7 @@ async def get_module_stats(
 async def get_results_summary(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     Get results summary for a carbon report, broken down by module.
@@ -148,7 +148,7 @@ async def get_results_summary(
 async def get_emission_breakdown(
     carbon_report_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Return chart-ready emission breakdown for a carbon report.
 

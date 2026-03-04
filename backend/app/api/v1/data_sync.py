@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -66,7 +66,7 @@ async def sync_module_data_entries(
     syncRequest: SyncRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -183,7 +183,7 @@ async def sync_module_factors(
     factor_type_id: int,
     syncRequest: SyncRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     # Implementation similar to sync_module_data_entries,
     # but tailored for factor synchronization.
@@ -194,7 +194,7 @@ async def sync_module_factors(
 async def get_jobs_by_status(
     filter_type: str = "completed",
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> list:
     """
     Get jobs filtered by status.
@@ -213,7 +213,7 @@ async def get_jobs_by_status(
 @router.get("/jobs/stream")
 async def job_stream(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Server-Sent Events endpoint to stream job updates in real-time.
@@ -274,7 +274,7 @@ async def job_stream(
 async def job_stream_by_id(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Server-Sent Events endpoint to stream a single job update in real-time.

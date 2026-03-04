@@ -15,7 +15,7 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.db import get_db
-from app.models.user import RoleName, User
+from app.models.user import User
 from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
@@ -104,55 +104,6 @@ async def get_current_active_user(
     Legacy code: used to check for is_active flag, but now all users are active.
     """
     return user
-
-
-def get_current_active_user_with_any_role(roles: list[RoleName]):
-    """
-    DEPRECATED: Use require_permission() instead for permission-based authorization.
-
-    Require that the user has at least one of the roles to perform an operation.
-
-    This function is deprecated in favor of permission-based authorization using
-    require_permission(path, action). It is kept temporarily for backward compatibility.
-
-    Args:
-        roles: List of roles, at least one of which the user must have
-
-    Returns:
-        FastAPI dependency that returns authenticated user if role check passes
-
-    Example (OLD - deprecated):
-        user: User = Depends(
-            get_current_active_user_with_any_role([RoleName.CO2_BACKOFFICE_ADMIN])
-        )
-
-    Example (NEW - recommended):
-        user: User = Depends(require_permission("backoffice.files", "view"))
-    """
-
-    async def get_current_active_user_with_any_role_impl(
-        user: User = Depends(get_current_active_user),
-    ) -> User:
-        # Log usage for migration tracking
-        logger.warning(
-            "DEPRECATED: get_current_active_user_with_any_role() used. "
-            "Migrate to require_permission() for permission-based authorization.",
-            extra={
-                "user_id": sanitize(user.id),
-                "required_roles": [role.value for role in roles],
-            },
-        )
-
-        if not any(
-            role in [user_role.role for user_role in user.roles] for role in roles
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not authorised to perform this operation",
-            )
-        return user
-
-    return get_current_active_user_with_any_role_impl
 
 
 def _build_permission_input(user: User, path: str, action: str) -> dict:
