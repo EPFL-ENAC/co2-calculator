@@ -595,7 +595,7 @@ async def export_detailed_reporting(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
 ):
     """
     Export detailed reporting data for all units, including module-level details.
@@ -804,7 +804,7 @@ async def export_reporting(
     # - maybe we should stream the data instead of loading it all in memory?
     page_size: int = Query(100, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
 ):
     """Export unit reporting data as CSV or JSON file download."""
     # Get all matching records for export
