@@ -119,7 +119,7 @@ def get_data_entry_types_for_module_type(
 ) -> list[DataEntryTypeEnum]:
     """Get the data entry types for a given module type.
 
-    Arguments:
+    Args:
         module_type: The module type to get data entry types for.
     Returns:
         List of data entry types associated with the given module type.
@@ -132,7 +132,7 @@ def get_module_type_for_data_entry_type(
 ) -> ModuleTypeEnum | None:
     """Get the module type for a given data entry type.
 
-    Arguments:
+    Args:
         data_entry_type: The data entry type to get the module type for.
     Returns:
         The module type associated with the given data entry type, or None if not found.

@@ -7,8 +7,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
 from app.core.logging import get_logger
-
-# from app.core.security import require_permission
 from app.core.security import require_permission
 from app.models.unit import Unit
 from app.models.user import User

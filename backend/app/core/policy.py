@@ -421,8 +421,8 @@ def _get_module_permission_path(module_name: str | None) -> Optional[str]:
         "equipment_electric_consumption": "modules.equipment",
         "my_lab": "modules.headcount",  # Headcount module
     }
-    nomalized_name = module_name.replace("-", "_").lower().strip()
-    return module_permission_map.get(nomalized_name, f"modules.{nomalized_name}")
+    normalized_name = module_name.replace("-", "_").lower().strip()
+    return module_permission_map.get(normalized_name, f"modules.{normalized_name}")
 
 
 async def get_module_permission_decision(
@@ -476,8 +476,8 @@ async def is_module_permitted(
     """
     decision = await get_module_permission_decision(user, module_id, action)
     return decision.get(
-        "allow", True
-    )  # Default to True if no specific permission required
+        "allow", False
+    )  # Deny by default if decision lacks an explicit allow
 
 
 async def check_module_permission(

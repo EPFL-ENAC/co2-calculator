@@ -69,7 +69,7 @@ class TestGetModulePermissionPath:
 
     def test_case_insensitive_module_id(self):
         """Test that module ID is case-insensitive."""
-        # Wrong case should return None
+        # Mixed case should still map to the correct path
         result = _get_module_permission_path("Professional-Travel")
         assert (
             result == "modules.professional_travel"

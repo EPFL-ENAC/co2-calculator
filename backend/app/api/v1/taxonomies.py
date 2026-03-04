@@ -71,6 +71,8 @@ async def get_taxonomy_for_module(
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
     module_name = module.replace("-", "_")
+    if module_name not in ModuleTypeEnum.__members__:
+        raise HTTPException(status_code=404, detail="Module not found")
     module_type = ModuleTypeEnum[module_name]
     await check_module_permission(current_user, module_type.name, "view")
     return await get_taxonomy_for_module_type(module_type, db, current_user)
