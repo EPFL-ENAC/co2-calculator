@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.5.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.4.0...v0.5.0) (2026-03-04)
+
+## What's Changed
+* fix(docs): correct broken relative links to prevent strict mode build failures by @BenBotros in https://github.com/EPFL-ENAC/co2-calculator/pull/374
+* feat(CICD): forward helm version to gitops by @nicdub in https://github.com/EPFL-ENAC/co2-calculator/pull/366
+* chore: remove dead resource example by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/377
+* Refactor/consolidate user unit by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/379
+* feat: update color scheme by @BenBotros in https://github.com/EPFL-ENAC/co2-calculator/pull/378
+* chore(manage_db): make helper script better at handling kube instances by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/382
+* Chore/216 rename inventory to carbon report by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/383
+* feat/237 right chart by @BenBotros in https://github.com/EPFL-ENAC/co2-calculator/pull/381
+* Chore/216 backend new model by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/387
+* feat(OTel): add OpenTelemetry by @nicdub in https://github.com/EPFL-ENAC/co2-calculator/pull/389
+* fix(OTel): launch OTel by default+add collector conf by @nicdub in https://github.com/EPFL-ENAC/co2-calculator/pull/391
+* feat/331 improve destination search by @BenBotros in https://github.com/EPFL-ENAC/co2-calculator/pull/388
+* Update documentation editing texts by @charlottegiseleweil in https://github.com/EPFL-ENAC/co2-calculator/pull/394
+* test - Update my_lab.ts by @tmkmrnk in https://github.com/EPFL-ENAC/co2-calculator/pull/396
+* Update Guidance term common.ts by @maidinh-metier in https://github.com/EPFL-ENAC/co2-calculator/pull/395
+* Update equipment_electric_consumption.ts by @Anna-Kounina-Masse in https://github.com/EPFL-ENAC/co2-calculator/pull/397
+* Migrate equipment to data entry by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/390
+* Update professional_travel.ts by @Anna-Kounina-Masse in https://github.com/EPFL-ENAC/co2-calculator/pull/407
+* Feat/external cloud and ais by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/409
+* text: Update descriptions for Professional Travel module by @ambroise-dly in https://github.com/EPFL-ENAC/co2-calculator/pull/408
+* text: chnage text of Doc by @ambroise-dly in https://github.com/EPFL-ENAC/co2-calculator/pull/393
+* fix(db-drop): set drop db with force by @nicdub in https://github.com/EPFL-ENAC/co2-calculator/pull/411
+* feat: add CSV data import with real-time job status updates by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/412
+* fix(external-cloud): correct default for external-cloud by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/420
+* feat(helm): add OTel metadata by @nicdub in https://github.com/EPFL-ENAC/co2-calculator/pull/418
+* chore(release-v0.4.0): update stage from release by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/425
+* chore(release-v0.4.0): update dev from release v0.4.0 by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/426
+* chore(pre-release-v0.5.0): merge sprint 5 from dev to stage by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/427
+* release v0.5.0 by @guilbep in https://github.com/EPFL-ENAC/co2-calculator/pull/553
+
+## New Contributors
+* @tmkmrnk made their first contribution in https://github.com/EPFL-ENAC/co2-calculator/pull/396
+* @maidinh-metier made their first contribution in https://github.com/EPFL-ENAC/co2-calculator/pull/395
+* @Anna-Kounina-Masse made their first contribution in https://github.com/EPFL-ENAC/co2-calculator/pull/397
+
+**Full Changelog**: https://github.com/EPFL-ENAC/co2-calculator/compare/v0.4.0...v0.5.0
+
 ## [0.4.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.3.0...v0.4.0) (2026-02-10)
 
 
