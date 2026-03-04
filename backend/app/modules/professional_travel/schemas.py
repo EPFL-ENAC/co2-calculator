@@ -248,13 +248,7 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
-        raw_country_code = str(ctx.get("country_code") or "").strip()
-        if not raw_country_code:
-            country_code = "RoW"
-        elif raw_country_code.lower() == "row":
-            country_code = "RoW"
-        else:
-            country_code = raw_country_code.upper()
+        country_code = str(ctx.get("country_code") or None)
         return [
             EmissionComputation(
                 emission_type=emission_type,
