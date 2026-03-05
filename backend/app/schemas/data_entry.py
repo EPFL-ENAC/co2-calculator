@@ -410,7 +410,7 @@ async def resolve_primary_factor_if_kind_or_subkind_changed(
     db: AsyncSession,
 ) -> dict:
     """
-    Resolve primary_factor_id only if kind or subkind fields have changed.
+    Resolve primary_factor_id when relevant classification fields change.
 
     Args:
         handler: The module handler for this data entry type
@@ -444,7 +444,7 @@ async def resolve_primary_factor_if_kind_or_subkind_changed(
         update_payload[handler_subkind_field] = None
         update_payload["primary_factor_id"] = None
 
-    # Only resolve primary_factor_id if kind or subkind changed
+    # Resolve primary factor when any factor-driving field changed.
     if kind_changed or subkind_changed:
         update_payload = await handler.resolve_primary_factor_id(
             update_payload, data_entry_type, db, existing_data=existing_data

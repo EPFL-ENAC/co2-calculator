@@ -7,6 +7,7 @@ from app.models.module_type import ModuleTypeEnum
 from app.utils.emission_breakdown import (
     HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
+    _get_category,
     build_chart_breakdown,
     build_treemap,
 )
@@ -122,6 +123,15 @@ def test_build_chart_breakdown_energy_combustion():
     assert combustion_bar["combustion"] == pytest.approx(2.0)
 
     assert result["total_tonnes_co2eq"] == pytest.approx(6.0)
+
+
+def test_get_category_building_leaf_inherits_parent_override():
+    """A building leaf emission inherits the parent module/category override."""
+    category = _get_category(
+        ModuleTypeEnum.buildings.value,
+        EmissionType.buildings__rooms__lighting.value,
+    )
+    assert category == "Buildings energy consumption"
 
 
 def test_build_chart_breakdown_emission_type_for_cloud():

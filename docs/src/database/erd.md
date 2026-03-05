@@ -2,21 +2,6 @@ Generating Mermaid ERD...
 
 ```mermaid
 erDiagram
-  archibus_rooms {
-    VARCHAR building_location "indexed"
-    VARCHAR building_name "indexed"
-    FLOAT cooling_kwh_per_square_meter
-    FLOAT heating_kwh_per_square_meter
-    INTEGER id PK
-    FLOAT kg_co2eq
-    FLOAT lighting_kwh_per_square_meter
-    VARCHAR note
-    VARCHAR room_name "indexed"
-    FLOAT room_surface_square_meter
-    VARCHAR room_type
-    VARCHAR unit_institutional_id "indexed"
-    FLOAT ventilation_kwh_per_square_meter
-  }
   audit_documents {
     VARCHAR change_reason
     VARCHAR change_type
@@ -39,6 +24,14 @@ erDiagram
     VARCHAR sync_status
     DATETIME synced_at
     INTEGER version "indexed"
+  }
+  building_rooms {
+    VARCHAR building_location "indexed"
+    VARCHAR building_name "indexed"
+    INTEGER id PK
+    VARCHAR room_name "indexed"
+    FLOAT room_surface_square_meter
+    VARCHAR room_type
   }
   carbon_report_modules {
     INTEGER carbon_report_id FK

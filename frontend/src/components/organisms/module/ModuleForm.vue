@@ -298,7 +298,7 @@ import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import { useArchibusRoomDynamicOptions } from 'src/composables/useArchibusRoomDynamicOptions';
+import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -418,8 +418,15 @@ const filteredOptionsMap = computed(() => {
 
   visibleFields.value.forEach((inp) => {
     // First check for dynamic options (from composables)
-    // Use dynamic options if they exist and are not empty, otherwise use static options
-    const dynamicOpts = dynamicOptions[inp?.optionsId ?? ''];
+    // For Buildings > Building submodule, prefer room-based options over factor-based ones
+    const optionsId = inp?.optionsId ?? '';
+    const buildingRoomOpts =
+      props.moduleType === MODULES.Buildings &&
+      props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building &&
+      buildingRoomDynamicOptions[optionsId]?.length > 0
+        ? buildingRoomDynamicOptions[optionsId]
+        : undefined;
+    const dynamicOpts = buildingRoomOpts ?? dynamicOptions[optionsId];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts
@@ -527,12 +534,12 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     ...useEquipmentClassOptionsConfig,
   });
 
-useArchibusRoomDynamicOptions(
-  form,
-  toRef(props, 'moduleType'),
-  toRef(props, 'submoduleType'),
-  toRef(props, 'unitId'),
-);
+const { dynamicOptions: buildingRoomDynamicOptions } =
+  useBuildingRoomDynamicOptions(
+    form,
+    toRef(props, 'moduleType'),
+    toRef(props, 'submoduleType'),
+  );
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
