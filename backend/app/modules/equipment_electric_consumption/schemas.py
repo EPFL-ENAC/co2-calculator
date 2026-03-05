@@ -20,24 +20,27 @@ logger = get_logger(__name__)
 
 class EquipmentHandlerResponse(DataEntryResponseGen):
     name: str
-    active_usage_hours: Optional[int] = None
-    passive_usage_hours: Optional[int] = None
+    equipment_class: str = None
+    sub_class: Optional[str] = None
+    active_usage_hours_per_week: Optional[int] = None
+    standby_usage_hours_per_week: Optional[int] = None
     primary_factor_id: Optional[int] = None
     kg_co2eq: Optional[float] = None
     active_power_w: Optional[int] = None
     standby_power_w: Optional[int] = None
-    equipment_class: Optional[str] = None
-    sub_class: Optional[str] = None
 
 
 class EquipmentHandlerCreate(DataEntryCreate):
-    active_usage_hours: Optional[int] = None
-    passive_usage_hours: Optional[int] = None
     name: str
-    equipment_class: Optional[str] = None
+    equipment_class: str
     sub_class: Optional[str] = None
+    active_usage_hours_per_week: Optional[int] = None
+    standby_usage_hours_per_week: Optional[int] = None
+    note: Optional[str] = None
 
-    @field_validator("active_usage_hours", "passive_usage_hours", mode="after")
+    @field_validator(
+        "active_usage_hours_per_week", "standby_usage_hours_per_week", mode="after"
+    )
     @classmethod
     def validate_usage_hours(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
@@ -50,13 +53,15 @@ class EquipmentHandlerCreate(DataEntryCreate):
 
 
 class EquipmentHandlerUpdate(DataEntryUpdate):
-    active_usage_hours: Optional[int] = None
-    passive_usage_hours: Optional[int] = None
+    active_usage_hours_per_week: Optional[int] = None
+    standby_usage_hours_per_week: Optional[int] = None
     name: Optional[str] = None
     equipment_class: Optional[str] = None
     sub_class: Optional[str] = None
 
-    @field_validator("active_usage_hours", "passive_usage_hours", mode="after")
+    @field_validator(
+        "active_usage_hours_per_week", "standby_usage_hours_per_week", mode="after"
+    )
     @classmethod
     def validate_usage_hours(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
@@ -89,8 +94,12 @@ class EquipmentModuleHandler(BaseModuleHandler):
     # Add the sort_map here
     sort_map = {
         "id": DataEntry.id,
-        "active_usage_hours": DataEntry.data["active_usage_hours"].as_float(),
-        "passive_usage_hours": DataEntry.data["passive_usage_hours"].as_float(),
+        "active_usage_hours_per_week": DataEntry.data[
+            "active_usage_hours_per_week"
+        ].as_float(),
+        "standby_usage_hours_per_week": DataEntry.data[
+            "standby_usage_hours_per_week"
+        ].as_float(),
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
@@ -114,10 +123,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
         settings = get_settings()
 
         def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
-            active_hours = ctx.get("active_usage_hours")
+            active_hours = ctx.get("active_usage_hours_per_week")
             if active_hours is None:
                 return None
-            passive_hours = ctx.get("passive_usage_hours")
+            passive_hours = ctx.get("standby_usage_hours_per_week")
             if passive_hours is None:
                 return None
             active_w = factor_values.get("active_power_w")
