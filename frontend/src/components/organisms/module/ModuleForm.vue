@@ -174,6 +174,13 @@
                   @swap="handleSwapLocations"
                 />
               </template>
+              <template v-else-if="inp.type === 'node-select'">
+                <NodeSelect
+                  v-model="form[inp.id]"
+                  :submodule-type="props.submoduleType"
+                  :field="inp"
+                />
+              </template>
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -295,6 +302,7 @@ import { useI18n } from 'vue-i18n';
 import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
+import NodeSelect from 'src/components/atoms/CO2NodeSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
