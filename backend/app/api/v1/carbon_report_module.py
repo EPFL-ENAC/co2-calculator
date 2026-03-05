@@ -132,7 +132,7 @@ async def get_module(
         )
         module_data.stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="function",
+            aggregate_by="position_category",
             aggregate_field="fte",
         )
     else:

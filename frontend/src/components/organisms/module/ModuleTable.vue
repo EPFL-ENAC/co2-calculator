@@ -147,14 +147,7 @@
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
               :type="col.type === 'number' ? 'number' : undefined"
-              :options="
-                col.optionLabelsAreKeys
-                  ? (col.options || []).map((o) => ({
-                      ...o,
-                      label: $t(o.label),
-                    }))
-                  : col.options || []
-              "
+              :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
               outlined
@@ -398,7 +391,7 @@ function getNumericRules(col: TableViewColumn) {
   return rules;
 }
 
-const { t: $t } = useI18n();
+const { t: $t, te: $te } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -786,6 +779,25 @@ const qCols = computed<TableViewColumn[]>(() => {
   }
   return baseCols;
 });
+
+const inlineOptionsMap = computed<
+  Record<string, Array<{ value: string; label: string }>>
+>(() => {
+  const map: Record<string, Array<{ value: string; label: string }>> = {};
+  qCols.value.forEach((col) => {
+    map[col.name] = (col.options ?? []).map((option) => ({
+      ...option,
+      label: $te(option.label) ? $t(option.label) : option.label,
+    }));
+  });
+  return map;
+});
+
+function getInlineOptions(
+  col: TableViewColumn,
+): Array<{ value: string; label: string }> {
+  return inlineOptionsMap.value[col.name] ?? [];
+}
 
 function isRowConditionallyReadOnly(
   row: Record<string, unknown>,

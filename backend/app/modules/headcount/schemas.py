@@ -78,9 +78,10 @@ class HeadCountCreate(DataEntryCreate):
     def validate_user_institutional_id(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        if not re.match(r"^\d+$", v):
+        normalized = v.strip()
+        if not re.fullmatch(r"\d+", normalized):
             raise ValueError("user_institutional_id must contain only digits")
-        return v
+        return normalized
 
 
 class HeadCountStudentCreate(DataEntryCreate):
