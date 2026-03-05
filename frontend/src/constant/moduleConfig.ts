@@ -5,6 +5,7 @@ export type FieldType =
   | 'text'
   | 'number'
   | 'select'
+  | 'node-select'
   | 'date'
   | 'checkbox'
   | 'boolean'
