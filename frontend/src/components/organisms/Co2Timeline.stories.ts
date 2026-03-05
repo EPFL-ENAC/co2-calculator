@@ -111,10 +111,8 @@ const withRouterAndTimelineStore = (config: {
 export const Default: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndTimelineStore({
       route: {
@@ -128,6 +126,13 @@ export const Default: Story = {
       timelineStates: allDefault,
     }),
   ],
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
 
 /**
@@ -136,10 +141,8 @@ export const Default: Story = {
 export const WithMixedStates: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndTimelineStore({
       route: {
@@ -153,6 +156,13 @@ export const WithMixedStates: Story = {
       timelineStates: mixedStates,
     }),
   ],
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
 
 /**
@@ -161,10 +171,8 @@ export const WithMixedStates: Story = {
 export const WithSelectedModule: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndTimelineStore({
       route: {
@@ -179,4 +187,11 @@ export const WithSelectedModule: Story = {
       timelineStates: mixedStates,
     }),
   ],
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
