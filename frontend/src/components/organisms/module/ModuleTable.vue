@@ -121,8 +121,15 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
+            <template v-if="isRowConditionallyReadOnly(slotProps.row, col)">
+              <span>{{
+                slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
+              }}</span>
+            </template>
             <module-inline-select
-              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
+              v-else-if="
+                col.optionsId === 'kind' || col.optionsId === 'subkind'
+              "
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
@@ -140,7 +147,14 @@
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
               :type="col.type === 'number' ? 'number' : undefined"
-              :options="col.options || []"
+              :options="
+                col.optionLabelsAreKeys
+                  ? (col.options || []).map((o) => ({
+                      ...o,
+                      label: $t(o.label),
+                    }))
+                  : col.options || []
+              "
               :dense="true"
               hide-bottom-space
               outlined
@@ -661,6 +675,9 @@ type TableViewColumn = {
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
+  readOnlyWhen?: ModuleField['readOnlyWhen'];
+  readOnlyDisplayField?: string;
+  optionLabelsAreKeys?: boolean;
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -709,6 +726,9 @@ const qCols = computed<TableViewColumn[]>(() => {
             tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
             type: f.type,
             maxColumnWidth: f.maxColumnWidth,
+            readOnlyWhen: f.readOnlyWhen,
+            readOnlyDisplayField: f.readOnlyDisplayField,
+            optionLabelsAreKeys: f.optionLabelsAreKeys,
           });
         });
       } else {
@@ -738,6 +758,9 @@ const qCols = computed<TableViewColumn[]>(() => {
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,
+          readOnlyWhen: f.readOnlyWhen,
+          readOnlyDisplayField: f.readOnlyDisplayField,
+          optionLabelsAreKeys: f.optionLabelsAreKeys,
         });
       }
     });
@@ -763,6 +786,16 @@ const qCols = computed<TableViewColumn[]>(() => {
   }
   return baseCols;
 });
+
+function isRowConditionallyReadOnly(
+  row: Record<string, unknown>,
+  col: TableViewColumn,
+): boolean {
+  if (!col.readOnlyWhen) return false;
+  const val = row[col.readOnlyWhen.fieldId];
+  const hasValue = val !== null && val !== undefined && val !== '';
+  return col.readOnlyWhen.hasValue ? hasValue : !hasValue;
+}
 
 function renderCell(
   row: ModuleRow,
@@ -1205,7 +1238,8 @@ function onUploadCsv() {
 function onDownloadTemplate() {
   const csvEquipmentContent =
     'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
-  const csvHeadcountContent = 'name,function,fte';
+  const csvHeadcountContent =
+    'name,position_title,position_category,user_institutional_id,fte,note';
   const csvProfessionalTravelContent =
     'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
   const csvExternalCloudContent = 'service_type,cloud_provider,spending';
