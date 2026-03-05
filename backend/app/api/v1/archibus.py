@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.models.user import User
 from app.repositories.archibus_room_repo import ArchibusRoomRepository
 from app.repositories.unit_repo import UnitRepository
@@ -23,7 +23,7 @@ async def get_archibus_rooms(
     building_location: Optional[str] = Query(default=None),
     building_name: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_active_user),
+    _current_user: User = Depends(get_current_user),
 ) -> list[ArchibusBuildingResponse | ArchibusRoomResponse]:
     """Return Archibus buildings and rooms for the Buildings module dropdowns."""
 

@@ -95,13 +95,6 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
 }
 
 
-def get_data_entry_types_for_module_type(
-    module_type: ModuleTypeEnum,
-) -> list[DataEntryTypeEnum]:
-    """Get the data entry types for a given module type."""
-    return MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
-
-
 # Maps each ModuleTypeEnum to the EmissionType root(s) whose subtree
 # covers all emission_type_ids that can appear under that module.
 # headcount is special: its 4 emission types are independent flat leaves.
@@ -119,3 +112,32 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
     ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
     ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
 }
+
+
+def get_data_entry_types_for_module_type(
+    module_type: ModuleTypeEnum,
+) -> list[DataEntryTypeEnum]:
+    """Get the data entry types for a given module type.
+
+    Args:
+        module_type: The module type to get data entry types for.
+    Returns:
+        List of data entry types associated with the given module type.
+    """
+    return MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+
+def get_module_type_for_data_entry_type(
+    data_entry_type: DataEntryTypeEnum,
+) -> ModuleTypeEnum | None:
+    """Get the module type for a given data entry type.
+
+    Args:
+        data_entry_type: The data entry type to get the module type for.
+    Returns:
+        The module type associated with the given data entry type, or None if not found.
+    """
+    for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
+        if data_entry_type in data_entry_types:
+            return module_type
+    return None

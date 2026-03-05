@@ -15,7 +15,7 @@ from enacit4r_files.services import (
 from enacit4r_files.utils.files import FileChecker
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import require_permission
@@ -218,7 +218,7 @@ async def get_file(
 )
 async def upload_temp_files(
     files: list[UploadFile] = File(description="Multiple file upload"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload files to the /tmp folder in the file storage.
@@ -247,7 +247,7 @@ async def upload_temp_files(
     description="Delete asset present in the file storage if it is in /tmp/ folder",
 )
 async def delete_temp_files(
-    file_path: str, current_user: User = Depends(get_current_active_user)
+    file_path: str, current_user: User = Depends(get_current_user)
 ):
     logger.info(
         "File deletion from /tmp requested",

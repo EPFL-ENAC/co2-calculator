@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
@@ -49,7 +49,7 @@ async def get_unit_results(
         100, ge=1, le=1000, description="Maximum number of records to return"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     return unit_results
 
@@ -59,7 +59,7 @@ async def get_unit_totals(
     unit_id: int,
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get total carbon footprint metrics for a unit across all modules.
@@ -88,7 +88,7 @@ async def get_unit_totals(
 async def get_validated_emissions(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> list[dict]:
     """Get validated emission totals per year for a unit.
 
