@@ -32,6 +32,7 @@ interface ImportRow {
   factorVariant?: 'plane' | 'train';
   hasFactors: boolean;
   hasApi: boolean;
+  hasData: boolean; //
   other?: string;
   hasOtherUpload?: boolean;
   isDisabled?: boolean;
@@ -43,16 +44,18 @@ const importRows: ImportRow[] = [
     labelKey: 'data_management_row_headcount_members',
     moduleTypeId: 1,
     dataEntryTypeId: 1,
-    hasFactors: false,
+    hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'headcount_students',
     labelKey: 'data_management_row_headcount_students',
     moduleTypeId: 1,
     dataEntryTypeId: 2,
-    hasFactors: false,
+    hasFactors: true,
     hasApi: false,
+    hasData: false,
   },
   {
     key: 'travel_train',
@@ -64,6 +67,7 @@ const importRows: ImportRow[] = [
     hasApi: false,
     other: 'data_management_other_train_stations',
     hasOtherUpload: true,
+    hasData: true,
   },
   {
     key: 'travel_plane',
@@ -75,6 +79,7 @@ const importRows: ImportRow[] = [
     hasApi: true,
     other: 'data_management_other_airports',
     hasOtherUpload: true,
+    hasData: true,
   },
   {
     key: 'buildings_rooms',
@@ -85,6 +90,7 @@ const importRows: ImportRow[] = [
     hasApi: false,
     other: 'data_management_other_institution_rooms',
     hasOtherUpload: true,
+    hasData: true,
   },
   {
     key: 'buildings_energy_combustion',
@@ -93,6 +99,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 31,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'process_emissions',
@@ -101,6 +108,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 50,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'equipment',
@@ -108,6 +116,7 @@ const importRows: ImportRow[] = [
     moduleTypeId: 4,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'purchases_common',
@@ -115,6 +124,7 @@ const importRows: ImportRow[] = [
     moduleTypeId: 5,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'purchases_additional',
@@ -123,6 +133,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 67,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'research_facilities',
@@ -131,6 +142,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 70,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'research_facilities_animal',
@@ -139,6 +151,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 71,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'external_clouds',
@@ -147,6 +160,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 40,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'external_ai',
@@ -155,6 +169,7 @@ const importRows: ImportRow[] = [
     dataEntryTypeId: 41,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'food',
@@ -162,6 +177,7 @@ const importRows: ImportRow[] = [
     moduleTypeId: 10,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'waste',
@@ -169,6 +185,7 @@ const importRows: ImportRow[] = [
     moduleTypeId: 11,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'commuting',
@@ -176,6 +193,7 @@ const importRows: ImportRow[] = [
     moduleTypeId: 9,
     hasFactors: true,
     hasApi: false,
+    hasData: true,
   },
   {
     key: 'grey_energy',
@@ -184,6 +202,7 @@ const importRows: ImportRow[] = [
     hasFactors: false,
     hasApi: false,
     isDisabled: true,
+    hasData: true,
   },
 ];
 
@@ -418,44 +437,47 @@ onUnmounted(() => {
               />
             </td>
             <td align="left">
-              <div class="q-mb-sm">
-                <q-icon name="warning" size="xs" color="warning" />
-                <span class="q-ml-sm text-warning">{{
-                  $t('data_management_no_data_warning')
-                }}</span>
-              </div>
-              <div>
-                <q-btn
-                  no-caps
-                  color="accent"
-                  icon="file_upload"
-                  size="sm"
-                  :label="$t('data_management_upload_csv_files')"
-                  class="text-weight-medium"
-                  :disable="row.isDisabled"
-                  @click="openUploadCsvDialog(row, year)"
-                />
-                <q-btn
-                  v-if="row.hasApi"
-                  no-caps
-                  color="accent"
-                  icon="link"
-                  size="sm"
-                  :label="$t('data_management_connect_api')"
-                  class="text-weight-medium on-right"
-                  :disable="row.isDisabled"
-                  @click="dataEntrySync(row.moduleTypeId, year)"
-                />
-                <q-btn
-                  no-caps
-                  color="accent"
-                  icon="file_copy"
-                  size="sm"
-                  :label="$t('data_management_copy_previous_year')"
-                  class="text-weight-medium on-right"
-                  :disable="row.isDisabled"
-                />
-              </div>
+              <template v-if="row.hasData">
+                <div class="q-mb-sm">
+                  <q-icon name="warning" size="xs" color="warning" />
+                  <span class="q-ml-sm text-warning">{{
+                    $t('data_management_no_data_warning')
+                  }}</span>
+                </div>
+                <div>
+                  <q-btn
+                    no-caps
+                    color="accent"
+                    icon="file_upload"
+                    size="sm"
+                    :label="$t('data_management_upload_csv_files')"
+                    class="text-weight-medium"
+                    :disable="row.isDisabled"
+                    @click="openUploadCsvDialog(row, year)"
+                  />
+                  <q-btn
+                    v-if="row.hasApi"
+                    no-caps
+                    color="accent"
+                    icon="link"
+                    size="sm"
+                    :label="$t('data_management_connect_api')"
+                    class="text-weight-medium on-right"
+                    :disable="row.isDisabled"
+                    @click="dataEntrySync(row.moduleTypeId, year)"
+                  />
+                  <q-btn
+                    no-caps
+                    color="accent"
+                    icon="file_copy"
+                    size="sm"
+                    :label="$t('data_management_copy_previous_year')"
+                    class="text-weight-medium on-right"
+                    :disable="row.isDisabled"
+                  />
+                </div>
+              </template>
+              <span v-else class="text-grey-5">—</span>
             </td>
             <td align="left">
               <template v-if="row.hasFactors">
