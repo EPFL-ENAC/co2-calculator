@@ -158,6 +158,7 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
       const params = new URLSearchParams();
       params.append('level', '4');
       params.append('parent_unit_type_label', 'Institut');
+      // params.append('parent_unit_type_label', 'Centre'); // for enac-it for instance
       if (query) {
         params.append('name', query);
       }
