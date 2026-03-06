@@ -60,7 +60,9 @@ function handleFiltersChange() {
         </template>
       </q-banner>
 
-      <!-- Level 2 Units Dropdown -->
+      <!-- Level 2 Units Dropdown
+       service central, faculté
+       -->
       <q-select
         v-model="selectedLevel2Units"
         :options="unitFiltersStore.dataLevel2"
@@ -75,7 +77,7 @@ function handleFiltersChange() {
         emit-value
         map-options
         :loading="unitFiltersStore.loadingLevel2"
-        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 2)`"
+        :label="`${$t('backoffice_reporting_filter_units_lvl2_label')}`"
         filled
         clearable
         class="full-width"
@@ -108,7 +110,8 @@ function handleFiltersChange() {
         </template>
       </q-banner>
 
-      <!-- Level 3 Units Dropdown -->
+      <!-- Level 3 Units Dropdown
+       institut -->
       <q-select
         v-model="selectedLevel3Units"
         :options="unitFiltersStore.dataLevel3"
@@ -123,7 +126,7 @@ function handleFiltersChange() {
         emit-value
         map-options
         :loading="unitFiltersStore.loadingLevel3"
-        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 3)`"
+        :label="`${$t('backoffice_reporting_filter_units_lvl3_label')}`"
         filled
         clearable
         class="full-width"
@@ -171,7 +174,7 @@ function handleFiltersChange() {
         emit-value
         map-options
         :loading="unitFiltersStore.loadingLevel4"
-        :label="`${$t('backoffice_reporting_filter_units_label')} (Niveau 4)`"
+        :label="`${$t('backoffice_reporting_filter_units_label')}`"
         filled
         clearable
         class="full-width"
@@ -189,9 +192,9 @@ function handleFiltersChange() {
         outlined
         dense
         :options="[
-          { label: t('common_filter_all'), value: '' },
-          { label: t('common_filter_complete'), value: 'complete' },
-          { label: t('common_filter_incomplete'), value: 'incomplete' },
+          { label: t('backoffice_reporting_csv_validated'), value: 2 },
+          { label: t('backoffice_reporting_csv_in_progress'), value: 1 },
+          { label: t('backoffice_reporting_csv_default'), value: 0 },
         ]"
         option-value="value"
         option-label="label"

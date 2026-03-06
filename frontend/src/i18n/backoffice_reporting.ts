@@ -55,9 +55,21 @@ export default {
     en: 'Errors',
     fr: 'Erreurs',
   },
+  backoffice_reporting_filter_units_lvl2_label: {
+    en: 'Faculties and VPs',
+    fr: 'Facultés et VP',
+  },
+  backoffice_reporting_filter_units_lvl3_label: {
+    en: 'Institutes',
+    fr: 'Instituts',
+  },
   backoffice_reporting_filter_units_label: {
     en: 'Units',
     fr: 'Unités',
+  },
+  backoffice_reporting_row_completion_label: {
+    en: 'Statut de validation',
+    fr: 'Validation status',
   },
   backoffice_reporting_column_unit: {
     en: 'Unit',
