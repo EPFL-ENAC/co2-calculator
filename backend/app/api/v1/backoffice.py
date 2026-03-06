@@ -20,6 +20,7 @@ from app.models.carbon_report import (
     CarbonReport,
     CarbonReportModule,
     CarbonReportModuleRead,
+    ModuleStatus,
 )
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
@@ -498,52 +499,26 @@ def _is_unit_complete(completion: dict, years: list[str] | None = None) -> bool:
     return validated_count == expected_total
 
 
-@router.get("/select-units")
-async def get_filter_units(
-    years: List[int] = Query(default=[]),
-    path_name: str = Query(default=None, description="Filter by path name"),
-    name: Optional[str] = Query(
-        None, description="Filter by unit name (partial match)"
-    ),
-    page: int = Query(1, ge=1, description="Page number for pagination"),
-    page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
-    db: AsyncSession = Depends(get_db),
-):
-    unit_repo = UnitRepository(db)
-    result = await unit_repo.get_units_with_filters(
-        years=years,
-        path_name=path_name,
-        name=name,
-        page=page,
-        page_size=page_size,
-    )
-    return result
-
-
 @router.get("/units", response_model=PaginatedUnitReportingData)
 async def list_backoffice_units(
-    affiliation: Optional[List[str]] = Query(
-        None, description="Filter by affiliation(s) - can specify multiple"
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
     ),
-    units: Optional[List[str]] = Query(
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
-    completion: Optional[str] = Query(
-        None, description="Filter by completion status (complete, incomplete)"
-    ),
-    outlier_values: Optional[bool] = Query(
+    completion_status: Optional[ModuleStatus] = Query(
         None,
-        description="""Filter by outlier values (true = has outliers,
-        false = no outliers)""",
+        description="Filter by completion status ModuleStatus",
     ),
     search: Optional[str] = Query(
-        None, description="Search in unit name, affiliation, or principal user"
+        None, description="Search in unit name, path, or principal user"
     ),
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'headcount:validated')""",
+        (e.g., 'headcount:validated') --> not implemented yet, use enum""",
     ),
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
@@ -554,14 +529,11 @@ async def list_backoffice_units(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List units with reporting data for backoffice.
-
-    Returns mock data with completion status, outlier values, and other metrics.
-    Supports filtering by affiliation, completion status, outlier values, and search.
+    List units with their reporting completion status and outlier values,
     """
     carbon_report_repo = CarbonReportModuleRepository(db)
     result = await carbon_report_repo.get_reporting_overview(
-        year=2025,  # Default to all years for overview
+        years=years[0] if years else None,  # Default to first year for overview for now
         page=page,
         page_size=page_size,
     )
