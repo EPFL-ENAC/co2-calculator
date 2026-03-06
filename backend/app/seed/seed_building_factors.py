@@ -15,13 +15,15 @@ from app.services.factor_service import FactorService
 logger = get_logger(__name__)
 
 CSV_PATH_BUILDING_ENERGY = (
-    Path(__file__).parent.parent.parent / "seed_data" / "building_rooms_factors.csv"
+    Path(__file__).parent.parent.parent
+    / "seed_data"
+    / "seed_building_rooms_factors.csv"
 )
 
 CSV_PATH_COMBUSTION = (
     Path(__file__).parent.parent.parent
     / "seed_data"
-    / "building_energycombustions_factors.csv"
+    / "seed_building_energycombustions_factors.csv"
 )
 
 
