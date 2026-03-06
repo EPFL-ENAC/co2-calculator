@@ -143,10 +143,8 @@ const withRouterAndStores = (config: {
 export const Default: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndStores({
       route: {
@@ -161,6 +159,7 @@ export const Default: Story = {
       },
     }),
   ],
+
   render: () => ({
     components: { Co2Header },
     template: `
@@ -169,6 +168,13 @@ export const Default: Story = {
       </q-layout>
     `,
   }),
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
 
 /**
@@ -177,10 +183,8 @@ export const Default: Story = {
 export const WithWorkspace: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndStores({
       route: {
@@ -199,6 +203,7 @@ export const WithWorkspace: Story = {
       },
     }),
   ],
+
   render: () => ({
     components: { Co2Header },
     template: `
@@ -208,6 +213,13 @@ export const WithWorkspace: Story = {
       </q-layout>
     `,
   }),
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
 
 /**
@@ -216,10 +228,8 @@ export const WithWorkspace: Story = {
 export const OnModuleAndResultsPage: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndStores({
       route: {
@@ -243,6 +253,7 @@ export const OnModuleAndResultsPage: Story = {
       moduleState: MODULE_STATES.InProgress,
     }),
   ],
+
   render: () => ({
     components: { Co2Header },
     template: `
@@ -252,6 +263,13 @@ export const OnModuleAndResultsPage: Story = {
       </q-layout>
     `,
   }),
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };
 
 /**
@@ -260,10 +278,8 @@ export const OnModuleAndResultsPage: Story = {
 export const WithBackOfficeAccess: Story = {
   parameters: {
     layout: 'fullscreen',
-    viewport: {
-      defaultViewport: 'xl-desktop',
-    },
   },
+
   decorators: [
     withRouterAndStores({
       route: {
@@ -287,6 +303,7 @@ export const WithBackOfficeAccess: Story = {
       },
     }),
   ],
+
   render: () => ({
     components: { Co2Header },
     template: `
@@ -295,4 +312,11 @@ export const WithBackOfficeAccess: Story = {
       </q-layout>
     `,
   }),
+
+  globals: {
+    viewport: {
+      value: 'xl-desktop',
+      isRotated: false,
+    },
+  },
 };

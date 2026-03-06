@@ -7,9 +7,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
 from app.core.logging import get_logger
-
-# from app.core.security import require_permission
+from app.core.security import require_permission
 from app.models.unit import Unit
+from app.models.user import User
 
 # Services
 logger = get_logger(__name__)
@@ -170,6 +170,7 @@ async def list_units(
     page: int = 1,
     page_size: Annotated[int, Query(le=100)] = 100,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     # 1. Initialize query with SQLModel's select
     query = select(Unit).where(col(Unit.is_active))

@@ -7,7 +7,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_db
+from app.core.security import require_permission
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -66,7 +67,7 @@ async def sync_module_data_entries(
     syncRequest: SyncRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission("backoffice.users", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -183,6 +184,7 @@ async def sync_module_factors(
     factor_type_id: int,
     syncRequest: SyncRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "edit")),
 ):
     # Implementation similar to sync_module_data_entries,
     # but tailored for factor synchronization.
@@ -193,7 +195,7 @@ async def sync_module_factors(
 async def get_jobs_by_status(
     filter_type: str = "completed",
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ) -> list:
     """
     Get jobs filtered by status.
@@ -211,8 +213,8 @@ async def get_jobs_by_status(
 # SSE endpoint to stream job updates - MUST be before /jobs/{job_id}
 @router.get("/jobs/stream")
 async def job_stream(
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     """
     Server-Sent Events endpoint to stream job updates in real-time.
@@ -272,8 +274,8 @@ async def job_stream(
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(
     job_id: int,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     """
     Server-Sent Events endpoint to stream a single job update in real-time.

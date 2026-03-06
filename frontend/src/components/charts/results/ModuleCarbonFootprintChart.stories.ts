@@ -38,10 +38,15 @@ export const Default: Story = {
   args: {
     viewUncertainties: false,
   },
+
   parameters: {
     layout: 'padded',
+  },
+
+  globals: {
     viewport: {
-      defaultViewport: 'xl-desktop',
+      value: 'xl-desktop',
+      isRotated: false,
     },
   },
 };
@@ -53,10 +58,15 @@ export const WithUncertainties: Story = {
   args: {
     viewUncertainties: true,
   },
+
   parameters: {
     layout: 'padded',
+  },
+
+  globals: {
     viewport: {
-      defaultViewport: 'xl-desktop',
+      value: 'xl-desktop',
+      isRotated: false,
     },
   },
 };

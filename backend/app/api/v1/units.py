@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.user import User
@@ -25,7 +25,7 @@ async def list_units(
         100, ge=1, le=1000, description="Maximum number of records to return"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List units with policy authorization.
@@ -53,7 +53,7 @@ async def list_units(
 async def get_unit(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get a specific resource by ID.

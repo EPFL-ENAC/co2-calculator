@@ -99,18 +99,17 @@ watch(
 // Validation rules
 const studentsRules = computed(() => [
   (val: number | null) =>
-    (val !== null && val > 0) ||
-    $t('app_headcount_student_helper_students_error'),
+    (val !== null && val > 0) || $t('headcount_student_helper_students_error'),
 ]);
 const durationRules = computed(() => [
   (val: number | null) =>
     (val !== null && val > 0 && val <= 12) ||
-    $t('app_headcount_student_helper_duration_error'),
+    $t('headcount_student_helper_duration_error'),
 ]);
 const avgFTERules = computed(() => [
   (val: number | null) =>
     (val !== null && val > 0 && val <= 1) ||
-    $t('app_headcount_student_helper_avg_fte_error'),
+    $t('headcount_student_helper_avg_fte_error'),
 ]);
 </script>
 

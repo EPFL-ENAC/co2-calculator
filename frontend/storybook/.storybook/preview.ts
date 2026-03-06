@@ -198,14 +198,13 @@ const preview: Preview = {
       },
     },
     backgrounds: {
-      default: 'light',
-      values: [
-        { name: 'light', value: '#ffffff' },
-        { name: 'dark', value: '#1d1d1d' },
-      ],
+      options: {
+        light: { name: 'light', value: '#ffffff' },
+        dark: { name: 'dark', value: '#1d1d1d' },
+      },
     },
     viewport: {
-      viewports: {
+      options: {
         mobile: {
           name: 'Mobile',
           styles: { width: '375px', height: '667px' },
@@ -225,6 +224,7 @@ const preview: Preview = {
       },
     },
   },
+
   globalTypes: {
     locale: {
       name: 'Locale',
@@ -240,6 +240,7 @@ const preview: Preview = {
       },
     },
   },
+
   decorators: [
     (story) => {
       return {
@@ -251,6 +252,12 @@ const preview: Preview = {
       };
     },
   ],
+
+  initialGlobals: {
+    backgrounds: {
+      value: 'light',
+    },
+  },
 };
 
 export default preview;

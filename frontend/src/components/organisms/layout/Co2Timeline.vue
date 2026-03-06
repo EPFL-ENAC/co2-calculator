@@ -2,11 +2,26 @@
 import { useTimelineStore } from 'src/stores/modules';
 import Co2TimelineItem from 'src/components/molecules/Co2TimelineItem.vue';
 import { useRoute } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
+import type { Module } from 'src/constant/modules';
 import { timelineItems } from 'src/constant/timelineItems';
 
 const timelineStore = useTimelineStore();
-
+const authStore = useAuthStore();
 const route = useRoute();
+
+function hasModulePermission(
+  module: Module,
+  action: PermissionAction,
+): boolean {
+  return hasPermission(
+    authStore.user?.permissions,
+    getModulePermissionPath(module),
+    action,
+  );
+}
 </script>
 <template>
   <div class="timeline-container q-py-xl">
@@ -16,10 +31,14 @@ const route = useRoute();
           :item="item"
           :current-state="timelineStore.itemStates[item.link]"
           :selected="route.params.module === item.link"
-          :to="{
-            name: 'module',
-            params: { ...route.params, module: item.link },
-          }"
+          :to="
+            hasModulePermission(item.link, PermissionAction.EDIT)
+              ? {
+                  name: 'module',
+                  params: { ...route.params, module: item.link },
+                }
+              : undefined
+          "
         />
         <q-separator
           class="timeline-separator separator self-center bg-grey-5"
