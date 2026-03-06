@@ -28,7 +28,7 @@
     "@quasar/extras": "=1.17.0",
     "echarts": "^6.0.0",
     "ky": "=1.14.0",
-    "pinia": "=3.0.3",
+    "pinia": "=3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "quasar": "=2.18.5",
     "unwrapped": "^0.1.24",
