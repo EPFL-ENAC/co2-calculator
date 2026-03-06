@@ -1,9 +1,6 @@
 version: 2
 updates:
-  # =========================
-  # DEV BRANCH (fast updates)
-  # =========================
-
+# --- only dev to avoid pull request on main branch ---
   - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
@@ -48,34 +45,3 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-
-  # =========================
-  # MAIN BRANCH (prod safety)
-  # =========================
-
-  - package-ecosystem: "uv"
-    directory: "/backend"
-    schedule:
-      interval: "monthly"
-    target-branch: "main"
-    labels:
-      - "dependencies"
-      - "production"
-
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "monthly"
-    target-branch: "main"
-    labels:
-      - "dependencies"
-      - "production"
-
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    target-branch: "main"
-    labels:
-      - "dependencies"
-      - "production"
