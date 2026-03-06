@@ -103,12 +103,21 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
         for factor in factors:
             classification = factor.classification or {}
             building_name = classification.get("kind", "")
-            room_type = classification.get("room_type", "")
-            category = classification.get("subkind", "")
-            kwh = (factor.values or {}).get("category_kwh_per_square_meter")
-            if building_name and room_type and category:
-                key = (building_name, room_type, category)
-                self._kwh_cache[key] = kwh
+            room_type = classification.get("subkind", "")
+            values = factor.values or {}
+            if building_name and room_type:
+                self._kwh_cache[(building_name, room_type, "heating")] = values.get(
+                    "heating_kwh_per_square_meter"
+                )
+                self._kwh_cache[(building_name, room_type, "cooling")] = values.get(
+                    "cooling_kwh_per_square_meter"
+                )
+                self._kwh_cache[(building_name, room_type, "ventilation")] = values.get(
+                    "ventilation_kwh_per_square_meter"
+                )
+                self._kwh_cache[(building_name, room_type, "lighting")] = values.get(
+                    "lighting_kwh_per_square_meter"
+                )
 
     async def _process_row(
         self,
@@ -151,7 +160,7 @@ class BuildingRoomCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, error_msg, None
 
-        room_type = room.room_type or ""
+        room_type = (room.room_type or "").strip().lower()
         transformed_row = {**row, **room.model_dump(exclude_none=True)}
 
         # Inject per-category kwh values from factor cache

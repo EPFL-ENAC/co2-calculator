@@ -13,13 +13,6 @@ export interface BuildingRoom {
   room_surface_square_meter: number | null;
 }
 
-export interface BuildingRoomEnergyDefaults {
-  heating_kwh_per_square_meter: number | null;
-  cooling_kwh_per_square_meter: number | null;
-  ventilation_kwh_per_square_meter: number | null;
-  lighting_kwh_per_square_meter: number | null;
-}
-
 export async function getBuildingRoomBuildings(): Promise<
   BuildingRoomBuilding[]
 > {
@@ -34,15 +27,4 @@ export async function getBuildingRooms(
       searchParams: { building_name: buildingName },
     })
     .json<BuildingRoom[]>();
-}
-
-export async function getEnergyDefaults(
-  buildingName: string,
-  roomType: string,
-): Promise<BuildingRoomEnergyDefaults> {
-  return api
-    .get('modules/building-rooms/energy-defaults', {
-      searchParams: { building_name: buildingName, room_type: roomType },
-    })
-    .json<BuildingRoomEnergyDefaults>();
 }

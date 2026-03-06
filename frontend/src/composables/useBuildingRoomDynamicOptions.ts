@@ -5,6 +5,7 @@ import {
   type AllSubmoduleTypes,
   type Module,
 } from 'src/constant/modules';
+import { getFactorValues } from 'src/api/factors';
 import { useBuildingRoomStore } from 'src/stores/building_rooms';
 
 type FormLike = Record<string, unknown>;
@@ -81,7 +82,8 @@ export function useBuildingRoomDynamicOptions(
     form['ventilation_kwh_per_square_meter'] = null;
     form['lighting_kwh_per_square_meter'] = null;
 
-    const defaults = await buildingRoomStore.fetchEnergyDefaults(
+    const defaults = await getFactorValues(
+      SUBMODULE_BUILDINGS_TYPES.Building,
       buildingName,
       roomType.trim().toLowerCase(),
     );

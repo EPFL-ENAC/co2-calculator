@@ -9,7 +9,6 @@ from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
     EmissionType,
-    FactorQuery,
     HeatingEnergyType,
 )
 from app.models.factor import Factor
@@ -146,86 +145,37 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         room_type = (merged_payload.get("room_type") or "").strip().lower()
 
         if building_name and room_type:
-            categories = ("heating", "cooling", "ventilation", "lighting")
-            stmt = select(Factor).where(
-                col(Factor.data_entry_type_id) == DataEntryTypeEnum.building.value,
-                Factor.classification["kind"].as_string() == building_name,
-                Factor.classification["room_type"].as_string() == room_type,
-                Factor.classification["subkind"].as_string().in_(categories),
+            stmt = (
+                select(Factor)
+                .where(
+                    col(Factor.data_entry_type_id) == DataEntryTypeEnum.building.value,
+                    Factor.classification["kind"].as_string() == building_name,
+                    Factor.classification["subkind"].as_string() == room_type,
+                )
+                .order_by(col(Factor.id).asc())
             )
-            query_result = await db.exec(stmt)
-            factors = list(query_result.all())
-            factors.sort(key=lambda f: f.id or 0)
-
-            by_category: dict[str, list[Factor]] = {
-                category: [] for category in categories
-            }
-            for factor in factors:
-                category = (
-                    ((factor.classification or {}).get("subkind") or "").strip().lower()
-                )
-                if category in by_category:
-                    by_category[category].append(factor)
-
-            def _kwh(factor: Factor | None) -> float | None:
-                if factor is None:
-                    return None
-                return (factor.values or {}).get("category_kwh_per_square_meter")
-
-            def _energy_type(factor: Factor) -> str:
-                classification = factor.classification or {}
+            factor = (await db.exec(stmt)).first()
+            if factor:
                 values = factor.values or {}
-                return (
-                    str(
-                        (
-                            classification.get("energy_type")
-                            or values.get("energy_type")
-                            or ""
-                        )
-                    )
-                    .strip()
-                    .lower()
+                payload["heating_kwh_per_square_meter"] = values.get(
+                    "heating_kwh_per_square_meter"
                 )
-
-            for category in categories:
-                selected: Factor | None = None
-                if category == "heating":
-                    heating_factors = by_category["heating"]
-                    elec_factor = next(
-                        (
-                            factor
-                            for factor in heating_factors
-                            if _energy_type(factor) == HeatingEnergyType.elec.value
-                        ),
-                        None,
-                    )
-                    thermal_factor = next(
-                        (
-                            factor
-                            for factor in heating_factors
-                            if _energy_type(factor) == HeatingEnergyType.thermal.value
-                        ),
-                        None,
-                    )
-                    legacy_factor = next(
-                        (
-                            factor
-                            for factor in heating_factors
-                            if _energy_type(factor) == ""
-                        ),
-                        None,
-                    )
-                    # Heating kWh/m² is demand; prefer elec, then thermal, then legacy.
-                    selected = elec_factor or thermal_factor or legacy_factor
-                else:
-                    selected = (
-                        by_category[category][0] if by_category[category] else None
-                    )
-
-                payload[f"{category}_kwh_per_square_meter"] = _kwh(selected)
+                payload["cooling_kwh_per_square_meter"] = values.get(
+                    "cooling_kwh_per_square_meter"
+                )
+                payload["ventilation_kwh_per_square_meter"] = values.get(
+                    "ventilation_kwh_per_square_meter"
+                )
+                payload["lighting_kwh_per_square_meter"] = values.get(
+                    "lighting_kwh_per_square_meter"
+                )
+                payload["primary_factor_id"] = factor.id
+            else:
+                payload["primary_factor_id"] = None
+        else:
+            payload["primary_factor_id"] = None
 
         self._set_energy_intermediates(payload, {**merged_payload, **payload})
-        payload["primary_factor_id"] = None
         return payload
 
     @staticmethod
@@ -271,15 +221,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
             * surface,
         }
 
-    # Maps each building EmissionType leaf → (factor subkind, context quantity_key)
-    _EMISSION_TO_SUBCATEGORY: dict = {
-        EmissionType.buildings__rooms__lighting: ("lighting", "lighting_kwh"),
-        EmissionType.buildings__rooms__cooling: ("cooling", "cooling_kwh"),
-        EmissionType.buildings__rooms__ventilation: ("ventilation", "ventilation_kwh"),
-        # Heating factors are seeded under subkind="heating" and disambiguated
-        # by classification.energy_type (elec/thermal).
-        EmissionType.buildings__rooms__heating_elec: ("heating", "heating_kwh"),
-        EmissionType.buildings__rooms__heating_thermal: ("heating", "heating_kwh"),
+    # Maps each building EmissionType leaf → context quantity_key.
+    _EMISSION_TO_QUANTITY: dict = {
+        EmissionType.buildings__rooms__lighting: "lighting_kwh",
+        EmissionType.buildings__rooms__cooling: "cooling_kwh",
+        EmissionType.buildings__rooms__ventilation: "ventilation_kwh",
+        EmissionType.buildings__rooms__heating_elec: "heating_kwh",
+        EmissionType.buildings__rooms__heating_thermal: "heating_kwh",
     }
 
     @staticmethod
@@ -306,12 +254,12 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
 
-        mapping = self._EMISSION_TO_SUBCATEGORY.get(emission_type)
-        if not mapping:
+        quantity_key = self._EMISSION_TO_QUANTITY.get(emission_type)
+        if not quantity_key:
             return []
-        subkind, quantity_key = mapping
-        building_name = data_entry.data.get("building_name", "")
-        room_type = (data_entry.data.get("room_type") or "").strip().lower()
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
         expected_energy_type: HeatingEnergyType | None = None
         if emission_type == EmissionType.buildings__rooms__heating_elec:
             expected_energy_type = HeatingEnergyType.elec
@@ -334,27 +282,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.building,
-                    kind=building_name,
-                    subkind=subkind,
-                    context=(
-                        {
-                            "room_type": room_type,
-                            **(
-                                {"energy_type": expected_energy_type.value}
-                                if expected_energy_type
-                                else {}
-                            ),
-                        }
-                        if room_type
-                        else (
-                            {"energy_type": expected_energy_type.value}
-                            if expected_energy_type
-                            else {}
-                        )
-                    ),
-                ),
+                factor_id=int(factor_id),
                 formula_key="" if formula_func else "ef_kg_co2eq_per_kwh",
                 quantity_key=quantity_key,
                 multiplier_key=None if formula_func else "conversion_factor",

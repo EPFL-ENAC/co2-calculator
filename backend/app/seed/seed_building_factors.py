@@ -10,7 +10,6 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
-from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
@@ -44,7 +43,7 @@ def _normalize_energy_type(raw: str | None) -> str:
 
 
 async def seed_building_energy_factors(session: AsyncSession) -> None:
-    """Seed building energy factors from normalized building/category CSV."""
+    """Seed one wide building factor per (building_name, room_type)."""
     service = FactorService(session)
     await service.bulk_delete_by_data_entry_type(DataEntryTypeEnum.building)
 
@@ -54,9 +53,11 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
         required_columns = {
             "building_name",
             "room_type",
-            "category",
-            "category_kwh_per_square_meter",
-            "ef_kg_co2eq_per_kwh",
+            "heating_kwh_per_square_meter",
+            "cooling_kwh_per_square_meter",
+            "ventilation_kwh_per_square_meter",
+            "lighting_kwh_per_square_meter",
+            "ef_kg_co2eq",
             "energy_type",
             "conversion_factor",
         }
@@ -70,28 +71,21 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
             )
 
         for row in reader:
-            ef_kg_co2eq_per_kwh = _float_or_none(row.get("ef_kg_co2eq_per_kwh"))
+            ef_kg_co2eq_per_kwh = _float_or_none(row.get("ef_kg_co2eq"))
             if ef_kg_co2eq_per_kwh is None:
                 continue
 
             building_name = (row.get("building_name") or "").strip()
             room_type = _normalize_room_type(row.get("room_type"))
-            category = (row.get("category") or "").strip().lower()
             energy_type = _normalize_energy_type(row.get("energy_type"))
-            if not building_name or not category:
+            if not building_name or not room_type:
                 continue
-            emission_type_id = get_factor_emission_type_id(
-                data_entry_type=DataEntryTypeEnum.building, factor=row
-            )
             classification = {
                 "kind": building_name,
-                "subkind": category,
-                "room_type": room_type,
+                "subkind": room_type,
             }
-            if energy_type:
-                classification["energy_type"] = energy_type
             factor = await service.prepare_create(
-                emission_type_id=emission_type_id,
+                emission_type_id=EmissionType.buildings__rooms,
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.building.value,
                 classification=classification,
@@ -99,8 +93,17 @@ async def seed_building_energy_factors(session: AsyncSession) -> None:
                     "ef_kg_co2eq_per_kwh": ef_kg_co2eq_per_kwh,
                     "energy_type": energy_type,
                     "conversion_factor": _float_or_none(row.get("conversion_factor")),
-                    "category_kwh_per_square_meter": _float_or_none(
-                        row.get("category_kwh_per_square_meter")
+                    "heating_kwh_per_square_meter": _float_or_none(
+                        row.get("heating_kwh_per_square_meter")
+                    ),
+                    "cooling_kwh_per_square_meter": _float_or_none(
+                        row.get("cooling_kwh_per_square_meter")
+                    ),
+                    "ventilation_kwh_per_square_meter": _float_or_none(
+                        row.get("ventilation_kwh_per_square_meter")
+                    ),
+                    "lighting_kwh_per_square_meter": _float_or_none(
+                        row.get("lighting_kwh_per_square_meter")
                     ),
                 },
             )
