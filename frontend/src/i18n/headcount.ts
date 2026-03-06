@@ -81,9 +81,17 @@ export default {
     en: 'Position',
     fr: 'Position',
   },
+  [`${MODULES.Headcount}-member-form-field-position-category-label`]: {
+    en: 'Position',
+    fr: 'Position',
+  },
   [`${MODULES.Headcount}-member-form-field-name-label`]: {
     en: 'Name',
     fr: 'Nom',
+  },
+  [`${MODULES.Headcount}-member-form-field-user-institutional-id-label`]: {
+    en: 'Institutional ID',
+    fr: 'ID institutionnel',
   },
   // module_mylab_student_form_field_fte_label
   [`${MODULES.Headcount}-student_form_field_fte_label`]: {
@@ -150,47 +158,51 @@ export default {
     en: 'lorem ipsum',
     fr: 'Texte d’exemple',
   },
-  app_headcount_student_helper_students_error: {
+  headcount_student_helper_students_error: {
     en: 'Please enter a valid number of students (greater than 0).',
     fr: "Veuillez entrer un nombre valide d'étudiants (supérieur à 0).",
   },
-  app_headcount_student_helper_duration_error: {
+  headcount_student_helper_duration_error: {
     en: 'Duration (months) must be less than or equal to 12 and greater than 0.',
     fr: 'Durée (mois) doit être inférieure ou égale à 12 et supérieure à 0.',
   },
-  app_headcount_student_helper_avg_fte_error: {
+  headcount_student_helper_avg_fte_error: {
     en: 'Average FTE per student must be between 0 and 1.',
     fr: "L'EPT moyen par étudiant doit être compris entre 0 et 1.",
   },
-  app_headcount_student: {
+  headcount_student: {
     en: 'Student',
     fr: 'Étudiant',
   },
-  app_headcount_professor: {
+  headcount_professor: {
     en: 'Professor',
     fr: 'Professeur',
   },
-  app_headcount_scientific_collaborator: {
+  headcount_scientific_collaborator: {
     en: 'Scientific Collaborator',
     fr: 'Collaborateur scientifique',
   },
-  app_headcount_postdoctoral_researcher: {
+  headcount_postdoctoral_researcher: {
     en: 'Postdoctoral Researcher',
     fr: 'Chercheur postdoctoral',
   },
-  app_headcount_doctoral_assistant: {
+  headcount_postdoctoral_assistant: {
+    en: 'Postdoctoral Assistant',
+    fr: 'Assistant postdoctoral',
+  },
+  headcount_doctoral_assistant: {
     en: 'Doctoral Assistant',
     fr: 'Assistant doctorant',
   },
-  app_headcount_trainee: {
+  headcount_trainee: {
     en: 'Trainee',
     fr: 'Stagiaire',
   },
-  app_headcount_technical_administrative_staff: {
+  headcount_technical_administrative_staff: {
     en: 'Technical/Administrative Staff',
     fr: 'Personnel technique/administratif',
   },
-  app_headcount_other: {
+  headcount_other: {
     en: 'Other',
     fr: 'Autre',
   },
