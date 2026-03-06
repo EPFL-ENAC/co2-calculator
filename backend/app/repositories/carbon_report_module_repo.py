@@ -175,7 +175,7 @@ class CarbonReportModuleRepository:
 
     async def get_reporting_overview(
         self,
-        year: int,
+        years: list[int],
         unit_ids: Optional[List[int]] = None,
         page: int = 1,
         page_size: int = 50,
@@ -189,7 +189,7 @@ class CarbonReportModuleRepository:
         count_statement = (
             select(func.count(col(Unit.id)))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
-            .where(col(CarbonReport.year) == year)
+            .where(col(CarbonReport.year).in_(years))
         )
         if unit_ids:
             count_statement = count_statement.where(col(Unit.id).in_(unit_ids))
@@ -221,7 +221,7 @@ class CarbonReportModuleRepository:
             select(*units_stmt_columns)
             .join(CarbonReport, CarbonReport.unit_id == Unit.id)
             .outerjoin(User, User.provider_code == Unit.principal_user_institutional_id)
-            .where(CarbonReport.year == year)
+            .where(col(CarbonReport.year).in_(years))
         )
 
         if unit_ids:
