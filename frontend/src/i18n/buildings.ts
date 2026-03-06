@@ -81,6 +81,22 @@ export default {
     en: 'Surface (m²)',
     fr: 'Surface (m²)',
   },
+  [`${MODULES.Buildings}.inputs.heating_kwh_per_square_meter`]: {
+    en: 'Heating (kWh/m²)',
+    fr: 'Chauffage (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.cooling_kwh_per_square_meter`]: {
+    en: 'Cooling (kWh/m²)',
+    fr: 'Refroidissement (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.ventilation_kwh_per_square_meter`]: {
+    en: 'Ventilation (kWh/m²)',
+    fr: 'Ventilation (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.lighting_kwh_per_square_meter`]: {
+    en: 'Lighting (kWh/m²)',
+    fr: 'Éclairage (kWh/m²)',
+  },
   [`${MODULES.Buildings}.inputs.heating_kwh`]: {
     en: 'Heating (kWh)',
     fr: 'Chauffage (kWh)',

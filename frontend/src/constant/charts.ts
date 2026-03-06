@@ -290,7 +290,7 @@ export const colors = computed(() => {
 export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   'Process Emissions': colors.value.apricot.darker,
   'Buildings energy consumption': colors.value.lilac.darker,
-  'Energy combustion': colors.value.lilac.dark,
+  'Energy combustion': colors.value.lilac.light,
   'Buildings room': colors.value.skyBlue.darker,
   Equipment: colors.value.mauve.darker,
   'External cloud & AI': colors.value.paleYellowGreen.darker,
@@ -323,6 +323,17 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 // Maps category -> subcategory key -> exact shade, shared across charts.
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
+    'Buildings energy consumption': {
+      rooms: colors.value.lilac.darker,
+      lighting: colors.value.lilac.dark,
+      cooling: colors.value.lilac.dark,
+      ventilation: colors.value.lilac.dark,
+      heating_elec: colors.value.lilac.dark,
+      heating_thermal: colors.value.lilac.dark,
+    },
+    'Energy combustion': {
+      combustion: colors.value.lilac.light,
+    },
     'Process Emissions': {
       co2: colors.value.apricot.darker,
       ch4: colors.value.apricot.dark,

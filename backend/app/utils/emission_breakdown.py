@@ -163,9 +163,23 @@ def _get_category(module_type_id: int, emission_type_id: int) -> str | None:
     Checks _MODULE_EMISSION_CATEGORY overrides first (e.g. Building split),
     then falls back to MODULE_TYPE_TO_CATEGORY.
     """
+    # 1) Exact override (module + emission type)
     override = _MODULE_EMISSION_CATEGORY.get((module_type_id, emission_type_id))
     if override is not None:
         return override
+
+    # 2) Ancestor override (module + parent emission types)
+    #    Required for leaves like buildings__rooms__lighting which should
+    #    inherit the category from buildings__rooms.
+    emission_type = _resolve_emission_type(emission_type_id)
+    parent = emission_type.parent if emission_type is not None else None
+    while parent is not None:
+        inherited = _MODULE_EMISSION_CATEGORY.get((module_type_id, parent.value))
+        if inherited is not None:
+            return inherited
+        parent = parent.parent
+
+    # 3) Generic module-level fallback
     return MODULE_TYPE_TO_CATEGORY.get(module_type_id)
 
 
