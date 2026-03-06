@@ -4,7 +4,10 @@ import { useI18n } from 'vue-i18n';
 import { useUnitFiltersStore } from 'src/stores/unitFilters';
 
 const emit = defineEmits<{
-  (e: 'update:filters', selectedUnits: number[]): void;
+  (
+    e: 'update:filters',
+    filters: { selectedUnits: number[]; completion_status: number | string },
+  ): void;
 }>();
 
 const { t } = useI18n();
@@ -34,7 +37,10 @@ const selectedUnits = computed(() => [
 ]);
 
 function handleFiltersChange() {
-  emit('update:filters', selectedUnits.value);
+  emit('update:filters', {
+    selectedUnits: selectedUnits.value,
+    completion_status: completion.value,
+  });
 }
 </script>
 <template>

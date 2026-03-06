@@ -535,6 +535,12 @@ async def list_backoffice_units(
     if years is None or len(years) == 0:
         raise ValueError("At least one year must be specified for reporting overview")
     result = await carbon_report_repo.get_reporting_overview(
+        path_lvl2=path_lvl2,
+        path_lvl3=path_lvl3,
+        path_lvl4=path_lvl4,
+        completion_status=completion_status,
+        search=search,
+        modules=modules,
         years=years,  # Default to first year for overview for now
         page=page,
         page_size=page_size,
@@ -828,7 +834,7 @@ async def export_reporting(
         for doc in reporting_data.data:
             writer.writerow(
                 [
-                    doc.unit_id,
+                    doc.id,
                     doc.unit_name,
                     doc.affiliation,
                     doc.validation_status,

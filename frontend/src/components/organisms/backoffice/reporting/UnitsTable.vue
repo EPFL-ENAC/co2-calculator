@@ -100,12 +100,6 @@ const pagination = computed(() => ({
         })
       }}
     </span>
-    <q-checkbox
-      v-model="showAllRows"
-      :label="t('common_show_all_rows')"
-      color="primary"
-      size="sm"
-    />
   </div>
 
   <q-table
@@ -143,10 +137,10 @@ const pagination = computed(() => ({
     <template #body-cell-highest_result_category="p">
       <q-td :props="p">
         <div class="ellipsis" style="max-width: 150px">
-          {{ p.row.highest_result_category || '—' }}
+          {{ $t(p.row.highest_result_category) || '—' }}
         </div>
         <q-tooltip v-if="p.row.highest_result_category">
-          {{ p.row.highest_result_category }}
+          {{ $t(p.row.highest_result_category) }}
         </q-tooltip>
       </q-td>
     </template>
