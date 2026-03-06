@@ -1,7 +1,6 @@
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -9,7 +8,7 @@ from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
     EmissionType,
-    HeatingEnergyType,
+    FactorQuery,
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -64,38 +63,14 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     building_name: str
     room_name: str
     room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
     note: Optional[str] = None
-
-    @field_validator("room_surface_square_meter", mode="after")
-    @classmethod
-    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Surface must be > 0")
-        return v
 
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
     room_name: Optional[str] = None
     room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
     note: Optional[str] = None
-
-    @field_validator("room_surface_square_meter", mode="after")
-    @classmethod
-    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Surface must be > 0")
-        return v
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -128,82 +103,12 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         "room_type": DataEntry.data["room_type"].as_string(),
     }
 
-    async def resolve_primary_factor_id(
-        self,
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        db: AsyncSession,
-        existing_data: Optional[dict] = None,
-    ) -> dict:
-        merged_payload = payload.copy()
-        if existing_data:
-            for key, value in existing_data.items():
-                if key not in merged_payload:
-                    merged_payload[key] = value
-
-        building_name = (merged_payload.get("building_name") or "").strip()
-        room_type = (merged_payload.get("room_type") or "").strip().lower()
-
-        if building_name and room_type:
-            stmt = (
-                select(Factor)
-                .where(
-                    col(Factor.data_entry_type_id) == DataEntryTypeEnum.building.value,
-                    Factor.classification["kind"].as_string() == building_name,
-                    Factor.classification["subkind"].as_string() == room_type,
-                )
-                .order_by(col(Factor.id).asc())
-            )
-            factor = (await db.exec(stmt)).first()
-            if factor:
-                values = factor.values or {}
-                payload["heating_kwh_per_square_meter"] = values.get(
-                    "heating_kwh_per_square_meter"
-                )
-                payload["cooling_kwh_per_square_meter"] = values.get(
-                    "cooling_kwh_per_square_meter"
-                )
-                payload["ventilation_kwh_per_square_meter"] = values.get(
-                    "ventilation_kwh_per_square_meter"
-                )
-                payload["lighting_kwh_per_square_meter"] = values.get(
-                    "lighting_kwh_per_square_meter"
-                )
-                payload["primary_factor_id"] = factor.id
-            else:
-                payload["primary_factor_id"] = None
-        else:
-            payload["primary_factor_id"] = None
-
-        self._set_energy_intermediates(payload, {**merged_payload, **payload})
-        return payload
-
     @staticmethod
     def _safe_float(value: Any) -> float:
         try:
             return float(value) if value is not None else 0.0
         except (TypeError, ValueError):
             return 0.0
-
-    def _set_energy_intermediates(self, payload: dict, merged_payload: dict) -> None:
-        """Persist derived kWh values in entry payload for traceability/UI use."""
-        surface = self._safe_float(merged_payload.get("room_surface_square_meter"))
-        payload["heating_kwh"] = (
-            self._safe_float(merged_payload.get("heating_kwh_per_square_meter"))
-            * surface
-        )
-        payload["cooling_kwh"] = (
-            self._safe_float(merged_payload.get("cooling_kwh_per_square_meter"))
-            * surface
-        )
-        payload["ventilation_kwh"] = (
-            self._safe_float(merged_payload.get("ventilation_kwh_per_square_meter"))
-            * surface
-        )
-        payload["lighting_kwh"] = (
-            self._safe_float(merged_payload.get("lighting_kwh_per_square_meter"))
-            * surface
-        )
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Pre-compute per-subcategory kWh from * kwh_per_square_meter × surface."""
@@ -235,17 +140,11 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         ctx: dict,
         factor_values: dict,
         quantity_key: str,
-        expected_energy_type: HeatingEnergyType | None = None,
     ) -> float | None:
         quantity = ctx.get(quantity_key)
         ef = factor_values.get("ef_kg_co2eq_per_kwh")
         if quantity is None or ef is None:
             return None
-
-        if expected_energy_type is not None:
-            energy_type = (factor_values.get("energy_type") or "").strip().lower()
-            if energy_type != expected_energy_type.value:
-                return None
 
         conversion_factor = factor_values.get("conversion_factor") or 1.0
         return float(quantity) * float(ef) * float(conversion_factor)
@@ -257,37 +156,25 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         quantity_key = self._EMISSION_TO_QUANTITY.get(emission_type)
         if not quantity_key:
             return []
-        factor_id = ctx.get("primary_factor_id")
-        if factor_id is None:
+        building_name = (ctx.get("building_name") or "").strip()
+        room_type = (ctx.get("room_type") or "").strip().lower()
+        if not building_name or not room_type:
             return []
-        expected_energy_type: HeatingEnergyType | None = None
-        if emission_type == EmissionType.buildings__rooms__heating_elec:
-            expected_energy_type = HeatingEnergyType.elec
-        elif emission_type == EmissionType.buildings__rooms__heating_thermal:
-            expected_energy_type = HeatingEnergyType.thermal
-
-        formula_func = None
-        if expected_energy_type is not None:
-
-            def _heating_formula(local_ctx: dict, factor_values: dict) -> float | None:
-                return self._compute_kwh_emission(
-                    local_ctx,
-                    factor_values,
-                    quantity_key,
-                    expected_energy_type,
-                )
-
-            formula_func = _heating_formula
 
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
-                formula_key="" if formula_func else "ef_kg_co2eq_per_kwh",
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.building,
+                    kind=building_name,
+                    subkind=room_type,
+                    context={},
+                ),
+                formula_key="ef_kg_co2eq_per_kwh",
                 quantity_key=quantity_key,
-                multiplier_key=None if formula_func else "conversion_factor",
+                multiplier_key="conversion_factor",
                 multiplier_default=1.0,
-                formula_func=formula_func,
+                formula_func=None,
             )
         ]
 
@@ -300,16 +187,18 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **d,
                 "room_type": d.get("room_type"),
-                "heating_kwh_per_square_meter": d.get("heating_kwh_per_square_meter"),
-                "cooling_kwh_per_square_meter": d.get("cooling_kwh_per_square_meter"),
-                "ventilation_kwh_per_square_meter": d.get(
-                    "ventilation_kwh_per_square_meter"
+                "heating_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "heating_kwh_per_square_meter", None
                 ),
-                "lighting_kwh_per_square_meter": d.get("lighting_kwh_per_square_meter"),
-                "heating_kwh": d.get("heating_kwh"),
-                "cooling_kwh": d.get("cooling_kwh"),
-                "ventilation_kwh": d.get("ventilation_kwh"),
-                "lighting_kwh": d.get("lighting_kwh"),
+                "cooling_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "cooling_kwh_per_square_meter", None
+                ),
+                "ventilation_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "ventilation_kwh_per_square_meter", None
+                ),
+                "lighting_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "lighting_kwh_per_square_meter", None
+                ),
             }
         )
 
