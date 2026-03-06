@@ -137,35 +137,55 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         <ReportingFilters @update:filters="handleFiltersUpdate" />
       </div>
       <div class="q-mt-xl">
-        <div class="flex justify-between items-center q-mb-sm">
-          <span class="text-body1 text-weight-medium">{{
+        <q-expansion-item
+          icon="mdi-chart-arc"
+          :label="
             $t('backoffice_reporting_module_status_label', {
               count: $t('backoffice_reporting_all_modules'),
             })
-          }}</span>
-          <q-checkbox
-            :model-value="allStatesSelected"
-            :label="
-              allStatesSelected
-                ? $t('backoffice_reporting_unselect_all')
-                : $t('backoffice_reporting_select_all')
-            "
-            color="accent"
-            size="sm"
-            @update:model-value="(value) => toggleSelectAll(value)"
-          />
-        </div>
-        <div class="grid-3-col">
-          <template v-for="moduleCard in MODULE_CARDS" :key="moduleCard.module">
-            <ModuleSelector
-              :module-card="moduleCard"
-              :model-value="moduleStates.get(moduleCard.module)?.states || []"
-              @update:model-value="
-                (states) => handleModuleStateUpdate(moduleCard.module, states)
-              "
-            />
+          "
+        >
+          <template #header>
+            <div class="flex justify-between items-center" style="width: 100%">
+              <span class="text-body1 text-weight-medium">{{
+                $t('backoffice_reporting_module_status_label', {
+                  count: $t('backoffice_reporting_all_modules'),
+                })
+              }}</span>
+              <q-checkbox
+                :model-value="allStatesSelected"
+                :label="
+                  allStatesSelected
+                    ? $t('backoffice_reporting_unselect_all')
+                    : $t('backoffice_reporting_select_all')
+                "
+                color="accent"
+                size="sm"
+                @update:model-value="(value) => toggleSelectAll(value)"
+                @click.stop
+              />
+            </div>
           </template>
-        </div>
+          <div class="q-pa-md">
+            <div class="grid-3-col">
+              <template
+                v-for="moduleCard in MODULE_CARDS"
+                :key="moduleCard.module"
+              >
+                <ModuleSelector
+                  :module-card="moduleCard"
+                  :model-value="
+                    moduleStates.get(moduleCard.module)?.states || []
+                  "
+                  @update:model-value="
+                    (states) =>
+                      handleModuleStateUpdate(moduleCard.module, states)
+                  "
+                />
+              </template>
+            </div>
+          </div>
+        </q-expansion-item>
       </div>
       <div class="q-mt-xl">
         <UnitsTable
