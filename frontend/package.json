@@ -38,7 +38,7 @@
     "vue-router": "=4.6.3"
   },
   "devDependencies": {
-    "@eslint/js": "^9.38.0",
+    "@eslint/js": "^10.0.1",
     "@intlify/unplugin-vue-i18n": "=11.0.1",
     "@playwright/experimental-ct-vue": "^1.56.1",
     "@playwright/test": "^1.56.1",
