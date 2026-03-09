@@ -166,8 +166,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
-                permissions["modules.professional_travel"]["view"] = True
-                permissions["modules.professional_travel"]["edit"] = True
+                permissions["modules.professional_travel"] = {
+                    "view": True,
+                    "edit": True,
+                }
+                permissions["modules.external_cloud_and_ai"] = {
+                    "view": True,
+                    "edit": True,
+                }
 
         # SYSTEM ROLES - Affect system.* permissions (and potentially backoffice.*)
         elif role_name == RoleName.CO2_SUPERADMIN.value:

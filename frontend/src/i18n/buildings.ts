@@ -24,8 +24,8 @@ export default {
     fr: 'Local ({count}) | Locaux ({count})',
   },
   [`${MODULES.Buildings}.add_room_button`]: {
-    en: 'Add a room',
-    fr: 'Ajouter un local',
+    en: 'Add',
+    fr: 'Ajouter',
   },
   [`${MODULES.Buildings}.rooms-form-title`]: {
     en: 'Add a room',
@@ -35,9 +35,14 @@ export default {
     en: 'Add a room',
     fr: 'Ajouter un local',
   },
+
+  [`${MODULES.Buildings}-building-table-title-info-tooltip`]: {
+    en: 'Rooms surfaces are extracted from Archibus and energy consumption data per type of surface are provided by the VPO based on building-specific measurements.',
+    fr: 'Les surfaces des locaux sont extraites d’Archibus et les données de consommation énergétique par type de surface sont fournies par la VPO sur la base de mesures spécifiques aux bâtiments EPFL.',
+  },
   [`${MODULES.Buildings}-energy_combustion-form-title`]: {
-    en: 'Add an energy source',
-    fr: "Ajouter une source d'énergie",
+    en: 'Add a heating type',
+    fr: 'Ajouter un type de chauffage',
   },
 
   // Rooms fields
@@ -81,6 +86,22 @@ export default {
     en: 'Surface (m²)',
     fr: 'Surface (m²)',
   },
+  [`${MODULES.Buildings}.inputs.heating_kwh_per_square_meter`]: {
+    en: 'Heating (kWh/m²)',
+    fr: 'Chauffage (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.cooling_kwh_per_square_meter`]: {
+    en: 'Cooling (kWh/m²)',
+    fr: 'Refroidissement (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.ventilation_kwh_per_square_meter`]: {
+    en: 'Ventilation (kWh/m²)',
+    fr: 'Ventilation (kWh/m²)',
+  },
+  [`${MODULES.Buildings}.inputs.lighting_kwh_per_square_meter`]: {
+    en: 'Lighting (kWh/m²)',
+    fr: 'Éclairage (kWh/m²)',
+  },
   [`${MODULES.Buildings}.inputs.heating_kwh`]: {
     en: 'Heating (kWh)',
     fr: 'Chauffage (kWh)',
@@ -96,6 +117,10 @@ export default {
   [`${MODULES.Buildings}.inputs.lighting_kwh`]: {
     en: 'Lighting (kWh)',
     fr: 'Éclairage (kWh)',
+  },
+  [`${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`]: {
+    en: 'Enter the sources of fossil or non-fossil energy combustion if they are not taken into account in the main module.',
+    fr: "Entrez les sources de combustion d'énergie fossiles ou non-fossiles si celles-ci ne sont pas prises en compte dans le module principal.",
   },
 
   // Rooms tooltips
@@ -118,16 +143,16 @@ export default {
 
   // Energy combustion submodule
   [`${MODULES.Buildings}.combustion_table_title`]: {
-    en: 'Energy combustion ({count}) | Energy combustions ({count})',
-    fr: "Combustion d'énergie ({count}) | Combustions d'énergie ({count})",
+    en: 'Energy Combustion Emissions ({count}) | Energy Combustions Emissions ({count})',
+    fr: "Émissions de combustion d'énergie ({count}) | Émissions de combustion d'énergie ({count})",
   },
   [`${MODULES.Buildings}.add_combustion_button`]: {
-    en: 'Add an energy source',
-    fr: "Ajouter une source d'énergie",
+    en: 'Add',
+    fr: 'Ajouter ',
   },
   [`${MODULES.Buildings}.combustion-form-title`]: {
-    en: 'Add an energy source',
-    fr: "Ajouter une source d'énergie",
+    en: 'Add a heating type',
+    fr: 'Ajouter un type de chauffage',
   },
 
   // Combustion fields

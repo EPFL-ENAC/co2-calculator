@@ -1,6 +1,6 @@
 from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -18,6 +18,29 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.services.factor_service import FactorService
+
+
+class BuildingRoomBuildingResponse(BaseModel):
+    building_location: str
+    building_name: str
+
+
+class BuildingRoomResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    building_location: str
+    building_name: str
+    room_name: str
+    room_type: Optional[str]
+    room_surface_square_meter: Optional[float]
+
+
+class BuildingRoomEnergyDefaultsResponse(BaseModel):
+    heating_kwh_per_square_meter: Optional[float] = None
+    cooling_kwh_per_square_meter: Optional[float] = None
+    ventilation_kwh_per_square_meter: Optional[float] = None
+    lighting_kwh_per_square_meter: Optional[float] = None
 
 
 class BuildingRoomHandlerResponse(DataEntryResponseGen):
@@ -25,10 +48,10 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     room_name: Optional[str] = None
     room_type: Optional[str] = None
     room_surface_square_meter: Optional[float] = None
-    heating_kwh_per_m2: Optional[float] = None
-    cooling_kwh_per_m2: Optional[float] = None
-    ventilation_kwh_per_m2: Optional[float] = None
-    lighting_kwh_per_m2: Optional[float] = None
+    heating_kwh_per_square_meter: Optional[float] = None
+    cooling_kwh_per_square_meter: Optional[float] = None
+    ventilation_kwh_per_square_meter: Optional[float] = None
+    lighting_kwh_per_square_meter: Optional[float] = None
     heating_kwh: Optional[float] = None
     cooling_kwh: Optional[float] = None
     ventilation_kwh: Optional[float] = None
@@ -40,38 +63,14 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     building_name: str
     room_name: str
     room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
     note: Optional[str] = None
-
-    @field_validator("room_surface_square_meter", mode="after")
-    @classmethod
-    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Surface must be > 0")
-        return v
 
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
     room_name: Optional[str] = None
     room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
     note: Optional[str] = None
-
-    @field_validator("room_surface_square_meter", mode="after")
-    @classmethod
-    def validate_surface(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Surface must be > 0")
-        return v
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -83,8 +82,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     response_dto = BuildingRoomHandlerResponse
 
     kind_field: str = "building_name"
-    subkind_field: str = "room_name"
-    extra_factor_fields: list[str] = ["room_type"]
+    subkind_field: str = "room_type"
     require_subkind_for_factor = False
     require_factor_to_match = False
 
@@ -105,18 +103,15 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         "room_type": DataEntry.data["room_type"].as_string(),
     }
 
-    async def resolve_primary_factor_id(
-        self,
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        db: AsyncSession,
-        existing_data: Optional[dict] = None,
-    ) -> dict:
-        payload["primary_factor_id"] = None
-        return payload
+    @staticmethod
+    def _safe_float(value: Any) -> float:
+        try:
+            return float(value) if value is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """Pre-compute per-subcategory kWh from kwh_per_m2 × surface."""
+        """Pre-compute per-subcategory kWh from * kwh_per_square_meter × surface."""
         surface = data_entry.data.get("room_surface_square_meter") or 0
         return {
             "lighting_kwh": (data_entry.data.get("lighting_kwh_per_square_meter") or 0)
@@ -131,60 +126,79 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
             * surface,
         }
 
-    # Maps each building EmissionType leaf → (factor subkind, context quantity_key)
-    _EMISSION_TO_SUBCATEGORY: dict = {
-        EmissionType.buildings__rooms__lighting: ("lighting", "lighting_kwh"),
-        EmissionType.buildings__rooms__cooling: ("cooling", "cooling_kwh"),
-        EmissionType.buildings__rooms__ventilation: ("ventilation", "ventilation_kwh"),
-        EmissionType.buildings__rooms__heating_elec: ("heating_elec", "heating_kwh"),
-        EmissionType.buildings__rooms__heating_thermal: (
-            "heating_thermal",
-            "heating_kwh",
-        ),
+    # Maps each building EmissionType leaf → context quantity_key.
+    _EMISSION_TO_QUANTITY: dict = {
+        EmissionType.buildings__rooms__lighting: "lighting_kwh",
+        EmissionType.buildings__rooms__cooling: "cooling_kwh",
+        EmissionType.buildings__rooms__ventilation: "ventilation_kwh",
+        EmissionType.buildings__rooms__heating_elec: "heating_kwh",
+        EmissionType.buildings__rooms__heating_thermal: "heating_kwh",
     }
+
+    @staticmethod
+    def _compute_kwh_emission(
+        ctx: dict,
+        factor_values: dict,
+        quantity_key: str,
+    ) -> float | None:
+        quantity = ctx.get(quantity_key)
+        ef = factor_values.get("ef_kg_co2eq_per_kwh")
+        if quantity is None or ef is None:
+            return None
+
+        conversion_factor = factor_values.get("conversion_factor") or 1.0
+        return float(quantity) * float(ef) * float(conversion_factor)
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
 
-        mapping = self._EMISSION_TO_SUBCATEGORY.get(emission_type)
-        if not mapping:
+        quantity_key = self._EMISSION_TO_QUANTITY.get(emission_type)
+        if not quantity_key:
             return []
-        subkind, quantity_key = mapping
-        building_name = data_entry.data.get("building_name", "")
+        building_name = (ctx.get("building_name") or "").strip()
+        room_type = (ctx.get("room_type") or "").strip().lower()
+        if not building_name or not room_type:
+            return []
+
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.building,
                     kind=building_name,
-                    subkind=subkind,
+                    subkind=room_type,
+                    context={},
                 ),
                 formula_key="ef_kg_co2eq_per_kwh",
                 quantity_key=quantity_key,
                 multiplier_key="conversion_factor",
                 multiplier_default=1.0,
+                formula_func=None,
             )
         ]
 
     def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
         d = data_entry.data
-        pf = d.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **d,
-                "room_type": pf.get("kind") or d.get("room_type"),
-                "heating_kwh_per_m2": pf.get("heating_kwh_per_m2"),
-                "cooling_kwh_per_m2": pf.get("cooling_kwh_per_m2"),
-                "ventilation_kwh_per_m2": pf.get("ventilation_kwh_per_m2"),
-                "lighting_kwh_per_m2": pf.get("lighting_kwh_per_m2"),
-                "heating_kwh": d.get("heating_kwh"),
-                "cooling_kwh": d.get("cooling_kwh"),
-                "ventilation_kwh": d.get("ventilation_kwh"),
-                "lighting_kwh": d.get("lighting_kwh"),
+                "room_type": d.get("room_type"),
+                "heating_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "heating_kwh_per_square_meter", None
+                ),
+                "cooling_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "cooling_kwh_per_square_meter", None
+                ),
+                "ventilation_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "ventilation_kwh_per_square_meter", None
+                ),
+                "lighting_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                    "lighting_kwh_per_square_meter", None
+                ),
             }
         )
 
@@ -251,6 +265,26 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     filter_map = {
         "heating_type": Factor.classification["kind"].as_string(),
     }
+
+    async def resolve_primary_factor_id(
+        self,
+        payload: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        db: AsyncSession,
+        existing_data: Optional[dict] = None,
+    ) -> dict:
+        data = payload.copy()
+        if existing_data:
+            for key, value in existing_data.items():
+                if key not in data:
+                    data[key] = value
+        kind = data.get("heating_type", "")
+        factor_service = FactorService(db)
+        factor = await factor_service.get_by_classification(
+            data_entry_type=data_entry_type_id, kind=kind
+        )
+        payload["primary_factor_id"] = factor.id if factor else None
+        return payload
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict

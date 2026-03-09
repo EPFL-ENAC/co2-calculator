@@ -14,7 +14,7 @@ from fastapi import (
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
@@ -79,7 +79,7 @@ async def get_module(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get module data with equipment and emissions.
@@ -132,7 +132,7 @@ async def get_module(
         )
         module_data.stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="function",
+            aggregate_by="position_category",
             aggregate_field="fte",
         )
     else:
@@ -169,7 +169,7 @@ async def get_stats_by_class(
     year: int,
     module_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List:
     """
     Get travel emissions aggregated by travel category and cabin_class.
@@ -198,7 +198,7 @@ async def get_stats_by_class(
 async def get_evolution_over_time(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List:
     """
     Get travel emissions aggregated by year and category for a unit.
@@ -230,7 +230,7 @@ async def get_submodule(
         default=None, description="Filter string to search in name or display_name"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get paginated data for a single submodule.
@@ -328,7 +328,7 @@ async def create(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create new equipment item.
@@ -479,7 +479,7 @@ async def get(
     submodule_id: str,
     item_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "view")
 
@@ -522,7 +522,7 @@ async def update(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "edit")
 
@@ -643,7 +643,7 @@ async def delete(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "edit")
 

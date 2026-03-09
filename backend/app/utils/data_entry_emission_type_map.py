@@ -32,7 +32,7 @@
 
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
+from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 
 # =============================================================================
 # DATA_ENTRY_TYPE → EMISSION_TYPE mapping  (1-to-many)
@@ -212,9 +212,9 @@ def _resolve_building(data: dict) -> list[EmissionType] | None:
     category = (data.get("category") or "").lower()
     energy_type = (data.get("energy_type") or "").lower()
     if category == "heating":
-        if energy_type == "elec":
+        if energy_type == HeatingEnergyType.elec.value:
             return [EmissionType.buildings__rooms__heating_elec]
-        elif energy_type == "thermal":
+        elif energy_type == HeatingEnergyType.thermal.value:
             # never happend in seed data, but if energy type is thermal
             # (e.g. district heating), we want to use the correct factor,
             # not the electric one

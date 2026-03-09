@@ -7,6 +7,10 @@ export const MODULES = {
   Purchase: 'purchase',
   InternalServices: 'internal-services',
   ExternalCloudAndAI: 'external-cloud-and-ai',
+  Commuting: 'commuting',
+  Food: 'food',
+  Waste: 'waste',
+  GreyEnergy: 'grey-energy',
 } as const;
 
 export const MODULES_DESCRIPTIONS = {
@@ -190,6 +194,15 @@ type InternalServicesProps = {
 
 export type AllSubmoduleTypes = keyof typeof enumSubmodule;
 
+type ChartOnlyProps = {
+  moduleType:
+    | typeof MODULES.Commuting
+    | typeof MODULES.Food
+    | typeof MODULES.Waste
+    | typeof MODULES.GreyEnergy;
+  submoduleType?: AllSubmoduleTypes;
+};
+
 export type ConditionalSubmoduleProps =
   | EquipmentElectricConsumptionProps
   | HeadcountProps
@@ -198,7 +211,8 @@ export type ConditionalSubmoduleProps =
   | ProfessionalTravelProps
   | InternalServicesProps
   | ExternalCloudProps
-  | ProcessesProps;
+  | ProcessesProps
+  | ChartOnlyProps;
 
 export const MODULES_LIST: Module[] = Object.values(MODULES);
 
@@ -280,6 +294,10 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.InternalServices]: 'internal_services',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
     [MODULES.ProcessEmissions]: 'process_emissions',
+    [MODULES.Commuting]: 'commuting',
+    [MODULES.Food]: 'food',
+    [MODULES.Waste]: 'waste',
+    [MODULES.GreyEnergy]: 'grey_energy',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

@@ -40,6 +40,15 @@ function toggleState(state: ModuleState, checked: boolean) {
     selectedStates.value = selectedStates.value.filter((s) => s !== state);
   }
 }
+
+const MODULE_STATE_LABELS: Record<keyof typeof MODULE_STATES, string> = {
+  Default: 'backoffice_reporting_csv_default',
+  InProgress: 'backoffice_reporting_csv_in_progress',
+  Validated: 'backoffice_reporting_csv_validated',
+};
+const moduleStateKeys = Object.keys(
+  MODULE_STATES,
+) as (keyof typeof MODULE_STATES)[];
 </script>
 
 <template>
@@ -54,14 +63,24 @@ function toggleState(state: ModuleState, checked: boolean) {
     </div>
     <div class="q-mt-sm">
       <q-checkbox
-        v-for="state in Object.values(MODULE_STATES)"
+        v-for="state in moduleStateKeys"
         :key="state"
-        :model-value="selectedStates.includes(state)"
+        :model-value="
+          selectedStates.includes(
+            MODULE_STATES[state as keyof typeof MODULE_STATES],
+          )
+        "
         size="sm"
         color="accent"
-        :label="$t(state)"
+        :label="$t(MODULE_STATE_LABELS[state as keyof typeof MODULE_STATES])"
         class="q-mr-md"
-        @update:model-value="(checked) => toggleState(state, checked)"
+        @update:model-value="
+          (checked) =>
+            toggleState(
+              MODULE_STATES[state as keyof typeof MODULE_STATES],
+              checked,
+            )
+        "
       />
     </div>
   </div>

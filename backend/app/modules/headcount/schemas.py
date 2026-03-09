@@ -1,3 +1,4 @@
+import re
 from typing import Any, Optional
 
 from pydantic import field_validator
@@ -20,11 +21,25 @@ from app.schemas.data_entry import (
 logger = get_logger(__name__)
 
 
+POSITION_CATEGORY_VALUES = {
+    "professor",
+    "scientific_collaborator",
+    "postdoctoral_assistant",
+    "doctoral_assistant",
+    "trainee",
+    "technical_administrative_staff",
+    "student",
+    "other",
+}
+
+
 class HeadcountItemResponse(DataEntryResponseGen):
     name: str
-    function: Optional[str] = None
+    position_title: Optional[str] = None
+    position_category: Optional[str] = None
     fte: Optional[float] = None
-    sciper: Optional[str] = None
+    user_institutional_id: Optional[str] = None
+    note: Optional[str] = None
 
 
 class HeadCountStudentResponse(DataEntryResponseGen):
@@ -33,9 +48,11 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 class HeadCountCreate(DataEntryCreate):
     name: str
-    function: Optional[str] = None
+    position_title: Optional[str] = None
+    position_category: Optional[str] = None
     fte: Optional[float] = None
-    sciper: Optional[str] = None
+    user_institutional_id: Optional[str] = None
+    note: Optional[str] = None
 
     @field_validator("fte", mode="after")
     @classmethod
@@ -45,6 +62,26 @@ class HeadCountCreate(DataEntryCreate):
         if v < 0:
             raise ValueError("FTE must be non-negative")
         return v
+
+    @field_validator("position_category", mode="after")
+    @classmethod
+    def validate_position_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in POSITION_CATEGORY_VALUES:
+            allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
+            raise ValueError(f"position_category must be one of: {allowed_values}")
+        return v
+
+    @field_validator("user_institutional_id", mode="after")
+    @classmethod
+    def validate_user_institutional_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        normalized = v.strip()
+        if not re.fullmatch(r"\d+", normalized):
+            raise ValueError("user_institutional_id must contain only digits")
+        return normalized
 
 
 class HeadCountStudentCreate(DataEntryCreate):
@@ -73,8 +110,10 @@ class HeadCountStudentUpdate(DataEntryUpdate):
 
 class HeadCountUpdate(DataEntryUpdate):
     name: Optional[str] = None
-    function: Optional[str] = None
+    position_title: Optional[str] = None
+    position_category: Optional[str] = None
     fte: Optional[float] = None
+    note: Optional[str] = None
 
     @field_validator("fte", mode="after")
     @classmethod
@@ -83,6 +122,16 @@ class HeadCountUpdate(DataEntryUpdate):
             return v
         if v < 0:
             raise ValueError("FTE must be non-negative")
+        return v
+
+    @field_validator("position_category", mode="after")
+    @classmethod
+    def validate_position_category(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in POSITION_CATEGORY_VALUES:
+            allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
+            raise ValueError(f"position_category must be one of: {allowed_values}")
         return v
 
 
@@ -99,12 +148,14 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     require_factor_to_match = False
     filter_map: dict[str, Any] = {
         "name": DataEntry.data["name"].as_string(),
-        "function": DataEntry.data["function"].as_string(),
+        "position_title": DataEntry.data["position_title"].as_string(),
+        "position_category": DataEntry.data["position_category"].as_string(),
     }
     sort_map = {
         "id": DataEntry.id,
         "name": DataEntry.data["name"].as_string(),
-        "function": DataEntry.data["function"].as_string(),
+        "position_title": DataEntry.data["position_title"].as_string(),
+        "position_category": DataEntry.data["position_category"].as_string(),
         "fte": DataEntry.data["fte"].as_float(),
     }
 

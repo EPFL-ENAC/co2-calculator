@@ -40,6 +40,12 @@ const validatedTotals = computed(() => {
   return moduleStore.state.validatedTotals;
 });
 
+const firstEditableModule = computed(() => {
+  return Object.values(MODULES).find((module) =>
+    hasModulePermission(module, PermissionAction.EDIT),
+  );
+});
+
 const moduleCardTotals = computed(() => {
   const modules = validatedTotals.value?.modules;
   return Object.fromEntries(
@@ -118,7 +124,8 @@ const modulesCounterText = computed(() =>
         no-caps
         size="md"
         class="text-weight-medium q-mt-xl"
-        :to="{ name: 'module', params: { module: MODULES.Headcount } }"
+        :to="{ name: 'module', params: { module: firstEditableModule } }"
+        :disable="!firstEditableModule"
       />
     </q-card>
 

@@ -201,6 +201,11 @@ class Scope(int, Enum):
     scope3 = 3
 
 
+class HeatingEnergyType(str, Enum):
+    elec = "elec"
+    thermal = "thermal"
+
+
 EMISSION_SCOPE: dict[EmissionType, Scope] = {
     # Additional Categories — scope 3
     EmissionType.food: Scope.scope3,

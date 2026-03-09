@@ -1,9 +1,11 @@
 """Backoffice reporting schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
+
+from app.core.constants import ModuleStatus
 
 
 class UnitReportingData(BaseModel):
@@ -31,8 +33,8 @@ class UnitReportingData(BaseModel):
     # URL or ID for the eye icon action
     view_url: Optional[str] = None
 
-    # Completion data for each module by year
-    completion: Optional[dict[str, Any]] = None
+    # Completion data for whole report
+    completion: Optional[ModuleStatus] = None
 
     class Config:
         # Allows using the field names or the original aliases

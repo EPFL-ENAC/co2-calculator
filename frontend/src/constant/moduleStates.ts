@@ -27,6 +27,10 @@ export const MODULE_TYPE_IDS = {
   'internal-services': 6,
   'external-cloud-and-ai': 7,
   'process-emissions': 8,
+  commuting: 9,
+  food: 10,
+  waste: 11,
+  'grey-energy': 12,
 } as const;
 
 export type ModuleTypeId =

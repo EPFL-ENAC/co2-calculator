@@ -129,7 +129,13 @@ function levelColor(
     ];
     return shades[siblingIndex % shades.length];
   }
-  const leafShades = [scale.default, scale.light, scale.lighter];
+  const leafShades = [
+    scale.darker,
+    scale.dark,
+    scale.default,
+    scale.light,
+    scale.lighter,
+  ];
   return leafShades[siblingIndex % leafShades.length];
 }
 
@@ -154,34 +160,22 @@ function toTreemapNode(
   scale: ColorScale,
   level: number,
   siblingIndex: number,
-  parentColor?: string,
 ): TreemapNode {
-  const isYyLevel = level === 1;
-  const inheritParentColor = level >= 2 ? parentColor : undefined;
+  const fixedNodeColor = getFixedSubcategoryColor(categoryName, node.name);
   const color =
-    node.color ??
-    (isYyLevel ? getFixedSubcategoryColor(categoryName, node.name) : null) ??
-    inheritParentColor ??
-    levelColor(scale, level, siblingIndex);
+    fixedNodeColor ?? node.color ?? levelColor(scale, level, siblingIndex);
 
   const label = resolveLabel(node.name);
-  const percentage =
-    'percentage' in node && typeof node.percentage === 'number'
-      ? node.percentage
-      : undefined;
 
   const treeNode: TreemapNode = {
-    name:
-      percentage !== undefined
-        ? `${label} (${Math.round(percentage)}%)`
-        : label,
+    name: label,
     value: node.value,
     itemStyle: { color },
   };
 
   if (Array.isArray(node.children) && node.children.length > 0) {
     treeNode.children = node.children.map((child, index) =>
-      toTreemapNode(child, categoryName, scale, level + 1, index, color),
+      toTreemapNode(child, categoryName, scale, level + 1, index),
     );
   }
 

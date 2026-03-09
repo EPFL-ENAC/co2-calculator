@@ -39,35 +39,6 @@ class UnitRepository:
         result = await self.session.exec(select(Unit).where(Unit.id == unit_id))
         return result.one_or_none()
 
-    @staticmethod
-    def build_archibus_unit_ids(unit: Unit | None) -> list[str]:
-        """Build Archibus-compatible unit identifiers from a Unit record."""
-        if unit is None:
-            return []
-
-        normalized: list[str] = []
-        seen: set[str] = set()
-
-        institutional_id = (
-            str(unit.institutional_id).strip() if unit.institutional_id else ""
-        )
-        if institutional_id and institutional_id not in seen:
-            seen.add(institutional_id)
-            normalized.append(institutional_id)
-
-        if unit.institutional_code:
-            institutional_code = str(unit.institutional_code).strip()
-            if institutional_code and institutional_code not in seen:
-                seen.add(institutional_code)
-                normalized.append(institutional_code)
-
-        return normalized
-
-    async def get_archibus_unit_ids_by_id(self, unit_id: int | None) -> list[str]:
-        """Resolve normalized Archibus unit identifiers from a unit ID."""
-        unit = await self.get_by_id(unit_id)
-        return self.build_archibus_unit_ids(unit)
-
     async def get_by_code(self, provider_code: str | None) -> Optional[Unit]:
         """Get unit by code (string identifier)."""
         if provider_code is None:

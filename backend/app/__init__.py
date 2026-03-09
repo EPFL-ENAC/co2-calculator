@@ -3,33 +3,20 @@
 __version__ = "0.1.0"
 
 
-# Modules registration
-import importlib.util
-import sys
-from pathlib import Path
+# Eagerly import every sub-package under app.modules so that feature modules
+# register their routers/services at startup.  We resolve paths through the
+# package itself (app.modules.__path__), which is always absolute and
+# independent of the process working directory.  Registering under the full
+# dotted name (e.g. "app.modules.buildings") avoids shadowing any unrelated
+# top-level package.
+import importlib
+import pkgutil
 
+import app.modules as _modules_pkg
 
-def load_all_modules(modules_dir: str) -> dict:
-    modules = {}
-    base_path = Path(modules_dir)
-
-    for module_path in base_path.iterdir():
-        if module_path.is_dir() and (module_path / "__init__.py").exists():
-            name = module_path.name
-            init_file = module_path / "__init__.py"
-
-            spec = importlib.util.spec_from_file_location(name, init_file)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                sys.modules[name] = module
-                spec.loader.exec_module(module)
-                modules[name] = module
-
-    return modules
-
-
-# Load everything under app/modules/
-all_modules = load_all_modules("app/modules")
-
-# for name, mod in all_modules.items():
-#     print(f"Loaded: {name}")
+all_modules: dict = {}
+for _module_info in pkgutil.walk_packages(_modules_pkg.__path__, prefix="app.modules."):
+    if not _module_info.ispkg:
+        continue
+    _mod = importlib.import_module(_module_info.name)
+    all_modules[_module_info.name] = _mod
