@@ -870,6 +870,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Build DataEntry
             primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
+            # TODO: that's here that we should add 'default' for some fields if needed
+            # like in equipement for standby and active usage
+            # TODO: make generic in handler above!
+            # active_usage_hours_per_week
+            # standby_usage_hours_per_week
+            # BEWaRE: We changed classsubclassmap to allow factors without subkind,
+            # so we need to be careful when accessing subkind values in the factor
+            data["active_usage_hours_per_year"] = (
+                data.get("active_usage_hours_per_year") or 0
+            )
             data["primary_factor_id"] = primary_factor_id
 
             data_entry = DataEntry(

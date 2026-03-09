@@ -924,7 +924,8 @@ async function commitInline(
 ) {
   if (!col.editableInline) return;
   const isUsageField =
-    col.name === 'active_usage_hours' || col.name === 'passive_usage_hours';
+    col.name === 'active_usage_hours_per_week' ||
+    col.name === 'standby_usage_hours_per_week';
   const isNumberOfTrips = col.name === 'number_of_trips';
   const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
@@ -1050,8 +1051,8 @@ function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'equipment_class',
-    'active_usage_hours',
-    'passive_usage_hours',
+    'active_usage_hours_per_week',
+    'standby_usage_hours_per_week',
     'active_power_w',
     'standby_power_w',
   ];
@@ -1213,8 +1214,12 @@ function onFormSubmit(
     if (moduleType === MODULES.EquipmentElectricConsumption) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
-      basePayload.active_usage_hours = Number(payload.active_usage_hours);
-      basePayload.passive_usage_hours = Number(payload.passive_usage_hours);
+      basePayload.active_usage_hours_per_week = Number(
+        payload.active_usage_hours_per_week,
+      );
+      basePayload.standby_usage_hours_per_week = Number(
+        payload.standby_usage_hours_per_week,
+      );
     }
 
     const p = isEdit
@@ -1249,7 +1254,7 @@ function onUploadCsv() {
 
 function onDownloadTemplate() {
   const csvEquipmentContent =
-    'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
+    'name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week';
   const csvHeadcountContent =
     'name,position_title,position_category,user_institutional_id,fte,note';
   const csvProfessionalTravelContent =

@@ -237,8 +237,8 @@ export interface ModuleItem {
   name: string;
   class?: string;
   sub_class?: string;
-  active_usage_hours?: number;
-  passive_usage_hours?: number;
+  active_usage_hours_per_week?: number;
+  standby_usage_hours_per_week?: number;
   act_power?: number;
   pas_power?: number;
   kg_co2eq?: number;
