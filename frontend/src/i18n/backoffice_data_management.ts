@@ -62,8 +62,8 @@ export default {
     fr: 'Importation annuelle des données',
   },
   data_management_annual_data_import_hint: {
-    en: 'Annual import of emission factors and other data necessary for CO₂-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces.',
-    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO₂-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV.",
+    en: 'Annual import of emission factors and other data necessary for CO₂-eq calculation (equipment lists, coefficients, etc.) via CSV data import interfaces. All data formats are detailed in the back-office Guide.',
+    fr: "Importation annuelle des facteurs d'émission et d'autres données nécessaires au calcul du CO₂-éq (listes d'équipements, coefficients, etc.) via des interfaces d'importation de données CSV. Tous les formats de données sont détaillés dans le Guide du back-office.",
   },
   data_management_data_imports_count: {
     en: 'Data Imports ({count})',
@@ -124,5 +124,109 @@ export default {
   data_management_delete_temp_files: {
     en: 'Delete Temporary Files',
     fr: 'Supprimer les fichiers temporaires',
+  },
+  data_management_column_other: {
+    en: 'Other',
+    fr: 'Autre',
+  },
+  data_management_no_data_warning: {
+    en: 'No data uploaded. Only user inputs will be considered.',
+    fr: 'Aucune donnée téléversée. Seules les saisies utilisateur seront prises en compte.',
+  },
+  data_management_no_factors_error: {
+    en: 'No factors uploaded. Please upload factors.',
+    fr: 'Aucun facteur téléversé. Veuillez téléverser les facteurs.',
+  },
+  data_management_tbd: {
+    en: 'Coming soon',
+    fr: 'Bientôt disponible',
+  },
+  data_management_row_headcount_members: {
+    en: 'Headcount Members',
+    fr: 'Effectifs Membres',
+  },
+  data_management_row_headcount_students: {
+    en: 'Headcount Students',
+    fr: 'Effectifs Étudiants',
+  },
+  data_management_row_travel_train: {
+    en: 'Professional Travel Train',
+    fr: 'Voyages professionnels Train',
+  },
+  data_management_row_travel_plane: {
+    en: 'Professional Travel Plane',
+    fr: 'Voyages professionnels Avion',
+  },
+  data_management_row_buildings_rooms: {
+    en: 'Buildings Rooms',
+    fr: 'Bâtiments Salles',
+  },
+  data_management_row_buildings_energy_combustion: {
+    en: 'Buildings Energy Combustion',
+    fr: 'Bâtiments Énergie Combustion',
+  },
+  data_management_row_process_emissions: {
+    en: 'Process Emissions',
+    fr: 'Émissions de processus',
+  },
+  data_management_row_equipment: {
+    en: 'Equipment',
+    fr: 'Équipements',
+  },
+  data_management_row_purchases_common: {
+    en: 'Purchases Common',
+    fr: 'Achats communs',
+  },
+  data_management_row_purchases_additional: {
+    en: 'Purchases Additional',
+    fr: 'Achats supplémentaires',
+  },
+  data_management_row_research_facilities: {
+    en: 'Research Facilities',
+    fr: 'Installations de recherche',
+  },
+  data_management_row_research_facilities_animal: {
+    en: 'Research Facilities Animal',
+    fr: 'Installations de recherche Animal',
+  },
+  data_management_row_external_clouds: {
+    en: 'External Clouds',
+    fr: 'Clouds externes',
+  },
+  data_management_row_external_ai: {
+    en: 'External AI',
+    fr: 'IA externe',
+  },
+  data_management_row_food: {
+    en: 'Food',
+    fr: 'Alimentation',
+  },
+  data_management_row_waste: {
+    en: 'Waste',
+    fr: 'Déchets',
+  },
+  data_management_row_commuting: {
+    en: 'Commuting',
+    fr: 'Pendulaire',
+  },
+  data_management_row_grey_energy: {
+    en: 'Grey Energy',
+    fr: 'Énergie grise',
+  },
+  data_management_other_train_stations: {
+    en: 'Locations train-station',
+    fr: 'Localisations gare',
+  },
+  data_management_other_airports: {
+    en: 'Location airport',
+    fr: 'Localisations aéroport',
+  },
+  data_management_other_institution_rooms: {
+    en: 'Institution rooms',
+    fr: "Salles de l'institution",
+  },
+  data_management_upload_reference: {
+    en: 'Upload Reference',
+    fr: 'Téléverser référence',
   },
 } as const;
