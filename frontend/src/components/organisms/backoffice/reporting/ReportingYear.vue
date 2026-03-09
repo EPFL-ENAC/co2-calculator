@@ -33,8 +33,7 @@ watch(
   (newYears) => {
     if (newYears.length === 0) {
       // Fallback to latest year or default
-      years.value = [latestYear.value || '2026'];
-      return;
+      return {};
     }
     emit('update:years', newYears);
   },

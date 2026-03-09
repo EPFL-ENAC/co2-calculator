@@ -175,8 +175,13 @@ class CarbonReportModuleRepository:
 
     async def get_reporting_overview(
         self,
-        year: int,
-        unit_ids: Optional[List[int]] = None,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        modules: Optional[List[str]] = None,  # complex TBD
+        years: Optional[List[int]] = None,  # Default to first year for overview for now
         page: int = 1,
         page_size: int = 50,
     ) -> dict:
@@ -184,15 +189,18 @@ class CarbonReportModuleRepository:
         Retrieves the aggregated reporting data using a Deferred Join strategy.
         First paginates the Units, then calculates footprints ONLY for those 50 units.
         """
-
+        if years is None:
+            raise ValueError(
+                "At least one year must be specified for the reporting overview."
+            )
         # --- STEP 1: The Cheap Count ---
         count_statement = (
             select(func.count(col(Unit.id)))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
-            .where(col(CarbonReport.year) == year)
+            .where(col(CarbonReport.year).in_(years))
         )
-        if unit_ids:
-            count_statement = count_statement.where(col(Unit.id).in_(unit_ids))
+        # if unit_ids:
+        #     count_statement = count_statement.where(col(Unit.id).in_(unit_ids))
 
         total = (await self.session.exec(count_statement)).one()
 
@@ -211,7 +219,7 @@ class CarbonReportModuleRepository:
         units_stmt_columns: List[Any] = [
             col(Unit.id).label("unit_id"),
             col(Unit.name).label("unit_name"),
-            col(Unit.path_name).label("affiliations"),
+            col(Unit.path_name).label("path_name"),
             col(User.display_name).label("principal_user_name"),
             col(CarbonReport.id).label("carbon_report_id"),
         ]
@@ -221,11 +229,11 @@ class CarbonReportModuleRepository:
             select(*units_stmt_columns)
             .join(CarbonReport, CarbonReport.unit_id == Unit.id)
             .outerjoin(User, User.provider_code == Unit.principal_user_institutional_id)
-            .where(CarbonReport.year == year)
+            .where(col(CarbonReport.year).in_(years))
         )
 
-        if unit_ids:
-            units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
+        # if unit_ids:
+        #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
         # Apply limits here!
         units_stmt = (
@@ -328,11 +336,7 @@ class CarbonReportModuleRepository:
 
         reporting_data = []
         for u in paginated_units:
-            aff = (
-                u.affiliations[0]
-                if u.affiliations and len(u.affiliations) > 0
-                else "N/A"
-            )
+            aff = u.path_name if u.path_name and len(u.path_name) > 0 else "N/A"
 
             # Get the aggregations for this specific unit's report,
             # or default empty values
@@ -340,6 +344,16 @@ class CarbonReportModuleRepository:
 
             agg_value = (
                 f"{aggs.val_count if aggs else 0}/{aggs.total_count if aggs else 0}"
+            )
+            # TODO: fix logic should be coming from carbon_report module directly
+            # via aggregated stats, not re-deriving it here
+            #  This is just a temporary solution to unblock the frontend.
+            completion_status = (
+                ModuleStatus.VALIDATED
+                if aggs and aggs.val_count == aggs.total_count and aggs.total_count > 0
+                else ModuleStatus.IN_PROGRESS
+                if aggs and aggs.val_count > 0
+                else ModuleStatus.NOT_STARTED
             )
             reporting_data.append(
                 {
@@ -356,6 +370,7 @@ class CarbonReportModuleRepository:
                     if aggs
                     else 0.0,
                     "view_url": f"/backoffice/unit/{u.unit_id}",
+                    "completion": completion_status,
                 }
             )
 
@@ -372,7 +387,4 @@ class CarbonReportModuleRepository:
         if not module_type_id:
             return "—"
         # Map based on your ModuleTypeEnum/metadata
-        mapping = {1: "Headcount", 4: "Equipment", 7: "Travel"}  # Example IDs
-        return mapping.get(
-            module_type_id, f"Module {ModuleTypeEnum(module_type_id).name}"
-        )
+        return f"{ModuleTypeEnum(module_type_id).name}"

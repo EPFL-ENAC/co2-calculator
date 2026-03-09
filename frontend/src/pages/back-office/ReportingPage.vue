@@ -9,14 +9,17 @@ import NavigationHeader from 'src/components/organisms/backoffice/NavigationHead
 import ModuleSelector, {
   type ModuleStateData,
 } from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
+import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
+import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
 import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
 import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
 import ReportExport from 'src/components/organisms/backoffice/reporting/ReportExport.vue';
 import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDialogue.vue';
-
+import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 
+const router = useRouter();
 const moduleStates = ref<Map<Module, ModuleStateData>>(new Map());
 
 const allStatesSelected = computed(() => {
@@ -51,8 +54,11 @@ const selectedYears = ref<string[]>(['2026']); // Default to latest year
 // Track selected units from ReportingFilters
 const selectedUnits = ref<number[]>([]);
 
-function handleFiltersUpdate(units: number[]) {
-  selectedUnits.value = units;
+function handleFiltersUpdate(payload: {
+  selectedUnits: number[];
+  completion_status: string | number;
+}) {
+  selectedUnits.value = payload.selectedUnits;
   fetchUnits();
 }
 
@@ -95,7 +101,12 @@ onMounted(async () => {
 
 function handleViewUnit(unitId: string | number) {
   selectedUnitId.value = unitId;
-  alert.value = true;
+  // alert.value = true;
+  // WARNING, don't work if several selected YEARS
+  router.push({
+    name: 'results',
+    params: { unit: unitId, year: selectedYears.value[0] },
+  });
 }
 
 async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
@@ -137,35 +148,55 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         <ReportingFilters @update:filters="handleFiltersUpdate" />
       </div>
       <div class="q-mt-xl">
-        <div class="flex justify-between items-center q-mb-sm">
-          <span class="text-body1 text-weight-medium">{{
+        <q-expansion-item
+          icon="mdi-chart-arc"
+          :label="
             $t('backoffice_reporting_module_status_label', {
               count: $t('backoffice_reporting_all_modules'),
             })
-          }}</span>
-          <q-checkbox
-            :model-value="allStatesSelected"
-            :label="
-              allStatesSelected
-                ? $t('backoffice_reporting_unselect_all')
-                : $t('backoffice_reporting_select_all')
-            "
-            color="accent"
-            size="sm"
-            @update:model-value="(value) => toggleSelectAll(value)"
-          />
-        </div>
-        <div class="grid-3-col">
-          <template v-for="moduleCard in MODULE_CARDS" :key="moduleCard.module">
-            <ModuleSelector
-              :module-card="moduleCard"
-              :model-value="moduleStates.get(moduleCard.module)?.states || []"
-              @update:model-value="
-                (states) => handleModuleStateUpdate(moduleCard.module, states)
-              "
-            />
+          "
+        >
+          <template #header>
+            <div class="flex justify-between items-center" style="width: 100%">
+              <span class="text-body1 text-weight-medium">{{
+                $t('backoffice_reporting_module_status_label', {
+                  count: $t('backoffice_reporting_all_modules'),
+                })
+              }}</span>
+              <q-checkbox
+                :model-value="allStatesSelected"
+                :label="
+                  allStatesSelected
+                    ? $t('backoffice_reporting_unselect_all')
+                    : $t('backoffice_reporting_select_all')
+                "
+                color="accent"
+                size="sm"
+                @update:model-value="(value) => toggleSelectAll(value)"
+                @click.stop
+              />
+            </div>
           </template>
-        </div>
+          <div class="q-pa-md">
+            <div class="grid-3-col">
+              <template
+                v-for="moduleCard in MODULE_CARDS"
+                :key="moduleCard.module"
+              >
+                <ModuleSelector
+                  :module-card="moduleCard"
+                  :model-value="
+                    moduleStates.get(moduleCard.module)?.states || []
+                  "
+                  @update:model-value="
+                    (states) =>
+                      handleModuleStateUpdate(moduleCard.module, states)
+                  "
+                />
+              </template>
+            </div>
+          </div>
+        </q-expansion-item>
       </div>
       <div class="q-mt-xl">
         <UnitsTable
@@ -174,6 +205,43 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           :loading="loading"
           @view-unit="handleViewUnit"
         />
+      </div>
+      <!--  Usage Statistics Box #461 -->
+      <ReportingStatCards
+        v-if="false && (units?.data ?? []).length > 1"
+        :stats="{
+          [MODULE_STATES.Default]: 31,
+          [MODULE_STATES.InProgress]: 1,
+          [MODULE_STATES.Validated]: 13,
+        }"
+        :loading="false"
+      />
+      <ReportingStatCardUnit
+        v-else
+        :stats="{ total_entries: 12 }"
+        :loading="false"
+      />
+      <!-- Aggregated Results Box #460 -->
+      <div class="q-mt-xl">
+        <div class="container full-width">
+          <!-- <div class="q-mb-xs">
+            <span class="text-h5 text-weight-medium">{{
+              $t('backoffice_reporting_aggregated_results_title')
+            }}</span>
+          </div>
+          <span class="text-body2">{{
+            $t('backoffice_reporting_aggregated_results_description')
+          }}</span> -->
+
+          <!-- Placeholder for aggregated results -->
+          <div class="q-pa-md bg-grey-2 rounded">
+            <img
+              src="/placeholder-reporting.png"
+              alt="Aggregated Results Placeholder"
+              class="full-width"
+            />
+          </div>
+        </div>
       </div>
       <div class="q-mt-xl">
         <div class="container full-width">
