@@ -206,6 +206,7 @@ export const buildings: ModuleConfig = {
       tableNameKey: `${MODULES.Buildings}.combustion_table_title`,
       moduleFields: energyCombustionFields,
       hasTableAction: true,
+      hasFormTooltip: `${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`,
       addButtonLabelKey: `${MODULES.Buildings}.add_combustion_button`,
     },
   ],
