@@ -11,7 +11,7 @@ dependencies = [
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.20",
     "sqlalchemy[asyncio,mypy]==2.0.44",
-    "psycopg[binary,pool]==3.2.12",
+    "psycopg[binary,pool]==3.3.3",
     "alembic==1.17.1",
     "authlib==1.6.5",
     # to remove once, we use entra or keycloak
