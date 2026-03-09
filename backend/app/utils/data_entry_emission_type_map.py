@@ -193,14 +193,14 @@ def _resolve_clouds(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_ai(data: dict) -> list[EmissionType] | None:
-    ai_provider = (data.get("ai_provider") or "").lower().replace(" ", "_")
+    ai_provider = (data.get("provider") or "").lower().replace(" ", "_")
     et = _AI_USE_MAP.get(ai_provider)
     # default to "others" if provider is missing/unknown
     return [et] if et else [EmissionType.external__ai__provider_others]
 
 
 def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
-    gas = data.get("emitted_gas", (data.get("kind", "") or "")).lower()
+    gas = data.get("category", (data.get("kind", "") or "")).lower()
     et = _PROCESS_GAS_MAP.get(gas)
     return [et] if et else None  # None = unknown gas, caller should warn + skip
 

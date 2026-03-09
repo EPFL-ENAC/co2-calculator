@@ -156,7 +156,7 @@ export default {
   },
 
   // Combustion fields
-  [`${MODULES.Buildings}.inputs.heating_type`]: {
+  [`${MODULES.Buildings}.inputs.name`]: {
     en: 'Heating type',
     fr: 'Type de chauffage',
   },

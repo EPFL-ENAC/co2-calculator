@@ -18,18 +18,18 @@ logger = get_logger(__name__)
 
 
 class ProcessEmissionsHandlerResponse(DataEntryResponseGen):
-    emitted_gas: str
-    sub_category: Optional[str] = None
-    quantity_kg: float
+    category: str
+    subcategory: Optional[str] = None
+    quantity: float
     kg_co2eq: Optional[float] = None
 
 
 class ProcessEmissionsHandlerCreate(DataEntryCreate):
-    emitted_gas: str
-    sub_category: Optional[str] = None
-    quantity_kg: float
+    category: str
+    subcategory: Optional[str] = None
+    quantity: float
 
-    @field_validator("quantity_kg", mode="after")
+    @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float) -> float:
         if v < 0.001:
@@ -38,11 +38,11 @@ class ProcessEmissionsHandlerCreate(DataEntryCreate):
 
 
 class ProcessEmissionsHandlerUpdate(DataEntryUpdate):
-    emitted_gas: Optional[str] = None
-    sub_category: Optional[str] = None
-    quantity_kg: Optional[float] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    quantity: Optional[float] = None
 
-    @field_validator("quantity_kg", mode="after")
+    @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and v < 0.001:
@@ -58,21 +58,21 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
     update_dto = ProcessEmissionsHandlerUpdate
     response_dto = ProcessEmissionsHandlerResponse
 
-    kind_field: str = "emitted_gas"
-    subkind_field: str = "sub_category"
+    kind_field: str = "category"
+    subkind_field: str = "subcategory"
     require_subkind_for_factor = False
 
     sort_map = {
         "id": DataEntry.id,
-        "emitted_gas": Factor.classification["kind"].as_string(),
-        "sub_category": Factor.classification["subkind"].as_string(),
-        "quantity_kg": DataEntry.data["quantity_kg"].as_float(),
+        "category": Factor.classification["kind"].as_string(),
+        "subcategory": Factor.classification["subkind"].as_string(),
+        "quantity": DataEntry.data["quantity"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "emitted_gas": Factor.classification["kind"].as_string(),
-        "sub_category": Factor.classification["subkind"].as_string(),
+        "category": Factor.classification["kind"].as_string(),
+        "subcategory": Factor.classification["subkind"].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ProcessEmissionsHandlerResponse:
@@ -83,10 +83,10 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "emitted_gas": primary_factor.get("kind")
-                or data_entry.data.get("emitted_gas"),
-                "sub_category": primary_factor.get("subkind")
-                or data_entry.data.get("sub_category"),
+                "category": primary_factor.get("kind")
+                or data_entry.data.get("category"),
+                "subcategory": primary_factor.get("subkind")
+                or data_entry.data.get("subcategory"),
             }
         )
 
@@ -103,7 +103,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
             return []
 
         def _process_formula(ctx: dict, factor_values: dict):
-            quantity_kg = ctx.get("quantity_kg", 0)
+            quantity_kg = ctx.get("quantity", 0)
             if quantity_kg < 0:
                 return None
             gwp = factor_values.get("gwp_kg_co2eq_per_kg", 0)

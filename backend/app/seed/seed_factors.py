@@ -197,7 +197,7 @@ async def create_factors(session: AsyncSession):
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": provider,
+                    "provider": provider,
                     "service_type": service,
                     "kind": provider,
                     "subkind": service,
@@ -239,8 +239,8 @@ async def create_factors(session: AsyncSession):
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
                 classification={
-                    "ai_provider": provider,
-                    "ai_use": use,
+                    "provider": provider,
+                    "usage_type": use,
                     "kind": provider,
                     "subkind": use,
                     "description": f"AI factor for {provider} {use}",

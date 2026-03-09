@@ -228,15 +228,15 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
 
 
 class ExternalCloudFactorResponse(FactorResponseGen):
-    cloud_provider: str
+    provider: str
     service_type: str
-    factor_kgco2_per_eur: float
+    ef_kg_co2eq_per_currency: float
 
 
 class ExternalAIFactorResponse(FactorResponseGen):
-    ai_provider: str
-    ai_use: str
-    factor_gCO2eq: float
+    provider: str
+    usage_type: str
+    ef_kg_co2eq_per_request: float
 
 
 class TravelPlaneFactorResponse(FactorResponseGen):
@@ -253,39 +253,39 @@ class TravelTrainFactorResponse(FactorResponseGen):
 
 
 class ExternalCloudFactorCreate(FactorCreate):
-    cloud_provider: str
+    provider: str
     service_type: str
-    factor_kgco2_per_eur: float
+    ef_kg_co2eq_per_currency: float
 
-    classification_fields: list[str] = ["cloud_provider", "service_type"]
-    value_fields: list[str] = ["factor_kgco2_per_eur"]
+    classification_fields: list[str] = ["provider", "service_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
 
 
 class ExternalCloudFactorUpdate(FactorUpdate):
-    cloud_provider: Optional[str] = None
+    provider: Optional[str] = None
     service_type: Optional[str] = None
-    factor_kgco2_per_eur: Optional[float] = None
+    ef_kg_co2eq_per_currency: Optional[float] = None
 
-    classification_fields: list[str] = ["cloud_provider", "service_type"]
-    value_fields: list[str] = ["factor_kgco2_per_eur"]
+    classification_fields: list[str] = ["provider", "service_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
 
 
 class ExternalAIFactorCreate(FactorCreate):
-    ai_provider: str
-    ai_use: str
-    factor_gCO2eq: float
+    provider: str
+    usage_type: str
+    ef_kg_co2eq_per_request: float
 
-    classification_fields: list[str] = ["ai_provider", "ai_use"]
-    value_fields: list[str] = ["factor_gCO2eq"]
+    classification_fields: list[str] = ["provider", "usage_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_request"]
 
 
 class ExternalAIFactorUpdate(FactorUpdate):
-    ai_provider: Optional[str] = None
-    ai_use: Optional[str] = None
-    factor_gCO2eq: Optional[float] = None
+    provider: Optional[str] = None
+    usage_type: Optional[str] = None
+    ef_kg_co2eq_per_request: Optional[float] = None
 
-    classification_fields: list[str] = ["ai_provider", "ai_use"]
-    value_fields: list[str] = ["factor_gCO2eq"]
+    classification_fields: list[str] = ["provider", "usage_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_request"]
 
 
 class TravelPlaneFactorCreate(FactorCreate):

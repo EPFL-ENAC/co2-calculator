@@ -274,7 +274,7 @@ async def job_stream(
 async def job_stream_by_id(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(require_permission("modules.*", "edit")),
 ):
     """
     Server-Sent Events endpoint to stream a single job update in real-time.

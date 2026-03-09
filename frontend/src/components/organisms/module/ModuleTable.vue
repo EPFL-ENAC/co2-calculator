@@ -1073,15 +1073,15 @@ function isCompleteHeadcount(row: ModuleRow) {
 
 //  dependence on the submodule type
 function isCompleteExternalCloud(row: ModuleRow) {
-  const required = ['service_type', 'cloud_provider', 'spending'];
+  const required = ['service_type', 'provider', 'spent_amount'];
   return hasRequiredValues(row, required);
 }
 
 function isCompleteExternalAI(row: ModuleRow) {
   const required = [
-    'ai_provider',
-    'ai_use',
-    'frequency_use_per_day',
+    'provider',
+    'usage_type',
+    'requests_per_user_per_day',
     'user_count',
   ];
   return hasRequiredValues(row, required);
@@ -1149,24 +1149,24 @@ function isComplete(row: ModuleRow) {
     );
   }
   if (props.moduleType === MODULES.ProcessEmissions) {
-    const baseRequired = ['emitted_gas', 'quantity_kg'];
+    const baseRequired = ['category', 'quantity'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
     if (!hasBaseRequired) {
       return false;
     }
 
-    if (row.emitted_gas === 'Refrigerants') {
+    if (row.category === 'Refrigerants') {
       return (
-        row.sub_category !== null &&
-        row.sub_category !== undefined &&
-        row.sub_category !== ''
+        row.subcategory !== null &&
+        row.subcategory !== undefined &&
+        row.subcategory !== ''
       );
     }
     return true;
   }
   if (props.moduleType === MODULES.Buildings) {
     if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-      const required = ['heating_type', 'quantity'];
+      const required = ['name', 'quantity'];
       return required.every(
         (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
       );
@@ -1254,16 +1254,16 @@ function onDownloadTemplate() {
     'name,position_title,position_category,user_institutional_id,fte,note';
   const csvProfessionalTravelContent =
     'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
-  const csvExternalCloudContent = 'service_type,cloud_provider,spending';
+  const csvExternalCloudContent = 'service_type,provider,spent_amount';
   const csvExternalAIContent =
-    'ai_provider,ai_use,frequency_use_per_day,user_count';
+    'provider,usage_type,requests_per_user_per_day,user_count';
   const csvPurchaseContent =
     'name,purchase_institutional_code,quantity,total_spent_amount';
-  const csvProcessesContent = 'emitted_gas,sub_category,quantity_kg';
+  const csvProcessesContent = 'category,subcategory,quantity';
   const csvDefaultContent = 'not_implemented_yet';
 
   const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
-  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
+  const csvBuildingsCombustionContent = 'name,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:

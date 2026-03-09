@@ -19,40 +19,39 @@ logger = get_logger(__name__)
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: Optional[str] = None
-    cloud_provider: Optional[str] = None
-    spending: Optional[float] = None
+    provider: Optional[str] = None
+    spent_amount: Optional[float] = None
     kg_co2eq: Optional[float] = None
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
-    # ai_provider,ai_use,frequency_use_per_day,user_count
-    ai_provider: Optional[str] = None
-    ai_use: Optional[str] = None
-    frequency_use_per_day: Optional[int] = None
+    provider: Optional[str] = None
+    usage_type: Optional[str] = None
+    requests_per_user_per_day: Optional[int] = None
     user_count: Optional[int] = None
     kg_co2eq: Optional[float] = None
 
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
-    cloud_provider: Optional[str] = None
-    spending: float
+    provider: Optional[str] = None
+    spent_amount: float
 
-    @field_validator("spending", mode="after")
+    @field_validator("spent_amount", mode="after")
     @classmethod
-    def validate_spending(cls, v: float) -> float:
+    def validate_spent_amount(cls, v: float) -> float:
         if v < 0:
-            raise ValueError("Spending must be non-negative")
+            raise ValueError("Spent amount must be non-negative")
         return v
 
 
 class ExternalAIHandlerCreate(DataEntryCreate):
-    ai_provider: str
-    ai_use: str
-    frequency_use_per_day: Optional[int] = None
+    provider: str
+    usage_type: str
+    requests_per_user_per_day: Optional[int] = None
     user_count: int
 
-    @field_validator("frequency_use_per_day", "user_count", mode="after")
+    @field_validator("requests_per_user_per_day", "user_count", mode="after")
     @classmethod
     def validate_positive(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
@@ -64,26 +63,26 @@ class ExternalAIHandlerCreate(DataEntryCreate):
 
 class ExternalCloudHandlerUpdate(DataEntryUpdate):
     service_type: Optional[str] = None
-    cloud_provider: Optional[str] = None
-    spending: Optional[float] = None
+    provider: Optional[str] = None
+    spent_amount: Optional[float] = None
 
-    @field_validator("spending", mode="after")
+    @field_validator("spent_amount", mode="after")
     @classmethod
-    def validate_spending(cls, v: Optional[float]) -> Optional[float]:
+    def validate_spent_amount(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
         if v < 0:
-            raise ValueError("Spending must be non-negative")
+            raise ValueError("Spent amount must be non-negative")
         return v
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):
-    ai_provider: Optional[str] = None
-    ai_use: Optional[str] = None
-    frequency_use_per_day: Optional[int] = None
+    provider: Optional[str] = None
+    usage_type: Optional[str] = None
+    requests_per_user_per_day: Optional[int] = None
     user_count: Optional[int] = None
 
-    @field_validator("frequency_use_per_day", "user_count", mode="after")
+    @field_validator("requests_per_user_per_day", "user_count", mode="after")
     @classmethod
     def validate_positive(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
@@ -100,20 +99,20 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
     update_dto = ExternalCloudHandlerUpdate
     response_dto = ExternalCloudHandlerResponse
 
-    kind_field: str = "cloud_provider"
+    kind_field: str = "provider"
     subkind_field: str = "service_type"
 
     sort_map = {
         "id": DataEntry.id,
         "service_type": Factor.classification["subkind"].as_string(),
-        "cloud_provider": Factor.classification["kind"].as_string(),
-        "spending": DataEntry.data["spending"].as_float(),
+        "provider": Factor.classification["kind"].as_string(),
+        "spent_amount": DataEntry.data["spent_amount"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
         "service_type": Factor.classification["subkind"].as_string(),
-        "cloud_provider": Factor.classification["kind"].as_string(),
+        "provider": Factor.classification["kind"].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
@@ -126,8 +125,8 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 **data_entry.data,
                 "service_type": primary_factor.get("subkind")
                 or data_entry.data.get("service_type"),
-                "cloud_provider": primary_factor.get("kind")
-                or data_entry.data.get("cloud_provider"),
+                "provider": primary_factor.get("kind")
+                or data_entry.data.get("provider"),
             }
         )
 
@@ -146,8 +145,8 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                formula_key="factor_kgco2_per_eur",
-                quantity_key="spending",
+                formula_key="ef_kg_co2eq_per_currency",
+                quantity_key="spent_amount",
             )
         ]
 
@@ -159,20 +158,22 @@ class ExternalAIModuleHandler(BaseModuleHandler):
     update_dto = ExternalAIHandlerUpdate
     response_dto = ExternalAIHandlerResponse
 
-    kind_field: str = "ai_provider"
-    subkind_field: str = "ai_use"
+    kind_field: str = "provider"
+    subkind_field: str = "usage_type"
     sort_map = {
         "id": DataEntry.id,
-        "ai_provider": Factor.classification["kind"].as_string(),
-        "ai_use": Factor.classification["subkind"].as_string(),
-        "frequency_use_per_day": DataEntry.data["frequency_use_per_day"].as_float(),
+        "provider": Factor.classification["kind"].as_string(),
+        "usage_type": Factor.classification["subkind"].as_string(),
+        "requests_per_user_per_day": DataEntry.data[
+            "requests_per_user_per_day"
+        ].as_float(),
         "user_count": DataEntry.data["user_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "ai_provider": Factor.classification["kind"].as_string(),
-        "ai_use": Factor.classification["subkind"].as_string(),
+        "provider": Factor.classification["kind"].as_string(),
+        "usage_type": Factor.classification["subkind"].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
@@ -182,10 +183,10 @@ class ExternalAIModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "ai_provider": data_entry.data["primary_factor"].get("kind")
-                or data_entry.data.get("ai_provider"),
-                "ai_use": data_entry.data["primary_factor"].get("subkind")
-                or data_entry.data.get("ai_use"),
+                "provider": data_entry.data["primary_factor"].get("kind")
+                or data_entry.data.get("provider"),
+                "usage_type": data_entry.data["primary_factor"].get("subkind")
+                or data_entry.data.get("usage_type"),
             }
         )
 
@@ -202,9 +203,9 @@ class ExternalAIModuleHandler(BaseModuleHandler):
             return []
 
         def _ai_formula(ctx: dict, factor_values: dict):
-            frequency = ctx.get("frequency_use_per_day", 0)
+            frequency = ctx.get("requests_per_user_per_day", 0)
             users = ctx.get("user_count", 0)
-            factor_g = factor_values.get("factor_gCO2eq", 0)
+            factor_g = factor_values.get("ef_kg_co2eq_per_request", 0)
             if not frequency or not users or not factor_g:
                 return None
             return (frequency * 5 * 46 * users * factor_g) / 1000

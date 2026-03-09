@@ -78,9 +78,9 @@ async def seed_data_clouds(session: AsyncSession, carbon_report_module_id: int) 
                 carbon_report_module_id=carbon_report_module_id,
                 data={
                     "primary_factor_id": factor.id if factor else None,
-                    "spending": float(row.get("spending", 0)),
+                    "spent_amount": float(row.get("spending", 0)),
                     "service_type": (row.get("service_type") or ""),
-                    "cloud_provider": (row.get("cloud_provider") or ""),
+                    "provider": (row.get("cloud_provider") or ""),
                 },
             )
             data_entry.data_entry_type = DataEntryTypeEnum.external_clouds
@@ -126,10 +126,12 @@ async def seed_data_ai(session: AsyncSession, carbon_report_module_id: int) -> N
                 carbon_report_module_id=carbon_report_module_id,
                 data={
                     "primary_factor_id": factor.id if factor else None,
-                    "frequency_use_per_day": int(row.get("frequency_use_per_day", 0)),
+                    "requests_per_user_per_day": int(
+                        row.get("frequency_use_per_day", 0)
+                    ),
                     "user_count": int(row.get("user_count", 0)),
-                    "ai_provider": (row.get("ai_provider") or ""),
-                    "ai_use": (row.get("ai_use") or ""),
+                    "provider": (row.get("ai_provider") or ""),
+                    "usage_type": (row.get("ai_use") or ""),
                 },
             )
             data_entries.append(data_entry)
@@ -188,13 +190,13 @@ async def seed_factor_clouds(session: AsyncSession) -> None:
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": (row.get("cloud_provider") or ""),
+                    "provider": (row.get("cloud_provider") or ""),
                     "service_type": (row.get("service_type") or ""),
                     "kind": (row.get("cloud_provider") or ""),
                     "subkind": (row.get("service_type") or ""),
                 },
                 values={
-                    "factor_kgco2_per_eur": get_float_or_none(
+                    "ef_kg_co2eq_per_currency": get_float_or_none(
                         row.get("factor_kgco2_per_eur")
                     ),
                 },
@@ -236,13 +238,13 @@ async def seed_factor_ai(session: AsyncSession) -> None:
                 # TODO: unify data model with kind/subkind so
                 # it corresponds to ai_provider/ai_use?
                 classification={
-                    "ai_provider": (row.get("ai_provider") or ""),
-                    "ai_use": (row.get("ai_use") or ""),
+                    "provider": (row.get("ai_provider") or ""),
+                    "usage_type": (row.get("ai_use") or ""),
                     "kind": (row.get("ai_provider") or ""),
                     "subkind": (row.get("ai_use") or ""),
                 },
                 values={
-                    "factor_gCO2eq": factor_gCO2eq,
+                    "ef_kg_co2eq_per_request": factor_gCO2eq,
                 },
             )
             factors.append(factor)

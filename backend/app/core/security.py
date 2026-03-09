@@ -1,6 +1,8 @@
 """Security utilities for JWT authentication and authorization."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatch
 from typing import Callable, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -163,19 +165,27 @@ async def get_permission_decision(user: User, path: str, action: str = "view") -
 async def is_permitted(user: User, path: str, action: str = "view") -> bool:
     """
     Check if the user has the specified permission.
-
-    This is a helper function that can be used in cases where you want to check
-    permissions programmatically within your code instead of using the
-    require_permission dependency.
+    Supports glob patterns, e.g. path="modules.*" to check all module permissions.
 
     Args:
         user: Current user
-        path: Permission path (e.g., "modules.headcount")
+        path: Permission path or glob (e.g., "modules.headcount", "modules.*")
         action: Permission action (e.g., "view", "edit", "export", default: "view")
 
     Returns:
-        True if user has permission, False otherwise
+        True if user has permission for ALL matching paths, False otherwise.
+        If the glob matches no known paths, falls through to a direct OPA check.
     """
+    known_paths = list(user.calculate_permissions().keys())
+    matching_paths = [p for p in known_paths if fnmatch(p, path)]
+
+    if matching_paths:
+        results = await asyncio.gather(
+            *[get_permission_decision(user, p, action) for p in matching_paths]
+        )
+        return all(r.get("allow", False) for r in results)
+
+    # No glob match (or literal path) — direct OPA check
     decision = await get_permission_decision(user, path, action)
     return decision.get("allow", False)
 
@@ -183,17 +193,15 @@ async def is_permitted(user: User, path: str, action: str = "view") -> bool:
 async def check_permission(user: User, path: str, action: str = "view") -> None:
     """
     Check if the user has the specified permission and raise HTTPException if not.
-
-    This is a helper function that can be used in cases where you want to enforce
-    permissions programmatically within your code instead of using the
-    require_permission dependency.
+    Supports glob patterns, e.g. path="modules.*".
 
     Args:
         user: Current user
-        path: Permission path (e.g., "modules.headcount")
+        path: Permission path or glob (e.g., "modules.headcount", "modules.*")
         action: Permission action (e.g., "view", "edit", "export", default: "view")
     Raises:
         HTTPException with status 403 if user does not have permission
+        for ANY matching path
     """
     if not await is_permitted(user, path, action):
         raise HTTPException(
@@ -234,26 +242,22 @@ def require_permission(path: str, action: str = "view") -> Callable:
     async def require_permission_impl(
         user: User = Depends(get_current_active_user),
     ) -> User:
-        decision = await get_permission_decision(user, path, action)
+        permitted = await is_permitted(user, path, action)
 
-        # Check decision
-        if not decision.get("allow", False):
-            reason = decision.get("reason", "Permission denied")
+        if not permitted:
             logger.warning(
                 "Permission check denied",
                 extra={
                     "user_id": sanitize(user.id),
                     "path": path,
                     "action": action,
-                    "reason": reason,
                 },
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: {reason}",
+                detail="Permission denied",
             )
 
-        # Return authenticated user if permission granted
         return user
 
     return require_permission_impl

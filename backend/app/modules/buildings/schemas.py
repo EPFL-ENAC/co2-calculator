@@ -210,7 +210,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 
 
 class EnergyCombustionHandlerResponse(DataEntryResponseGen):
-    heating_type: str
+    name: str
     unit: Optional[str] = None
     quantity: float
     note: Optional[str] = None
@@ -218,7 +218,7 @@ class EnergyCombustionHandlerResponse(DataEntryResponseGen):
 
 
 class EnergyCombustionHandlerCreate(DataEntryCreate):
-    heating_type: str
+    name: str
     quantity: float
     note: Optional[str] = None
 
@@ -231,7 +231,7 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
 
 
 class EnergyCombustionHandlerUpdate(DataEntryUpdate):
-    heating_type: Optional[str] = None
+    name: Optional[str] = None
     quantity: Optional[float] = None
     note: Optional[str] = None
 
@@ -251,19 +251,19 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     update_dto = EnergyCombustionHandlerUpdate
     response_dto = EnergyCombustionHandlerResponse
 
-    kind_field: str = "heating_type"
+    kind_field: str = "name"
     subkind_field: str | None = None
     require_subkind_for_factor = False
 
     sort_map = {
         "id": DataEntry.id,
-        "heating_type": Factor.classification["kind"].as_string(),
+        "name": Factor.classification["kind"].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "heating_type": Factor.classification["kind"].as_string(),
+        "name": Factor.classification["kind"].as_string(),
     }
 
     async def resolve_primary_factor_id(
@@ -278,7 +278,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
             for key, value in existing_data.items():
                 if key not in data:
                     data[key] = value
-        kind = data.get("heating_type", "")
+        kind = data.get("name", "")
         factor_service = FactorService(db)
         factor = await factor_service.get_by_classification(
             data_entry_type=data_entry_type_id, kind=kind
@@ -311,8 +311,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "heating_type": primary_factor.get("kind")
-                or data_entry.data.get("heating_type"),
+                "name": primary_factor.get("kind") or data_entry.data.get("name"),
                 "unit": factor_values.get("unit") or data_entry.data.get("unit"),
             }
         )

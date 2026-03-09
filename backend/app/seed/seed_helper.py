@@ -9,6 +9,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.data_entry import BaseModuleHandler
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.factor_service import FactorService
@@ -96,19 +97,22 @@ async def load_factors_map(
     factors: list[Factor] = await service.list_by_data_entry_type(data_entry_type)
     factors_map: Dict[str, Factor] = {}
 
+    factor_handler = BaseModuleHandler.get_by_type(data_entry_type)
+    kind_field = factor_handler.kind_field
+    subkind_field = factor_handler.subkind_field
     for pf in factors:
         # Strategy 1: Full match with subkind
         if pf.classification:
             key_full = (
                 f"{pf.data_entry_type_id}:"
-                f"{pf.classification.get('kind', '').lower()}:"
-                f"{(pf.classification.get('subkind') or '').lower()}"
+                f"{(pf.classification.get(kind_field, '') or '').lower()}:"
+                f"{(pf.classification.get(subkind_field, '') or '').lower()}"
             )
             factors_map[key_full] = pf
 
         # Strategy 2: Match without subkind (fallback)
         key_kind = (
-            f"{pf.data_entry_type_id}:{pf.classification.get('kind', '').lower()}"
+            f"{pf.data_entry_type_id}:{pf.classification.get(kind_field, '').lower()}"
         )
         if key_kind not in factors_map:
             factors_map[key_kind] = pf
