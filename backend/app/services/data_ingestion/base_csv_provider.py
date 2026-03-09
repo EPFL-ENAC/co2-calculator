@@ -440,17 +440,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not module_type_id:
             raise ValueError("module_type_id is required for MODULE_PER_YEAR")
 
-        # Extract unique unit provider_codes from CSV (column is named 'unit_id')
+        # Extract unique unit provider_codes from CSV
+        # (column is named 'unit_institutional_id' to be explicit)
         csv_reader = csv.DictReader(io.StringIO(csv_text))
         unit_codes = set()
         for row in csv_reader:
-            unit_code = row.get("unit_id")
+            unit_code = row.get("unit_institutional_id")
             if unit_code and unit_code.strip():
                 unit_codes.add(unit_code.strip())
 
         if not unit_codes:
             raise ValueError(
-                "No valid unit_id values found in CSV. "
+                "No valid unit_institutional_id values found in CSV. "
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
@@ -499,7 +500,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # If still missing after fetch attempt, fail
             if missing_codes:
                 raise ValueError(
-                    "Unknown unit_id values in CSV (could not fetch from provider): "
+                    "Unknown unit_institutional_id values in CSV (could not fetch): "
                     f"{', '.join(missing_codes)}"
                 )
 

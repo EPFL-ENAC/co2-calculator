@@ -30,7 +30,6 @@ router = APIRouter()
 class SyncRequestConfig(BaseModel):
     carbon_report_module_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
-    factor_variant: Optional[str] = None
 
 
 class SyncRequest(BaseModel):
