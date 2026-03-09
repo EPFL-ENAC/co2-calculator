@@ -166,16 +166,9 @@ function toTreemapNode(
     fixedNodeColor ?? node.color ?? levelColor(scale, level, siblingIndex);
 
   const label = resolveLabel(node.name);
-  const percentage =
-    'percentage' in node && typeof node.percentage === 'number'
-      ? node.percentage
-      : undefined;
 
   const treeNode: TreemapNode = {
-    name:
-      percentage !== undefined
-        ? `${label} (${Math.round(percentage)}%)`
-        : label,
+    name: label,
     value: node.value,
     itemStyle: { color },
   };
