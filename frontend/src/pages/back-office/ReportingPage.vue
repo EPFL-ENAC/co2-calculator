@@ -208,7 +208,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       </div>
       <!--  Usage Statistics Box #461 -->
       <ReportingStatCards
-        v-if="false && (units?.data ?? []).length > 1"
+        v-if="(units?.data ?? []).length > 1"
         :stats="{
           [MODULE_STATES.Default]: 31,
           [MODULE_STATES.InProgress]: 1,
