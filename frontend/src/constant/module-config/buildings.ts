@@ -46,8 +46,6 @@ function getBuildingNode(
   if (!entry) return null;
   const buildingName = entry['building_name'];
   if (typeof buildingName !== 'string') return null;
-  const roomType = entry['room_type'];
-  if (typeof roomType !== 'string') return null;
   const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
   if (!taxoNode || !taxoNode.children) return null;
   const buildingNode = taxoNode.children.find(
@@ -92,8 +90,7 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_apartment',
-    optionsFunction: async (subModuleType, entry) => {
-      if (!entry) return [];
+    optionsFunction: async (subModuleType) => {
       const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
       if (!taxoNode || !taxoNode.children) return [];
       return taxoNode.children.map((child) => ({
@@ -144,6 +141,9 @@ const roomFields: ModuleField[] = [
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionsFunction: async (subModuleType, entry) => {
       console.log('Fetching room type options'); // Debug log
+      if (!entry) return [];
+      if (entry['building_name'] === null) return [];
+      if (entry['room_name'] === null) return [];
       const buildingNode = getBuildingNode(subModuleType, entry);
       if (!buildingNode || !buildingNode.children) return [];
       const roomTypes = buildingNode.children.map((child) => ({
@@ -295,6 +295,14 @@ const energyCombustionFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_local_fire_department',
     hideIn: { form: false },
+    optionsFunction: async (subModuleType) => {
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      return taxoNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
   },
   {
     id: 'unit',

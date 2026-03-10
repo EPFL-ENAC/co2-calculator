@@ -76,6 +76,7 @@
                   :entry="form"
                   :selected-year="selectedYear"
                   :errors="errors[inp.id]"
+                  :disabled="disabledFields.includes(inp.id)"
                 />
               </template>
               <template v-else-if="inp.type === 'direction-input'">
@@ -89,6 +90,7 @@
                   :to="String(form.destination ?? '')"
                   :error="!!errors.origin || !!errors.destination"
                   :error-message="errors.origin || errors.destination || ''"
+                  :disabled="disabledFields.includes(inp.id)"
                   :transport-mode="getTravelMode()"
                   :origin-location-id="form.origin_location_id"
                   :destination-location-id="form.destination_location_id"
@@ -130,6 +132,8 @@
                 :field="inp"
                 :entry="form"
                 :errors="errors[inp.id]"
+                :disabled="disabledFields.includes(inp.id)"
+                :options="fieldsOptions[inp.id]"
                 @update:model-value="onDataUpdate"
               />
             </div>
@@ -214,9 +218,11 @@ import {
   MODULES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
 } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
 
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
+const moduleStore = useModuleStore();
 
 const addNoteDialogOpen = ref(false);
 
@@ -257,6 +263,71 @@ const selectedYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
 );
 
+const disabledFields = ref<string[]>([]);
+
+function updateDisabledFields() {
+  disabledFields.value = props.fields
+    ? props.fields
+        .filter((f) => {
+          if (typeof f.disable === 'function') {
+            return f.disable(props.submoduleType, form);
+          }
+          const disabled = !!f.disable;
+          // if disabled, set value to null to avoid sending data for disabled fields
+          if (disabled) form[f.id] = null;
+          return disabled;
+        })
+        .map((f) => f.id)
+    : [];
+}
+
+const fieldsOptions = ref<
+  Record<string, Array<{ value: string; label: string }>>
+>({});
+
+function updateFieldsOptions() {
+  if (!props.fields) return;
+
+  props.fields.forEach(async (field) => {
+    let newOptions: Array<{ value: string; label: string }> = [];
+
+    if (field.optionsFunction) {
+      newOptions = await field.optionsFunction(props.submoduleType, form);
+    } else if (field.options) {
+      newOptions = field.options;
+    }
+
+    const prevOptions = fieldsOptions.value[field.id];
+    fieldsOptions.value[field.id] = newOptions;
+
+    // When options change, reset the field value if it's no longer among the new options
+    if (prevOptions !== undefined) {
+      const currentValue = form[field.id];
+      const valueStillValid =
+        currentValue === null ||
+        currentValue === undefined ||
+        newOptions.some((opt) => opt.value === String(currentValue));
+
+      if (!valueStillValid) {
+        form[field.id] = null;
+      }
+    }
+  });
+}
+
+async function updateFieldsDefaultValues() {
+  if (!props.fields) return;
+
+  for (const field of props.fields) {
+    if (form[field.id] === null || form[field.id] === undefined) {
+      form[field.id] =
+        typeof field.default === 'function'
+          ? await field.default(props.submoduleType, form)
+          : field.default;
+    }
+  }
+}
+
 const visibleFields = computed(() =>
   (props.fields ?? []).filter((f) => !f.hideIn?.form),
 );
@@ -277,9 +348,12 @@ const visibleFieldsWithConditional = computed(() => {
   });
 });
 
-function onDataUpdate() {
+async function onDataUpdate() {
   // This function is called whenever a field value is updated
-  // console.log('Data updated:', form);
+  console.log('Data updated:', form);
+  updateFieldsOptions();
+  updateDisabledFields();
+  await updateFieldsDefaultValues();
 }
 
 // Generic dynamic ratio handling
@@ -372,11 +446,14 @@ async function init() {
     }
     errors[i.id] = null;
   }
+  updateFieldsOptions();
+  updateDisabledFields();
+  await updateFieldsDefaultValues();
 }
 
-// re-init when inputs or rowData change (e.g. dynamic config or edit mode)
+// re-init when inputs or rowData change (e.g. dynamic config or edit mode) or when taxonomy changes (for options)
 watch(
-  () => [props.fields, props.rowData],
+  () => [props.fields, props.rowData, moduleStore.state.taxonomySubmodule],
   () => init(),
   { deep: true, immediate: true },
 );

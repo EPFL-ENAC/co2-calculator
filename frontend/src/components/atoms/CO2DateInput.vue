@@ -10,7 +10,7 @@
     :required="field.required"
     :dense="true"
     :outlined="true"
-    :disable="fieldDisabled"
+    :disable="disabled"
   >
     <template #append>
       <q-icon name="o_event" class="cursor-pointer">
@@ -33,7 +33,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watchEffect } from 'vue';
+import { computed } from 'vue';
 import { QInput, QIcon } from 'quasar';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
@@ -50,6 +50,7 @@ const props = defineProps<{
   selectedYear: string | number;
   loading?: boolean;
   errors?: string | null | undefined;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -70,16 +71,6 @@ const label = computed(() =>
     submoduleTitle: $t(`${props.moduleType}-${props.submoduleType}`),
   }),
 );
-
-const fieldDisabled = ref<boolean>(false);
-
-watchEffect(() => {
-  if (typeof props.field.disable === 'function') {
-    fieldDisabled.value = props.field.disable(props.submoduleType, props.entry);
-  } else {
-    fieldDisabled.value = !!props.field.disable;
-  }
-});
 
 const yearDateRange = computed(() => ({
   min: `${props.selectedYear}/01/01`,
