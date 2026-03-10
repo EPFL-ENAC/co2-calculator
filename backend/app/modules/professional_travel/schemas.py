@@ -17,6 +17,13 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.factor import (
+    BaseFactorHandler,
+    EmissionType,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
+)
 from app.services.location_service import LocationService
 from app.utils.distance_geography import (
     _determine_train_countrycode,
@@ -276,3 +283,86 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
                 quantity_key="distance_km",
             )
         ]
+
+
+class TravelPlaneFactorResponse(FactorResponseGen):
+    category: str
+    ef_kg_co2eq_per_km: float
+    rfi_adjustement: Optional[float] = None
+    min_distance: Optional[float] = None
+    max_distance: Optional[float] = None
+
+
+class TravelTrainFactorResponse(FactorResponseGen):
+    country_code: str
+    ef_kg_co2eq_per_km: float
+
+
+class TravelPlaneFactorCreate(FactorCreate):
+    category: str
+    ef_kg_co2eq_per_km: float
+    rfi_adjustement: Optional[float] = None
+    min_distance: Optional[float] = None
+    max_distance: Optional[float] = None
+
+    classification_fields: list[str] = ["category"]
+    value_fields: list[str] = [
+        "ef_kg_co2eq_per_km",
+        "rfi_adjustement",
+        "min_distance",
+        "max_distance",
+    ]
+
+
+class TravelPlaneFactorUpdate(FactorUpdate):
+    category: Optional[str] = None
+    ef_kg_co2eq_per_km: Optional[float] = None
+    rfi_adjustement: Optional[float] = None
+    min_distance: Optional[float] = None
+    max_distance: Optional[float] = None
+
+    classification_fields: list[str] = ["category"]
+    value_fields: list[str] = [
+        "ef_kg_co2eq_per_km",
+        "rfi_adjustement",
+        "min_distance",
+        "max_distance",
+    ]
+
+
+class TravelTrainFactorCreate(FactorCreate):
+    country_code: str
+    ef_kg_co2eq_per_km: float
+
+    classification_fields: list[str] = ["country_code"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
+
+
+class TravelTrainFactorUpdate(FactorUpdate):
+    country_code: Optional[str] = None
+    ef_kg_co2eq_per_km: Optional[float] = None
+
+    classification_fields: list[str] = ["country_code"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
+
+
+class TravelPlaneFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
+    emission_type: EmissionType = EmissionType.professional_travel__plane
+
+    registration_keys = [DataEntryTypeEnum.plane]
+
+    create_dto = TravelPlaneFactorCreate
+    update_dto = TravelPlaneFactorUpdate
+    response_dto = TravelPlaneFactorResponse
+
+
+class TravelTrainFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
+    emission_type: EmissionType = EmissionType.professional_travel__train
+
+    registration_keys = [DataEntryTypeEnum.train]
+
+    create_dto = TravelTrainFactorCreate
+    update_dto = TravelTrainFactorUpdate
+    response_dto = TravelTrainFactorResponse

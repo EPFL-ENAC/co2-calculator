@@ -315,3 +315,47 @@ class ExternalAIModuleHandler(BaseModuleHandler):
                 formula_func=_ai_formula,
             )
         ]
+
+
+class ExternalAIFactorResponse(FactorResponseGen):
+    provider: str
+    usage_type: str
+    ef_kg_co2eq_per_request: float
+
+
+class ExternalAIFactorCreate(FactorCreate):
+    provider: str
+    usage_type: str
+    ef_kg_co2eq_per_request: float
+
+    classification_fields: list[str] = ["provider", "usage_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_request"]
+
+
+class ExternalAIFactorUpdate(FactorUpdate):
+    provider: Optional[str] = None
+    usage_type: Optional[str] = None
+    ef_kg_co2eq_per_request: Optional[float] = None
+
+    classification_fields: list[str] = ["provider", "usage_type"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_request"]
+
+
+class ExternalAIFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
+    # todo: resolver at runtime based on provider/use
+    emission_type: EmissionType = EmissionType.external__ai
+
+    create_dto = ExternalAIFactorCreate
+    update_dto = ExternalAIFactorUpdate
+    response_dto = ExternalAIFactorResponse
+
+    # instead of having a complex resolve emission_type for factors we could do it here
+    # def _prepare_payload(self, payload: dict) -> dict:
+    #     prepared = dict(payload)
+    #     if "emission_type_id" not in prepared:
+    #         service_type = prepared.get("service_type", "")
+    #         emission_key = str(service_type).lower().strip() or "calcul"
+    #         emission_type = EmissionType[emission_key]
+    #         prepared["emission_type_id"] = emission_type.value
+    #     return super()._prepare_payload(prepared)
