@@ -1,8 +1,5 @@
-import json
-from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
-import yaml
 from pydantic import BaseModel, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -10,8 +7,6 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryBase, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionComputation
 from app.models.module_type import ModuleTypeEnum
-from app.models.taxonomy import TaxonomyNode
-from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
 
@@ -130,18 +125,8 @@ class ModuleHandler(Protocol[T]):
     subkind_field: Optional[str] = None
 
     def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
-    async def resolve_primary_factor_id(
-        self,
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        db: AsyncSession,
-        existing_data: Optional[dict] = None,
-    ) -> dict: ...
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
-    async def get_taxonomy(
-        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
-    ) -> TaxonomyNode: ...
     async def pre_compute(
         self,
         data_entry: Any,
@@ -206,126 +191,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
                 f"No module handler found for data_entry_type={data_entry_type}"
             )
         return handler
-
-    async def resolve_primary_factor_id(
-        self,
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        db: AsyncSession,
-        existing_data: Optional[dict] = None,
-    ) -> dict:
-        if self.kind_field is None or self.subkind_field is None:
-            return payload
-        # payload can be flattened or with "data"
-        data = payload.copy()
-
-        # Merge in existing values for fields not in the payload
-        if existing_data:
-            for key, value in existing_data.items():
-                if key not in data:
-                    data[key] = value
-
-        kind = data.get(self.kind_field, "")
-        subkind = data.get(self.subkind_field, "")
-        # Retrieve the factor
-        factor_service = FactorService(db)
-
-        factor = await factor_service.get_by_classification(
-            data_entry_type=data_entry_type_id, kind=kind, subkind=subkind
-        )
-        payload["primary_factor_id"] = factor.id if factor else None
-        return payload
-
-    async def get_taxonomy(
-        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
-    ) -> TaxonomyNode:
-        """Default implementation to get taxonomy based on factors for this handler's
-        data entry type. Specific handlers can override this method to implement
-        custom taxonomy logic if needed, based on a static file or other source
-        instead of factors. This default implementation assumes a two-level taxonomy
-        based on kind and subkind fields.
-        """
-        return await self.get_taxonomy_from_factors(data_entry_type, db)
-
-    async def get_taxonomy_from_file(self, path: Path) -> TaxonomyNode:
-        """Implementation to get taxonomy from a static file."""
-        if not path.exists():
-            raise FileNotFoundError(f"Taxonomy file not found at path: {path}")
-        # If path ends with .json
-        if path.suffix.lower() == ".json":
-            with open(path, "r") as f:
-                taxonomy_dict = json.load(f)
-            return TaxonomyNode.model_validate(taxonomy_dict)
-        # If path ends with .yaml or .yml
-        if path.suffix.lower() in [".yaml", ".yml"]:
-            with open(path, "r") as f:
-                taxonomy_dict = yaml.safe_load(f)
-            return TaxonomyNode.model_validate(taxonomy_dict)
-        # For other formats, implement the necessary parsing logic here
-        raise ValueError(f"Unsupported taxonomy file format: {path.suffix}")
-
-    async def get_taxonomy_from_factors(
-        self, data_entry_type: DataEntryTypeEnum, db: AsyncSession
-    ) -> TaxonomyNode:
-        """Get the taxonomy for this module handler, based on its data entry type.
-          This default implementation assumes a two-level taxonomy based on kind
-          and subkind fields. Handlers can override this method to implement custom
-          taxonomy logic if needed.
-
-        Args:
-          data_entry_type: The data entry type for which to get the taxonomy
-          db: Database session for retrieving factors if needed
-        Returns:
-          TaxonomyNode representing the taxonomy for this module handler's
-          data entry type
-        """
-        # Retrieve the factor
-        factor_service = FactorService(db)
-        factors = await factor_service.list_by_data_entry_type(data_entry_type)
-        children: list[TaxonomyNode] = []
-        for factor in factors:
-            classification = factor.classification or {}
-            if self.kind_field is None or self.kind_field not in classification:
-                continue  # if no kind/subkind fields defined, skip adding nodes
-            kind_value = classification.get(self.kind_field, "")
-            if kind_value == "":
-                continue  # skip if no kind in classification
-            # find the children based on kind or add it
-            kind_node = next((c for c in children if c.name == kind_value), None)
-            if not kind_node:
-                if self.kind_label_field and self.kind_label_field in classification:
-                    label = classification.get(self.kind_label_field, kind_value)
-                else:
-                    label = self.to_label(kind_value)
-                kind_node = TaxonomyNode(
-                    name=kind_value,
-                    label=label,
-                )
-                children.append(kind_node)
-            if self.subkind_field is None or self.subkind_field not in classification:
-                continue  # if no subkind field defined, skip adding subkind nodes
-            subkind_value = classification.get(self.subkind_field, "")
-            if subkind_value == "":
-                continue  # skip if no subkind in classification
-            if kind_node.children is None:
-                kind_node.children = []
-            if self.subkind_label_field and self.subkind_label_field in classification:
-                subkind_label = classification.get(
-                    self.subkind_label_field, subkind_value
-                )
-            else:
-                subkind_label = self.to_label(subkind_value)
-            kind_node.children.append(
-                TaxonomyNode(
-                    name=subkind_value,
-                    label=subkind_label,
-                )
-            )
-        return TaxonomyNode(
-            name=data_entry_type.name,
-            label=self.to_label(data_entry_type.name),
-            children=children,
-        )
 
     async def pre_compute(
         self,
@@ -396,58 +261,3 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         # capitalize only the first letter, to preserve any existing
         # capitalization (e.g. for acronyms within the name)
         return name[0].upper() + name[1:].replace("_", " ")
-
-
-# --- Helpers ------------------------------------------------ #
-
-
-async def resolve_primary_factor_if_kind_or_subkind_changed(
-    handler: ModuleHandler,
-    update_payload: dict,
-    data_entry_type: DataEntryTypeEnum,
-    item_data: dict,
-    existing_data: dict | None,
-    db: AsyncSession,
-) -> dict:
-    """
-    Resolve primary_factor_id when relevant classification fields change.
-
-    Args:
-        handler: The module handler for this data entry type
-        update_payload: The payload to update
-        data_entry_type: The data entry type enum
-        item_data: The incoming item data from the request
-        existing_data: The existing data entry data
-        db: Database session
-
-    Returns:
-        Updated payload with primary_factor_id resolved if applicable
-    """
-    handler_kind_field = handler.kind_field or ""
-    handler_subkind_field = handler.subkind_field or ""
-
-    if existing_data is None:
-        # No existing data, resolve factor based on incoming data
-        return await handler.resolve_primary_factor_id(
-            update_payload, data_entry_type, db, existing_data=None
-        )
-    kind_changed = (handler_kind_field in item_data) and (
-        item_data[handler_kind_field] != existing_data.get(handler_kind_field)
-    )
-    subkind_changed = (handler_subkind_field in item_data) and (
-        item_data[handler_subkind_field] != existing_data.get(handler_subkind_field)
-    )
-
-    if kind_changed:
-        # If the kind field is being updated, we need to reset subkind and
-        # primary_factor_id to ensure data integrity
-        update_payload[handler_subkind_field] = None
-        update_payload["primary_factor_id"] = None
-
-    # Resolve primary factor when any factor-driving field changed.
-    if kind_changed or subkind_changed:
-        update_payload = await handler.resolve_primary_factor_id(
-            update_payload, data_entry_type, db, existing_data=existing_data
-        )
-
-    return update_payload

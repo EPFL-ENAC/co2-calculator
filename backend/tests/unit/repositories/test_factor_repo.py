@@ -151,7 +151,11 @@ async def test_get_class_subclass_map(repo):
     result_mock.all.return_value = factors
     repo.session.exec = AsyncMock(return_value=result_mock)
 
-    result = await repo.get_class_subclass_map(DataEntryTypeEnum.scientific)
+    result = await repo.get_class_subclass_map(
+        DataEntryTypeEnum.scientific,
+        kind_field="kind",
+        subkind_field="subkind",
+    )
 
     assert result == {"ClassA": ["SubA1", "SubA2"], "ClassB": ["SubB1"]}
 

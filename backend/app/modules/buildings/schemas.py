@@ -1,7 +1,6 @@
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
@@ -18,7 +17,6 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
-from app.services.factor_service import FactorService
 
 
 class BuildingRoomBuildingResponse(BaseModel):
@@ -265,26 +263,6 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     filter_map = {
         "name": Factor.classification["kind"].as_string(),
     }
-
-    async def resolve_primary_factor_id(
-        self,
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        db: AsyncSession,
-        existing_data: Optional[dict] = None,
-    ) -> dict:
-        data = payload.copy()
-        if existing_data:
-            for key, value in existing_data.items():
-                if key not in data:
-                    data[key] = value
-        kind = data.get("name", "")
-        factor_service = FactorService(db)
-        factor = await factor_service.get_by_classification(
-            data_entry_type=data_entry_type_id, kind=kind
-        )
-        payload["primary_factor_id"] = factor.id if factor else None
-        return payload
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict

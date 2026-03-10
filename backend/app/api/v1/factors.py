@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.user import User
+from app.schemas.data_entry import BaseModuleHandler
 from app.services.factor_service import FactorService
 
 router = APIRouter()
@@ -21,10 +22,12 @@ async def get_class_subclass_map(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, list[str]]:
     """Get mapping of equipment classes to subclasses for a given submodule."""
-    response = await FactorService(db).get_class_subclass_map(
-        data_entry_type=data_entry_type
+    handler = BaseModuleHandler.get_by_type(data_entry_type)
+    return await FactorService(db).get_class_subclass_map(
+        data_entry_type=data_entry_type,
+        kind_field=handler.kind_field or "",
+        subkind_field=handler.subkind_field or "",
     )
-    return response
 
 
 # example of call

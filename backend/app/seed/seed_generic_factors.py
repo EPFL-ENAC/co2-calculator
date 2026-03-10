@@ -116,7 +116,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
                         f"Missing required classification field '{field_name}'"
                         f" for {data_entry_type.name} factor: {row}"
                     )
-                classification[field_name] = row.get(field_name) or ""
+                classification[field_name] = row.get(field_name) or None
 
             values: dict[str, float | int | str | None] = {}
             for field_name in handler.value_fields:

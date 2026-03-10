@@ -33,7 +33,6 @@ from app.schemas.data_entry import (
     DataEntryResponse,
     DataEntryUpdate,
     ModuleHandler,
-    resolve_primary_factor_if_kind_or_subkind_changed,
 )
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -389,19 +388,12 @@ async def create(
             "carbon_report_module_id": carbon_report_module_id,
         }
         handler = BaseModuleHandler.get_by_type(data_entry_type)
-        create_payload = await handler.resolve_primary_factor_id(
-            create_payload, data_entry_type, db
-        )
 
-        # If kind or subkind is being updated
-        # we may need to resolve a new primary factor ID
-        create_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
-            handler,
-            create_payload,
-            data_entry_type,
-            item_data,
-            existing_data=None,
-            db=db,
+        from app.services.module_handler_service import ModuleHandlerService
+
+        handler_service = ModuleHandlerService(db)
+        create_payload = await handler_service.resolve_primary_factor_id(
+            handler, create_payload, data_entry_type
         )
 
         validated_data = handler.validate_create(create_payload)
@@ -559,10 +551,12 @@ async def update(
             "carbon_report_module_id": carbon_report_module_id,
         }
         handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
-        # If kind or subkind is being updated
-        # we may need to resolve a new primary factor ID
-        update_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
-            handler, update_payload, data_entry_type, item_data, existing_data, db
+
+        from app.services.module_handler_service import ModuleHandlerService
+
+        handler_service = ModuleHandlerService(db)
+        update_payload = await handler_service.resolve_primary_factor_if_changed(
+            handler, update_payload, data_entry_type, item_data, existing_data
         )
 
         # For equipment partial PATCH, validate against merged persisted+incoming
