@@ -161,6 +161,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
     }
 
     async def pre_compute(self, data_entry, session) -> dict:
+        """Validate usage hours constraints (user data only)."""
         data = data_entry.data if hasattr(data_entry, "data") else {}
 
         active_hours = data.get("active_usage_hours_per_week")
@@ -176,20 +177,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
                 "standby_usage_hours_per_week must be <= 168"
             )
 
-        active_power_w = data.get("primary_factor", {}).get("active_power_w")
-        standby_power_w = data.get("primary_factor", {}).get("standby_power_w")
-        if active_power_w is None or standby_power_w is None:
-            return {}
-
-        weekly_wh = (float(active_hours) * float(active_power_w)) + (
-            float(standby_hours) * float(standby_power_w)
-        )
-        annual_kwh = (weekly_wh * get_settings().WEEKS_PER_YEAR) / 1000
-
-        return {
-            "weekly_wh": weekly_wh,
-            "annual_kwh": annual_kwh,
-        }
+        return {}
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
 
@@ -198,13 +186,22 @@ class EquipmentModuleHandler(BaseModuleHandler):
             return []
 
         def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
-            annual_kwh = ctx.get("annual_kwh")
-            if annual_kwh is not None:
-                ef = factor_values.get("ef_kg_co2eq_per_kwh")
-                if ef is None:
-                    return None
-                return float(annual_kwh) * float(ef)
-            return None
+            active_hours = ctx.get("active_usage_hours_per_week")
+            standby_hours = ctx.get("standby_usage_hours_per_week")
+            if active_hours is None or standby_hours is None:
+                return None
+
+            active_power_w = factor_values.get("active_power_w")
+            standby_power_w = factor_values.get("standby_power_w")
+            ef = factor_values.get("ef_kg_co2eq_per_kwh")
+            if active_power_w is None or standby_power_w is None or ef is None:
+                return None
+
+            weekly_wh = (float(active_hours) * float(active_power_w)) + (
+                float(standby_hours) * float(standby_power_w)
+            )
+            annual_kwh = (weekly_wh * get_settings().WEEKS_PER_YEAR) / 1000
+            return annual_kwh * float(ef)
 
         return [
             EmissionComputation(

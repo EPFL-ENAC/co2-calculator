@@ -121,7 +121,7 @@ seed-data: ## Seed the database with initial data
 # Random seeds
 #	$(UV) run -m app.seed.seed_all
 # custom seeds from ./backend/seed_data folder
-	$(UV) run -m app.seed.seed_fake_user_unit
+# 	$(UV) run -m app.seed.seed_fake_user_unit
 # 	for now replace seed_generic_factors replace only seed_emission_factors
 	$(UV) run -m app.seed.seed_generic_factors
 # 	$(UV) run -m app.seed.seed_equipment

@@ -108,56 +108,46 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         except (TypeError, ValueError):
             return 0.0
 
-    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
-        """Pre-compute per-subcategory kWh from * kwh_per_square_meter × surface."""
-        surface = data_entry.data.get("room_surface_square_meter") or 0
-        return {
-            "lighting_kwh": (data_entry.data.get("lighting_kwh_per_square_meter") or 0)
-            * surface,
-            "cooling_kwh": (data_entry.data.get("cooling_kwh_per_square_meter") or 0)
-            * surface,
-            "ventilation_kwh": (
-                data_entry.data.get("ventilation_kwh_per_square_meter") or 0
-            )
-            * surface,
-            "heating_kwh": (data_entry.data.get("heating_kwh_per_square_meter") or 0)
-            * surface,
-        }
-
-    # Maps each building EmissionType leaf → context quantity_key.
-    _EMISSION_TO_QUANTITY: dict = {
-        EmissionType.buildings__rooms__lighting: "lighting_kwh",
-        EmissionType.buildings__rooms__cooling: "cooling_kwh",
-        EmissionType.buildings__rooms__ventilation: "ventilation_kwh",
-        EmissionType.buildings__rooms__heating_elec: "heating_kwh",
-        EmissionType.buildings__rooms__heating_thermal: "heating_kwh",
+    # Maps each building EmissionType leaf → factor field for kwh/m².
+    _EMISSION_TO_KWH_FIELD: dict = {
+        EmissionType.buildings__rooms__lighting: "lighting_kwh_per_square_meter",
+        EmissionType.buildings__rooms__cooling: "cooling_kwh_per_square_meter",
+        EmissionType.buildings__rooms__ventilation: "ventilation_kwh_per_square_meter",
+        EmissionType.buildings__rooms__heating_elec: "heating_kwh_per_square_meter",
+        EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
 
     @staticmethod
     def _compute_kwh_emission(
         ctx: dict,
         factor_values: dict,
-        quantity_key: str,
+        kwh_field: str,
     ) -> float | None:
-        quantity = ctx.get(quantity_key)
+        """Compute kg_co2eq from surface × kwh_per_m² × ef × conversion."""
+        surface = ctx.get("room_surface_square_meter")
+        kwh_per_m2 = factor_values.get(kwh_field)
         ef = factor_values.get("ef_kg_co2eq_per_kwh")
-        if quantity is None or ef is None:
+        if surface is None or kwh_per_m2 is None or ef is None:
             return None
 
         conversion_factor = factor_values.get("conversion_factor") or 1.0
-        return float(quantity) * float(ef) * float(conversion_factor)
+        kwh = float(surface) * float(kwh_per_m2)
+        return kwh * float(ef) * float(conversion_factor)
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
 
-        quantity_key = self._EMISSION_TO_QUANTITY.get(emission_type)
-        if not quantity_key:
+        kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)
+        if not kwh_field:
             return []
         building_name = (ctx.get("building_name") or "").strip()
         room_type = (ctx.get("room_type") or "").strip().lower()
         if not building_name or not room_type:
             return []
+
+        def _building_formula(ctx: dict, factor_values: dict) -> float | None:
+            return self._compute_kwh_emission(ctx, factor_values, kwh_field)
 
         return [
             EmissionComputation(
@@ -168,11 +158,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                     subkind=room_type,
                     context={},
                 ),
-                formula_key="ef_kg_co2eq_per_kwh",
-                quantity_key=quantity_key,
-                multiplier_key="conversion_factor",
-                multiplier_default=1.0,
-                formula_func=None,
+                formula_func=_building_formula,
             )
         ]
 

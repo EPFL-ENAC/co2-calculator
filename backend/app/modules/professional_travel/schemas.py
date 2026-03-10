@@ -17,9 +17,12 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.services.location_service import LocationService
 from app.utils.distance_geography import (
+    _determine_train_countrycode,
     calculate_plane_distance,
     calculate_train_distance,
+    get_haul_category,
 )
 
 logger = get_logger(__name__)
@@ -168,8 +171,6 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
-        from app.services.location_service import LocationService
-        from app.utils.distance_geography import get_haul_category
 
         loc_service = LocationService(session)
         origin = await loc_service.get_location_by_id(origin_id)
@@ -232,10 +233,6 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if not origin_id or not dest_id:
             return {}
-        from app.services.location_service import LocationService
-        from app.utils.distance_geography import (
-            _determine_train_countrycode,
-        )
 
         loc_service = LocationService(session)
         origin = await loc_service.get_location_by_id(origin_id)
