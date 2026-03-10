@@ -108,6 +108,40 @@ class DataEntryRepository:
         await self.session.flush()
         return bool(deleted)
 
+    async def check_json_field_unique(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        field: str,
+        value: str,
+        exclude_id: Optional[int] = None,
+    ) -> bool:
+        """Check whether a JSON data field value is unique within a submodule.
+
+        Args:
+            carbon_report_module_id: The module to scope the check to.
+            data_entry_type_id: The submodule type.
+            field: The JSON key inside ``DataEntry.data`` to check.
+            value: The value that must be unique.
+            exclude_id: Optional entry ID to exclude (for PATCH uniqueness checks).
+
+        Returns:
+            True if the value is unique (no conflicting row found), False otherwise.
+        """
+        statement = (
+            select(DataEntry)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+                DataEntry.data[field].as_string() == value,
+            )
+            .limit(1)
+        )
+        if exclude_id is not None:
+            statement = statement.where(col(DataEntry.id) != exclude_id)
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none() is None
+
     async def get_list(
         self,
         carbon_report_module_id: int,

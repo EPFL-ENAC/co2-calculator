@@ -815,10 +815,15 @@ function buildPayload(): Record<
   return payload;
 }
 
+function setFieldError(fieldId: string, error: string | null) {
+  errors[fieldId] = error;
+}
+
+defineExpose({ setFieldError });
+
 function onSubmit() {
   if (!validateForm()) return;
   emit('submit', buildPayload());
-  reset();
 }
 
 function reset() {

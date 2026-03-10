@@ -72,6 +72,34 @@ class DataEntryService:
             aggregate_field=aggregate_field,
         )
 
+    async def check_json_field_unique(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        field: str,
+        value: str,
+        exclude_id: Optional[int] = None,
+    ) -> bool:
+        """Check whether a JSON data field value is unique within a submodule.
+
+        Args:
+            carbon_report_module_id: The module to scope the check to.
+            data_entry_type_id: The submodule type.
+            field: The JSON key inside the entry data to check.
+            value: The value that must be unique.
+            exclude_id: Optional entry ID to exclude (for PATCH uniqueness checks).
+
+        Returns:
+            True if the value is unique, False otherwise.
+        """
+        return await self.repo.check_json_field_unique(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            field=field,
+            value=value,
+            exclude_id=exclude_id,
+        )
+
     async def create(
         self,
         carbon_report_module_id: int,

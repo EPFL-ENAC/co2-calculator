@@ -50,6 +50,7 @@
       <q-separator />
       <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
         <module-form
+          ref="formRef"
           :fields="submodule.moduleFields"
           :submodule-type="submodule.type"
           :module-type="moduleType"
@@ -83,7 +84,7 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
@@ -97,6 +98,7 @@ import type {
 } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 interface Option {
   label: string;
   value: string;
@@ -167,7 +169,9 @@ const hasTableTooltip = computed(() => {
 
 // actions
 
-function submitForm(payload: Record<string, FieldValue>) {
+const formRef = ref<InstanceType<typeof ModuleForm> | null>(null);
+
+async function submitForm(payload: Record<string, FieldValue>) {
   // if update! (for headcount student for instance)
   if (item.value && item.value.id) {
     return moduleStore.patchItem(
@@ -179,13 +183,21 @@ function submitForm(payload: Record<string, FieldValue>) {
       payload,
     );
   } else {
-    moduleStore.postItem(
-      props.moduleType,
-      props.unitId,
-      props.year,
-      props.submoduleType,
-      payload,
-    );
+    try {
+      await moduleStore.postItem(
+        props.moduleType,
+        props.unitId,
+        props.year,
+        props.submoduleType,
+        payload,
+      );
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : 'Unexpected error';
+      formRef.value?.setFieldError(
+        'user_institutional_id',
+        raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL),
+      );
+    }
   }
 }
 </script>
