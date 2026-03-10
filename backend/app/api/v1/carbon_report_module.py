@@ -21,7 +21,10 @@ from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.modules.headcount.schemas import HeadcountItemResponse
+from app.modules.headcount.schemas import (
+    HeadcountItemResponse,
+    HeadcountMemberDropdownItem,
+)
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -211,6 +214,41 @@ async def get_evolution_over_time(
         unit_id=unit_id,
     )
     return stats
+
+
+@router.get(
+    "/{unit_id}/{year}/headcount/members",
+    response_model=List[HeadcountMemberDropdownItem],
+)
+async def list_headcount_members(
+    unit_id: int,
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[HeadcountMemberDropdownItem]:
+    """List headcount members with an institutional ID for traveler dropdowns.
+
+    Args:
+        unit_id: Unit ID.
+        year: Report year.
+        db: Database session.
+        current_user: Authenticated user.
+
+    Returns:
+        Members ordered by name, each with ``institutional_id`` and ``name``.
+    """
+    await _check_module_permission(current_user, "headcount", "view")
+
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum.headcount,
+        db=db,
+    )
+    rows = await DataEntryService(db).get_headcount_members(
+        carbon_report_module_id=carbon_report_module_id,
+    )
+    return [HeadcountMemberDropdownItem(**row) for row in rows]
 
 
 @router.get(
@@ -475,6 +513,42 @@ async def create(
                     detail="This user institutional id already exists.",
                 )
 
+        # For travel entries, validate user_institutional_id against headcount
+        # and inject traveler_name
+        if data_entry_type in (DataEntryTypeEnum.plane, DataEntryTypeEnum.train):
+            institutional_id = validated_data.model_dump().get("user_institutional_id")
+            if institutional_id is not None:
+                headcount_crm_id = await get_carbon_report_id(
+                    unit_id=unit_id,
+                    year=year,
+                    module_type_id=ModuleTypeEnum.headcount,
+                    db=db,
+                )
+                member = await DataEntryService(db).get_member_by_institutional_id(
+                    carbon_report_module_id=headcount_crm_id,
+                    institutional_id=str(institutional_id),
+                )
+                if member is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            "Traveler institutional ID not found in this unit's "
+                            "headcount for the given year."
+                        ),
+                    )
+                # Inject resolved traveler_name so it is persisted with the entry.
+                # model_dump() includes a nested "data" dict (from unflatten_payload);
+                # both the top-level key and the nested dict must be updated so that
+                # DataEntryCreate stores the resolved name in the JSON column.
+                resolved_name = member.data.get("name", "")
+                validated_data_dict = validated_data.model_dump()
+                validated_data_dict["traveler_name"] = resolved_name
+                if isinstance(validated_data_dict.get("data"), dict):
+                    validated_data_dict["data"]["traveler_name"] = resolved_name
+                validated_data = type(validated_data).model_validate(
+                    validated_data_dict
+                )
+
         data_entry_create = DataEntryCreate(
             **validated_data.model_dump(exclude_unset=True)
         )
@@ -643,6 +717,41 @@ async def update(
         # TODO: we should validate on merge data also for patch
 
         validated_data = handler.validate_update(update_payload)
+
+        # For travel entries, re-validate user_institutional_id
+        # and refresh traveler_name
+        if (
+            data_entry_type in (DataEntryTypeEnum.plane, DataEntryTypeEnum.train)
+            and "user_institutional_id" in item_data
+        ):
+            institutional_id = validated_data.model_dump().get("user_institutional_id")
+            if institutional_id is not None:
+                headcount_crm_id = await get_carbon_report_id(
+                    unit_id=unit_id,
+                    year=year,
+                    module_type_id=ModuleTypeEnum.headcount,
+                    db=db,
+                )
+                member = await DataEntryService(db).get_member_by_institutional_id(
+                    carbon_report_module_id=headcount_crm_id,
+                    institutional_id=str(institutional_id),
+                )
+                if member is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            "Traveler institutional ID not found in this unit's "
+                            "headcount for the given year."
+                        ),
+                    )
+                resolved_name = member.data.get("name", "")
+                validated_data_dict = validated_data.model_dump()
+                validated_data_dict["traveler_name"] = resolved_name
+                if isinstance(validated_data_dict.get("data"), dict):
+                    validated_data_dict["data"]["traveler_name"] = resolved_name
+                validated_data = type(validated_data).model_validate(
+                    validated_data_dict
+                )
 
         data_entry_update = DataEntryUpdate(
             **validated_data.model_dump(exclude_unset=True)

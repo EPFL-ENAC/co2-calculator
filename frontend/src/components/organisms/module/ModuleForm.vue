@@ -174,6 +174,21 @@
                   @swap="handleSwapLocations"
                 />
               </template>
+              <template v-else-if="inp.type === 'headcount-member-select'">
+                <HeadcountMemberSelect
+                  :model-value="form[inp.id] ?? null"
+                  :unit-id="props.unitId"
+                  :year="props.year"
+                  :label="
+                    $t(`${inp.labelKey || inp.label}`, {
+                      submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                    })
+                  "
+                  :error="!!errors[inp.id]"
+                  :error-message="errors[inp.id] ?? ''"
+                  @update:model-value="(val) => (form[inp.id] = val)"
+                />
+              </template>
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -296,6 +311,7 @@ import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
@@ -609,8 +625,12 @@ function init() {
             }
             break;
           default:
-            // Use null for select fields, empty string for text fields
-            form[i.id] = effectiveType === 'select' ? null : '';
+            // Use null for select/headcount-member-select, empty string for text
+            form[i.id] =
+              effectiveType === 'select' ||
+              effectiveType === 'headcount-member-select'
+                ? null
+                : '';
         }
       }
     }
@@ -855,8 +875,12 @@ function reset() {
       form.destination_location_id = undefined;
       form.distance_km = null;
     } else {
-      // Use null for select fields, empty string for text fields
-      form[i.id] = effectiveType === 'select' ? null : '';
+      // Use null for select/headcount-member-select, empty string for text
+      form[i.id] =
+        effectiveType === 'select' ||
+        effectiveType === 'headcount-member-select'
+          ? null
+          : '';
     }
     errors[i.id] = null;
   });

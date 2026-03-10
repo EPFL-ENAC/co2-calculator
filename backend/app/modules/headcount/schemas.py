@@ -142,6 +142,13 @@ class HeadCountUpdate(DataEntryUpdate):
         return v
 
 
+class HeadcountMemberDropdownItem(BaseModel):
+    """Lightweight member record used to populate traveler dropdowns."""
+
+    institutional_id: int
+    name: str
+
+
 class HeadcountMemberModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.member

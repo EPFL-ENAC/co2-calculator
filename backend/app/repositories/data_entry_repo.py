@@ -605,3 +605,61 @@ class DataEntryRepository:
             aggregation[label] = float(total) if total is not None else 0.0
 
         return aggregation
+
+    async def get_headcount_members(
+        self,
+        carbon_report_module_id: int,
+    ) -> list[dict]:
+        """Return members with an institutional ID, ordered by name.
+
+        Args:
+            carbon_report_module_id: The headcount module to query.
+
+        Returns:
+            List of dicts with ``institutional_id`` and ``name`` keys.
+        """
+        statement = (
+            select(DataEntry.data)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+                DataEntry.data["user_institutional_id"].as_string().isnot(None),
+            )
+            .order_by(DataEntry.data["name"].as_string())
+        )
+        result = await self.session.execute(statement)
+        rows = result.scalars().all()
+        members = []
+        for data in rows:
+            uid = data.get("user_institutional_id")
+            if uid:
+                members.append(
+                    {"institutional_id": int(uid), "name": data.get("name", "")}
+                )
+        return members
+
+    async def get_member_by_institutional_id(
+        self,
+        carbon_report_module_id: int,
+        institutional_id: str,
+    ) -> Optional[DataEntry]:
+        """Fetch the first member entry whose user_institutional_id matches.
+
+        Args:
+            carbon_report_module_id: The headcount module to scope the search.
+            institutional_id: The institutional ID (digits only) to look up.
+
+        Returns:
+            The matching ``DataEntry``, or ``None`` if not found.
+        """
+        statement = (
+            select(DataEntry)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+                DataEntry.data["user_institutional_id"].as_string() == institutional_id,
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()

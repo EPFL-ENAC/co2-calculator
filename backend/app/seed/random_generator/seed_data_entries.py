@@ -172,7 +172,7 @@ def maybe(value, probability=0.5):  # nosec B311
 def build_professional_travel():
     return {
         "traveler_name": fake.name(),
-        "traveler_id": maybe(random.randint(1, 1000)),  # nosec B311
+        "user_institutional_id": maybe(random.randint(1, 1000)),  # nosec B311
         "origin_location_id": random.randint(1, 200),  # nosec B311
         "destination_location_id": random.randint(1, 200),  # nosec B311
         "transport_mode": random.choice(list(TransportModeEnum)).value,  # nosec B311
