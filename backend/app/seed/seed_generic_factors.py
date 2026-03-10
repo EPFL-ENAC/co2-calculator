@@ -12,6 +12,15 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.modules.external_cloud_and_ai import (
     schemas as schemas,
 )  # This ensures the handlers are registered
+from app.modules.process_emissions import (
+    schemas as _pe_schemas,  # noqa: F401 — registers handlers
+)
+from app.modules.purchase import (
+    schemas as _purchase_schemas,  # noqa: F401 — registers handlers
+)
+from app.modules.research_facilities import (
+    schemas as _rf_schemas,  # noqa: F401 — registers handlers
+)
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import (
     get_factor_emission_type_id,

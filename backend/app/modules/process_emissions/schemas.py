@@ -13,6 +13,12 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.factor import (
+    BaseFactorHandler,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
+)
 
 logger = get_logger(__name__)
 
@@ -106,7 +112,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
             quantity_kg = ctx.get("quantity", 0)
             if quantity_kg < 0:
                 return None
-            gwp = factor_values.get("gwp_kg_co2eq_per_kg", 0)
+            gwp = factor_values.get("ef_kg_co2eq_per_unit", 0)
             return quantity_kg * gwp
 
         return [
@@ -116,3 +122,49 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
                 formula_func=_process_formula,
             )
         ]
+
+
+## PROCESS EMISSIONS FACTOR HANDLER
+
+process_emissions_classification_fields: list[str] = [
+    "category",
+    "subcategory",
+    "unit",
+]
+process_emissions_value_fields: list[str] = [
+    "ef_kg_co2eq_per_unit",
+]
+
+
+class ProcessEmissionsFactorCreate(FactorCreate):
+    category: str
+    subcategory: Optional[str] = None
+    unit: Optional[str] = None
+    ef_kg_co2eq_per_unit: Optional[float] = None
+
+
+class ProcessEmissionsFactorUpdate(FactorUpdate):
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    unit: Optional[str] = None
+    ef_kg_co2eq_per_unit: Optional[float] = None
+
+
+class ProcessEmissionsFactorResponse(FactorResponseGen):
+    category: str
+    subcategory: Optional[str] = None
+    unit: Optional[str] = None
+    ef_kg_co2eq_per_unit: Optional[float] = None
+
+
+class ProcessEmissionsFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [DataEntryTypeEnum.process_emissions]
+    emission_type = None  # resolved dynamically from category
+
+    create_dto = ProcessEmissionsFactorCreate
+    update_dto = ProcessEmissionsFactorUpdate
+    response_dto = ProcessEmissionsFactorResponse
+
+    classification_fields: list[str] = process_emissions_classification_fields
+    value_fields: list[str] = process_emissions_value_fields

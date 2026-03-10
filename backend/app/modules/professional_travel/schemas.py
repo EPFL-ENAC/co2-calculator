@@ -133,8 +133,8 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
     update_dto: type[DataEntryUpdate]
     response_dto: type[DataEntryResponseGen]
 
-    kind_field = None
-    subkind_field = None
+    kind_field: Optional[str] = None
+    subkind_field: Optional[str] = None
     require_subkind_for_factor = False
     require_factor_to_match = False
 
@@ -169,6 +169,8 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     create_dto = ProfessionalTravelPlaneHandlerCreate
     update_dto = ProfessionalTravelPlaneHandlerUpdate
     response_dto = ProfessionalTravelPlaneHandlerResponse
+
+    kind_field: str = "category"
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute flight distance and haul category
@@ -221,7 +223,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
                 ),
                 formula_key="ef_kg_co2eq_per_km",
                 quantity_key="distance_km",
-                multiplier_key="rfi_adjustement",
+                multiplier_key="rfi_adjustment",
                 multiplier_default=1.0,
             )
         ]
@@ -264,20 +266,18 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
-        country_code = str(ctx.get("country_code") or None)
+        country_code = ctx.get("country_code") or None
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.train,
-                    # Train factors are seeded with country code in "kind"
-                    # (e.g. "CH", "FR", "RoW"), without subkind.
-                    kind=country_code,
+                    # Train factors are keyed by country_code in classification.
+                    # Fall back to RoW if the exact country is not found.
+                    kind=None,
                     subkind=None,
-                    context={},
-                    # Some countries may not have a dedicated train factor.
-                    # Fall back to RoW instead of leaving kg_co2eq empty.
-                    fallbacks={"kind": "RoW"},
+                    context={"country_code": country_code},
+                    fallbacks={"country_code": "RoW"},
                 ),
                 formula_key="ef_kg_co2eq_per_km",
                 quantity_key="distance_km",
@@ -288,7 +288,8 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
 class TravelPlaneFactorResponse(FactorResponseGen):
     category: str
     ef_kg_co2eq_per_km: float
-    rfi_adjustement: Optional[float] = None
+    class_adjustement: Optional[float] = None
+    rfi_adjustment: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
@@ -301,14 +302,16 @@ class TravelTrainFactorResponse(FactorResponseGen):
 class TravelPlaneFactorCreate(FactorCreate):
     category: str
     ef_kg_co2eq_per_km: float
-    rfi_adjustement: Optional[float] = None
+    class_adjustement: Optional[float] = None
+    rfi_adjustment: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
     classification_fields: list[str] = ["category"]
     value_fields: list[str] = [
         "ef_kg_co2eq_per_km",
-        "rfi_adjustement",
+        "class_adjustement",
+        "rfi_adjustment",
         "min_distance",
         "max_distance",
     ]
@@ -317,14 +320,16 @@ class TravelPlaneFactorCreate(FactorCreate):
 class TravelPlaneFactorUpdate(FactorUpdate):
     category: Optional[str] = None
     ef_kg_co2eq_per_km: Optional[float] = None
-    rfi_adjustement: Optional[float] = None
+    class_adjustement: Optional[float] = None
+    rfi_adjustment: Optional[float] = None
     min_distance: Optional[float] = None
     max_distance: Optional[float] = None
 
     classification_fields: list[str] = ["category"]
     value_fields: list[str] = [
         "ef_kg_co2eq_per_km",
-        "rfi_adjustement",
+        "class_adjustement",
+        "rfi_adjustment",
         "min_distance",
         "max_distance",
     ]

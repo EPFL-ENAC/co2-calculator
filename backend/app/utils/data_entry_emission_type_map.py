@@ -49,6 +49,9 @@ FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # commuting, grey_energy). kg_co2eq per row comes from each factor's own
     # formula; no splitting needed. Grey_energy rows will be added once factors exist.
     DataEntryTypeEnum.building: [EmissionType.buildings__rooms],
+    # --- Professional Travel — one factor per haul/country, not per cabin -----
+    DataEntryTypeEnum.plane: [EmissionType.professional_travel__plane],
+    DataEntryTypeEnum.train: [EmissionType.professional_travel__train],
 }
 
 DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
@@ -166,6 +169,7 @@ _PROCESS_GAS_MAP: dict[str, EmissionType] = {
     "co2": EmissionType.process_emissions__co2,
     "n2o": EmissionType.process_emissions__n2o,
     "refrigerants": EmissionType.process_emissions__refrigerants,
+    "refrigerant": EmissionType.process_emissions__refrigerants,  # CSV spelling
 }
 
 
