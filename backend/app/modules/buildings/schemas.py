@@ -1,6 +1,12 @@
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
@@ -17,6 +23,23 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.factor import (
+    BaseFactorHandler,
+    EmissionType,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
+)
+
+
+def _validate_non_negative_float(
+    v: Optional[float], field_name: str
+) -> Optional[float]:
+    if v is None:
+        return v
+    if v < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return v
 
 
 class BuildingRoomBuildingResponse(BaseModel):
@@ -193,6 +216,126 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         return self.update_dto.model_validate(payload)
 
 
+## BUILDINGS FACTOR HANDLER
+
+
+## FACTORS for BUILDINGS
+
+buildings_classification_fields: list[str] = [
+    "building_name",
+    "room_type",
+    "energy_type",
+]
+buildings_value_fields: list[str] = [
+    "ef_kg_co2eq_per_kwh",
+    "heating_kwh_per_square_meter",
+    "cooling_kwh_per_square_meter",
+    "ventilation_kwh_per_square_meter",
+    "lighting_kwh_per_square_meter",
+    "conversion_factor",
+]
+
+
+class _BuildingsFactorValidationMixin:
+    @field_validator(
+        "ef_kg_co2eq_per_kwh",
+        "heating_kwh_per_square_meter",
+        "cooling_kwh_per_square_meter",
+        "ventilation_kwh_per_square_meter",
+        "lighting_kwh_per_square_meter",
+        mode="after",
+    )
+    @classmethod
+    def validate_factor_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+    @field_validator("room_type", mode="after")
+    @classmethod
+    def validate_room_type(cls, v: str) -> str:
+        valid_room_types = [
+            "office",
+            "miscellaneous",
+            "laboratories",
+            "archives",
+            "libraries",
+            "auditoriums",
+            None,
+        ]
+        if not v:
+            raise ValueError("Room type is required")
+        if v not in valid_room_types:
+            raise ValueError("Invalid room type")
+        return v
+
+    @field_validator("energy_type", mode="after")
+    @classmethod
+    def validate_energy_type(cls, v: str) -> str:
+        valid_energy_types = [
+            "electric",
+            "thermal",
+            None,
+        ]
+        if not v:
+            raise ValueError("Energy type is required")
+        if v not in valid_energy_types:
+            raise ValueError("Invalid energy type")
+        return v
+
+    # todo: if conversion_factor is None -> 1.0
+    # but should we enforce it to be set explicitly in the factor?
+
+
+class BuildingBaseFactor:
+    building_name: str
+    room_type: str
+    heating_kwh_per_square_meter: float
+    cooling_kwh_per_square_meter: float
+    ventilation_kwh_per_square_meter: float
+    lighting_kwh_per_square_meter: float
+    ef_kg_co2eq_per_kwh: float
+    energy_type: str
+    conversion_factor: float
+
+
+class BuildingsFactorCreate(
+    _BuildingsFactorValidationMixin, FactorCreate, BuildingBaseFactor
+):
+    pass
+
+
+class BuildingsFactorUpdate(
+    _BuildingsFactorValidationMixin, FactorUpdate, BuildingBaseFactor
+):
+    pass
+
+
+class BuildingsFactorResponse(FactorResponseGen, BuildingBaseFactor):
+    pass
+
+
+class BuildingsFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [
+        DataEntryTypeEnum.building,
+    ]
+    emission_type: EmissionType = EmissionType.buildings__rooms
+
+    create_dto = BuildingsFactorCreate
+    update_dto = BuildingsFactorUpdate
+    response_dto = BuildingsFactorResponse
+
+    classification_fields: list[str] = buildings_classification_fields
+    value_fields: list[str] = buildings_value_fields
+
+    def to_response(self, factor: Factor) -> FactorResponseGen:
+        return self.response_dto.model_validate(factor.model_dump)
+
+
+### ENERGY COMBUSTION DATA_ENTRY_TYPE
+
+
 class EnergyCombustionHandlerResponse(DataEntryResponseGen):
     name: str
     unit: Optional[str] = None
@@ -285,3 +428,64 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> EnergyCombustionHandlerUpdate:
         return self.update_dto.model_validate(payload)
+
+
+## ENERGY COMBUSTION FACTOR HANDLER
+
+
+## FACTORS for energy combustion
+
+energy_combustion_classification_fields: list[str] = ["unit", "name"]
+energy_combustion_value_fields: list[str] = [
+    "ef_kg_co2eq_per_unit",
+]
+
+
+class _EnergyCombustionFactorValidationMixin:
+    @field_validator("ef_kg_co2eq_per_unit", mode="after")
+    @classmethod
+    def validate_factor_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+
+class EnergyCombustionFactorCreate(
+    _EnergyCombustionFactorValidationMixin, FactorCreate
+):
+    # data_entry_type: str #only for upload in datamanagement
+    unit: str
+    name: str
+    ef_kg_co2eq_per_unit: float
+
+
+class EnergyCombustionFactorUpdate(
+    _EnergyCombustionFactorValidationMixin, FactorUpdate
+):
+    unit: Optional[str] = None
+    name: Optional[str] = None
+    ef_kg_co2eq_per_unit: Optional[float] = None
+
+
+class EnergyCombustionFactorResponse(FactorResponseGen):
+    unit: str
+    name: str
+    ef_kg_co2eq_per_unit: float
+
+
+class EnergyCombustionFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [
+        DataEntryTypeEnum.energy_combustion,
+    ]
+    emission_type: EmissionType = EmissionType.buildings__combustion
+
+    create_dto = EnergyCombustionFactorCreate
+    update_dto = EnergyCombustionFactorUpdate
+    response_dto = EnergyCombustionFactorResponse
+
+    classification_fields: list[str] = energy_combustion_classification_fields
+    value_fields: list[str] = energy_combustion_value_fields
+
+    def to_response(self, factor: Factor) -> FactorResponseGen:
+        return self.response_dto.model_validate(factor.model_dump)

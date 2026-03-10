@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -13,8 +13,25 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.factor import (
+    BaseFactorHandler,
+    EmissionType,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
+)
 
 logger = get_logger(__name__)
+
+
+def _validate_non_negative_float(
+    v: Optional[float], field_name: str
+) -> Optional[float]:
+    if v is None:
+        return v
+    if v < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return v
 
 
 class ExternalCloudHandlerResponse(DataEntryResponseGen):
@@ -149,6 +166,87 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 quantity_key="spent_amount",
             )
         ]
+
+
+## BUILDINGS FACTOR HANDLER
+
+
+## FACTORS for BUILDINGS
+
+external_clouds_classification_fields: list[str] = [
+    "service_type",
+    "provider",
+    "currency",
+]
+external_clouds_value_fields: list[str] = [
+    "ef_kg_co2eq_per_currency",
+]
+
+
+class _ExternalCloudFactorValidationMixin:
+    @field_validator(
+        "ef_kg_co2eq_per_currency",
+        mode="after",
+    )
+    @classmethod
+    def validate_factor_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: str) -> str:
+        valid_currencies = [
+            "chf",
+            "eur",
+        ]
+        if not v:
+            raise ValueError("")
+        if v not in valid_currencies:
+            raise ValueError("Invalid currency")
+        return v
+
+
+class ExternalCloudBaseFactor:
+    service_type: str
+    provider: str
+    currency: str
+    ef_kg_co2eq_per_currency: float
+
+
+class ExternalCloudFactorCreate(
+    _ExternalCloudFactorValidationMixin, FactorCreate, ExternalCloudBaseFactor
+):
+    pass
+
+
+class ExternalCloudFactorUpdate(
+    _ExternalCloudFactorValidationMixin, FactorUpdate, ExternalCloudBaseFactor
+):
+    pass
+
+
+class ExternalCloudFactorResponse(FactorResponseGen, ExternalCloudBaseFactor):
+    pass
+
+
+class ExternalCloudFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [
+        DataEntryTypeEnum.external_clouds,
+    ]
+    emission_type: EmissionType = EmissionType.external__clouds
+
+    create_dto = ExternalCloudFactorCreate
+    update_dto = ExternalCloudFactorUpdate
+    response_dto = ExternalCloudFactorResponse
+
+    classification_fields: list[str] = external_clouds_classification_fields
+    value_fields: list[str] = external_clouds_value_fields
+
+    def to_response(self, factor: Factor) -> FactorResponseGen:
+        return self.response_dto.model_validate(factor.model_dump)
 
 
 class ExternalAIModuleHandler(BaseModuleHandler):

@@ -80,28 +80,28 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 
 class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
-    traveler_name: str
-    traveler_id: Optional[int] = None
-    origin_location_id: int
-    destination_location_id: int
-    cabin_class: Optional[str] = None
+    origin_iata: str  ## IATA code
+    destination_iata: str  ## IATA code
+    user_institutional_id: str
     departure_date: Optional[date] = None
     number_of_trips: int = 1
+    cabin_class: str
+    note: Optional[str] = None
 
 
 class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
-    traveler_name: str
-    traveler_id: Optional[int] = None
-    origin_location_id: int
-    destination_location_id: int
-    cabin_class: Optional[str] = None
+    user_institutional_id: str
+    origin_name: str
+    destination_name: str
     departure_date: Optional[date] = None
     number_of_trips: int = 1
+    cabin_class: str
+    note: Optional[str] = None
 
 
 class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
-    traveler_name: Optional[str] = None
-    traveler_id: Optional[int] = None
+    # traveler_name: Optional[str] = None
+    # traveler_id: Optional[int] = None
     origin_location_id: Optional[int] = None
     destination_location_id: Optional[int] = None
     cabin_class: Optional[str] = None
@@ -110,8 +110,8 @@ class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
 
 
 class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
-    traveler_name: Optional[str] = None
-    traveler_id: Optional[int] = None
+    # traveler_name: Optional[str] = None
+    # traveler_id: Optional[int] = None
     origin_location_id: Optional[int] = None
     destination_location_id: Optional[int] = None
     cabin_class: Optional[str] = None

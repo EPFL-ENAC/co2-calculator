@@ -39,15 +39,36 @@ class FactorSeedConfig:
     data_entry_type_column: str | None = None
 
 
+# building_energycombustions_factors.csv
+# building_rooms_factors.csv
+# commuting_factors.csv
+# equipments_factors.csv
+# external_ai_factors.csv
+# external_clouds_factors.csv
+# food_factors.csv
+# processemissions_factors.csv
+# purchases_additional_factors.csv
+# purchases_common_factors.csv
+# researchfacilities_animals_factors.csv
+# researchfacilities_common_factors.csv
+# travel_planes_factors.csv
+# travel_trains_factors.csv
+# waste_factors.csv
 FACTOR_SEEDS: list[FactorSeedConfig] = [
-    # Single data_entry_type per CSV
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "building_energycombustions_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.energy_combustion,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "building_rooms_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.building,
+        ],
+    ),
     # FactorSeedConfig(
-    #     path=BACKEND_FOLDER / "external_ai_factors.csv",
-    #     data_entry_types=[DataEntryTypeEnum.external_ai],
-    # ),
-    # FactorSeedConfig(
-    #     path=BACKEND_FOLDER / "external_clouds_factors.csv",
-    #     data_entry_types=[DataEntryTypeEnum.external_clouds],
+    #     path=BACKEND_FOLDER / "commuting_factors.csv", data_entry_types=[]
     # ),
     # Multi data_entry_type CSV — column differentiates (other, it, scientific)
     FactorSeedConfig(
@@ -57,13 +78,65 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
             DataEntryTypeEnum.it,
             DataEntryTypeEnum.other,
         ],
-        data_entry_type_column="data_entry_type",
+        data_entry_type_column="equipment_category",
     ),
-    # FactorSeedConfig(
-    #     path=BACKEND_FOLDER / "purchases_factors.csv",
-    #     data_entry_types=[...],
-    #     data_entry_type_column="data_entry_type",
-    # ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "external_ai_factors.csv",
+        data_entry_types=[DataEntryTypeEnum.external_ai],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "external_clouds_factors.csv",
+        data_entry_types=[DataEntryTypeEnum.external_clouds],
+    ),
+    # FactorSeedConfig(path=BACKEND_FOLDER / "food_factors.csv", data_entry_types=[]),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "processemissions_factors.csv",
+        data_entry_types=[DataEntryTypeEnum.process_emissions],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "purchases_additional_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.additional_purchases,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "purchases_common_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.scientific_equipment,
+            DataEntryTypeEnum.it_equipment,
+            DataEntryTypeEnum.consumable_accessories,
+            DataEntryTypeEnum.biological_chemical_gaseous_product,
+            DataEntryTypeEnum.services,
+            DataEntryTypeEnum.vehicles,
+            DataEntryTypeEnum.other_purchases,
+        ],
+        data_entry_type_column="purchase_category",
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "researchfacilities_animals_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "researchfacilities_common_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.research_facilities,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "travel_planes_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.plane,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "travel_trains_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.train,
+        ],
+    ),
+    # FactorSeedConfig(path=BACKEND_FOLDER / "waste_factors.csv", data_entry_types=[]),
 ]
 
 

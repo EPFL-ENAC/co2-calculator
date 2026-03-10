@@ -7,6 +7,7 @@ Extends the generic BaseCSVProvider with:
 - Column mapping: sciper → traveler_id
 
 """
+# TODO: use IATA column directly to avoid having a csv provider for professional travel
 
 from typing import Any, Dict, List
 

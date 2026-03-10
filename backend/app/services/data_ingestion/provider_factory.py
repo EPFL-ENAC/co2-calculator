@@ -14,9 +14,9 @@ from app.services.data_ingestion.csv_providers import (
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
 )
-from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
-    ProfessionalTravelCSVProvider,
-)
+# from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
+#     ProfessionalTravelCSVProvider,
+# )
 
 
 class ProviderFactory:
@@ -66,12 +66,13 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
-        (
-            ModuleTypeEnum.professional_travel,
-            IngestionMethod.csv,
-            TargetType.DATA_ENTRIES,
-            EntityType.MODULE_UNIT_SPECIFIC,
-        ): ProfessionalTravelCSVProvider,
+        # TODO: remove professional_travel and building_room csv_provider
+        # (
+        #     ModuleTypeEnum.professional_travel,
+        #     IngestionMethod.csv,
+        #     TargetType.DATA_ENTRIES,
+        #     EntityType.MODULE_UNIT_SPECIFIC,
+        # ): ProfessionalTravelCSVProvider,
         # TODO: Add more providers as needed
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
@@ -83,11 +84,11 @@ class ProviderFactory:
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
         v.__name__: v for _, v in PROVIDERS.items()
     }
-    PROVIDERS_BY_CLASS_NAME.update(
-        {
-            BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
-        }
-    )
+    # PROVIDERS_BY_CLASS_NAME.update(
+    #     {
+    #         BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
+    #     }
+    # )
 
     @staticmethod
     def get_provider_class(

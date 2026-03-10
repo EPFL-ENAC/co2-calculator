@@ -43,6 +43,14 @@ from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 # here and resolved at runtime by resolve_emission_types() below.
 # =============================================================================
 
+FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
+    # --- Additional Categories ------------------------------------------------
+    # member/student each produce N rows — one per factor applied (food, waste,
+    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    DataEntryTypeEnum.building: [EmissionType.buildings__rooms],
+}
+
 DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
@@ -128,8 +136,8 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
 
 _CLOUD_SUBKIND_MAP: dict[str, EmissionType] = {
     "virtualisation": EmissionType.external__clouds__virtualisation,
-    "calcul": EmissionType.external__clouds__calcul,
-    "stockage": EmissionType.external__clouds__stockage,
+    "compute": EmissionType.external__clouds__calcul,
+    "storage": EmissionType.external__clouds__stockage,
 }
 
 _AI_USE_MAP: dict[str, EmissionType] = {
@@ -264,6 +272,19 @@ def resolve_factor_emission_type(
     one EmissionType. For emission rows, use resolve_emission_types() which can
     return multiple types for a single data entry.
     """
+    factor_resolver = FACTOR_TO_EMISSION_TYPES.get(data_entry_type)
+    if factor_resolver is not None:
+        if len(factor_resolver) == 0:
+            return None  # known type that intentionally emits nothing (e.g. energy_mix)
+        if len(factor_resolver) > 1:
+            raise ValueError(
+                f"Expected exactly one emission type for factor of type {data_entry_type},"
+                f" but got multiple: {factor_resolver}"
+                f" for row: {factor}"
+            )
+        return factor_resolver[0]
+    # else we default to runtime resolver for dynamic types
+    # (plane, train, process_emissions, external_clouds)
     resolver = _RUNTIME_RESOLVERS.get(data_entry_type)
     types = None
     if resolver:
