@@ -1,11 +1,14 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_PROCESSES_TYPES, MODULES } from 'src/constant/modules';
 import type { ProcessesSubType, Module } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
+
+const moduleStore = useModuleStore();
+
 const processEmissionsFields: ModuleField[] = [
   {
     id: 'emitted_gas',
-    optionsId: 'kind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.emitted_gas`,
     type: 'select',
     required: true,
@@ -16,10 +19,18 @@ const processEmissionsFields: ModuleField[] = [
     ratio: '1/3',
     hideIn: { form: false },
     icon: 'o_science',
+    optionsFunction: async (subModuleType, entry) => {
+      if (!entry) return [];
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      return taxoNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
   },
   {
     id: 'sub_category',
-    optionsId: 'subkind',
     labelKey: `${MODULES.ProcessEmissions}.inputs.sub_category`,
     type: 'select',
     required: false,
@@ -36,6 +47,19 @@ const processEmissionsFields: ModuleField[] = [
       },
     },
     icon: 'o_category',
+    optionsFunction: async (subModuleType, entry) => {
+      if (!entry) return [];
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      const emittedGasNode = taxoNode.children.find(
+        (child) => child.name === entry['emitted_gas'],
+      );
+      if (!emittedGasNode || !emittedGasNode.children) return [];
+      return emittedGasNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
   },
   {
     id: 'quantity_kg',

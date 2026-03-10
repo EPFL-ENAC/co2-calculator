@@ -7,6 +7,7 @@ import {
 } from 'src/constant/modules';
 import type { PurchaseSubType } from 'src/constant/modules';
 import type { Module } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
 
 const purchaseFields: ModuleField[] = [
   {
@@ -32,21 +33,31 @@ const purchaseFields: ModuleField[] = [
   {
     id: 'purchase_institutional_code',
     labelKey: `${MODULES.Purchase}.inputs.purchase_institutional_code`,
-    optionsId: 'kind',
-    type: 'node-select',
+    hint: `${MODULES.Purchase}.inputs.purchase_institutional_code-hint`,
+    type: 'select',
     required: true,
     sortable: true,
     align: 'left',
-    hint: `${MODULES.Purchase}.inputs.purchase_institutional_code-hint`,
     readOnly: false,
     editableInline: true,
     ratio: '1/3',
     icon: 'o_category',
+    optionsFunction: async (subModuleType, entry) => {
+      if (!entry) return [];
+      const moduleStore = useModuleStore();
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      return taxoNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
   },
   {
     id: 'quantity',
     labelKey: `${MODULES.Purchase}.inputs.quantity`,
     type: 'number',
+    required: true,
     editableInline: true,
     min: 0,
     step: 0.01,
@@ -57,8 +68,9 @@ const purchaseFields: ModuleField[] = [
   {
     id: 'total_spent_amount',
     labelKey: `${MODULES.Purchase}.inputs.total_spent_amount`,
-    type: 'number',
     hint: `${MODULES.Purchase}.inputs.total_spent_amount-hint`,
+    type: 'number',
+    required: true,
     editableInline: true,
     min: 0,
     step: 0.01,

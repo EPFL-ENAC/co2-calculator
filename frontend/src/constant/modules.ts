@@ -305,5 +305,7 @@ export function getBackendModuleName(frontendModule: Module): string {
 export interface TaxonomyNode {
   name: string;
   label: string;
+  values: Record<string, unknown>;
+  classification: Record<string, unknown>;
   children?: TaxonomyNode[];
 }

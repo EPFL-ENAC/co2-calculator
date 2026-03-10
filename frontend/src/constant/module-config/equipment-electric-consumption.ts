@@ -3,6 +3,7 @@ import { formatTonnesCO2 } from 'src/utils/number';
 import type {
   Module,
   EquipmentElectricConsumptionSubType,
+  AllSubmoduleTypes,
 } from 'src/constant/modules';
 
 import {
@@ -10,27 +11,38 @@ import {
   MODULES_THRESHOLD_TYPES,
   SUBMODULE_EQUIPMENT_TYPES,
 } from 'src/constant/modules';
+import { useModuleStore } from 'src/stores/modules';
+
+const moduleStore = useModuleStore();
 
 const powerTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.power`;
 
 const emissionTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.emission`;
 
-// "items": [
-//   {
-//     "data_entry_type_id": 9,
-//     "carbon_report_module_id": 11,
-//     "data": {
-//       "active_usage_hours": 35,
-//       "passive_usage_hours": 65,
-//       "power_factor_id": 104,
-//       "emission": 1274,
-//       "primary_factor": {
-//         "active_power_w": 5600,
-//         "standby_power_w": 0
-//       }
-//     },
-//     "id": 2714
-//   },
+/**
+ * Get the factor values for a given combustion type from the taxonomy.
+ * @param subModuleType
+ * @param entry
+ * @returns
+ */
+function getEquipmentValues(
+  subModuleType: AllSubmoduleTypes,
+  entry: Record<string, unknown>,
+) {
+  if (!entry) return {};
+  const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+  if (!taxoNode || !taxoNode.children) return {};
+  const equipmentNode = taxoNode.children.find(
+    (child) => child.name === entry['equipment_class'],
+  );
+  if (!equipmentNode) return {};
+  if (!equipmentNode.children) return equipmentNode.values || {};
+  const subClassNode = equipmentNode.children.find(
+    (child) => child.name === entry['sub_class'],
+  );
+  if (!subClassNode) return {};
+  return subClassNode.values || {};
+}
 
 const baseModuleFields: ModuleField[] = [
   {
@@ -47,7 +59,6 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'equipment_class',
-    optionsId: 'kind',
     label: 'Class',
     type: 'select',
     required: true,
@@ -59,21 +70,95 @@ const baseModuleFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
+    optionsFunction: async (subModuleType, entry) => {
+      if (!entry) return [];
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      return taxoNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
   },
   {
     id: 'sub_class',
-    optionsId: 'subkind',
     label: 'Sub-class',
     type: 'select',
     required: true,
     min: 0,
     sortable: true,
     align: 'left',
-    inputTypeName: 'QSelect',
     editableInline: true,
     readOnly: false,
     ratio: '1/2',
     icon: 'o_category',
+    optionsFunction: async (subModuleType, entry) => {
+      if (!entry) return [];
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return [];
+      const equipmentClassNode = taxoNode.children.find(
+        (child) => child.name === entry['equipment_class'],
+      );
+      if (!equipmentClassNode || !equipmentClassNode.children) return [];
+      return equipmentClassNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+    },
+    visible: (subModuleType, entry) => {
+      if (!entry) return false;
+      const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+      if (!taxoNode || !taxoNode.children) return false;
+      const equipmentClassNode = taxoNode.children.find(
+        (child) => child.name === entry['equipment_class'],
+      );
+      return !!(equipmentClassNode && equipmentClassNode.children);
+    },
+  },
+  {
+    id: 'active_power_w',
+    label: 'Active power',
+    type: 'number',
+    required: true,
+    min: 0,
+    unit: 'W',
+    sortable: true,
+    align: 'left',
+    tooltip: powerTooltip,
+    readOnly: true,
+    ratio: '3/12',
+    icon: 'o_electric_bolt',
+    hideIn: {
+      form: false,
+    },
+    maxColumnWidth: 150,
+    default: async (subModuleType, entry) => {
+      const values = getEquipmentValues(subModuleType, entry);
+      return (values['active_power_w'] as number) ?? null;
+    },
+  },
+  {
+    id: 'standby_power_w',
+    label: 'Standby Power',
+    type: 'number',
+    required: true,
+    min: 0,
+    unit: 'W',
+    sortable: true,
+    align: 'left',
+    tooltip: powerTooltip,
+    readOnly: true,
+    hideIn: {
+      form: false,
+    },
+    editableInline: false,
+    ratio: '3/12',
+    icon: 'o_electric_bolt',
+    maxColumnWidth: 150,
+    default: async (subModuleType, entry) => {
+      const values = getEquipmentValues(subModuleType, entry);
+      return (values['standby_power_w'] as number) ?? null;
+    },
   },
   {
     id: 'active_usage_hours',
@@ -102,43 +187,6 @@ const baseModuleFields: ModuleField[] = [
     editableInline: true,
     ratio: '3/12',
     icon: 'o_donut_large',
-  },
-  {
-    id: 'active_power_w',
-    label: 'Active power',
-    type: 'number',
-    required: true,
-    min: 0,
-    unit: 'W',
-    sortable: true,
-    align: 'left',
-    tooltip: powerTooltip,
-    readOnly: true,
-    ratio: '3/12',
-    icon: 'o_electric_bolt',
-    hideIn: {
-      form: false,
-    },
-    maxColumnWidth: 150,
-  },
-  {
-    id: 'standby_power_w',
-    label: 'Standby Power',
-    type: 'number',
-    required: true,
-    min: 0,
-    unit: 'W',
-    sortable: true,
-    align: 'left',
-    tooltip: powerTooltip,
-    readOnly: true,
-    hideIn: {
-      form: false,
-    },
-    editableInline: false,
-    ratio: '3/12',
-    icon: 'o_electric_bolt',
-    maxColumnWidth: 150,
   },
   {
     id: 'kg_co2eq',

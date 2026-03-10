@@ -28,7 +28,7 @@
             :label="$t(`${MODULES.ProfessionalTravel}-field-from`)"
             :placeholder="placeholders?.from"
             hide-bottom-space
-            :disable="disable || !transportMode"
+            :disable="fieldDisabled || !transportMode"
             @filter="(val, update) => filterFrom(val, update)"
             @update:model-value="handleFromSelection"
           >
@@ -71,7 +71,7 @@
             :label="$t(`${MODULES.ProfessionalTravel}-field-from`)"
             :placeholder="placeholders?.from"
             hide-bottom-space
-            :disable="disable || !transportMode"
+            :disable="fieldDisabled || !transportMode"
             @update:model-value="
               (val) => emit('update:from', String(val ?? ''))
             "
@@ -99,7 +99,7 @@
             :label="$t(`${MODULES.ProfessionalTravel}-field-to`)"
             :placeholder="placeholders?.to"
             hide-bottom-space
-            :disable="disable || !transportMode"
+            :disable="fieldDisabled || !transportMode"
             @filter="(val, update) => filterTo(val, update)"
             @update:model-value="handleToSelection"
           >
@@ -142,7 +142,7 @@
             :label="$t(`${MODULES.ProfessionalTravel}-field-to`)"
             :placeholder="placeholders?.to"
             hide-bottom-space
-            :disable="disable || !transportMode"
+            :disable="fieldDisabled || !transportMode"
             @update:model-value="(val) => emit('update:to', String(val ?? ''))"
           />
         </div>
@@ -152,7 +152,7 @@
           text-color="grey-4"
           size="md"
           class="swap-button"
-          :disable="disable || !transportMode"
+          :disable="fieldDisabled || !transportMode"
           @click="swapValues"
         >
           <q-icon name="o_swap_horiz" size="xs" />
@@ -168,11 +168,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, watchEffect } from 'vue';
 import { MODULES } from 'src/constant/modules';
 import { useI18n } from 'vue-i18n';
 import { searchLocations } from 'src/api/locations';
 import type { Location } from 'src/constant/locations';
+import type { ModuleField } from 'src/constant/moduleConfig';
+import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
 
 const { t: $t } = useI18n();
 
@@ -185,6 +187,11 @@ interface LocationSelection {
 
 const props = withDefaults(
   defineProps<{
+    modelValue: string | null;
+    moduleType: Module | string;
+    submoduleType: AllSubmoduleTypes;
+    field: ModuleField;
+    entry: Record<string, unknown>;
     from?: string;
     to?: string;
     error?: boolean;
@@ -194,7 +201,6 @@ const props = withDefaults(
       to?: string;
     };
     transportMode?: 'plane' | 'train';
-    disable?: boolean;
   }>(),
   {
     from: '',
@@ -225,6 +231,8 @@ const loadingTo = ref(false);
 const fromModel = ref<string>('');
 const toModel = ref<string>('');
 
+const fieldDisabled = ref<boolean>(false);
+
 const isAutocompleteEnabled = computed(() => !!props.transportMode);
 
 const hasSameDestinationError = computed(() => {
@@ -244,6 +252,14 @@ const finalError = computed(() => props.error || internalError.value);
 const finalErrorMessage = computed(
   () => props.errorMessage || internalErrorMessage.value,
 );
+
+watchEffect(() => {
+  if (typeof props.field.disable === 'function') {
+    fieldDisabled.value = props.field.disable(props.submoduleType, props.entry);
+  } else {
+    fieldDisabled.value = !!props.field.disable;
+  }
+});
 
 watch(
   () => props.from,

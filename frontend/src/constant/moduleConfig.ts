@@ -5,11 +5,9 @@ export type FieldType =
   | 'text'
   | 'number'
   | 'select'
-  | 'node-select'
   | 'date'
   | 'checkbox'
   | 'boolean'
-  | 'radio-group'
   | 'direction-input';
 
 export interface ConditionalVisibility {
@@ -31,19 +29,6 @@ export interface ConditionalRatio {
   ratio: string;
 }
 
-export interface ConditionalOptions {
-  when: {
-    fieldId: string;
-    value: boolean | string | number | null;
-  };
-  showOptions: string[]; // Array of option values to show when condition is met
-}
-
-// Support multiple conditional options - first matching condition wins
-export type ConditionalOptionsConfig =
-  | ConditionalOptions
-  | ConditionalOptions[];
-
 export interface ModuleField {
   id: string;
   label?: string;
@@ -55,14 +40,36 @@ export interface ModuleField {
   min?: number;
   max?: number;
   step?: number;
-  default?: string | number | boolean;
+  default?:
+    | string
+    | number
+    | boolean
+    | null
+    | ((
+        subModuleType: AllSubmoduleTypes,
+        entry: Record<string, unknown>,
+      ) => Promise<string | number | boolean | null>);
+  path?: string[] | undefined;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  optionsFunction?: (
+    subModuleType: AllSubmoduleTypes,
+    entry: Record<string, unknown>,
+  ) => Promise<Array<{ value: string; label: string }>>;
   appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
   tooltip?: string;
-  disable?: boolean;
+  disable?:
+    | boolean
+    | ((
+        subModuleType: AllSubmoduleTypes,
+        entry: Record<string, unknown>,
+      ) => boolean);
+  visible?: (
+    subModuleType: AllSubmoduleTypes,
+    entry: Record<string, unknown>,
+  ) => boolean;
   sortable?: boolean;
   inputTypeName?: string;
   editableInline?: boolean;
@@ -82,9 +89,6 @@ export interface ModuleField {
   conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value
   conditionalRatio?: ConditionalRatio;
-  // Conditional options filtering based on another field's value
-  // Can be a single condition or array of conditions (first match wins)
-  conditionalOptions?: ConditionalOptionsConfig;
   // When the specified row field has a value, this editable column renders as read-only text
   readOnlyWhen?: {
     fieldId: string; // check this field on the row
