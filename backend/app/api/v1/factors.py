@@ -33,7 +33,7 @@ async def get_class_subclass_map(
 # http://localhost:9000/api/v1/factors/scientific/classes/Agitator%20%2F%20Incubator/values?sub_class=Simple%20agitators%2Fincubators
 @router.get(
     "/{data_entry_type_id}/classes/{kind:path}/values",
-    response_model=Optional[dict[str, float | str]],
+    response_model=Optional[dict[str, float | int | str | None]],
 )
 async def get_factor(
     data_entry_type_id: DataEntryTypeEnum,
