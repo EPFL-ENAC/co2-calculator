@@ -5,7 +5,6 @@ from pydantic import (
     ConfigDict,
     ValidationInfo,
     field_validator,
-    model_validator,
 )
 
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -25,7 +24,6 @@ from app.schemas.data_entry import (
 )
 from app.schemas.factor import (
     BaseFactorHandler,
-    EmissionType,
     FactorCreate,
     FactorResponseGen,
     FactorUpdate,

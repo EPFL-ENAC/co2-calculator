@@ -1,13 +1,14 @@
 from datetime import date, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
+    EmissionType,
     FactorQuery,
 )
 from app.models.module_type import ModuleTypeEnum
@@ -19,7 +20,6 @@ from app.schemas.data_entry import (
 )
 from app.schemas.factor import (
     BaseFactorHandler,
-    EmissionType,
     FactorCreate,
     FactorResponseGen,
     FactorUpdate,
@@ -33,6 +33,16 @@ from app.utils.distance_geography import (
 )
 
 logger = get_logger(__name__)
+
+
+def _validate_non_negative_float(
+    v: Optional[float], field_name: str
+) -> Optional[float]:
+    if v is None:
+        return v
+    if v < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return v
 
 
 class DepartureDateMixin(BaseModel):
@@ -285,81 +295,133 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         ]
 
 
-class TravelPlaneFactorResponse(FactorResponseGen):
+class TravelPlaneBase:
     category: str
     ef_kg_co2eq_per_km: float
-    class_adjustement: Optional[float] = None
-    rfi_adjustment: Optional[float] = None
-    min_distance: Optional[float] = None
-    max_distance: Optional[float] = None
+    rfi_adjustment: float
+    # todo adjustment instead of adjustement
+    class_adjustement: float
+    min_distance: float
+    max_distance: float
 
-
-class TravelTrainFactorResponse(FactorResponseGen):
-    country_code: str
     ef_kg_co2eq_per_km: float
 
 
-class TravelPlaneFactorCreate(FactorCreate):
-    category: str
-    ef_kg_co2eq_per_km: float
-    class_adjustement: Optional[float] = None
-    rfi_adjustment: Optional[float] = None
-    min_distance: Optional[float] = None
-    max_distance: Optional[float] = None
-
-    classification_fields: list[str] = ["category"]
-    value_fields: list[str] = [
+class _TravelPlaneBaseValidationMixin:
+    @field_validator(
         "ef_kg_co2eq_per_km",
-        "class_adjustement",
         "rfi_adjustment",
+        "class_adjustement",
         "min_distance",
         "max_distance",
-    ]
+        mode="after",
+    )
+    @classmethod
+    def validate_factor_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+    @field_validator("category", mode="after")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        valid_categories = [
+            "very_short_haul",
+            "short_haul",
+            "medium_haul",
+            "long_haul",
+        ]
+        if not v:
+            raise ValueError("Category is required")
+        if v not in valid_categories:
+            raise ValueError("Invalid category")
+        return v
 
 
-class TravelPlaneFactorUpdate(FactorUpdate):
-    category: Optional[str] = None
-    ef_kg_co2eq_per_km: Optional[float] = None
-    class_adjustement: Optional[float] = None
-    rfi_adjustment: Optional[float] = None
-    min_distance: Optional[float] = None
-    max_distance: Optional[float] = None
-
-    classification_fields: list[str] = ["category"]
-    value_fields: list[str] = [
-        "ef_kg_co2eq_per_km",
-        "class_adjustement",
-        "rfi_adjustment",
-        "min_distance",
-        "max_distance",
-    ]
+class TravelPlaneFactorResponse(
+    FactorResponseGen, TravelPlaneBase, _TravelPlaneBaseValidationMixin
+):
+    pass
 
 
-class TravelTrainFactorCreate(FactorCreate):
-    country_code: str
-    ef_kg_co2eq_per_km: float
-
-    classification_fields: list[str] = ["country_code"]
-    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
+class TravelPlaneFactorCreate(
+    FactorCreate, TravelPlaneBase, _TravelPlaneBaseValidationMixin
+):
+    pass
 
 
-class TravelTrainFactorUpdate(FactorUpdate):
-    country_code: Optional[str] = None
-    ef_kg_co2eq_per_km: Optional[float] = None
-
-    classification_fields: list[str] = ["country_code"]
-    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
+class TravelPlaneFactorUpdate(
+    FactorUpdate, TravelPlaneBase, _TravelPlaneBaseValidationMixin
+):
+    pass
 
 
 class TravelPlaneFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
+    registration_keys = [DataEntryTypeEnum.plane]
     emission_type: EmissionType = EmissionType.professional_travel__plane
 
-    registration_keys = [DataEntryTypeEnum.plane]
+    classification_fields: list[str] = ["category"]
+    value_fields: list[str] = [
+        "ef_kg_co2eq_per_km",
+        "class_adjustement",
+        "rfi_adjustment",
+        "min_distance",
+        "max_distance",
+    ]
 
     create_dto = TravelPlaneFactorCreate
     update_dto = TravelPlaneFactorUpdate
     response_dto = TravelPlaneFactorResponse
+
+
+class TravelTrainBase:
+    country_code: str
+    ef_kg_co2eq_per_km: float
+
+
+class _TravelTrainBaseValidationMixin:
+    @field_validator(
+        "ef_kg_co2eq_per_km",
+        mode="after",
+    )
+    @classmethod
+    def validate_factor_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+    @field_validator("country_code", mode="after")
+    @classmethod
+    def validate_country_code(cls, v: str) -> str:
+        # in ISO 3166-1 alpha-2 format or use RoW for rest of the world
+        # for now we check two letter format but we don't validate against
+        # a list of actual country codes
+        if not v:
+            raise ValueError("Country code is required")
+        if v != "RoW" and (len(v) != 2 or not v.isalpha()):
+            raise ValueError(
+                "Invalid country code, must be ISO 3166-1 alpha-2 or 'RoW'"
+            )
+        return v
+
+
+class TravelTrainFactorResponse(
+    FactorResponseGen, TravelTrainBase, _TravelTrainBaseValidationMixin
+):
+    pass
+
+
+class TravelTrainFactorCreate(
+    FactorCreate, TravelTrainBase, _TravelTrainBaseValidationMixin
+):
+    pass
+
+
+class TravelTrainFactorUpdate(
+    FactorUpdate, TravelTrainBase, _TravelTrainBaseValidationMixin
+):
+    pass
 
 
 class TravelTrainFactorHandler(BaseFactorHandler):
@@ -367,6 +429,9 @@ class TravelTrainFactorHandler(BaseFactorHandler):
     emission_type: EmissionType = EmissionType.professional_travel__train
 
     registration_keys = [DataEntryTypeEnum.train]
+
+    classification_fields: list[str] = ["country_code"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_km"]
 
     create_dto = TravelTrainFactorCreate
     update_dto = TravelTrainFactorUpdate
