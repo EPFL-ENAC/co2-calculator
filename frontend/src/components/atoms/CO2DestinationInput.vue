@@ -171,7 +171,7 @@
 import { ref, computed, watch, watchEffect } from 'vue';
 import { MODULES } from 'src/constant/modules';
 import { useI18n } from 'vue-i18n';
-import { searchLocations } from 'src/api/locations';
+import { searchLocations, calculateDistance } from 'src/api/locations';
 import type { Location } from 'src/constant/locations';
 import type { ModuleField } from 'src/constant/moduleConfig';
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
@@ -201,6 +201,9 @@ const props = withDefaults(
       to?: string;
     };
     transportMode?: 'plane' | 'train';
+    originLocationId?: number;
+    destinationLocationId?: number;
+    numberOfTrips?: number;
   }>(),
   {
     from: '',
@@ -213,6 +216,9 @@ const props = withDefaults(
       from: '',
       to: '',
     }),
+    originLocationId: undefined,
+    destinationLocationId: undefined,
+    numberOfTrips: 1,
   },
 );
 
@@ -222,6 +228,9 @@ const emit = defineEmits<{
   (e: 'from-location-selected', location: LocationSelection): void;
   (e: 'to-location-selected', location: LocationSelection): void;
   (e: 'swap'): void;
+  (e: 'update:originLocationId', value: number | undefined): void;
+  (e: 'update:destinationLocationId', value: number | undefined): void;
+  (e: 'distance-calculated', value: number | null): void;
 }>();
 
 const fromOptions = ref<Location[]>([]);
@@ -230,6 +239,12 @@ const loadingFrom = ref(false);
 const loadingTo = ref(false);
 const fromModel = ref<string>('');
 const toModel = ref<string>('');
+const internalOriginLocationId = ref<number | undefined>(
+  props.originLocationId,
+);
+const internalDestinationLocationId = ref<number | undefined>(
+  props.destinationLocationId,
+);
 
 const fieldDisabled = ref<boolean>(false);
 
@@ -306,9 +321,53 @@ watch(
       toModel.value = '';
       emit('update:from', '');
       emit('update:to', '');
+      internalOriginLocationId.value = undefined;
+      internalDestinationLocationId.value = undefined;
+      emit('update:originLocationId', undefined);
+      emit('update:destinationLocationId', undefined);
+      emit('distance-calculated', null);
     }
   },
 );
+
+watch(
+  () => props.originLocationId,
+  (newVal) => {
+    internalOriginLocationId.value = newVal;
+  },
+);
+
+watch(
+  () => props.destinationLocationId,
+  (newVal) => {
+    internalDestinationLocationId.value = newVal;
+  },
+);
+
+watch(
+  () => props.numberOfTrips,
+  () => {
+    void calculateAndEmitDistance();
+  },
+);
+
+async function calculateAndEmitDistance() {
+  if (!props.transportMode) return;
+  if (
+    internalOriginLocationId.value === undefined ||
+    internalDestinationLocationId.value === undefined
+  ) {
+    emit('distance-calculated', null);
+    return;
+  }
+  const distance = await calculateDistance(
+    internalOriginLocationId.value,
+    internalDestinationLocationId.value,
+    props.transportMode,
+    props.numberOfTrips || 1,
+  );
+  emit('distance-calculated', distance);
+}
 
 async function filterFrom(val: string, update: (fn: () => void) => void) {
   if (!props.transportMode || val.length < 2) {
@@ -362,6 +421,9 @@ function handleFromSelection(value: Location | string | null) {
   if (!value) {
     emit('update:from', '');
     fromModel.value = '';
+    internalOriginLocationId.value = undefined;
+    emit('update:originLocationId', undefined);
+    emit('distance-calculated', null);
     return;
   }
 
@@ -379,12 +441,18 @@ function handleFromSelection(value: Location | string | null) {
     latitude: value.latitude,
     longitude: value.longitude,
   });
+  internalOriginLocationId.value = value.id;
+  emit('update:originLocationId', value.id);
+  void calculateAndEmitDistance();
 }
 
 function handleToSelection(value: Location | string | null) {
   if (!value) {
     emit('update:to', '');
     toModel.value = '';
+    internalDestinationLocationId.value = undefined;
+    emit('update:destinationLocationId', undefined);
+    emit('distance-calculated', null);
     return;
   }
 
@@ -402,6 +470,9 @@ function handleToSelection(value: Location | string | null) {
     latitude: value.latitude,
     longitude: value.longitude,
   });
+  internalDestinationLocationId.value = value.id;
+  emit('update:destinationLocationId', value.id);
+  void calculateAndEmitDistance();
 }
 
 function swapValues() {
@@ -409,6 +480,13 @@ function swapValues() {
   const oldTo = props.to;
   const oldFromModel = fromModel.value;
   const oldToModel = toModel.value;
+
+  const oldOriginId = internalOriginLocationId.value;
+  const oldDestinationId = internalDestinationLocationId.value;
+  internalOriginLocationId.value = oldDestinationId;
+  internalDestinationLocationId.value = oldOriginId;
+  emit('update:originLocationId', oldDestinationId);
+  emit('update:destinationLocationId', oldOriginId);
 
   emit('update:from', oldTo);
   emit('update:to', oldFrom);
@@ -418,6 +496,8 @@ function swapValues() {
     fromModel.value = oldToModel;
     toModel.value = oldFromModel;
   }
+
+  void calculateAndEmitDistance();
 }
 </script>
 

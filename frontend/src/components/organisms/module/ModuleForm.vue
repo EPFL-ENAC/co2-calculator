@@ -95,6 +95,9 @@
                   :error="!!errors.origin || !!errors.destination"
                   :error-message="errors.origin || errors.destination || ''"
                   :transport-mode="getTravelMode()"
+                  :origin-location-id="form.origin_location_id"
+                  :destination-location-id="form.destination_location_id"
+                  :number-of-trips="Number(form.number_of_trips) || 1"
                   @update:from="
                     (val) => {
                       form.origin = val;
@@ -107,9 +110,21 @@
                       onDataUpdate();
                     }
                   "
-                  @from-location-selected="handleFromLocationSelected"
-                  @to-location-selected="handleToLocationSelected"
-                  @swap="handleSwapLocations"
+                  @update:origin-location-id="
+                    (id) => {
+                      form.origin_location_id = id;
+                    }
+                  "
+                  @update:destination-location-id="
+                    (id) => {
+                      form.destination_location_id = id;
+                    }
+                  "
+                  @distance-calculated="
+                    (val) => {
+                      form.distance_km = val;
+                    }
+                  "
                 />
               </template>
               <FieldInput
@@ -199,7 +214,6 @@ import DestinationInput from 'src/components/atoms/CO2DestinationInput.vue';
 import DateInput from 'src/components/atoms/CO2DateInput.vue';
 import FieldInput from 'src/components/atoms/CO2ModuleFieldInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
-import { calculateDistance } from 'src/api/locations';
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
 import {
   MODULES,
@@ -382,34 +396,6 @@ watch(
   { deep: true, immediate: true },
 );
 
-// Watch for changes to location IDs and number of trips to calculate distance.
-watch(
-  () => [
-    form.origin_location_id,
-    form.destination_location_id,
-    form.number_of_trips,
-  ],
-  async () => {
-    const travelMode = getTravelMode();
-    if (!travelMode) return;
-    if (
-      form.origin_location_id === undefined ||
-      form.origin_location_id === null ||
-      form.destination_location_id === undefined ||
-      form.destination_location_id === null
-    ) {
-      form.distance_km = null;
-      return;
-    }
-    form.distance_km = await calculateDistance(
-      form.origin_location_id as number,
-      form.destination_location_id as number,
-      travelMode,
-      (form.number_of_trips as number) || 1,
-    );
-  },
-);
-
 function validateField(i: ModuleField) {
   const v = form[i.id];
   const effectiveType = i.type;
@@ -574,83 +560,6 @@ function getGridClass(ratio?: string): string {
 
 function onUseCalculatedFTE(value: number) {
   form['fte'] = value;
-}
-
-async function handleFromLocationSelected(location: {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-}) {
-  const travelMode = getTravelMode();
-  if (!travelMode) return;
-  form.origin_location_id = location.id;
-  if (
-    form.destination_location_id === undefined ||
-    form.destination_location_id === null
-  ) {
-    form.distance_km = null;
-    return;
-  }
-  form.distance_km = await calculateDistance(
-    form.origin_location_id as number,
-    form.destination_location_id as number,
-    travelMode,
-    (form.number_of_trips as number) || 1,
-  );
-  onDataUpdate();
-}
-
-async function handleToLocationSelected(location: {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-}) {
-  const travelMode = getTravelMode();
-  if (!travelMode) return;
-  form.destination_location_id = location.id;
-  if (
-    form.origin_location_id === undefined ||
-    form.origin_location_id === null
-  ) {
-    form.distance_km = null;
-    return;
-  }
-  form.distance_km = await calculateDistance(
-    form.origin_location_id as number,
-    form.destination_location_id as number,
-    travelMode,
-    (form.number_of_trips as number) || 1,
-  );
-  onDataUpdate();
-}
-
-async function handleSwapLocations() {
-  const travelMode = getTravelMode();
-  if (!travelMode) return;
-  // Swap location IDs when user swaps from/to
-  const oldOriginId = form.origin_location_id;
-  const oldDestinationId = form.destination_location_id;
-
-  form.origin_location_id = oldDestinationId;
-  form.destination_location_id = oldOriginId;
-  if (
-    form.origin_location_id === undefined ||
-    form.origin_location_id === null ||
-    form.destination_location_id === undefined ||
-    form.destination_location_id === null
-  ) {
-    form.distance_km = null;
-    return;
-  }
-  form.distance_km = await calculateDistance(
-    form.origin_location_id as number,
-    form.destination_location_id as number,
-    travelMode,
-    (form.number_of_trips as number) || 1,
-  );
-  onDataUpdate();
 }
 
 function clearOriginAndDestination() {
