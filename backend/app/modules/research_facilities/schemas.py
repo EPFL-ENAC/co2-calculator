@@ -35,12 +35,11 @@ class ResearchFacilitiesModuleHandler(BaseModuleHandler):
     Formula: TBD (returns None until factors and a formula are defined).
     """
 
-    module_type: ModuleTypeEnum = ModuleTypeEnum.internal_services
+    module_type: ModuleTypeEnum = ModuleTypeEnum.research_facilities
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [
         DataEntryTypeEnum.research_facilities,
         DataEntryTypeEnum.mice_and_fish_animal_facilities,
-        DataEntryTypeEnum.other_research_facilities,
     ]
 
     create_dto = ResearchFacilitiesHandlerCreate

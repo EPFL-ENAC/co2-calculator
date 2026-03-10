@@ -77,8 +77,8 @@ class TestCalculateUserPermissions:
         assert result["modules.buildings"]["edit"] is True
         assert result["modules.purchase"]["view"] is True
         assert result["modules.purchase"]["edit"] is True
-        assert result["modules.internal_services"]["view"] is True
-        assert result["modules.internal_services"]["edit"] is True
+        assert result["modules.research_facilities"]["view"] is True
+        assert result["modules.research_facilities"]["edit"] is True
         assert result["modules.external_cloud_and_ai"]["view"] is True
         assert result["modules.external_cloud_and_ai"]["edit"] is True
         # Principal also gets backoffice.users.edit for unit-scoped role assignment
@@ -99,8 +99,8 @@ class TestCalculateUserPermissions:
         assert result["modules.buildings"]["edit"] is False
         assert result["modules.purchase"]["view"] is False
         assert result["modules.purchase"]["edit"] is False
-        assert result["modules.internal_services"]["view"] is False
-        assert result["modules.internal_services"]["edit"] is False
+        assert result["modules.research_facilities"]["view"] is False
+        assert result["modules.research_facilities"]["edit"] is False
         assert result["modules.external_cloud_and_ai"]["view"] is True
         assert result["modules.external_cloud_and_ai"]["edit"] is True
 

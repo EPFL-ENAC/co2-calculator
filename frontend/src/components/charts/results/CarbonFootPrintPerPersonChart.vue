@@ -293,7 +293,7 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('internal-services'),
+      name: t('research-facilities'),
       type: 'bar' as const,
       stack: 'total',
       encode: {

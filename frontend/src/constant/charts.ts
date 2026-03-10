@@ -391,7 +391,7 @@ export const MODULE_TO_CATEGORIES = computed(
     ],
     'equipment-electric-consumption': ['Equipment'],
     purchase: ['Purchases'],
-    'internal-services': ['Research facilities'],
+    'research-facilities': ['Research facilities'],
     'external-cloud-and-ai': ['External cloud & AI', 'External clouds & AI'],
     'professional-travel': ['Professional travel'],
   }),

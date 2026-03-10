@@ -119,7 +119,7 @@ export const useBackofficeDataManagement = defineStore(
     /*
   # example of payload:
 # {
-#   "provider_type": "tableau_api", | should be more like csv | api 
+#   "provider_type": "tableau_api", | should be more like csv | api
 #   "year": 2023,
 #   "filters": {"date_from": "2023-01-01", "date_to": "2023-12-31"},
 #   "config": {"site_id": "mysite", "project_id": "myproject"}
@@ -323,7 +323,7 @@ provider_type
         buildings: 3,
         'equipment-electric-consumption': 4,
         purchase: 5,
-        'internal-services': 6,
+        'research-facilities': 6,
         'external-cloud-and-ai': 7,
         'process-emissions': 8,
         commuting: 9,

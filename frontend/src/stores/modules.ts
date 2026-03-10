@@ -63,7 +63,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Buildings]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
-    [MODULES.InternalServices]: MODULE_STATES.Default,
+    [MODULES.ResearchFacilities]: MODULE_STATES.Default,
     [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
     [MODULES.ProcessEmissions]: MODULE_STATES.Default,
     [MODULES.Commuting]: MODULE_STATES.Default,

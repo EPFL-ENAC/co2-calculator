@@ -64,7 +64,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.professional_travel": {"view": bool, "edit": bool},
         "modules.buildings": {"view": bool, "edit": bool},
         "modules.purchase": {"view": bool, "edit": bool},
-        "modules.internal_services": {"view": bool, "edit": bool},
+        "modules.research_facilities": {"view": bool, "edit": bool},
         "modules.external_cloud_and_ai": {"view": bool, "edit": bool},
         "modules.process_emissions": {"view": bool, "edit": bool},
     }
@@ -102,7 +102,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.professional_travel": {"view": False, "edit": False},
         "modules.buildings": {"view": False, "edit": False},
         "modules.purchase": {"view": False, "edit": False},
-        "modules.internal_services": {"view": False, "edit": False},
+        "modules.research_facilities": {"view": False, "edit": False},
         "modules.external_cloud_and_ai": {"view": False, "edit": False},
         "modules.process_emissions": {"view": False, "edit": False},
     }
@@ -151,7 +151,10 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 }
                 permissions["modules.buildings"] = {"view": True, "edit": True}
                 permissions["modules.purchase"] = {"view": True, "edit": True}
-                permissions["modules.internal_services"] = {"view": True, "edit": True}
+                permissions["modules.research_facilities"] = {
+                    "view": True,
+                    "edit": True,
+                }
                 permissions["modules.external_cloud_and_ai"] = {
                     "view": True,
                     "edit": True,

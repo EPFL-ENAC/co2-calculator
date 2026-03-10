@@ -24,7 +24,7 @@ export const MODULE_TYPE_IDS = {
   buildings: 3,
   'equipment-electric-consumption': 4,
   purchase: 5,
-  'internal-services': 6,
+  'research-facilities': 6,
   'external-cloud-and-ai': 7,
   'process-emissions': 8,
   commuting: 9,
