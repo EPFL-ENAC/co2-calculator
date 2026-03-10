@@ -62,7 +62,7 @@
     "lighthouse-plugin-ecoindex-core": "^6.0.7",
     "postcss-html": "^1.8.0",
     "postcss-rtlcss": "^5.7.0",
-    "prettier": "=3.6.2",
+    "prettier": "=3.8.1",
     "sass": "^1.93.3",
     "storybook": "=10.2.15",
     "stylelint": "^17.3.0",
