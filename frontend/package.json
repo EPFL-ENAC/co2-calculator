@@ -64,7 +64,7 @@
     "postcss-rtlcss": "^5.7.0",
     "prettier": "=3.6.2",
     "sass": "^1.93.3",
-    "storybook": "=10.2.15",
+    "storybook": "=10.2.17",
     "stylelint": "^17.3.0",
     "stylelint-config-recommended-vue": "^1.6.1",
     "stylelint-config-standard-scss": "^17.0.0",
