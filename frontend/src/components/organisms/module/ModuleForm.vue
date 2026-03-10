@@ -67,12 +67,7 @@
               :key="inp.id"
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
-              <template
-                v-if="inp.disableUntilField && !form[inp.disableUntilField]"
-              >
-                <div class="subclass-placeholder" />
-              </template>
-              <template v-else-if="inp.type === 'date'">
+              <template v-if="inp.type === 'date'">
                 <DateInput
                   v-model="form[inp.id]"
                   :module-type="props.moduleType"
@@ -270,35 +265,21 @@ const visibleFields = computed(() =>
 const visibleFieldsWithConditional = computed(() => {
   return visibleFields.value.filter((f) => {
     if (f.visible) {
-      return f.visible(props.submoduleType, form);
-    }
-
-    if (!f.conditionalVisibility) return true;
-
-    const { showWhen, hideWhen } = f.conditionalVisibility;
-
-    // Check showWhen condition
-    if (showWhen) {
-      const fieldValue = form[showWhen.fieldId];
-      if (fieldValue !== showWhen.value) {
-        return false;
+      const isVisible = f.visible(props.submoduleType, form);
+      if (!isVisible) {
+        // Clear value and error for hidden field
+        form[f.id] = null;
+        errors[f.id] = null;
       }
+      return isVisible;
     }
-
-    // Check hideWhen condition
-    if (hideWhen) {
-      const fieldValue = form[hideWhen.fieldId];
-      if (fieldValue === hideWhen.value) {
-        return false;
-      }
-    }
-
     return true;
   });
 });
 
 function onDataUpdate() {
-  console.log('Data updated:', form);
+  // This function is called whenever a field value is updated
+  // console.log('Data updated:', form);
 }
 
 // Generic dynamic ratio handling
@@ -343,7 +324,7 @@ function validateUsage(value: unknown) {
   return { valid: true, parsed: n, error: null };
 }
 
-function init() {
+async function init() {
   if (props.rowData) {
     Object.keys(props.rowData).forEach((key) => {
       form[key] = props.rowData[key];
@@ -351,14 +332,18 @@ function init() {
     });
     return;
   }
-  visibleFields.value.forEach((i) => {
+  for (const i of visibleFields.value) {
     const effectiveType = i.type;
     if (props.rowData && props.rowData[i.id] !== undefined) {
       form[i.id] = props.rowData[i.id];
     } else {
       // Check if field has a default value
       if (i.default !== undefined) {
-        form[i.id] = i.default;
+        if (typeof i.default === 'function') {
+          form[i.id] = await i.default(props.submoduleType, form);
+        } else {
+          form[i.id] = i.default;
+        }
       } else {
         switch (effectiveType) {
           case 'checkbox':
@@ -386,7 +371,7 @@ function init() {
       }
     }
     errors[i.id] = null;
-  });
+  }
 }
 
 // re-init when inputs or rowData change (e.g. dynamic config or edit mode)

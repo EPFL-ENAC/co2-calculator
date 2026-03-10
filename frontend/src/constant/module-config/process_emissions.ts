@@ -40,12 +40,6 @@ const processEmissionsFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     hideIn: { form: false },
-    conditionalVisibility: {
-      showWhen: {
-        fieldId: 'emitted_gas',
-        value: 'Refrigerants',
-      },
-    },
     icon: 'o_category',
     optionsFunction: async (subModuleType, entry) => {
       if (!entry) return [];
@@ -60,6 +54,7 @@ const processEmissionsFields: ModuleField[] = [
         label: child.label,
       }));
     },
+    visible: (subModuleType, entry) => entry['emitted_gas'] === 'Refrigerants',
   },
   {
     id: 'quantity_kg',

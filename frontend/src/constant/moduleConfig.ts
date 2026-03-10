@@ -10,17 +10,6 @@ export type FieldType =
   | 'boolean'
   | 'direction-input';
 
-export interface ConditionalVisibility {
-  showWhen?: {
-    fieldId: string;
-    value: boolean | string | number | null;
-  };
-  hideWhen?: {
-    fieldId: string;
-    value: boolean | string | number | null;
-  };
-}
-
 export interface ConditionalRatio {
   when: {
     fieldId: string;
@@ -83,10 +72,6 @@ export interface ModuleField {
     table?: boolean;
     form?: boolean;
   };
-  // Grey out field until the referenced field has a value
-  disableUntilField?: string;
-  // Conditional visibility based on another field's value
-  conditionalVisibility?: ConditionalVisibility;
   // Dynamic ratio based on another field's value
   conditionalRatio?: ConditionalRatio;
   // When the specified row field has a value, this editable column renders as read-only text

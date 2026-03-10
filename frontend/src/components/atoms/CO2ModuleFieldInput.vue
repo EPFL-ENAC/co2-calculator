@@ -40,7 +40,7 @@ const moduleStore = useModuleStore();
 const { t: $t } = useI18n();
 
 const props = defineProps<{
-  modelValue: string | null;
+  modelValue: string | number | undefined | null;
   moduleType: Module | string;
   submoduleType: AllSubmoduleTypes;
   field: ModuleField;
@@ -50,14 +50,14 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: string | null): void;
+  (e: 'update:modelValue', value: string | number | null): void;
 }>();
 
 const formModel = computed({
   get() {
     return props.modelValue;
   },
-  set(value: string | null) {
+  set(value: string | number | null) {
     emit('update:modelValue', value);
   },
 });
@@ -69,7 +69,7 @@ const label = computed(() =>
 );
 
 const isFieldReadOnly = computed(() => {
-  if (props.field.disable || props.field.readOnly) return true;
+  if (fieldDisabled.value || props.field.readOnly) return true;
   if (!props.field.readOnlyWhenFilled) return false;
   return false;
 });

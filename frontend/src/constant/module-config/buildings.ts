@@ -1,6 +1,10 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_BUILDINGS_TYPES, MODULES } from 'src/constant/modules';
-import type { BuildingsSubType, Module } from 'src/constant/modules';
+import type {
+  BuildingsSubType,
+  Module,
+  TaxonomyNode,
+} from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
 import type { AllSubmoduleTypes } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
@@ -30,6 +34,29 @@ async function getRoom(
 }
 
 /**
+ * Get the taxonomy node from the selected building name.
+ * @param subModuleType
+ * @param entry
+ * @returns
+ */
+function getBuildingNode(
+  subModuleType: AllSubmoduleTypes,
+  entry: Record<string, unknown>,
+): TaxonomyNode | null {
+  if (!entry) return null;
+  const buildingName = entry['building_name'];
+  if (typeof buildingName !== 'string') return null;
+  const roomType = entry['room_type'];
+  if (typeof roomType !== 'string') return null;
+  const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
+  if (!taxoNode || !taxoNode.children) return null;
+  const buildingNode = taxoNode.children.find(
+    (child) => child.name === buildingName,
+  );
+  return buildingNode;
+}
+
+/**
  * Factor values are stored in the taxonomy under the room type node, so we need
  * to navigate there to get them.
  * @param subModuleType
@@ -41,15 +68,9 @@ function getRoomValues(
   entry: Record<string, unknown>,
 ) {
   if (!entry) return {};
-  const buildingName = entry['building_name'];
-  if (typeof buildingName !== 'string') return {};
   const roomType = entry['room_type'];
   if (typeof roomType !== 'string') return {};
-  const taxoNode = moduleStore.state.taxonomySubmodule[subModuleType];
-  if (!taxoNode || !taxoNode.children) return {};
-  const buildingNode = taxoNode.children.find(
-    (child) => child.name === buildingName,
-  );
+  const buildingNode = getBuildingNode(subModuleType, entry);
   if (!buildingNode || !buildingNode.children) return {};
   const roomTypeNode = buildingNode.children.find(
     (child) => child.name === roomType,
@@ -104,6 +125,9 @@ const roomFields: ModuleField[] = [
         label: room.room_name,
       }));
     },
+    disable: (subModuleType, entry) => {
+      return !entry['building_name'];
+    },
   },
   {
     id: 'room_type',
@@ -115,27 +139,26 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_category',
-    disableUntilField: 'room_name',
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
-    optionsFunction: async () => [
-      { value: 'office', label: 'Office' },
-      { value: 'miscellaneous', label: 'Miscellaneous' },
-      {
-        value: 'laboratories',
-        label: 'Laboratories',
-      },
-      { value: 'archives', label: 'Archives' },
-      { value: 'libraries', label: 'Libraries' },
-      {
-        value: 'auditoriums',
-        label: 'Auditoriums',
-      },
-    ],
+    optionsFunction: async (subModuleType, entry) => {
+      console.log('Fetching room type options'); // Debug log
+      const buildingNode = getBuildingNode(subModuleType, entry);
+      if (!buildingNode || !buildingNode.children) return [];
+      const roomTypes = buildingNode.children.map((child) => ({
+        value: child.name,
+        label: child.label,
+      }));
+      return roomTypes;
+    },
     default: async (subModuleType, entry) => {
       const room = await getRoom(subModuleType, entry);
+      console.log('Fetched room for default room type:', room);
       return room?.room_type ?? null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
@@ -147,11 +170,13 @@ const roomFields: ModuleField[] = [
     readOnlyWhenFilled: true,
     unit: 'm²',
     ratio: '1/5',
-    disableUntilField: 'room_name',
     icon: 'o_straighten',
     default: async (subModuleType, entry) => {
       const room = await getRoom(subModuleType, entry);
       return room?.room_surface_square_meter ?? null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
@@ -162,12 +187,14 @@ const roomFields: ModuleField[] = [
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/5',
-    disableUntilField: 'room_name',
     icon: 'o_thermostat',
     tooltip: `${MODULES.Buildings}.tooltips.heating`,
     default: async (subModuleType, entry) => {
       const roomValue = getRoomValues(subModuleType, entry);
       return roomValue['heating_kwh_per_square_meter'] as number | null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
@@ -178,12 +205,14 @@ const roomFields: ModuleField[] = [
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/5',
-    disableUntilField: 'room_name',
     icon: 'o_ac_unit',
     tooltip: `${MODULES.Buildings}.tooltips.cooling`,
     default: async (subModuleType, entry) => {
       const roomValue = getRoomValues(subModuleType, entry);
       return roomValue['cooling_kwh_per_square_meter'] as number | null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
@@ -194,12 +223,14 @@ const roomFields: ModuleField[] = [
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/5',
-    disableUntilField: 'room_name',
     icon: 'o_air',
     tooltip: `${MODULES.Buildings}.tooltips.ventilation`,
     default: async (subModuleType, entry) => {
       const roomValue = getRoomValues(subModuleType, entry);
       return roomValue['ventilation_kwh_per_square_meter'] as number | null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
@@ -210,12 +241,14 @@ const roomFields: ModuleField[] = [
     sortable: false,
     unit: 'kWh/m²',
     ratio: '1/5',
-    disableUntilField: 'room_name',
     icon: 'o_light_mode',
     tooltip: `${MODULES.Buildings}.tooltips.lighting`,
     default: async (subModuleType, entry) => {
       const roomValue = getRoomValues(subModuleType, entry);
       return roomValue['lighting_kwh_per_square_meter'] as number | null;
+    },
+    disable: (subModuleType, entry) => {
+      return !entry['room_name'];
     },
   },
   {
