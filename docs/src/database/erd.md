@@ -130,9 +130,9 @@ erDiagram
     VARCHAR email "indexed"
     VARCHAR function
     INTEGER id PK
+    VARCHAR institutional_id "indexed"
     DATETIME last_login
     VARCHAR provider
-    VARCHAR provider_code "indexed"
     JSON roles_raw
   }
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"

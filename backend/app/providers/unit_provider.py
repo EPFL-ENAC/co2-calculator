@@ -55,7 +55,7 @@ class UnitProvider(ABC):
 
     async def get_unit_by_id(self, unit_id: str) -> Optional[Unit]:
         """
-        Get a single unit by ID, here the unit_id is the provider_code.
+        Get a single unit by ID, here the unit_id is the institutional_id.
 
         Args:
             unit_id: Unit ID to fetch
@@ -148,12 +148,12 @@ class AccredUnitProvider(UnitProvider):
                         continue
 
                     email = responsible.get("email")
-                    provider_code = responsible.get("id")
+                    institutional_id = responsible.get("id")
 
-                    if not email or not provider_code:
+                    if not email or not institutional_id:
                         continue
 
-                    key = (email, provider_code)
+                    key = (email, institutional_id)
                     if key not in seen_users:
                         seen_users.add(key)
                         all_principal_users.append(responsible)
@@ -320,7 +320,7 @@ class TestUnitProvider(UnitProvider):
                 id=1,
                 provider=self.type,
                 institutional_code="12345",
-                institutional_id="7918",
+                institutional_id="1119",
                 name="ENAC-IT4R-TEST",
                 level=4,
                 principal_user_institutional_id="testuser_co2.user.principal",
@@ -345,15 +345,15 @@ class TestUnitProvider(UnitProvider):
             return [
                 Unit(
                     provider=self.type,
-                    institutional_code=str(provider_code),
-                    name=f"I-{provider_code}-TEST",
+                    institutional_code=str(unit_id),
+                    name=f"I-{unit_id}-TEST",
                     level=4,
-                    path_institutional_code=f"10582 10583 {provider_code}",
-                    path_institutional_id=f"cf-10582 cf-10583 cf-{provider_code}",
+                    path_institutional_code=f"10582 10583 {unit_id}",
+                    path_institutional_id=f"cf-10582 cf-10583 cf-{unit_id}",
                     principal_user_institutional_id="testuser_co2.user.principal",
-                    path_name=f"TEST-AFFILIATION-{provider_code}",
+                    path_name=f"TEST-AFFILIATION-{unit_id}",
                 )
-                for provider_code in unit_ids
+                for unit_id in unit_ids
             ]
         return all_test_units
 

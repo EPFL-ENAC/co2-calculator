@@ -58,7 +58,7 @@ def generate_units():
     rows = []
 
     for i in range(NUM_UNITS):
-        provider_code = f"U{i:05d}"
+        institutional_code = f"U{i:05d}"
 
         affiliations = []
         if random.random() < 0.7:  # nosec B311
@@ -73,7 +73,7 @@ def generate_units():
 
         rows.append(
             (
-                provider_code,
+                institutional_code,
                 fake.company(),
                 None,
                 json.dumps(cost_centers),
@@ -88,7 +88,7 @@ def generate_units():
 async def insert_units(conn, rows):
     await conn.execute("""
         CREATE TEMP TABLE tmp_units (
-            provider_code TEXT,
+            institutional_code TEXT,
             name TEXT,
             principal_user_institutional_id TEXT,
             cost_centers JSONB,
@@ -104,7 +104,7 @@ async def insert_units(conn, rows):
 
     unit_ids = await conn.fetch("""
         INSERT INTO units (
-            provider_code,
+            institutional_code,
             name,
             principal_user_institutional_id,
             cost_centers,
@@ -112,17 +112,17 @@ async def insert_units(conn, rows):
             provider
         )
         SELECT
-            provider_code,
+            institutional_code,
             name,
             principal_user_institutional_id,
             cost_centers,
             affiliations,
             provider::user_provider_enum
         FROM tmp_units
-        RETURNING id, provider_code
+        RETURNING id, institutional_code
     """)
 
-    return {r["provider_code"]: r["id"] for r in unit_ids}
+    return {r["institutional_code"]: r["id"] for r in unit_ids}
 
 
 # ============================================================
@@ -169,14 +169,14 @@ def generate_users(unit_map):
         unit_id = unit_map[unit_code]
 
         for _ in range(count):
-            provider_code = f"USR{user_counter:06d}"
+            institutional_id = f"USR{user_counter:06d}"
             user_counter += 1
 
             role = random.choice(USER_ROLES)  # nosec B311
 
             user_rows.append(
                 (
-                    provider_code,
+                    institutional_id,
                     fake.unique.email(),
                     fake.name(),
                     fake.job(),
@@ -185,7 +185,7 @@ def generate_users(unit_map):
                         [
                             {
                                 "role": role.value,
-                                "on": {"provider_code": unit_code},
+                                "on": {"institutional_id": unit_code},
                             }
                         ]
                     ),
@@ -193,7 +193,7 @@ def generate_users(unit_map):
                 )
             )
 
-            unit_user_rows.append((provider_code, unit_id, role.name))
+            unit_user_rows.append((institutional_id, unit_id, role.name))
 
     # Admins
     # Admins
@@ -201,7 +201,7 @@ def generate_users(unit_map):
     first_unit_id = unit_map[first_unit_code]
 
     for role in ADMIN_ROLES:
-        provider_code = f"ADMIN{user_counter:06d}"
+        institutional_id = f"ADMIN{user_counter:06d}"
         user_counter += 1
 
         if role == RoleName.CO2_SUPERADMIN:
@@ -216,7 +216,7 @@ def generate_users(unit_map):
 
         user_rows.append(
             (
-                provider_code,
+                institutional_id,
                 fake.unique.email(),
                 fake.name(),
                 fake.job(),
@@ -227,7 +227,7 @@ def generate_users(unit_map):
         )
 
         # (attach admin to first unit)
-        unit_user_rows.append((provider_code, first_unit_id, role.name))
+        unit_user_rows.append((institutional_id, first_unit_id, role.name))
 
     return user_rows, unit_user_rows
 
@@ -235,7 +235,7 @@ def generate_users(unit_map):
 async def insert_users(conn, user_rows):
     await conn.execute("""
         CREATE TEMP TABLE tmp_users (
-            provider_code TEXT,
+            institutional_id TEXT,
             email TEXT,
             display_name TEXT,
             function TEXT,
@@ -252,7 +252,7 @@ async def insert_users(conn, user_rows):
 
     users = await conn.fetch("""
         INSERT INTO users (
-            provider_code,
+            institutional_id,
             email,
             display_name,
             function,
@@ -261,7 +261,7 @@ async def insert_users(conn, user_rows):
             last_login
         )
         SELECT
-            provider_code,
+            institutional_id,
             email,
             display_name,
             function,
@@ -269,10 +269,10 @@ async def insert_users(conn, user_rows):
             roles_raw,
             last_login
         FROM tmp_users
-        RETURNING id, provider_code
+        RETURNING id, institutional_id
     """)
 
-    return {r["provider_code"]: r["id"] for r in users}
+    return {r["institutional_id"]: r["id"] for r in users}
 
 
 async def insert_unit_users(conn, unit_user_rows, user_map):
@@ -295,11 +295,11 @@ async def insert_unit_users(conn, unit_user_rows, user_map):
 async def assign_principals(conn):
     await conn.execute("""
         UPDATE units u
-        SET principal_user_institutional_id = sub.provider_code
+        SET principal_user_institutional_id = sub.institutional_id
         FROM (
             SELECT DISTINCT ON (uu.unit_id)
                 uu.unit_id,
-                usr.provider_code
+                usr.institutional_id
             FROM unit_users uu
             JOIN users usr ON usr.id = uu.user_id
             ORDER BY uu.unit_id, random()

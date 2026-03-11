@@ -184,10 +184,12 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
                 # Extract unit from scope
-                if isinstance(role_scope, RoleScope) and role_scope.provider_code:
-                    user_unit_ids.add(role_scope.provider_code)
-                elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
-                    user_unit_ids.add(role_scope["provider_code"])
+                if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+                    user_unit_ids.add(role_scope.institutional_id)
+                elif isinstance(role_scope, dict) and role_scope.get(
+                    "institutional_id"
+                ):
+                    user_unit_ids.add(role_scope["institutional_id"])
 
         # Principals can edit manual/CSV trips in their units
         if principal_or_secondary and resource_unit_id in user_unit_ids:
@@ -314,11 +316,11 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
         for role in roles:
             role_scope = role.on
             # Handle RoleScope objects
-            if isinstance(role_scope, RoleScope) and role_scope.provider_code:
-                unit_ids.add(role_scope.provider_code)
+            if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+                unit_ids.add(role_scope.institutional_id)
             # Handle dict format
-            elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
-                unit_ids.add(role_scope["provider_code"])
+            elif isinstance(role_scope, dict) and role_scope.get("institutional_id"):
+                unit_ids.add(role_scope["institutional_id"])
         if unit_ids:
             # Unit scope: filter by unit_ids
             scope = "unit"

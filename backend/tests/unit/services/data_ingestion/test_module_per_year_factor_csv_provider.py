@@ -12,10 +12,9 @@ from app.services.data_ingestion.csv_providers.factors import (
 
 
 def _make_handler(required_field_name="value"):
-    field_required = MagicMock()
-    field_required.is_required.return_value = True
     handler = MagicMock()
-    handler.create_dto.model_fields = {required_field_name: field_required}
+    handler.expected_columns = {required_field_name}
+    handler.required_columns = {required_field_name}
     return handler
 
 
@@ -25,7 +24,6 @@ async def test_setup_handlers_and_context_single_type(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
-            "factor_variant": "v1",
         },
         data_session=MagicMock(),
     )
@@ -48,7 +46,7 @@ async def test_setup_handlers_and_context_single_type(monkeypatch):
 
     assert setup["handlers"] == [handler]
     assert setup["required_columns"] == {"value"}
-    get_by_type.assert_called_once_with(DataEntryTypeEnum.member, "v1")
+    get_by_type.assert_called_once_with(DataEntryTypeEnum.member)
 
 
 @pytest.mark.asyncio

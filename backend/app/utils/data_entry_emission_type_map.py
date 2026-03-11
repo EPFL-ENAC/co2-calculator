@@ -43,6 +43,17 @@ from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 # here and resolved at runtime by resolve_emission_types() below.
 # =============================================================================
 
+FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
+    # --- Additional Categories ------------------------------------------------
+    # member/student each produce N rows — one per factor applied (food, waste,
+    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    DataEntryTypeEnum.building: [EmissionType.buildings__rooms],
+    # --- Professional Travel — one factor per haul/country, not per cabin -----
+    DataEntryTypeEnum.plane: [EmissionType.professional_travel__plane],
+    DataEntryTypeEnum.train: [EmissionType.professional_travel__train],
+}
+
 DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
@@ -113,9 +124,6 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
         EmissionType.external__ai__provider_cohere,
         EmissionType.external__ai__provider_others,
     ],  # provider is a subcategory, not path
-    # --- Internal / special --------------------------------------------------
-    # energy_mix is a conversion factor only, never produces emission rows
-    DataEntryTypeEnum.energy_mix: [],
 }
 
 
@@ -125,8 +133,8 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
 
 _CLOUD_SUBKIND_MAP: dict[str, EmissionType] = {
     "virtualisation": EmissionType.external__clouds__virtualisation,
-    "calcul": EmissionType.external__clouds__calcul,
-    "stockage": EmissionType.external__clouds__stockage,
+    "compute": EmissionType.external__clouds__calcul,
+    "storage": EmissionType.external__clouds__stockage,
 }
 
 _AI_USE_MAP: dict[str, EmissionType] = {
@@ -141,13 +149,12 @@ _AI_USE_MAP: dict[str, EmissionType] = {
 _PLANE_CABIN_MAP: dict[str, EmissionType] = {
     "first": EmissionType.professional_travel__plane__first,
     "business": EmissionType.professional_travel__plane__business,
-    "eco_plus": EmissionType.professional_travel__plane__eco_plus,
     "eco": EmissionType.professional_travel__plane__eco,
 }
 
 _TRAIN_CLASS_MAP: dict[str, EmissionType] = {
-    "class_1": EmissionType.professional_travel__train__class_1,
-    "class_2": EmissionType.professional_travel__train__class_2,
+    "first": EmissionType.professional_travel__train__class_1,
+    "second": EmissionType.professional_travel__train__class_2,
 }
 
 _PROCESS_GAS_MAP: dict[str, EmissionType] = {
@@ -155,6 +162,7 @@ _PROCESS_GAS_MAP: dict[str, EmissionType] = {
     "co2": EmissionType.process_emissions__co2,
     "n2o": EmissionType.process_emissions__n2o,
     "refrigerants": EmissionType.process_emissions__refrigerants,
+    "refrigerant": EmissionType.process_emissions__refrigerants,  # CSV spelling
 }
 
 
@@ -166,16 +174,6 @@ def _resolve_plane(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_train(data: dict) -> list[EmissionType] | None:
-
-    # trains also use cabin_class (class_1 / class_2)
-    # no default, return None if no cabin_class or
-    # unknown value — caller should log and skip
-
-    # To avoid silently dropping emissions on incomplete payloads,
-    # we could default to class_2 when value is missing or unrecognized.
-    # but that would mean that we don't have the 'REAL' stats and that we decided the
-    # data_entry cabin_class at the emission level without the user knowing
-    # we should ask the PM about this: TODO
     cabin = (data.get("cabin_class") or "").lower()
     et = _TRAIN_CLASS_MAP.get(cabin)
     return [et] if et else None
@@ -190,14 +188,14 @@ def _resolve_clouds(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_ai(data: dict) -> list[EmissionType] | None:
-    ai_provider = (data.get("ai_provider") or "").lower().replace(" ", "_")
+    ai_provider = (data.get("provider") or "").lower().replace(" ", "_")
     et = _AI_USE_MAP.get(ai_provider)
     # default to "others" if provider is missing/unknown
     return [et] if et else [EmissionType.external__ai__provider_others]
 
 
 def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
-    gas = data.get("emitted_gas", (data.get("kind", "") or "")).lower()
+    gas = data.get("category", (data.get("kind", "") or "")).lower()
     et = _PROCESS_GAS_MAP.get(gas)
     return [et] if et else None  # None = unknown gas, caller should warn + skip
 
@@ -226,6 +224,41 @@ def _resolve_building(data: dict) -> list[EmissionType] | None:
     return None  # unknown category or energy type
 
 
+def _resolve_headcount_factor(data: dict) -> list[EmissionType] | None:
+    """Resolve a headcount factor row to a single EmissionType leaf.
+
+    Builds the enum name from headcount_category / headcount_class /
+    headcount_subclass and tries the most specific match first, then
+    falls back to less specific names.
+    """
+    category = (data.get("headcount_category") or "").strip().lower()
+    cls = (data.get("headcount_class") or "").strip().lower()
+    subclass = (data.get("headcount_subclass") or "").strip().lower()
+
+    if not category:
+        return None
+
+    # Try most specific: category__class__subclass
+    if cls and subclass:
+        try:
+            return [EmissionType[f"{category}__{cls}__{subclass}"]]
+        except KeyError:
+            pass
+
+    # Try category__class
+    if cls:
+        try:
+            return [EmissionType[f"{category}__{cls}"]]
+        except KeyError:
+            pass
+
+    # Try category only
+    try:
+        return [EmissionType[category]]
+    except KeyError:
+        return None
+
+
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
@@ -237,6 +270,8 @@ _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.external_ai: _resolve_ai,
     DataEntryTypeEnum.external_clouds: _resolve_clouds,
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,
+    DataEntryTypeEnum.member: _resolve_headcount_factor,
+    DataEntryTypeEnum.student: _resolve_headcount_factor,
 }
 
 
@@ -261,6 +296,19 @@ def resolve_factor_emission_type(
     one EmissionType. For emission rows, use resolve_emission_types() which can
     return multiple types for a single data entry.
     """
+    factor_resolver = FACTOR_TO_EMISSION_TYPES.get(data_entry_type)
+    if factor_resolver is not None:
+        if len(factor_resolver) == 0:
+            return None  # known type that intentionally emits nothing
+        if len(factor_resolver) > 1:
+            raise ValueError(
+                f"Expected exactly one emission_type for factor: {data_entry_type},"
+                f" but got multiple: {factor_resolver}"
+                f" for row: {factor}"
+            )
+        return factor_resolver[0]
+    # else we default to runtime resolver for dynamic types
+    # (plane, train, process_emissions, external_clouds)
     resolver = _RUNTIME_RESOLVERS.get(data_entry_type)
     types = None
     if resolver:
@@ -271,7 +319,7 @@ def resolve_factor_emission_type(
     if types is None:
         return None  # unknown type, caller should log and skip
     if len(types) == 0:
-        return None  # known type that intentionally emits nothing (e.g. energy_mix)
+        return None  # known type that intentionally emits nothing
     if len(types) > 1:
         raise ValueError(
             f"Expected exactly one emission type for factor of type {data_entry_type},"
@@ -291,7 +339,6 @@ def resolve_emission_types(
     Returns:
       list[EmissionType]  — one or more emission types; create one row per entry
       []                  — known type that intentionally emits nothing
-            (e.g. energy_mix)
       None                — unhandled / unknown type — caller should log and skip
 
     Usage in DataEntryEmissionService:

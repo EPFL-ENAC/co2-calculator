@@ -18,13 +18,13 @@ settings = get_settings()
 
 
 async def seed_test_users(session: AsyncSession) -> None:
-    # upsert user with provider code 44444 for testing
+    # upsert user with institutional_id 44444 for testing
     logger.info("Seeding test user records...")
     user_service = UserService(session)
     await user_service.upsert_user(
         id=None,
         email="testuser@testdomain.epfl",
-        provider_code="44444",
+        institutional_id="44444",
         display_name="Test User",
         roles=[],
         stop_recursion=True,
@@ -33,7 +33,7 @@ async def seed_test_users(session: AsyncSession) -> None:
     await user_service.upsert_user(
         id=None,
         email="headOfUnit@testdomain.epfl",
-        provider_code="777777",
+        institutional_id="777777",
         display_name="Test User Head of Unit",
         roles=[],
         stop_recursion=True,
@@ -48,6 +48,7 @@ async def seed_test_units(session: AsyncSession) -> None:
     await unit_service.upsert(
         unit_data=Unit(
             institutional_code="12345",
+            institutional_id="1119",
             level=4,
             name="test unit 12345",
             principal_user_institutional_id="777777",
@@ -56,6 +57,7 @@ async def seed_test_units(session: AsyncSession) -> None:
     await unit_service.upsert(
         unit_data=Unit(
             institutional_code="10208",
+            institutional_id="0184",
             level=4,
             name="enac test 10208",
             principal_user_institutional_id="777777",
@@ -67,11 +69,11 @@ async def seed_unit_users(session: AsyncSession) -> None:
     logger.info("Seeding unit_user relationships...")
     unit_user_service = UnitUserService(session)
     # link user 44444 to unit 10208
-    unit_10208: UnitRead | None = await UnitService(session).get_by_provider_code(
-        "10208"
+    unit_10208: UnitRead | None = await UnitService(session).get_by_institutional_id(
+        "0184"
     )
-    unit_12345: UnitRead | None = await UnitService(session).get_by_provider_code(
-        "12345"
+    unit_12345: UnitRead | None = await UnitService(session).get_by_institutional_id(
+        "1119"
     )
     if unit_10208 is None or unit_12345 is None:
         logger.error("Cannot seed unit_user relationships: missing unit")

@@ -4,13 +4,23 @@ from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    EmissionType,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
+)
+from app.schemas.factor import (
+    BaseFactorHandler,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
 )
 
 logger = get_logger(__name__)
@@ -255,7 +265,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             annual_consumption = ctx.get("annual_consumption", 0)
             coef_to_kg = ctx.get("coef_to_kg", 0)
             ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
-            if not annual_consumption or not coef_to_kg or not ef:
+            if annual_consumption is None or coef_to_kg is None or ef is None:
                 return None
             return annual_consumption * coef_to_kg * ef
 
@@ -266,3 +276,95 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
                 formula_func=_additional_purchase_formula,
             )
         ]
+
+
+## PURCHASE FACTOR HANDLERS
+
+# --- Additional Purchases ---
+
+purchase_additional_classification_fields: list[str] = ["name"]
+purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
+
+
+class PurchaseAdditionalFactorCreate(FactorCreate):
+    name: str
+    ef_kg_co2eq_per_kg: Optional[float] = None
+
+
+class PurchaseAdditionalFactorUpdate(FactorUpdate):
+    name: Optional[str] = None
+    ef_kg_co2eq_per_kg: Optional[float] = None
+
+
+class PurchaseAdditionalFactorResponse(FactorResponseGen):
+    name: str
+    ef_kg_co2eq_per_kg: Optional[float] = None
+
+
+class PurchaseAdditionalFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [DataEntryTypeEnum.additional_purchases]
+    emission_type = EmissionType.purchases__additional
+
+    create_dto = PurchaseAdditionalFactorCreate
+    update_dto = PurchaseAdditionalFactorUpdate
+    response_dto = PurchaseAdditionalFactorResponse
+
+    classification_fields: list[str] = purchase_additional_classification_fields
+    value_fields: list[str] = purchase_additional_value_fields
+
+
+# --- Common Purchases (7 types, same CSV format) ---
+
+purchase_common_classification_fields: list[str] = [
+    "purchase_institutional_code",
+    "purchase_institutional_description",
+    "purchase_additional_code",
+    "currency",
+]
+purchase_common_value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
+
+
+class PurchaseCommonFactorCreate(FactorCreate):
+    purchase_institutional_code: str
+    purchase_institutional_description: Optional[str] = None
+    purchase_additional_code: Optional[str] = None
+    currency: str
+    ef_kg_co2eq_per_currency: Optional[float] = None
+
+
+class PurchaseCommonFactorUpdate(FactorUpdate):
+    purchase_institutional_code: Optional[str] = None
+    purchase_institutional_description: Optional[str] = None
+    purchase_additional_code: Optional[str] = None
+    currency: Optional[str] = None
+    ef_kg_co2eq_per_currency: Optional[float] = None
+
+
+class PurchaseCommonFactorResponse(FactorResponseGen):
+    purchase_institutional_code: str
+    purchase_institutional_description: Optional[str] = None
+    purchase_additional_code: Optional[str] = None
+    currency: str
+    ef_kg_co2eq_per_currency: Optional[float] = None
+
+
+class PurchaseCommonFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [
+        DataEntryTypeEnum.scientific_equipment,
+        DataEntryTypeEnum.it_equipment,
+        DataEntryTypeEnum.consumable_accessories,
+        DataEntryTypeEnum.biological_chemical_gaseous_product,
+        DataEntryTypeEnum.services,
+        DataEntryTypeEnum.vehicles,
+        DataEntryTypeEnum.other_purchases,
+    ]
+    emission_type = None  # resolved per type via DATA_ENTRY_TO_EMISSION_TYPES
+
+    create_dto = PurchaseCommonFactorCreate
+    update_dto = PurchaseCommonFactorUpdate
+    response_dto = PurchaseCommonFactorResponse
+
+    classification_fields: list[str] = purchase_common_classification_fields
+    value_fields: list[str] = purchase_common_value_fields

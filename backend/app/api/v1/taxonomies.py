@@ -12,6 +12,7 @@ from app.models.module_type import (
 from app.models.taxonomy import TaxonomyNode
 from app.models.user import User
 from app.schemas.data_entry import BaseModuleHandler
+from app.services.module_handler_service import ModuleHandlerService
 
 router = APIRouter()
 
@@ -28,10 +29,11 @@ async def get_taxonomy_for_module_type(
 ) -> TaxonomyNode:
     """Get taxonomy for a given module type."""
     await check_module_permission(current_user, module_type.name, "view")
+    handler_service = ModuleHandlerService(db)
     nodes = []
     for data_entry_type in get_data_entry_types_for_module_type(module_type):
         handler = BaseModuleHandler.get_by_type(data_entry_type)
-        nodes.append(await handler.get_taxonomy(data_entry_type, db))
+        nodes.append(await handler_service.get_taxonomy(handler, data_entry_type))
 
     return TaxonomyNode(
         name=module_type.name,
@@ -56,7 +58,8 @@ async def get_taxonomy_for_data_entry_type(
         raise HTTPException(status_code=404, detail="Module type not found")
     await check_module_permission(current_user, module_type.name, "view")
     handler = BaseModuleHandler.get_by_type(data_entry_type)
-    return await handler.get_taxonomy(data_entry_type, db)
+    handler_service = ModuleHandlerService(db)
+    return await handler_service.get_taxonomy(handler, data_entry_type)
 
 
 @router.get(

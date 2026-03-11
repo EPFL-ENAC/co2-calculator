@@ -170,7 +170,7 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(provider_code=scope_id),
+                            on=RoleScope(institutional_id=scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
@@ -240,15 +240,14 @@ class TestRoleProvider(RoleProvider):
         """
         requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         # Create roles based on requested role
-        TEST_UNIT_PROVIDER_CODE = "12345"
-        # TEST_UNIT_PROVIDER_CODE = "10446"
+        TEST_UNIT_INSTITUTIONAL_ID = "1119"
         roles: List[Role] = []
         if requested_role == RoleName.CO2_USER_STD.value:
             roles = [
                 Role(
                     role=RoleName.CO2_USER_STD,
                     on=RoleScope(
-                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        institutional_id=TEST_UNIT_INSTITUTIONAL_ID,
                         affiliation="testaffiliation",
                     ),
                 )
@@ -258,7 +257,7 @@ class TestRoleProvider(RoleProvider):
                 Role(
                     role=RoleName.CO2_USER_PRINCIPAL,
                     on=RoleScope(
-                        provider_code=TEST_UNIT_PROVIDER_CODE,
+                        institutional_id=TEST_UNIT_INSTITUTIONAL_ID,
                         affiliation="testaffiliation",
                     ),
                 )
@@ -287,7 +286,7 @@ class TestRoleProvider(RoleProvider):
         """
         roles = await self.get_roles_by_user_id(user_id)
         user_insert = {
-            "provider_code": user_id,
+            "institutional_id": user_id,
             "provider": self.type,
             "email": f"{user_id}@testprovider.local",
             "display_name": f"Test User {user_id}",
@@ -346,21 +345,21 @@ class AccredRoleProvider(RoleProvider):
             )
 
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
-        """Get provider code for a user.
+        """Get institutional ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            Provider code as a string
+            Institutional ID as a string
         """
-        provider_code = userinfo.get("uniqueid")  # return user_id as str
-        if not provider_code:
+        user_id = userinfo.get("uniqueid")  # return user_id as str
+        if not user_id:
             logger.warning(
                 "No user ID found in userinfo",
                 extra={"userinfo": userinfo},
             )
             raise ValueError("User ID is required for Accred role provider")
-        return str(provider_code)
+        return str(user_id)
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Fetch roles from EPFL Accred API.
@@ -420,7 +419,7 @@ class AccredRoleProvider(RoleProvider):
                 extra={"user_id": user_id},
             )
             user_insert = {
-                "provider_code": str(data.get("id")),  # provider user id
+                "institutional_id": str(data.get("id")),  # provider user id
                 "provider": self.type,
                 "email": data.get("email"),
                 "display_name": data.get("display"),
@@ -470,7 +469,7 @@ class AccredRoleProvider(RoleProvider):
         """
         return User(
             provider=self.type,
-            provider_code=str(user_raw.get("id")),
+            institutional_id=str(user_raw.get("id")),
             display_name=user_raw.get("display"),
             email=user_raw.get("email") or f"{user_raw.get('canon')}@epfl.ch",
             function=user_raw.get("function", None),
@@ -577,7 +576,7 @@ class AccredRoleProvider(RoleProvider):
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(provider_code=str(accred_unit_id)),
+                            on=RoleScope(institutional_id=str(accred_unit_id)),
                         )
                     )
 

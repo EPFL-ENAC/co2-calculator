@@ -10,9 +10,9 @@ import type { Module } from 'src/constant/modules';
 
 const cloudFields: ModuleField[] = [
   {
-    id: 'cloud_provider',
+    id: 'provider',
     optionsId: 'kind',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.cloud_provider`,
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.provider`,
     hideIn: { form: false },
     sortable: true,
     type: 'select',
@@ -49,8 +49,8 @@ const cloudFields: ModuleField[] = [
   //   sortable: true,
   // },
   {
-    id: 'spending',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.spending`,
+    id: 'spent_amount',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.spent_amount`,
     type: 'number',
     editableInline: true,
     min: 0,
@@ -78,8 +78,8 @@ const cloudFields: ModuleField[] = [
 
 const externalAIFields: ModuleField[] = [
   {
-    id: 'ai_provider',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.ai_provider`,
+    id: 'provider',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.provider`,
     required: true,
     ratio: '4/12',
     hideIn: { table: false },
@@ -91,8 +91,8 @@ const externalAIFields: ModuleField[] = [
     type: 'select',
   },
   {
-    id: 'ai_use',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.ai_use`,
+    id: 'usage_type',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.usage_type`,
     required: true,
     ratio: '4/12',
     hideIn: { table: false },
@@ -116,16 +116,34 @@ const externalAIFields: ModuleField[] = [
     hideIn: { table: false },
   },
   {
-    id: 'frequency_use_per_day',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.frequency_use_per_day`,
-    type: 'number',
+    id: 'requests_per_user_per_day',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.requests_per_user_per_day`,
+    type: 'select',
     required: true,
-    min: 1,
     editableInline: true,
-    step: 1,
+    inputTypeName: 'QSelect',
+    optionLabelsAreKeys: true,
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    options: [
+      {
+        value: '1-5 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`,
+      },
+      {
+        value: '5-20 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.5_20`,
+      },
+      {
+        value: '20-100 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.20_100`,
+      },
+      {
+        value: '>100 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.gt_100`,
+      },
+    ],
   },
   {
     id: 'kg_co2eq',

@@ -33,15 +33,15 @@ export default {
     en: 'Process emission ({count}) | Process emissions ({count})',
     fr: 'Émission de procédé ({count}) | Émissions de procédés ({count})',
   },
-  [`${MODULES.ProcessEmissions}.inputs.emitted_gas`]: {
+  [`${MODULES.ProcessEmissions}.inputs.category`]: {
     en: 'Emitted Gas',
     fr: 'Gaz émis',
   },
-  [`${MODULES.ProcessEmissions}.inputs.sub_category`]: {
+  [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
     en: 'Sub-category',
     fr: 'Sous-catégorie',
   },
-  [`${MODULES.ProcessEmissions}.inputs.quantity_kg`]: {
+  [`${MODULES.ProcessEmissions}.inputs.quantity`]: {
     en: 'Quantity (kg)',
     fr: 'Quantité (kg)',
   },

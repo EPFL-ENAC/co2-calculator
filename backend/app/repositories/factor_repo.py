@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.schemas.data_entry import BaseModuleHandler
 
 
 class FactorRepository:
@@ -16,21 +17,9 @@ class FactorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # Data entry type ID for emission factors (energy_mix)
-    EMISSION_FACTOR_DATA_ENTRY_TYPE_ID = DataEntryTypeEnum.energy_mix.value
-
     async def get(self, id: int) -> Optional[Factor]:
         """Get factor by ID."""
         stmt = select(Factor).where(col(Factor.id) == id)
-        result = await self.session.exec(stmt)
-        return result.one_or_none()
-
-    async def get_electricity_factor(self) -> Optional[Factor]:
-        """Get the electricity factor."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == DataEntryTypeEnum.energy_mix.value,
-        )
-
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
@@ -137,16 +126,22 @@ class FactorRepository:
         return list(result.all())
 
     async def get_class_subclass_map(
-        self, data_entry_type: DataEntryTypeEnum
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        kind_field: str,
+        subkind_field: str,
     ) -> Dict[str, List[str]]:
         """
         Return a mapping of equipment_class -> list of subclasses.
 
-        Mimics legacy PowerFactorRepository.get_class_subclass_map.
+        Args:
+            data_entry_type: The data entry type to filter on
+            kind_field: Classification key for the primary class
+            subkind_field: Classification key for the subclass
         """
         stmt = select(
-            Factor.classification["kind"].as_string(),
-            Factor.classification["subkind"].as_string(),
+            Factor.classification[kind_field].as_string(),
+            Factor.classification[subkind_field].as_string(),
         ).where(col(Factor.data_entry_type_id) == data_entry_type.value)
 
         result = await self.session.exec(stmt)
@@ -173,47 +168,6 @@ class FactorRepository:
 
         return dict(sorted(mapping.items()))
 
-    # async def get_current_factor(
-    #     self,
-    #     session: AsyncSession,
-    #     factor_family: str,
-    #     variant_type_id: Optional[int] = None,
-    #     classification: Optional[Dict] = None,
-    # ) -> Optional[Factor]:
-    #     """
-    #     Get the current (valid_to IS NULL) factor for given criteria.
-
-    #     Args:
-    #         session: Database session
-    #         factor_family: Factor family (e.g., 'power', 'headcount')
-    #         variant_type_id: Optional variant type filter
-    #         classification: Optional classification dict to match
-
-    #     Returns:
-    #         Current factor if found, None otherwise
-    #     """
-    #     stmt = select(Factor).where(
-    #         col(Factor.factor_family) == factor_family,
-    #         col(Factor.valid_to).is_(None),
-    #     )
-
-    #     if variant_type_id is not None:
-    #         stmt = stmt.where(col(Factor.variant_type_id) == variant_type_id)
-
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
-
-    #     if not classification:
-    #         return factors[0] if factors else None
-
-    #     # Filter by classification match
-    #     for factor in factors:
-    #         factor_cls = factor.classification or {}
-    #         if all(factor_cls.get(k) == v for k, v in classification.items()):
-    #             return factor
-
-    #     return None
-
     async def get_by_classification(
         self,
         data_entry_type: DataEntryTypeEnum,
@@ -221,11 +175,15 @@ class FactorRepository:
         subkind: Optional[str] = None,
     ) -> Optional[Factor]:
         # First try exact match with subkind
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
+        kind_field = handler.kind_field or ""
+        subkind_field = handler.subkind_field or ""
+
         if subkind:
             stmt = select(Factor).where(
                 col(Factor.data_entry_type_id) == data_entry_type.value,
-                Factor.classification["kind"].as_string() == kind,
-                Factor.classification["subkind"].as_string() == subkind,
+                Factor.classification[kind_field].as_string() == kind,
+                Factor.classification[subkind_field].as_string() == subkind,
             )
             result = await self.session.exec(stmt)
             factor = result.one_or_none()
@@ -235,8 +193,8 @@ class FactorRepository:
         # Fallback to kind-only match (no subkind)
         stmt = select(Factor).where(
             col(Factor.data_entry_type_id) == data_entry_type.value,
-            Factor.classification["kind"].as_string() == kind,
-            Factor.classification["subkind"].as_string().is_(None),
+            Factor.classification[kind_field].as_string() == kind,
+            Factor.classification[subkind_field].as_string().is_(None),
         )
         result = await self.session.exec(stmt)
         return result.one_or_none()
@@ -247,8 +205,7 @@ class FactorRepository:
         fallbacks: Optional[dict[str, str]] = None,
         **classification: str,
     ) -> Optional[Factor]:
-        """
-        Generic factor lookup with dynamic classification filters.
+        """Generic factor lookup with dynamic classification filters.
 
         Args:
             data_entry_type: The data entry type to filter on
@@ -268,9 +225,61 @@ class FactorRepository:
                 kind=TransportModeEnum.train.value,
                 country_code="FR",
             )
+
+        .. note:: Key remapping (kind → handler field name)
+
+            Callers pass the *generic* keys ``kind`` / ``subkind`` because
+            they don't know the handler's actual classification column names
+            (e.g. ``building_name``, ``room_type``, ``equipment_class``).
+            We remap those two keys to the handler's ``kind_field`` /
+            ``subkind_field`` before building the SQL WHERE clause.
+
+            This means the loop variable ``key`` is reassigned mid-iteration
+            which is admittedly not the clearest pattern.  A cleaner approach
+            would be to normalise ``classification`` into a new dict *before*
+            building conditions, e.g.::
+
+                resolved = {
+                    (
+                        kind_field
+                        if k == "kind"
+                        else subkind_field
+                        if k == "subkind"
+                        else k
+                    ): v
+                    for k, v in classification.items()
+                    if v is not None
+                }
+
+            We keep the current inline style to stay consistent with
+            ``get_by_classification`` and to minimise churn, but this note
+            exists so the next person isn't surprised by the in-place rename.
         """
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
+        kind_field = handler.kind_field or "kind"
+        subkind_field = handler.subkind_field or "subkind"
+
+        # Apply fallback values for None classification keys upfront so the
+        # first query already includes them instead of producing an overly
+        # broad WHERE clause that matches all factors for the data_entry_type.
+        if fallbacks:
+            for key, fallback_value in fallbacks.items():
+                if key in classification and classification[key] is None:
+                    classification[key] = fallback_value
+
+        # Remap generic "kind"/"subkind" kwargs → handler-specific JSON keys.
+        # e.g. kind="EPFL" becomes classification["building_name"] == "EPFL"
+        # because BuildingRoomModuleHandler.kind_field == "building_name".
+        # Keys that are *already* concrete (e.g. "country_code") pass through
+        # unchanged.
         conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
         for key, value in classification.items():
+            if value is None:
+                continue
+            if key == "kind":
+                key = kind_field
+            elif key == "subkind":
+                key = subkind_field
             conditions.append(Factor.classification[key].as_string() == value)
 
         stmt = select(Factor).where(*conditions)
@@ -280,117 +289,23 @@ class FactorRepository:
         if factor or not fallbacks:
             return factor
 
-        # Try with fallback values
+        # Try with remaining fallback values (for keys that had a non-None
+        # original value that didn't match).
         for key, fallback_value in fallbacks.items():
             if key in classification:
                 classification[key] = fallback_value
 
+        # Rebuild conditions with fallback-replaced values (same remapping).
         conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
         for key, value in classification.items():
+            if value is None:
+                continue
+            if key == "kind":
+                key = kind_field
+            elif key == "subkind":
+                key = subkind_field
             conditions.append(Factor.classification[key].as_string() == value)
 
         stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
         return result.one_or_none()
-
-    # async def get_emission_factor(
-    #     self,
-    #     session: AsyncSession,
-    #     region: str = "CH",
-    # ) -> Optional[Factor]:
-    #     """
-    #     Get the current emission factor for a given region.
-
-    #     Args:
-    #         session: Database session
-    #         region: Geographic region code (default: 'CH' for Switzerland)
-
-    #     Returns:
-    #         Current emission factor if found, None otherwise
-
-    #     Example:
-    #         factor = await repo.get_emission_factor(session, region='CH')
-    #         kg_co2eq_per_kwh = factor.values.get('kg_co2eq_per_kwh')  # e.g., 0.128
-    #     """
-    #     stmt = select(Factor).where(
-    #         col(Factor.factor_family) == "emission",
-    #         col(Factor.data_entry_type_id) == self.EMISSION_FACTOR_DATA_ENTRY_TYPE_ID,
-    #         col(Factor.valid_to).is_(None),  # Current version only
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
-
-    #     # Filter by region in classification
-    #     for factor in factors:
-    #         cls = factor.classification or {}
-    #         if cls.get("region") == region:
-    #             return factor
-
-    #     return None
-
-    # async def get_emission_factor_value(
-    #     self,
-    #     session: AsyncSession,
-    #     region: str = "CH",
-    # ) -> Optional[float]:
-    #     """
-    #     Get the emission factor value (kgCO2eq/kWh) for a region.
-
-    #     Convenience method that returns just the value for calculations.
-
-    #     Args:
-    #         session: Database session
-    #         region: Geographic region code (default: 'CH')
-
-    #     Returns:
-    #         Emission factor value in kgCO2eq/kWh, or None if not found
-    #     """
-    #     factor = await self.get_emission_factor(session, region)
-    #     if factor:
-    #         return factor.values.get("kg_co2eq_per_kwh")
-    #     return None
-
-    # async def list_power_classes(
-    #     self, session: AsyncSession, variant_type_id: int
-    # ) -> List[str]:
-    #     """List distinct equipment classes for power factors."""
-    #     stmt = (
-    #         select(Factor)
-    #         .where(col(Factor.factor_family) == "power")
-    #         .where(col(Factor.variant_type_id) == variant_type_id)
-    #         .where(col(Factor.valid_to).is_(None))
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
-
-    #     classes = set()
-    #     for factor in factors:
-    #         cls = factor.classification or {}
-    #         if cls.get("class"):
-    #             classes.add(cls["class"])
-
-    #     return sorted(list(classes))
-
-    # async def list_power_subclasses(
-    #     self, session: AsyncSession, variant_type_id: int, equipment_class: str
-    # ) -> List[str]:
-    #     """List distinct sub_classes for a given class."""
-    #     stmt = (
-    #         select(Factor)
-    #         .where(col(Factor.factor_family) == "power")
-    #         .where(col(Factor.variant_type_id) == variant_type_id)
-    #         .where(col(Factor.valid_to).is_(None))
-    #     )
-
-    #     result = await session.exec(stmt)
-    #     factors = result.all()
-
-    #     subclasses = set()
-    #     for factor in factors:
-    #         cls = factor.classification or {}
-    #         if cls.get("class") == equipment_class and cls.get("sub_class"):
-    #             subclasses.add(cls["sub_class"])
-
-    #     return sorted(list(subclasses))

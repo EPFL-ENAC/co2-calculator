@@ -15,7 +15,7 @@ from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.schemas.factor import FACTOR_META_FIELDS, BaseFactorHandler
+from app.schemas.factor import BaseFactorHandler
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
     _validate_file_path,
@@ -37,18 +37,12 @@ class FactorStatsDict(TypedDict):
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
     expected_columns: set[str] = set()
     for handler in handlers:
-        expected_columns.update(handler.create_dto.model_fields.keys())
-    meta_fields = set(FACTOR_META_FIELDS) | {"classification", "values"}
-    return expected_columns - meta_fields
+        expected_columns.update(handler.expected_columns)
+    return expected_columns
 
 
 def _get_required_columns_from_handler(handler: Any) -> set[str]:
-    meta_fields = set(FACTOR_META_FIELDS) | {"classification", "values"}
-    return {
-        name
-        for name, field in handler.create_dto.model_fields.items()
-        if field.is_required() and name not in meta_fields
-    }
+    return handler.required_columns
 
 
 class BaseFactorCSVProvider(DataIngestionProvider, ABC):
@@ -65,7 +59,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         self.job_id = config.get("job_id")
         self.module_type_id = config.get("module_type_id")
         self.data_entry_type_id = config.get("data_entry_type_id")
-        self.factor_variant = config.get("factor_variant")
         self.year = config.get("year")
         self.source_file_path = config.get("file_path")
         if self.source_file_path:
@@ -274,7 +267,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "processing_path": processing_path,
             "filename": filename,
             "valid_entry_types": entity_setup["valid_entry_types"],
-            "factor_variant": entity_setup["factor_variant"],
         }
 
     def _validate_csv_headers(
@@ -336,7 +328,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         try:
             expected_columns = setup_result["expected_columns"]
             valid_entry_types = setup_result["valid_entry_types"]
-            factor_variant = setup_result["factor_variant"]
 
             filtered_row = {
                 k: v
@@ -350,18 +341,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             if data_entry_type is None:
                 return None, "Missing data_entry_type"
 
-            variant = factor_variant
-            if data_entry_type in (
-                DataEntryTypeEnum.plane,
-                DataEntryTypeEnum.train,
-            ):
-                variant = variant or row.get("factor_variant")
-                if not variant:
-                    error_msg = "Missing factor_variant for travel factors"
-                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg
-
-            handler = BaseFactorHandler.get_by_type(data_entry_type, variant)
+            handler = BaseFactorHandler.get_by_type(data_entry_type)
             payload: Dict[str, Any] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
 

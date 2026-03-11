@@ -88,9 +88,6 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.additional_purchases,
     ],
-    ModuleTypeEnum.global_energy: [
-        DataEntryTypeEnum.energy_mix,
-    ],
     # Add more if needed for other modules
 }
 

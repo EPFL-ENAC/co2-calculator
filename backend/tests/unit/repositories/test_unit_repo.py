@@ -37,21 +37,21 @@ async def test_get_by_id_none(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_by_code(repo):
+async def test_get_by_institutional_id(repo):
     unit = SimpleNamespace(institutional_code="U1")
     result_mock = MagicMock()
     result_mock.one_or_none.return_value = unit
     repo.session.exec = AsyncMock(return_value=result_mock)
 
-    result = await repo.get_by_code("U1")
+    result = await repo.get_by_institutional_id("U1")
 
     assert result == unit
     repo.session.exec.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_by_code_none(repo):
-    result = await repo.get_by_code(None)
+async def test_get_by_institutional_id_none(repo):
+    result = await repo.get_by_institutional_id(None)
     assert result is None
 
 
@@ -80,7 +80,7 @@ async def test_get_by_id_or_code_string(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_by_codes(repo):
+async def test_get_by_institutional_ids(repo):
     units = [
         SimpleNamespace(institutional_code="U1"),
         SimpleNamespace(institutional_code="U2"),
@@ -89,7 +89,7 @@ async def test_get_by_codes(repo):
     result_mock.all.return_value = units
     repo.session.exec = AsyncMock(return_value=result_mock)
 
-    result = await repo.get_by_codes(["U1", "U2"])
+    result = await repo.get_by_institutional_ids(["U1", "U2"])
 
     assert result == units
     repo.session.exec.assert_awaited_once()

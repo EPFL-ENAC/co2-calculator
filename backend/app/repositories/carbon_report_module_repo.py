@@ -228,7 +228,9 @@ class CarbonReportModuleRepository:
         units_stmt = (
             select(*units_stmt_columns)
             .join(CarbonReport, CarbonReport.unit_id == Unit.id)
-            .outerjoin(User, User.provider_code == Unit.principal_user_institutional_id)
+            .outerjoin(
+                User, User.institutional_id == Unit.principal_user_institutional_id
+            )
             .where(col(CarbonReport.year).in_(years))
         )
 

@@ -74,10 +74,10 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 3
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="12345")
         )
         assert roles[2] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
@@ -127,7 +127,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -145,7 +145,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -163,7 +163,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -178,7 +178,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -196,11 +196,11 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 3
-        assert roles[0].on == RoleScope(provider_code="12345")
+        assert roles[0].on == RoleScope(institutional_id="12345")
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="67890")
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="67890")
         )
-        assert roles[2].on == RoleScope(provider_code="11111")
+        assert roles[2].on == RoleScope(institutional_id="11111")
 
 
 # ============================================================================
@@ -257,10 +257,10 @@ class TestAccredRoleProvider:
 
         assert len(roles) == 2
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")
+            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
         )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(provider_code="67890")
+            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="67890")
         )
 
     @pytest.mark.asyncio

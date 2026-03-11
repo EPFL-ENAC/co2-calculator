@@ -1,5 +1,7 @@
 from typing import Optional
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
@@ -9,13 +11,9 @@ from app.services.data_ingestion.api_providers.professional_travel_api_provider 
 )
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.csv_providers import (
-    BuildingRoomCSVProvider,
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
-)
-from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
-    ProfessionalTravelCSVProvider,
 )
 
 
@@ -66,28 +64,11 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
-        (
-            ModuleTypeEnum.professional_travel,
-            IngestionMethod.csv,
-            TargetType.DATA_ENTRIES,
-            EntityType.MODULE_UNIT_SPECIFIC,
-        ): ProfessionalTravelCSVProvider,
-        # TODO: Add more providers as needed
-        # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
-        # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
-        # # Factors providers
-        # ("travel", "csv_upload", "factors"): CSVFactorsProvider,
-        # ("headcount", "csv_upload", "factors"): CSVFactorsProvider,
     }
 
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
         v.__name__: v for _, v in PROVIDERS.items()
     }
-    PROVIDERS_BY_CLASS_NAME.update(
-        {
-            BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
-        }
-    )
 
     @staticmethod
     def get_provider_class(
@@ -112,16 +93,6 @@ class ProviderFactory:
         entity_type determines which provider variant to use
         (e.g., MODULE_UNIT_SPECIFIC vs MODULE_PER_YEAR).
         """
-        if (
-            module_type_id == ModuleTypeEnum.buildings
-            and ingestion_method == IngestionMethod.csv
-            and target_type == TargetType.DATA_ENTRIES
-            and entity_type == EntityType.MODULE_UNIT_SPECIFIC
-            and data_entry_type_id is not None
-            and int(data_entry_type_id) == DataEntryTypeEnum.building.value
-        ):
-            return BuildingRoomCSVProvider
-
         return ProviderFactory.PROVIDERS.get(
             (module_type_id, ingestion_method, target_type, entity_type)
         )
@@ -134,8 +105,8 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
-        job_session=None,
-        data_session=None,
+        job_session: Optional[AsyncSession] = None,
+        data_session: Optional[AsyncSession] = None,
     ) -> Optional[DataIngestionProvider]:
         """
         Create the appropriate provider instance.
@@ -165,6 +136,8 @@ class ProviderFactory:
 
         if not provider_class:
             return None
+        if data_session is None:
+            raise ValueError("Data session is required to create provider instance")
         return provider_class(
             config=config, user=user, job_session=job_session, data_session=data_session
         )

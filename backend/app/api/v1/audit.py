@@ -34,19 +34,19 @@ router = APIRouter()
 
 async def _fetch_user_display_names(
     db: AsyncSession,
-    provider_codes: list[str],
+    institutional_ids: list[str],
 ) -> dict[str, str]:
-    if not provider_codes:
+    if not institutional_ids:
         return {}
 
-    stmt = select(User.provider_code, User.display_name).where(
-        col(User.provider_code).in_(provider_codes)
+    stmt = select(User.institutional_id, User.display_name).where(
+        col(User.institutional_id).in_(institutional_ids)
     )
     result = await db.exec(stmt)
     rows = result.all()
     return {
-        provider_code: display_name
-        for provider_code, display_name in rows
+        institutional_id: display_name
+        for institutional_id, display_name in rows
         if display_name
     }
 
