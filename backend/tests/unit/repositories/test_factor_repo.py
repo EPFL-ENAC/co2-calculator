@@ -33,7 +33,7 @@ async def test_get(repo):
 @pytest.mark.asyncio
 async def test_create(repo):
     factor = Factor(
-        emission_type_id=EmissionType.energy,
+        emission_type_id=EmissionType.food,
         data_entry_type_id=DataEntryTypeEnum.member,
         classification={},
         values={},
@@ -54,7 +54,7 @@ async def test_create(repo):
 async def test_bulk_create(repo):
     factors = [
         Factor(
-            emission_type_id=EmissionType.energy,
+            emission_type_id=EmissionType.food,
             data_entry_type_id=DataEntryTypeEnum.member,
             classification={},
             values={},

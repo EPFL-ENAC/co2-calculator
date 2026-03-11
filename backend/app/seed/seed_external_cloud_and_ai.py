@@ -261,10 +261,10 @@ async def main() -> None:
         # // clean emissions first
         await seed_factor_clouds(session)
         await seed_factor_ai(session)
-        # Seed for unit provider code 10208 and 12345 for year 2025
+        # Seed for unit institutional_id 0184 and 1119 for year 2025
         # DATA and EMISSIONS
         carbon_report_module_id_10208 = await get_carbon_report_module_id(
-            unit_provider_code="10208",
+            unit_institutional_id="0184",
             year=2025,
             module_type_id=ModuleTypeEnum.external_cloud_and_ai,
         )
@@ -272,7 +272,7 @@ async def main() -> None:
         await seed_data_ai(session, carbon_report_module_id_10208)
 
         carbon_report_module_id_12345 = await get_carbon_report_module_id(
-            unit_provider_code="12345",
+            unit_institutional_id="1119",
             year=2025,
             module_type_id=ModuleTypeEnum.external_cloud_and_ai,
         )

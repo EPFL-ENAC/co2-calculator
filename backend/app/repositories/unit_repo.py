@@ -39,12 +39,14 @@ class UnitRepository:
         result = await self.session.exec(select(Unit).where(Unit.id == unit_id))
         return result.one_or_none()
 
-    async def get_by_code(self, provider_code: str | None) -> Optional[Unit]:
-        """Get unit by code (string identifier)."""
-        if provider_code is None:
+    async def get_by_institutional_id(
+        self, institutional_id: str | None
+    ) -> Optional[Unit]:
+        """Get unit by institutional_id."""
+        if institutional_id is None:
             return None
         result = await self.session.exec(
-            select(Unit).where(col(Unit.institutional_code) == provider_code)
+            select(Unit).where(col(Unit.institutional_id) == institutional_id)
         )
         return result.one_or_none()
 
@@ -56,18 +58,20 @@ class UnitRepository:
             return None
         if isinstance(identifier, int):
             return await self.get_by_id(identifier)
-        # Try as code (string)
-        return await self.get_by_code(identifier)
+        # Try as institutional_id (string)
+        return await self.get_by_institutional_id(identifier)
 
     async def get_by_ids(self, unit_ids: List[int]) -> List[Unit]:
         """Get multiple units by IDs (integers)."""
         result = await self.session.exec(select(Unit).where(col(Unit.id).in_(unit_ids)))
         return list(result.all())
 
-    async def get_by_codes(self, codes: List[str]) -> List[Unit]:
-        """Get multiple units by codes (strings)."""
+    async def get_by_institutional_ids(
+        self, institutional_ids: List[str]
+    ) -> List[Unit]:
+        """Get multiple units by institutional_ids."""
         result = await self.session.exec(
-            select(Unit).where(col(Unit.institutional_code).in_(codes))
+            select(Unit).where(col(Unit.institutional_id).in_(institutional_ids))
         )
         return list(result.all())
 
@@ -76,15 +80,15 @@ class UnitRepository:
         skip: int = 0,
         limit: int = 100,
         unit_id_filter: Optional[List[int]] = None,
-        provider_code_filter: Optional[List[str]] = None,
+        institutional_id_filter: Optional[List[str]] = None,
     ) -> List[Unit]:
         """List units with optional filters."""
         query = select(Unit)
 
         if unit_id_filter:
             query = query.where(col(Unit.id).in_(unit_id_filter))
-        if provider_code_filter:
-            query = query.where(col(Unit.institutional_code).in_(provider_code_filter))
+        if institutional_id_filter:
+            query = query.where(col(Unit.institutional_id).in_(institutional_id_filter))
 
         query = query.offset(skip).limit(limit)
         result = await self.session.exec(query)
@@ -176,14 +180,16 @@ class UnitRepository:
     async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
         if not units:
             return UpsertResult(created=0, updated=0, total=0, data=[])
-        rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
-        existing: dict[str, int] = {code: uid for code, uid in rows if uid is not None}
+        rows = (await self.session.exec(select(Unit.institutional_id, Unit.id))).all()
+        existing: dict[str | None, int] = {
+            iid: uid for iid, uid in rows if uid is not None
+        }
 
         created = len(units) - len(existing)
         updated = len(existing)
         merged = []
         for unit in units:
-            unit.id = existing.get(unit.institutional_code)
+            unit.id = existing.get(unit.institutional_id)
             result = await self.session.merge(unit)
             merged.append(result)
         return UpsertResult(
@@ -212,8 +218,8 @@ class UnitRepository:
         unit_data: Unit,
     ) -> Unit:
         """Create or update a unit by code."""
-        # Look up by code for upsert operations
-        existing = await self.get_by_code(unit_data.institutional_code)
+        # Look up by institutional_id for upsert operations
+        existing = await self.get_by_institutional_id(unit_data.institutional_id)
 
         # so provider is wrong
         # And cost_centers are not updated

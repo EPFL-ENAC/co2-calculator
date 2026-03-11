@@ -26,7 +26,7 @@ class GlobalScope(BaseModel):
 
 
 class RoleScope(BaseModel):
-    provider_code: Optional[str] = None
+    institutional_id: Optional[str] = None
     affiliation: Optional[str] = None
 
 
@@ -225,7 +225,7 @@ class User(UserBase, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    provider_code: str = Field(
+    institutional_id: str = Field(
         unique=True,
         index=True,
         description="Provider-assigned user code (SCIPER for EPFL)",

@@ -250,7 +250,7 @@ class TestQueryPolicyPermissionCheck:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -346,7 +346,7 @@ class TestQueryPolicyDataFilter:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -406,7 +406,7 @@ class TestQueryPolicyResourceAccess:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },

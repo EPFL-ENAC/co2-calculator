@@ -9,7 +9,7 @@ def test_user_read_is_user_test_with_test_provider():
     user = User(
         id=1,
         email="testuser@example.org",
-        provider_code="test123",
+        institutional_id="test123",
         provider=UserProvider.TEST,
         display_name="Test User",
     )
@@ -25,7 +25,7 @@ def test_user_read_is_user_test_with_default_provider():
     user = User(
         id=2,
         email="realuser@example.org",
-        provider_code="real123",
+        institutional_id="real123",
         provider=UserProvider.DEFAULT,
         display_name="Real User",
     )
@@ -45,7 +45,7 @@ def test_user_read_is_user_test_with_accred_provider():
     user = User(
         id=3,
         email="accreduser@example.org",
-        provider_code="123456",
+        institutional_id="123456",
         provider=UserProvider.ACCRED,
         display_name="Accred User",
     )
@@ -65,7 +65,7 @@ def test_user_read_computed_fields_present():
     user = User(
         id=4,
         email="user@example.org",
-        provider_code="test456",
+        institutional_id="test456",
         provider=UserProvider.TEST,
         display_name="User with Fields",
         roles_raw=[],

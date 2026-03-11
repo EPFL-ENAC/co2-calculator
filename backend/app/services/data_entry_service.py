@@ -118,7 +118,7 @@ class DataEntryService:
             change_type=AuditChangeTypeEnum.CREATE,
             changed_by=user.id,
             change_reason="Initial creation",
-            handler_id=user.provider_code,
+            handler_id=user.institutional_id,
             handled_ids=handled_ids,
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
@@ -151,7 +151,7 @@ class DataEntryService:
                     changed_by = int(job_id)
                 except (TypeError, ValueError):
                     changed_by = None
-            handler_id = user.provider_code if user else "csv_ingestion"
+            handler_id = user.institutional_id if user else "csv_ingestion"
 
             # Build list of version metadata for bulk creation
             versions_data = []
@@ -250,7 +250,7 @@ class DataEntryService:
                     "change_type": AuditChangeTypeEnum.DELETE,
                     "changed_by": user.id,
                     "change_reason": "Bulk data entry deletion",
-                    "handler_id": user.provider_code,
+                    "handler_id": user.institutional_id,
                     "handled_ids": handled_ids_map.get(entry.id, []),
                     "ip_address": request_context.get("ip_address"),
                     "route_path": request_context.get("route_path"),
@@ -309,7 +309,7 @@ class DataEntryService:
                 change_type=AuditChangeTypeEnum.UPDATE,
                 changed_by=user.id,
                 change_reason="Data entry updated",
-                handler_id=user.provider_code,
+                handler_id=user.institutional_id,
                 handled_ids=handled_ids,
                 ip_address=request_context.get("ip_address"),
                 route_path=request_context.get("route_path"),
@@ -360,7 +360,7 @@ class DataEntryService:
             change_type=AuditChangeTypeEnum.DELETE,
             changed_by=current_user.id,
             change_reason="Data entry deleted",
-            handler_id=current_user.provider_code,
+            handler_id=current_user.institutional_id,
             handled_ids=handled_ids,
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
@@ -473,7 +473,7 @@ class DataEntryService:
                     f"carbon_report_module_id {carbon_report_module_id} "
                     f"and data_entry_type_id {data_entry_type_id}"
                 ),
-                handler_id=current_user.provider_code,
+                handler_id=current_user.institutional_id,
                 handled_ids=extracted_handled_ids,
                 ip_address=request_context.get("ip_address"),
                 route_path=request_context.get("route_path"),

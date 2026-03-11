@@ -37,23 +37,25 @@ def get_factor_emission_type_id(
 
 
 async def get_carbon_report_module_id(
-    unit_provider_code: str, year: int, module_type_id: ModuleTypeEnum
+    unit_institutional_id: str, year: int, module_type_id: ModuleTypeEnum
 ) -> int:
     """Generate real carbon_report_module_id based on unit and year."""
-    # Get unit by provider code to find unit_id
+    # Get unit by institutional_id to find unit_id
     current_module_type_id = module_type_id.value
     async with SessionLocal() as session:
         service = CarbonReportService(session)
         unit_service = UnitService(session)
-        unit = await unit_service.get_by_provider_code(unit_provider_code)
+        unit = await unit_service.get_by_institutional_id(unit_institutional_id)
         if not unit:
-            raise ValueError(f"Unit with provider code {unit_provider_code} not found")
+            raise ValueError(
+                f"Unit with institutional_id {unit_institutional_id} not found"
+            )
         # Get or create carbon report for unit and year
         carbon_report = await service.get_by_unit_and_year(unit_id=unit.id, year=year)
         if not carbon_report:
             # create carbon report if not exists
             logger.info(
-                f"Creating carbon report for unit {unit_provider_code} year {year}"
+                f"Creating carbon report for unit {unit_institutional_id} year {year}"
             )
             carbon_report = await service.create(
                 data=CarbonReportCreate(unit_id=unit.id, year=year)
@@ -61,7 +63,7 @@ async def get_carbon_report_module_id(
             if not carbon_report:
                 raise ValueError(
                     f"Could not create carbon report for unit "
-                    f"{unit_provider_code} year {year}"
+                    f"{unit_institutional_id} year {year}"
                 )
         # Get carbon_report_module_id for module type
         module_service = CarbonReportModuleService(session)
@@ -74,12 +76,12 @@ async def get_carbon_report_module_id(
         if not carbon_report_module:
             raise ValueError(
                 f"Could not find carbon report module for unit "
-                f"{unit_provider_code} year {year} "
+                f"{unit_institutional_id} year {year} "
                 f"and module type {current_module_type_id}"
             )
         if carbon_report_module.id is None:
             raise ValueError(
-                f"Carbon report module ID is None for unit {unit_provider_code}"
+                f"Carbon report module ID is None for unit {unit_institutional_id}"
             )
         await (
             session.commit()

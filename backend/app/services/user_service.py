@@ -20,7 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
-from app.core.role_priority import pick_role_for_provider_code
+from app.core.role_priority import pick_role_for_institutional_id
 from app.models.unit import Unit
 from app.models.user import Role, RoleScope, User, UserProvider
 from app.providers.role_provider import get_role_provider
@@ -48,15 +48,15 @@ class UserService:
 
         unit_ids: set[str] = set()
         for role in roles:
-            if isinstance(role.on, RoleScope) and role.on.provider_code:
-                unit_ids.add(role.on.provider_code)
+            if isinstance(role.on, RoleScope) and role.on.institutional_id:
+                unit_ids.add(role.on.institutional_id)
 
         return list(unit_ids)
 
     async def _upsert_user_identity(
         self,
         id: Optional[int],
-        provider_code: str,
+        institutional_id: str,
         email: str,
         function: Optional[str] = None,
         display_name: Optional[str] = None,
@@ -87,7 +87,7 @@ class UserService:
             )
         else:
             user = await self.user_repo.create(
-                provider_code=provider_code,
+                institutional_id=institutional_id,
                 email=email,
                 display_name=display_name,
                 roles=roles,
@@ -101,7 +101,7 @@ class UserService:
         self,
         provider: UserProvider,
         provider_unit_codes: list[str],
-        skip_principal_user_for_provider_code: Optional[str] = None,
+        skip_principal_user_for_institutional_id: Optional[str] = None,
     ) -> list[int]:
         """
         Sync units and their principals from provider.
@@ -109,10 +109,10 @@ class UserService:
         Args:
             provider: The user provider type (e.g., UserProvider.ACCRED)
             provider_unit_codes: List of unit codes to sync
-            skip_principal_user_for_provider_code: Optional - skip upserting
+            skip_principal_user_for_institutional_id: Optional - skip upserting
                                                  the principal user
                                                  if it matches this
-                                                 provider_code.
+                                                 institutional_id.
                                                  Used to avoid upserting the
                                                  current user.
         """
@@ -136,15 +136,16 @@ class UserService:
                 unit.principal_user_institutional_id
             )
 
-            # Skip upserting if it's the same as skip_principal_user_for_provider_code
+            # Skip upserting if it's the same as
+            # skip_principal_user_for_institutional_id
             if (
                 principal_user
                 and unit.principal_user_institutional_id
-                != skip_principal_user_for_provider_code
+                != skip_principal_user_for_institutional_id
             ):
                 await self.upsert_user(
                     email=principal_user.get("email", ""),
-                    provider_code=principal_user.get("provider_code", ""),
+                    institutional_id=principal_user.get("institutional_id", ""),
                     display_name=principal_user.get("display_name", None),
                     id=None,
                     roles=principal_user.get("roles", []),
@@ -178,7 +179,7 @@ class UserService:
                 "Unit codes and IDs length mismatch during membership sync"
             )
         for unit_id, unit_code in zip(unit_ids, unit_codes):
-            chosen_role = pick_role_for_provider_code(roles, unit_code)
+            chosen_role = pick_role_for_institutional_id(roles, unit_code)
             if not chosen_role:
                 logger.warning(
                     "No valid role found for user-unit association",
@@ -212,7 +213,7 @@ class UserService:
         self,
         id: Optional[int],
         email: str,
-        provider_code: str,
+        institutional_id: str,
         display_name: Optional[str] = None,
         function: Optional[str] = None,
         roles: Optional[List[Role]] = None,
@@ -228,7 +229,7 @@ class UserService:
         3. UnitUser association management
         """
         user = await self._upsert_user_identity(
-            id, provider_code, email, function, display_name, roles, provider
+            id, institutional_id, email, function, display_name, roles, provider
         )
 
         if stop_recursion:
@@ -247,13 +248,14 @@ class UserService:
         unit_ids = await self.unit_sync_from_provider(
             provider=user.provider,
             provider_unit_codes=provider_unit_codes,
-            skip_principal_user_for_provider_code=user.provider_code,
+            skip_principal_user_for_institutional_id=user.institutional_id,
         )
 
         if roles is None:
             roles = []
         # Upserts UnitUser relationships by resolving
-        # the user’s role per unit (should be .id to .id mapping and not .provider_code)
+        # the user's role per unit
+        # (should be .id to .id mapping, not .institutional_id)
         await self.unit_membership_sync_user(
             user=user,
             roles=roles,
@@ -461,7 +463,7 @@ class UserService:
         """
         # Create user
         user = await self.user_repo.create(
-            provider_code=str(user_data.get("id")),
+            institutional_id=str(user_data.get("id")),
             email=user_data.get("email", ""),
             display_name=user_data.get("display_name"),
             roles=user_data.get("roles"),

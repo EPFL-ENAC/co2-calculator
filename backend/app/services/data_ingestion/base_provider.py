@@ -114,7 +114,7 @@ class DataIngestionProvider(ABC):
 
         audit_service = AuditDocumentService(db)
         changed_by = self.user.id if self.user else self.job_id
-        handler_id = self.user.provider_code if self.user else "csv_ingestion"
+        handler_id = self.user.institutional_id if self.user else "csv_ingestion"
 
         await audit_service.create_version(
             entity_type="DataIngestionJob",

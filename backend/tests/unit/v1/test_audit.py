@@ -34,7 +34,7 @@ def mock_user():
     user = MagicMock(spec=User)
     user.id = 1
     user.email = "test@example.com"
-    user.provider_code = "provider-123"
+    user.institutional_id = "provider-123"
     user.display_name = "Test User"
     user.roles = []
     return user
@@ -187,15 +187,15 @@ class TestFetchUserDisplayNames:
     """Tests for _fetch_user_display_names helper function."""
 
     @pytest.mark.asyncio
-    async def test_empty_provider_codes(self, mock_db_session):
-        """Empty provider codes list returns empty dict."""
+    async def test_empty_institutional_ids(self, mock_db_session):
+        """Empty institutional IDs list returns empty dict."""
         result = await audit._fetch_user_display_names(mock_db_session, [])
         assert result == {}
         mock_db_session.exec.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_valid_provider_codes_with_matches(self):
-        """Valid provider codes with matching users returns dict mapping."""
+    async def test_valid_institutional_ids_with_matches(self):
+        """Valid institutional IDs with matching users returns dict mapping."""
         mock_session = AsyncMock(spec=AsyncSession)
         result_mock = MagicMock()
         result_mock.all.return_value = [
@@ -214,8 +214,8 @@ class TestFetchUserDisplayNames:
         }
 
     @pytest.mark.asyncio
-    async def test_provider_codes_with_no_matches(self):
-        """Provider codes with no matches returns empty dict."""
+    async def test_institutional_ids_with_no_matches(self):
+        """Institutional IDs with no matches returns empty dict."""
         mock_session = AsyncMock(spec=AsyncSession)
         result_mock = MagicMock()
         result_mock.all.return_value = []
