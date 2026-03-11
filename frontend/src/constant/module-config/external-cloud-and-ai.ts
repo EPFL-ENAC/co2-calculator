@@ -118,14 +118,32 @@ const externalAIFields: ModuleField[] = [
   {
     id: 'requests_per_user_per_day',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.requests_per_user_per_day`,
-    type: 'number',
+    type: 'select',
     required: true,
-    min: 1,
     editableInline: true,
-    step: 1,
+    inputTypeName: 'QSelect',
+    optionLabelsAreKeys: true,
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    options: [
+      {
+        value: '1-5 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`,
+      },
+      {
+        value: '5-20 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.5_20`,
+      },
+      {
+        value: '20-100 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.20_100`,
+      },
+      {
+        value: '>100 times per day',
+        label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.gt_100`,
+      },
+    ],
   },
   {
     id: 'kg_co2eq',
