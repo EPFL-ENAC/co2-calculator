@@ -13,27 +13,6 @@ export const MODULES = {
   GreyEnergy: 'grey-energy',
 } as const;
 
-export const MODULES_DESCRIPTIONS = {
-  Headcount: 'headcount-description',
-  ProfessionalTravel: 'professional-travel-description',
-  Buildings: 'buildings-description',
-  EquipmentElectricConsumption: 'equipment-electric-consumption-description',
-  ExternalCloudAndAI: 'external-cloud-and-ai-description',
-  ProcessEmissions: 'process-emissions-description',
-} as const;
-
-// TODO: implement something like this
-// export const MODULES: Record<string, string> = {
-//   headcount: 'modules.headcount',
-//   professional_travel: 'modules.professional_travel',
-//   buildings: 'modules.buildings',
-//   equipment_electric_consumption: 'modules.equipment',
-//   purchase: 'modules.purchase',
-//   research_facilities: 'modules.research_facilities',
-//   external_cloud_and_ai: 'modules.external_cloud_and_ai',
-//   global_energy: 'modules.global_energy', // if needed
-// };
-
 export type BackendModule = keyof typeof MODULES;
 export type ModulePermission = (typeof MODULES)[BackendModule];
 
