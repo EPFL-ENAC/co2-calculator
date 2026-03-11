@@ -20,7 +20,7 @@ const commonTravelFields: ModuleField[] = [
     },
   },
   {
-    id: 'origin',
+    id: 'origin_iata',
     labelKey: `${MODULES.ProfessionalTravel}-field-from`,
     type: 'text',
     required: true,
@@ -32,7 +32,7 @@ const commonTravelFields: ModuleField[] = [
     },
   },
   {
-    id: 'destination',
+    id: 'destination_iata',
     labelKey: `${MODULES.ProfessionalTravel}-field-to`,
     type: 'text',
     required: true,
@@ -111,7 +111,10 @@ const commonTravelFields: ModuleField[] = [
 ];
 
 const planeFields: ModuleField[] = [
-  ...commonTravelFields,
+  ...buildTravelFields(
+    { id: 'origin_iata', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+    { id: 'destination_iata', labelKey: `${MODULES.ProfessionalTravel}-field-to` },
+  ),
   {
     id: 'cabin_class',
     labelKey: `${MODULES.ProfessionalTravel}-field-class`,
@@ -127,13 +130,15 @@ const planeFields: ModuleField[] = [
       { value: 'first', label: 'First' },
       { value: 'business', label: 'Business' },
       { value: 'eco', label: 'Eco' },
-      { value: 'eco_plus', label: 'Eco+' },
     ],
   },
 ];
 
 const trainFields: ModuleField[] = [
-  ...commonTravelFields,
+  ...buildTravelFields(
+    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+    { id: 'destination_name', labelKey: `${MODULES.ProfessionalTravel}-field-to` },
+  ),
   {
     id: 'cabin_class',
     labelKey: `${MODULES.ProfessionalTravel}-field-class`,
@@ -146,8 +151,8 @@ const trainFields: ModuleField[] = [
       table: true,
     },
     options: [
-      { value: 'class_1', label: 'Class 1' },
-      { value: 'class_2', label: 'Class 2' },
+      { value: 'first', label: 'Class 1' },
+      { value: 'second', label: 'Class 2' },
     ],
   },
 ];
@@ -177,9 +182,9 @@ export const professionalTravel: ModuleConfig = {
       tableNameKey: `${MODULES.ProfessionalTravel}-plane-table-title`,
       moduleFields: planeFields,
       requiredFieldIds: [
-        'origin',
-        'destination',
-        'traveler_name',
+        'origin_iata',
+        'destination_iata',
+        'user_institutional_id',
         'cabin_class',
       ],
       csvTemplateHeaders: [
@@ -187,7 +192,7 @@ export const professionalTravel: ModuleConfig = {
         'to',
         'departure_date',
         'number_of_trips',
-        'traveler_name',
+        'user_institutional_id',
         'cabin_class',
         'sciper',
       ],
@@ -203,17 +208,17 @@ export const professionalTravel: ModuleConfig = {
       tableNameKey: `${MODULES.ProfessionalTravel}-train-table-title`,
       moduleFields: trainFields,
       requiredFieldIds: [
-        'origin',
-        'destination',
-        'traveler_name',
+        'origin_name',
+        'destination_name',
+        'user_institutional_id',
         'cabin_class',
       ],
       csvTemplateHeaders: [
-        'from',
-        'to',
+        'origin_name',
+        'destination_name',
         'departure_date',
         'number_of_trips',
-        'traveler_name',
+        'user_institutional_id',
         'cabin_class',
         'sciper',
       ],
@@ -225,3 +230,48 @@ export const professionalTravel: ModuleConfig = {
     },
   ],
 } as ModuleConfig & { unit?: string };
+
+function buildTravelFields(origin: {
+  id: string;
+  labelKey: string;
+}, destination: {
+  id: string;
+  labelKey: string;
+}): ModuleField[] {
+  return [
+    {
+      id: 'round_trip',
+      labelKey: [
+        `${MODULES.ProfessionalTravel}-field-from`,
+        `${MODULES.ProfessionalTravel}-field-to`,
+      ],
+      type: 'direction-input',
+      required: true,
+      sortable: false,
+      ratio: '1/1',
+      editableInline: false,
+      hideIn: { table: true },
+    },
+    {
+      id: origin.id,
+      labelKey: origin.labelKey,
+      type: 'text',
+      required: true,
+      sortable: true,
+      ratio: '1/1',
+      editableInline: false,
+      hideIn: { form: true },
+    },
+    {
+      id: destination.id,
+      labelKey: destination.labelKey,
+      type: 'text',
+      required: true,
+      sortable: true,
+      ratio: '1/1',
+      editableInline: false,
+      hideIn: { form: true },
+    },
+    ...commonTravelFields.slice(3),
+  ];
+}

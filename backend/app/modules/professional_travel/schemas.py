@@ -93,10 +93,9 @@ class DepartureDateMixin(BaseModel):
 
 
 class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    traveler_name: str
-    traveler_id: Optional[int] = None
-    origin_location_id: int
-    destination_location_id: int
+    user_institutional_id: str
+    origin_iata: str
+    destination_iata: str
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
@@ -107,10 +106,11 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    traveler_name: str
-    traveler_id: Optional[int] = None
-    origin_location_id: int
-    destination_location_id: int
+    # traveler_name: str
+    # traveler_id: Optional[int] = None
+    user_institutional_id: str
+    origin_name: str
+    destination_name: str
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
@@ -143,8 +143,8 @@ class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
 class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
-    origin_location_id: Optional[int] = None
-    destination_location_id: Optional[int] = None
+    origin_iata: Optional[str] = None
+    destination_iata: Optional[str] = None
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
@@ -153,8 +153,8 @@ class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
 class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
-    origin_location_id: Optional[int] = None
-    destination_location_id: Optional[int] = None
+    origin_name: Optional[str] = None
+    destination_name: Optional[str] = None
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
