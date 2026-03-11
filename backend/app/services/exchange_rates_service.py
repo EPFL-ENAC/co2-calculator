@@ -31,7 +31,7 @@ class ExchangeRatesService:
 
         Raises:
             ValueError: If no exchange rate data is found for the specified year
-              and currency.
+              and currency or if there is an error fetching the data.
 
         Returns:
             float: The exchange rate for the specified year and currency,
@@ -58,7 +58,8 @@ class ExchangeRatesService:
             pd.DataFrame: A DataFrame containing the exchange rates with columns
             "TIME_PERIOD", "CURRENCY", and "OBS_VALUE".
         Raises:
-            ValueError: If no exchange rate data is found for the specified year.
+            ValueError: If no exchange rate data is found for the specified year
+              and currency or if there is an error fetching the data.
         """
         if year in ECB_EXR_CACHE:
             return ECB_EXR_CACHE[year]
@@ -85,7 +86,7 @@ class ExchangeRatesService:
             "TIME_PERIOD", "CURRENCY", and "OBS_VALUE".
         Raises:
             ValueError: If no exchange rate data is found for the specified year
-              and currency.
+              and currency or if there is an error fetching the data.
         """
         today = date.today()
         current_year = today.year
@@ -110,9 +111,11 @@ class ExchangeRatesService:
         # Set a timeout for the request to avoid hanging indefinitely
         try:
             response = requests.get(url, params=params, timeout=ECB_TIMEOUT_SECONDS)
+            response.raise_for_status()
         except requests.RequestException as e:
-            raise ValueError(f"Error fetching exchange rates for year {year}: {e}")
-        response.raise_for_status()
+            raise ValueError(
+                f"Error fetching exchange rates for year {year}: {e}"
+            ) from e
 
         if "No data found" in response.text or "" == response.text.strip():
             raise ValueError(
@@ -133,3 +136,8 @@ class ExchangeRatesService:
             df["OBS_VALUE"] = 1 / df["OBS_VALUE"]
 
         return df[["TIME_PERIOD", "CURRENCY", "OBS_VALUE"]]
+
+    @staticmethod
+    def clear_cache():
+        """Clear the ECB exchange rate cache."""
+        ECB_EXR_CACHE.clear()
