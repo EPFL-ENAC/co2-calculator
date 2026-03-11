@@ -304,8 +304,6 @@ class TravelPlaneBase:
     min_distance: float
     max_distance: float
 
-    ef_kg_co2eq_per_km: float
-
 
 class _TravelPlaneBaseValidationMixin:
     @field_validator(

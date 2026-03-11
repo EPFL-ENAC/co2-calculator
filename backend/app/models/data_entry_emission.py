@@ -39,8 +39,35 @@ class EmissionType(int, Enum):
     # Additional Categories — flat leaves (no subcategory)
     # -------------------------------------------------------------------------
     food = 10000
+    food__vegetarian = 10001
+    food__non_vegetarian = 10002
     waste = 20000
+    waste__incineration = 20001
+    waste__composting = 20002
+    waste__biogas = 20003
+    waste__biogas__organic_waste_leftovers = 2000301
+    waste__biogas__cooking_vegetable_oil = 2000302
+    waste__recycling = 20004
+    waste__recycling__paper = 2000401
+    waste__recycling__cardboard = 2000402
+    waste__recycling__plastics = 2000403
+    waste__recycling__glass = 2000404
+    waste__recycling__ferrous_metals = 2000405
+    waste__recycling__non_ferrous_metals = 2000406
+    waste__recycling__electronics = 2000407
+    waste__recycling__wood = 2000408
+    waste__recycling__pet = 2000409
+    waste__recycling__aluminum = 2000410
+    waste__recycling__textile = 2000411
+    waste__recycling__toner_and_ink_cartridges = 2000412
+    waste__recycling__inert_waste = 2000413
     commuting = 30000
+    commuting__walking = 30001
+    commuting__cycling = 30002
+    commuting__powered_two_wheeler = 30003
+    commuting__public_transport = 30004
+    commuting__car = 30005
+
     grey_energy = 40000
 
     # -------------------------------------------------------------------------
