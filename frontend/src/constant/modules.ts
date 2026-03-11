@@ -57,7 +57,7 @@ type PurchaseProps = {
 };
 
 export const SUBMODULE_RESEARCH_FACILITIES_TYPES = {
-  ResarchFacilities: 'research-facilities',
+  ResearchFacilities: 'research-facilities',
   AnimalFacilities: 'mice_and_fish_animal_facilities',
 } as const;
 
@@ -112,7 +112,7 @@ export const enumSubmodule = {
   [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
 
   // research facilities
-  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResarchFacilities]: 70,
+  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]: 70,
   [SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities]: 71,
   // not a module per se
   energy_mix: 100,
