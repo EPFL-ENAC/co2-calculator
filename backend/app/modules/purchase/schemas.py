@@ -265,7 +265,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             annual_consumption = ctx.get("annual_consumption", 0)
             coef_to_kg = ctx.get("coef_to_kg", 0)
             ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
-            if not annual_consumption or not coef_to_kg or not ef:
+            if annual_consumption is None or coef_to_kg is None or ef is None:
                 return None
             return annual_consumption * coef_to_kg * ef
 

@@ -136,6 +136,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
     kind_field: str = "equipment_class"
     subkind_field: str = "sub_class"
+    factor_value_fields: list[str] = [
+        "active_usage_hours_per_week",
+        "standby_usage_hours_per_week",
+    ]
 
     # Add the sort_map here
     sort_map = {

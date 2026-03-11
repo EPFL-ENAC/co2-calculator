@@ -168,10 +168,10 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
 # ---------------------------------------------------------------------------
 
 
-def _coerce_value(value: str) -> str | int | float:
+def _coerce_value(value: str) -> str | int | float | None:
     """Try to convert a CSV string to int or float, falling back to str."""
     if value == "":
-        return ""
+        return None
     try:
         f = float(value)
         if f == int(f) and "." not in value:
@@ -261,6 +261,8 @@ async def seed_data_entries(
 
     data_entries: list[DataEntry] = []
     skipped = 0
+    unknown_kind = set()
+    unknown_cf = set()
 
     with open(config.path, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
@@ -285,6 +287,8 @@ async def seed_data_entries(
 
             # --- resolve carbon_report_module_id ---
             unit_code = row.get("unit_institutional_id", "").strip()
+            if unit_code:
+                unit_code = unit_code.zfill(4)
             if not unit_code:
                 skipped += 1
                 continue
@@ -296,6 +300,7 @@ async def seed_data_entries(
                     )
                 except ValueError as exc:
                     logger.warning("%s", exc)
+                    unknown_cf.add(unit_code)
                     skipped += 1
                     continue
 
@@ -306,7 +311,6 @@ async def seed_data_entries(
                 if data_entry_type
                 else BaseModuleHandler.get_by_type(config.data_entry_types[0])
             )
-
             for csv_col, val in row.items():
                 if csv_col in EXCLUDE_COLUMNS:
                     continue
@@ -330,10 +334,10 @@ async def seed_data_entries(
 
             if kind_field:
                 kind_val = str(data.get(kind_field, ""))
-                subkind_val = (
-                    str(data.get(subkind_field, "")) if subkind_field else None
-                )
-
+                subkind_raw = data.get(subkind_field, None) if subkind_field else None
+                subkind_val = None
+                if subkind_raw is not None:
+                    subkind_val = str(subkind_raw)
                 # Multi-type without column: resolve from factor
                 if multi_type_from_factor and data_entry_type is None:
                     data_entry_type = await _resolve_type_from_factors(
@@ -349,6 +353,7 @@ async def seed_data_entries(
                             kind_val,
                             data_entry_type.name,
                         )
+                        unknown_kind.add(kind_val)
 
                 fmap = factors_cache.get(
                     data_entry_type or config.data_entry_types[0],
@@ -356,13 +361,16 @@ async def seed_data_entries(
                 )
                 factor = lookup_factor(kind_val, subkind_val, fmap)
                 data["primary_factor_id"] = factor.id if factor else None
-
+                # update from factor with generic handler for csv upload
+                if factor and handler.factor_value_fields:
+                    for field_name in handler.factor_value_fields:
+                        if field_name not in data or data[field_name] in (None, "", 0):
+                            data[field_name] = factor.values.get(field_name)
                 # Derive type from factor when still unknown
                 if multi_type_from_factor and factor and factor.data_entry_type_id:
                     matched = DataEntryTypeEnum(factor.data_entry_type_id)
                     if matched in config.data_entry_types:
                         data_entry_type = matched
-
             # Fallback if type still not resolved
             if data_entry_type is None:
                 data_entry_type = config.data_entry_types[0]
@@ -404,6 +412,8 @@ async def seed_data_entries(
         f"Created {len(data_entries)} entries + "
         f"{len(emissions)} emissions for [{label}]"
     )
+    print(f"    Unknown kinds: {list(unknown_kind)}") if unknown_kind else None
+    print(f"    Unknown cf ids: {list(unknown_cf)}") if unknown_cf else None
     if skipped:
         print(f"  ({skipped} rows skipped)")
     logger.info(
@@ -422,8 +432,18 @@ async def seed_data_entries(
 async def main() -> None:
     """Run all configured data-entry seeds."""
     async with SessionLocal() as session:
+        # [x] Equipments (bug sur les emissions)
+        # [x] Additional_purchases pas de formule
+        # [ ] plane + train -> pas géré à cause des nouveaux noms de colonnes
+        # [ ] buildings -> pas d'emissions, faut que je regarde pour quoi
+        #
         # not working for equipments e.g [4:5]
-        for config in DATA_ENTRY_SEEDS[5:6]:
+        # formula not working for additional_purchases e.g [7:8]
+        # unHandled type DataEntryTypeEnum.plane e.g [8:9]
+        # same for train e.g [9:10]
+        # for building Created 19741 entries + 0 emissions for [building]
+        # (182 rows skipped)
+        for config in DATA_ENTRY_SEEDS[7:8]:
             await seed_data_entries(session, config)
 
 

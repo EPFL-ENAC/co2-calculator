@@ -125,6 +125,7 @@ class ModuleHandler(Protocol[T]):
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
+    factor_value_fields: Optional[list[str]] = None
 
     def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
@@ -173,16 +174,46 @@ class ModuleHandlerMeta(type):
 
 
 class BaseModuleHandler(metaclass=ModuleHandlerMeta):
-    """base ModuleHandler with common logic"""
+    """Base handler that every module-specific handler inherits from.
 
-    # kind/subkind resolution can be implemented here if needed
+    Subclasses must set ``registration_keys`` (or ``data_entry_type``) so the
+    metaclass auto-registers them in ``MODULE_HANDLERS``.  Override the
+    class-level fields below to configure factor resolution, label rendering,
+    and seed-time default population for the module.
+    """
+
+    # -- Factor resolution fields --
+    # Name of the data-dict key that holds the primary classification value
+    # used to look up a matching Factor (e.g. "equipment_class", "category").
     kind_field: Optional[str] = None
+    # Name of the data-dict key for the secondary classification value
+    # (e.g. "sub_class"). Used together with kind_field for a more precise
+    # factor match. None means the module has no sub-classification.
     subkind_field: Optional[str] = None
+    # Display label override for kind_field shown in the UI/response
+    # (e.g. "Equipment class"). Falls back to kind_field when None.
     kind_label_field: Optional[str] = None
+    # Display label override for subkind_field shown in the UI/response.
     subkind_label_field: Optional[str] = None
-    data_entry_type: Optional[DataEntryTypeEnum] = None
+    # When True, factor lookup requires both kind and subkind to match.
+    # Set to False for modules where subkind is optional (e.g. equipment).
     require_subkind_for_factor: bool = True
+    # When True, a matching factor must exist for the entry to be valid.
+    # Set to False for modules that allow entries without a linked factor.
     require_factor_to_match: bool = True
+
+    # -- Seed-time default population --
+    # List of data-dict field names whose values should be copied from the
+    # matched Factor.values when the entry does not already provide them.
+    # Used during CSV seeding to populate mandatory fields with factor
+    # defaults (e.g. ["active_usage_hours_per_week",
+    # "standby_usage_hours_per_week"] for equipment).
+    factor_value_fields: Optional[list[str]] = None
+
+    # -- Registration --
+    # The DataEntryTypeEnum this handler serves. For handlers that cover
+    # multiple types, set ``registration_keys`` instead.
+    data_entry_type: Optional[DataEntryTypeEnum] = None
 
     @classmethod
     def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
