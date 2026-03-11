@@ -55,6 +55,8 @@ class FactorSeedConfig:
 # external_ai_factors.csv
 # external_clouds_factors.csv
 # food_factors.csv
+# headcount_member_factors.csv
+# headcount_students_factors.csv
 # processemissions_factors.csv
 # purchases_additional_factors.csv
 # purchases_common_factors.csv
@@ -98,6 +100,18 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         data_entry_types=[DataEntryTypeEnum.external_clouds],
     ),
     # FactorSeedConfig(path=BACKEND_FOLDER / "food_factors.csv", data_entry_types=[]),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "headcount_member_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.member,
+        ],
+    ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "headcount_students_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.student,
+        ],
+    ),
     FactorSeedConfig(
         path=BACKEND_FOLDER / "processemissions_factors.csv",
         data_entry_types=[DataEntryTypeEnum.process_emissions],

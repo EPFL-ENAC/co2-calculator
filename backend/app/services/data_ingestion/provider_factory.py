@@ -1,5 +1,7 @@
 from typing import Optional
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
@@ -14,9 +16,6 @@ from app.services.data_ingestion.csv_providers import (
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
 )
-# from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
-#     ProfessionalTravelCSVProvider,
-# )
 
 
 class ProviderFactory:
@@ -135,8 +134,8 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
-        job_session=None,
-        data_session=None,
+        job_session: Optional[AsyncSession] = None,
+        data_session: Optional[AsyncSession] = None,
     ) -> Optional[DataIngestionProvider]:
         """
         Create the appropriate provider instance.
@@ -166,6 +165,8 @@ class ProviderFactory:
 
         if not provider_class:
             return None
+        if data_session is None:
+            raise ValueError("Data session is required to create provider instance")
         return provider_class(
             config=config, user=user, job_session=job_session, data_session=data_session
         )

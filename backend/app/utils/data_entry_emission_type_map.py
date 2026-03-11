@@ -241,6 +241,41 @@ def _resolve_building(data: dict) -> list[EmissionType] | None:
     return None  # unknown category or energy type
 
 
+def _resolve_headcount_factor(data: dict) -> list[EmissionType] | None:
+    """Resolve a headcount factor row to a single EmissionType leaf.
+
+    Builds the enum name from headcount_category / headcount_class /
+    headcount_subclass and tries the most specific match first, then
+    falls back to less specific names.
+    """
+    category = (data.get("headcount_category") or "").strip().lower()
+    cls = (data.get("headcount_class") or "").strip().lower()
+    subclass = (data.get("headcount_subclass") or "").strip().lower()
+
+    if not category:
+        return None
+
+    # Try most specific: category__class__subclass
+    if cls and subclass:
+        try:
+            return [EmissionType[f"{category}__{cls}__{subclass}"]]
+        except KeyError:
+            pass
+
+    # Try category__class
+    if cls:
+        try:
+            return [EmissionType[f"{category}__{cls}"]]
+        except KeyError:
+            pass
+
+    # Try category only
+    try:
+        return [EmissionType[category]]
+    except KeyError:
+        return None
+
+
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
@@ -252,6 +287,8 @@ _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.external_ai: _resolve_ai,
     DataEntryTypeEnum.external_clouds: _resolve_clouds,
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,
+    DataEntryTypeEnum.member: _resolve_headcount_factor,
+    DataEntryTypeEnum.student: _resolve_headcount_factor,
 }
 
 
@@ -282,7 +319,7 @@ def resolve_factor_emission_type(
             return None  # known type that intentionally emits nothing (e.g. energy_mix)
         if len(factor_resolver) > 1:
             raise ValueError(
-                f"Expected exactly one emission type for factor of type {data_entry_type},"
+                f"Expected exactly one emission_type for factor: {data_entry_type},"
                 f" but got multiple: {factor_resolver}"
                 f" for row: {factor}"
             )
