@@ -127,9 +127,6 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
         EmissionType.external__ai__provider_cohere,
         EmissionType.external__ai__provider_others,
     ],  # provider is a subcategory, not path
-    # --- Internal / special --------------------------------------------------
-    # energy_mix is a conversion factor only, never produces emission rows
-    DataEntryTypeEnum.energy_mix: [],
 }
 
 
@@ -316,7 +313,7 @@ def resolve_factor_emission_type(
     factor_resolver = FACTOR_TO_EMISSION_TYPES.get(data_entry_type)
     if factor_resolver is not None:
         if len(factor_resolver) == 0:
-            return None  # known type that intentionally emits nothing (e.g. energy_mix)
+            return None  # known type that intentionally emits nothing
         if len(factor_resolver) > 1:
             raise ValueError(
                 f"Expected exactly one emission_type for factor: {data_entry_type},"
@@ -336,7 +333,7 @@ def resolve_factor_emission_type(
     if types is None:
         return None  # unknown type, caller should log and skip
     if len(types) == 0:
-        return None  # known type that intentionally emits nothing (e.g. energy_mix)
+        return None  # known type that intentionally emits nothing
     if len(types) > 1:
         raise ValueError(
             f"Expected exactly one emission type for factor of type {data_entry_type},"
@@ -356,7 +353,6 @@ def resolve_emission_types(
     Returns:
       list[EmissionType]  — one or more emission types; create one row per entry
       []                  — known type that intentionally emits nothing
-            (e.g. energy_mix)
       None                — unhandled / unknown type — caller should log and skip
 
     Usage in DataEntryEmissionService:

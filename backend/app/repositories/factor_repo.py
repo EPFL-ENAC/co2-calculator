@@ -17,21 +17,9 @@ class FactorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # Data entry type ID for emission factors (energy_mix)
-    EMISSION_FACTOR_DATA_ENTRY_TYPE_ID = DataEntryTypeEnum.energy_mix.value
-
     async def get(self, id: int) -> Optional[Factor]:
         """Get factor by ID."""
         stmt = select(Factor).where(col(Factor.id) == id)
-        result = await self.session.exec(stmt)
-        return result.one_or_none()
-
-    async def get_electricity_factor(self) -> Optional[Factor]:
-        """Get the electricity factor."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == DataEntryTypeEnum.energy_mix.value,
-        )
-
         result = await self.session.exec(stmt)
         return result.one_or_none()
 

@@ -29,13 +29,6 @@ class EmissionType(int, Enum):
     """
 
     # -------------------------------------------------------------------------
-    # Root categories (level 0)
-    # not used directly emissions only for special factors
-    # that are used in calculations but don't have their own emission rows
-    # -------------------------------------------------------------------------
-    energy = 1  # conversion factor for kWh → kgCO2eq
-
-    # -------------------------------------------------------------------------
     # Additional Categories — flat leaves (no subcategory)
     # -------------------------------------------------------------------------
     food = 10000
@@ -445,7 +438,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     For equipment calculations (2 factors):
     - primary_factor_id → power factor (watts)
     - meta.factors_used → [{role: 'primary', ...power},
-        {role: 'emission', ...energy_mix}]
+        {role: 'emission'}]
     - Formula: kg_co2eq = annual_kwh x emission_factor.values.kg_co2eq_per_kwh
 
     For headcount calculations (1 factor per emission):

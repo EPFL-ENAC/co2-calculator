@@ -152,7 +152,6 @@ DATA_ENTRY_TYPE_TO_DTO = {
     DataEntryTypeEnum.student: HeadCountStudentCreate,
     DataEntryTypeEnum.building: EquipmentHandlerCreate,
     DataEntryTypeEnum.process_emissions: EquipmentHandlerCreate,
-    DataEntryTypeEnum.energy_mix: EquipmentHandlerCreate,
     DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
     DataEntryTypeEnum.scientific_equipment: EquipmentHandlerCreate,
