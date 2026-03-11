@@ -69,8 +69,10 @@ const animalFields: ModuleField[] = [
   {
     id: 'housing_nb',
     labelKey: `${MODULES.ResearchFacilities}.inputs.housing_nb`,
-    type: 'text',
-    editableInline: false,
+    type: 'number',
+    editableInline: true,
+    min: 0,
+    step: 1,
     ratio: '1/4',
     hideIn: { form: true },
     sortable: true,

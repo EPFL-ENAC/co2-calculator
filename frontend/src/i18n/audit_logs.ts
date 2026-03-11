@@ -86,7 +86,7 @@ export default {
     fr: 'Achats',
   },
   audit_module_research_facilities: {
-    en: 'ResearchFacilities',
+    en: 'Research Facilities',
     fr: 'Infrastructures de recherche',
   },
   audit_module_external_cloud: {

@@ -7,7 +7,7 @@ import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-an
 import { buildings } from 'src/constant/module-config/buildings';
 import { purchase } from 'src/constant/module-config/purchase';
 import { processEmissions } from 'src/constant/module-config/process_emissions';
-import { MODULES } from '../modules';
+import { MODULES } from 'src/constant/modules';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
   [MODULES.EquipmentElectricConsumption]: equipmentElectricConsumption,

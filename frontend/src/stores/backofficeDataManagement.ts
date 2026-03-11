@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import { api } from 'src/api/http';
-import { Module, MODULES } from 'src/constant/modules';
+import { Module } from 'src/constant/modules';
+import { getModuleTypeId } from 'src/constant/moduleStates';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -315,25 +316,6 @@ provider_type
       unsubscribeFromJobUpdates();
     }
 
-    // Helper function to get module type ID from module
-    function getModuleTypeId(module: Module): number {
-      const moduleTypeIds: Record<Module, number> = {
-        [MODULES.Headcount]: 1,
-        [MODULES.ProfessionalTravel]: 2,
-        [MODULES.Buildings]: 3,
-        [MODULES.EquipmentElectricConsumption]: 4,
-        [MODULES.Purchase]: 5,
-        [MODULES.ResearchFacilities]: 6,
-        [MODULES.ExternalCloudAndAI]: 7,
-        [MODULES.ProcessEmissions]: 8,
-        [MODULES.Commuting]: 9,
-        [MODULES.Food]: 10,
-        [MODULES.Waste]: 11,
-        [MODULES.GreyEnergy]: 12,
-      };
-      return moduleTypeIds[module];
-    }
-
     return {
       loading,
       error,
@@ -346,7 +328,6 @@ provider_type
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       reset,
-      getModuleTypeId,
     };
   },
 );

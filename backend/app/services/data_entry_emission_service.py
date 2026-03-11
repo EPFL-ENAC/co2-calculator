@@ -234,10 +234,9 @@ class DataEntryEmissionService:
 
         result = float(quantity) * float(ef)
         if comp.multiplier_key:
-            mult = (
-                factor_values.get(comp.multiplier_key, comp.multiplier_default)
-                or comp.multiplier_default
-            )
+            mult = factor_values.get(comp.multiplier_key, comp.multiplier_default)
+            if mult is None:
+                mult = comp.multiplier_default
             result *= float(mult)
         return result
 

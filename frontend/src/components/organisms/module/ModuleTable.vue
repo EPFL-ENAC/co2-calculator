@@ -364,7 +364,7 @@ import {
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
 } from 'src/constant/modules';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
 function getNumericRules(col: TableViewColumn) {
@@ -486,9 +486,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
   }
 
   const filePath = filePaths[0];
-  const moduleTypeId = dataManagementStore.getModuleTypeId(
-    props.moduleType as Module,
-  );
+  const moduleTypeId = getModuleTypeId(props.moduleType as Module);
 
   try {
     $q.notify({
