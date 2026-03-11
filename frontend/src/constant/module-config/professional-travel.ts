@@ -113,7 +113,10 @@ const commonTravelFields: ModuleField[] = [
 const planeFields: ModuleField[] = [
   ...buildTravelFields(
     { id: 'origin_iata', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
-    { id: 'destination_iata', labelKey: `${MODULES.ProfessionalTravel}-field-to` },
+    {
+      id: 'destination_iata',
+      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    },
   ),
   {
     id: 'cabin_class',
@@ -137,7 +140,10 @@ const planeFields: ModuleField[] = [
 const trainFields: ModuleField[] = [
   ...buildTravelFields(
     { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
-    { id: 'destination_name', labelKey: `${MODULES.ProfessionalTravel}-field-to` },
+    {
+      id: 'destination_name',
+      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    },
   ),
   {
     id: 'cabin_class',
@@ -231,13 +237,16 @@ export const professionalTravel: ModuleConfig = {
   ],
 } as ModuleConfig & { unit?: string };
 
-function buildTravelFields(origin: {
-  id: string;
-  labelKey: string;
-}, destination: {
-  id: string;
-  labelKey: string;
-}): ModuleField[] {
+function buildTravelFields(
+  origin: {
+    id: string;
+    labelKey: string;
+  },
+  destination: {
+    id: string;
+    labelKey: string;
+  },
+): ModuleField[] {
   return [
     {
       id: 'round_trip',

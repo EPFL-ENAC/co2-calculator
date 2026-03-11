@@ -480,9 +480,9 @@ async def test_get_submodule_data(db_session: AsyncSession):
             data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={
-                "traveler_name": f"Traveler {i}",
-                "origin_location_id": 1,
-                "destination_location_id": 2,
+                "user_institutional_id": f"Traveler {i}",
+                "origin_iata": "JFK",
+                "destination_iata": "LAX",
                 "number_of_trips": 1,
                 "unit_id": 1,
             },
