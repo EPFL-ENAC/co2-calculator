@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import { api } from 'src/api/http';
-import { Module } from 'src/constant/modules';
+import { Module, MODULES } from 'src/constant/modules';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -318,18 +318,18 @@ provider_type
     // Helper function to get module type ID from module
     function getModuleTypeId(module: Module): number {
       const moduleTypeIds: Record<Module, number> = {
-        headcount: 1,
-        'professional-travel': 2,
-        buildings: 3,
-        'equipment-electric-consumption': 4,
-        purchase: 5,
-        'research-facilities': 6,
-        'external-cloud-and-ai': 7,
-        'process-emissions': 8,
-        commuting: 9,
-        food: 10,
-        waste: 11,
-        'grey-energy': 12,
+        [MODULES.Headcount]: 1,
+        [MODULES.ProfessionalTravel]: 2,
+        [MODULES.Buildings]: 3,
+        [MODULES.EquipmentElectricConsumption]: 4,
+        [MODULES.Purchase]: 5,
+        [MODULES.ResearchFacilities]: 6,
+        [MODULES.ExternalCloudAndAI]: 7,
+        [MODULES.ProcessEmissions]: 8,
+        [MODULES.Commuting]: 9,
+        [MODULES.Food]: 10,
+        [MODULES.Waste]: 11,
+        [MODULES.GreyEnergy]: 12,
       };
       return moduleTypeIds[module];
     }

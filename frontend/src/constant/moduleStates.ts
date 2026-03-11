@@ -1,4 +1,4 @@
-import type { Module } from './modules';
+import { MODULES, type Module } from './modules';
 import type { ModuleCardBadge } from './moduleCards';
 
 /**
@@ -19,18 +19,18 @@ export type ModuleStates = { [K in Module]: ModuleState };
  * Used for API calls to identify modules.
  */
 export const MODULE_TYPE_IDS = {
-  headcount: 1,
-  'professional-travel': 2,
-  buildings: 3,
-  'equipment-electric-consumption': 4,
-  purchase: 5,
-  'research-facilities': 6,
-  'external-cloud-and-ai': 7,
-  'process-emissions': 8,
-  commuting: 9,
-  food: 10,
-  waste: 11,
-  'grey-energy': 12,
+  [MODULES.Headcount]: 1,
+  [MODULES.ProfessionalTravel]: 2,
+  [MODULES.Buildings]: 3,
+  [MODULES.EquipmentElectricConsumption]: 4,
+  [MODULES.Purchase]: 5,
+  [MODULES.ResearchFacilities]: 6,
+  [MODULES.ExternalCloudAndAI]: 7,
+  [MODULES.ProcessEmissions]: 8,
+  [MODULES.Commuting]: 9,
+  [MODULES.Food]: 10,
+  [MODULES.Waste]: 11,
+  [MODULES.GreyEnergy]: 12,
 } as const;
 
 export type ModuleTypeId =

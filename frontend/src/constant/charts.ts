@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { storeToRefs } from 'pinia';
+import { MODULES } from './modules';
 
 // Get the store instance and export colorblindMode for backward compatibility
 const colorblindStore = useColorblindStore();
@@ -383,17 +384,20 @@ export function getChartSubcategoryColor(
 // Maps Module enum value → category names present in module_breakdown
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({
-    'process-emissions': ['Process Emissions'],
-    buildings: [
+    [MODULES.ProcessEmissions]: ['Process Emissions'],
+    [MODULES.Buildings]: [
       'Buildings energy consumption',
       'Energy combustion',
       'Buildings room',
     ],
-    'equipment-electric-consumption': ['Equipment'],
-    purchase: ['Purchases'],
-    'research-facilities': ['Research facilities'],
-    'external-cloud-and-ai': ['External cloud & AI', 'External clouds & AI'],
-    'professional-travel': ['Professional travel'],
+    [MODULES.EquipmentElectricConsumption]: ['Equipment'],
+    [MODULES.Purchase]: ['Purchases'],
+    [MODULES.ResearchFacilities]: ['Research facilities'],
+    [MODULES.ExternalCloudAndAI]: [
+      'External cloud & AI',
+      'External clouds & AI',
+    ],
+    [MODULES.ProfessionalTravel]: ['Professional travel'],
   }),
 );
 

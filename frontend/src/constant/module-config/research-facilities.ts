@@ -4,7 +4,7 @@ import {
   SUBMODULE_RESEARCH_FACILITIES_TYPES,
 } from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
-import type { ResearchFacilitiesSubType } from 'src/constant/modules';
+import type { Module, ResearchFacilitiesSubType } from 'src/constant/modules';
 
 const researchFacilitiesFields: ModuleField[] = [
   {
@@ -86,9 +86,9 @@ const animalFields: ModuleField[] = [
 ];
 
 export const researchFacilities: ModuleConfig = {
-  id: 'module_waste_001',
-  type: 'research-facilities',
-  name: 'Waste Management',
+  id: 'module_research_facilities_001',
+  type: MODULES.ResearchFacilities as Module,
+  name: 'Research Facilities',
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,

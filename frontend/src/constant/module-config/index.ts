@@ -7,16 +7,17 @@ import { externalCloudAndAi } from 'src/constant/module-config/external-cloud-an
 import { buildings } from 'src/constant/module-config/buildings';
 import { purchase } from 'src/constant/module-config/purchase';
 import { processEmissions } from 'src/constant/module-config/process_emissions';
+import { MODULES } from '../modules';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
-  'equipment-electric-consumption': equipmentElectricConsumption,
-  'professional-travel': professionalTravel,
-  headcount: headcount,
-  'research-facilities': researchFacilities,
-  buildings: buildings,
-  purchase: purchase,
-  'external-cloud-and-ai': externalCloudAndAi,
-  'process-emissions': processEmissions,
+  [MODULES.EquipmentElectricConsumption]: equipmentElectricConsumption,
+  [MODULES.ProfessionalTravel]: professionalTravel,
+  [MODULES.Headcount]: headcount,
+  [MODULES.ResearchFacilities]: researchFacilities,
+  [MODULES.Buildings]: buildings,
+  [MODULES.Purchase]: purchase,
+  [MODULES.ExternalCloudAndAI]: externalCloudAndAi,
+  [MODULES.ProcessEmissions]: processEmissions,
 };
 
 export {
