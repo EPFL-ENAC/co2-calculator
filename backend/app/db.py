@@ -1,5 +1,6 @@
 """Database configuration and session management."""
 
+import json
 from typing import AsyncGenerator
 
 from sqlalchemy.engine.url import make_url
@@ -40,6 +41,7 @@ engine = create_async_engine(
     pool_pre_ping=True,  # Verify connections before using them
     # echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False} if is_sqlite else {},
+    json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
 )
 
 # Create SessionLocal class

@@ -265,7 +265,7 @@ async def seed_data_entries(
     unknown_cf = set()
     # for debug: TO REMOVE BEFORE COMMIT
     # max_rows = 10  # safety limit to avoid runaway seeds
-    with open(config.path, mode="r") as csvfile:
+    with open(config.path, mode="r", encoding="utf-8-sig", newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             # if len(data_entries) >= max_rows:
