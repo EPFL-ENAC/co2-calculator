@@ -12,7 +12,6 @@ from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
     EmissionType,
-    FactorQuery,
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -28,6 +27,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.services.building_room_service import BuildingRoomService
 
 
 def _validate_non_negative_float(
@@ -138,6 +138,20 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
 
+    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
+        """call RoomService to get room surface by room_name"""
+        room_name = data_entry.data.get("room_name")
+        building_name = data_entry.data.get("building_name")
+        if not room_name or not building_name:
+            return {}
+        service = BuildingRoomService(session)
+        room = await service.get_room(room_name=room_name)
+        return {
+            "room_surface_square_meter": room.room_surface_square_meter
+            if room
+            else None
+        }
+
     @staticmethod
     def _compute_kwh_emission(
         ctx: dict,
@@ -145,6 +159,8 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         kwh_field: str,
     ) -> float | None:
         """Compute kg_co2eq from surface × kwh_per_m² × ef × conversion."""
+        # room_surface_square_meter should be resolve like travel! from room
+
         surface = ctx.get("room_surface_square_meter")
         kwh_per_m2 = factor_values.get(kwh_field)
         ef = factor_values.get("ef_kg_co2eq_per_kwh")
@@ -158,13 +174,12 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
 
         kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)
         if not kwh_field:
-            return []
-        building_name = (ctx.get("building_name") or "").strip()
-        room_type = (ctx.get("room_type") or "").strip().lower()
-        if not building_name or not room_type:
             return []
 
         def _building_formula(ctx: dict, factor_values: dict) -> float | None:
@@ -173,12 +188,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.building,
-                    kind=building_name,
-                    subkind=room_type,
-                    context={},
-                ),
+                factor_id=int(factor_id),
                 formula_func=_building_formula,
             )
         ]

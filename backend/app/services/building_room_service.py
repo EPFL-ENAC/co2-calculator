@@ -15,6 +15,15 @@ class BuildingRoomService:
         self.session = session
         self.repo = BuildingRoomRepository(session)
 
+    async def get_room(
+        self,
+        room_name: str,
+    ) -> Optional[BuildingRoom]:
+        """Get room by name, optionally filtered by building."""
+        return await self.repo.get_room(
+            room_name=room_name,
+        )
+
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""
         return await self.repo.list_buildings()

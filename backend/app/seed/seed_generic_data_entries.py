@@ -263,10 +263,13 @@ async def seed_data_entries(
     skipped = 0
     unknown_kind = set()
     unknown_cf = set()
-
+    # for debug: TO REMOVE BEFORE COMMIT
+    # max_rows = 10  # safety limit to avoid runaway seeds
     with open(config.path, mode="r") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            # if len(data_entries) >= max_rows:
+            #     break
             # --- resolve data_entry_type ---
             if det_column:
                 det_name = row.get(det_column, "").strip()
@@ -443,7 +446,7 @@ async def main() -> None:
         # same for train e.g [9:10]
         # for building Created 19741 entries + 0 emissions for [building]
         # (182 rows skipped)
-        for config in DATA_ENTRY_SEEDS[7:8]:
+        for config in DATA_ENTRY_SEEDS[10:11]:
             await seed_data_entries(session, config)
 
 

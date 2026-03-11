@@ -14,6 +14,17 @@ class BuildingRoomRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def get_room(
+        self,
+        room_name: str,
+    ) -> Optional[BuildingRoom]:
+        """Get room by name, optionally filtered by building."""
+        stmt = select(BuildingRoom).where(
+            col(BuildingRoom.room_name) == room_name,
+        )
+        result = await self.session.exec(stmt)
+        return result.first()
+
     async def list_buildings(self) -> list[dict]:
         """Return distinct buildings with location and name."""
         stmt = (
