@@ -12,14 +12,13 @@ from fastapi import (
     Response,
     status,
 )
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.modules.headcount.schemas import HeadcountItemResponse
@@ -469,18 +468,13 @@ async def create(
             and validated_data.model_dump().get("user_institutional_id")
         ):
             uid = validated_data.model_dump()["user_institutional_id"]
-            duplicate = (
-                await db.execute(
-                    select(DataEntry)
-                    .where(
-                        DataEntry.carbon_report_module_id == carbon_report_module_id,
-                        DataEntry.data_entry_type_id == DataEntryTypeEnum.member.value,
-                        DataEntry.data["user_institutional_id"].as_string() == uid,
-                    )
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            if duplicate:
+            is_unique = await DataEntryService(db).check_json_field_unique(
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                field="user_institutional_id",
+                value=uid,
+            )
+            if not is_unique:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail="This user institutional id already exists.",

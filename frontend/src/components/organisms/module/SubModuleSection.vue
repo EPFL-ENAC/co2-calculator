@@ -193,6 +193,8 @@ async function submitForm(payload: Record<string, FieldValue>) {
       );
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : 'Unexpected error';
+      // Replace generic "user institutional id" in server error messages with
+      // the institution-specific label (SCIPER for EPFL).
       formRef.value?.setFieldError(
         'user_institutional_id',
         raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL),
