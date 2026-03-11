@@ -322,7 +322,11 @@ async def seed_data_entries(
 
                 # Location resolution for travel
                 if config.location_fields and csv_col in config.location_fields:
-                    assert config.transport_mode is not None
+                    if config.transport_mode is None:
+                        logger.error(
+                            "Transport mode must be set for location resolution"
+                        )
+                        continue
                     loc_id = await _resolve_location_id(
                         session, val, config.transport_mode
                     )

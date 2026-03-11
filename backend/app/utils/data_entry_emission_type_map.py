@@ -174,16 +174,6 @@ def _resolve_plane(data: dict) -> list[EmissionType] | None:
 
 
 def _resolve_train(data: dict) -> list[EmissionType] | None:
-
-    # trains also use cabin_class (class_1 / class_2)
-    # no default, return None if no cabin_class or
-    # unknown value — caller should log and skip
-
-    # To avoid silently dropping emissions on incomplete payloads,
-    # we could default to class_2 when value is missing or unrecognized.
-    # but that would mean that we don't have the 'REAL' stats and that we decided the
-    # data_entry cabin_class at the emission level without the user knowing
-    # we should ask the PM about this: TODO
     cabin = (data.get("cabin_class") or "").lower()
     et = _TRAIN_CLASS_MAP.get(cabin)
     return [et] if et else None

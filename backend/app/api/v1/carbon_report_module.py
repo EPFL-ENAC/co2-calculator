@@ -43,6 +43,9 @@ from app.utils.request_context import extract_ip_address, extract_route_payload
 logger = get_logger(__name__)
 router = APIRouter()
 
+# TODO: don't forget to update stats of carbon_report_module
+# on batch/create/update/delete
+
 
 async def get_carbon_report_id(
     unit_id: int,

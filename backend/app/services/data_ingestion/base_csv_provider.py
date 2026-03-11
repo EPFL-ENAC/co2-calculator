@@ -872,9 +872,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Build DataEntry
             primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
+
             # TODO: that's here that we should add 'default' for some fields if needed
             # like in equipement for standby and active usage
             # TODO: make generic in handler above!
+            # it's already done in seed_generic_data_entries
             # active_usage_hours_per_week
             # standby_usage_hours_per_week
             # BEWaRE: We changed classsubclassmap to allow factors without subkind,
