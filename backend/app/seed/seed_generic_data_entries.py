@@ -9,7 +9,9 @@ import asyncio
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import get_args
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -168,6 +170,16 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
 # ---------------------------------------------------------------------------
 
 
+def _get_string_field_names(create_dto: type[BaseModel]) -> set[str]:
+    """Return field names declared as str or Optional[str] in a Pydantic DTO."""
+    result: set[str] = set()
+    for name, info in create_dto.model_fields.items():
+        ann = info.annotation
+        if ann is str or str in get_args(ann):
+            result.add(name)
+    return result
+
+
 def _coerce_value(value: str) -> str | int | float | None:
     """Try to convert a CSV string to int or float, falling back to str."""
     if value == "":
@@ -244,10 +256,14 @@ async def seed_data_entries(
     factors_cache: dict[DataEntryTypeEnum, dict] = {}
 
     # Pre-load factor maps for types that use kind-based lookup
+    # and collect DTO string fields to preserve their type during coercion
+    string_fields: set[str] = set()
     for det in config.data_entry_types:
         handler = BaseModuleHandler.get_by_type(det)
         if handler.kind_field:
             factors_cache[det] = await load_factors_map(session, det)
+        if handler.create_dto:
+            string_fields |= _get_string_field_names(handler.create_dto)
 
     # Resolve data_entry_type helpers
     det_column = config.data_entry_type_column
@@ -265,7 +281,7 @@ async def seed_data_entries(
     unknown_cf = set()
     # for debug: TO REMOVE BEFORE COMMIT
     # max_rows = 10  # safety limit to avoid runaway seeds
-    with open(config.path, mode="r") as csvfile:
+    with open(config.path, mode="r", encoding="utf-8-sig", newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             # if len(data_entries) >= max_rows:
@@ -333,7 +349,10 @@ async def seed_data_entries(
                     data[config.location_fields[csv_col]] = loc_id
                     continue
 
-                data[csv_col] = _coerce_value(val)
+                if csv_col in string_fields:
+                    data[csv_col] = val.strip() if val.strip() else None
+                else:
+                    data[csv_col] = _coerce_value(val)
 
             # --- factor lookup ---
             kind_field = handler.kind_field
