@@ -314,6 +314,62 @@ async def get_submodule(
     return submodule_data
 
 
+@router.get(
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/check-unique",
+)
+async def check_unique(
+    unit_id: int,
+    year: int,
+    module_id: str,
+    submodule_id: str,
+    field: str = Query(..., description="JSON data field to check uniqueness for"),
+    value: str = Query(..., description="Value to check"),
+    exclude_id: Optional[int] = Query(
+        default=None, description="Entry ID to exclude (for PATCH pre-validation)"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Check whether a data field value is unique within a submodule.
+
+    Intended to be called from the form before submitting a PATCH (or POST)
+    so the UI can surface a duplicate error before the round-trip.
+
+    Args:
+        unit_id: Unit ID.
+        year: Report year.
+        module_id: Module identifier.
+        submodule_id: Submodule identifier.
+        field: JSON key inside ``data`` to check (e.g. ``user_institutional_id``).
+        value: The value that must be unique.
+        exclude_id: ID of the entry being edited — excluded from the duplicate scan.
+
+    Returns:
+        ``{"unique": true}`` when the value is available,
+        ``{"unique": false}`` when a conflict exists.
+    """
+    await _check_module_permission(current_user, module_id, "view")
+
+    module_key = module_id.replace("-", "_")
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key],
+        db=db,
+    )
+
+    is_unique = await DataEntryService(db).check_json_field_unique(
+        carbon_report_module_id=carbon_report_module_id,
+        data_entry_type_id=data_entry_type_id,
+        field=field,
+        value=value,
+        exclude_id=exclude_id,
+    )
+    return {"unique": is_unique}
+
+
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
     response_model=DataEntryResponse,
@@ -406,10 +462,30 @@ async def create(
 
         validated_data = handler.validate_create(create_payload)
 
+        # For member entries with institutional ID, check for duplicates before creating
+        if (
+            data_entry_type == DataEntryTypeEnum.member
+            and validated_data.model_dump().get("user_institutional_id")
+        ):
+            uid = validated_data.model_dump()["user_institutional_id"]
+            is_unique = await DataEntryService(db).check_json_field_unique(
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=DataEntryTypeEnum.member.value,
+                field="user_institutional_id",
+                value=uid,
+            )
+            if not is_unique:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="This user institutional id already exists.",
+                )
+
         data_entry_create = DataEntryCreate(
             **validated_data.model_dump(exclude_unset=True)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "Error validating item_data for data entry creation",

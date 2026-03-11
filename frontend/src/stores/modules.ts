@@ -511,13 +511,10 @@ export const useModuleStore = defineStore('modules', () => {
           error &&
           typeof error === 'object' &&
           'response' in error &&
-          error.response &&
-          typeof error.response === 'object' &&
-          'json' in error.response &&
-          typeof error.response.json === 'function'
+          error.response
         ) {
-          const errorBody = await error.response.json();
-          console.error('[ModuleStore] Backend error response:', errorBody);
+          const { detail } = await (error.response as Response).json();
+          throw new Error(detail, { cause: error });
         }
         throw error;
       }
@@ -540,11 +537,13 @@ export const useModuleStore = defineStore('modules', () => {
             'json' in error.response &&
             typeof error.response.json === 'function'
           ) {
-            const errorBody = await error.response.json();
-            console.error(
-              '[ModuleStore] Backend error response (return leg):',
-              errorBody,
-            );
+            const errorBody = await (
+              error.response as { json: () => Promise<unknown> }
+            ).json();
+            const detail = (errorBody as { detail?: unknown })?.detail;
+            const message =
+              typeof detail === 'string' ? detail : JSON.stringify(errorBody);
+            throw new Error(message, { cause: error });
           }
           throw error;
         }

@@ -1,4 +1,5 @@
 import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 
 export default {
   [MODULES.Headcount]: {
@@ -90,8 +91,8 @@ export default {
     fr: 'Nom',
   },
   [`${MODULES.Headcount}-member-form-field-user-institutional-id-label`]: {
-    en: 'Institutional ID',
-    fr: 'ID institutionnel',
+    en: INSTITUTIONAL_ID_LABEL,
+    fr: INSTITUTIONAL_ID_LABEL,
   },
   // module_mylab_student_form_field_fte_label
   [`${MODULES.Headcount}-student_form_field_fte_label`]: {
