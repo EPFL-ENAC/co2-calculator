@@ -121,13 +121,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # CO2 Calculation Constants
-    EMISSION_FACTOR_SWISS_MIX: float = Field(
-        default=0.125,
-        description=(
-            "Swiss electricity mix emission factor in kgCO2eq/kWh "
-            "(configurable from backoffice in future)"
-        ),
-    )
     HOURS_PER_WEEK: int = Field(
         default=168,
         description="Total hours per week for equipment usage calculation",
