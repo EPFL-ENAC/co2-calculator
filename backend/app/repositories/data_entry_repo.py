@@ -17,6 +17,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
@@ -308,7 +309,9 @@ class DataEntryRepository:
             entities.extend([BuildingRoom])
 
         if is_travel_entry:
-            entities.extend([OriginLocation, DestLocation, DataEntryEmission])
+            entities.extend(
+                [MemberEntry, OriginLocation, DestLocation, DataEntryEmission]
+            )
         statement: Select[Any] = (
             sa_select(*entities)
             .join(
@@ -326,6 +329,18 @@ class DataEntryRepository:
         if is_travel_entry:
             statement = (
                 statement.join(
+                    MemberEntry,
+                    (
+                        MemberEntry.data["user_institutional_id"].as_string()
+                        == DataEntry.data["user_institutional_id"].as_string()
+                    )
+                    & (
+                        col(MemberEntry.data_entry_type_id)
+                        == DataEntryTypeEnum.member.value
+                    ),
+                    isouter=True,
+                )
+                .join(
                     OriginLocation,
                     DataEntry.data["origin_location_id"].as_integer()
                     == OriginLocation.id,
@@ -395,6 +410,7 @@ class DataEntryRepository:
                     data_entry,
                     total_kg_co2eq,
                     primary_factor,
+                    member_entry,
                     origin_loc,
                     dest_loc,
                     emission,
@@ -434,6 +450,11 @@ class DataEntryRepository:
             if is_travel_entry:
                 data_entry.data = {
                     **data_entry.data,
+                    **(
+                        {"traveler_name": member_entry.data.get("name")}
+                        if member_entry
+                        else {}
+                    ),
                     **({"origin": origin_loc.name} if origin_loc else {}),
                     **({"destination": dest_loc.name} if dest_loc else {}),
                     **(
