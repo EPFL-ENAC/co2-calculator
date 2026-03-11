@@ -4,7 +4,9 @@ from datetime import date
 import pandas as pd
 import requests
 
-EXR_CACHE: dict[int, pd.DataFrame] = {}
+ECB_TIMEOUT_SECONDS = 10
+ECB_EXR_URL = "https://data-api.ecb.europa.eu/service/data/EXR/"
+ECB_EXR_CACHE: dict[int, pd.DataFrame] = {}
 
 
 class ExchangeRatesService:
@@ -41,9 +43,10 @@ class ExchangeRatesService:
             raise ValueError(
                 f"No exchange rate data found for year {year} and currency {currency}"
             )
+        rate = float(filtered_rates["OBS_VALUE"].iloc[0])
         if invert:
-            filtered_rates["OBS_VALUE"] = 1 / filtered_rates["OBS_VALUE"]
-        return filtered_rates["OBS_VALUE"].iloc[0]
+            return 1 / rate
+        return rate
 
     def get_exchange_rates(self, year: int) -> pd.DataFrame:
         """Get exchange rates for a specific year, using caching to avoid
@@ -57,11 +60,11 @@ class ExchangeRatesService:
         Raises:
             ValueError: If no exchange rate data is found for the specified year.
         """
-        if year in EXR_CACHE:
-            return EXR_CACHE[year]
+        if year in ECB_EXR_CACHE:
+            return ECB_EXR_CACHE[year]
 
         exchange_rates = self.get_exchange_rates_with_eur(year)
-        EXR_CACHE[year] = exchange_rates
+        ECB_EXR_CACHE[year] = exchange_rates
         return exchange_rates
 
     def get_exchange_rates_with_eur(
@@ -97,15 +100,18 @@ class ExchangeRatesService:
             start_period = str(year)
             end_period = str(year)
 
-        ecb_exr_url = "https://data-api.ecb.europa.eu/service/data/EXR/"
-        url = f"{ecb_exr_url}{frequency}.{currency if currency else ''}.EUR.SP00.A"
+        url = f"{ECB_EXR_URL}{frequency}.{currency if currency else ''}.EUR.SP00.A"
         params = {
             "startPeriod": start_period,
             "endPeriod": end_period,
             "format": "csvdata",
         }
 
-        response = requests.get(url, params=params)
+        # Set a timeout for the request to avoid hanging indefinitely
+        try:
+            response = requests.get(url, params=params, timeout=ECB_TIMEOUT_SECONDS)
+        except requests.RequestException as e:
+            raise ValueError(f"Error fetching exchange rates for year {year}: {e}")
         response.raise_for_status()
 
         if "No data found" in response.text or "" == response.text.strip():
