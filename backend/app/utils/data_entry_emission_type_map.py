@@ -102,9 +102,6 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.mice_and_fish_animal_facilities: [
         EmissionType.research_facilities__animal
     ],
-    DataEntryTypeEnum.other_research_facilities: [
-        EmissionType.research_facilities__facilities
-    ],
     # --- External Clouds — resolved at runtime (sub_kind key) ----------------
     DataEntryTypeEnum.external_clouds: None,  # → _resolve_clouds()
     # --- External AI ---------------------------------------------------------

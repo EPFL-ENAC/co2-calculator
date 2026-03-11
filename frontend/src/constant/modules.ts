@@ -5,35 +5,13 @@ export const MODULES = {
   Buildings: 'buildings',
   EquipmentElectricConsumption: 'equipment-electric-consumption',
   Purchase: 'purchase',
-  InternalServices: 'internal-services',
+  ResearchFacilities: 'research-facilities',
   ExternalCloudAndAI: 'external-cloud-and-ai',
   Commuting: 'commuting',
   Food: 'food',
   Waste: 'waste',
   GreyEnergy: 'grey-energy',
 } as const;
-
-export const MODULES_DESCRIPTIONS = {
-  Headcount: 'headcount-description',
-  ProfessionalTravel: 'professional-travel-description',
-  Buildings: 'buildings-description',
-  EquipmentElectricConsumption: 'equipment-electric-consumption-description',
-  InternalServices: 'internal-services-description',
-  ExternalCloudAndAI: 'external-cloud-and-ai-description',
-  ProcessEmissions: 'process-emissions-description',
-} as const;
-
-// TODO: implement something like this
-// export const MODULES: Record<string, string> = {
-//   headcount: 'modules.headcount',
-//   professional_travel: 'modules.professional_travel',
-//   buildings: 'modules.buildings',
-//   equipment_electric_consumption: 'modules.equipment',
-//   purchase: 'modules.purchase',
-//   internal_services: 'modules.internal_services',
-//   external_cloud_and_ai: 'modules.external_cloud_and_ai',
-//   global_energy: 'modules.global_energy', // if needed
-// };
 
 export type BackendModule = keyof typeof MODULES;
 export type ModulePermission = (typeof MODULES)[BackendModule];
@@ -76,6 +54,19 @@ export type PurchaseSubType =
 type PurchaseProps = {
   moduleType: typeof MODULES.Purchase;
   submoduleType?: AllSubmoduleTypes; // PurchaseSubType;
+};
+
+export const SUBMODULE_RESEARCH_FACILITIES_TYPES = {
+  ResearchFacilities: 'research-facilities',
+  AnimalFacilities: 'mice_and_fish_animal_facilities',
+} as const;
+
+export type ResearchFacilitiesSubType =
+  (typeof SUBMODULE_RESEARCH_FACILITIES_TYPES)[keyof typeof SUBMODULE_RESEARCH_FACILITIES_TYPES];
+
+type ResearchFacilitiesProps = {
+  moduleType: typeof MODULES.ResearchFacilities;
+  submoduleType?: AllSubmoduleTypes; // ResearchFacilitiesSubType;
 };
 
 export const SUBMODULE_PROCESSES_TYPES = {
@@ -121,9 +112,8 @@ export const enumSubmodule = {
   [SUBMODULE_PURCHASE_TYPES.AdditionalPurchases]: 67,
 
   // research facilities
-  research_facilities: 70,
-  mice_and_fish_animal_facilities: 71,
-  other_research_facilities: 72,
+  [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]: 70,
+  [SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities]: 71,
   // not a module per se
   energy_mix: 100,
 } as const;
@@ -178,20 +168,6 @@ type ProfessionalTravelProps = {
   submoduleType?: AllSubmoduleTypes; // ProfessionalTravelSubType;
 };
 
-export const SUBMODULE_INTERNAL_SERVICES_TYPES = {
-  ITSupport: 'it-support',
-  Maintenance: 'maintenance',
-  Other: 'other',
-} as const;
-
-export type InternalServicesSubType =
-  (typeof SUBMODULE_INTERNAL_SERVICES_TYPES)[keyof typeof SUBMODULE_INTERNAL_SERVICES_TYPES];
-
-type InternalServicesProps = {
-  moduleType: typeof MODULES.InternalServices;
-  submoduleType?: AllSubmoduleTypes; // InternalServicesSubType;
-};
-
 export type AllSubmoduleTypes = keyof typeof enumSubmodule;
 
 type ChartOnlyProps = {
@@ -209,7 +185,7 @@ export type ConditionalSubmoduleProps =
   | PurchaseProps
   | BuildingsProps
   | ProfessionalTravelProps
-  | InternalServicesProps
+  | ResearchFacilitiesProps
   | ExternalCloudProps
   | ProcessesProps
   | ChartOnlyProps;
@@ -291,7 +267,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Buildings]: 'buildings',
     [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
     [MODULES.Purchase]: 'purchase',
-    [MODULES.InternalServices]: 'internal_services',
+    [MODULES.ResearchFacilities]: 'research_facilities',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',
     [MODULES.ProcessEmissions]: 'process_emissions',
     [MODULES.Commuting]: 'commuting',

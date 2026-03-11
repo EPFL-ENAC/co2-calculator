@@ -1,4 +1,4 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 
 export default {
@@ -6,7 +6,7 @@ export default {
     en: 'Headcount',
     fr: 'Personnel',
   },
-  [MODULES_DESCRIPTIONS.Headcount]: {
+  [`${MODULES.Headcount}-description`]: {
     en: 'Verify team members and Full Time Equivalent (FTE) values for your unit',
     fr: 'Vérifiez les membres de l’équipe et leurs équivalents plein-temps (EPT) pour votre unité',
   },

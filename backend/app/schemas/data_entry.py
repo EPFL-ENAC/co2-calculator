@@ -285,10 +285,18 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         children: list[TaxonomyNode] = []
         for factor in factors:
             classification = factor.classification or {}
-            if self.kind_field is None or self.kind_field not in classification:
-                continue  # if no kind/subkind fields defined, skip adding nodes
-            kind_value = classification.get(self.kind_field, "")
-            if kind_value == "":
+            values = factor.values or {}
+
+            # Lookup kind
+            kind_field = self.kind_field
+            if kind_field not in classification:
+                if "kind" in classification:
+                    kind_field = "kind"
+                else:
+                    # if no kind/subkind fields defined, skip adding nodes
+                    continue
+            kind_value = classification.get(kind_field, "")
+            if kind_value is None or kind_value == "":
                 continue  # skip if no kind in classification
             # find the children based on kind or add it
             kind_node = next((c for c in children if c.name == kind_value), None)
@@ -302,11 +310,26 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
                     label=label,
                 )
                 children.append(kind_node)
-            if self.subkind_field is None or self.subkind_field not in classification:
-                continue  # if no subkind field defined, skip adding subkind nodes
-            subkind_value = classification.get(self.subkind_field, "")
-            if subkind_value == "":
+
+            # Lookup subkind
+            subkind_field = self.subkind_field
+            if subkind_field not in classification:
+                if "subkind" in classification:
+                    subkind_field = "subkind"
+                else:
+                    # if no subkind field defined,
+                    # add classification and values to kind node
+                    kind_node.classification = classification
+                    kind_node.values = values
+                    continue  # if no subkind field defined, skip adding subkind nodes
+            subkind_value = classification.get(subkind_field, "")
+            if subkind_value is None or subkind_value == "":
+                # if no subkind field defined, add classification
+                # and values to kind node
+                kind_node.classification = classification
+                kind_node.values = values
                 continue  # skip if no subkind in classification
+            # Build subkind node as a child of kind node
             if kind_node.children is None:
                 kind_node.children = []
             if self.subkind_label_field and self.subkind_label_field in classification:
@@ -319,8 +342,12 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
                 TaxonomyNode(
                     name=subkind_value,
                     label=subkind_label,
+                    classification=classification,
+                    values=values,
                 )
             )
+
+        # Return root node with children grouped by kind and subkind
         return TaxonomyNode(
             name=data_entry_type.name,
             label=self.to_label(data_entry_type.name),
@@ -391,7 +418,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         """
         # if all capital letters, keep it as is (e.g. for acronyms),
         # otherwise convert to title case
-        if name.isupper():
+        if name is None or name.isupper():
             return name
         # capitalize only the first letter, to preserve any existing
         # capitalization (e.g. for acronyms within the name)

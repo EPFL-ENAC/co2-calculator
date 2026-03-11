@@ -49,10 +49,12 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/purchase.ts',
   },
   {
-    topic: t('documentation_editing_rows_internal_services_topic'),
-    description: t('documentation_editing_rows_internal_services_description'),
+    topic: t('documentation_editing_rows_research_facilities_topic'),
+    description: t(
+      'documentation_editing_rows_research_facilities_description',
+    ),
     githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/internal_services.ts',
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/research_facilities.ts',
   },
   {
     topic: t('documentation_editing_rows_external_cloud_topic'),

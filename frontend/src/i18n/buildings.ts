@@ -1,11 +1,11 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.Buildings]: {
     en: 'Buildings',
     fr: 'Bâtiments',
   },
-  [MODULES_DESCRIPTIONS.Buildings]: {
+  [`${MODULES.Buildings}-description`]: {
     en: 'This module estimates the buildings-related carbon footprint (heating, air conditioning, ventilation, and lighting). An additional table is available to include other energy combustion sources if your unit uses a non-centralized energy source.',
     fr: "Ce module permet d'estimer l'empreinte carbone liée au bâtiment (chauffage, climatisation, ventilation et éclairage). Un tableau supplémentaire est disponible pour compléter avec d'autres émissions de combustion d'énergie au cas où votre unité utilise une source d'énergie non-centralisée.",
   },

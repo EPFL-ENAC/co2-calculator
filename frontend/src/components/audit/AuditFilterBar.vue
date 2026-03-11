@@ -59,7 +59,10 @@ const moduleOptions = computed(() => [
     value: 'equipment_electric_consumption',
   },
   { label: t('audit_module_purchase'), value: 'purchase' },
-  { label: t('audit_module_internal_services'), value: 'internal_services' },
+  {
+    label: t('audit_module_research_facilities'),
+    value: 'research_facilities',
+  },
   { label: t('audit_module_external_cloud'), value: 'external_cloud_and_ai' },
 ]);
 

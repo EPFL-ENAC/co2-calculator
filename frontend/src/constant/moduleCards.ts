@@ -49,7 +49,7 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: true,
   },
   {
-    module: MODULES.InternalServices,
+    module: MODULES.ResearchFacilities,
     active: true,
   },
   {

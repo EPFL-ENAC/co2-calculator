@@ -85,9 +85,9 @@ export default {
     en: 'Purchase',
     fr: 'Achats',
   },
-  audit_module_internal_services: {
-    en: 'Internal Services',
-    fr: 'Services internes',
+  audit_module_research_facilities: {
+    en: 'Research Facilities',
+    fr: 'Infrastructures de recherche',
   },
   audit_module_external_cloud: {
     en: 'External Cloud and AI',

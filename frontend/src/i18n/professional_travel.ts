@@ -1,4 +1,4 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   // Table (Chapter 5)
@@ -113,7 +113,7 @@ export default {
     en: 'Professional Travel',
     fr: 'Voyages professionnels ',
   },
-  [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
+  [`${MODULES.ProfessionalTravel}-description`]: {
     en: 'Estimate the impact of your professional travel',
     fr: 'Estimez l’impact de vos voyages professionnels',
   },

@@ -141,13 +141,13 @@ export default {
     en: 'Find all text related to purchases within the application.',
     fr: "Trouvez tous les textes liés aux achats dans l'application.",
   },
-  documentation_editing_rows_internal_services_topic: {
-    en: 'Internal Services',
-    fr: 'Services Internes',
+  documentation_editing_rows_research_facilities_topic: {
+    en: 'Research Facilities',
+    fr: 'Infrastructures de recherche',
   },
-  documentation_editing_rows_internal_services_description: {
-    en: 'Find all text related to internal services within the application.',
-    fr: "Trouvez tous les textes liés aux services internes dans l'application.",
+  documentation_editing_rows_research_facilities_description: {
+    en: 'Find all text related to research facilities within the application.',
+    fr: "Trouvez tous les textes liés aux infrastructures de recherche dans l'application.",
   },
   documentation_editing_rows_external_cloud_topic: {
     en: 'External Cloud',
