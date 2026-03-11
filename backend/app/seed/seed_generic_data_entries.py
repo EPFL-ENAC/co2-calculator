@@ -369,6 +369,7 @@ async def seed_data_entries(
 
             entry = DataEntry(
                 carbon_report_module_id=crm_cache[unit_code],
+                data_entry_type_id=data_entry_type.value,
                 data=data,
             )
             entry.data_entry_type = data_entry_type
@@ -422,6 +423,8 @@ async def main() -> None:
     """Run all configured data-entry seeds."""
     async with SessionLocal() as session:
         for config in DATA_ENTRY_SEEDS:
+            if "ai" in config.path.name:
+                logger.info("Seeding AI data entries from %s", config.path.name)
             await seed_data_entries(session, config)
 
 

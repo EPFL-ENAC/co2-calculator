@@ -123,7 +123,8 @@ seed-data: ## Seed the database with initial data
 # custom seeds from ./backend/seed_data folder
 # 	$(UV) run -m app.seed.seed_fake_user_unit
 # 	for now replace seed_generic_factors replace only seed_emission_factors
-	$(UV) run -m app.seed.seed_generic_factors
+# 	$(UV) run -m app.seed.seed_generic_factors
+	$(UV) run -m app.seed.seed_generic_data_entries
 # 	$(UV) run -m app.seed.seed_equipment
 # 	$(UV) run -m app.seed.seed_process_emissions_factors
 # 	$(UV) run -m app.seed.seed_locations

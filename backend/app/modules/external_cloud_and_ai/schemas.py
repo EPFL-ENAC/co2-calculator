@@ -1,6 +1,8 @@
 from typing import Optional
 
 from pydantic import ValidationInfo, field_validator
+from sqlalchemy import case
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -23,6 +25,20 @@ from app.schemas.factor import (
 
 logger = get_logger(__name__)
 
+REQUESTS_FREQUENCY_OPTIONS: list[str] = [
+    "1-5 times per day",
+    "5-20 times per day",
+    "20-100 times per day",
+    ">100 times per day",
+]
+
+REQUESTS_FREQUENCY_MAP: dict[str, float] = {
+    "1-5 times per day": 3.0,
+    "5-20 times per day": 12.5,
+    "20-100 times per day": 60.0,
+    ">100 times per day": 100.0,
+}
+
 
 def _validate_non_negative_float(
     v: Optional[float], field_name: str
@@ -42,10 +58,10 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
-    provider: Optional[str] = None
-    usage_type: Optional[str] = None
-    requests_per_user_per_day: Optional[int] = None
-    user_count: Optional[int] = None
+    provider: str
+    usage_type: str
+    requests_per_user_per_day: Optional[str] = None
+    user_count: int
     kg_co2eq: Optional[float] = None
 
 
@@ -65,16 +81,26 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
 class ExternalAIHandlerCreate(DataEntryCreate):
     provider: str
     usage_type: str
-    requests_per_user_per_day: Optional[int] = None
+    requests_per_user_per_day: Optional[str] = None
     user_count: int
 
-    @field_validator("requests_per_user_per_day", "user_count", mode="after")
+    @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
-    def validate_positive(cls, v: Optional[int]) -> Optional[int]:
+    def validate_frequency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
+        if v not in REQUESTS_FREQUENCY_OPTIONS:
+            raise ValueError(
+                "requests_per_user_per_day must be one of:"
+                f" {REQUESTS_FREQUENCY_OPTIONS}"
+            )
+        return v
+
+    @field_validator("user_count", mode="after")
+    @classmethod
+    def validate_user_count(cls, v: int) -> int:
         if v < 0:
-            raise ValueError("Value must be non-negative")
+            raise ValueError("user_count must be non-negative")
         return v
 
 
@@ -96,16 +122,28 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
 class ExternalAIHandlerUpdate(DataEntryUpdate):
     provider: Optional[str] = None
     usage_type: Optional[str] = None
-    requests_per_user_per_day: Optional[int] = None
+    requests_per_user_per_day: Optional[str] = None
     user_count: Optional[int] = None
 
-    @field_validator("requests_per_user_per_day", "user_count", mode="after")
+    @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
-    def validate_positive(cls, v: Optional[int]) -> Optional[int]:
+    def validate_frequency(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in REQUESTS_FREQUENCY_OPTIONS:
+            raise ValueError(
+                "requests_per_user_per_day must be one of:"
+                f" {REQUESTS_FREQUENCY_OPTIONS}"
+            )
+        return v
+
+    @field_validator("user_count", mode="after")
+    @classmethod
+    def validate_user_count(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
             return v
         if v < 0:
-            raise ValueError("Value must be non-negative")
+            raise ValueError("user_count must be non-negative")
         return v
 
 
@@ -249,6 +287,18 @@ class ExternalCloudFactorHandler(BaseFactorHandler):
         return self.response_dto.model_validate(factor.model_dump)
 
 
+def _requests_frequency_sort_expr() -> ColumnElement[int]:
+    """Return a SQLAlchemy CASE expression mapping frequency strings to ordinals."""
+    freq_col = DataEntry.data["requests_per_user_per_day"].as_string()
+    return case(
+        (freq_col == "1-5 times per day", 1),
+        (freq_col == "5-20 times per day", 2),
+        (freq_col == "20-100 times per day", 3),
+        (freq_col == ">100 times per day", 4),
+        else_=0,
+    )
+
+
 class ExternalAIModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
@@ -262,9 +312,7 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         "id": DataEntry.id,
         "provider": Factor.classification["kind"].as_string(),
         "usage_type": Factor.classification["subkind"].as_string(),
-        "requests_per_user_per_day": DataEntry.data[
-            "requests_per_user_per_day"
-        ].as_float(),
+        "requests_per_user_per_day": _requests_frequency_sort_expr(),
         "user_count": DataEntry.data["user_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
@@ -301,7 +349,8 @@ class ExternalAIModuleHandler(BaseModuleHandler):
             return []
 
         def _ai_formula(ctx: dict, factor_values: dict):
-            frequency = ctx.get("requests_per_user_per_day", 0)
+            frequency_str = ctx.get("requests_per_user_per_day")
+            frequency = REQUESTS_FREQUENCY_MAP.get(frequency_str or "", 0.0)
             users = ctx.get("user_count", 0)
             factor_g = factor_values.get("ef_kg_co2eq_per_request", 0)
             if not frequency or not users or not factor_g:
