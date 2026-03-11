@@ -422,9 +422,8 @@ async def seed_data_entries(
 async def main() -> None:
     """Run all configured data-entry seeds."""
     async with SessionLocal() as session:
-        for config in DATA_ENTRY_SEEDS:
-            if "ai" in config.path.name:
-                logger.info("Seeding AI data entries from %s", config.path.name)
+        # not working for equipments e.g [4:5]
+        for config in DATA_ENTRY_SEEDS[5:6]:
             await seed_data_entries(session, config)
 
 
