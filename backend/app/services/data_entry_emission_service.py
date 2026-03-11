@@ -251,6 +251,10 @@ class DataEntryEmissionService:
         quantity = ctx.get(comp.quantity_key)
         ef = factor_values.get(comp.formula_key)
         if quantity is None or ef is None:
+            logger.info(
+                f"Missing required values for emission calculation "
+                f"for key: {comp.quantity_key} or {comp.formula_key}"
+            )
             return None
 
         result = float(quantity) * float(ef)

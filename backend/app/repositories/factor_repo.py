@@ -255,16 +255,24 @@ class FactorRepository:
             ``get_by_classification`` and to minimise churn, but this note
             exists so the next person isn't surprised by the in-place rename.
         """
-        conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
         handler = BaseModuleHandler.get_by_type(data_entry_type)
         kind_field = handler.kind_field or "kind"
         subkind_field = handler.subkind_field or "subkind"
+
+        # Apply fallback values for None classification keys upfront so the
+        # first query already includes them instead of producing an overly
+        # broad WHERE clause that matches all factors for the data_entry_type.
+        if fallbacks:
+            for key, fallback_value in fallbacks.items():
+                if key in classification and classification[key] is None:
+                    classification[key] = fallback_value
 
         # Remap generic "kind"/"subkind" kwargs → handler-specific JSON keys.
         # e.g. kind="EPFL" becomes classification["building_name"] == "EPFL"
         # because BuildingRoomModuleHandler.kind_field == "building_name".
         # Keys that are *already* concrete (e.g. "country_code") pass through
         # unchanged.
+        conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
         for key, value in classification.items():
             if value is None:
                 continue
@@ -281,7 +289,8 @@ class FactorRepository:
         if factor or not fallbacks:
             return factor
 
-        # Try with fallback values
+        # Try with remaining fallback values (for keys that had a non-None
+        # original value that didn't match).
         for key, fallback_value in fallbacks.items():
             if key in classification:
                 classification[key] = fallback_value

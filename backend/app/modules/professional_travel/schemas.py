@@ -45,6 +45,30 @@ def _validate_non_negative_float(
     return v
 
 
+class TrainCabinClassValidationMixin:
+    @field_validator("cabin_class", mode="after")
+    @classmethod
+    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
+        valid_classes = ["first", "second"]
+        if v is not None and v.lower() not in valid_classes:
+            raise ValueError(
+                f"Invalid cabin class '{v}', must be one of {valid_classes}"
+            )
+        return v.lower() if v else None
+
+
+class PlaneCabinClassValidationMixin:
+    @field_validator("cabin_class", mode="after")
+    @classmethod
+    def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
+        valid_classes = ["first", "business", "economy"]
+        if v is not None and v.lower() not in valid_classes:
+            raise ValueError(
+                f"Invalid cabin class '{v}', must be one of {valid_classes}"
+            )
+        return v.lower() if v else None
+
+
 class DepartureDateMixin(BaseModel):
     """Mixin for parsing departure_date from various formats."""
 
@@ -185,15 +209,15 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute flight distance and haul category
         from origin/destination airports."""
-        origin_id = data_entry.data.get("origin_location_id")
-        dest_id = data_entry.data.get("destination_location_id")
+        origin_iata = data_entry.data.get("origin_iata")
+        destination_iata = data_entry.data.get("destination_iata")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
-        if not origin_id or not dest_id:
+        if origin_iata is None or destination_iata is None:
             return {}
 
         loc_service = LocationService(session)
-        origin = await loc_service.get_location_by_id(origin_id)
-        dest = await loc_service.get_location_by_id(dest_id)
+        origin = await loc_service.get_location_by_iata(origin_iata)
+        dest = await loc_service.get_location_by_iata(destination_iata)
         if not origin or not dest:
             return {}
         distance_one_trip_km = calculate_plane_distance(
@@ -247,16 +271,16 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute train distance and determine relevant country code."""
-        origin_id = data_entry.data.get("origin_location_id")
-        dest_id = data_entry.data.get("destination_location_id")
+        origin_name = data_entry.data.get("origin_name")
+        destination_name = data_entry.data.get("destination_name")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
-        if not origin_id or not dest_id:
+        if origin_name is None or destination_name is None:
             return {}
 
         loc_service = LocationService(session)
-        origin = await loc_service.get_location_by_id(origin_id)
-        dest = await loc_service.get_location_by_id(dest_id)
-        if not origin or not dest:
+        origin = await loc_service.get_location_by_name(origin_name)
+        dest = await loc_service.get_location_by_name(destination_name)
+        if origin is None or dest is None:
             return {}
         distance_one_trip_km = calculate_train_distance(
             origin_station=origin,
@@ -277,6 +301,8 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         self, data_entry: Any, emission_type: Any, ctx: dict
     ) -> list:
         country_code = ctx.get("country_code") or None
+        # todo check that fallbacks works! it was not the case!
+
         return [
             EmissionComputation(
                 emission_type=emission_type,

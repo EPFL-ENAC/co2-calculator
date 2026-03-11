@@ -73,8 +73,7 @@ class EmissionType(int, Enum):
     professional_travel__plane = 50200
     professional_travel__plane__first = 50201
     professional_travel__plane__business = 50202
-    professional_travel__plane__eco_plus = 50203
-    professional_travel__plane__eco = 50204
+    professional_travel__plane__eco = 50203
 
     # -------------------------------------------------------------------------
     # Buildings
@@ -237,7 +236,6 @@ EMISSION_SCOPE: dict[EmissionType, Scope] = {
     EmissionType.professional_travel__train__class_2: Scope.scope3,
     EmissionType.professional_travel__plane__first: Scope.scope3,
     EmissionType.professional_travel__plane__business: Scope.scope3,
-    EmissionType.professional_travel__plane__eco_plus: Scope.scope3,
     EmissionType.professional_travel__plane__eco: Scope.scope3,
     # Buildings — scope 2 except heating_thermal (scope 1)
     EmissionType.buildings__rooms__lighting: Scope.scope2,

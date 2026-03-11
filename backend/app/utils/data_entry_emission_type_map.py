@@ -149,13 +149,12 @@ _AI_USE_MAP: dict[str, EmissionType] = {
 _PLANE_CABIN_MAP: dict[str, EmissionType] = {
     "first": EmissionType.professional_travel__plane__first,
     "business": EmissionType.professional_travel__plane__business,
-    "eco_plus": EmissionType.professional_travel__plane__eco_plus,
     "eco": EmissionType.professional_travel__plane__eco,
 }
 
 _TRAIN_CLASS_MAP: dict[str, EmissionType] = {
-    "class_1": EmissionType.professional_travel__train__class_1,
-    "class_2": EmissionType.professional_travel__train__class_2,
+    "first": EmissionType.professional_travel__train__class_1,
+    "second": EmissionType.professional_travel__train__class_2,
 }
 
 _PROCESS_GAS_MAP: dict[str, EmissionType] = {

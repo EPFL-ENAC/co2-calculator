@@ -435,18 +435,7 @@ async def seed_data_entries(
 async def main() -> None:
     """Run all configured data-entry seeds."""
     async with SessionLocal() as session:
-        # [x] Equipments (bug sur les emissions)
-        # [x] Additional_purchases pas de formule
-        # [ ] plane + train -> pas géré à cause des nouveaux noms de colonnes
-        # [ ] buildings -> pas d'emissions, faut que je regarde pour quoi
-        #
-        # not working for equipments e.g [4:5]
-        # formula not working for additional_purchases e.g [7:8]
-        # unHandled type DataEntryTypeEnum.plane e.g [8:9]
-        # same for train e.g [9:10]
-        # for building Created 19741 entries + 0 emissions for [building]
-        # (182 rows skipped)
-        for config in DATA_ENTRY_SEEDS[10:11]:
+        for config in DATA_ENTRY_SEEDS:
             await seed_data_entries(session, config)
 
 
