@@ -37,10 +37,6 @@ class FactorService:
         """Get factor by ID."""
         return await self.repo.get(id)
 
-    async def get_electricity_factor(self) -> Optional[Factor]:
-        """Get the electricity factor."""
-        return await self.repo.get_electricity_factor()
-
     async def get_by_classification(
         self,
         data_entry_type: DataEntryTypeEnum,
@@ -102,13 +98,17 @@ class FactorService:
         return await self.repo.list_by_data_entry_type(data_entry_type_id)
 
     async def get_class_subclass_map(
-        self, data_entry_type: DataEntryTypeEnum
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        kind_field: str,
+        subkind_field: str,
     ) -> Dict[str, List[str]]:
         """Get class/subclass mapping for power factors."""
-        response = await self.repo.get_class_subclass_map(
+        return await self.repo.get_class_subclass_map(
             data_entry_type=data_entry_type,
+            kind_field=kind_field,
+            subkind_field=subkind_field,
         )
-        return response
 
     async def prepare_create(
         self,

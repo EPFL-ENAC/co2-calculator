@@ -51,7 +51,7 @@ export default {
     en: 'Service Type',
     fr: 'Type de service',
   },
-  [`${MODULES.ExternalCloudAndAI}.inputs.cloud_provider`]: {
+  [`${MODULES.ExternalCloudAndAI}.inputs.provider`]: {
     en: 'Provider',
     fr: 'Fournisseur',
   },
@@ -59,23 +59,35 @@ export default {
     en: 'Region',
     fr: 'Région',
   },
-  [`${MODULES.ExternalCloudAndAI}.inputs.spending`]: {
+  [`${MODULES.ExternalCloudAndAI}.inputs.spent_amount`]: {
     en: 'Spending (€)',
     fr: 'Dépenses (€)',
   },
   // Co2eq is the same in both languages is using common key
   // AI SUBMODULE
-  [`${MODULES.ExternalCloudAndAI}.inputs.ai_provider`]: {
-    en: 'Provider',
-    fr: 'Fournisseur',
-  },
-  [`${MODULES.ExternalCloudAndAI}.inputs.ai_use`]: {
+  [`${MODULES.ExternalCloudAndAI}.inputs.usage_type`]: {
     en: 'Use',
     fr: 'Utilisation',
   },
-  [`${MODULES.ExternalCloudAndAI}.inputs.frequency_use_per_day`]: {
-    en: 'Frequency  (time/day)',
+  [`${MODULES.ExternalCloudAndAI}.inputs.requests_per_user_per_day`]: {
+    en: 'Frequency (time/day)',
     fr: 'Fréquence (fois/jour)',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`]: {
+    en: '1–5 times/day',
+    fr: '1–5 fois/jour',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.5_20`]: {
+    en: '5–20 times/day',
+    fr: '5–20 fois/jour',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.20_100`]: {
+    en: '20–100 times/day',
+    fr: '20–100 fois/jour',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.gt_100`]: {
+    en: '>100 times/day',
+    fr: '>100 fois/jour',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
     en: 'Number of users',

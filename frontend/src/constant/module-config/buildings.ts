@@ -132,9 +132,9 @@ const roomFields: ModuleField[] = [
 
 const energyCombustionFields: ModuleField[] = [
   {
-    id: 'heating_type',
+    id: 'name',
     optionsId: 'kind',
-    labelKey: `${MODULES.Buildings}.inputs.heating_type`,
+    labelKey: `${MODULES.Buildings}.inputs.name`,
     type: 'select',
     required: true,
     sortable: true,

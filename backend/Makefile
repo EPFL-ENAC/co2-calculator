@@ -121,18 +121,24 @@ seed-data: ## Seed the database with initial data
 # Random seeds
 #	$(UV) run -m app.seed.seed_all
 # custom seeds from ./backend/seed_data folder
-	$(UV) run -m app.seed.seed_fake_user_unit
-	$(UV) run -m app.seed.seed_emission_factors
-	$(UV) run -m app.seed.seed_equipment
-	$(UV) run -m app.seed.seed_process_emissions_factors
-	$(UV) run -m app.seed.seed_locations
-	$(UV) run -m app.seed.seed_plane_factors
-	$(UV) run -m app.seed.seed_train_factors
-	$(UV) run -m app.seed.seed_external_cloud_and_ai
-	$(UV) run -m app.seed.seed_purchase
-	$(UV) run -m app.seed.seed_building_rooms
-	$(UV) run -m app.seed.seed_building_factors
-	$(UV) run -m app.seed.seed_headcount_factors
+# 	$(UV) run -m app.seed.seed_fake_user_unit
+# 	for now replace seed_generic_factors replace only seed_emission_factors
+# 	$(UV) run -m app.seed.seed_generic_factors
+	$(UV) run -m app.seed.seed_generic_data_entries
+# 	$(UV) run -m app.seed.seed_equipment
+# 	$(UV) run -m app.seed.seed_process_emissions_factors
+# 	$(UV) run -m app.seed.seed_locations
+# 	$(UV) run -m app.seed.seed_plane_factors
+# 	$(UV) run -m app.seed.seed_train_factors
+# 	$(UV) run -m app.seed.seed_external_cloud_and_ai
+# 	$(UV) run -m app.seed.seed_purchase
+# 	$(UV) run -m app.seed.seed_building_rooms
+# 	$(UV) run -m app.seed.seed_building_factors
+# 	$(UV) run -m app.seed.seed_headcount_factors
+
+.PHONY: seed-generic-data
+seed-generic-data: ## Seed data entries from seed_data_clean CSVs
+	$(UV) run -m app.seed.seed_generic_data_entries
 
 .PHONY: dev
 dev: install ## Start backend development server

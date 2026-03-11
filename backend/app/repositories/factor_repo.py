@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.schemas.data_entry import BaseModuleHandler
 
 
 class FactorRepository:
@@ -16,21 +17,9 @@ class FactorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # Data entry type ID for emission factors (energy_mix)
-    EMISSION_FACTOR_DATA_ENTRY_TYPE_ID = DataEntryTypeEnum.energy_mix.value
-
     async def get(self, id: int) -> Optional[Factor]:
         """Get factor by ID."""
         stmt = select(Factor).where(col(Factor.id) == id)
-        result = await self.session.exec(stmt)
-        return result.one_or_none()
-
-    async def get_electricity_factor(self) -> Optional[Factor]:
-        """Get the electricity factor."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == DataEntryTypeEnum.energy_mix.value,
-        )
-
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
@@ -137,16 +126,22 @@ class FactorRepository:
         return list(result.all())
 
     async def get_class_subclass_map(
-        self, data_entry_type: DataEntryTypeEnum
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        kind_field: str,
+        subkind_field: str,
     ) -> Dict[str, List[str]]:
         """
         Return a mapping of equipment_class -> list of subclasses.
 
-        Mimics legacy PowerFactorRepository.get_class_subclass_map.
+        Args:
+            data_entry_type: The data entry type to filter on
+            kind_field: Classification key for the primary class
+            subkind_field: Classification key for the subclass
         """
         stmt = select(
-            Factor.classification["kind"].as_string(),
-            Factor.classification["subkind"].as_string(),
+            Factor.classification[kind_field].as_string(),
+            Factor.classification[subkind_field].as_string(),
         ).where(col(Factor.data_entry_type_id) == data_entry_type.value)
 
         result = await self.session.exec(stmt)
@@ -221,11 +216,15 @@ class FactorRepository:
         subkind: Optional[str] = None,
     ) -> Optional[Factor]:
         # First try exact match with subkind
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
+        kind_field = handler.kind_field or ""
+        subkind_field = handler.subkind_field or ""
+
         if subkind:
             stmt = select(Factor).where(
                 col(Factor.data_entry_type_id) == data_entry_type.value,
-                Factor.classification["kind"].as_string() == kind,
-                Factor.classification["subkind"].as_string() == subkind,
+                Factor.classification[kind_field].as_string() == kind,
+                Factor.classification[subkind_field].as_string() == subkind,
             )
             result = await self.session.exec(stmt)
             factor = result.one_or_none()
@@ -235,8 +234,8 @@ class FactorRepository:
         # Fallback to kind-only match (no subkind)
         stmt = select(Factor).where(
             col(Factor.data_entry_type_id) == data_entry_type.value,
-            Factor.classification["kind"].as_string() == kind,
-            Factor.classification["subkind"].as_string().is_(None),
+            Factor.classification[kind_field].as_string() == kind,
+            Factor.classification[subkind_field].as_string().is_(None),
         )
         result = await self.session.exec(stmt)
         return result.one_or_none()

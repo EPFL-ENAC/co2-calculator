@@ -208,7 +208,7 @@ const importRows: ImportRow[] = [
 
 /**
  * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
- * For headcount: CSV contains unit_id (provider_code) column.
+ * For headcount: CSV contains unit_id (institutional_id) column.
  * Backend resolves unit -> carbon_report_module_id per row.
  */
 const onFilesUploaded = async (filePaths: string[]) => {

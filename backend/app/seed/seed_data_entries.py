@@ -152,7 +152,6 @@ DATA_ENTRY_TYPE_TO_DTO = {
     DataEntryTypeEnum.student: HeadCountStudentCreate,
     DataEntryTypeEnum.building: EquipmentHandlerCreate,
     DataEntryTypeEnum.process_emissions: EquipmentHandlerCreate,
-    DataEntryTypeEnum.energy_mix: EquipmentHandlerCreate,
     DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
     DataEntryTypeEnum.scientific_equipment: EquipmentHandlerCreate,
@@ -198,16 +197,16 @@ def build_equipment():
 def build_external_cloud():
     return {
         "service_type": fake.word(),
-        "cloud_provider": maybe(random.choice(["AWS", "Azure", "GCP"])),  # nosec B311
-        "spending": round(random.uniform(0, 5000), 2),  # nosec B311
+        "provider": maybe(random.choice(["AWS", "Azure", "GCP"])),  # nosec B311
+        "spent_amount": round(random.uniform(0, 5000), 2),  # nosec B311
     }
 
 
 def build_external_ai():
     return {
-        "ai_provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
-        "ai_use": fake.sentence(nb_words=3),
-        "frequency_use_per_day": maybe(random.randint(0, 50)),  # nosec B311
+        "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
+        "usage_type": fake.sentence(nb_words=3),
+        "requests_per_user_per_day": maybe(random.randint(0, 50)),  # nosec B311
         "user_count": random.randint(1, 500),  # nosec B311
     }
 

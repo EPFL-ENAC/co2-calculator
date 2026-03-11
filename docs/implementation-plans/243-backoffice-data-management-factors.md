@@ -1,3 +1,17 @@
+VERY IMPORTANT:
+
+Not sure if per data_entry/or module_type
+
+A) redownload or view data-loaded
+B) connect to API not functionnal (placeholder)
+C) COPY from last year --> not any more <3
+
+0. We need a table to store the information per line of the upload
+1. we need to upload factors per year
+2. for now, when we upload a 'data'/factor we replace everything
+   -> we need a map factor/data_entry
+3. avoir un 'centre' pour voir l'état des uploads?
+
 1 - use the schemas/factor.py to upload factors on the data-management page
 2 - refactor the schemas/factor.py inside modules so that it's consistent to data-entries
 3 - in base_csv_provider: rewrite totally the \_resolve_carbon_report_modules logic

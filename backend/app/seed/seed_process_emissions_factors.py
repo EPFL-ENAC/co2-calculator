@@ -56,7 +56,7 @@ async def seed_process_emissions_factors(session: AsyncSession) -> None:
                     "kind": row.get("kind", ""),
                     "subkind": row.get("subkind") or None,
                     "source": row.get("source", ""),
-                    "emitted_gas": row.get("emitted_gas", row.get("kind", "")),
+                    "category": row.get("emitted_gas", row.get("kind", "")),
                 },
                 values={
                     "gwp_kg_co2eq_per_kg": gwp,

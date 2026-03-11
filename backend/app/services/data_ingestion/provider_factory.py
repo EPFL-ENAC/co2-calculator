@@ -1,5 +1,7 @@
 from typing import Optional
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
@@ -13,9 +15,6 @@ from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
     ModuleUnitSpecificCSVProvider,
-)
-from app.services.data_ingestion.csv_providers.professional_travel_csv_provider import (
-    ProfessionalTravelCSVProvider,
 )
 
 
@@ -66,12 +65,13 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
-        (
-            ModuleTypeEnum.professional_travel,
-            IngestionMethod.csv,
-            TargetType.DATA_ENTRIES,
-            EntityType.MODULE_UNIT_SPECIFIC,
-        ): ProfessionalTravelCSVProvider,
+        # TODO: remove professional_travel and building_room csv_provider
+        # (
+        #     ModuleTypeEnum.professional_travel,
+        #     IngestionMethod.csv,
+        #     TargetType.DATA_ENTRIES,
+        #     EntityType.MODULE_UNIT_SPECIFIC,
+        # ): ProfessionalTravelCSVProvider,
         # TODO: Add more providers as needed
         # ("headcount", "csv_upload", "data_entries"): CSVDataEntriesProvider,
         # ("purchases", "csv_upload", "data_entries"): CSVDataEntriesProvider,
@@ -83,11 +83,11 @@ class ProviderFactory:
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
         v.__name__: v for _, v in PROVIDERS.items()
     }
-    PROVIDERS_BY_CLASS_NAME.update(
-        {
-            BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
-        }
-    )
+    # PROVIDERS_BY_CLASS_NAME.update(
+    #     {
+    #         BuildingRoomCSVProvider.__name__: BuildingRoomCSVProvider,
+    #     }
+    # )
 
     @staticmethod
     def get_provider_class(
@@ -134,8 +134,8 @@ class ProviderFactory:
         target_type: TargetType,
         config: dict,
         user: User,
-        job_session=None,
-        data_session=None,
+        job_session: Optional[AsyncSession] = None,
+        data_session: Optional[AsyncSession] = None,
     ) -> Optional[DataIngestionProvider]:
         """
         Create the appropriate provider instance.
@@ -165,6 +165,8 @@ class ProviderFactory:
 
         if not provider_class:
             return None
+        if data_session is None:
+            raise ValueError("Data session is required to create provider instance")
         return provider_class(
             config=config, user=user, job_session=job_session, data_session=data_session
         )

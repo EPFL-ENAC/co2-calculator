@@ -4,9 +4,9 @@ import type { ProcessesSubType, Module } from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
 const processEmissionsFields: ModuleField[] = [
   {
-    id: 'emitted_gas',
+    id: 'category',
     optionsId: 'kind',
-    labelKey: `${MODULES.ProcessEmissions}.inputs.emitted_gas`,
+    labelKey: `${MODULES.ProcessEmissions}.inputs.category`,
     type: 'select',
     required: true,
     sortable: true,
@@ -18,9 +18,9 @@ const processEmissionsFields: ModuleField[] = [
     icon: 'o_science',
   },
   {
-    id: 'sub_category',
+    id: 'subcategory',
     optionsId: 'subkind',
-    labelKey: `${MODULES.ProcessEmissions}.inputs.sub_category`,
+    labelKey: `${MODULES.ProcessEmissions}.inputs.subcategory`,
     type: 'select',
     required: false,
     sortable: true,
@@ -31,15 +31,15 @@ const processEmissionsFields: ModuleField[] = [
     hideIn: { form: false },
     conditionalVisibility: {
       showWhen: {
-        fieldId: 'emitted_gas',
+        fieldId: 'category',
         value: 'Refrigerants',
       },
     },
     icon: 'o_category',
   },
   {
-    id: 'quantity_kg',
-    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity_kg`,
+    id: 'quantity',
+    labelKey: `${MODULES.ProcessEmissions}.inputs.quantity`,
     type: 'number',
     required: true,
     editableInline: true,

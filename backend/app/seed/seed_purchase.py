@@ -272,7 +272,7 @@ async def main():
         await seed_factor_additional(session)
 
         carbon_report_module_id_12345 = await get_carbon_report_module_id(
-            unit_provider_code="12345",
+            unit_institutional_id="1119",
             year=2025,
             module_type_id=ModuleTypeEnum.purchase,
         )
