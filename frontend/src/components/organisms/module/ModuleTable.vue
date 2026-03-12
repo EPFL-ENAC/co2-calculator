@@ -351,13 +351,18 @@ import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
+import * as TemplateRows from 'src/constant/templateRows';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
   EnumSubmoduleType,
 } from 'src/constant/modules';
-import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
+import {
+  enumSubmodule,
+  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
+  SUBMODULE_PURCHASE_TYPES,
+} from 'src/constant/modules';
 
 import {
   MODULES,
@@ -1266,61 +1271,51 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  const csvEquipmentContent =
-    'name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week';
-  const csvHeadcountContent =
-    'name,position_title,position_category,user_institutional_id,fte,note';
-  const csvProfessionalTravelContent =
-    'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
-  const csvExternalCloudContent = 'service_type,provider,spent_amount';
-  const csvExternalAIContent =
-    'provider,usage_type,requests_per_user_per_day,user_count';
-  const csvPurchaseContent =
-    'name,purchase_institutional_code,quantity,total_spent_amount';
-  const csvProcessesContent = 'category,subcategory,quantity';
-  const csvDefaultContent = 'not_implemented_yet';
-
-  const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
-  const csvBuildingsCombustionContent = 'name,quantity,note';
   let csvContent: string;
   switch (props.moduleType) {
     case MODULES.Headcount:
-      csvContent = csvHeadcountContent;
+      csvContent = TemplateRows.csvHeadcountContent;
       break;
     case MODULES.ProfessionalTravel:
-      csvContent = csvProfessionalTravelContent;
+      if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane) {
+        csvContent = TemplateRows.csvProfessionalTravelPlaneContent;
+      } else if (
+        props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train
+      ) {
+        csvContent = TemplateRows.csvProfessionalTravelTrainContent;
+      }
       break;
     case MODULES.Buildings:
       if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-        csvContent = csvBuildingsCombustionContent;
+        csvContent = TemplateRows.csvBuildingsCombustionContent;
       } else {
-        csvContent = csvBuildingsContent;
+        csvContent = TemplateRows.csvBuildingsContent;
       }
       break;
     case MODULES.EquipmentElectricConsumption:
-      csvContent = csvEquipmentContent;
+      csvContent = TemplateRows.csvEquipmentContent;
       break;
     case MODULES.ExternalCloudAndAI:
       if (
         props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
       ) {
-        csvContent = csvExternalCloudContent;
+        csvContent = TemplateRows.csvExternalCloudContent;
       } else if (
         props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
       ) {
-        csvContent = csvExternalAIContent;
+        csvContent = TemplateRows.csvExternalAIContent;
       } else {
-        csvContent = csvDefaultContent;
+        csvContent = TemplateRows.csvDefaultContent;
       }
       break;
     case MODULES.ProcessEmissions:
-      csvContent = csvProcessesContent;
+      csvContent = TemplateRows.csvProcessesContent;
       break;
     case MODULES.Purchase:
-      csvContent = csvPurchaseContent;
+      csvContent = TemplateRows.csvPurchaseContent;
       break;
     default:
-      csvContent = csvDefaultContent;
+      csvContent = TemplateRows.csvDefaultContent;
       break;
   }
 
