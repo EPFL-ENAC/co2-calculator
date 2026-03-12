@@ -336,7 +336,7 @@ def get_unit_provider(
     Returns:
         UnitProvider instance
     """
-    if not provider_type:
+    if provider_type is None:
         provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == UserProvider.DEFAULT:

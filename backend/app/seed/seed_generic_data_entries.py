@@ -1,6 +1,6 @@
 """Generic CSV-based data entry seeder with emission computation.
 
-Reads ``seed_data_clean/*_data.csv`` files, creates DataEntry rows,
+Reads ``seed_data/*_data.csv`` files, creates DataEntry rows,
 resolves factors via kind/subkind, and computes emissions through the
 standard ``DataEntryEmissionService`` pipeline.
 """
@@ -42,7 +42,7 @@ from app.services.data_entry_service import DataEntryService
 logger = get_logger(__name__)
 settings = get_settings()
 
-SEED_FOLDER = Path(__file__).parent.parent.parent / "seed_data_clean"
+SEED_FOLDER = Path(__file__).parent.parent.parent / "seed_data"
 YEAR = 2025
 EXCLUDE_COLUMNS = {"unit_institutional_id", "kg_co2eq"}
 
