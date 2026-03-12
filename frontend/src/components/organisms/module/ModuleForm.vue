@@ -584,6 +584,15 @@ function init() {
       form[key] = props.rowData[key];
       errors[key] = null;
     });
+    // Pre-populate DirectionInput display text from the identifier fields
+    form.origin =
+      (props.rowData.origin_iata as string) ||
+      (props.rowData.origin_name as string) ||
+      '';
+    form.destination =
+      (props.rowData.destination_iata as string) ||
+      (props.rowData.destination_name as string) ||
+      '';
     return;
   }
   visibleFields.value.forEach((i) => {
@@ -617,11 +626,15 @@ function init() {
             // Initialize origin and destination fields separately
             if (!form.origin) form.origin = '';
             if (!form.destination) form.destination = '';
-            // Initialize location IDs (only for new entries, not editing)
+            // Location IDs — only for distance preview, NOT sent to backend
             if (!props.rowData) {
-              if (!form.origin_location_id) form.origin_location_id = undefined;
-              if (!form.destination_location_id)
-                form.destination_location_id = undefined;
+              form.origin_location_id = undefined;
+              form.destination_location_id = undefined;
+              // Identifier fields sent to backend
+              form.origin_iata = undefined;
+              form.destination_iata = undefined;
+              form.origin_name = undefined;
+              form.destination_name = undefined;
             }
             break;
           default:
@@ -807,6 +820,8 @@ function buildPayload(): Record<
     'destination_location_data',
     'origin',
     'destination',
+    'origin_location_id',
+    'destination_location_id',
     'round_trip',
     'distance_km',
     'kg_co2eq',
@@ -825,15 +840,6 @@ function buildPayload(): Record<
       payload[k] = val as FieldValue;
     }
   });
-
-  if (
-    !props.rowData &&
-    form.origin_location_id !== undefined &&
-    form.destination_location_id !== undefined
-  ) {
-    payload.origin_location_id = form.origin_location_id as number;
-    payload.destination_location_id = form.destination_location_id as number;
-  }
 
   return payload;
 }
@@ -870,10 +876,14 @@ function reset() {
       // Clear origin and destination fields
       form.origin = '';
       form.destination = '';
-      // Reset location IDs
+      // Reset location IDs and identifier fields
       form.origin_location_id = undefined;
       form.destination_location_id = undefined;
       form.distance_km = null;
+      form.origin_iata = undefined;
+      form.destination_iata = undefined;
+      form.origin_name = undefined;
+      form.destination_name = undefined;
     } else {
       // Use null for select/headcount-member-select, empty string for text
       form[i.id] =
@@ -904,10 +914,21 @@ async function handleFromLocationSelected(location: {
   name: string;
   latitude: number;
   longitude: number;
+  iata_code: string | null;
+  country_code: string | null;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
+
   form.origin_location_id = location.id;
+
+  // Store the correct identifier for the backend payload
+  if (travelMode === 'plane') {
+    form.origin_iata = location.iata_code ?? location.name;
+  } else {
+    form.origin_name = location.name;
+  }
+
   if (
     form.destination_location_id === undefined ||
     form.destination_location_id === null
@@ -928,10 +949,20 @@ async function handleToLocationSelected(location: {
   name: string;
   latitude: number;
   longitude: number;
+  iata_code: string | null;
+  country_code: string | null;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
   form.destination_location_id = location.id;
+
+  // Store the correct identifier for the backend payload
+  if (travelMode === 'plane') {
+    form.destination_iata = location.iata_code ?? location.name;
+  } else {
+    form.destination_name = location.name;
+  }
+
   if (
     form.origin_location_id === undefined ||
     form.origin_location_id === null
@@ -956,6 +987,20 @@ async function handleSwapLocations() {
 
   form.origin_location_id = oldDestinationId;
   form.destination_location_id = oldOriginId;
+
+  // Swap identifiers
+  if (travelMode === 'plane') {
+    [form.origin_iata, form.destination_iata] = [
+      form.destination_iata,
+      form.origin_iata,
+    ];
+  } else {
+    [form.origin_name, form.destination_name] = [
+      form.destination_name,
+      form.origin_name,
+    ];
+  }
+
   if (
     form.origin_location_id === undefined ||
     form.origin_location_id === null ||

@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
-from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,7 +14,6 @@ from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
-from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
@@ -295,9 +293,6 @@ class DataEntryRepository:
             .subquery()
         )
 
-        OriginLocation = aliased(Location)
-        DestLocation = aliased(Location)
-
         # Build query: one row per DataEntry
         entities: list[Any] = [
             DataEntry,
@@ -309,9 +304,7 @@ class DataEntryRepository:
             entities.extend([BuildingRoom])
 
         if is_travel_entry:
-            entities.extend(
-                [MemberEntry, OriginLocation, DestLocation, DataEntryEmission]
-            )
+            entities.extend([MemberEntry, DataEntryEmission])
         statement: Select[Any] = (
             sa_select(*entities)
             .join(
@@ -327,36 +320,21 @@ class DataEntryRepository:
         )
 
         if is_travel_entry:
-            statement = (
-                statement.join(
-                    MemberEntry,
-                    (
-                        MemberEntry.data["user_institutional_id"].as_string()
-                        == DataEntry.data["user_institutional_id"].as_string()
-                    )
-                    & (
-                        col(MemberEntry.data_entry_type_id)
-                        == DataEntryTypeEnum.member.value
-                    ),
-                    isouter=True,
+            statement = statement.join(
+                MemberEntry,
+                (
+                    MemberEntry.data["user_institutional_id"].as_string()
+                    == DataEntry.data["user_institutional_id"].as_string()
                 )
-                .join(
-                    OriginLocation,
-                    DataEntry.data["origin_location_id"].as_integer()
-                    == OriginLocation.id,
-                    isouter=True,
-                )
-                .join(
-                    DestLocation,
-                    DataEntry.data["destination_location_id"].as_integer()
-                    == DestLocation.id,
-                    isouter=True,
-                )
-                .join(
-                    DataEntryEmission,
-                    col(DataEntryEmission.data_entry_id) == DataEntry.id,
-                    isouter=True,
-                )
+                & (
+                    col(MemberEntry.data_entry_type_id)
+                    == DataEntryTypeEnum.member.value
+                ),
+                isouter=True,
+            ).join(
+                DataEntryEmission,
+                col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                isouter=True,
             )
 
         if is_buildings_entry:
@@ -406,21 +384,13 @@ class DataEntryRepository:
         for row in rows:
             # Unpack based on query shape
             if is_travel_entry:
-                (
-                    data_entry,
-                    total_kg_co2eq,
-                    primary_factor,
-                    member_entry,
-                    origin_loc,
-                    dest_loc,
-                    emission,
-                ) = row
+                data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
                 origin_loc, dest_loc, emission = None, None, None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
-                origin_loc, dest_loc, emission = None, None, None
+                member_entry, emission = None, None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -455,8 +425,6 @@ class DataEntryRepository:
                         if member_entry
                         else {}
                     ),
-                    **({"origin": origin_loc.name} if origin_loc else {}),
-                    **({"destination": dest_loc.name} if dest_loc else {}),
                     **(
                         {"distance_km": emission.meta.get("distance_km")}
                         if emission and emission.meta and "distance_km" in emission.meta

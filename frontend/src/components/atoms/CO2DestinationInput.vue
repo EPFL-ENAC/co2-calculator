@@ -181,6 +181,8 @@ interface LocationSelection {
   name: string;
   latitude: number;
   longitude: number;
+  iata_code?: string | null;
+  country_code?: string | null;
 }
 
 const props = withDefaults(

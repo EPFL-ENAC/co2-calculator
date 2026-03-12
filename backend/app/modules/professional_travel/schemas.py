@@ -97,8 +97,8 @@ class DepartureDateMixin(BaseModel):
 
 class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
     user_institutional_id: int
-    origin_location_id: int
-    destination_location_id: int
+    origin_iata: str   
+    destination_iata: str   
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
@@ -110,8 +110,8 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
     user_institutional_id: int
-    origin_location_id: int
-    destination_location_id: int
+    origin_name: str
+    destination_name: str
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
@@ -124,7 +124,7 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
 class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
-    user_institutional_id: str
+    user_institutional_id: int
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
@@ -132,7 +132,7 @@ class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
 
 
 class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
-    user_institutional_id: str
+    user_institutional_id: int
     origin_name: str
     destination_name: str
     departure_date: Optional[date] = None
