@@ -359,7 +359,10 @@ class DataEntryRepository:
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
 
-        sort_map = handler.sort_map
+        sort_map = dict(
+            handler.sort_map
+        )  # shallow copy — don't mutate the class-level dict
+        sort_map["kg_co2eq"] = emission_agg.c.total_kg_co2eq
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
