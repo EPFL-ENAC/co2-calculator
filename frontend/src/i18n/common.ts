@@ -324,6 +324,10 @@ export default {
     en: 'CSV sync completed with {count} row error(s).',
     fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
   },
+  close_error_details: {
+    en: 'Close error details',
+    fr: "Fermer les détails de l'erreur",
+  },
   csv_sync_row_error: {
     en: 'Row {row}: {reason}',
     fr: 'Ligne {row} : {reason}',

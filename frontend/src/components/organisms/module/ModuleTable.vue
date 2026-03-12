@@ -549,6 +549,24 @@ const onFilesUploaded = async (filePaths: string[]) => {
             caption: errorCaption,
             position: 'top',
             multiLine: true,
+            timeout: 30000,
+            actions: [
+              {
+                icon: 'o_report_problem',
+                color: 'negative',
+                textColor: 'white',
+                label: $t('close_error_details'),
+                handler: () => {
+                  // Open a dialog or page to show detailed errors
+                  // For simplicity, we'll just log them here
+                  console.error(
+                    'Detailed row errors:',
+                    payload?.meta?.row_errors,
+                  );
+                },
+                'aria-label': $t('close_error_details'),
+              },
+            ],
           });
         } else {
           $q.notify({
@@ -565,6 +583,21 @@ const onFilesUploaded = async (filePaths: string[]) => {
           caption: formatRowErrors(payload) || payload?.status_message || '',
           position: 'top',
           multiLine: true,
+          timeout: 30000,
+          actions: [
+            {
+              icon: 'o_report_problem',
+              color: 'negative',
+              textColor: 'white',
+              label: $t('close_error_details'),
+              handler: () => {
+                // Open a dialog or page to show detailed errors
+                // For simplicity, we'll just log them here
+                console.error('Detailed row errors:', payload?.status_message);
+              },
+              'aria-label': $t('close_error_details'),
+            },
+          ],
         });
         console.error('CSV sync job failed:', payload);
       },
