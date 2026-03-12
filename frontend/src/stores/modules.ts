@@ -522,8 +522,10 @@ export const useModuleStore = defineStore('modules', () => {
       if (isRoundTrip) {
         const returnBody = {
           ...body,
-          origin_location_id: normalized.destination_location_id,
-          destination_location_id: normalized.origin_location_id,
+          origin_iata: normalized.destination_iata,
+          destination_iata: normalized.origin_iata,
+          origin_name: normalized.destination_name,
+          destination_name: normalized.origin_name,
         };
         try {
           await api.post(path, { json: returnBody }).json();
@@ -532,18 +534,10 @@ export const useModuleStore = defineStore('modules', () => {
             error &&
             typeof error === 'object' &&
             'response' in error &&
-            error.response &&
-            typeof error.response === 'object' &&
-            'json' in error.response &&
-            typeof error.response.json === 'function'
+            error.response
           ) {
-            const errorBody = await (
-              error.response as { json: () => Promise<unknown> }
-            ).json();
-            const detail = (errorBody as { detail?: unknown })?.detail;
-            const message =
-              typeof detail === 'string' ? detail : JSON.stringify(errorBody);
-            throw new Error(message, { cause: error });
+            const { detail } = await (error.response as Response).json();
+            throw new Error(detail, { cause: error });
           }
           throw error;
         }
