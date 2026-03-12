@@ -286,7 +286,7 @@ export default {
   },
   header_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
   },
   header_backoffice_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
@@ -298,7 +298,7 @@ export default {
   },
   header_user_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
   },
   evolution_over_time: {
     en: 'Evolution over time',
