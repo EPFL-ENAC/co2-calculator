@@ -32,7 +32,7 @@ const processEmissionsFields: ModuleField[] = [
     conditionalVisibility: {
       showWhen: {
         fieldId: 'category',
-        value: 'Refrigerants',
+        value: 'Refrigerant',
       },
     },
     icon: 'o_category',
