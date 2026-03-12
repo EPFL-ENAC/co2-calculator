@@ -105,10 +105,10 @@ Computes `kg_co2eq` from `ctx` (user data + pre-computed values) and
 
 ## Factor Retrieval Strategies
 
-| Strategy                 | Trigger                                  | Returns      | Used by                                                                                           |
-| ------------------------ | ---------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------- |
-| **A — direct factor_id** | `primary_factor_id` in `data_entry.data` | 1 factor     | Equipment, Purchase, Process Emissions, External Cloud/AI, Research Facilities, Energy Combustion |
-| **B — FactorQuery**      | `FactorQuery(kind, subkind, context)`    | 1..N factors | Travel (plane/train), Headcount (member/student), Buildings                                       |
+| Strategy                 | Trigger                                  | Returns      | Used by                                                                                                       |
+| ------------------------ | ---------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
+| **A — direct factor_id** | `primary_factor_id` in `data_entry.data` | 1 factor     | Equipment, Purchase, Process Emissions, External Cloud/AI, Research Facilities, Energy Combustion , Buildings |
+| **B — FactorQuery**      | `FactorQuery(kind, subkind, context)`    | 1..N factors | Travel (plane/train), Headcount (member/student)                                                              |
 
 ### Strategy B Fallback Order
 

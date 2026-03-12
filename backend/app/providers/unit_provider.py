@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
 from app.models.user import UserProvider
+from app.providers.test_fixtures import TEST_UNITS
 
 """
 Unit provider interface and implementations.
@@ -314,48 +315,12 @@ class TestUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.TEST
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
-        """Return test units for development."""
-        all_test_units = [
-            Unit(
-                id=1,
-                provider=self.type,
-                institutional_code="12345",
-                institutional_id="1119",
-                name="ENAC-IT4R-TEST",
-                level=4,
-                principal_user_institutional_id="testuser_co2.user.principal",
-                path_institutional_code="10582 10583 11435",
-                path_institutional_id="cf-10582 cf-10583 cf-11435",
-                path_name="EPFL ENAC IT4R-TEST",
-            ),
-            Unit(
-                id=2,
-                provider=self.type,
-                institutional_code="67890",
-                name="IC-TEST",
-                level=3,
-                principal_user_institutional_id="testuser_co2.user.principal",
-                path_institutional_code="10582 10583 11436",
-                path_institutional_id="cf-10582 cf-10583 cf-11436",
-                path_name="EPFL IC-TEST",
-            ),
-        ]
-
+        """Return test units, filtered by institutional_id when unit_ids given."""
         if unit_ids:
             return [
-                Unit(
-                    provider=self.type,
-                    institutional_code=str(unit_id),
-                    name=f"I-{unit_id}-TEST",
-                    level=4,
-                    path_institutional_code=f"10582 10583 {unit_id}",
-                    path_institutional_id=f"cf-10582 cf-10583 cf-{unit_id}",
-                    principal_user_institutional_id="testuser_co2.user.principal",
-                    path_name=f"TEST-AFFILIATION-{unit_id}",
-                )
-                for unit_id in unit_ids
+                u.model_copy() for u in TEST_UNITS if u.institutional_id in unit_ids
             ]
-        return all_test_units
+        return [u.model_copy() for u in TEST_UNITS]
 
 
 def get_unit_provider(

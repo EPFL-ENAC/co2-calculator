@@ -118,11 +118,10 @@ test-cov-xml: ## Run tests with coverage and output XML report
 seed-data: ## Seed the database with initial data
 # seeds units from accred
 	$(UV) run -m app.seed.seed_units_from_accred
-# Random seeds
-#	$(UV) run -m app.seed.seed_all
-# custom seeds from ./backend/seed_data folder
+# Random seeds: 
+#	$(UV) run -m app.seed.ramdom.seed_all
+# seeds fake user + unit associations (for testing)
 	$(UV) run -m app.seed.seed_fake_user_unit
-# 	for now replace seed_generic_factors replace only seed_emission_factors
 	$(UV) run -m app.seed.seed_locations
 	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors
