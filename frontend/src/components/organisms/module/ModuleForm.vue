@@ -866,6 +866,7 @@ defineExpose({ setFieldError });
 function onSubmit() {
   if (!validateForm()) return;
   emit('submit', buildPayload());
+  reset();
 }
 
 function reset() {
