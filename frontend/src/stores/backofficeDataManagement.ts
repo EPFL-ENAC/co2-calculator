@@ -227,6 +227,7 @@ provider_type
       jobId?: number,
       onCompleted?: (payload?: JobUpdatePayload) => void,
       onFail?: (payload?: JobUpdatePayload) => void,
+      onError?: () => void,
     ): void {
       if (!jobId) {
         return;
@@ -291,6 +292,7 @@ provider_type
 
         sseConnection.onerror = () => {
           unsubscribeFromJobUpdates();
+          onError?.();
         };
       } catch (err) {
         console.error('Failed to establish SSE connection:', err);

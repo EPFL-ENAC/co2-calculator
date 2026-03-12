@@ -7,6 +7,7 @@ export const MODULES = {
   Purchase: 'purchase',
   ResearchFacilities: 'research-facilities',
   ExternalCloudAndAI: 'external-cloud-and-ai',
+  // should be removed
   Commuting: 'commuting',
   Food: 'food',
   Waste: 'waste',
@@ -190,7 +191,9 @@ export type ConditionalSubmoduleProps =
   | ProcessesProps
   | ChartOnlyProps;
 
-export const MODULES_LIST: Module[] = Object.values(MODULES);
+// Exclude the 4 modules that should be removed
+// TODO: refactor the codebase to remove these 4 modules and then remove this exclusion
+export const MODULES_LIST: Module[] = Object.values(MODULES).slice(0, -4);
 
 export const MODULES_PATTERN = MODULES_LIST.join('|');
 

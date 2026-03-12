@@ -219,6 +219,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
       color: 'negative',
       message: $t('csv_no_files_uploaded'),
       position: 'top',
+      closeBtn: true,
     });
     return;
   }
@@ -306,6 +307,14 @@ const onFilesUploaded = async (filePaths: string[]) => {
           position: 'top',
         });
         console.error('Sync failed:', payload);
+      },
+      () => {
+        $q.notify({
+          color: 'negative',
+          message: $t('csv_sync_connection_lost'),
+          position: 'top',
+          timeout: 30000,
+        });
       },
     );
 

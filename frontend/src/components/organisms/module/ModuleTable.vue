@@ -568,6 +568,22 @@ const onFilesUploaded = async (filePaths: string[]) => {
         });
         console.error('CSV sync job failed:', payload);
       },
+      () => {
+        $q.notify({
+          color: 'negative',
+          message: $t('csv_sync_connection_lost'),
+          position: 'top',
+          timeout: 30000,
+          closeBtn: true,
+          actions: [
+            {
+              icon: 'close',
+              // for individual action (button):
+              'aria-label': 'Dismiss',
+            },
+          ],
+        });
+      },
     );
     $q.notify({
       color: 'positive',
