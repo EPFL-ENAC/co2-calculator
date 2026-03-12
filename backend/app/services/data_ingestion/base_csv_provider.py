@@ -211,7 +211,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         rows_to_check = 5
 
         # Validate using a separate reader
-        validation_reader = csv.DictReader(io.StringIO(csv_text))
+        validation_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
         first_rows = []
 
         try:
@@ -441,7 +441,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Extract unique unit institutional_ids from CSV
         # (column is named 'unit_institutional_id' to be explicit)
-        csv_reader = csv.DictReader(io.StringIO(csv_text))
+        csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
         unit_codes = set()
         for row in csv_reader:
             unit_code = row.get("unit_institutional_id")
@@ -626,7 +626,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Process CSV rows
             batch: List[DataEntry] = []
-            csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
+            csv_reader = csv.DictReader(
+                io.StringIO(setup_result["csv_text"], newline="")
+            )
 
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Process single row, returns (data_entry, error_msg, factor)
@@ -724,7 +726,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
         file_content, mime_type = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8")
+        csv_text = file_content.decode("utf-8-sig")
 
         # Load handlers and factors (entity-specific)
         logger.info(f"Loading handlers and factors for {self.__class__.__name__}")
