@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_origin
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -98,6 +98,7 @@ class DataEntryResponseGen(DataEntryBase):
 
     id: int
     note: Optional[str] = None
+    data: dict = Field(default_factory=dict, exclude=True)
 
 
 # == =========== DTO BASE ================================= #

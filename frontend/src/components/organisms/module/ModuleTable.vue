@@ -794,7 +794,12 @@ const inlineOptionsMap = computed<
 function getInlineOptions(
   col: TableViewColumn,
 ): Array<{ value: string; label: string }> {
-  return inlineOptionsMap.value[col.name] ?? [];
+  const inlineOptions = inlineOptionsMap.value[col.name] ?? [];
+  const result = inlineOptions.map((option) => ({
+    ...option,
+    label: $t(option.label),
+  }));
+  return result;
 }
 
 function isRowConditionallyReadOnly(
@@ -826,9 +831,10 @@ function renderCell(
       },
     });
   }
-  // If column has options, look up the label for the value
+  // If column has options, look up the translated label for the value
   if (col.options && typeof val === 'string') {
-    const option = col.options.find((opt) => opt.value === val);
+    const translated = inlineOptionsMap.value[col.name];
+    const option = (translated ?? col.options).find((opt) => opt.value === val);
     if (option) {
       return option.label;
     }
