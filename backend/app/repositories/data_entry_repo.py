@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,6 +24,7 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     ModuleHandler,
 )
+from app.utils.data_entry_emission_type_map import DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION
 
 logger = get_logger(__name__)
 
@@ -273,51 +275,57 @@ class DataEntryRepository:
         sort_order: str,
         filter: Optional[str] = None,
     ) -> SubmoduleResponse:
+        data_entry_type = DataEntryTypeEnum(data_entry_type_id)
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
         )
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
-
-        # Aggregate emissions per data_entry to avoid row duplication
-        # (one data_entry can have multiple emissions for headcount/building)
-        emission_agg = (
-            select(
-                DataEntryEmission.data_entry_id,
-                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-                func.min(DataEntryEmission.primary_factor_id).label(
-                    "primary_factor_id"
-                ),
-            )
-            .group_by(col(DataEntryEmission.data_entry_id))
-            .subquery()
+        is_headcount_entry = data_entry_type_id in (
+            DataEntryTypeEnum.member.value,
+            DataEntryTypeEnum.student.value,
         )
 
-        # Build query: one row per DataEntry
-        entities: list[Any] = [
-            DataEntry,
-            emission_agg.c.total_kg_co2eq,
-            Factor,
-        ]
+        # Resolve rollup emission_type for multi-leaf entries (e.g. buildings)
+        rollup_type = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION.get(data_entry_type)
+        has_emission_join = not is_headcount_entry
+
+        # Alias for the emission row used to get kg_co2eq + primary_factor
+        EmissionRow = aliased(DataEntryEmission)
+        # Alias for leaf emission row (travel needs meta.distance_km)
+        LeafEmission = aliased(DataEntryEmission)
+
+        # Build entity list: one row per DataEntry
+        entities: list[Any] = [DataEntry]
+        if has_emission_join:
+            entities.extend([EmissionRow, Factor])
         if is_buildings_entry:
-            # For buildings, we want to show retrieve the room surface area:
-            entities.extend([BuildingRoom])
-
+            entities.append(BuildingRoom)
         if is_travel_entry:
-            entities.extend([MemberEntry, DataEntryEmission])
-        statement: Select[Any] = (
-            sa_select(*entities)
-            .join(
-                emission_agg,
-                col(DataEntry.id) == emission_agg.c.data_entry_id,
-                isouter=True,
-            )
-            .join(
+            entities.extend([MemberEntry, LeafEmission])
+
+        statement: Select[Any] = sa_select(*entities)
+
+        # JOIN emission row: rollup row for multi-leaf, leaf row for single-leaf
+        if has_emission_join:
+            if rollup_type is not None:
+                # Multi-leaf: join on the rollup row (scope IS NULL)
+                emission_join_cond = (
+                    col(DataEntry.id) == col(EmissionRow.data_entry_id)
+                ) & (col(EmissionRow.emission_type_id) == rollup_type.value)
+            else:
+                # Single-leaf: join on the leaf row (scope IS NOT NULL)
+                emission_join_cond = (
+                    col(DataEntry.id) == col(EmissionRow.data_entry_id)
+                ) & (col(EmissionRow.scope).isnot(None))
+
+            statement = statement.join(
+                EmissionRow, emission_join_cond, isouter=True
+            ).join(
                 Factor,
-                emission_agg.c.primary_factor_id == col(Factor.id),
+                col(EmissionRow.primary_factor_id) == col(Factor.id),
                 isouter=True,
             )
-        )
 
         if is_travel_entry:
             statement = statement.join(
@@ -332,15 +340,16 @@ class DataEntryRepository:
                 ),
                 isouter=True,
             ).join(
-                DataEntryEmission,
-                col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                LeafEmission,
+                (col(LeafEmission.data_entry_id) == col(DataEntry.id))
+                & (col(LeafEmission.scope).isnot(None)),
                 isouter=True,
             )
 
         if is_buildings_entry:
             statement = statement.join(
                 BuildingRoom,
-                DataEntry.data["room_name"].as_string() == BuildingRoom.room_name,
+                DataEntry.data["room_name"].as_string() == col(BuildingRoom.room_name),
                 isouter=True,
             )
 
@@ -349,13 +358,12 @@ class DataEntryRepository:
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
 
-        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+        handler = BaseModuleHandler.get_by_type(data_entry_type)
         statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
 
-        sort_map = dict(
-            handler.sort_map
-        )  # shallow copy — don't mutate the class-level dict
-        sort_map["kg_co2eq"] = emission_agg.c.total_kg_co2eq
+        sort_map = dict(handler.sort_map)
+        if has_emission_join:
+            sort_map["kg_co2eq"] = col(EmissionRow.kg_co2eq)
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -383,14 +391,27 @@ class DataEntryRepository:
 
         for row in rows:
             # Unpack based on query shape
-            if is_travel_entry:
-                data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
-            elif is_buildings_entry:
-                data_entry, total_kg_co2eq, primary_factor, building_room = row
-                emission = None
+            if has_emission_join and is_travel_entry:
+                (
+                    data_entry,
+                    emission_row,
+                    primary_factor,
+                    member_entry,
+                    leaf_emission,
+                ) = row
+            elif has_emission_join and is_buildings_entry:
+                data_entry, emission_row, primary_factor, building_room = row
+                member_entry, leaf_emission = None, None
+            elif has_emission_join:
+                data_entry, emission_row, primary_factor = row
+                member_entry, leaf_emission = None, None
             else:
-                data_entry, total_kg_co2eq, primary_factor = row
-                member_entry, emission = None, None
+                # Headcount — no emission join
+                (data_entry,) = row
+                emission_row, primary_factor = None, None
+                member_entry, leaf_emission = None, None
+
+            total_kg_co2eq = emission_row.kg_co2eq if emission_row else None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -400,7 +421,9 @@ class DataEntryRepository:
             if primary_factor is None:
                 primary_factor_id = data_entry.data.get("primary_factor_id")
                 if primary_factor_id:
-                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
+                    factor_stmt = select(Factor).where(
+                        col(Factor.id) == primary_factor_id
+                    )
                     factor_result = await self.session.execute(factor_stmt)
                     primary_factor = factor_result.scalar_one_or_none()
 
@@ -426,8 +449,10 @@ class DataEntryRepository:
                         else {}
                     ),
                     **(
-                        {"distance_km": emission.meta.get("distance_km")}
-                        if emission and emission.meta and "distance_km" in emission.meta
+                        {"distance_km": leaf_emission.meta.get("distance_km")}
+                        if leaf_emission
+                        and leaf_emission.meta
+                        and "distance_km" in leaf_emission.meta
                         else {}
                     ),
                 }

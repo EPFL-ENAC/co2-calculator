@@ -277,6 +277,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
         DataEntryEmission(
             data_entry_id=entry.id,
             emission_type_id=EmissionType.professional_travel__plane__business,
+            scope=3,
             kg_co2eq=200.0,
         )
         for entry in plane_entries
@@ -286,6 +287,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
         DataEntryEmission(
             data_entry_id=entry.id,
             emission_type_id=EmissionType.professional_travel__train__class_2,
+            scope=3,
             kg_co2eq=50.0,
         )
         for entry in train_entries
@@ -793,7 +795,8 @@ async def _seed_emission(db_session, module, name, kg):
     db_session.add(
         DataEntryEmission(
             data_entry_id=entry.id,
-            emission_type_id=EmissionType.equipment,
+            emission_type_id=EmissionType.equipment__scientific,
+            scope=2,
             kg_co2eq=kg,
         )
     )

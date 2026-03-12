@@ -21,7 +21,10 @@ from app.repositories.data_entry_emission_repo import (
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    resolve_emission_types,
+)
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -199,6 +202,32 @@ class DataEntryEmissionService:
                             },
                         )
                     )
+
+        # Append a rollup row that sums all leaf emissions for this data entry.
+        # The rollup emission_type_id is the parent node in the EmissionType tree,
+        # enabling direct JOIN + ORDER BY on kg_co2eq without a subquery.
+        rollup_type = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION.get(
+            DataEntryTypeEnum(data_entry.data_entry_type)
+        )
+        if rollup_type is not None and results:
+            total_kg_co2eq = sum(r.kg_co2eq for r in results)
+            # Use the first leaf's primary_factor_id for display in table
+            first_factor_id = next(
+                (r.primary_factor_id for r in results if r.primary_factor_id), None
+            )
+            results.append(
+                DataEntryEmission(
+                    data_entry_id=data_entry.id,
+                    emission_type_id=rollup_type.value,
+                    primary_factor_id=first_factor_id,
+                    scope=None,  # rollup — scope only meaningful on leaves
+                    kg_co2eq=total_kg_co2eq,
+                    meta={
+                        "is_rollup": True,
+                        "leaf_emission_type_ids": [r.emission_type_id for r in results],
+                    },
+                )
+            )
 
         return results
 
