@@ -35,6 +35,50 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 
 # =============================================================================
+# DATA_ENTRY_TYPE → ROLLUP EMISSION_TYPE  (1-to-1 or None)
+#
+# Maps each DataEntryTypeEnum to its parent EmissionType node for the rollup
+# DataEntryEmission row. The rollup row stores the total kg_co2eq for the
+# data entry (sum of all leaf emissions), enabling direct ORDER BY in queries.
+# None = no rollup (headcount: we don't show kg_co2eq in the table).
+# =============================================================================
+
+DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType | None] = {
+    # Headcount — no rollup (4 independent roots, no kg_co2eq in table)
+    DataEntryTypeEnum.member: None,
+    DataEntryTypeEnum.student: None,
+    # Professional Travel — 1 leaf per entry, no rollup needed
+    DataEntryTypeEnum.plane: None,
+    DataEntryTypeEnum.train: None,
+    # Buildings — 5 leaf emissions per building room entry → needs rollup
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    # Energy combustion — single leaf, no rollup needed
+    DataEntryTypeEnum.energy_combustion: None,
+    # Equipment — single leaf per entry, no rollup needed
+    DataEntryTypeEnum.scientific: None,
+    DataEntryTypeEnum.it: None,
+    DataEntryTypeEnum.other: None,
+    # Process Emissions — single leaf, no rollup needed
+    DataEntryTypeEnum.process_emissions: None,
+    # Purchases — single leaf per entry, no rollup needed
+    DataEntryTypeEnum.scientific_equipment: None,
+    DataEntryTypeEnum.it_equipment: None,
+    DataEntryTypeEnum.consumable_accessories: None,
+    DataEntryTypeEnum.biological_chemical_gaseous_product: None,
+    DataEntryTypeEnum.services: None,
+    DataEntryTypeEnum.vehicles: None,
+    DataEntryTypeEnum.other_purchases: None,
+    DataEntryTypeEnum.additional_purchases: None,
+    # Research Facilities — single leaf, no rollup needed
+    DataEntryTypeEnum.research_facilities: None,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: None,
+    # External Clouds — single leaf per entry (runtime-resolved), no rollup needed
+    DataEntryTypeEnum.external_clouds: None,
+    # External AI — single leaf per entry (runtime-resolved), no rollup needed
+    DataEntryTypeEnum.external_ai: None,
+}
+
+# =============================================================================
 # DATA_ENTRY_TYPE → EMISSION_TYPE mapping  (1-to-many)
 #
 # Most DataEntryTypeEnum values map to a single EmissionType leaf.
