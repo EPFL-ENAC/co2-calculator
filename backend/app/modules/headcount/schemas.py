@@ -66,6 +66,8 @@ class HeadCountCreate(DataEntryCreate):
     def validate_fte(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
+        if v > 1:
+            raise ValueError("FTE cannot exceed 1")
         if v < 0:
             raise ValueError("FTE must be non-negative")
         return v
