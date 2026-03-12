@@ -22,6 +22,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.services.exchange_rates_service import ExchangeRatesService
 
 logger = get_logger(__name__)
 
@@ -196,12 +197,40 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
+
+        # TODO Get the year from the carbon report associated with the module, instead
+        # of hardcoding it here, to ensure we get the correct exchange rate for the year
+        # of the purchase
+        year = 2025
+
+        def _cloud_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            spent_amount = ctx.get("spent_amount", 0)
+            entry_currency = (ctx.get("currency", "") or "eur").lower()
+            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
+            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
+            if not spent_amount or not ef:
+                return None
+
+            spent_amount_eur = spent_amount
+            if entry_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate(
+                    year, entry_currency, True
+                )
+                spent_amount_eur = spent_amount * exchange_rate
+            ef_eur = ef
+            if ef_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate(
+                    year, ef_currency, True
+                )
+                ef_eur = ef * exchange_rate
+
+            return (spent_amount_eur * ef_eur) / 1000
+
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                formula_key="ef_kg_co2eq_per_currency",
-                quantity_key="spent_amount",
+                formula_func=_cloud_formula,
             )
         ]
 
@@ -214,10 +243,10 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
 external_clouds_classification_fields: list[str] = [
     "service_type",
     "provider",
-    "currency",
 ]
 external_clouds_value_fields: list[str] = [
     "ef_kg_co2eq_per_currency",
+    "currency",
 ]
 
 
@@ -238,10 +267,11 @@ class _ExternalCloudFactorValidationMixin:
         valid_currencies = [
             "chf",
             "eur",
+            "usd",
         ]
         if not v:
-            raise ValueError("")
-        if v not in valid_currencies:
+            raise ValueError("Currency is required")
+        if v.lower() not in valid_currencies:
             raise ValueError("Invalid currency")
         return v
 
@@ -348,7 +378,7 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _ai_formula(ctx: dict, factor_values: dict):
+        def _ai_formula(ctx: dict, factor_values: dict) -> Optional[float]:
             frequency_str = ctx.get("requests_per_user_per_day")
             frequency = REQUESTS_FREQUENCY_MAP.get(frequency_str or "", 0.0)
             users = ctx.get("user_count", 0)
