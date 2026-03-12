@@ -131,6 +131,10 @@ seed-data: ## Seed the database with initial data
 seed-generic-data: ## Seed data entries from seed_data CSVs
 	$(UV) run -m app.seed.seed_generic_data_entries
 
+.PHONY: exchange-rates
+exchange-rates: ## Fetch exchange rates from ECB API and store in database
+	$(UV) run exchange-rates
+
 .PHONY: dev
 dev: install ## Start backend development server
 	@if [ ! -f .env ]; then \
