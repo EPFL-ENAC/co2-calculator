@@ -71,10 +71,6 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     cooling_kwh_per_square_meter: Optional[float] = None
     ventilation_kwh_per_square_meter: Optional[float] = None
     lighting_kwh_per_square_meter: Optional[float] = None
-    heating_kwh: Optional[float] = None
-    cooling_kwh: Optional[float] = None
-    ventilation_kwh: Optional[float] = None
-    lighting_kwh: Optional[float] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -392,13 +388,13 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
-        "name": Factor.classification["kind"].as_string(),
+        "name": Factor.classification["name"].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "name": Factor.classification["kind"].as_string(),
+        "name": Factor.classification["name"].as_string(),
     }
 
     def resolve_computations(

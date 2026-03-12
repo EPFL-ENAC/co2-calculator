@@ -159,15 +159,15 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
-        "service_type": Factor.classification["subkind"].as_string(),
-        "provider": Factor.classification["kind"].as_string(),
+        "service_type": Factor.classification[subkind_field].as_string(),
+        "provider": Factor.classification[kind_field].as_string(),
         "spent_amount": DataEntry.data["spent_amount"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "service_type": Factor.classification["subkind"].as_string(),
-        "provider": Factor.classification["kind"].as_string(),
+        "service_type": Factor.classification[subkind_field].as_string(),
+        "provider": Factor.classification[kind_field].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
@@ -310,16 +310,16 @@ class ExternalAIModuleHandler(BaseModuleHandler):
     subkind_field: str = "usage_type"
     sort_map = {
         "id": DataEntry.id,
-        "provider": Factor.classification["kind"].as_string(),
-        "usage_type": Factor.classification["subkind"].as_string(),
+        "provider": Factor.classification["provider"].as_string(),
+        "usage_type": Factor.classification["usage_type"].as_string(),
         "requests_per_user_per_day": _requests_frequency_sort_expr(),
         "user_count": DataEntry.data["user_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "provider": Factor.classification["kind"].as_string(),
-        "usage_type": Factor.classification["subkind"].as_string(),
+        "provider": Factor.classification["provider"].as_string(),
+        "usage_type": Factor.classification["usage_type"].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
@@ -329,9 +329,9 @@ class ExternalAIModuleHandler(BaseModuleHandler):
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "provider": data_entry.data["primary_factor"].get("kind")
+                "provider": data_entry.data["primary_factor"].get("provider")
                 or data_entry.data.get("provider"),
-                "usage_type": data_entry.data["primary_factor"].get("subkind")
+                "usage_type": data_entry.data["primary_factor"].get("usage_type")
                 or data_entry.data.get("usage_type"),
             }
         )

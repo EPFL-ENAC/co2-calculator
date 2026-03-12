@@ -153,15 +153,15 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["kind"].as_string(),
-        "sub_class": Factor.classification["subkind"].as_string(),
+        "equipment_class": Factor.classification["equipment_class"].as_string(),
+        "sub_class": Factor.classification["sub_class"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
         "name": DataEntry.data["name"].as_string(),
-        "equipment_class": Factor.classification["kind"].as_string(),
-        "sub_class": Factor.classification["subkind"].as_string(),
+        "equipment_class": Factor.classification["equipment_class"].as_string(),
+        "sub_class": Factor.classification["sub_class"].as_string(),
     }
 
     async def pre_compute(self, data_entry, session) -> dict:

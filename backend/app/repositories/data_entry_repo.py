@@ -10,6 +10,7 @@ from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
@@ -277,6 +278,7 @@ class DataEntryRepository:
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
         )
+        is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
 
         # Aggregate emissions per data_entry to avoid row duplication
         # (one data_entry can have multiple emissions for headcount/building)
@@ -301,6 +303,10 @@ class DataEntryRepository:
             emission_agg.c.total_kg_co2eq,
             Factor,
         ]
+        if is_buildings_entry:
+            # For buildings, we want to show retrieve the room surface area:
+            entities.extend([BuildingRoom])
+
         if is_travel_entry:
             entities.extend([OriginLocation, DestLocation, DataEntryEmission])
         statement: Select[Any] = (
@@ -336,6 +342,13 @@ class DataEntryRepository:
                     col(DataEntryEmission.data_entry_id) == DataEntry.id,
                     isouter=True,
                 )
+            )
+
+        if is_buildings_entry:
+            statement = statement.join(
+                BuildingRoom,
+                DataEntry.data["room_name"].as_string() == BuildingRoom.room_name,
+                isouter=True,
             )
 
         statement = statement.where(
@@ -383,6 +396,9 @@ class DataEntryRepository:
                     dest_loc,
                     emission,
                 ) = row
+            elif is_buildings_entry:
+                data_entry, total_kg_co2eq, primary_factor, building_room = row
+                origin_loc, dest_loc, emission = None, None, None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
                 origin_loc, dest_loc, emission = None, None, None
@@ -399,15 +415,17 @@ class DataEntryRepository:
                     factor_result = await self.session.execute(factor_stmt)
                     primary_factor = factor_result.scalar_one_or_none()
 
+            primary_factor_values = primary_factor.values if primary_factor else {}
+            primary_factor_classification = (
+                primary_factor.classification if primary_factor else {}
+            )
             data_entry.data = {
                 **data_entry.data,
                 "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
-                    **primary_factor.values,
-                    **primary_factor.classification,
-                }
-                if primary_factor
-                else {},
+                    **primary_factor_values,
+                    **primary_factor_classification,
+                },
             }
 
             if is_travel_entry:
@@ -420,6 +438,14 @@ class DataEntryRepository:
                         if emission and emission.meta and "distance_km" in emission.meta
                         else {}
                     ),
+                }
+            if is_buildings_entry and building_room:
+                surface = building_room.room_surface_square_meter
+                data_entry.data = {
+                    **data_entry.data,
+                    "room_surface_square_meter": surface
+                    if surface is not None
+                    else None,
                 }
 
             items.append(handler.to_response(data_entry))

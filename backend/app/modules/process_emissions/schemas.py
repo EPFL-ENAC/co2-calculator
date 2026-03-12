@@ -70,15 +70,15 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
-        "category": Factor.classification["kind"].as_string(),
-        "subcategory": Factor.classification["subkind"].as_string(),
+        "category": Factor.classification[kind_field].as_string(),
+        "subcategory": Factor.classification[subkind_field].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "category": Factor.classification["kind"].as_string(),
-        "subcategory": Factor.classification["subkind"].as_string(),
+        "category": Factor.classification[kind_field].as_string(),
+        "subcategory": Factor.classification[subkind_field].as_string(),
     }
 
     def to_response(self, data_entry: DataEntry) -> ProcessEmissionsHandlerResponse:
