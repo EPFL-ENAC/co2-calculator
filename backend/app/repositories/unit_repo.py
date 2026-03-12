@@ -180,16 +180,23 @@ class UnitRepository:
     async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
         if not units:
             return UpsertResult(created=0, updated=0, total=0, data=[])
-        rows = (await self.session.exec(select(Unit.institutional_id, Unit.id))).all()
+        # Use institutional_code as the merge key — it's always present
+        # and has a unique constraint, unlike institutional_id which can be None.
+        rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
         existing: dict[str | None, int] = {
-            iid: uid for iid, uid in rows if uid is not None
+            code: uid for code, uid in rows if uid is not None
         }
 
-        created = len(units) - len(existing)
-        updated = len(existing)
+        created = 0
+        updated = 0
         merged = []
         for unit in units:
-            unit.id = existing.get(unit.institutional_id)
+            existing_id = existing.get(unit.institutional_code)
+            unit.id = existing_id
+            if existing_id is not None:
+                updated += 1
+            else:
+                created += 1
             result = await self.session.merge(unit)
             merged.append(result)
         return UpsertResult(
