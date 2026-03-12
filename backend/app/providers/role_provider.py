@@ -240,7 +240,11 @@ class TestRoleProvider(RoleProvider):
         """
         requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
         # Create roles based on requested role
-        TEST_UNIT_INSTITUTIONAL_ID = "1119"
+
+        # USER institutional_id, TEST-44444, TEST-777777
+        # UNITS institutional_id, TEST-1119, TEST-0184
+        #       insitutional_codes, TEST-12345, TEST-10208
+        TEST_UNIT_INSTITUTIONAL_ID = "TEST-1119"
         roles: List[Role] = []
         if requested_role == RoleName.CO2_USER_STD.value:
             roles = [

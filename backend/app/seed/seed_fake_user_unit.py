@@ -17,6 +17,11 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+# USER institutional_id, TEST-44444, TEST-777777
+# UNITS institutional_id, TEST-1119, TEST-0184
+#       insitutional_codes, TEST-12345, TEST-10208
+
+
 async def seed_test_users(session: AsyncSession) -> None:
     # upsert user with institutional_id 44444 for testing
     logger.info("Seeding test user records...")

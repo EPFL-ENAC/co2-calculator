@@ -311,6 +311,9 @@ class AccredUnitProvider(UnitProvider):
 class TestUnitProvider(UnitProvider):
     """Test unit provider for development."""
 
+    # USER institutional_id, TEST-44444, TEST-777777
+    # UNITS institutional_id, TEST-1119, TEST-0184
+    #       insitutional_codes, TEST-12345, TEST-10208
     type: UserProvider = UserProvider.TEST
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
@@ -319,8 +322,8 @@ class TestUnitProvider(UnitProvider):
             Unit(
                 id=1,
                 provider=self.type,
-                institutional_code="12345",
-                institutional_id="1119",
+                institutional_code="TEST-12345",
+                institutional_id="TEST-1119",
                 name="ENAC-IT4R-TEST",
                 level=4,
                 principal_user_institutional_id="testuser_co2.user.principal",
@@ -331,7 +334,8 @@ class TestUnitProvider(UnitProvider):
             Unit(
                 id=2,
                 provider=self.type,
-                institutional_code="67890",
+                institutional_code="TEST-777777",
+                institutional_id="TEST-0184",
                 name="IC-TEST",
                 level=3,
                 principal_user_institutional_id="testuser_co2.user.principal",
@@ -348,8 +352,8 @@ class TestUnitProvider(UnitProvider):
                     institutional_code=str(unit_id),
                     name=f"I-{unit_id}-TEST",
                     level=4,
-                    path_institutional_code=f"10582 10583 {unit_id}",
-                    path_institutional_id=f"cf-10582 cf-10583 cf-{unit_id}",
+                    path_institutional_code=f"FAKE 10582 10583 {unit_id}",
+                    path_institutional_id=f"cfake-10582 cf-10583 cfake-{unit_id}",
                     principal_user_institutional_id="testuser_co2.user.principal",
                     path_name=f"TEST-AFFILIATION-{unit_id}",
                 )
