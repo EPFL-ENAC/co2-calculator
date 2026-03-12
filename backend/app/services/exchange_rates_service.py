@@ -41,7 +41,7 @@ class ExchangeRatesService:
               optionally inverted.
         """
         rates = self.get_exchange_rates(year)
-        filtered_rates = rates[rates["CURRENCY"] == currency]
+        filtered_rates = rates[rates["CURRENCY"] == self._normalize_currency(currency)]
         if filtered_rates.empty:
             raise ValueError(
                 f"No exchange rate data found for year {year} and currency {currency}"
@@ -49,7 +49,7 @@ class ExchangeRatesService:
         rate = float(filtered_rates["OBS_VALUE"].iloc[0])
         if invert:
             return 1 / rate
-        return rate
+        return float(rate)
 
     def get_exchange_rates(self, year: int) -> pd.DataFrame:
         """Get exchange rates for a specific year, using caching to avoid
@@ -112,7 +112,8 @@ class ExchangeRatesService:
             start_period = str(year)
             end_period = str(year)
 
-        url = f"{ECB_EXR_URL}{frequency}.{currency if currency else ''}.EUR.SP00.A"
+        currency_n = self._normalize_currency(currency) if currency else ""
+        url = f"{ECB_EXR_URL}{frequency}.{currency_n}.EUR.SP00.A"
         params = {
             "startPeriod": start_period,
             "endPeriod": end_period,
@@ -147,6 +148,10 @@ class ExchangeRatesService:
             df["OBS_VALUE"] = 1 / df["OBS_VALUE"]
 
         return df[["TIME_PERIOD", "CURRENCY", "OBS_VALUE"]]
+
+    def _normalize_currency(self, currency: str) -> str:
+        """Normalize the currency code to uppercase and strip whitespace."""
+        return currency.strip().upper()
 
     @staticmethod
     def clear_cache():
