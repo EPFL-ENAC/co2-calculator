@@ -1,7 +1,7 @@
 import re
 from typing import Any, Optional
 
-from pydantic import ValidationInfo, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -140,6 +140,13 @@ class HeadCountUpdate(DataEntryUpdate):
             allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
             raise ValueError(f"position_category must be one of: {allowed_values}")
         return v
+
+
+class HeadcountMemberDropdownItem(BaseModel):
+    """Lightweight member record used to populate traveler dropdowns."""
+
+    institutional_id: int
+    name: str
 
 
 class HeadcountMemberModuleHandler(BaseModuleHandler):

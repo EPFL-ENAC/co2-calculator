@@ -152,7 +152,9 @@ def downgrade() -> None:
             autoincrement=True,
             nullable=False,
         ),
-        sa.Column("traveler_id", sa.INTEGER(), autoincrement=False, nullable=True),
+        sa.Column(
+            "user_institutional_id", sa.INTEGER(), autoincrement=False, nullable=True
+        ),
         sa.Column(
             "provider",
             postgresql.ENUM("ACCRED", "DEFAULT", "TEST", name="user_provider_enum"),

@@ -170,7 +170,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
                     "co2_kg": record.get("OUT_CO2_CORRECTED"),
                     "traveler_name": traveler_name,
-                    "traveler_id": sciper,
+                    "user_institutional_id": sciper,
                     "provider": self.config["provider"],
                     "origin_location_id": origin_location_id,
                     "destination_location_id": destination_location_id,

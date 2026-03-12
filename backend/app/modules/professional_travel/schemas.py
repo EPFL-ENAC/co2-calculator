@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ValidationInfo, field_validator
+from sqlalchemy.orm import aliased
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -33,6 +34,8 @@ from app.utils.distance_geography import (
 )
 
 logger = get_logger(__name__)
+
+MemberEntry = aliased(DataEntry)
 
 
 def _validate_non_negative_float(
@@ -93,7 +96,7 @@ class DepartureDateMixin(BaseModel):
 
 
 class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    user_institutional_id: str
+    user_institutional_id: int
     origin_iata: str
     destination_iata: str
     cabin_class: Optional[str] = None
@@ -106,9 +109,7 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
 
 
 class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryResponseGen):
-    # traveler_name: str
-    # traveler_id: Optional[int] = None
-    user_institutional_id: str
+    user_institutional_id: int
     origin_name: str
     destination_name: str
     cabin_class: Optional[str] = None
@@ -123,7 +124,7 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
 class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
-    user_institutional_id: str
+    user_institutional_id: int
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
@@ -131,7 +132,7 @@ class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
 
 
 class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
-    user_institutional_id: str
+    user_institutional_id: int
     origin_name: str
     destination_name: str
     departure_date: Optional[date] = None
@@ -174,10 +175,10 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
-        "traveler_name": DataEntry.data["traveler_name"].as_string(),
         "departure_date": DataEntry.data["departure_date"].as_string(),
         "cabin_class": DataEntry.data["cabin_class"].as_string(),
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
+        "traveler_name": MemberEntry.data["name"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 

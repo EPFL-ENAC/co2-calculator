@@ -364,7 +364,11 @@ import {
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
 } from 'src/constant/modules';
-import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
+import {
+  getHeadcountMembers,
+  type HeadcountMemberDropdownItem,
+} from 'src/api/modules';
+import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
 function getNumericRules(col: TableViewColumn) {
@@ -396,6 +400,8 @@ const { t: $t, te: $te } = useI18n();
 const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
+
+const headcountMembersMap = ref<Map<number, string>>(new Map());
 
 const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
@@ -821,6 +827,14 @@ function renderCell(
     options?: Array<{ value: string; label: string }>;
   },
 ) {
+  // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
+  if (col.field === 'traveler_name') {
+    const uid = row['user_institutional_id'] as number | undefined;
+    if (uid != null) {
+      return headcountMembersMap.value.get(uid) ?? '-';
+    }
+    return '-';
+  }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
@@ -1143,12 +1157,7 @@ function isComplete(row: ModuleRow) {
     return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    const required = [
-      'origin',
-      'destination',
-      'transport_mode',
-      'traveler_name',
-    ];
+    const required = ['origin', 'destination', 'user_institutional_id'];
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );
@@ -1428,7 +1437,7 @@ watch(
   { deep: true, immediate: true },
 );
 
-onMounted(() => {
+onMounted(async () => {
   moduleStore.initializeSubmoduleState(props.submoduleType);
 
   // Check if already expanded on mount and fetch data if so
@@ -1442,10 +1451,32 @@ onMounted(() => {
     moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
   }
 
-  // Clear inline errors on mount
-  inlineErrors.value = {};
+  // For professional travel, pre-load headcount members to resolve traveler names in the table
+  if (
+    props.moduleType === MODULES.ProfessionalTravel &&
+    props.unitId &&
+    props.year
+  ) {
+    try {
+      const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
+        props.unitId,
+        props.year,
+      );
+      headcountMembersMap.value = new Map(
+        members.map((m) => [m.institutional_id, m.name]),
+      );
+    } catch (err) {
+      console.error(
+        'Failed to load headcount members for professional travel',
+        err,
+      );
+    }
 
-  // SSE subscription is job-scoped and triggered on sync initiation
+    // Clear inline errors on mount
+    inlineErrors.value = {};
+
+    // SSE subscription is job-scoped and triggered on sync initiation
+  }
 });
 
 // Unsubscribe from SSE when component unmounts

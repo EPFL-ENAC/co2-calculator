@@ -9,7 +9,8 @@ export type FieldType =
   | 'checkbox'
   | 'boolean'
   | 'radio-group'
-  | 'direction-input';
+  | 'direction-input'
+  | 'headcount-member-select';
 
 export interface ConditionalVisibility {
   showWhen?: {

@@ -525,3 +525,39 @@ class DataEntryService:
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
         )
+
+    async def get_headcount_members(
+        self,
+        carbon_report_module_id: int,
+    ) -> list[dict]:
+        """Return members with an institutional ID for dropdown population.
+
+        Args:
+            carbon_report_module_id: The headcount module to query.
+
+        Returns:
+            List of dicts with ``institutional_id`` and ``name`` keys, ordered by name.
+
+        """
+        return await self.repo.get_headcount_members(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+
+    async def get_member_by_institutional_id(
+        self,
+        carbon_report_module_id: int,
+        institutional_id: str,
+    ) -> Optional[DataEntry]:
+        """Look up a headcount member by their institutional ID.
+
+        Args:
+            carbon_report_module_id: The headcount module to scope the search.
+            institutional_id: The institutional ID to look up.
+
+        Returns:
+            The matching ``DataEntry``, or ``None`` if not found.
+        """
+        return await self.repo.get_member_by_institutional_id(
+            carbon_report_module_id=carbon_report_module_id,
+            institutional_id=institutional_id,
+        )

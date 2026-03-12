@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
-from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,8 +14,8 @@ from app.models.carbon_report import CarbonReportModule, ModuleStatus
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
-from app.models.location import Location
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
@@ -294,9 +293,6 @@ class DataEntryRepository:
             .subquery()
         )
 
-        OriginLocation = aliased(Location)
-        DestLocation = aliased(Location)
-
         # Build query: one row per DataEntry
         entities: list[Any] = [
             DataEntry,
@@ -308,7 +304,7 @@ class DataEntryRepository:
             entities.extend([BuildingRoom])
 
         if is_travel_entry:
-            entities.extend([OriginLocation, DestLocation, DataEntryEmission])
+            entities.extend([MemberEntry, DataEntryEmission])
         statement: Select[Any] = (
             sa_select(*entities)
             .join(
@@ -324,24 +320,21 @@ class DataEntryRepository:
         )
 
         if is_travel_entry:
-            statement = (
-                statement.join(
-                    OriginLocation,
-                    DataEntry.data["origin_location_id"].as_integer()
-                    == OriginLocation.id,
-                    isouter=True,
+            statement = statement.join(
+                MemberEntry,
+                (
+                    MemberEntry.data["user_institutional_id"].as_string()
+                    == DataEntry.data["user_institutional_id"].as_string()
                 )
-                .join(
-                    DestLocation,
-                    DataEntry.data["destination_location_id"].as_integer()
-                    == DestLocation.id,
-                    isouter=True,
-                )
-                .join(
-                    DataEntryEmission,
-                    col(DataEntryEmission.data_entry_id) == DataEntry.id,
-                    isouter=True,
-                )
+                & (
+                    col(MemberEntry.data_entry_type_id)
+                    == DataEntryTypeEnum.member.value
+                ),
+                isouter=True,
+            ).join(
+                DataEntryEmission,
+                col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                isouter=True,
             )
 
         if is_buildings_entry:
@@ -391,20 +384,13 @@ class DataEntryRepository:
         for row in rows:
             # Unpack based on query shape
             if is_travel_entry:
-                (
-                    data_entry,
-                    total_kg_co2eq,
-                    primary_factor,
-                    origin_loc,
-                    dest_loc,
-                    emission,
-                ) = row
+                data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
                 origin_loc, dest_loc, emission = None, None, None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
-                origin_loc, dest_loc, emission = None, None, None
+                member_entry, emission = None, None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -434,8 +420,11 @@ class DataEntryRepository:
             if is_travel_entry:
                 data_entry.data = {
                     **data_entry.data,
-                    **({"origin": origin_loc.name} if origin_loc else {}),
-                    **({"destination": dest_loc.name} if dest_loc else {}),
+                    **(
+                        {"traveler_name": member_entry.data.get("name")}
+                        if member_entry
+                        else {}
+                    ),
                     **(
                         {"distance_km": emission.meta.get("distance_km")}
                         if emission and emission.meta and "distance_km" in emission.meta
@@ -605,3 +594,61 @@ class DataEntryRepository:
             aggregation[label] = float(total) if total is not None else 0.0
 
         return aggregation
+
+    async def get_headcount_members(
+        self,
+        carbon_report_module_id: int,
+    ) -> list[dict]:
+        """Return members with an institutional ID, ordered by name.
+
+        Args:
+            carbon_report_module_id: The headcount module to query.
+
+        Returns:
+            List of dicts with ``institutional_id`` and ``name`` keys.
+        """
+        statement = (
+            select(DataEntry.data)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+                DataEntry.data["user_institutional_id"].as_string().isnot(None),
+            )
+            .order_by(DataEntry.data["name"].as_string())
+        )
+        result = await self.session.execute(statement)
+        rows = result.scalars().all()
+        members = []
+        for data in rows:
+            uid = data.get("user_institutional_id")
+            if uid:
+                members.append(
+                    {"institutional_id": int(uid), "name": data.get("name", "")}
+                )
+        return members
+
+    async def get_member_by_institutional_id(
+        self,
+        carbon_report_module_id: int,
+        institutional_id: str,
+    ) -> Optional[DataEntry]:
+        """Fetch the first member entry whose user_institutional_id matches.
+
+        Args:
+            carbon_report_module_id: The headcount module to scope the search.
+            institutional_id: The institutional ID (digits only) to look up.
+
+        Returns:
+            The matching ``DataEntry``, or ``None`` if not found.
+        """
+        statement = (
+            select(DataEntry)
+            .where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+                DataEntry.data["user_institutional_id"].as_string() == institutional_id,
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()
