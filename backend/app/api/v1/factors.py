@@ -54,5 +54,8 @@ async def get_factor(
         subkind=subkind,
     )
     if factor:
-        return factor.values
+        # For combustion factors, `unit` lives in `classification` rather than `values`.
+        # Merge both so callers receive a single flat dict; values win on key collision.
+        # This mght be a hack with unintended consequences.
+        return {**(factor.classification or {}), **(factor.values or {})}
     return None
