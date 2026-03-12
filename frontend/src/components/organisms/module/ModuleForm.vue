@@ -68,7 +68,12 @@
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
-                v-if="inp.disableUntilField && !form[inp.disableUntilField]"
+                v-if="
+                  (inp.disableUntilField && !form[inp.disableUntilField]) ||
+                  (inp.optionsId === 'subkind' &&
+                    !loadingSubclasses &&
+                    (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
+                "
               >
                 <div class="subclass-placeholder" />
               </template>
@@ -774,6 +779,14 @@ function validateField(i: ModuleField) {
     }
 
     return !errors.origin && !errors.destination;
+  }
+
+  // Skip validation for subkind fields with no available options (class has no sub-classes)
+  if (
+    i.optionsId === 'subkind' &&
+    (filteredOptionsMap.value[i.id]?.length ?? 0) === 0
+  ) {
+    return true;
   }
 
   if (i.required) {
