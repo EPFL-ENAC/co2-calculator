@@ -387,7 +387,7 @@ class DataEntryRepository:
                 data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
-                origin_loc, dest_loc, emission = None, None, None
+                emission = None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
                 member_entry, emission = None, None
