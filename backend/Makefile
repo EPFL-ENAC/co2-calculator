@@ -128,7 +128,7 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_generic_data_entries
 
 .PHONY: seed-generic-data
-seed-generic-data: ## Seed data entries from seed_data_clean CSVs
+seed-generic-data: ## Seed data entries from seed_data CSVs
 	$(UV) run -m app.seed.seed_generic_data_entries
 
 .PHONY: dev

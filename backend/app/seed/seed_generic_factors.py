@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
-BACKEND_FOLDER = Path(__file__).parent.parent.parent / "seed_data_clean"
+BACKEND_FOLDER = Path(__file__).parent.parent.parent / "seed_data"
 
 
 @dataclass

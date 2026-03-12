@@ -605,7 +605,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     Raises:
         ValueError: If an unknown provider type is configured
     """
-    if not provider_type:
+    if provider_type is None:
         provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == UserProvider.DEFAULT:
