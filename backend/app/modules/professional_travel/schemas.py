@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 from sqlalchemy.orm import aliased
 
 from app.core.logging import get_logger
@@ -36,6 +36,7 @@ from app.utils.distance_geography import (
 logger = get_logger(__name__)
 
 MemberEntry = aliased(DataEntry)
+
 
 def _validate_non_negative_float(
     v: Optional[float], field_name: str
