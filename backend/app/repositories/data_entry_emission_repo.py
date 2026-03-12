@@ -85,6 +85,7 @@ class DataEntryEmissionRepository:
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
+                col(DataEntryEmission.scope).isnot(None),
             )
             .group_by(group_field)
         )
@@ -137,6 +138,7 @@ class DataEntryEmissionRepository:
                 CarbonReport.unit_id == unit_id,
                 CarbonReportModule.status == ModuleStatus.VALIDATED,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.scope).isnot(None),
             )
             .group_by(year_expr)
             .order_by(year_expr.asc())
@@ -184,6 +186,7 @@ class DataEntryEmissionRepository:
                 CarbonReportModule.carbon_report_id == carbon_report_id,
                 CarbonReportModule.status == ModuleStatus.VALIDATED,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.scope).isnot(None),
             )
             .group_by(col(CarbonReportModule.module_type_id))
         )
@@ -228,6 +231,7 @@ class DataEntryEmissionRepository:
             .where(
                 CarbonReportModule.carbon_report_id == carbon_report_id,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.scope).isnot(None),
             )
             .group_by(
                 col(CarbonReportModule.module_type_id),
