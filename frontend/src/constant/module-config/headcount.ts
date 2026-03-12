@@ -57,7 +57,6 @@ const memberFields: ModuleField[] = [
         value: 'technical_administrative_staff',
         label: 'headcount_technical_administrative_staff',
       },
-      { value: 'student', label: 'headcount_student' },
       { value: 'other', label: 'headcount_other' },
     ],
     readOnlyWhen: { fieldId: 'position_title', hasValue: true },
