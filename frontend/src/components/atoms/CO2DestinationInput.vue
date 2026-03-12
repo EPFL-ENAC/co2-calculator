@@ -360,10 +360,7 @@ function handleFromSelection(value: Location | string | null) {
   fromModel.value = value.name;
   emit('update:from', value.name);
   emit('from-location-selected', {
-    id: value.id,
-    name: value.name,
-    latitude: value.latitude,
-    longitude: value.longitude,
+    ...value,
   });
 }
 
@@ -383,10 +380,7 @@ function handleToSelection(value: Location | string | null) {
   toModel.value = value.name;
   emit('update:to', value.name);
   emit('to-location-selected', {
-    id: value.id,
-    name: value.name,
-    latitude: value.latitude,
-    longitude: value.longitude,
+    ...value,
   });
 }
 

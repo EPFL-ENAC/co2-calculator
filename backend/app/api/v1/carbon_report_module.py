@@ -12,6 +12,7 @@ from fastapi import (
     Response,
     status,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -495,24 +496,6 @@ async def create(
 
         validated_data = handler.validate_create(create_payload)
 
-        # For member entries with institutional ID, check for duplicates before creating
-        if (
-            data_entry_type == DataEntryTypeEnum.member
-            and validated_data.model_dump().get("user_institutional_id")
-        ):
-            uid = validated_data.model_dump()["user_institutional_id"]
-            is_unique = await DataEntryService(db).check_json_field_unique(
-                carbon_report_module_id=carbon_report_module_id,
-                data_entry_type_id=DataEntryTypeEnum.member.value,
-                field="user_institutional_id",
-                value=uid,
-            )
-            if not is_unique:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="This user institutional id already exists.",
-                )
-
         data_entry_create = DataEntryCreate(
             **validated_data.model_dump(exclude_unset=True)
         )
@@ -528,31 +511,55 @@ async def create(
             status_code=400,
             detail=f"Invalid item_data for creation: {str(e)}",
         )
+    try:
+        item = await DataEntryService(db).create(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            user=UserRead.model_validate(current_user),
+            data=data_entry_create,
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
+            background_tasks=background_tasks,
+        )
+        if item is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create item",
+            )
 
-    item = await DataEntryService(db).create(
-        carbon_report_module_id=carbon_report_module_id,
-        data_entry_type_id=data_entry_type_id,
-        user=UserRead.model_validate(current_user),
-        data=data_entry_create,
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
-        background_tasks=background_tasks,
-    )
-    if item is None:
+        await DataEntryEmissionService(db).upsert_by_data_entry(
+            data_entry_response=item,
+        )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+
+        if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="This user institutional id already exists in this module.",
+            )
+
         raise HTTPException(
-            status_code=500,
-            detail="Failed to create item",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error.",
+        ) from e
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Failed to create item for module_id={sanitize(module_id)}",
+            exc_info=True,
         )
 
-    await DataEntryEmissionService(db).upsert_by_data_entry(
-        data_entry_response=item,
-    )
-    await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
-    await db.commit()
-
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create data entry",
+        ) from e
     response = DataEntryResponse.model_validate(item)
     # todo kg_co2eq in response is never used and can be removed, but for now set to 0
     # to avoid confusion until we clean up the schema
