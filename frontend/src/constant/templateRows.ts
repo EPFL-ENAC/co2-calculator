@@ -16,6 +16,6 @@ export const csvPurchaseContent =
 export const csvProfessionalTravelPlaneContent =
   'origin_iata,destination_iata,user_institutional_id,departure_date,number_of_trips,cabin_class,note\nGVA,JFK,123456,2025-03-10,1,business,';
 export const csvProfessionalTravelTrainContent =
-  'origin_name,destination_name,user_institutional_id,departure_date,number_of_trips,cabin_class,note\nLausanne Gare,ZÃ¼rich,234567,2025-03-12,1,first,';
+  'origin_name,destination_name,user_institutional_id,departure_date,number_of_trips,cabin_class,note\nLausanne Gare,Renens VD,234567,2025-03-12,1,first,';
 
 export const csvDefaultContent = 'not_implemented_yet';
