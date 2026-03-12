@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from app.services.exchange_rates_service import ECB_EXR_CACHE, ExchangeRatesService
+from app.services.exchange_rates_service import ExchangeRatesService
 
 
 def make_df(
@@ -32,7 +32,7 @@ class TestGetExchangeRates:
         df = make_df("CHF", 1.05)
         with patch.object(service, "get_exchange_rates_with_eur", return_value=df):
             service.get_exchange_rates(2024)
-        assert 2024 in ECB_EXR_CACHE
+        assert 2024 in ExchangeRatesService._cache
 
     def test_returns_cached_value_on_second_call(self):
         service = ExchangeRatesService()
@@ -56,7 +56,9 @@ class TestGetExchangeRates:
             service.get_exchange_rates(2023)
             service.get_exchange_rates(2024)
         assert mock_fetch.call_count == 2
-        assert 2023 in ECB_EXR_CACHE and 2024 in ECB_EXR_CACHE
+        assert (
+            2023 in ExchangeRatesService._cache and 2024 in ExchangeRatesService._cache
+        )
 
 
 class TestGetExchangeRate:

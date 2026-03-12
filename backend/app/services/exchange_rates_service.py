@@ -6,7 +6,6 @@ import requests
 
 ECB_TIMEOUT_SECONDS = 10
 ECB_EXR_URL = "https://data-api.ecb.europa.eu/service/data/EXR/"
-ECB_EXR_CACHE: dict[int, pd.DataFrame] = {}
 ECB_EXR_CACHE_TIMEOUT_HOURS = 8
 
 
@@ -14,8 +13,11 @@ class ExchangeRatesService:
     """Service for fetching and caching exchange rates from the ECB API,
     with support for inverting rates and filtering by currency."""
 
+    _cache: dict[int, pd.DataFrame] = {}
+    _cache_date: date | None = None
+
     def __init__(self):
-        self.cache_date = None
+        pass
 
     def get_exchange_rate(
         self, year: int, currency: str, invert: bool = False
@@ -63,18 +65,18 @@ class ExchangeRatesService:
               and currency or if there is an error fetching the data.
         """
         if (
-            self.cache_date is None
-            or (date.today() - self.cache_date).total_seconds()
+            ExchangeRatesService._cache_date is None
+            or (date.today() - ExchangeRatesService._cache_date).total_seconds()
             > ECB_EXR_CACHE_TIMEOUT_HOURS * 3600
         ):
             self.clear_cache()
-            self.cache_date = date.today()
+            ExchangeRatesService._cache_date = date.today()
 
-        if year in ECB_EXR_CACHE:
-            return ECB_EXR_CACHE[year]
+        if year in ExchangeRatesService._cache:
+            return ExchangeRatesService._cache[year]
 
         exchange_rates = self.get_exchange_rates_with_eur(year)
-        ECB_EXR_CACHE[year] = exchange_rates
+        ExchangeRatesService._cache[year] = exchange_rates
         return exchange_rates
 
     def get_exchange_rates_with_eur(
@@ -149,4 +151,5 @@ class ExchangeRatesService:
     @staticmethod
     def clear_cache():
         """Clear the ECB exchange rate cache."""
-        ECB_EXR_CACHE.clear()
+        ExchangeRatesService._cache.clear()
+        ExchangeRatesService._cache_date = None
