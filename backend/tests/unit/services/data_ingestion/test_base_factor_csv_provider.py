@@ -137,33 +137,6 @@ def test_resolve_data_entry_type_missing_multi():
 
 
 @pytest.mark.asyncio
-async def test_process_row_missing_factor_variant_for_travel():
-    provider = ConcreteFactorProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
-    )
-    stats = _build_stats()
-
-    setup_result = {
-        "expected_columns": {"data_entry_type_id"},
-        "valid_entry_types": [DataEntryTypeEnum.plane],
-        "factor_variant": None,
-    }
-
-    factor, error_msg = await provider._process_row(
-        row={"data_entry_type_id": str(DataEntryTypeEnum.plane.value)},
-        row_idx=1,
-        setup_result=setup_result,
-        stats=stats,
-        max_row_errors=5,
-        factor_service=MagicMock(),
-    )
-
-    assert factor is None
-    assert "Missing factor_variant" in error_msg
-    assert stats["rows_skipped"] == 1
-
-
-@pytest.mark.asyncio
 async def test_process_row_validation_error_records_error(monkeypatch):
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
@@ -182,7 +155,6 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     setup_result = {
         "expected_columns": {"data_entry_type_id"},
         "valid_entry_types": [DataEntryTypeEnum.member],
-        "factor_variant": None,
     }
 
     factor, error_msg = await provider._process_row(
@@ -228,7 +200,6 @@ async def test_process_row_success(monkeypatch):
     setup_result = {
         "expected_columns": {"data_entry_type_id"},
         "valid_entry_types": [DataEntryTypeEnum.member],
-        "factor_variant": None,
     }
 
     factor, error_msg = await provider._process_row(

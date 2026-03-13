@@ -15,6 +15,7 @@ from app.modules.headcount.schemas import (
     HeadCountStudentUpdate,
     HeadCountUpdate,
 )
+from app.modules.process_emissions.schemas import ProcessEmissionsHandlerCreate
 from app.modules.professional_travel.schemas import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
@@ -22,6 +23,7 @@ from app.modules.professional_travel.schemas import (
 from app.modules.purchase.schemas import (
     PurchaseHandlerCreate,
 )
+from app.modules.research_facilities.schemas import ResearchFacilitiesHandlerCreate
 
 __all__ = [
     "BuildingRoomHandlerCreate",
@@ -33,7 +35,9 @@ __all__ = [
     "HeadCountUpdate",
     "HeadCountStudentCreate",
     "HeadCountStudentUpdate",
+    "ProcessEmissionsHandlerCreate",
     "ProfessionalTravelPlaneHandlerCreate",
     "ProfessionalTravelTrainHandlerCreate",
     "PurchaseHandlerCreate",
+    "ResearchFacilitiesHandlerCreate",
 ]

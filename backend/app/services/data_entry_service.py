@@ -72,6 +72,34 @@ class DataEntryService:
             aggregate_field=aggregate_field,
         )
 
+    async def check_json_field_unique(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        field: str,
+        value: str,
+        exclude_id: Optional[int] = None,
+    ) -> bool:
+        """Check whether a JSON data field value is unique within a submodule.
+
+        Args:
+            carbon_report_module_id: The module to scope the check to.
+            data_entry_type_id: The submodule type.
+            field: The JSON key inside the entry data to check.
+            value: The value that must be unique.
+            exclude_id: Optional entry ID to exclude (for PATCH uniqueness checks).
+
+        Returns:
+            True if the value is unique, False otherwise.
+        """
+        return await self.repo.check_json_field_unique(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            field=field,
+            value=value,
+            exclude_id=exclude_id,
+        )
+
     async def create(
         self,
         carbon_report_module_id: int,
@@ -118,7 +146,7 @@ class DataEntryService:
             change_type=AuditChangeTypeEnum.CREATE,
             changed_by=user.id,
             change_reason="Initial creation",
-            handler_id=user.provider_code,
+            handler_id=user.institutional_id,
             handled_ids=handled_ids,
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
@@ -151,7 +179,7 @@ class DataEntryService:
                     changed_by = int(job_id)
                 except (TypeError, ValueError):
                     changed_by = None
-            handler_id = user.provider_code if user else "csv_ingestion"
+            handler_id = user.institutional_id if user else "csv_ingestion"
 
             # Build list of version metadata for bulk creation
             versions_data = []
@@ -250,7 +278,7 @@ class DataEntryService:
                     "change_type": AuditChangeTypeEnum.DELETE,
                     "changed_by": user.id,
                     "change_reason": "Bulk data entry deletion",
-                    "handler_id": user.provider_code,
+                    "handler_id": user.institutional_id,
                     "handled_ids": handled_ids_map.get(entry.id, []),
                     "ip_address": request_context.get("ip_address"),
                     "route_path": request_context.get("route_path"),
@@ -309,7 +337,7 @@ class DataEntryService:
                 change_type=AuditChangeTypeEnum.UPDATE,
                 changed_by=user.id,
                 change_reason="Data entry updated",
-                handler_id=user.provider_code,
+                handler_id=user.institutional_id,
                 handled_ids=handled_ids,
                 ip_address=request_context.get("ip_address"),
                 route_path=request_context.get("route_path"),
@@ -360,7 +388,7 @@ class DataEntryService:
             change_type=AuditChangeTypeEnum.DELETE,
             changed_by=current_user.id,
             change_reason="Data entry deleted",
-            handler_id=current_user.provider_code,
+            handler_id=current_user.institutional_id,
             handled_ids=handled_ids,
             ip_address=request_context.get("ip_address"),
             route_path=request_context.get("route_path"),
@@ -473,7 +501,7 @@ class DataEntryService:
                     f"carbon_report_module_id {carbon_report_module_id} "
                     f"and data_entry_type_id {data_entry_type_id}"
                 ),
-                handler_id=current_user.provider_code,
+                handler_id=current_user.institutional_id,
                 handled_ids=extracted_handled_ids,
                 ip_address=request_context.get("ip_address"),
                 route_path=request_context.get("route_path"),
@@ -496,4 +524,40 @@ class DataEntryService:
             field_name=field_name,
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
+        )
+
+    async def get_headcount_members(
+        self,
+        carbon_report_module_id: int,
+    ) -> list[dict]:
+        """Return members with an institutional ID for dropdown population.
+
+        Args:
+            carbon_report_module_id: The headcount module to query.
+
+        Returns:
+            List of dicts with ``institutional_id`` and ``name`` keys, ordered by name.
+
+        """
+        return await self.repo.get_headcount_members(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+
+    async def get_member_by_institutional_id(
+        self,
+        carbon_report_module_id: int,
+        institutional_id: str,
+    ) -> Optional[DataEntry]:
+        """Look up a headcount member by their institutional ID.
+
+        Args:
+            carbon_report_module_id: The headcount module to scope the search.
+            institutional_id: The institutional ID to look up.
+
+        Returns:
+            The matching ``DataEntry``, or ``None`` if not found.
+        """
+        return await self.repo.get_member_by_institutional_id(
+            carbon_report_module_id=carbon_report_module_id,
+            institutional_id=institutional_id,
         )

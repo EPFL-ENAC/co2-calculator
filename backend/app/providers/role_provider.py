@@ -4,7 +4,6 @@ This module provides an abstract base class and implementations for fetching
 user roles from different sources (JWT claims, EPFL Accred API, etc.).
 """
 
-import hashlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
@@ -13,6 +12,12 @@ import httpx
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
+from app.providers.test_fixtures import (
+    TEST_ROLES,
+    TEST_USERS,
+    get_test_role_by_user_id,
+    make_test_user_id,
+)
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -170,7 +175,7 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(provider_code=scope_id),
+                            on=RoleScope(institutional_id=scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
@@ -227,7 +232,7 @@ class TestRoleProvider(RoleProvider):
             User ID as a string
         """
         user_id = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
-        return self._make_user_id(f"testuser_{user_id}")
+        return make_test_user_id(f"testuser_{user_id}")
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Return test roles for a user.
@@ -239,43 +244,11 @@ class TestRoleProvider(RoleProvider):
             List of test Role objects
         """
         requested_role = userinfo.get("requested_role", RoleName.CO2_USER_STD.value)
-        # Create roles based on requested role
-        TEST_UNIT_PROVIDER_CODE = "12345"
-        # TEST_UNIT_PROVIDER_CODE = "10446"
-        roles: List[Role] = []
-        if requested_role == RoleName.CO2_USER_STD.value:
-            roles = [
-                Role(
-                    role=RoleName.CO2_USER_STD,
-                    on=RoleScope(
-                        provider_code=TEST_UNIT_PROVIDER_CODE,
-                        affiliation="testaffiliation",
-                    ),
-                )
-            ]
-        elif requested_role == RoleName.CO2_USER_PRINCIPAL.value:
-            roles = [
-                Role(
-                    role=RoleName.CO2_USER_PRINCIPAL,
-                    on=RoleScope(
-                        provider_code=TEST_UNIT_PROVIDER_CODE,
-                        affiliation="testaffiliation",
-                    ),
-                )
-            ]
-        elif requested_role == RoleName.CO2_BACKOFFICE_METIER.value:
-            roles = [
-                Role(
-                    role=RoleName.CO2_BACKOFFICE_METIER,
-                    on=RoleScope(affiliation="testaffiliation"),
-                )
-            ]
-        elif requested_role == RoleName.CO2_SUPERADMIN.value:
-            roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope(scope="global"))]
-        else:
-            roles = []
-
-        return roles
+        try:
+            role_name = RoleName(requested_role)
+        except ValueError:
+            return []
+        return list(TEST_ROLES.get(role_name, []))
 
     async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
         """Return test user info by user ID.
@@ -286,15 +259,25 @@ class TestRoleProvider(RoleProvider):
             User info dict for the test user
         """
         roles = await self.get_roles_by_user_id(user_id)
-        user_insert = {
-            "provider_code": user_id,
+        role_name = get_test_role_by_user_id(user_id)
+        if role_name and role_name in TEST_USERS:
+            user_data = TEST_USERS[role_name]
+            return {
+                "institutional_id": user_data["institutional_id"],
+                "provider": self.type,
+                "email": user_data["email"],
+                "display_name": user_data["display_name"],
+                "function": user_data["function"],
+                "roles": roles,
+            }
+        return {
+            "institutional_id": user_id,
             "provider": self.type,
-            "email": f"{user_id}@testprovider.local",
+            "email": f"{user_id}@example.org",
             "display_name": f"Test User {user_id}",
             "function": "Tester",
             "roles": roles,
         }
-        return user_insert
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
         """Return test roles for a user by their user ID.
@@ -304,19 +287,10 @@ class TestRoleProvider(RoleProvider):
         Returns:
             List of test Role objects
         """
-        # From user_id, find the requested role
-        for role_name in RoleName.__members__.values():
-            # Make a consistent 10-digit user ID based on user_id
-            role_user_id = self._make_user_id(f"testuser_{role_name.value}")
-            if user_id == role_user_id:
-                userinfo = {"requested_role": role_name.value}
-                return await self.get_roles(userinfo)
-        # No matching test user found
+        role_name = get_test_role_by_user_id(user_id)
+        if role_name:
+            return list(TEST_ROLES.get(role_name, []))
         return []
-
-    def _make_user_id(self, user_id: str) -> str:
-        """Make a consistent 10-digit user ID based on user_id."""
-        return str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
 
 
 class AccredRoleProvider(RoleProvider):
@@ -346,21 +320,21 @@ class AccredRoleProvider(RoleProvider):
             )
 
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
-        """Get provider code for a user.
+        """Get institutional ID for a user.
 
         Args:
             userinfo: OAuth userinfo dict from the identity provider
         Returns:
-            Provider code as a string
+            Institutional ID as a string
         """
-        provider_code = userinfo.get("uniqueid")  # return user_id as str
-        if not provider_code:
+        user_id = userinfo.get("uniqueid")  # return user_id as str
+        if not user_id:
             logger.warning(
                 "No user ID found in userinfo",
                 extra={"userinfo": userinfo},
             )
             raise ValueError("User ID is required for Accred role provider")
-        return str(provider_code)
+        return str(user_id)
 
     async def get_roles(self, userinfo: Dict[str, Any]) -> List[Role]:
         """Fetch roles from EPFL Accred API.
@@ -420,7 +394,7 @@ class AccredRoleProvider(RoleProvider):
                 extra={"user_id": user_id},
             )
             user_insert = {
-                "provider_code": str(data.get("id")),  # provider user id
+                "institutional_id": str(data.get("id")),  # provider user id
                 "provider": self.type,
                 "email": data.get("email"),
                 "display_name": data.get("display"),
@@ -470,7 +444,7 @@ class AccredRoleProvider(RoleProvider):
         """
         return User(
             provider=self.type,
-            provider_code=str(user_raw.get("id")),
+            institutional_id=str(user_raw.get("id")),
             display_name=user_raw.get("display"),
             email=user_raw.get("email") or f"{user_raw.get('canon')}@epfl.ch",
             function=user_raw.get("function", None),
@@ -577,7 +551,7 @@ class AccredRoleProvider(RoleProvider):
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(provider_code=str(accred_unit_id)),
+                            on=RoleScope(institutional_id=str(accred_unit_id)),
                         )
                     )
 
@@ -631,7 +605,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     Raises:
         ValueError: If an unknown provider type is configured
     """
-    if not provider_type:
+    if provider_type is None:
         provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == UserProvider.DEFAULT:

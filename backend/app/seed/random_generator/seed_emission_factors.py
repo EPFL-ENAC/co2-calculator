@@ -33,47 +33,6 @@ CSV_PATH = (
 )
 
 
-# DEPRECATED -
-async def seed_emission_factors(session: AsyncSession) -> None:
-    """Seed initial emission factors."""
-    logger.info("Seeding emission factors...")
-
-    # Check if Swiss mix factor already exists
-    result = await session.exec(
-        select(Factor).where(Factor.emission_type_id == EmissionType.energy)
-    )
-    existing = result.first()
-
-    if existing:
-        logger.info("Swiss electricity mix emission factor already exists, skipping")
-        return
-
-    # Create Swiss electricity mix emission factor
-    factor = Factor(
-        emission_type_id=EmissionType.energy,  # energy
-        is_conversion=True,
-        data_entry_type_id=DataEntryTypeEnum.energy_mix,
-        classification={
-            "region": "Switzerland",
-            "source": "Swiss Federal Office of Energy (SFOE)",
-            "unit": "kgCO2eq/kWh",
-            "description": "Swiss electricity consumption mix",
-            "methodology": "Life cycle analysis",
-        },
-        values={"kgco2eq_per_kwh": settings.EMISSION_FACTOR_SWISS_MIX},
-    )
-
-    session.add(factor)
-    await session.commit()
-    factor_value = factor.values.get("kgco2eq_per_kwh") or factor.values.get(
-        "kg_co2eq_per_kwh"
-    )
-    logger.info(
-        f"Created emission factor: {factor.classification['description']}"
-        f" = {factor_value} kgCO2eq/kWh"
-    )
-
-
 async def seed_power_factors(session: AsyncSession) -> None:
     """Seed power factors from table_power.csv."""
     logger.info("Seeding power factors from CSV...")

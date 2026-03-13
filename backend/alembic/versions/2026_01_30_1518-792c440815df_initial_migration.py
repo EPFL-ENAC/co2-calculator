@@ -439,7 +439,7 @@ def upgrade() -> None:
         sa.Column("number_of_trips", sa.Integer(), nullable=False),
         sa.Column("unit_id", sa.Integer(), nullable=False),
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("traveler_id", sa.Integer(), nullable=True),
+        sa.Column("user_institutional_id", sa.Integer(), nullable=True),
         sa.Column(
             "provider",
             sa.Enum("ACCRED", "DEFAULT", "TEST", name="user_provider_enum"),

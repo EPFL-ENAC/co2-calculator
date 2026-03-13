@@ -68,7 +68,12 @@
               :class="['form-field', getGridClass(getDynamicRatio(inp))]"
             >
               <template
-                v-if="inp.disableUntilField && !form[inp.disableUntilField]"
+                v-if="
+                  (inp.disableUntilField && !form[inp.disableUntilField]) ||
+                  (inp.optionsId === 'subkind' &&
+                    !loadingSubclasses &&
+                    (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
+                "
               >
                 <div class="subclass-placeholder" />
               </template>
@@ -172,6 +177,21 @@
                   @from-location-selected="handleFromLocationSelected"
                   @to-location-selected="handleToLocationSelected"
                   @swap="handleSwapLocations"
+                />
+              </template>
+              <template v-else-if="inp.type === 'headcount-member-select'">
+                <HeadcountMemberSelect
+                  :model-value="form[inp.id] ?? null"
+                  :unit-id="props.unitId"
+                  :year="props.year"
+                  :label="
+                    $t(`${inp.labelKey || inp.label}`, {
+                      submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                    })
+                  "
+                  :error="!!errors[inp.id]"
+                  :error-message="errors[inp.id] ?? ''"
+                  @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
               <component
@@ -296,6 +316,7 @@ import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
@@ -568,6 +589,15 @@ function init() {
       form[key] = props.rowData[key];
       errors[key] = null;
     });
+    // Pre-populate DirectionInput display text from the identifier fields
+    form.origin =
+      (props.rowData.origin_iata as string) ||
+      (props.rowData.origin_name as string) ||
+      '';
+    form.destination =
+      (props.rowData.destination_iata as string) ||
+      (props.rowData.destination_name as string) ||
+      '';
     return;
   }
   visibleFields.value.forEach((i) => {
@@ -601,16 +631,24 @@ function init() {
             // Initialize origin and destination fields separately
             if (!form.origin) form.origin = '';
             if (!form.destination) form.destination = '';
-            // Initialize location IDs (only for new entries, not editing)
+            // Location IDs — only for distance preview, NOT sent to backend
             if (!props.rowData) {
-              if (!form.origin_location_id) form.origin_location_id = undefined;
-              if (!form.destination_location_id)
-                form.destination_location_id = undefined;
+              form.origin_location_id = undefined;
+              form.destination_location_id = undefined;
+              // Identifier fields sent to backend
+              form.origin_iata = undefined;
+              form.destination_iata = undefined;
+              form.origin_name = undefined;
+              form.destination_name = undefined;
             }
             break;
           default:
-            // Use null for select fields, empty string for text fields
-            form[i.id] = effectiveType === 'select' ? null : '';
+            // Use null for select/headcount-member-select, empty string for text
+            form[i.id] =
+              effectiveType === 'select' ||
+              effectiveType === 'headcount-member-select'
+                ? null
+                : '';
         }
       }
     }
@@ -698,7 +736,10 @@ function validateField(i: ModuleField) {
   const effectiveType = i.type;
   errors[i.id] = null;
 
-  if (i.id === 'active_usage_hours' || i.id === 'passive_usage_hours') {
+  if (
+    i.id === 'active_usage_hours_per_week' ||
+    i.id === 'standby_usage_hours_per_week'
+  ) {
     const validation = validateUsage(v);
     if (!validation.valid) {
       errors[i.id] = validation.error;
@@ -738,6 +779,14 @@ function validateField(i: ModuleField) {
     }
 
     return !errors.origin && !errors.destination;
+  }
+
+  // Skip validation for subkind fields with no available options (class has no sub-classes)
+  if (
+    i.optionsId === 'subkind' &&
+    (filteredOptionsMap.value[i.id]?.length ?? 0) === 0
+  ) {
+    return true;
   }
 
   if (i.required) {
@@ -784,6 +833,8 @@ function buildPayload(): Record<
     'destination_location_data',
     'origin',
     'destination',
+    'origin_location_id',
+    'destination_location_id',
     'round_trip',
     'distance_km',
     'kg_co2eq',
@@ -803,17 +854,14 @@ function buildPayload(): Record<
     }
   });
 
-  if (
-    !props.rowData &&
-    form.origin_location_id !== undefined &&
-    form.destination_location_id !== undefined
-  ) {
-    payload.origin_location_id = form.origin_location_id as number;
-    payload.destination_location_id = form.destination_location_id as number;
-  }
-
   return payload;
 }
+
+function setFieldError(fieldId: string, error: string | null) {
+  errors[fieldId] = error;
+}
+
+defineExpose({ setFieldError });
 
 function onSubmit() {
   if (!validateForm()) return;
@@ -842,13 +890,21 @@ function reset() {
       // Clear origin and destination fields
       form.origin = '';
       form.destination = '';
-      // Reset location IDs
+      // Reset location IDs and identifier fields
       form.origin_location_id = undefined;
       form.destination_location_id = undefined;
       form.distance_km = null;
+      form.origin_iata = undefined;
+      form.destination_iata = undefined;
+      form.origin_name = undefined;
+      form.destination_name = undefined;
     } else {
-      // Use null for select fields, empty string for text fields
-      form[i.id] = effectiveType === 'select' ? null : '';
+      // Use null for select/headcount-member-select, empty string for text
+      form[i.id] =
+        effectiveType === 'select' ||
+        effectiveType === 'headcount-member-select'
+          ? null
+          : '';
     }
     errors[i.id] = null;
   });
@@ -872,10 +928,21 @@ async function handleFromLocationSelected(location: {
   name: string;
   latitude: number;
   longitude: number;
+  iata_code: string | null;
+  country_code: string | null;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
+
   form.origin_location_id = location.id;
+
+  // Store the correct identifier for the backend payload
+  if (travelMode === 'plane') {
+    form.origin_iata = location.iata_code ?? location.name;
+  } else {
+    form.origin_name = location.name;
+  }
+
   if (
     form.destination_location_id === undefined ||
     form.destination_location_id === null
@@ -896,10 +963,20 @@ async function handleToLocationSelected(location: {
   name: string;
   latitude: number;
   longitude: number;
+  iata_code: string | null;
+  country_code: string | null;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
   form.destination_location_id = location.id;
+
+  // Store the correct identifier for the backend payload
+  if (travelMode === 'plane') {
+    form.destination_iata = location.iata_code ?? location.name;
+  } else {
+    form.destination_name = location.name;
+  }
+
   if (
     form.origin_location_id === undefined ||
     form.origin_location_id === null
@@ -924,6 +1001,20 @@ async function handleSwapLocations() {
 
   form.origin_location_id = oldDestinationId;
   form.destination_location_id = oldOriginId;
+
+  // Swap identifiers
+  if (travelMode === 'plane') {
+    [form.origin_iata, form.destination_iata] = [
+      form.destination_iata,
+      form.origin_iata,
+    ];
+  } else {
+    [form.origin_name, form.destination_name] = [
+      form.destination_name,
+      form.origin_name,
+    ];
+  }
+
   if (
     form.origin_location_id === undefined ||
     form.origin_location_id === null ||

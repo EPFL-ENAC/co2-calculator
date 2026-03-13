@@ -225,7 +225,7 @@ async def login_test(
     user = await UserService(db).upsert_user(
         id=None,
         email=email,
-        provider_code=code,
+        institutional_id=code,
         display_name=f"Test User: {sanitized_role}",
         roles=roles,
         provider=UserProvider.TEST,
@@ -254,14 +254,14 @@ async def login_test(
         request=request,
         change_type=AuditChangeTypeEnum.CREATE,
         change_reason="User login (test)",
-        handler_id=user.provider_code or str(user.id),
+        handler_id=user.institutional_id or str(user.id),
         changed_by=user.id,
-        handled_ids=[user.provider_code] if user.provider_code else [],
+        handled_ids=[user.institutional_id] if user.institutional_id else [],
         data_snapshot={
             "event": "login_test",
             "user_id": user.id,
             "email": user.email,
-            "provider_code": user.provider_code,
+            "institutional_id": user.institutional_id,
         },
         entity_id=user.id or 0,
     )
@@ -331,10 +331,10 @@ async def auth_callback(
 
         # Fetch roles using configured role provider
         role_provider = get_role_provider()
-        provider_code = role_provider.get_user_id(user_info)
+        institutional_id = role_provider.get_user_id(user_info)
         # fetch user and roles?
         try:
-            provider_user = await role_provider.get_user_by_user_id(provider_code)
+            provider_user = await role_provider.get_user_by_user_id(institutional_id)
         except RoleProviderNetworkError as e:
             logger.error(
                 "Cannot authenticate: external service unavailable",
@@ -351,7 +351,7 @@ async def auth_callback(
                 "email": provider_user.get("email", email),
                 "function": provider_user.get("function", None),
                 "display_name": provider_user.get("display_name", display_name),
-                "has_user_id": bool(provider_code),
+                "has_user_id": bool(institutional_id),
                 "roles_count": len(provider_user.get("roles", [])),
             },
         )
@@ -360,7 +360,7 @@ async def auth_callback(
         user = await UserService(db).upsert_user(
             id=None,
             email=provider_user.get("email", email),
-            provider_code=provider_user.get("code", provider_code),
+            institutional_id=provider_user.get("code", institutional_id),
             display_name=provider_user.get("display_name", display_name),
             roles=provider_user.get("roles", []),
             function=provider_user.get("function", None),
@@ -395,14 +395,14 @@ async def auth_callback(
             request=request,
             change_type=AuditChangeTypeEnum.CREATE,
             change_reason="User login",
-            handler_id=user.provider_code or str(user.id),
+            handler_id=user.institutional_id or str(user.id),
             changed_by=user.id,
-            handled_ids=[user.provider_code] if user.provider_code else [],
+            handled_ids=[user.institutional_id] if user.institutional_id else [],
             data_snapshot={
                 "event": "login",
                 "user_id": user.id,
                 "email": user.email,
-                "provider_code": user.provider_code,
+                "institutional_id": user.institutional_id,
             },
             entity_id=user.id or 0,
         )
@@ -612,14 +612,14 @@ async def refresh_token(
                 request=request,
                 change_type=AuditChangeTypeEnum.UPDATE,
                 change_reason="Token refreshed",
-                handler_id=user.provider_code or str(user.id),
+                handler_id=user.institutional_id or str(user.id),
                 changed_by=user.id,
-                handled_ids=[user.provider_code] if user.provider_code else [],
+                handled_ids=[user.institutional_id] if user.institutional_id else [],
                 data_snapshot={
                     "event": "refresh",
                     "user_id": user.id,
                     "email": user.email,
-                    "provider_code": user.provider_code,
+                    "institutional_id": user.institutional_id,
                 },
                 entity_id=user.id or 0,
             )
@@ -677,8 +677,8 @@ async def logout(
             handler_id = "unknown"
             if user_id:
                 user = await UserService(db).get_by_id(user_id)
-                if user and user.provider_code:
-                    handler_id = user.provider_code
+                if user and user.institutional_id:
+                    handler_id = user.institutional_id
 
             await _log_auth_audit_event(
                 db=db,

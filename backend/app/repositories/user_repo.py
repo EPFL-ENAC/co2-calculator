@@ -40,10 +40,10 @@ class UserRepository:
         entity = result.one_or_none()
         return entity
 
-    async def get_by_code(self, provider_code: str) -> Optional[User]:
-        """Get user by code."""
+    async def get_by_code(self, institutional_id: str) -> Optional[User]:
+        """Get user by institutional_id."""
         result = await self.session.exec(
-            select(User).where(User.provider_code == provider_code)
+            select(User).where(User.institutional_id == institutional_id)
         )
         entity = result.one_or_none()
         return entity
@@ -56,7 +56,7 @@ class UserRepository:
 
     async def create(
         self,
-        provider_code: str,
+        institutional_id: str,
         email: str = "",
         display_name: Optional[str] = None,
         roles: Optional[List[Role]] = None,
@@ -66,7 +66,7 @@ class UserRepository:
         """Create a new user."""
         now = datetime.now(timezone.utc)
         entity = User(
-            provider_code=provider_code,
+            institutional_id=institutional_id,
             email=email,
             display_name=display_name,
             roles=roles or [],
@@ -119,14 +119,14 @@ class UserRepository:
     async def bulk_upsert(self, users: List[User]) -> UpsertUserResult:
         if not users:
             return UpsertUserResult(created=0, updated=0, total=0, data=[])
-        rows = (await self.session.exec(select(User.provider_code, User.id))).all()
+        rows = (await self.session.exec(select(User.institutional_id, User.id))).all()
         existing: dict[str, int] = {code: uid for code, uid in rows if uid is not None}
 
         created = len(users) - len(existing)
         updated = len(existing)
         merged = []
         for user in users:
-            user.id = existing.get(user.provider_code)
+            user.id = existing.get(user.institutional_id)
             result = await self.session.merge(user)
             merged.append(result)
         return UpsertUserResult(

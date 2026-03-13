@@ -208,7 +208,7 @@ const importRows: ImportRow[] = [
 
 /**
  * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
- * For headcount: CSV contains unit_id (provider_code) column.
+ * For headcount: CSV contains unit_id (institutional_id) column.
  * Backend resolves unit -> carbon_report_module_id per row.
  */
 const onFilesUploaded = async (filePaths: string[]) => {
@@ -219,6 +219,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
       color: 'negative',
       message: $t('csv_no_files_uploaded'),
       position: 'top',
+      closeBtn: true,
     });
     return;
   }
@@ -306,6 +307,14 @@ const onFilesUploaded = async (filePaths: string[]) => {
           position: 'top',
         });
         console.error('Sync failed:', payload);
+      },
+      () => {
+        $q.notify({
+          color: 'negative',
+          message: $t('csv_sync_connection_lost'),
+          position: 'top',
+          timeout: 30000,
+        });
       },
     );
 

@@ -83,12 +83,6 @@ class Factor(FactorBase, table=True):
             data_entry_type_id=1 (member),
             classification={},
             values={'kg_co2eq_per_fte': 420}
-
-        Energy mix (conversion factor):
-            emission_type_id=1, is_conversion=true,
-            data_entry_type_id=100 (energy_mix),
-            classification={'region': 'CH'},
-            values={'kg_co2eq_per_kwh': 0.012}
     """
 
     __tablename__ = "factors"

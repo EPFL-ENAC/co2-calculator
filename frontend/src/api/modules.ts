@@ -60,6 +60,32 @@ export interface ResultsSummary {
 }
 
 /**
+ * Dropdown item returned by GET /modules/{unitId}/{year}/headcount/members.
+ */
+export interface HeadcountMemberDropdownItem {
+  institutional_id: number;
+  name: string;
+}
+
+/**
+ * Fetch headcount members that have an institutional_id, for the traveler dropdown.
+ *
+ * @param unitId - Unit ID
+ * @param year - Reporting year
+ * @returns Ordered list of members with institutional_id and name
+ */
+export async function getHeadcountMembers(
+  unitId: number,
+  year: number | string,
+): Promise<HeadcountMemberDropdownItem[]> {
+  const unitEncoded = encodeURIComponent(unitId);
+  const yearEncoded = encodeURIComponent(String(year));
+  return api
+    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`)
+    .json<HeadcountMemberDropdownItem[]>();
+}
+
+/**
  * Fetch the results summary for a carbon report.
  *
  * @param carbonReportId - Carbon report ID

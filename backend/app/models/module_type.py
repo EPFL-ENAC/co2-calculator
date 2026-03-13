@@ -27,7 +27,7 @@ class ModuleTypeEnum(IntEnum):
     buildings = 3
     equipment_electric_consumption = 4
     purchase = 5
-    internal_services = 6
+    research_facilities = 6
     external_cloud_and_ai = 7
     process_emissions = 8
     # Chart-only bars (headcount-derived, not real input modules)
@@ -87,9 +87,6 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.additional_purchases,
-    ],
-    ModuleTypeEnum.global_energy: [
-        DataEntryTypeEnum.energy_mix,
     ],
     # Add more if needed for other modules
 }

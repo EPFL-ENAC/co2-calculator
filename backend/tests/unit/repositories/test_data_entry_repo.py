@@ -718,3 +718,239 @@ async def test_fte_stats_empty(db_session: AsyncSession):
     repo = DataEntryRepository(db_session)
     result = await repo.get_stats_by_carbon_report_id(99999)
     assert result == {}
+
+
+# ======================================================================
+# Headcount Member Lookup Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_members_returns_members_with_institutional_id(
+    db_session: AsyncSession,
+):
+    """Members with a user_institutional_id are returned ordered by name."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={"name": "Zara Ali", "user_institutional_id": "200002"},
+            ),
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    result = await repo.get_headcount_members(module.id)
+
+    assert len(result) == 2
+    # ordered by name ascending
+    assert result[0]["name"] == "Alice Dupont"
+    assert result[0]["institutional_id"] == 100001
+    assert result[1]["name"] == "Zara Ali"
+    assert result[1]["institutional_id"] == 200002
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_members_excludes_entries_without_institutional_id(
+    db_session: AsyncSession,
+):
+    """Members missing user_institutional_id are excluded from the result."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+            ),
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={"name": "No-ID Member"},
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    result = await repo.get_headcount_members(module.id)
+
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice Dupont"
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_members_excludes_non_member_types(
+    db_session: AsyncSession,
+):
+    """Non-member data entries in the same module are not included."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+            ),
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.plane,
+                data={"name": "Some Trip", "user_institutional_id": "999999"},
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    result = await repo.get_headcount_members(module.id)
+
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice Dupont"
+
+
+@pytest.mark.asyncio
+async def test_get_headcount_members_empty_module(db_session: AsyncSession):
+    """No entries → empty list."""
+    repo = DataEntryRepository(db_session)
+    result = await repo.get_headcount_members(99999)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_member_by_institutional_id_found(db_session: AsyncSession):
+    """Returns the matching DataEntry when the institutional ID exists."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    result = await repo.get_member_by_institutional_id(module.id, "100001")
+
+    assert result is not None
+    assert result.id == entry.id
+    assert result.data["user_institutional_id"] == "100001"
+
+
+@pytest.mark.asyncio
+async def test_get_member_by_institutional_id_not_found(db_session: AsyncSession):
+    """Returns None when no entry matches the institutional ID."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    result = await repo.get_member_by_institutional_id(module.id, "999999")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_member_by_institutional_id_scoped_to_module(
+    db_session: AsyncSession,
+):
+    """Does not return a match from a different module."""
+    repo = DataEntryRepository(db_session)
+
+    module_a = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    module_b = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add_all([module_a, module_b])
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module_a.id,
+            data_entry_type_id=DataEntryTypeEnum.member,
+            data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+        )
+    )
+    await db_session.flush()
+
+    # Looking up from module_b should find nothing
+    result = await repo.get_member_by_institutional_id(module_b.id, "100001")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_member_by_institutional_id_ignores_non_member_types(
+    db_session: AsyncSession,
+):
+    """A matching institutional_id on a non-member entry is not returned."""
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+            data={"name": "Alice Dupont", "user_institutional_id": "100001"},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_member_by_institutional_id(module.id, "100001")
+    assert result is None

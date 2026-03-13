@@ -33,7 +33,7 @@ async def test_get(repo):
 @pytest.mark.asyncio
 async def test_create(repo):
     factor = Factor(
-        emission_type_id=EmissionType.energy,
+        emission_type_id=EmissionType.food,
         data_entry_type_id=DataEntryTypeEnum.member,
         classification={},
         values={},
@@ -54,7 +54,7 @@ async def test_create(repo):
 async def test_bulk_create(repo):
     factors = [
         Factor(
-            emission_type_id=EmissionType.energy,
+            emission_type_id=EmissionType.food,
             data_entry_type_id=DataEntryTypeEnum.member,
             classification={},
             values={},
@@ -151,7 +151,11 @@ async def test_get_class_subclass_map(repo):
     result_mock.all.return_value = factors
     repo.session.exec = AsyncMock(return_value=result_mock)
 
-    result = await repo.get_class_subclass_map(DataEntryTypeEnum.scientific)
+    result = await repo.get_class_subclass_map(
+        DataEntryTypeEnum.scientific,
+        kind_field="kind",
+        subkind_field="subkind",
+    )
 
     assert result == {"ClassA": ["SubA1", "SubA2"], "ClassB": ["SubB1"]}
 

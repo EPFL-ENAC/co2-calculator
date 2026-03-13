@@ -32,7 +32,18 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.39.1",
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
+    "pandas>=3.0.1",
 ]
+
+[project.scripts]
+exchange-rates = "app.exchange_rates:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = "src"
@@ -108,6 +119,9 @@ script_location = "%(here)s/alembic"
 
 # additional paths to be prepended to sys.path. defaults to the current working directory.
 prepend_sys_path = ["."]
+
+[tool.uv]
+package = true
 
 [tool.uv.sources]
 enacit4r-files = { git = "https://github.com/EPFL-ENAC/enacit4r-files", tag = "1.0.0" }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import { api } from 'src/api/http';
 import { Module } from 'src/constant/modules';
+import { getModuleTypeId } from 'src/constant/moduleStates';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -119,7 +120,7 @@ export const useBackofficeDataManagement = defineStore(
     /*
   # example of payload:
 # {
-#   "provider_type": "tableau_api", | should be more like csv | api 
+#   "provider_type": "tableau_api", | should be more like csv | api
 #   "year": 2023,
 #   "filters": {"date_from": "2023-01-01", "date_to": "2023-12-31"},
 #   "config": {"site_id": "mysite", "project_id": "myproject"}
@@ -226,6 +227,7 @@ provider_type
       jobId?: number,
       onCompleted?: (payload?: JobUpdatePayload) => void,
       onFail?: (payload?: JobUpdatePayload) => void,
+      onError?: () => void,
     ): void {
       if (!jobId) {
         return;
@@ -290,6 +292,7 @@ provider_type
 
         sseConnection.onerror = () => {
           unsubscribeFromJobUpdates();
+          onError?.();
         };
       } catch (err) {
         console.error('Failed to establish SSE connection:', err);
@@ -315,25 +318,6 @@ provider_type
       unsubscribeFromJobUpdates();
     }
 
-    // Helper function to get module type ID from module
-    function getModuleTypeId(module: Module): number {
-      const moduleTypeIds: Record<Module, number> = {
-        headcount: 1,
-        'professional-travel': 2,
-        buildings: 3,
-        'equipment-electric-consumption': 4,
-        purchase: 5,
-        'internal-services': 6,
-        'external-cloud-and-ai': 7,
-        'process-emissions': 8,
-        commuting: 9,
-        food: 10,
-        waste: 11,
-        'grey-energy': 12,
-      };
-      return moduleTypeIds[module];
-    }
-
     return {
       loading,
       error,
@@ -346,7 +330,6 @@ provider_type
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       reset,
-      getModuleTypeId,
     };
   },
 );

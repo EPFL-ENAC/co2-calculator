@@ -18,26 +18,6 @@ async def create_factors(session: AsyncSession):
     """Create random factors for all data entry types and emission types."""
     factors = []
 
-    # Create conversion factors (energy mix factors)
-    regions = ["CH", "EU", "US", "CN", "IN"]
-    for region in regions:
-        factor = Factor(
-            emission_type_id=EmissionType.energy,
-            is_conversion=True,
-            data_entry_type_id=DataEntryTypeEnum.energy_mix,
-            classification={
-                "region": region,
-                "source": f"Energy mix data for {region}",
-                "unit": "kgCO2eq/kWh",
-                "description": f"Electricity consumption mix for {region}",
-                "methodology": "Life cycle analysis",
-            },
-            values={
-                "kg_co2eq_per_kwh": round(random.uniform(0.05, 0.5), 6),  # nosec B311
-            },
-        )
-        factors.append(factor)
-
     # Create equipment factors
     equipment_classes = [
         "Computers",
@@ -124,7 +104,6 @@ async def create_factors(session: AsyncSession):
     # Plane factors
     cabin_classes_type = [
         EmissionType.professional_travel__plane__eco,
-        EmissionType.professional_travel__plane__eco_plus,
         EmissionType.professional_travel__plane__business,
         EmissionType.professional_travel__plane__first,
     ]
@@ -197,7 +176,7 @@ async def create_factors(session: AsyncSession):
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_clouds,
                 classification={
-                    "cloud_provider": provider,
+                    "provider": provider,
                     "service_type": service,
                     "kind": provider,
                     "subkind": service,
@@ -239,8 +218,8 @@ async def create_factors(session: AsyncSession):
                 is_conversion=False,
                 data_entry_type_id=DataEntryTypeEnum.external_ai,
                 classification={
-                    "ai_provider": provider,
-                    "ai_use": use,
+                    "provider": provider,
+                    "usage_type": use,
                     "kind": provider,
                     "subkind": use,
                     "description": f"AI factor for {provider} {use}",

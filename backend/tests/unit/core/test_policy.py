@@ -37,10 +37,10 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("purchase")
         assert result == "modules.purchase"
 
-    def test_internal_services_module(self):
-        """Test mapping for internal-services module."""
-        result = _get_module_permission_path("internal-services")
-        assert result == "modules.internal_services"
+    def test_research_facilities_module(self):
+        """Test mapping for research-facilities module."""
+        result = _get_module_permission_path("research-facilities")
+        assert result == "modules.research_facilities"
 
     def test_external_cloud_and_ai_module(self):
         """Test mapping for external-cloud-and-ai module."""
@@ -250,7 +250,7 @@ class TestQueryPolicyPermissionCheck:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -346,7 +346,7 @@ class TestQueryPolicyDataFilter:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -406,7 +406,7 @@ class TestQueryPolicyResourceAccess:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },

@@ -1,5 +1,6 @@
 import csv
 import io
+import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -102,7 +103,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self.module_type_id = config.get("module_type_id")
         self.year = config.get("year")
         # Store the original file path from config
-        self.source_file_path = config.get("file_path")
+        raw_file_path = config.get("file_path")
+        self.source_file_path = (
+            urllib.parse.unquote(raw_file_path) if raw_file_path else None
+        )
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         # Lazy initialization - will be created when needed
@@ -211,7 +215,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         rows_to_check = 5
 
         # Validate using a separate reader
-        validation_reader = csv.DictReader(io.StringIO(csv_text))
+        validation_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
         first_rows = []
 
         try:
@@ -316,7 +320,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         - Upsert each unit via unit_service.upsert()
 
         Args:
-            missing_codes: List of unit provider_codes to fetch
+            missing_codes: List of unit institutional_ids to fetch
             batch_size: Number of units to fetch per API call (default: 100)
 
         Raises:
@@ -366,14 +370,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                 logger.info(
                                     "Creating minimal principal user record",
                                     extra={
-                                        "provider_code": (
+                                        "institutional_id": (
                                             unit.principal_user_institutional_id
                                         )
                                     },
                                 )
                                 await self.user_service.upsert_user(
                                     id=None,
-                                    provider_code=unit.principal_user_institutional_id,
+                                    institutional_id=unit.principal_user_institutional_id,
                                     email=f"{unit.principal_user_institutional_id}@placeholder.local",
                                     provider=job_user_provider,
                                 )
@@ -384,7 +388,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         logger.error(
                             f"Failed to upsert unit {unit.institutional_code}",
                             extra={
-                                "unit_provider_code": unit.institutional_code,
+                                "unit_institutional_code": unit.institutional_code,
                                 "error": str(e),
                             },
                         )
@@ -412,18 +416,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
         """
-        Pre-scan CSV to extract unique unit_ids (provider_codes)
+        Pre-scan CSV to extract unique unit_ids (institutional_ids)
         and resolve carbon_report_module_id.
 
-        Note: CSV column is named 'unit_id' but contains provider_codes
-        (strings), not DB IDs.
+        Note: CSV column is named 'unit_institutional_id'
 
-        For each unique provider_code:
+        For each unique institutional_id:
         - Check if carbon_report exists for (unit_id, year)
         - Create report if missing (auto-creates all 7 modules)
         - Extract carbon_report_module_id for self.module_type_id
 
-        Returns: {provider_code: carbon_report_module_id} mapping
+        Returns: {institutional_id: carbon_report_module_id} mapping
         """
         from app.repositories.unit_repo import UnitRepository
         from app.schemas.carbon_report import CarbonReportCreate
@@ -440,29 +443,30 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not module_type_id:
             raise ValueError("module_type_id is required for MODULE_PER_YEAR")
 
-        # Extract unique unit provider_codes from CSV (column is named 'unit_id')
-        csv_reader = csv.DictReader(io.StringIO(csv_text))
+        # Extract unique unit institutional_ids from CSV
+        # (column is named 'unit_institutional_id' to be explicit)
+        csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
         unit_codes = set()
         for row in csv_reader:
-            unit_code = row.get("unit_id")
+            unit_code = row.get("unit_institutional_id")
             if unit_code and unit_code.strip():
                 unit_codes.add(unit_code.strip())
 
         if not unit_codes:
             raise ValueError(
-                "No valid unit_id values found in CSV. "
+                "No valid unit_institutional_id values found in CSV. "
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
         logger.info(
-            f"Found {len(unit_codes)} unique unit provider_codes in CSV: "
+            f"Found {len(unit_codes)} unique unit institutional_ids in CSV: "
             f"{sorted(unit_codes)}"
         )
 
-        # Validate unit provider_codes exist to avoid FK violations
+        # Validate unit institutional_ids exist to avoid FK violations
         unit_repo = UnitRepository(self.data_session)
-        existing_units = await unit_repo.get_by_codes(list(unit_codes))
-        existing_codes = {unit.institutional_code for unit in existing_units}
+        existing_units = await unit_repo.get_by_institutional_ids(list(unit_codes))
+        existing_codes = {unit.institutional_id for unit in existing_units}
         missing_codes = sorted(unit_codes - existing_codes)
         if missing_codes:
             # Attempt to fetch and upsert missing units from provider
@@ -484,11 +488,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             unit_repo = UnitRepository(self.data_session)
             logger.info(
                 f"Reloading units after upsert - checking for "
-                f"{len(unit_codes)} provider_codes"
+                f"{len(unit_codes)} institutional_ids"
             )
 
-            existing_units = await unit_repo.get_by_codes(list(unit_codes))
-            existing_codes = {unit.institutional_code for unit in existing_units}
+            existing_units = await unit_repo.get_by_institutional_ids(list(unit_codes))
+            existing_codes = {unit.institutional_id for unit in existing_units}
             missing_codes = sorted(unit_codes - existing_codes)
 
             logger.info(
@@ -499,25 +503,25 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # If still missing after fetch attempt, fail
             if missing_codes:
                 raise ValueError(
-                    "Unknown unit_id values in CSV (could not fetch from provider): "
+                    "Unknown unit_institutional_id values in CSV (could not fetch): "
                     f"{', '.join(missing_codes)}"
                 )
 
-        # Build mapping of provider_code to unit.id for DB operations
-        unit_code_to_id = {unit.institutional_code: unit.id for unit in existing_units}
+        # Build mapping of institutional_id to unit.id for DB operations
+        unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
 
-        # Resolve carbon_report_module_id for each provider_code
+        # Resolve carbon_report_module_id for each institutional_id
         carbon_report_service = CarbonReportService(self.data_session)
         code_to_module_map: Dict[str, int] = {}
         reports_created = 0
         reports_reused = 0
 
-        for provider_code in unit_codes:
-            # Get the database ID for this provider_code
-            unit_id = unit_code_to_id.get(provider_code)
+        for unit_institutional_id in unit_codes:
+            # Get the database ID for this institutional_id
+            unit_id = unit_code_to_id.get(unit_institutional_id)
             if not unit_id:
                 raise ValueError(
-                    f"Unit with provider_code={provider_code} not found "
+                    f"Unit with institutional_id={unit_institutional_id} not found "
                     f"after validation"
                 )
 
@@ -529,7 +533,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if not carbon_report:
                 # Create new carbon report (auto-creates all 7 modules)
                 logger.info(
-                    f"Creating carbon_report for provider_code={provider_code} "
+                    "Creating carbon_report for "
+                    f"institutional_id={unit_institutional_id} "
                     f"(unit_id={unit_id}), year={self.year}"
                 )
                 carbon_report = await carbon_report_service.create(
@@ -552,8 +557,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     f"module_type_id={module_type_id}"
                 )
 
-            # Map provider_code (from CSV) to carbon_report_module_id
-            code_to_module_map[provider_code] = carbon_report_module.id
+            # Map institutional_id (from CSV) to carbon_report_module_id
+            code_to_module_map[unit_institutional_id] = carbon_report_module.id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
@@ -625,7 +630,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Process CSV rows
             batch: List[DataEntry] = []
-            csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
+            csv_reader = csv.DictReader(
+                io.StringIO(setup_result["csv_text"], newline="")
+            )
 
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Process single row, returns (data_entry, error_msg, factor)
@@ -723,7 +730,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
         file_content, mime_type = await self.files_store.get_file(processing_path)
-        csv_text = file_content.decode("utf-8")
+        csv_text = file_content.decode("utf-8-sig")
 
         # Load handlers and factors (entity-specific)
         logger.info(f"Loading handlers and factors for {self.__class__.__name__}")
@@ -776,7 +783,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         If error_msg is not None, row processing failed and error was recorded.
 
         Args:
-            unit_to_module_map: Optional mapping of provider_code
+            unit_to_module_map: Optional mapping of institutional_id
                                to carbon_report_module_id
                                for MODULE_PER_YEAR imports
         """
@@ -827,20 +834,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             carbon_report_module_id = None
 
             if unit_to_module_map is not None:
-                # MODULE_PER_YEAR: resolve from unit_id
-                # (which is actually provider_code)
-                provider_code = row.get("unit_id")
-                if provider_code is None or str(provider_code).strip() == "":
+                # MODULE_PER_YEAR: resolve from unit_institutional_id
+                unit_institutional_id = row.get("unit_id")
+                if (
+                    unit_institutional_id is None
+                    or str(unit_institutional_id).strip() == ""
+                ):
                     error_msg = "Missing unit_id in row"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
 
-                provider_code = str(provider_code).strip()
-                carbon_report_module_id = unit_to_module_map.get(provider_code)
+                unit_institutional_id = str(unit_institutional_id).strip()
+                carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
                     error_msg = (
                         f"No carbon_report_module_id mapped for "
-                        f"provider_code={provider_code}"
+                        f"institutional_id={unit_institutional_id}"
                     )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
@@ -869,6 +878,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Build DataEntry
             primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
+
+            # TODO: that's here that we should add 'default' for some fields if needed
+            # like in equipement for standby and active usage
+            # TODO: make generic in handler above!
+            # it's already done in seed_generic_data_entries
+            # active_usage_hours_per_week
+            # standby_usage_hours_per_week
+            # BEWaRE: We changed classsubclassmap to allow factors without subkind,
+            # so we need to be careful when accessing subkind values in the factor
             data["primary_factor_id"] = primary_factor_id
 
             data_entry = DataEntry(

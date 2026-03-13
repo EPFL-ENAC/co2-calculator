@@ -77,8 +77,8 @@ class TestCalculateUserPermissions:
         assert result["modules.buildings"]["edit"] is True
         assert result["modules.purchase"]["view"] is True
         assert result["modules.purchase"]["edit"] is True
-        assert result["modules.internal_services"]["view"] is True
-        assert result["modules.internal_services"]["edit"] is True
+        assert result["modules.research_facilities"]["view"] is True
+        assert result["modules.research_facilities"]["edit"] is True
         assert result["modules.external_cloud_and_ai"]["view"] is True
         assert result["modules.external_cloud_and_ai"]["edit"] is True
         # Principal also gets backoffice.users.edit for unit-scoped role assignment
@@ -99,8 +99,8 @@ class TestCalculateUserPermissions:
         assert result["modules.buildings"]["edit"] is False
         assert result["modules.purchase"]["view"] is False
         assert result["modules.purchase"]["edit"] is False
-        assert result["modules.internal_services"]["view"] is False
-        assert result["modules.internal_services"]["edit"] is False
+        assert result["modules.research_facilities"]["view"] is False
+        assert result["modules.research_facilities"]["edit"] is False
         assert result["modules.external_cloud_and_ai"]["view"] is True
         assert result["modules.external_cloud_and_ai"]["edit"] is True
 
@@ -399,7 +399,7 @@ class TestGetPermissionValue:
     def test_calculate_user_permissions_superadmin_unit_scope(self):
         """Test superadmin with unit scope does not grant permissions."""
         roles = [
-            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(provider_code="12345"))
+            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(institutional_id="12345"))
         ]
         result = calculate_user_permissions(roles)
         assert result["system.users"]["edit"] is False
@@ -421,7 +421,7 @@ class TestGetPermissionValue:
         """Test calculate_user_permissions with role that has wrong scope."""
         # Test that roles with wrong scope don't grant permissions
         roles = [
-            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(provider_code="12345"))
+            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(institutional_id="12345"))
         ]
         result = calculate_user_permissions(roles)
         # Superadmin with unit scope (not global) should not grant permissions
@@ -432,7 +432,7 @@ class TestGetPermissionValue:
     def test_calculate_user_permissions_multiple_units(self):
         """Test calculate_user_permissions with roles for multiple units."""
         roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(provider_code="12345")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")),
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="99999")),
         ]
         result = calculate_user_permissions(roles)

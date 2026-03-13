@@ -48,10 +48,6 @@ class DataEntryTypeEnum(int, Enum):
     research_facilities = 70
     mice_and_fish_animal_facilities = 71
     other_research_facilities = 72
-    # not a module per se but we need a data_entry_type to link the factor
-    # energy_mix will disapear when we add the info in the factor equipment table
-    # energy mix
-    energy_mix = 100
 
 
 ## Will be renamed to data_entries later

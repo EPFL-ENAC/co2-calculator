@@ -1,4 +1,4 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   // Table (Chapter 5)
@@ -39,8 +39,8 @@ export default {
     fr: 'Distance (km)',
   },
   [`${MODULES.ProfessionalTravel}-field-traveler`]: {
-    en: 'Traveler Name',
-    fr: 'Nom du voyageur',
+    en: 'Traveler',
+    fr: 'Voyageur',
   },
   [`${MODULES.ProfessionalTravel}-field-emissions`]: {
     en: 'kg CO₂-eq',
@@ -113,7 +113,7 @@ export default {
     en: 'Professional Travel',
     fr: 'Voyages professionnels ',
   },
-  [MODULES_DESCRIPTIONS.ProfessionalTravel]: {
+  [`${MODULES.ProfessionalTravel}-description`]: {
     en: 'Estimate the impact of your professional travel',
     fr: 'Estimez l’impact de vos voyages professionnels',
   },
@@ -204,5 +204,9 @@ export default {
   [`${MODULES.ProfessionalTravel}-error-same-destination`]: {
     en: 'Origin and destination cannot be the same',
     fr: "L'origine et la destination ne peuvent pas être identiques",
+  },
+  [`${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`]: {
+    en: 'No headcount members found. Add members in the Headcount module first.',
+    fr: 'Aucun membre du personnel trouvé. Ajoutez des membres dans le module Effectifs.',
   },
 } as const;

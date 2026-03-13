@@ -78,11 +78,7 @@ const moduleCardsWithStatus = computed(() => {
   );
 });
 
-const modulesCounterText = computed(() =>
-  t('home_modules_counter', {
-    count: Object.keys(MODULES).length + 1,
-  }),
-);
+const modulesCounterText = computed(() => t('home_modules_counter'));
 </script>
 
 <template>

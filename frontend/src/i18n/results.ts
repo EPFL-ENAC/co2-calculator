@@ -181,7 +181,7 @@ export default {
     fr: "Combustion d'énergie",
   },
   'charts-research-facilities-category': {
-    en: 'Research core facilities',
+    en: 'Research Facilities',
     fr: 'Infrastructures de recherche',
   },
   'charts-equipment-category': {
@@ -223,10 +223,6 @@ export default {
   'charts-equipment-electric-consumption-category': {
     en: 'Equipment',
     fr: 'Équipement',
-  },
-  'charts-internal-services-category': {
-    en: 'Internal Services',
-    fr: 'Services internes',
   },
   'charts-external-cloud-category': {
     en: 'External Cloud',

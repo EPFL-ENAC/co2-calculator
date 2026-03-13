@@ -15,9 +15,7 @@ from app.models.building_room import BuildingRoom
 logger = get_logger(__name__)
 
 CSV_PATH = (
-    Path(__file__).parent.parent.parent
-    / "seed_data"
-    / "seed_building_rooms_reference.csv"
+    Path(__file__).parent.parent.parent / "seed_data" / "building_rooms_reference.csv"
 )
 
 

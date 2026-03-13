@@ -192,3 +192,15 @@ class LocationRepository:
         """Get location by ID."""
         result = await self.session.get(Location, location_id)
         return result
+
+    async def get_by_name(self, name: str) -> Optional[Location]:
+        """Get location by name."""
+        statement = select(Location).where(col(Location.name) == name)
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()
+
+    async def get_by_iata(self, iata_code: str) -> Optional[Location]:
+        """Get location by IATA code."""
+        statement = select(Location).where(col(Location.iata_code) == iata_code)
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()

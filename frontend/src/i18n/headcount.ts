@@ -1,11 +1,12 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
+import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 
 export default {
   [MODULES.Headcount]: {
     en: 'Headcount',
     fr: 'Personnel',
   },
-  [MODULES_DESCRIPTIONS.Headcount]: {
+  [`${MODULES.Headcount}-description`]: {
     en: 'Verify team members and Full Time Equivalent (FTE) values for your unit',
     fr: 'Vérifiez les membres de l’équipe et leurs équivalents plein-temps (EPT) pour votre unité',
   },
@@ -90,8 +91,8 @@ export default {
     fr: 'Nom',
   },
   [`${MODULES.Headcount}-member-form-field-user-institutional-id-label`]: {
-    en: 'Institutional ID',
-    fr: 'ID institutionnel',
+    en: INSTITUTIONAL_ID_LABEL,
+    fr: INSTITUTIONAL_ID_LABEL,
   },
   // module_mylab_student_form_field_fte_label
   [`${MODULES.Headcount}-student_form_field_fte_label`]: {
