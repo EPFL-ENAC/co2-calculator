@@ -58,7 +58,7 @@ class HeadCountCreate(DataEntryCreate):
     position_title: Optional[str] = None
     position_category: Optional[str] = None
     fte: Optional[float] = None
-    user_institutional_id: Optional[str] = None
+    user_institutional_id: str
     note: Optional[str] = None
 
     @field_validator("fte", mode="after")
@@ -84,9 +84,7 @@ class HeadCountCreate(DataEntryCreate):
 
     @field_validator("user_institutional_id", mode="after")
     @classmethod
-    def validate_user_institutional_id(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
+    def validate_user_institutional_id(cls, v: str) -> str:
         normalized = v.strip()
         if not re.fullmatch(r"\d+", normalized):
             raise ValueError("user_institutional_id must contain only digits")
@@ -129,6 +127,8 @@ class HeadCountUpdate(DataEntryUpdate):
     def validate_fte(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
+        if v > 1:
+            raise ValueError("FTE cannot exceed 1")
         if v < 0:
             raise ValueError("FTE must be non-negative")
         return v

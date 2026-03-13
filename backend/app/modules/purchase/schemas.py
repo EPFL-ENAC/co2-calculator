@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 class PurchaseHandlerResponse(DataEntryResponseGen):
     name: str
     supplier: Optional[str] = None
-    quantity: float
+    quantity: Optional[float] = None
     total_spent_amount: float
     purchase_institutional_code: Optional[str] = None
     note: Optional[str] = None
@@ -48,8 +48,9 @@ class PurchaseAdditionalHandlerResponse(DataEntryResponseGen):
 class PurchaseHandlerCreate(DataEntryCreate):
     name: str
     supplier: Optional[str] = None
-    quantity: float
+    quantity: Optional[float] = None
     total_spent_amount: float
+    currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
@@ -58,9 +59,18 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: int) -> int:
+    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
         if v < 0:
             raise ValueError("Quantity must be non-negative")
+        return v
+
+    @field_validator("total_spent_amount", mode="after")
+    @classmethod
+    def validate_total_spent_amount(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Total spend amount must be non-negative")
         return v
 
     @field_validator("purchase_institutional_code", mode="after")
@@ -75,7 +85,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
 class PurchaseAdditionalHandlerCreate(DataEntryCreate):
     name: str
-    unit: Optional[str] = None
+    unit: str
     annual_consumption: Optional[float] = 0
     coef_to_kg: float
     note: Optional[str] = None
@@ -94,6 +104,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: Optional[float] = None
+    currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
@@ -292,17 +303,33 @@ purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
 
 class PurchaseAdditionalFactorCreate(FactorCreate):
     name: str
-    ef_kg_co2eq_per_kg: Optional[float] = None
+    ef_kg_co2eq_per_kg: float
+
+    @field_validator("ef_kg_co2eq_per_kg", mode="after")
+    @classmethod
+    def validate_ef(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("ef_kg_co2eq_per_kg must be non-negative")
+        return v
 
 
 class PurchaseAdditionalFactorUpdate(FactorUpdate):
     name: Optional[str] = None
     ef_kg_co2eq_per_kg: Optional[float] = None
 
+    @field_validator("ef_kg_co2eq_per_kg", mode="after")
+    @classmethod
+    def validate_ef(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("ef_kg_co2eq_per_kg must be non-negative")
+        return v
+
 
 class PurchaseAdditionalFactorResponse(FactorResponseGen):
     name: str
-    ef_kg_co2eq_per_kg: Optional[float] = None
+    ef_kg_co2eq_per_kg: float
 
 
 class PurchaseAdditionalFactorHandler(BaseFactorHandler):
@@ -332,9 +359,17 @@ purchase_common_value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
 class PurchaseCommonFactorCreate(FactorCreate):
     purchase_institutional_code: str
     purchase_institutional_description: Optional[str] = None
-    purchase_additional_code: Optional[str] = None
+    purchase_additional_code: str
+    purchase_category: str
     currency: str
-    ef_kg_co2eq_per_currency: Optional[float] = None
+    ef_kg_co2eq_per_currency: float
+
+    @field_validator("ef_kg_co2eq_per_currency", mode="after")
+    @classmethod
+    def validate_ef(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("ef_kg_co2eq_per_currency must be non-negative")
+        return v
 
 
 class PurchaseCommonFactorUpdate(FactorUpdate):

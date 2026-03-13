@@ -69,15 +69,27 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
 
 class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
-    provider: Optional[str] = None
+    provider: str
     spent_amount: float
+    currency: Optional[str] = None
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("spent_amount", mode="after")
     @classmethod
     def validate_spent_amount(cls, v: float) -> float:
         if v < 0:
             raise ValueError("Spent amount must be non-negative")
+        return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        valid_currencies = ["chf", "eur"]
+        if v not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
 
@@ -87,6 +99,7 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     requests_per_user_per_day: Optional[str] = None
     user_count: int
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
@@ -103,8 +116,8 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     @field_validator("user_count", mode="after")
     @classmethod
     def validate_user_count(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError("user_count must be non-negative")
+        if v < 1:
+            raise ValueError("user_count must be at least 1")
         return v
 
 
@@ -112,6 +125,7 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     service_type: Optional[str] = None
     provider: Optional[str] = None
     spent_amount: Optional[float] = None
+    currency: Optional[str] = None
     note: Optional[str] = None
 
     @field_validator("spent_amount", mode="after")
@@ -121,6 +135,16 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
             return v
         if v < 0:
             raise ValueError("Spent amount must be non-negative")
+        return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        valid_currencies = ["chf", "eur"]
+        if v not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
 
@@ -148,8 +172,8 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
     def validate_user_count(cls, v: Optional[int]) -> Optional[int]:
         if v is None:
             return v
-        if v < 0:
-            raise ValueError("user_count must be non-negative")
+        if v < 1:
+            raise ValueError("user_count must be at least 1")
         return v
 
 
@@ -383,11 +407,27 @@ class ExternalAIFactorCreate(FactorCreate):
     usage_type: str
     ef_kg_co2eq_per_request: float
 
+    @field_validator("ef_kg_co2eq_per_request", mode="after")
+    @classmethod
+    def validate_ef(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("ef_kg_co2eq_per_request must be non-negative")
+        return v
+
 
 class ExternalAIFactorUpdate(FactorUpdate):
     provider: Optional[str] = None
     usage_type: Optional[str] = None
     ef_kg_co2eq_per_request: Optional[float] = None
+
+    @field_validator("ef_kg_co2eq_per_request", mode="after")
+    @classmethod
+    def validate_ef(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("ef_kg_co2eq_per_request must be non-negative")
+        return v
 
 
 class ExternalAIFactorHandler(BaseFactorHandler):

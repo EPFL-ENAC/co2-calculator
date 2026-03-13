@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+from pydantic import field_validator
+
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
@@ -121,7 +123,14 @@ class ResearchFacilitiesCommonFactorCreate(FactorCreate):
     researchfacility_name: str
     use_unit: str
     kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
+    total_use: float
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
 
 
 class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
@@ -176,7 +185,7 @@ research_facilities_animal_value_fields: list[str] = [
 class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     researchfacility_id: Optional[int] = None
     researchfacility_name: str
-    researchfacility_type: Optional[str] = None
+    researchfacility_type: str
     use_unit: str
     processemissions_share: Optional[float] = None
     building_energycombustions_share: Optional[float] = None
@@ -185,7 +194,31 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     purchases_additional_share: Optional[float] = None
     equipments_share: Optional[float] = None
     kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
+    total_use: float
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
+
+    @field_validator(
+        "processemissions_share",
+        "building_energycombustions_share",
+        "building_rooms_share",
+        "purchases_common_share",
+        "purchases_additional_share",
+        "equipments_share",
+        mode="after",
+    )
+    @classmethod
+    def validate_share(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0 or v > 1:
+            raise ValueError("Share values must be between 0 and 1")
+        return v
 
 
 class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):

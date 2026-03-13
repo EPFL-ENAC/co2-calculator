@@ -17,6 +17,7 @@ def test_headcount_create_accepts_valid_position_category() -> None:
         **_base_create_payload(),
         name="Alice",
         position_category="professor",
+        user_institutional_id="12345",
     )
     assert item.position_category == "professor"
 
