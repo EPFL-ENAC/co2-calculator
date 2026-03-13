@@ -191,7 +191,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.elasticsearchApiKeyKey | default "ELASTICSEARCH_API_KEY" }}
-            - name: ELASICSEARCH_CA_CERT
+            - name: ELASTICSEARCH_CA_CERT
               value: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
             - name: POD_NAME
               valueFrom:
