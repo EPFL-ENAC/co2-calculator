@@ -1,5 +1,6 @@
 import csv
 import io
+import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -102,7 +103,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self.module_type_id = config.get("module_type_id")
         self.year = config.get("year")
         # Store the original file path from config
-        self.source_file_path = config.get("file_path")
+        raw_file_path = config.get("file_path")
+        self.source_file_path = (
+            urllib.parse.unquote(raw_file_path) if raw_file_path else None
+        )
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         # Lazy initialization - will be created when needed

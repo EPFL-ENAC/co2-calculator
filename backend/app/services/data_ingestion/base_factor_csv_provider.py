@@ -1,5 +1,6 @@
 import csv
 import io
+import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypedDict
 
@@ -60,7 +61,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         self.module_type_id = config.get("module_type_id")
         self.data_entry_type_id = config.get("data_entry_type_id")
         self.year = config.get("year")
-        self.source_file_path = config.get("file_path")
+        raw_file_path = config.get("file_path")
+        self.source_file_path = (
+            urllib.parse.unquote(raw_file_path) if raw_file_path else None
+        )
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         self._files_store: Any = None
