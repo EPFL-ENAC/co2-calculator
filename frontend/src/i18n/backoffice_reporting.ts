@@ -24,8 +24,8 @@ export default {
     fr: 'Tout désélectionner',
   },
   backoffice_reporting_generate_report_title: {
-    en: 'Export Report',
-    fr: 'Exporter un rapport',
+    en: 'Export data',
+    fr: 'Exporter les données',
   },
   backoffice_reporting_generate_report_description: {
     en: 'Generate your report and export in your preferred format.',
@@ -55,9 +55,21 @@ export default {
     en: 'Errors',
     fr: 'Erreurs',
   },
+  backoffice_reporting_filter_units_lvl2_label: {
+    en: 'Faculties and VPs',
+    fr: 'Facultés et VP',
+  },
+  backoffice_reporting_filter_units_lvl3_label: {
+    en: 'Institutes',
+    fr: 'Instituts',
+  },
   backoffice_reporting_filter_units_label: {
     en: 'Units',
     fr: 'Unités',
+  },
+  backoffice_reporting_row_completion_label: {
+    en: 'Statut de validation',
+    fr: 'Validation status',
   },
   backoffice_reporting_column_unit: {
     en: 'Unit',
@@ -109,6 +121,18 @@ export default {
     en: 'Results',
     fr: 'Résultats',
   },
+  common_view_details: {
+    en: 'Opens the Results page of the selected unit - in a new tab.',
+    fr: 'Ouvre la page des résultats de l’unité sélectionnée - dans un nouvel onglet.',
+  },
+  backoffice_reporting_generate_detailed_title: {
+    en: 'Detailed data per module',
+    fr: 'Détails des données par modules',
+  },
+  backoffice_reporting_generate_detailed_description: {
+    en: 'Detailed data for each module, including CO₂-eq calculations, user inputs, and completion status, ideal for in-depth analysis and troubleshooting.',
+    fr: "Données détaillées pour chaque module, incluant les calculs de CO₂-éq, les saisies des utilisateurs et le statut d'achèvement, idéal pour une analyse approfondie et le dépannage.",
+  },
   backoffice_reporting_generate_results_description: {
     en: 'CO₂-eq calculations with visual graphs and charts showing module completion, laboratory activity, and emissions breakdowns.',
     fr: "Calculs de CO₂-éq avec graphiques montrant l'achèvement des modules, l'activité des laboratoires et la répartition des émissions.",
@@ -133,6 +157,24 @@ export default {
     en: 'Not Started',
     fr: 'Non commencé',
   },
+
+  backoffice_reporting_usage_box_validated: {
+    en: 'Total units validated',
+    fr: 'Total des unités validées',
+  },
+  backoffice_reporting_usage_box_in_progress: {
+    en: 'Total units in progress',
+    fr: 'Total des unités en cours',
+  },
+  backoffice_reporting_usage_box_not_started: {
+    en: 'Total units not started',
+    fr: 'Total des unités non commencées',
+  },
+  backoffice_reporting_usage_box_one_unit: {
+    en: 'Number of validated modules',
+    fr: 'Nombre de modules validées',
+  },
+
   backoffice_reporting_generate_formats: {
     en: 'PDF: Formatted report with charts and visualizations, ideal for presentations and sharing.\nCSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
     fr: 'PDF : Rapport mis en forme avec graphiques, idéal pour les présentations et le partage.\nCSV : Données brutes au format tableur pour analyse dans Excel ou d’autres outils.',

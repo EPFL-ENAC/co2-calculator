@@ -121,8 +121,15 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
+            <template v-if="isRowConditionallyReadOnly(slotProps.row, col)">
+              <span>{{
+                slotProps.row[col.readOnlyDisplayField ?? col.field] ?? ''
+              }}</span>
+            </template>
             <module-inline-select
-              v-if="col.optionsId === 'kind' || col.optionsId === 'subkind'"
+              v-else-if="
+                col.optionsId === 'kind' || col.optionsId === 'subkind'
+              "
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
@@ -140,7 +147,7 @@
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
               :type="col.type === 'number' ? 'number' : undefined"
-              :options="col.options || []"
+              :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
               outlined
@@ -344,6 +351,7 @@ import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
+import { getTemplateFileName } from 'src/constant/templateMapping';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -357,7 +365,11 @@ import {
   SUBMODULE_BUILDINGS_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
 } from 'src/constant/modules';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import {
+  getHeadcountMembers,
+  type HeadcountMemberDropdownItem,
+} from 'src/api/modules';
+import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 
 function getNumericRules(col: TableViewColumn) {
@@ -384,11 +396,13 @@ function getNumericRules(col: TableViewColumn) {
   return rules;
 }
 
-const { t: $t } = useI18n();
+const { t: $t, te: $te } = useI18n();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
+
+const headcountMembersMap = ref<Map<number, string>>(new Map());
 
 const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
@@ -479,9 +493,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
   }
 
   const filePath = filePaths[0];
-  const moduleTypeId = dataManagementStore.getModuleTypeId(
-    props.moduleType as Module,
-  );
+  const moduleTypeId = getModuleTypeId(props.moduleType as Module);
 
   try {
     $q.notify({
@@ -533,6 +545,24 @@ const onFilesUploaded = async (filePaths: string[]) => {
             caption: errorCaption,
             position: 'top',
             multiLine: true,
+            timeout: 30000,
+            actions: [
+              {
+                icon: 'o_report_problem',
+                color: 'negative',
+                textColor: 'white',
+                label: $t('close_error_details'),
+                handler: () => {
+                  // Open a dialog or page to show detailed errors
+                  // For simplicity, we'll just log them here
+                  console.error(
+                    'Detailed row errors:',
+                    payload?.meta?.row_errors,
+                  );
+                },
+                'aria-label': $t('close_error_details'),
+              },
+            ],
           });
         } else {
           $q.notify({
@@ -549,8 +579,39 @@ const onFilesUploaded = async (filePaths: string[]) => {
           caption: formatRowErrors(payload) || payload?.status_message || '',
           position: 'top',
           multiLine: true,
+          timeout: 30000,
+          actions: [
+            {
+              icon: 'o_report_problem',
+              color: 'negative',
+              textColor: 'white',
+              label: $t('close_error_details'),
+              handler: () => {
+                // Open a dialog or page to show detailed errors
+                // For simplicity, we'll just log them here
+                console.error('Detailed row errors:', payload?.status_message);
+              },
+              'aria-label': $t('close_error_details'),
+            },
+          ],
         });
         console.error('CSV sync job failed:', payload);
+      },
+      () => {
+        $q.notify({
+          color: 'negative',
+          message: $t('csv_sync_connection_lost'),
+          position: 'top',
+          timeout: 30000,
+          closeBtn: true,
+          actions: [
+            {
+              icon: 'close',
+              // for individual action (button):
+              'aria-label': 'Dismiss',
+            },
+          ],
+        });
       },
     );
     $q.notify({
@@ -661,6 +722,9 @@ type TableViewColumn = {
   tooltip?: string;
   type: ModuleField['type'];
   maxColumnWidth?: number;
+  readOnlyWhen?: ModuleField['readOnlyWhen'];
+  readOnlyDisplayField?: string;
+  optionLabelsAreKeys?: boolean;
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -709,6 +773,9 @@ const qCols = computed<TableViewColumn[]>(() => {
             tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
             type: f.type,
             maxColumnWidth: f.maxColumnWidth,
+            readOnlyWhen: f.readOnlyWhen,
+            readOnlyDisplayField: f.readOnlyDisplayField,
+            optionLabelsAreKeys: f.optionLabelsAreKeys,
           });
         });
       } else {
@@ -738,6 +805,9 @@ const qCols = computed<TableViewColumn[]>(() => {
           tooltip,
           type: f.type,
           maxColumnWidth: f.maxColumnWidth,
+          readOnlyWhen: f.readOnlyWhen,
+          readOnlyDisplayField: f.readOnlyDisplayField,
+          optionLabelsAreKeys: f.optionLabelsAreKeys,
         });
       }
     });
@@ -764,6 +834,40 @@ const qCols = computed<TableViewColumn[]>(() => {
   return baseCols;
 });
 
+const inlineOptionsMap = computed<
+  Record<string, Array<{ value: string; label: string }>>
+>(() => {
+  const map: Record<string, Array<{ value: string; label: string }>> = {};
+  qCols.value.forEach((col) => {
+    map[col.name] = (col.options ?? []).map((option) => ({
+      ...option,
+      label: $te(option.label) ? $t(option.label) : option.label,
+    }));
+  });
+  return map;
+});
+
+function getInlineOptions(
+  col: TableViewColumn,
+): Array<{ value: string; label: string }> {
+  const inlineOptions = inlineOptionsMap.value[col.name] ?? [];
+  const result = inlineOptions.map((option) => ({
+    ...option,
+    label: $t(option.label),
+  }));
+  return result;
+}
+
+function isRowConditionallyReadOnly(
+  row: Record<string, unknown>,
+  col: TableViewColumn,
+): boolean {
+  if (!col.readOnlyWhen) return false;
+  const val = row[col.readOnlyWhen.fieldId];
+  const hasValue = val !== null && val !== undefined && val !== '';
+  return col.readOnlyWhen.hasValue ? hasValue : !hasValue;
+}
+
 function renderCell(
   row: ModuleRow,
   col: {
@@ -773,6 +877,14 @@ function renderCell(
     options?: Array<{ value: string; label: string }>;
   },
 ) {
+  // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
+  if (col.field === 'traveler_name') {
+    const uid = row['user_institutional_id'] as number | undefined;
+    if (uid != null) {
+      return headcountMembersMap.value.get(uid) ?? '-';
+    }
+    return '-';
+  }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
   if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
@@ -783,9 +895,10 @@ function renderCell(
       },
     });
   }
-  // If column has options, look up the label for the value
+  // If column has options, look up the translated label for the value
   if (col.options && typeof val === 'string') {
-    const option = col.options.find((opt) => opt.value === val);
+    const translated = inlineOptionsMap.value[col.name];
+    const option = (translated ?? col.options).find((opt) => opt.value === val);
     if (option) {
       return option.label;
     }
@@ -879,7 +992,8 @@ async function commitInline(
 ) {
   if (!col.editableInline) return;
   const isUsageField =
-    col.name === 'active_usage_hours' || col.name === 'passive_usage_hours';
+    col.name === 'active_usage_hours_per_week' ||
+    col.name === 'standby_usage_hours_per_week';
   const isNumberOfTrips = col.name === 'number_of_trips';
   const isNumeric = col.type === 'number' || isUsageField || isNumberOfTrips;
   const rawVal = row[col.field];
@@ -1005,8 +1119,8 @@ function isCompleteEquipement(row: ModuleRow) {
   const required = [
     'name',
     'equipment_class',
-    'active_usage_hours',
-    'passive_usage_hours',
+    'active_usage_hours_per_week',
+    'standby_usage_hours_per_week',
     'active_power_w',
     'standby_power_w',
   ];
@@ -1028,15 +1142,15 @@ function isCompleteHeadcount(row: ModuleRow) {
 
 //  dependence on the submodule type
 function isCompleteExternalCloud(row: ModuleRow) {
-  const required = ['service_type', 'cloud_provider', 'spending'];
+  const required = ['service_type', 'provider', 'spent_amount'];
   return hasRequiredValues(row, required);
 }
 
 function isCompleteExternalAI(row: ModuleRow) {
   const required = [
-    'ai_provider',
-    'ai_use',
-    'frequency_use_per_day',
+    'provider',
+    'usage_type',
+    'requests_per_user_per_day',
     'user_count',
   ];
   return hasRequiredValues(row, required);
@@ -1093,35 +1207,30 @@ function isComplete(row: ModuleRow) {
     return isCompletePurchase(row);
   }
   if (props.moduleType === MODULES.ProfessionalTravel) {
-    const required = [
-      'origin',
-      'destination',
-      'transport_mode',
-      'traveler_name',
-    ];
+    const required = ['origin', 'destination', 'user_institutional_id'];
     return required.every(
       (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
     );
   }
   if (props.moduleType === MODULES.ProcessEmissions) {
-    const baseRequired = ['emitted_gas', 'quantity_kg'];
+    const baseRequired = ['category', 'quantity'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
     if (!hasBaseRequired) {
       return false;
     }
 
-    if (row.emitted_gas === 'Refrigerants') {
+    if (row.category === 'Refrigerants') {
       return (
-        row.sub_category !== null &&
-        row.sub_category !== undefined &&
-        row.sub_category !== ''
+        row.subcategory !== null &&
+        row.subcategory !== undefined &&
+        row.subcategory !== ''
       );
     }
     return true;
   }
   if (props.moduleType === MODULES.Buildings) {
     if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-      const required = ['heating_type', 'quantity'];
+      const required = ['name', 'quantity'];
       return required.every(
         (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
       );
@@ -1168,8 +1277,12 @@ function onFormSubmit(
     if (moduleType === MODULES.EquipmentElectricConsumption) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
-      basePayload.active_usage_hours = Number(payload.active_usage_hours);
-      basePayload.passive_usage_hours = Number(payload.passive_usage_hours);
+      basePayload.active_usage_hours_per_week = Number(
+        payload.active_usage_hours_per_week,
+      );
+      basePayload.standby_usage_hours_per_week = Number(
+        payload.standby_usage_hours_per_week,
+      );
     }
 
     const p = isEdit
@@ -1203,73 +1316,18 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  const csvEquipmentContent =
-    'name,equipment_class,sub_class,active_usage_hours,passive_usage_hours';
-  const csvHeadcountContent = 'name,function,fte';
-  const csvProfessionalTravelContent =
-    'Type, From, To, Start Date, Number of trips, Traveler Name, Class, Purpose, Notes';
-  const csvExternalCloudContent = 'service_type,cloud_provider,spending';
-  const csvExternalAIContent =
-    'ai_provider,ai_use,frequency_use_per_day,user_count';
-  const csvPurchaseContent =
-    'name,purchase_institutional_code,quantity,total_spent_amount';
-  const csvProcessesContent = 'emitted_gas,sub_category,quantity_kg';
-  const csvDefaultContent = 'not_implemented_yet';
-
-  const csvBuildingsContent = `building_location,building_name,room_name,room_type,room_surface_square_meter,note`;
-  const csvBuildingsCombustionContent = 'heating_type,quantity,note';
-  let csvContent: string;
-  switch (props.moduleType) {
-    case MODULES.Headcount:
-      csvContent = csvHeadcountContent;
-      break;
-    case MODULES.ProfessionalTravel:
-      csvContent = csvProfessionalTravelContent;
-      break;
-    case MODULES.Buildings:
-      if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-        csvContent = csvBuildingsCombustionContent;
-      } else {
-        csvContent = csvBuildingsContent;
-      }
-      break;
-    case MODULES.EquipmentElectricConsumption:
-      csvContent = csvEquipmentContent;
-      break;
-    case MODULES.ExternalCloudAndAI:
-      if (
-        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
-      ) {
-        csvContent = csvExternalCloudContent;
-      } else if (
-        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
-      ) {
-        csvContent = csvExternalAIContent;
-      } else {
-        csvContent = csvDefaultContent;
-      }
-      break;
-    case MODULES.ProcessEmissions:
-      csvContent = csvProcessesContent;
-      break;
-    case MODULES.Purchase:
-      csvContent = csvPurchaseContent;
-      break;
-    default:
-      csvContent = csvDefaultContent;
-      break;
-  }
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const csvUrl = URL.createObjectURL(blob);
+  const fileName = getTemplateFileName(
+    props.moduleType as Module,
+    props.submoduleType,
+  );
+  if (!fileName) return;
 
   const a = document.createElement('a');
-  a.href = csvUrl;
-  a.download = `${props.moduleType}-template.csv`;
+  a.href = `/templates/${fileName}`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(csvUrl);
 
   $q.notify({
     color: 'info',
@@ -1373,7 +1431,7 @@ watch(
   { deep: true, immediate: true },
 );
 
-onMounted(() => {
+onMounted(async () => {
   moduleStore.initializeSubmoduleState(props.submoduleType);
 
   // Check if already expanded on mount and fetch data if so
@@ -1387,10 +1445,32 @@ onMounted(() => {
     moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
   }
 
-  // Clear inline errors on mount
-  inlineErrors.value = {};
+  // For professional travel, pre-load headcount members to resolve traveler names in the table
+  if (
+    props.moduleType === MODULES.ProfessionalTravel &&
+    props.unitId &&
+    props.year
+  ) {
+    try {
+      const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
+        props.unitId,
+        props.year,
+      );
+      headcountMembersMap.value = new Map(
+        members.map((m) => [m.institutional_id, m.name]),
+      );
+    } catch (err) {
+      console.error(
+        'Failed to load headcount members for professional travel',
+        err,
+      );
+    }
 
-  // SSE subscription is job-scoped and triggered on sync initiation
+    // Clear inline errors on mount
+    inlineErrors.value = {};
+
+    // SSE subscription is job-scoped and triggered on sync initiation
+  }
 });
 
 // Unsubscribe from SSE when component unmounts

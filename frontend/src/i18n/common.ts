@@ -286,7 +286,7 @@ export default {
   },
   header_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
   },
   header_backoffice_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
@@ -298,7 +298,7 @@ export default {
   },
   header_user_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
   },
   evolution_over_time: {
     en: 'Evolution over time',
@@ -324,6 +324,10 @@ export default {
     en: 'CSV sync completed with {count} row error(s).',
     fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
   },
+  close_error_details: {
+    en: 'Close error details',
+    fr: "Fermer les détails de l'erreur",
+  },
   csv_sync_row_error: {
     en: 'Row {row}: {reason}',
     fr: 'Ligne {row} : {reason}',
@@ -335,6 +339,10 @@ export default {
   csv_sync_failed: {
     en: 'CSV sync failed. Please check the logs for details.',
     fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
+  },
+  csv_sync_connection_lost: {
+    en: 'Connection to sync job lost. Please refresh to check status.',
+    fr: 'Connexion au job de synchronisation perdue. Veuillez rafraîchir pour vérifier le statut.',
   },
   csv_sync_initiated: {
     en: 'Data upload in progress...',

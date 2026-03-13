@@ -108,8 +108,8 @@ export default {
     fr: 'Éditer',
   },
   home_modules_counter: {
-    en: 'Modules ({count})',
-    fr: 'Modules ({count})',
+    en: 'Modules',
+    fr: 'Modules',
   },
   home_simulations_units: {
     en: 'Simulations',

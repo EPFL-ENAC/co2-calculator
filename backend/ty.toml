@@ -1,0 +1,26 @@
+# ty.toml
+
+[environment]
+python-version = "3.12"
+root = ["./"]
+
+[rules]
+# mypy's warn_redundant_casts equivalent
+redundant-cast = "warn"
+
+# Silence missing stubs/imports for third-party libs (pydantic, passlib, sqlalchemy, sqlmodel, etc.)
+# ty handles unresolved imports more gracefully by default, but you can tune per-module below
+
+[src]
+include = [
+    "app",
+]
+exclude = [
+    "tests",
+    "scripts",
+    "alembic"
+]
+
+
+[terminal]
+output-format = "full" # equivalent to mypy's pretty = True

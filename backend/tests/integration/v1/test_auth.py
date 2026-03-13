@@ -55,7 +55,7 @@ def test_refresh_logs_audit_event(client, monkeypatch):
         "decode_jwt",
         MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 5}),
     )
-    mock_user = MagicMock(id=5, email="test@example.com", provider_code="654321")
+    mock_user = MagicMock(id=5, email="test@example.com", institutional_id="654321")
     monkeypatch.setattr(
         auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
     )
@@ -92,7 +92,7 @@ def test_logout_logs_audit_event(client, monkeypatch):
         "decode_jwt",
         MagicMock(return_value={"user_id": 7, "email": "test@example.com"}),
     )
-    mock_user = MagicMock(id=7, provider_code="987654")
+    mock_user = MagicMock(id=7, institutional_id="987654")
     monkeypatch.setattr(
         auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
     )

@@ -1,11 +1,11 @@
-import { MODULES, MODULES_DESCRIPTIONS } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.EquipmentElectricConsumption]: {
     en: 'Equipment',
     fr: 'Équipements',
   },
-  [MODULES_DESCRIPTIONS.EquipmentElectricConsumption]: {
+  [`${MODULES.EquipmentElectricConsumption}-description`]: {
     en: 'Estimate the electrical consumption of all equipment in your unit',
     fr: 'Estimez la consommation électrique de tous les équipements dans votre unité',
   },

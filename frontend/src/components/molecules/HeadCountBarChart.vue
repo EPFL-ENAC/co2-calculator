@@ -26,7 +26,7 @@ use([
   GraphicComponent,
 ]);
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -62,7 +62,7 @@ const chartOptions = computed<EChartsOption>(() => {
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
-        category: t(`app_headcount_${key}`),
+        category: te(`headcount_${key}`) ? t(`headcount_${key}`) : key,
         value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },

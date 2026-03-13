@@ -14,7 +14,7 @@ export async function getSubclassMap(
   return res ?? {};
 }
 
-export type ValueFactorResponse = Record<string, number> | null;
+export type ValueFactorResponse = Record<string, number | string | null> | null;
 
 export async function getFactorValues(
   submodule: AllSubmoduleTypes,

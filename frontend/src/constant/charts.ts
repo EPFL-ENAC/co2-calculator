@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { storeToRefs } from 'pinia';
+import { MODULES } from './modules';
 
 // Get the store instance and export colorblindMode for backward compatibility
 const colorblindStore = useColorblindStore();
@@ -290,7 +291,7 @@ export const colors = computed(() => {
 export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   'Process Emissions': colors.value.apricot.darker,
   'Buildings energy consumption': colors.value.lilac.darker,
-  'Energy combustion': colors.value.lilac.dark,
+  'Energy combustion': colors.value.lilac.light,
   'Buildings room': colors.value.skyBlue.darker,
   Equipment: colors.value.mauve.darker,
   'External cloud & AI': colors.value.paleYellowGreen.darker,
@@ -309,9 +310,9 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   'Buildings energy consumption': colors.value.lilac,
   'Energy combustion': colors.value.lilac,
   'Buildings room': colors.value.skyBlue,
-  Equipment: colors.value.mauve,
+  Equipment: colors.value.lilac,
   'External cloud & AI': colors.value.paleYellowGreen,
-  Purchases: colors.value.lavender,
+  Purchases: colors.value.lightGreen,
   'Research facilities': colors.value.peach,
   'Professional travel': colors.value.babyBlue,
   Commuting: colors.value.aqua,
@@ -323,6 +324,17 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 // Maps category -> subcategory key -> exact shade, shared across charts.
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
+    'Buildings energy consumption': {
+      rooms: colors.value.lilac.darker,
+      lighting: colors.value.lilac.dark,
+      cooling: colors.value.lilac.dark,
+      ventilation: colors.value.lilac.dark,
+      heating_elec: colors.value.lilac.dark,
+      heating_thermal: colors.value.lilac.dark,
+    },
+    'Energy combustion': {
+      combustion: colors.value.lilac.light,
+    },
     'Process Emissions': {
       co2: colors.value.apricot.darker,
       ch4: colors.value.apricot.dark,
@@ -330,9 +342,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       refrigerants: colors.value.apricot.light,
     },
     Equipment: {
-      scientific: colors.value.mauve.darker,
-      it: colors.value.mauve.dark,
-      other: colors.value.mauve.default,
+      scientific: colors.value.lilac.darker,
+      it: colors.value.lilac.dark,
+      other: colors.value.lilac.default,
     },
     'Professional travel': {
       plane: colors.value.babyBlue.darker,
@@ -347,14 +359,14 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       ai_provider: colors.value.paleYellowGreen.light,
     },
     Purchases: {
-      scientific_equipment: colors.value.lavender.darker,
-      it_equipment: colors.value.lavender.dark,
-      consumable_accessories: colors.value.lavender.default,
-      biological_chemical_gaseous: colors.value.lavender.light,
-      services: colors.value.lavender.lighter,
-      vehicles: colors.value.lavender.default,
-      other: colors.value.lavender.dark,
-      additional: colors.value.lavender.light,
+      scientific_equipment: colors.value.lightGreen.darker,
+      it_equipment: colors.value.lightGreen.dark,
+      consumable_accessories: colors.value.lightGreen.default,
+      biological_chemical_gaseous: colors.value.lightGreen.light,
+      services: colors.value.lightGreen.lighter,
+      vehicles: colors.value.lightGreen.default,
+      other: colors.value.lightGreen.dark,
+      additional: colors.value.lightGreen.light,
     },
   }),
 );
@@ -372,17 +384,20 @@ export function getChartSubcategoryColor(
 // Maps Module enum value → category names present in module_breakdown
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({
-    'process-emissions': ['Process Emissions'],
-    buildings: [
+    [MODULES.ProcessEmissions]: ['Process Emissions'],
+    [MODULES.Buildings]: [
       'Buildings energy consumption',
       'Energy combustion',
       'Buildings room',
     ],
-    'equipment-electric-consumption': ['Equipment'],
-    purchase: ['Purchases'],
-    'internal-services': ['Research facilities'],
-    'external-cloud-and-ai': ['External cloud & AI', 'External clouds & AI'],
-    'professional-travel': ['Professional travel'],
+    [MODULES.EquipmentElectricConsumption]: ['Equipment'],
+    [MODULES.Purchase]: ['Purchases'],
+    [MODULES.ResearchFacilities]: ['Research facilities'],
+    [MODULES.ExternalCloudAndAI]: [
+      'External cloud & AI',
+      'External clouds & AI',
+    ],
+    [MODULES.ProfessionalTravel]: ['Professional travel'],
   }),
 );
 

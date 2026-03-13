@@ -34,7 +34,7 @@ async def test_create_data_entry_success(db_session: AsyncSession):
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     # Create data
@@ -92,7 +92,7 @@ async def test_update_data_entry_success(db_session: AsyncSession):
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     # Update data
@@ -137,7 +137,7 @@ async def test_update_data_entry_not_found_raises_error(db_session: AsyncSession
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
     update_data = DataEntryUpdate(
         data_entry_type_id=DataEntryTypeEnum.plane.value,
@@ -183,7 +183,7 @@ async def test_delete_data_entry_success(db_session: AsyncSession):
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     result = await service.delete(id=entry.id, current_user=user)
@@ -204,7 +204,7 @@ async def test_delete_data_entry_not_found_raises_error(db_session: AsyncSession
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     with pytest.raises(ValueError, match="not found"):
@@ -279,7 +279,7 @@ async def test_bulk_create_data_entries(db_session: AsyncSession):
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     # Create multiple entries
@@ -320,7 +320,7 @@ async def test_bulk_delete_data_entries(db_session: AsyncSession):
         id=1,
         email="test@example.com",
         provider=UserProvider.DEFAULT,
-        provider_code="default-1441",
+        institutional_id="default-1441",
     )
 
     # Create entries of different types
@@ -480,9 +480,9 @@ async def test_get_submodule_data(db_session: AsyncSession):
             data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={
-                "traveler_name": f"Traveler {i}",
-                "origin_location_id": 1,
-                "destination_location_id": 2,
+                "user_institutional_id": 100000 + i,
+                "origin_iata": "JFK",
+                "destination_iata": "ZRH",
                 "number_of_trips": 1,
                 "unit_id": 1,
             },

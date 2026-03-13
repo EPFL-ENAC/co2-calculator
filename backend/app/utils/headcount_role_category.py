@@ -15,9 +15,8 @@ ROLE_CATEGORY_MAPPING = {
     "Étudiant en échange": "student",
     "Stagiaire étudiant": "student",
     "Student": "student",  # English variant
-    # Postdoctoral Researcher
-    "Post-Doctorant": "postdoctoral_researcher",
     # Doctoral Assistant
+    "Post-Doctorant": "postdoctoral_assistant",
     "Assistant-doctorant": "doctoral_assistant",
     "Doctorant-e en échange": "doctoral_assistant",
     # Trainee roles

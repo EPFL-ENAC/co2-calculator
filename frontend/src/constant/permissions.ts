@@ -46,7 +46,7 @@ export type PermissionPath =
   | 'modules.professional_travel'
   | 'modules.buildings'
   | 'modules.purchase'
-  | 'modules.internal_services'
+  | 'modules.research_facilities'
   | 'modules.external_cloud_and_ai'
   | 'system.users';
 
@@ -179,7 +179,7 @@ export interface UserPermissions {
  * @property {ModulePermissions} ['modules.professional_travel'] - Professional travel module permissions
  * @property {ModulePermissions} ['modules.buildings'] - Buildings module permissions
  * @property {ModulePermissions} ['modules.purchase'] - Purchase module permissions
- * @property {ModulePermissions} ['modules.internal_services'] - Internal services module permissions
+ * @property {ModulePermissions} ['modules.research_facilities'] - Research Facilities module permissions
  * @property {ModulePermissions} ['modules.external_clouds'] - External cloud module permissions
  * @property {ModulePermissions} ['system.users'] - System users module permissions
  * @property {ModulePermissions | undefined} [key: string] - Allow for future extensions
@@ -203,7 +203,7 @@ export interface FlatUserPermissions {
   'modules.professional_travel'?: ModulePermissions;
   'modules.buildings'?: ModulePermissions;
   'modules.purchase'?: ModulePermissions;
-  'modules.internal_services'?: ModulePermissions;
+  'modules.research_facilities'?: ModulePermissions;
   'modules.external_clouds'?: ModulePermissions;
   'system.users'?: ModulePermissions;
   [key: string]: ModulePermissions | undefined;

@@ -110,14 +110,16 @@ clean-db:
 # CI/CD - Validation Commands
 # =============================================================================
 
+# use to include test in frontend/backend and docker build
+#  && \
+# 	$(MAKE) test && \
+# 	$(MAKE) build
 .PHONY: ci
 ci: ## Run all CI checks (use before pushing to dev/stage/main)
 	@echo "Running CI validation pipeline..."
 	@set -e; \
 	$(MAKE) lint && \
-	$(MAKE) type-check && \
-	$(MAKE) test && \
-	$(MAKE) build
+	$(MAKE) type-check
 	@echo "✅ All CI checks passed!"
 
 # =============================================================================

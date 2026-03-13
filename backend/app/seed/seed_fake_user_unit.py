@@ -5,8 +5,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.unit import Unit
-from app.models.user import RoleName, User, UserProvider
+from app.models.user import RoleScope, User, UserProvider
+from app.providers.test_fixtures import TEST_ROLES, TEST_UNITS, TEST_USERS
 from app.schemas.unit import UnitRead
 from app.schemas.user import UserRead
 from app.services.unit_service import UnitService
@@ -18,92 +18,68 @@ settings = get_settings()
 
 
 async def seed_test_users(session: AsyncSession) -> None:
-    # upsert user with provider code 44444 for testing
+    """Seed all test users from centralized fixtures."""
     logger.info("Seeding test user records...")
     user_service = UserService(session)
-    await user_service.upsert_user(
-        id=None,
-        email="testuser@testdomain.epfl",
-        provider_code="44444",
-        display_name="Test User",
-        roles=[],
-        stop_recursion=True,
-        provider=UserProvider.DEFAULT,
-    )
-    await user_service.upsert_user(
-        id=None,
-        email="headOfUnit@testdomain.epfl",
-        provider_code="777777",
-        display_name="Test User Head of Unit",
-        roles=[],
-        stop_recursion=True,
-        provider=UserProvider.DEFAULT,
-    )
+    for role_name, user_data in TEST_USERS.items():
+        await user_service.upsert_user(
+            id=None,
+            email=user_data["email"],
+            institutional_id=user_data["institutional_id"],
+            display_name=user_data["display_name"],
+            roles=[],
+            stop_recursion=True,
+            provider=UserProvider.TEST,
+        )
 
 
 async def seed_test_units(session: AsyncSession) -> None:
-    # upsert unit ids 10208 and 12345 for testing
-    logger.info("Seeding equipment records...")
+    """Seed all test units from centralized fixtures."""
+    logger.info("Seeding test unit records...")
     unit_service = UnitService(session)
-    await unit_service.upsert(
-        unit_data=Unit(
-            institutional_code="12345",
-            level=4,
-            name="test unit 12345",
-            principal_user_institutional_id="777777",
-        )
-    )
-    await unit_service.upsert(
-        unit_data=Unit(
-            institutional_code="10208",
-            level=4,
-            name="enac test 10208",
-            principal_user_institutional_id="777777",
-        )
-    )
+    for unit in TEST_UNITS:
+        await unit_service.upsert(unit_data=unit.model_copy())
 
 
 async def seed_unit_users(session: AsyncSession) -> None:
+    """Seed unit-user relationships derived from TEST_ROLES and TEST_USERS."""
     logger.info("Seeding unit_user relationships...")
     unit_user_service = UnitUserService(session)
-    # link user 44444 to unit 10208
-    unit_10208: UnitRead | None = await UnitService(session).get_by_provider_code(
-        "10208"
-    )
-    unit_12345: UnitRead | None = await UnitService(session).get_by_provider_code(
-        "12345"
-    )
-    if unit_10208 is None or unit_12345 is None:
-        logger.error("Cannot seed unit_user relationships: missing unit")
-        return
-    user_row: User | None = await UserService(session).get_by_code("44444")
-    user: UserRead | None = None
-    if user_row:
+    user_service = UserService(session)
+    unit_service = UnitService(session)
+
+    for role_name, roles in TEST_ROLES.items():
+        user_data = TEST_USERS[role_name]
+        user_row: User | None = await user_service.get_by_code(
+            user_data["institutional_id"]
+        )
+        if not user_row or not user_row.id:
+            logger.warning(
+                "Cannot seed unit_user: user not found",
+                extra={"role": role_name.value},
+            )
+            continue
         user = UserRead(**user_row.model_dump())
-    user_principal_row: User | None = await UserService(session).get_by_code("777777")
-    user_principal: UserRead | None = None
-    if user_principal_row:
-        user_principal = UserRead(**user_principal_row.model_dump())
-    if unit_10208 is None or user is None or user_principal is None:
-        logger.error("Cannot seed unit_user relationships: missing unit or user")
-        return
-    await unit_user_service.upsert(
-        unit_id=unit_10208.id,
-        user_id=user.id,
-        role=RoleName.CO2_USER_STD,
-    )
-    # link user 777777 to unit 10208 as head_of_unit
-    await unit_user_service.upsert(
-        unit_id=unit_10208.id,
-        user_id=user_principal.id,
-        role=RoleName.CO2_USER_PRINCIPAL,
-    )
-    # link user 777777 to unit 12345 as head_of_unit
-    await unit_user_service.upsert(
-        unit_id=unit_12345.id,
-        user_id=user_principal.id,
-        role=RoleName.CO2_USER_PRINCIPAL,
-    )
+
+        for role in roles:
+            # Only unit-scoped roles create unit_user associations
+            if not isinstance(role.on, RoleScope) or not role.on.institutional_id:
+                continue
+            unit_iid = role.on.institutional_id
+            unit_read: UnitRead | None = await unit_service.get_by_institutional_id(
+                unit_iid
+            )
+            if not unit_read or not unit_read.id:
+                logger.warning(
+                    "Cannot seed unit_user: unit not found",
+                    extra={"institutional_id": unit_iid},
+                )
+                continue
+            await unit_user_service.upsert(
+                unit_id=unit_read.id,
+                user_id=user.id,
+                role=role_name,
+            )
 
 
 async def main() -> None:

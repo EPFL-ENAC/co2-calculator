@@ -12,16 +12,20 @@ from fastapi import (
     Response,
     status,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
-from app.modules.headcount.schemas import HeadcountItemResponse
+from app.modules.headcount.schemas import (
+    HeadcountItemResponse,
+    HeadcountMemberDropdownItem,
+)
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
@@ -33,7 +37,6 @@ from app.schemas.data_entry import (
     DataEntryResponse,
     DataEntryUpdate,
     ModuleHandler,
-    resolve_primary_factor_if_kind_or_subkind_changed,
 )
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -43,6 +46,9 @@ from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# TODO: don't forget to update stats of carbon_report_module
+# on batch/create/update/delete
 
 
 async def get_carbon_report_id(
@@ -79,7 +85,7 @@ async def get_module(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get module data with equipment and emissions.
@@ -132,7 +138,7 @@ async def get_module(
         )
         module_data.stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="function",
+            aggregate_by="position_category",
             aggregate_field="fte",
         )
     else:
@@ -169,7 +175,7 @@ async def get_stats_by_class(
     year: int,
     module_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List:
     """
     Get travel emissions aggregated by travel category and cabin_class.
@@ -198,7 +204,7 @@ async def get_stats_by_class(
 async def get_evolution_over_time(
     unit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List:
     """
     Get travel emissions aggregated by year and category for a unit.
@@ -209,6 +215,41 @@ async def get_evolution_over_time(
         unit_id=unit_id,
     )
     return stats
+
+
+@router.get(
+    "/{unit_id}/{year}/headcount/members",
+    response_model=List[HeadcountMemberDropdownItem],
+)
+async def list_headcount_members(
+    unit_id: int,
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List[HeadcountMemberDropdownItem]:
+    """List headcount members with an institutional ID for traveler dropdowns.
+
+    Args:
+        unit_id: Unit ID.
+        year: Report year.
+        db: Database session.
+        current_user: Authenticated user.
+
+    Returns:
+        Members ordered by name, each with ``institutional_id`` and ``name``.
+    """
+    await _check_module_permission(current_user, "headcount", "view")
+
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum.headcount,
+        db=db,
+    )
+    rows = await DataEntryService(db).get_headcount_members(
+        carbon_report_module_id=carbon_report_module_id,
+    )
+    return [HeadcountMemberDropdownItem(**row) for row in rows]
 
 
 @router.get(
@@ -230,7 +271,7 @@ async def get_submodule(
         default=None, description="Filter string to search in name or display_name"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get paginated data for a single submodule.
@@ -314,6 +355,62 @@ async def get_submodule(
     return submodule_data
 
 
+@router.get(
+    "/{unit_id}/{year}/{module_id}/{submodule_id}/check-unique",
+)
+async def check_unique(
+    unit_id: int,
+    year: int,
+    module_id: str,
+    submodule_id: str,
+    field: str = Query(..., description="JSON data field to check uniqueness for"),
+    value: str = Query(..., description="Value to check"),
+    exclude_id: Optional[int] = Query(
+        default=None, description="Entry ID to exclude (for PATCH pre-validation)"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Check whether a data field value is unique within a submodule.
+
+    Intended to be called from the form before submitting a PATCH (or POST)
+    so the UI can surface a duplicate error before the round-trip.
+
+    Args:
+        unit_id: Unit ID.
+        year: Report year.
+        module_id: Module identifier.
+        submodule_id: Submodule identifier.
+        field: JSON key inside ``data`` to check (e.g. ``user_institutional_id``).
+        value: The value that must be unique.
+        exclude_id: ID of the entry being edited — excluded from the duplicate scan.
+
+    Returns:
+        ``{"unique": true}`` when the value is available,
+        ``{"unique": false}`` when a conflict exists.
+    """
+    await _check_module_permission(current_user, module_id, "view")
+
+    module_key = module_id.replace("-", "_")
+    submodule_key = submodule_id.replace("-", "_")
+    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum[module_key],
+        db=db,
+    )
+
+    is_unique = await DataEntryService(db).check_json_field_unique(
+        carbon_report_module_id=carbon_report_module_id,
+        data_entry_type_id=data_entry_type_id,
+        field=field,
+        value=value,
+        exclude_id=exclude_id,
+    )
+    return {"unique": is_unique}
+
+
 @router.post(
     "/{unit_id}/{year}/{module_id}/{submodule_id}",
     response_model=DataEntryResponse,
@@ -328,7 +425,7 @@ async def create(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create new equipment item.
@@ -389,19 +486,12 @@ async def create(
             "carbon_report_module_id": carbon_report_module_id,
         }
         handler = BaseModuleHandler.get_by_type(data_entry_type)
-        create_payload = await handler.resolve_primary_factor_id(
-            create_payload, data_entry_type, db
-        )
 
-        # If kind or subkind is being updated
-        # we may need to resolve a new primary factor ID
-        create_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
-            handler,
-            create_payload,
-            data_entry_type,
-            item_data,
-            existing_data=None,
-            db=db,
+        from app.services.module_handler_service import ModuleHandlerService
+
+        handler_service = ModuleHandlerService(db)
+        create_payload = await handler_service.resolve_primary_factor_id(
+            handler, create_payload, data_entry_type
         )
 
         validated_data = handler.validate_create(create_payload)
@@ -410,6 +500,8 @@ async def create(
             **validated_data.model_dump(exclude_unset=True)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "Error validating item_data for data entry creation",
@@ -419,41 +511,58 @@ async def create(
             status_code=400,
             detail=f"Invalid item_data for creation: {str(e)}",
         )
+    try:
+        item = await DataEntryService(db).create(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=data_entry_type_id,
+            user=UserRead.model_validate(current_user),
+            data=data_entry_create,
+            request_context={
+                "ip_address": extract_ip_address(request),
+                "route_path": request.url.path,
+                "route_payload": await extract_route_payload(request),
+            },
+            background_tasks=background_tasks,
+        )
+        if item is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create item",
+            )
 
-    item = await DataEntryService(db).create(
-        carbon_report_module_id=carbon_report_module_id,
-        data_entry_type_id=data_entry_type_id,
-        user=UserRead.model_validate(current_user),
-        data=data_entry_create,
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
-        background_tasks=background_tasks,
-    )
-    if item is None:
+        await DataEntryEmissionService(db).upsert_by_data_entry(
+            data_entry_response=item,
+        )
+        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+
+        if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="This user institutional id already exists in this module.",
+            )
+
         raise HTTPException(
-            status_code=500,
-            detail="Failed to create item",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error.",
+        ) from e
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(
+            f"Failed to create item for module_id={sanitize(module_id)}",
+            exc_info=True,
         )
 
-    await DataEntryEmissionService(db).upsert_by_data_entry(
-        data_entry_response=item,
-    )
-    await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
-    await db.commit()
-
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create data entry",
+        ) from e
     response = DataEntryResponse.model_validate(item)
-    # emissions_meta = {}
-    # for emission in emissions:
-    #     if emission and emission.meta:
-    #         emissions_meta.update(emission.meta)
-    # kg_co2eq = sum(
-    #     emission_local.kg_co2eq
-    #     for emission_local in emissions
-    #     if emission_local and emission_local.kg_co2eq is not None
-    # )
+    # todo kg_co2eq in response is never used and can be removed, but for now set to 0
+    # to avoid confusion until we clean up the schema
     response.data = {
         **response.data,
         "kg_co2eq": 0,
@@ -479,7 +588,7 @@ async def get(
     submodule_id: str,
     item_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "view")
 
@@ -522,7 +631,7 @@ async def update(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "edit")
 
@@ -566,11 +675,18 @@ async def update(
             "carbon_report_module_id": carbon_report_module_id,
         }
         handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
-        # If kind or subkind is being updated
-        # we may need to resolve a new primary factor ID
-        update_payload = await resolve_primary_factor_if_kind_or_subkind_changed(
-            handler, update_payload, data_entry_type, item_data, existing_data, db
+
+        from app.services.module_handler_service import ModuleHandlerService
+
+        handler_service = ModuleHandlerService(db)
+        update_payload = await handler_service.resolve_primary_factor_if_changed(
+            handler, update_payload, data_entry_type, item_data, existing_data
         )
+
+        # For equipment partial PATCH, validate against merged persisted+incoming
+        # values so active+standby weekly sum constraints are always enforced.
+        # TODO: we should validate on merge data also for patch
+
         validated_data = handler.validate_update(update_payload)
 
         data_entry_update = DataEntryUpdate(
@@ -643,7 +759,7 @@ async def delete(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     await _check_module_permission(current_user, module_id, "edit")
 

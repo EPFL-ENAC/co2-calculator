@@ -2,9 +2,15 @@
 
 from typing import Optional
 
+from pydantic import field_validator
+
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    EmissionType,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -12,21 +18,30 @@ from app.schemas.data_entry import (
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.factor import (
+    BaseFactorHandler,
+    FactorCreate,
+    FactorResponseGen,
+    FactorUpdate,
+)
 
 logger = get_logger(__name__)
 
 
 class ResearchFacilitiesHandlerResponse(DataEntryResponseGen):
     name: Optional[str] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
 class ResearchFacilitiesHandlerCreate(DataEntryCreate):
     name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ResearchFacilitiesHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ResearchFacilitiesModuleHandler(BaseModuleHandler):
@@ -35,12 +50,11 @@ class ResearchFacilitiesModuleHandler(BaseModuleHandler):
     Formula: TBD (returns None until factors and a formula are defined).
     """
 
-    module_type: ModuleTypeEnum = ModuleTypeEnum.internal_services
+    module_type: ModuleTypeEnum = ModuleTypeEnum.research_facilities
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [
         DataEntryTypeEnum.research_facilities,
         DataEntryTypeEnum.mice_and_fish_animal_facilities,
-        DataEntryTypeEnum.other_research_facilities,
     ]
 
     create_dto = ResearchFacilitiesHandlerCreate
@@ -87,3 +101,164 @@ class ResearchFacilitiesModuleHandler(BaseModuleHandler):
                 # Formula TBD — no emission rows until factors are defined
             )
         ]
+
+
+## RESEARCH FACILITIES FACTOR HANDLERS
+
+# --- Common (research_facilities) ---
+
+research_facilities_common_classification_fields: list[str] = [
+    "researchfacility_id",
+    "researchfacility_name",
+    "use_unit",
+]
+research_facilities_common_value_fields: list[str] = [
+    "kg_co2eq_sum",
+    "total_use",
+]
+
+
+class ResearchFacilitiesCommonFactorCreate(FactorCreate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: str
+    use_unit: str
+    kg_co2eq_sum: Optional[float] = None
+    total_use: float
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
+
+
+class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: Optional[str] = None
+    use_unit: Optional[str] = None
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
+
+
+class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: str
+    use_unit: str
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
+
+
+class ResearchFacilitiesCommonFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [DataEntryTypeEnum.research_facilities]
+    emission_type = EmissionType.research_facilities__facilities
+
+    create_dto = ResearchFacilitiesCommonFactorCreate
+    update_dto = ResearchFacilitiesCommonFactorUpdate
+    response_dto = ResearchFacilitiesCommonFactorResponse
+
+    classification_fields: list[str] = research_facilities_common_classification_fields
+    value_fields: list[str] = research_facilities_common_value_fields
+
+
+# --- Animal (mice_and_fish_animal_facilities) ---
+
+research_facilities_animal_classification_fields: list[str] = [
+    "researchfacility_id",
+    "researchfacility_name",
+    "researchfacility_type",
+    "use_unit",
+]
+research_facilities_animal_value_fields: list[str] = [
+    "processemissions_share",
+    "building_energycombustions_share",
+    "building_rooms_share",
+    "purchases_common_share",
+    "purchases_additional_share",
+    "equipments_share",
+    "kg_co2eq_sum",
+    "total_use",
+]
+
+
+class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: str
+    researchfacility_type: str
+    use_unit: str
+    processemissions_share: Optional[float] = None
+    building_energycombustions_share: Optional[float] = None
+    building_rooms_share: Optional[float] = None
+    purchases_common_share: Optional[float] = None
+    purchases_additional_share: Optional[float] = None
+    equipments_share: Optional[float] = None
+    kg_co2eq_sum: Optional[float] = None
+    total_use: float
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
+
+    @field_validator(
+        "processemissions_share",
+        "building_energycombustions_share",
+        "building_rooms_share",
+        "purchases_common_share",
+        "purchases_additional_share",
+        "equipments_share",
+        mode="after",
+    )
+    @classmethod
+    def validate_share(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0 or v > 1:
+            raise ValueError("Share values must be between 0 and 1")
+        return v
+
+
+class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: Optional[str] = None
+    researchfacility_type: Optional[str] = None
+    use_unit: Optional[str] = None
+    processemissions_share: Optional[float] = None
+    building_energycombustions_share: Optional[float] = None
+    building_rooms_share: Optional[float] = None
+    purchases_common_share: Optional[float] = None
+    purchases_additional_share: Optional[float] = None
+    equipments_share: Optional[float] = None
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
+
+
+class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: str
+    researchfacility_type: Optional[str] = None
+    use_unit: str
+    processemissions_share: Optional[float] = None
+    building_energycombustions_share: Optional[float] = None
+    building_rooms_share: Optional[float] = None
+    purchases_common_share: Optional[float] = None
+    purchases_additional_share: Optional[float] = None
+    equipments_share: Optional[float] = None
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
+
+
+class ResearchFacilitiesAnimalFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [DataEntryTypeEnum.mice_and_fish_animal_facilities]
+    emission_type = EmissionType.research_facilities__animal
+
+    create_dto = ResearchFacilitiesAnimalFactorCreate
+    update_dto = ResearchFacilitiesAnimalFactorUpdate
+    response_dto = ResearchFacilitiesAnimalFactorResponse
+
+    classification_fields: list[str] = research_facilities_animal_classification_fields
+    value_fields: list[str] = research_facilities_animal_value_fields

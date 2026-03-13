@@ -1,6 +1,8 @@
 """Security utilities for JWT authentication and authorization."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatch
 from typing import Callable, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -15,7 +17,7 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.db import get_db
-from app.models.user import RoleName, User
+from app.models.user import User
 from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
@@ -106,55 +108,6 @@ async def get_current_active_user(
     return user
 
 
-def get_current_active_user_with_any_role(roles: list[RoleName]):
-    """
-    DEPRECATED: Use require_permission() instead for permission-based authorization.
-
-    Require that the user has at least one of the roles to perform an operation.
-
-    This function is deprecated in favor of permission-based authorization using
-    require_permission(path, action). It is kept temporarily for backward compatibility.
-
-    Args:
-        roles: List of roles, at least one of which the user must have
-
-    Returns:
-        FastAPI dependency that returns authenticated user if role check passes
-
-    Example (OLD - deprecated):
-        user: User = Depends(
-            get_current_active_user_with_any_role([RoleName.CO2_BACKOFFICE_ADMIN])
-        )
-
-    Example (NEW - recommended):
-        user: User = Depends(require_permission("backoffice.files", "view"))
-    """
-
-    async def get_current_active_user_with_any_role_impl(
-        user: User = Depends(get_current_active_user),
-    ) -> User:
-        # Log usage for migration tracking
-        logger.warning(
-            "DEPRECATED: get_current_active_user_with_any_role() used. "
-            "Migrate to require_permission() for permission-based authorization.",
-            extra={
-                "user_id": sanitize(user.id),
-                "required_roles": [role.value for role in roles],
-            },
-        )
-
-        if not any(
-            role in [user_role.role for user_role in user.roles] for role in roles
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not authorised to perform this operation",
-            )
-        return user
-
-    return get_current_active_user_with_any_role_impl
-
-
 def _build_permission_input(user: User, path: str, action: str) -> dict:
     """
     Build OPA input data for permission checks.
@@ -176,6 +129,85 @@ def _build_permission_input(user: User, path: str, action: str) -> dict:
     }
 
     return input_data
+
+
+async def get_permission_decision(user: User, path: str, action: str = "view") -> dict:
+    """Get OPA decision for a permission check.
+    This can be used in cases where you want to get the full decision details instead
+    of just the allow/deny result.
+
+    Args:
+      user: Current user
+      path: Permission path (e.g., "modules.headcount")
+      action: Permission action (e.g., "view", "edit", "export", default: "view")
+
+    Returns:
+      OPA decision dictionary, e.g. {"allow": True}
+        or {"allow": False, "reason": "User does not have required role"}
+    """
+    # Build OPA input with user context
+    input_data = _build_permission_input(user, path, action)
+
+    # Query policy for authorization decision
+    decision = await query_policy("authz/permission/check", input_data)
+    logger.info(
+        "Permission check requested",
+        extra={
+            "user_id": sanitize(user.id),
+            "path": path,
+            "action": action,
+            "decision": decision,
+        },
+    )
+    return decision
+
+
+async def is_permitted(user: User, path: str, action: str = "view") -> bool:
+    """
+    Check if the user has the specified permission.
+    Supports glob patterns, e.g. path="modules.*" to check all module permissions.
+
+    Args:
+        user: Current user
+        path: Permission path or glob (e.g., "modules.headcount", "modules.*")
+        action: Permission action (e.g., "view", "edit", "export", default: "view")
+
+    Returns:
+        True if user has permission for ALL matching paths, False otherwise.
+        If the glob matches no known paths, falls through to a direct OPA check.
+    """
+    known_paths = list(user.calculate_permissions().keys())
+    matching_paths = [p for p in known_paths if fnmatch(p, path)]
+
+    if matching_paths:
+        results = await asyncio.gather(
+            *[get_permission_decision(user, p, action) for p in matching_paths]
+        )
+        return all(r.get("allow", False) for r in results)
+
+    # No glob match (or literal path) — direct OPA check
+    decision = await get_permission_decision(user, path, action)
+    return decision.get("allow", False)
+
+
+async def check_permission(user: User, path: str, action: str = "view") -> None:
+    """
+    Check if the user has the specified permission and raise HTTPException if not.
+    Supports glob patterns, e.g. path="modules.*".
+
+    Args:
+        user: Current user
+        path: Permission path or glob (e.g., "modules.headcount", "modules.*")
+        action: Permission action (e.g., "view", "edit", "export", default: "view")
+    Raises:
+        HTTPException with status 403 if user does not have permission
+        for ANY matching path
+    """
+    if not await is_permitted(user, path, action):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action",
+        )
 
 
 def require_permission(path: str, action: str = "view") -> Callable:
@@ -210,39 +242,22 @@ def require_permission(path: str, action: str = "view") -> Callable:
     async def require_permission_impl(
         user: User = Depends(get_current_active_user),
     ) -> User:
-        # Build OPA input with user context
-        input_data = _build_permission_input(user, path, action)
+        permitted = await is_permitted(user, path, action)
 
-        # Query policy for authorization decision
-        decision = await query_policy("authz/permission/check", input_data)
-        logger.info(
-            "Permission check requested",
-            extra={
-                "user_id": sanitize(user.id),
-                "path": path,
-                "action": action,
-                "decision": decision,
-            },
-        )
-
-        # Check decision
-        if not decision.get("allow", False):
-            reason = decision.get("reason", "Permission denied")
+        if not permitted:
             logger.warning(
                 "Permission check denied",
                 extra={
                     "user_id": sanitize(user.id),
                     "path": path,
                     "action": action,
-                    "reason": reason,
                 },
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: {reason}",
+                detail="Permission denied",
             )
 
-        # Return authenticated user if permission granted
         return user
 
     return require_permission_impl

@@ -16,7 +16,7 @@ export const allDefault: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.Default,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
-  [MODULES.InternalServices]: MODULE_STATES.Default,
+  [MODULES.ResearchFacilities]: MODULE_STATES.Default,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
 };
 
@@ -30,7 +30,7 @@ export const mixedStates: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.InProgress,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
-  [MODULES.InternalServices]: MODULE_STATES.Default,
+  [MODULES.ResearchFacilities]: MODULE_STATES.Default,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
 };
 
@@ -43,7 +43,7 @@ export const earlyStage: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.Default,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
   [MODULES.Purchase]: MODULE_STATES.Default,
-  [MODULES.InternalServices]: MODULE_STATES.Default,
+  [MODULES.ResearchFacilities]: MODULE_STATES.Default,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
 };
 
@@ -56,7 +56,7 @@ export const midStage: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.Validated,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.InProgress,
   [MODULES.Purchase]: MODULE_STATES.Default,
-  [MODULES.InternalServices]: MODULE_STATES.Default,
+  [MODULES.ResearchFacilities]: MODULE_STATES.Default,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
 };
 
@@ -69,7 +69,7 @@ export const lateStage: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.Validated,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Validated,
   [MODULES.Purchase]: MODULE_STATES.Validated,
-  [MODULES.InternalServices]: MODULE_STATES.Validated,
+  [MODULES.ResearchFacilities]: MODULE_STATES.Validated,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.InProgress,
 };
 
@@ -82,6 +82,6 @@ export const allInProgress: Partial<ModuleStates> = {
   [MODULES.Buildings]: MODULE_STATES.InProgress,
   [MODULES.EquipmentElectricConsumption]: MODULE_STATES.InProgress,
   [MODULES.Purchase]: MODULE_STATES.InProgress,
-  [MODULES.InternalServices]: MODULE_STATES.InProgress,
+  [MODULES.ResearchFacilities]: MODULE_STATES.InProgress,
   [MODULES.ExternalCloudAndAI]: MODULE_STATES.InProgress,
 };

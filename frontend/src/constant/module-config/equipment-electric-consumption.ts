@@ -20,8 +20,8 @@ const emissionTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.emissi
 //     "data_entry_type_id": 9,
 //     "carbon_report_module_id": 11,
 //     "data": {
-//       "active_usage_hours": 35,
-//       "passive_usage_hours": 65,
+//       "active_usage_hours_per_week": 35,
+//       "standby_usage_hours_per_week": 65,
 //       "power_factor_id": 104,
 //       "emission": 1274,
 //       "primary_factor": {
@@ -76,7 +76,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_category',
   },
   {
-    id: 'active_usage_hours',
+    id: 'active_usage_hours_per_week',
     label: 'Active usage',
     type: 'number',
     required: true,
@@ -90,7 +90,7 @@ const baseModuleFields: ModuleField[] = [
     icon: 'o_donut_large',
   },
   {
-    id: 'passive_usage_hours',
+    id: 'standby_usage_hours_per_week',
     label: 'Standby usage',
     type: 'number',
     required: true,

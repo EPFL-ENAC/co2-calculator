@@ -1,0 +1,150 @@
+"""Seed emission factors and power factors from CSV data.
+
+This script populates the emission_factors and power_factors tables with initial data:
+- Swiss electricity mix emission factor (from config)
+- Power consumption factors from table_power.csv
+"""
+
+import asyncio
+import csv
+from pathlib import Path
+
+from sqlalchemy import or_
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.config import get_settings
+from app.core.logging import get_logger
+from app.db import SessionLocal
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionType
+
+# from app.models.emission_factor import EmissionFactor, PowerFactor
+from app.models.factor import Factor
+from app.modules.process_emissions import (
+    schemas as schemas,
+)  # This ensures the handlers are registered
+
+logger = get_logger(__name__)
+settings = get_settings()
+
+CSV_PATH = (
+    Path(__file__).parent.parent.parent / "seed_data" / "seed_equipment_table_power.csv"
+)
+
+
+async def seed_power_factors(session: AsyncSession) -> None:
+    """Seed power factors from table_power.csv."""
+    logger.info("Seeding power factors from CSV...")
+
+    # Check if power factors already exist
+    result = await session.exec(
+        select(Factor).where(
+            or_(
+                col(Factor.emission_type_id) == EmissionType.equipment__it,
+                col(Factor.emission_type_id) == EmissionType.equipment__scientific,
+                col(Factor.emission_type_id) == EmissionType.equipment__other,
+            )
+        )
+    )
+    existing = result.first()
+
+    if existing:
+        logger.info("Power factors already exist, skipping")
+        return
+
+    # Find the CSV file
+    csv_path = CSV_PATH
+    if not csv_path.exists():
+        logger.error(f"CSV file not found: {csv_path}")
+        return
+
+    # Read and parse CSV
+    power_factors = []
+    current_submodule = None
+    # current_sub_category = None
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Track submodule and sub-category (they persist across rows when empty)
+            submodule_val = row.get("data_entry_type", "").strip()
+            if submodule_val:
+                current_submodule = submodule_val
+
+            # Get class and sub-class
+            equipment_class = row.get("equipment_class", "").strip()
+            sub_class = row.get("sub_class", "").strip()
+
+            # Skip if no class defined
+            if not equipment_class:
+                continue
+
+            # Parse power values
+            try:
+                active_power_raw = row.get("active_power_w", None)
+                standby_power_raw = row.get("standby_power_w", None)
+                if active_power_raw is None or standby_power_raw is None:
+                    raise ValueError("Missing power values")
+                active_power = float(active_power_raw)
+                standby_power = float(standby_power_raw)
+            except ValueError:
+                logger.warning(f"Invalid power values in row: {row}")
+                continue
+
+            if current_submodule == "it":
+                emission_type_id = EmissionType.equipment__it
+            elif current_submodule == "other":
+                emission_type_id = EmissionType.equipment__other
+            elif current_submodule == "scientific":
+                emission_type_id = EmissionType.equipment__scientific
+            power_factor = Factor(
+                emission_type_id=emission_type_id,
+                is_conversion=False,
+                data_entry_type_id=(
+                    DataEntryTypeEnum[current_submodule].value
+                    if current_submodule
+                    else DataEntryTypeEnum["other"].value
+                ),
+                classification={
+                    "class": equipment_class,
+                    "kind": equipment_class,
+                    "sub_class": sub_class or None,
+                    "subkind": sub_class or None,
+                    "unit": "W",
+                    "description": f"Power factor for {equipment_class}",
+                },
+                values={
+                    "active_power_w": active_power,
+                    "standby_power_w": standby_power,
+                    # will be in CSV in the future when we have specific emission
+                    # factors per equipment, but for now we set it to the Swiss mix
+                    # EF as a default value to allow computations to work
+                    # Default value for emission factor
+                    "ef_kg_co2eq_per_kwh": 0.125,
+                },
+            )
+            power_factors.append(power_factor)
+
+    # Bulk insert
+    session.add_all(power_factors)
+    await session.commit()
+    logger.info(f"Created {len(power_factors)} power factors from CSV")
+
+
+async def main() -> None:
+    """Main seed function."""
+    logger.info("Starting emission factors seeding...")
+
+    async with SessionLocal() as session:
+        # await seed_emission_factors(session)
+        await seed_power_factors(session)
+        await session.commit()
+        # commit all changes at the end of seeding emission factors and power factors
+
+    logger.info("Emission factors seeding complete!")
+
+
+if __name__ == "__main__":
+    # run script on /app/api/v1/table_power.csv
+    asyncio.run(main())

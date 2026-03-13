@@ -63,9 +63,13 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Buildings]: MODULE_STATES.Default,
     [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
-    [MODULES.InternalServices]: MODULE_STATES.Default,
+    [MODULES.ResearchFacilities]: MODULE_STATES.Default,
     [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
     [MODULES.ProcessEmissions]: MODULE_STATES.Default,
+    [MODULES.Commuting]: MODULE_STATES.Default,
+    [MODULES.Food]: MODULE_STATES.Default,
+    [MODULES.Waste]: MODULE_STATES.Default,
+    [MODULES.GreyEnergy]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);
@@ -507,13 +511,10 @@ export const useModuleStore = defineStore('modules', () => {
           error &&
           typeof error === 'object' &&
           'response' in error &&
-          error.response &&
-          typeof error.response === 'object' &&
-          'json' in error.response &&
-          typeof error.response.json === 'function'
+          error.response
         ) {
-          const errorBody = await error.response.json();
-          console.error('[ModuleStore] Backend error response:', errorBody);
+          const { detail } = await (error.response as Response).json();
+          throw new Error(detail, { cause: error });
         }
         throw error;
       }
@@ -521,8 +522,10 @@ export const useModuleStore = defineStore('modules', () => {
       if (isRoundTrip) {
         const returnBody = {
           ...body,
-          origin_location_id: normalized.destination_location_id,
-          destination_location_id: normalized.origin_location_id,
+          origin_iata: normalized.destination_iata,
+          destination_iata: normalized.origin_iata,
+          origin_name: normalized.destination_name,
+          destination_name: normalized.origin_name,
         };
         try {
           await api.post(path, { json: returnBody }).json();
@@ -531,16 +534,10 @@ export const useModuleStore = defineStore('modules', () => {
             error &&
             typeof error === 'object' &&
             'response' in error &&
-            error.response &&
-            typeof error.response === 'object' &&
-            'json' in error.response &&
-            typeof error.response.json === 'function'
+            error.response
           ) {
-            const errorBody = await error.response.json();
-            console.error(
-              '[ModuleStore] Backend error response (return leg):',
-              errorBody,
-            );
+            const { detail } = await (error.response as Response).json();
+            throw new Error(detail, { cause: error });
           }
           throw error;
         }

@@ -9,7 +9,8 @@ export type FieldType =
   | 'checkbox'
   | 'boolean'
   | 'radio-group'
-  | 'direction-input';
+  | 'direction-input'
+  | 'headcount-member-select';
 
 export interface ConditionalVisibility {
   showWhen?: {
@@ -84,6 +85,15 @@ export interface ModuleField {
   // Conditional options filtering based on another field's value
   // Can be a single condition or array of conditions (first match wins)
   conditionalOptions?: ConditionalOptionsConfig;
+  // When the specified row field has a value, this editable column renders as read-only text
+  readOnlyWhen?: {
+    fieldId: string; // check this field on the row
+    hasValue: boolean; // true = read-only when field has a value
+  };
+  // When read-only due to readOnlyWhen, display this other field's value from the row
+  readOnlyDisplayField?: string;
+  // Whether to translate option labels through i18n
+  optionLabelsAreKeys?: boolean;
 }
 
 export interface Submodule {

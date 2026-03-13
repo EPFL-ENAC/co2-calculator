@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
 from app.models.user import UserProvider
+from app.providers.test_fixtures import TEST_UNITS
 
 """
 Unit provider interface and implementations.
@@ -55,7 +56,7 @@ class UnitProvider(ABC):
 
     async def get_unit_by_id(self, unit_id: str) -> Optional[Unit]:
         """
-        Get a single unit by ID, here the unit_id is the provider_code.
+        Get a single unit by ID, here the unit_id is the institutional_id.
 
         Args:
             unit_id: Unit ID to fetch
@@ -148,12 +149,12 @@ class AccredUnitProvider(UnitProvider):
                         continue
 
                     email = responsible.get("email")
-                    provider_code = responsible.get("id")
+                    institutional_id = responsible.get("id")
 
-                    if not email or not provider_code:
+                    if not email or not institutional_id:
                         continue
 
-                    key = (email, provider_code)
+                    key = (email, institutional_id)
                     if key not in seen_users:
                         seen_users.add(key)
                         all_principal_users.append(responsible)
@@ -314,48 +315,12 @@ class TestUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.TEST
 
     async def get_units(self, unit_ids: Optional[List[str]] = None) -> List[Unit]:
-        """Return test units for development."""
-        all_test_units = [
-            Unit(
-                id=1,
-                provider=self.type,
-                institutional_code="12345",
-                institutional_id="7918",
-                name="ENAC-IT4R-TEST",
-                level=4,
-                principal_user_institutional_id="testuser_co2.user.principal",
-                path_institutional_code="10582 10583 11435",
-                path_institutional_id="cf-10582 cf-10583 cf-11435",
-                path_name="EPFL ENAC IT4R-TEST",
-            ),
-            Unit(
-                id=2,
-                provider=self.type,
-                institutional_code="67890",
-                name="IC-TEST",
-                level=3,
-                principal_user_institutional_id="testuser_co2.user.principal",
-                path_institutional_code="10582 10583 11436",
-                path_institutional_id="cf-10582 cf-10583 cf-11436",
-                path_name="EPFL IC-TEST",
-            ),
-        ]
-
+        """Return test units, filtered by institutional_id when unit_ids given."""
         if unit_ids:
             return [
-                Unit(
-                    provider=self.type,
-                    institutional_code=str(provider_code),
-                    name=f"I-{provider_code}-TEST",
-                    level=4,
-                    path_institutional_code=f"10582 10583 {provider_code}",
-                    path_institutional_id=f"cf-10582 cf-10583 cf-{provider_code}",
-                    principal_user_institutional_id="testuser_co2.user.principal",
-                    path_name=f"TEST-AFFILIATION-{provider_code}",
-                )
-                for provider_code in unit_ids
+                u.model_copy() for u in TEST_UNITS if u.institutional_id in unit_ids
             ]
-        return all_test_units
+        return [u.model_copy() for u in TEST_UNITS]
 
 
 def get_unit_provider(
@@ -371,7 +336,7 @@ def get_unit_provider(
     Returns:
         UnitProvider instance
     """
-    if not provider_type:
+    if provider_type is None:
         provider_type = settings.PROVIDER_PLUGIN
 
     if provider_type == UserProvider.DEFAULT:

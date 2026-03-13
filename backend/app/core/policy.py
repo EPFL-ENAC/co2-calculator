@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import (
     GlobalScope,
     Role,
@@ -183,10 +184,12 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
                 # Extract unit from scope
-                if isinstance(role_scope, RoleScope) and role_scope.provider_code:
-                    user_unit_ids.add(role_scope.provider_code)
-                elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
-                    user_unit_ids.add(role_scope["provider_code"])
+                if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+                    user_unit_ids.add(role_scope.institutional_id)
+                elif isinstance(role_scope, dict) and role_scope.get(
+                    "institutional_id"
+                ):
+                    user_unit_ids.add(role_scope["institutional_id"])
 
         # Principals can edit manual/CSV trips in their units
         if principal_or_secondary and resource_unit_id in user_unit_ids:
@@ -313,11 +316,11 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
         for role in roles:
             role_scope = role.on
             # Handle RoleScope objects
-            if isinstance(role_scope, RoleScope) and role_scope.provider_code:
-                unit_ids.add(role_scope.provider_code)
+            if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+                unit_ids.add(role_scope.institutional_id)
             # Handle dict format
-            elif isinstance(role_scope, dict) and role_scope.get("provider_code"):
-                unit_ids.add(role_scope["provider_code"])
+            elif isinstance(role_scope, dict) and role_scope.get("institutional_id"):
+                unit_ids.add(role_scope["institutional_id"])
         if unit_ids:
             # Unit scope: filter by unit_ids
             scope = "unit"
@@ -401,62 +404,110 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     }
 
 
-def _get_module_permission_path(module_id: str) -> Optional[str]:
+def _get_module_permission_path(module_name: str | None) -> Optional[str]:
     """
-    Map module ID to permission path.
+    Map module name to permission path.
 
     Args:
-        module_id: Module identifier
+        module_name: Module name (e.g., "professional-travel")
             (e.g., "professional-travel", "equipment-electric-consumption")
 
     Returns:
         Permission path (e.g., "modules.professional_travel") or None
         if module doesn't require permission
     """
+    if module_name is None or module_name.strip() == "":
+        return None  # No module specified, no permission required
+    # Name mapping for modules with legacy permission paths
     module_permission_map = {
-        "professional-travel": "modules.professional_travel",
-        "equipment-electric-consumption": "modules.equipment",
-        "buildings": "modules.buildings",
-        "purchase": "modules.purchase",
-        "internal-services": "modules.internal_services",
-        "external-cloud-and-ai": "modules.external_cloud_and_ai",
-        "process-emissions": "modules.process_emissions",
-        "my-lab": "modules.headcount",  # Headcount module
+        "equipment_electric_consumption": "modules.equipment",
+        "my_lab": "modules.headcount",  # Headcount module
     }
-    return module_permission_map.get(module_id)
+    normalized_name = module_name.replace("-", "_").lower().strip()
+    return module_permission_map.get(normalized_name, f"modules.{normalized_name}")
 
 
-async def check_module_permission(user: User, module_id: str, action: str) -> None:
+async def get_module_permission_decision(
+    user: User, module_id: str | int, action: str = "view"
+) -> dict:
+    """
+    Get permission decision for a specific module and action.
+
+    Args:
+        user: Current user
+        module_id: Module enum identifier or name
+        action: Permission action (e.g., "view", "edit", "export", default: "view")
+
+    Returns:
+        OPA decision dictionary, e.g. {"allow": True}
+          or {"allow": False, "reason": "User does not have required role"}
+    """
+    module_name = (
+        module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
+    )
+    permission_path = _get_module_permission_path(module_name)
+    if not permission_path:
+        # Module doesn't require permission check, allow access
+        return {"allow": True, "reason": "No permission required for this module"}
+
+    input_data = {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "roles": user.roles or [],
+        },
+        "path": permission_path,
+        "action": action,
+    }
+    return await query_policy("authz/permission/check", input_data)
+
+
+async def is_module_permitted(
+    user: User, module_id: str | int, action: str = "view"
+) -> bool:
+    """
+    Check if user has permission for a specific module and action.
+
+    Args:
+        user: Current user
+        module_id: Module enum identifier or name
+        action: Permission action (e.g., "view", "edit", default: "view")
+
+    Returns:
+        True if user has permission, False otherwise
+    """
+    decision = await get_module_permission_decision(user, module_id, action)
+    return decision.get(
+        "allow", False
+    )  # Deny by default if decision lacks an explicit allow
+
+
+async def check_module_permission(
+    user: User, module_id: str | int, action: str
+) -> None:
     """
     Check if user has permission for the module.
 
     Args:
         user: Current user
-        module_id: Module identifier
+        module_id: Module enum identifier or name
         action: Permission action ("view" or "edit")
 
     Raises:
         HTTPException: 403 if permission denied
     """
-    permission_path = _get_module_permission_path(module_id)
-    if not permission_path:
-        # Module doesn't require permission check, allow access
-        return
-
-    # Build OPA input with user context
-    input_data = {
-        "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
-        "path": permission_path,
-        "action": action,
-    }
-    decision = await query_policy("authz/permission/check", input_data)
+    module_name = (
+        module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
+    )
+    permission_path = _get_module_permission_path(module_name) or "unknown_module"
+    decision = await get_module_permission_decision(user, module_id, action)
 
     logger.info(
         "Module permission check",
         extra={
             "user_id": sanitize(user.id),
             "module_id": sanitize(module_id),
-            "permission_path": permission_path,
+            "permission_path": sanitize(permission_path),
             "action": action,
             "decision": decision,
         },
@@ -469,7 +520,7 @@ async def check_module_permission(user: User, module_id: str, action: str) -> No
             extra={
                 "user_id": sanitize(user.id),
                 "module_id": sanitize(module_id),
-                "permission_path": permission_path,
+                "permission_path": sanitize(permission_path),
                 "action": action,
                 "reason": reason,
             },

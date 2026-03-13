@@ -26,7 +26,7 @@ class GlobalScope(BaseModel):
 
 
 class RoleScope(BaseModel):
-    provider_code: Optional[str] = None
+    institutional_id: Optional[str] = None
     affiliation: Optional[str] = None
 
 
@@ -64,7 +64,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.professional_travel": {"view": bool, "edit": bool},
         "modules.buildings": {"view": bool, "edit": bool},
         "modules.purchase": {"view": bool, "edit": bool},
-        "modules.internal_services": {"view": bool, "edit": bool},
+        "modules.research_facilities": {"view": bool, "edit": bool},
         "modules.external_cloud_and_ai": {"view": bool, "edit": bool},
         "modules.process_emissions": {"view": bool, "edit": bool},
     }
@@ -102,7 +102,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         "modules.professional_travel": {"view": False, "edit": False},
         "modules.buildings": {"view": False, "edit": False},
         "modules.purchase": {"view": False, "edit": False},
-        "modules.internal_services": {"view": False, "edit": False},
+        "modules.research_facilities": {"view": False, "edit": False},
         "modules.external_cloud_and_ai": {"view": False, "edit": False},
         "modules.process_emissions": {"view": False, "edit": False},
     }
@@ -151,7 +151,10 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 }
                 permissions["modules.buildings"] = {"view": True, "edit": True}
                 permissions["modules.purchase"] = {"view": True, "edit": True}
-                permissions["modules.internal_services"] = {"view": True, "edit": True}
+                permissions["modules.research_facilities"] = {
+                    "view": True,
+                    "edit": True,
+                }
                 permissions["modules.external_cloud_and_ai"] = {
                     "view": True,
                     "edit": True,
@@ -166,8 +169,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
-                permissions["modules.professional_travel"]["view"] = True
-                permissions["modules.professional_travel"]["edit"] = True
+                permissions["modules.professional_travel"] = {
+                    "view": True,
+                    "edit": True,
+                }
+                permissions["modules.external_cloud_and_ai"] = {
+                    "view": True,
+                    "edit": True,
+                }
 
         # SYSTEM ROLES - Affect system.* permissions (and potentially backoffice.*)
         elif role_name == RoleName.CO2_SUPERADMIN.value:
@@ -219,7 +228,7 @@ class User(UserBase, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    provider_code: str = Field(
+    institutional_id: str = Field(
         unique=True,
         index=True,
         description="Provider-assigned user code (SCIPER for EPFL)",

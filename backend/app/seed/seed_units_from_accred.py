@@ -18,16 +18,16 @@ from app.services.user_service import UserService
 # -- Units with a principal that doesn't exist in users
 # SELECT u.name, u.principal_user_institutional_id
 # FROM units u
-# LEFT JOIN users us ON u.principal_user_institutional_id = us.provider_code
+# LEFT JOIN users us ON u.principal_user_institutional_id = us.institutional_id
 # WHERE u.principal_user_institutional_id IS NOT NULL
-#   AND us.provider_code IS NULL;
+#   AND us.institutional_id IS NULL;
 
 # -- Units with a parent_id that doesn't exist in units
-# SELECT u.name, u.provider_code, u.parent_id
+# SELECT u.name, u.institutional_code, u.parent_institutional_code
 # FROM units u
-# LEFT JOIN units p ON u.parent_id = p.id
-# WHERE u.parent_id IS NOT NULL
-#   AND p.id IS NULL;
+# LEFT JOIN units p ON u.parent_institutional_code = p.institutional_code
+# WHERE u.parent_institutional_code IS NOT NULL
+#   AND p.institutional_code IS NULL;
 
 
 async def seed_units_accred() -> None:

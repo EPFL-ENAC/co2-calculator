@@ -69,6 +69,30 @@ class LocationService:
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
+    async def get_location_by_name(self, name: str) -> Optional[Location]:
+        """
+        Get location by name.
+
+        Args:
+            name: Location name
+
+        Returns:
+            Location if found, None otherwise
+        """
+        return await self.repo.get_by_name(name)
+
+    async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
+        """
+        Get location by IATA code.
+
+        Args:
+            iata_code: IATA code
+
+        Returns:
+            Location if found, None otherwise
+        """
+        return await self.repo.get_by_iata(iata_code)
+
     async def get_location_by_id(self, location_id: int) -> Optional[Location]:
         """
         Get location by ID.

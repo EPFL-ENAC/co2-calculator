@@ -107,7 +107,7 @@ class UnitService:
             .join(UnitUser, col(UnitUser.unit_id) == col(Unit.id))
             .outerjoin(
                 User,
-                col(User.provider_code) == col(Unit.principal_user_institutional_id),
+                col(User.institutional_id) == col(Unit.principal_user_institutional_id),
             )
             .where(col(UnitUser.user_id) == user.id)
         )
@@ -140,9 +140,11 @@ class UnitService:
             for unit, role, principal_user_name, principal_user_function in rows
         ]
 
-    async def get_by_provider_code(self, provider_code: str) -> Optional[UnitRead]:
-        """Get a unit by its provider code."""
-        unit = await self.unit_repo.get_by_code(provider_code)
+    async def get_by_institutional_id(
+        self, institutional_id: str
+    ) -> Optional[UnitRead]:
+        """Get a unit by its institutional_id."""
+        unit = await self.unit_repo.get_by_institutional_id(institutional_id)
         if unit is None:
             return None
         return UnitRead.model_validate(unit)

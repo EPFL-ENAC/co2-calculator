@@ -39,41 +39,14 @@ class UnitRepository:
         result = await self.session.exec(select(Unit).where(Unit.id == unit_id))
         return result.one_or_none()
 
-    @staticmethod
-    def build_archibus_unit_ids(unit: Unit | None) -> list[str]:
-        """Build Archibus-compatible unit identifiers from a Unit record."""
-        if unit is None:
-            return []
-
-        normalized: list[str] = []
-        seen: set[str] = set()
-
-        institutional_id = (
-            str(unit.institutional_id).strip() if unit.institutional_id else ""
-        )
-        if institutional_id and institutional_id not in seen:
-            seen.add(institutional_id)
-            normalized.append(institutional_id)
-
-        if unit.institutional_code:
-            institutional_code = str(unit.institutional_code).strip()
-            if institutional_code and institutional_code not in seen:
-                seen.add(institutional_code)
-                normalized.append(institutional_code)
-
-        return normalized
-
-    async def get_archibus_unit_ids_by_id(self, unit_id: int | None) -> list[str]:
-        """Resolve normalized Archibus unit identifiers from a unit ID."""
-        unit = await self.get_by_id(unit_id)
-        return self.build_archibus_unit_ids(unit)
-
-    async def get_by_code(self, provider_code: str | None) -> Optional[Unit]:
-        """Get unit by code (string identifier)."""
-        if provider_code is None:
+    async def get_by_institutional_id(
+        self, institutional_id: str | None
+    ) -> Optional[Unit]:
+        """Get unit by institutional_id."""
+        if institutional_id is None:
             return None
         result = await self.session.exec(
-            select(Unit).where(col(Unit.institutional_code) == provider_code)
+            select(Unit).where(col(Unit.institutional_id) == institutional_id)
         )
         return result.one_or_none()
 
@@ -85,18 +58,20 @@ class UnitRepository:
             return None
         if isinstance(identifier, int):
             return await self.get_by_id(identifier)
-        # Try as code (string)
-        return await self.get_by_code(identifier)
+        # Try as institutional_id (string)
+        return await self.get_by_institutional_id(identifier)
 
     async def get_by_ids(self, unit_ids: List[int]) -> List[Unit]:
         """Get multiple units by IDs (integers)."""
         result = await self.session.exec(select(Unit).where(col(Unit.id).in_(unit_ids)))
         return list(result.all())
 
-    async def get_by_codes(self, codes: List[str]) -> List[Unit]:
-        """Get multiple units by codes (strings)."""
+    async def get_by_institutional_ids(
+        self, institutional_ids: List[str]
+    ) -> List[Unit]:
+        """Get multiple units by institutional_ids."""
         result = await self.session.exec(
-            select(Unit).where(col(Unit.institutional_code).in_(codes))
+            select(Unit).where(col(Unit.institutional_id).in_(institutional_ids))
         )
         return list(result.all())
 
@@ -105,15 +80,15 @@ class UnitRepository:
         skip: int = 0,
         limit: int = 100,
         unit_id_filter: Optional[List[int]] = None,
-        provider_code_filter: Optional[List[str]] = None,
+        institutional_id_filter: Optional[List[str]] = None,
     ) -> List[Unit]:
         """List units with optional filters."""
         query = select(Unit)
 
         if unit_id_filter:
             query = query.where(col(Unit.id).in_(unit_id_filter))
-        if provider_code_filter:
-            query = query.where(col(Unit.institutional_code).in_(provider_code_filter))
+        if institutional_id_filter:
+            query = query.where(col(Unit.institutional_id).in_(institutional_id_filter))
 
         query = query.offset(skip).limit(limit)
         result = await self.session.exec(query)
@@ -205,14 +180,23 @@ class UnitRepository:
     async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
         if not units:
             return UpsertResult(created=0, updated=0, total=0, data=[])
+        # Use institutional_code as the merge key — it's always present
+        # and has a unique constraint, unlike institutional_id which can be None.
         rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
-        existing: dict[str, int] = {code: uid for code, uid in rows if uid is not None}
+        existing: dict[str | None, int] = {
+            code: uid for code, uid in rows if uid is not None
+        }
 
-        created = len(units) - len(existing)
-        updated = len(existing)
+        created = 0
+        updated = 0
         merged = []
         for unit in units:
-            unit.id = existing.get(unit.institutional_code)
+            existing_id = existing.get(unit.institutional_code)
+            unit.id = existing_id
+            if existing_id is not None:
+                updated += 1
+            else:
+                created += 1
             result = await self.session.merge(unit)
             merged.append(result)
         return UpsertResult(
@@ -241,8 +225,8 @@ class UnitRepository:
         unit_data: Unit,
     ) -> Unit:
         """Create or update a unit by code."""
-        # Look up by code for upsert operations
-        existing = await self.get_by_code(unit_data.institutional_code)
+        # Look up by institutional_id for upsert operations
+        existing = await self.get_by_institutional_id(unit_data.institutional_id)
 
         # so provider is wrong
         # And cost_centers are not updated

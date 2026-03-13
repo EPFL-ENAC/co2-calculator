@@ -317,9 +317,13 @@ export function getModulePermissionPath(module: Module): string | null {
     [MODULES.ProfessionalTravel]: 'modules.professional_travel',
     [MODULES.Buildings]: 'modules.buildings',
     [MODULES.Purchase]: 'modules.purchase',
-    [MODULES.InternalServices]: 'modules.internal_services',
+    [MODULES.ResearchFacilities]: 'modules.research_facilities',
     [MODULES.ExternalCloudAndAI]: 'modules.external_cloud_and_ai',
     [MODULES.ProcessEmissions]: 'modules.process_emissions',
+    [MODULES.Commuting]: null,
+    [MODULES.Food]: null,
+    [MODULES.Waste]: null,
+    [MODULES.GreyEnergy]: null,
   };
   return modulePermissionMap[module] || null;
 }

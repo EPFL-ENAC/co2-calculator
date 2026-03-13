@@ -47,6 +47,7 @@ const stateColorString = computed(() => {
   <div class="timeline-item-wrapper column items-center justify-between">
     <module-icon :name="item.link" size="md" :color="stateColor" />
     <q-btn
+      :disable="!to || to === '/'"
       :to="to"
       size="xs"
       :class="[
@@ -59,6 +60,7 @@ const stateColorString = computed(() => {
     >
     </q-btn>
     <q-btn
+      :disable="!to || to === '/'"
       flat
       dense
       rounded

@@ -13,13 +13,14 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_db
 from app.core.logging import get_logger
 from app.core.security import require_permission
 from app.models.carbon_report import (
     CarbonReport,
     CarbonReportModule,
     CarbonReportModuleRead,
+    ModuleStatus,
 )
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
@@ -54,7 +55,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
@@ -66,7 +67,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 7},
+                "research_facilities": {"status": "validated", "outlier_values": 7},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
@@ -78,7 +79,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
         },
@@ -99,7 +100,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
@@ -111,7 +112,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
@@ -123,7 +124,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
         },
@@ -144,7 +145,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 8},
             },
             "2025": {
@@ -156,7 +157,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 8},
             },
             "2026": {
@@ -168,7 +169,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 8},
             },
         },
@@ -189,7 +190,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "validated", "outlier_values": 1},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 1},
             },
             "2025": {
@@ -201,7 +202,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "validated", "outlier_values": 1},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 1},
             },
             "2026": {
@@ -213,7 +214,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "validated", "outlier_values": 1},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 1},
             },
         },
@@ -234,7 +235,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2025": {
@@ -246,7 +247,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
             "2026": {
@@ -258,7 +259,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "validated", "outlier_values": 0},
+                "research_facilities": {"status": "validated", "outlier_values": 0},
                 "external_cloud": {"status": "validated", "outlier_values": 0},
             },
         },
@@ -279,7 +280,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "default", "outlier_values": 0},
+                "research_facilities": {"status": "default", "outlier_values": 0},
                 "external_cloud": {"status": "default", "outlier_values": 0},
             },
             "2025": {
@@ -291,7 +292,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "default", "outlier_values": 0},
+                "research_facilities": {"status": "default", "outlier_values": 0},
                 "external_cloud": {"status": "default", "outlier_values": 0},
             },
             "2026": {
@@ -303,7 +304,7 @@ MOCK_UNITS_REPORTING = [
                     "outlier_values": 0,
                 },
                 "purchase": {"status": "default", "outlier_values": 0},
-                "internal_services": {"status": "default", "outlier_values": 0},
+                "research_facilities": {"status": "default", "outlier_values": 0},
                 "external_cloud": {"status": "default", "outlier_values": 0},
             },
         },
@@ -498,70 +499,49 @@ def _is_unit_complete(completion: dict, years: list[str] | None = None) -> bool:
     return validated_count == expected_total
 
 
-@router.get("/select-units")
-async def get_filter_units(
-    years: List[int] = Query(default=[]),
-    path_name: str = Query(default=None, description="Filter by path name"),
-    name: Optional[str] = Query(
-        None, description="Filter by unit name (partial match)"
-    ),
-    page: int = Query(1, ge=1, description="Page number for pagination"),
-    page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    unit_repo = UnitRepository(db)
-    result = await unit_repo.get_units_with_filters(
-        years=years,
-        path_name=path_name,
-        name=name,
-        page=page,
-        page_size=page_size,
-    )
-    return result
-
-
 @router.get("/units", response_model=PaginatedUnitReportingData)
 async def list_backoffice_units(
-    affiliation: Optional[List[str]] = Query(
-        None, description="Filter by affiliation(s) - can specify multiple"
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
     ),
-    units: Optional[List[str]] = Query(
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
-    completion: Optional[str] = Query(
-        None, description="Filter by completion status (complete, incomplete)"
-    ),
-    outlier_values: Optional[bool] = Query(
+    completion_status: Optional[ModuleStatus] = Query(
         None,
-        description="""Filter by outlier values (true = has outliers,
-        false = no outliers)""",
+        description="Filter by completion status ModuleStatus",
     ),
     search: Optional[str] = Query(
-        None, description="Search in unit name, affiliation, or principal user"
+        None, description="Search in unit name, path, or principal user"
     ),
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'headcount:validated')""",
+        (e.g., 'headcount:validated') --> not implemented yet, use enum""",
     ),
-    years: Optional[List[str]] = Query(
-        None, description="Filter by years (e.g., ['2024', '2025'])"
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
     ),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List units with reporting data for backoffice.
-
-    Returns mock data with completion status, outlier values, and other metrics.
-    Supports filtering by affiliation, completion status, outlier values, and search.
+    List units with their reporting completion status and outlier values,
     """
     carbon_report_repo = CarbonReportModuleRepository(db)
+    if years is None or len(years) == 0:
+        raise ValueError("At least one year must be specified for reporting overview")
     result = await carbon_report_repo.get_reporting_overview(
-        year=2025,  # Default to all years for overview
+        path_lvl2=path_lvl2,
+        path_lvl3=path_lvl3,
+        path_lvl4=path_lvl4,
+        completion_status=completion_status,
+        search=search,
+        modules=modules,
+        years=years,  # Default to first year for overview for now
         page=page,
         page_size=page_size,
     )
@@ -595,7 +575,7 @@ async def export_detailed_reporting(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
 ):
     """
     Export detailed reporting data for all units, including module-level details.
@@ -771,19 +751,15 @@ def _get_module_type_name(data_entry_type_id: int) -> str:
 
 @router.get("/export")
 async def export_reporting(
-    affiliation: Optional[List[str]] = Query(
-        None, description="Filter by affiliation(s) - can specify multiple"
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
     ),
-    units: Optional[List[str]] = Query(
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
-    completion: Optional[str] = Query(
+    completion_status: Optional[ModuleStatus] = Query(
         None, description="Filter by completion status (complete, incomplete)"
-    ),
-    outlier_values: Optional[bool] = Query(
-        None,
-        description="""Filter by outlier values (true = has outliers,
-        false = no outliers)""",
     ),
     search: Optional[str] = Query(
         None, description="Search in unit name, affiliation, or principal user"
@@ -793,8 +769,8 @@ async def export_reporting(
         description="""Filter by module states, format: 'module_name:state'
         (e.g., 'headcount:validated')""",
     ),
-    years: Optional[List[str]] = Query(
-        None, description="Filter by years (e.g., ['2024', '2025'])"
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
     ),
     format: str = Query("csv", description="Export format: csv or json"),
     page: int = Query(1, ge=1, description="Page number for pagination"),
@@ -804,15 +780,15 @@ async def export_reporting(
     # - maybe we should stream the data instead of loading it all in memory?
     page_size: int = Query(100, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
 ):
     """Export unit reporting data as CSV or JSON file download."""
     # Get all matching records for export
     reporting_data = await list_backoffice_units(
-        affiliation=affiliation,
-        units=units,
-        completion=completion,
-        outlier_values=outlier_values,
+        path_lvl2=path_lvl2,
+        path_lvl3=path_lvl3,
+        path_lvl4=path_lvl4,
+        completion_status=completion_status,
         search=search,
         modules=modules,
         years=years,
@@ -858,7 +834,7 @@ async def export_reporting(
         for doc in reporting_data.data:
             writer.writerow(
                 [
-                    doc.unit_id,
+                    doc.id,
                     doc.unit_name,
                     doc.affiliation,
                     doc.validation_status,
@@ -888,14 +864,14 @@ async def get_backoffice_unit(
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     return {"message": f"Details for unit {unit_id} with year filter {years}"}
 
 
 @router.get("/years")
 async def get_available_years(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     """
     Get all available years from all units combined.
@@ -903,7 +879,7 @@ async def get_available_years(
     sorted in descending order (latest first).
     """
     all_years: set[str] = set(
-        "2024 2025 2026".split()
+        "2025".split()
     )  # Mocked for demo, replace with real data extraction
 
     # Sort years in descending order (latest first)

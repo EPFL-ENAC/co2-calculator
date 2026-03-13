@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
+    is_module_permitted,
     query_policy,
 )
 from app.models.user import Role, RoleName, RoleScope
@@ -36,10 +37,10 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("purchase")
         assert result == "modules.purchase"
 
-    def test_internal_services_module(self):
-        """Test mapping for internal-services module."""
-        result = _get_module_permission_path("internal-services")
-        assert result == "modules.internal_services"
+    def test_research_facilities_module(self):
+        """Test mapping for research-facilities module."""
+        result = _get_module_permission_path("research-facilities")
+        assert result == "modules.research_facilities"
 
     def test_external_cloud_and_ai_module(self):
         """Test mapping for external-cloud-and-ai module."""
@@ -56,21 +57,23 @@ class TestGetModulePermissionPath:
         result = _get_module_permission_path("process-emissions")
         assert result == "modules.process_emissions"
 
-    def test_unknown_module_returns_none(self):
-        """Test that unknown module ID returns None."""
+    def test_unknown_module_returns_default_path(self):
+        """Test that unknown module ID returns default path."""
         result = _get_module_permission_path("unknown-module")
-        assert result is None
+        assert result == "modules.unknown_module"
 
     def test_empty_string_returns_none(self):
         """Test that empty string module ID returns None."""
         result = _get_module_permission_path("")
         assert result is None
 
-    def test_case_sensitive_module_id(self):
-        """Test that module ID is case-sensitive."""
-        # Wrong case should return None
+    def test_case_insensitive_module_id(self):
+        """Test that module ID is case-insensitive."""
+        # Mixed case should still map to the correct path
         result = _get_module_permission_path("Professional-Travel")
-        assert result is None
+        assert (
+            result == "modules.professional_travel"
+        )  # Still maps to correct path due to lower() in mapping
 
 
 class TestCheckModulePermission:
@@ -133,9 +136,9 @@ class TestCheckModulePermission:
         user.email = "test@example.com"
         user.roles = []
 
-        # Module without permission requirement (returns None from mapping)
-        # Should not raise exception and allow access
-        await check_module_permission(user, "unknown-module", "view")
+        # Module without permission requirement must not be allowed by default
+        result = await is_module_permitted(user, "unknown-module", "view")
+        assert result is False  # No permission specified, so access is denied
 
     @pytest.mark.asyncio
     @patch("app.core.policy.query_policy")
@@ -247,7 +250,7 @@ class TestQueryPolicyPermissionCheck:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -343,7 +346,7 @@ class TestQueryPolicyDataFilter:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },
@@ -403,7 +406,7 @@ class TestQueryPolicyResourceAccess:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"provider_code": "123"},
+                        "on": {"institutional_id": "123"},
                     }
                 ],
             },

@@ -54,6 +54,7 @@ async function downloadCSV(format: 'csv' | 'json') {
     const blob = await exportReport(
       {
         type: selectedReport.value as ReportType,
+        years: [2025],
       },
       format as ReportFormat,
     );

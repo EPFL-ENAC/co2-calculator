@@ -8,8 +8,10 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
+    EmissionType,
     FactorQuery,
     get_scope,
+    get_subtree_leaves,
 )
 from app.models.factor import Factor
 from app.repositories.data_entry_emission_repo import (
@@ -190,8 +192,27 @@ class DataEntryEmissionService:
             #     e.g. all sub-factors for "food" (vegetarian, non-vegetarian)
             #     Used when handler doesn't specify kind/subkind
             elif q.emission_type is not None:
-                factors = await factor_service.list_by_emission_type(q.emission_type)
-                result.extend(factors)
+                all_nodes = get_subtree_leaves(q.emission_type)
+                emission_factors = []
+                for node in all_nodes:
+                    node_factors = await factor_service.list_by_emission_type(
+                        EmissionType(node)
+                    )
+                    emission_factors.extend(node_factors)
+                # we should also filter by data_entry_type in case we have factors
+                # for other types with the same emission_type in the subtree,
+                # but for now we don't have this case in our seed data
+                # so we can add it later if needed
+                if q.data_entry_type is not None:
+                    emission_factors = [
+                        f
+                        for f in emission_factors
+                        if f.data_entry_type_id == q.data_entry_type
+                    ]
+                # should get all factors children of the emission type,
+                # not just those with matching kind
+                # factors = await factor_service.list_by_emission_type(q.emission_type)
+                result.extend(emission_factors)
 
             # B4: Broadest — by data_entry_type only
             #     Returns all factors for this entry type
@@ -230,11 +251,17 @@ class DataEntryEmissionService:
         quantity = ctx.get(comp.quantity_key)
         ef = factor_values.get(comp.formula_key)
         if quantity is None or ef is None:
+            logger.info(
+                f"Missing required values for emission calculation "
+                f"for key: {comp.quantity_key} or {comp.formula_key}"
+            )
             return None
 
         result = float(quantity) * float(ef)
         if comp.multiplier_key:
             mult = factor_values.get(comp.multiplier_key, comp.multiplier_default)
+            if mult is None:
+                mult = comp.multiplier_default
             result *= float(mult)
         return result
 

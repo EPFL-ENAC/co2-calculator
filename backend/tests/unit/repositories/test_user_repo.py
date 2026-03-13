@@ -48,7 +48,7 @@ async def test_get_by_id_not_found(repo):
 async def test_get_by_code(repo):
     """Test getting user by provider code."""
     user = SimpleNamespace(
-        id=123, provider_code="google-12345", email="test@example.com"
+        id=123, institutional_id="google-12345", email="test@example.com"
     )
     result_mock = MagicMock()
     result_mock.one_or_none.return_value = user
@@ -106,7 +106,7 @@ async def test_create_user_minimal(repo):
     repo.session.refresh = AsyncMock()
 
     result = await repo.create(
-        provider_code="google-12345",
+        institutional_id="google-12345",
         email="newuser@example.com",
     )
 
@@ -116,7 +116,7 @@ async def test_create_user_minimal(repo):
     repo.session.refresh.assert_awaited_once()
 
     # Verify created user has expected attributes
-    assert result.provider_code == "google-12345"
+    assert result.institutional_id == "google-12345"
     assert result.email == "newuser@example.com"
     assert result.roles == []
     assert result.last_login is not None
@@ -132,7 +132,7 @@ async def test_create_user_with_all_fields(repo):
     roles = []
 
     result = await repo.create(
-        provider_code="google-12345",
+        institutional_id="google-12345",
         email="admin@example.com",
         display_name="Admin User",
         roles=roles,
@@ -145,7 +145,7 @@ async def test_create_user_with_all_fields(repo):
     repo.session.flush.assert_awaited_once()
 
     # Verify all fields
-    assert result.provider_code == "google-12345"
+    assert result.institutional_id == "google-12345"
     assert result.email == "admin@example.com"
     assert result.display_name == "Admin User"
     assert result.roles == roles
@@ -161,7 +161,7 @@ async def test_create_user_with_empty_roles(repo):
     repo.session.refresh = AsyncMock()
 
     result = await repo.create(
-        provider_code="google-12345",
+        institutional_id="google-12345",
         email="user@example.com",
         roles=[],
     )
@@ -177,7 +177,7 @@ async def test_create_user_with_none_roles(repo):
     repo.session.refresh = AsyncMock()
 
     result = await repo.create(
-        provider_code="google-12345",
+        institutional_id="google-12345",
         email="user@example.com",
         roles=None,
     )

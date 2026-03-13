@@ -21,16 +21,15 @@ class ModulePerYearFactorCSVProvider(BaseFactorCSVProvider):
     async def _setup_handlers_and_context(self) -> Dict[str, Any]:
         valid_entry_types = self._resolve_valid_entry_types()
         configured_data_entry_type_id = self.data_entry_type_id
-        factor_variant = self.factor_variant
 
         handlers = []
         if configured_data_entry_type_id is not None:
             configured_type = DataEntryTypeEnum(int(configured_data_entry_type_id))
-            handler = BaseFactorHandler.get_by_type(configured_type, factor_variant)
+            handler = BaseFactorHandler.get_by_type(configured_type)
             handlers = [handler]
         else:
             handlers = [
-                BaseFactorHandler.get_by_type(entry_type, factor_variant)
+                BaseFactorHandler.get_by_type(entry_type)
                 for entry_type in valid_entry_types
             ]
 
@@ -50,5 +49,4 @@ class ModulePerYearFactorCSVProvider(BaseFactorCSVProvider):
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "valid_entry_types": valid_entry_types,
-            "factor_variant": factor_variant,
         }
