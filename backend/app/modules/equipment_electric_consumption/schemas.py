@@ -95,6 +95,7 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
     primary_factor_id: Optional[int] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
     active_power_w: Optional[int] = None
     standby_power_w: Optional[int] = None

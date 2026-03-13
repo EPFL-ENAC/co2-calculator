@@ -54,6 +54,7 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: Optional[str] = None
     provider: Optional[str] = None
     spent_amount: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -62,6 +63,7 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
     usage_type: str
     requests_per_user_per_day: Optional[str] = None
     user_count: int
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -69,6 +71,7 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     provider: Optional[str] = None
     spent_amount: float
+    note: Optional[str] = None
 
     @field_validator("spent_amount", mode="after")
     @classmethod
@@ -83,6 +86,7 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     usage_type: str
     requests_per_user_per_day: Optional[str] = None
     user_count: int
+    note: Optional[str] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
@@ -108,6 +112,7 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     service_type: Optional[str] = None
     provider: Optional[str] = None
     spent_amount: Optional[float] = None
+    note: Optional[str] = None
 
     @field_validator("spent_amount", mode="after")
     @classmethod
@@ -124,6 +129,7 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
     usage_type: Optional[str] = None
     requests_per_user_per_day: Optional[str] = None
     user_count: Optional[int] = None
+    note: Optional[str] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod

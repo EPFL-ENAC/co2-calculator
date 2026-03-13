@@ -105,6 +105,7 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
     origin: Optional[str] = None
     destination: Optional[str] = None
     distance_km: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -118,6 +119,7 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
     origin: Optional[str] = None
     destination: Optional[str] = None
     distance_km: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -149,6 +151,7 @@ class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
+    note: Optional[str] = None
 
 
 class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
@@ -159,6 +162,7 @@ class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
+    note: Optional[str] = None
 
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):

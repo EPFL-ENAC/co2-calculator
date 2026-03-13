@@ -28,15 +28,18 @@ logger = get_logger(__name__)
 
 class ResearchFacilitiesHandlerResponse(DataEntryResponseGen):
     name: Optional[str] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
 class ResearchFacilitiesHandlerCreate(DataEntryCreate):
     name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ResearchFacilitiesHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ResearchFacilitiesModuleHandler(BaseModuleHandler):
