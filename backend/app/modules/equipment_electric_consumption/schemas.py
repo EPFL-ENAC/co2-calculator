@@ -109,7 +109,6 @@ class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreat
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
 
 class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdate):

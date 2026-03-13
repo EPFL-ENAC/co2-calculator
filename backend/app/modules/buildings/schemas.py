@@ -91,7 +91,6 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     room_name: str
     room_type: Optional[str] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("room_type", mode="after")
     @classmethod
@@ -108,7 +107,6 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
     room_name: Optional[str] = None
     room_type: Optional[str] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("room_type", mode="after")
     @classmethod
@@ -384,7 +382,6 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
     name: str
     quantity: float
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod

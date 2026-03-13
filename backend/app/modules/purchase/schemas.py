@@ -55,7 +55,6 @@ class PurchaseHandlerCreate(DataEntryCreate):
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -89,7 +88,6 @@ class PurchaseAdditionalHandlerCreate(DataEntryCreate):
     annual_consumption: Optional[float] = 0
     coef_to_kg: float
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod
@@ -109,7 +107,6 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -136,7 +133,6 @@ class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
     annual_consumption: Optional[float] = None
     coef_to_kg: Optional[float] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("annual_consumption", "coef_to_kg", mode="after")
     @classmethod

@@ -46,7 +46,6 @@ class ProcessEmissionsHandlerCreate(DataEntryCreate):
     subcategory: Optional[str] = None
     quantity: float
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -61,7 +60,6 @@ class ProcessEmissionsHandlerUpdate(DataEntryUpdate):
     subcategory: Optional[str] = None
     quantity: Optional[float] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod

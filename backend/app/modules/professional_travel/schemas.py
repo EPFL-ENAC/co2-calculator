@@ -133,7 +133,6 @@ class ProfessionalTravelPlaneHandlerCreate(
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -153,7 +152,6 @@ class ProfessionalTravelTrainHandlerCreate(
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("number_of_trips", mode="after")
     @classmethod

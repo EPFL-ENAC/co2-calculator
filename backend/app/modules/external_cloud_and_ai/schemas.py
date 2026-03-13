@@ -73,7 +73,6 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     spent_amount: float
     currency: Optional[str] = None
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("spent_amount", mode="after")
     @classmethod
@@ -99,7 +98,6 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     requests_per_user_per_day: Optional[str] = None
     user_count: int
     note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
