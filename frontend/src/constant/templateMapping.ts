@@ -1,6 +1,7 @@
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
+  SUBMODULE_EQUIPMENT_TYPES,
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
   SUBMODULE_HEADCOUNT_TYPES,
   SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
@@ -20,6 +21,27 @@ const TEMPLATE_MAP: Record<string, string> = {
     'building_rooms_template.csv',
   [`${MODULES.Buildings}:${SUBMODULE_BUILDINGS_TYPES.EnergyCombustion}`]:
     'building_energycombustions_template.csv',
+  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Scientific}`]:
+    'equipments_scientific_template.csv',
+  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.IT}`]:
+    'equipments_IT_template.csv',
+  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Other}`]:
+    'equipments_other_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}`]:
+    'purchases_bioproduct_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}`]:
+    'purchases_consumable_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}`]:
+    'purchases_itequipment_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.OtherPurchases}`]:
+    'purchases_other_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}`]:
+    'purchases_scientific_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ServicePurchases}`]:
+    'purchases_service_template.csv',
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}`]:
+    'purchases_vehicle_template.csv',
+
   [`${MODULES.ExternalCloudAndAI}:${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}`]:
     'external_clouds_template.csv',
   [`${MODULES.ExternalCloudAndAI}:${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}`]:
