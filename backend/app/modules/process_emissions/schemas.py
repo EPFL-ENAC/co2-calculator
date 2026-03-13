@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -23,10 +23,21 @@ from app.schemas.factor import (
 logger = get_logger(__name__)
 
 
+def _validate_non_negative_float(
+    v: Optional[float], field_name: str
+) -> Optional[float]:
+    if v is None:
+        return v
+    if v < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return v
+
+
 class ProcessEmissionsHandlerResponse(DataEntryResponseGen):
     category: str
     subcategory: Optional[str] = None
     quantity: float
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -34,12 +45,14 @@ class ProcessEmissionsHandlerCreate(DataEntryCreate):
     category: str
     subcategory: Optional[str] = None
     quantity: float
+    note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float) -> float:
-        if v < 0.001:
-            raise ValueError("Quantity must be >= 0.001 kg")
+        if v < 0:
+            raise ValueError("Quantity must be non-negative")
         return v
 
 
@@ -47,12 +60,14 @@ class ProcessEmissionsHandlerUpdate(DataEntryUpdate):
     category: Optional[str] = None
     subcategory: Optional[str] = None
     quantity: Optional[float] = None
+    note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v < 0.001:
-            raise ValueError("Quantity must be >= 0.001 kg")
+        if v is not None and v < 0:
+            raise ValueError("Quantity must be non-negative")
         return v
 
 
@@ -136,14 +151,27 @@ process_emissions_value_fields: list[str] = [
 ]
 
 
-class ProcessEmissionsFactorCreate(FactorCreate):
+class _ProcessEmissionsFactorValidationMixin:
+    @field_validator("ef_kg_co2eq_per_unit", mode="after")
+    @classmethod
+    def validate_ef_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
+
+class ProcessEmissionsFactorCreate(
+    _ProcessEmissionsFactorValidationMixin, FactorCreate
+):
     category: str
     subcategory: Optional[str] = None
-    unit: Optional[str] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
+    unit: str
+    ef_kg_co2eq_per_unit: float
 
 
-class ProcessEmissionsFactorUpdate(FactorUpdate):
+class ProcessEmissionsFactorUpdate(
+    _ProcessEmissionsFactorValidationMixin, FactorUpdate
+):
     category: Optional[str] = None
     subcategory: Optional[str] = None
     unit: Optional[str] = None
@@ -153,8 +181,8 @@ class ProcessEmissionsFactorUpdate(FactorUpdate):
 class ProcessEmissionsFactorResponse(FactorResponseGen):
     category: str
     subcategory: Optional[str] = None
-    unit: Optional[str] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
+    unit: str
+    ef_kg_co2eq_per_unit: float
 
 
 class ProcessEmissionsFactorHandler(BaseFactorHandler):

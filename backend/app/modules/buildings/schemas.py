@@ -71,7 +71,19 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     cooling_kwh_per_square_meter: Optional[float] = None
     ventilation_kwh_per_square_meter: Optional[float] = None
     lighting_kwh_per_square_meter: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
+
+
+VALID_ROOM_TYPES: list[Optional[str]] = [
+    "office",
+    "miscellaneous",
+    "laboratories",
+    "archives",
+    "libraries",
+    "auditoriums",
+    None,
+]
 
 
 class BuildingRoomHandlerCreate(DataEntryCreate):
@@ -79,6 +91,16 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     room_name: str
     room_type: Optional[str] = None
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
+
+    @field_validator("room_type", mode="after")
+    @classmethod
+    def validate_room_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_ROOM_TYPES:
+            raise ValueError(
+                f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
+            )
+        return v
 
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
@@ -86,6 +108,16 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
     room_name: Optional[str] = None
     room_type: Optional[str] = None
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
+
+    @field_validator("room_type", mode="after")
+    @classmethod
+    def validate_room_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_ROOM_TYPES:
+            raise ValueError(
+                f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
+            )
+        return v
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -352,12 +384,13 @@ class EnergyCombustionHandlerCreate(DataEntryCreate):
     name: str
     quantity: float
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("Quantity must be > 0")
+        if v < 0:
+            raise ValueError("Quantity must be non-negative")
         return v
 
 
@@ -369,8 +402,8 @@ class EnergyCombustionHandlerUpdate(DataEntryUpdate):
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Quantity must be > 0")
+        if v is not None and v < 0:
+            raise ValueError("Quantity must be non-negative")
         return v
 
 
