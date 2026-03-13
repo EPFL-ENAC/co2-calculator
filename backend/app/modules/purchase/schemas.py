@@ -163,6 +163,11 @@ class PurchaseModuleHandler(BaseModuleHandler):
     kind_field: str = "purchase_institutional_code"
     kind_label_field: str = "purchase_institutional_description"
     subkind_field: Optional[str] = ""
+    # purchase_institutional_code is not always present, so we can't 100% rely on it
+    # for matching entries to factors
+    # it's Optional in create_dto and update_dto, and some entries
+    # may have it missing or null in csv
+    require_factor_to_match = False
 
     sort_map = {
         "id": DataEntry.id,
@@ -188,6 +193,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
+                **data_entry.data,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 "name": data_entry.data.get("name"),

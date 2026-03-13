@@ -887,9 +887,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # standby_usage_hours_per_week
             # BEWaRE: We changed classsubclassmap to allow factors without subkind,
             # so we need to be careful when accessing subkind values in the factor
-            data["active_usage_hours_per_year"] = (
-                data.get("active_usage_hours_per_year") or 0
-            )
             data["primary_factor_id"] = primary_factor_id
 
             data_entry = DataEntry(
