@@ -27,20 +27,21 @@ const TEMPLATE_MAP: Record<string, string> = {
     'equipments_IT_template.csv',
   [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Other}`]:
     'equipments_other_template.csv',
+
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}`]:
-    'purchases_bioproduct_template.csv',
+    'purchases_biological_chemical_gaseous_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}`]:
-    'purchases_consumable_template.csv',
+    'purchases_consumables_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}`]:
     'purchases_itequipment_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.OtherPurchases}`]:
     'purchases_other_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}`]:
-    'purchases_scientific_template.csv',
+    'purchases_scientificequipment_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.ServicePurchases}`]:
-    'purchases_service_template.csv',
+    'purchases_services_template.csv',
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}`]:
-    'purchases_vehicle_template.csv',
+    'purchases_vehicles_template.csv',
 
   [`${MODULES.ExternalCloudAndAI}:${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}`]:
     'external_clouds_template.csv',
