@@ -32,4 +32,4 @@ jobs:
       build_context: '[ "./frontend", "./backend" ]' # context paths to build
       helm_chart_name: co2-calculator
       helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}
-      skip_vulnerability_scan: true
+      skip_vulnerability_scan: false
