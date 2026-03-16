@@ -241,14 +241,14 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
 
             spent_amount_eur = spent_amount
             if entry_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate(
-                    year, entry_currency, True
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, entry_currency
                 )
                 spent_amount_eur = spent_amount * exchange_rate
             ef_eur = ef
             if ef_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate(
-                    year, ef_currency, True
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, ef_currency
                 )
                 ef_eur = ef * exchange_rate
 

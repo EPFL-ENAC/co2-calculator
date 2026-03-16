@@ -19,6 +19,22 @@ class ExchangeRatesService:
     def __init__(self):
         pass
 
+    def get_exchange_rate_to_eur(self, year: int, currency: str) -> float:
+        """Get the exchange rate from the specified currency to EUR.
+
+        Args:
+            year (int): The year for which to fetch the exchange rate.
+            currency (str): The currency code to fetch the exchange rate for.
+
+        Raises:
+            ValueError: If no exchange rate data is found for the specified year
+              and currency or if there is an error fetching the data.
+
+        Returns:
+            float: The exchange rate from the specified currency to EUR.
+        """
+        return self.get_exchange_rate(year, currency, invert=True)
+
     def get_exchange_rate(
         self, year: int, currency: str, invert: bool = False
     ) -> float:

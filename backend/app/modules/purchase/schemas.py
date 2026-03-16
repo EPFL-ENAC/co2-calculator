@@ -240,8 +240,8 @@ class PurchaseModuleHandler(BaseModuleHandler):
             # spent amount to the eur currency
             total_spent_amount_eur = total_spent_amount
             if entry_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate(
-                    year, entry_currency, True
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, entry_currency
                 )
                 total_spent_amount_eur = total_spent_amount * exchange_rate
             # Similarly, convert the emission factor to eur if it's in a different
@@ -249,8 +249,8 @@ class PurchaseModuleHandler(BaseModuleHandler):
             # to the total spent amount in eur
             ef_eur = ef
             if ef_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate(
-                    year, ef_currency, True
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, ef_currency
                 )
                 ef_eur = ef * exchange_rate
 
