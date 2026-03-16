@@ -252,7 +252,7 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 )
                 ef_eur = ef * exchange_rate
 
-            return (spent_amount_eur * ef_eur) / 1000
+            return spent_amount_eur * ef_eur
 
         return [
             EmissionComputation(
