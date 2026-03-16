@@ -1,3 +1,9 @@
+# =============================================================================
+# Performance Testing
+# =============================================================================
+.PHONY: perf-test
+perf-test: ## Run Locust performance tests
+	$(UV) run locust -f tests/performance/locustfile.py
 # Variables
 UV := uv
 RUFF ?= $(UV) run ruff
