@@ -1,0 +1,51 @@
+name: Generate Changelog
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - stage
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    # Only run when a PR from dev into stage is actually merged
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout stage branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage
+          fetch-depth: 0
+          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install conventional-changelog-cli
+        run: npm install -g conventional-changelog-cli
+
+      - name: Get next version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate CHANGELOG.md
+        run: |
+          conventional-changelog -p angular -i CHANGELOG.md -s
+
+      - name: Commit and push updated CHANGELOG.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          # Only commit if there are changes
+          git diff --cached --quiet || git commit -m "docs(changelog): update changelog for v${{ steps.version.outputs.version }}"
+          git push origin stage

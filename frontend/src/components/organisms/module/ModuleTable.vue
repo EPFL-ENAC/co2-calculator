@@ -351,18 +351,14 @@ import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
-import * as TemplateRows from 'src/constant/templateRows';
+import { getTemplateFileName } from 'src/constant/templateMapping';
 import type {
   Module,
   ConditionalSubmoduleProps,
   Threshold,
   EnumSubmoduleType,
 } from 'src/constant/modules';
-import {
-  enumSubmodule,
-  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-  SUBMODULE_PURCHASE_TYPES,
-} from 'src/constant/modules';
+import { enumSubmodule, SUBMODULE_PURCHASE_TYPES } from 'src/constant/modules';
 
 import {
   MODULES,
@@ -1320,64 +1316,18 @@ function onUploadCsv() {
 }
 
 function onDownloadTemplate() {
-  let csvContent: string;
-  switch (props.moduleType) {
-    case MODULES.Headcount:
-      csvContent = TemplateRows.csvHeadcountContent;
-      break;
-    case MODULES.ProfessionalTravel:
-      if (props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane) {
-        csvContent = TemplateRows.csvProfessionalTravelPlaneContent;
-      } else if (
-        props.submoduleType === SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train
-      ) {
-        csvContent = TemplateRows.csvProfessionalTravelTrainContent;
-      }
-      break;
-    case MODULES.Buildings:
-      if (props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion) {
-        csvContent = TemplateRows.csvBuildingsCombustionContent;
-      } else {
-        csvContent = TemplateRows.csvBuildingsContent;
-      }
-      break;
-    case MODULES.EquipmentElectricConsumption:
-      csvContent = TemplateRows.csvEquipmentContent;
-      break;
-    case MODULES.ExternalCloudAndAI:
-      if (
-        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds
-      ) {
-        csvContent = TemplateRows.csvExternalCloudContent;
-      } else if (
-        props.submoduleType === SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai
-      ) {
-        csvContent = TemplateRows.csvExternalAIContent;
-      } else {
-        csvContent = TemplateRows.csvDefaultContent;
-      }
-      break;
-    case MODULES.ProcessEmissions:
-      csvContent = TemplateRows.csvProcessesContent;
-      break;
-    case MODULES.Purchase:
-      csvContent = TemplateRows.csvPurchaseContent;
-      break;
-    default:
-      csvContent = TemplateRows.csvDefaultContent;
-      break;
-  }
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const csvUrl = URL.createObjectURL(blob);
+  const fileName = getTemplateFileName(
+    props.moduleType as Module,
+    props.submoduleType,
+  );
+  if (!fileName) return;
 
   const a = document.createElement('a');
-  a.href = csvUrl;
-  a.download = `${props.moduleType}-template.csv`;
+  a.href = `/templates/${fileName}`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(csvUrl);
 
   $q.notify({
     color: 'info',

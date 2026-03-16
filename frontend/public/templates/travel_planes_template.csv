@@ -1,0 +1,2 @@
+origin_iata,destination_iata,user_institutional_id,departure_date,number_of_trips,cabin_class,note
+GVA,JFK,123456,2025-03-10,1,business,

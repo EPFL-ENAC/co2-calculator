@@ -64,7 +64,7 @@ class PlaneCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
-        valid_classes = ["first", "business", "economy"]
+        valid_classes = ["first", "business", "eco"]
         if v is not None and v.lower() not in valid_classes:
             raise ValueError(
                 f"Invalid cabin class '{v}', must be one of {valid_classes}"
@@ -105,6 +105,7 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
     origin: Optional[str] = None
     destination: Optional[str] = None
     distance_km: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
@@ -118,10 +119,13 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
     origin: Optional[str] = None
     destination: Optional[str] = None
     distance_km: Optional[float] = None
+    note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
-class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
+class ProfessionalTravelPlaneHandlerCreate(
+    PlaneCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
+):
     origin_iata: str  ## IATA code
     destination_iata: str  ## IATA code
     user_institutional_id: int
@@ -130,8 +134,17 @@ class ProfessionalTravelPlaneHandlerCreate(DepartureDateMixin, DataEntryCreate):
     cabin_class: str
     note: Optional[str] = None
 
+    @field_validator("number_of_trips", mode="after")
+    @classmethod
+    def validate_number_of_trips(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("number_of_trips must be at least 1")
+        return v
 
-class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
+
+class ProfessionalTravelTrainHandlerCreate(
+    TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
+):
     user_institutional_id: int
     origin_name: str
     destination_name: str
@@ -139,6 +152,13 @@ class ProfessionalTravelTrainHandlerCreate(DepartureDateMixin, DataEntryCreate):
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
+
+    @field_validator("number_of_trips", mode="after")
+    @classmethod
+    def validate_number_of_trips(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("number_of_trips must be at least 1")
+        return v
 
 
 class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
@@ -149,6 +169,7 @@ class ProfessionalTravelPlaneHandlerUpdate(DataEntryUpdate):
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
+    note: Optional[str] = None
 
 
 class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
@@ -159,6 +180,7 @@ class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
+    note: Optional[str] = None
 
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
