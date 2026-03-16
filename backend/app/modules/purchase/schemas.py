@@ -389,6 +389,7 @@ purchase_common_classification_fields: list[str] = [
     "purchase_institutional_code",
     "purchase_institutional_description",
     "purchase_additional_code",
+    "purchase_category",
 ]
 purchase_common_value_fields: list[str] = [
     "ef_kg_co2eq_per_currency",
@@ -471,6 +472,7 @@ class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_institutional_code: str
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
+    purchase_category: Optional[str] = None
     currency: str
     ef_kg_co2eq_per_currency: Optional[float] = None
 
