@@ -16,7 +16,6 @@ from app.api.v1 import (
     files,
     locations,
     taxonomies,
-    unit_results,
     units,
     users,
 )
@@ -26,7 +25,6 @@ api_router = APIRouter()
 # Include routers
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
-api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
 api_router.include_router(backoffice.router, prefix="/backoffice", tags=["backoffice"])
 api_router.include_router(
     backoffice_reporting.router,

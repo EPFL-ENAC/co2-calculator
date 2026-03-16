@@ -10,7 +10,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_db
 from app.core.security import require_permission
 from app.models.data_ingestion import (
-    DataIngestionJob,
     EntityType,
     FactorType,
     IngestionMethod,
@@ -175,38 +174,6 @@ async def sync_module_data_entries(
         "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
     }
-
-
-@router.post("/factors/{module_id}/{factor_type_id}", response_model=SyncStatusResponse)
-async def sync_module_factors(
-    module_id: int,
-    factor_type_id: int,
-    syncRequest: SyncRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
-):
-    # Implementation similar to sync_module_data_entries,
-    # but tailored for factor synchronization.
-    pass
-
-
-@router.get("/jobs/by-status", response_model=list[DataIngestionJob])
-async def get_jobs_by_status(
-    filter_type: str = "completed",
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
-) -> list:
-    """
-    Get jobs filtered by status.
-
-    Args:
-        filter_type: "active" for in-progress jobs, "completed" for finished jobs
-    """
-    if filter_type.lower() == "active":
-        jobs = await DataIngestionRepository(db).get_active_jobs()
-    else:
-        jobs = await DataIngestionRepository(db).get_completed_jobs()
-    return jobs
 
 
 # SSE endpoint to stream job updates - MUST be before /jobs/{job_id}
