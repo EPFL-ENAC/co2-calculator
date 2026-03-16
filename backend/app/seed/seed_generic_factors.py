@@ -221,7 +221,17 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
                         f"Missing required value field '{field_name}'"
                         f" for {data_entry_type.name} factor: {row}"
                     )
-                values[field_name] = get_float_or_none(row.get(field_name))
+                value = row.get(field_name)
+                # Normalize whitespace from CSV; keep empty as None.
+                if isinstance(value, str):
+                    value = value.strip()
+                # Convert to float if it is not alphabetical
+                # (e.g., for currency we keep as string)
+                values[field_name] = (
+                    get_float_or_none(value)
+                    if value and not value.isalpha()
+                    else value or None
+                )
 
             factor = await service.prepare_create(
                 emission_type_id=emission_type_id,
