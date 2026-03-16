@@ -561,12 +561,6 @@ async def create(
             detail="Failed to create data entry",
         ) from e
     response = DataEntryResponse.model_validate(item)
-    # todo kg_co2eq in response is never used and can be removed, but for now set to 0
-    # to avoid confusion until we clean up the schema
-    response.data = {
-        **response.data,
-        "kg_co2eq": 0,
-    }
     logger.info(
         f"Created {sanitize(module_id)}:{sanitize(response.id)} for {sanitize(unit_id)}"
     )
@@ -685,8 +679,6 @@ async def update(
 
         # For equipment partial PATCH, validate against merged persisted+incoming
         # values so active+standby weekly sum constraints are always enforced.
-        # TODO: we should validate on merge data also for patch
-
         validated_data = handler.validate_update(update_payload)
 
         data_entry_update = DataEntryUpdate(

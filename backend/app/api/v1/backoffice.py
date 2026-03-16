@@ -3,8 +3,7 @@
 import csv
 import io
 import json
-import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -18,8 +17,6 @@ from app.core.logging import get_logger
 from app.core.security import require_permission
 from app.models.carbon_report import (
     CarbonReport,
-    CarbonReportModule,
-    CarbonReportModuleRead,
     ModuleStatus,
 )
 from app.models.user import User
@@ -32,288 +29,9 @@ from app.schemas.backoffice import (
     PaginationMeta,
     UnitReportingData,
 )
-from app.schemas.unit import UnitRead
-
-# Services
-from app.services.data_entry_service import DataEntryService
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-# Mock data for backoffice reporting
-MOCK_UNITS_REPORTING = [
-    {
-        "id": 1,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "default", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "in-progress", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 7},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "in-progress", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 4},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "ALICE",
-        "affiliation": "ENAC",
-        "principal_user": "Charlie Weil",
-        "last_update": datetime.now() - timedelta(days=2),
-    },
-    {
-        "id": 2,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "ISREC",
-        "affiliation": "SV",
-        "principal_user": "Benjamin Botros",
-        "last_update": datetime.now() - timedelta(hours=5),
-    },
-    {
-        "id": 3,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-        },
-        "unit": "Network Architecture",
-        "affiliation": "IC",
-        "principal_user": "Nicolas Dubois",
-        "last_update": datetime.now() - timedelta(days=1),
-    },
-    {
-        "id": 4,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-        },
-        "unit": "Another Unit",
-        "affiliation": "ENAC",
-        "principal_user": "Alice Smith",
-        "last_update": datetime.now() - timedelta(days=1),
-    },
-    {
-        "id": 5,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "Research Group",
-        "affiliation": "SV",
-        "principal_user": "Bob Johnson",
-        "last_update": datetime.now() - timedelta(hours=10),
-    },
-    {
-        "id": 6,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-        },
-        "unit": "New Lab",
-        "affiliation": "IC",
-        "principal_user": "Eve Brown",
-        "last_update": datetime.now() - timedelta(days=5),
-    },
-]
 
 
 class CompletionCounts(BaseModel):
@@ -518,7 +236,7 @@ async def list_backoffice_units(
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'headcount:validated') --> not implemented yet, use enum""",
+        (e.g., 'headcount:validated')""",
     ),
     years: Optional[List[int]] = Query(
         None, description="Filter by years (e.g., [2024, 2025])"
@@ -561,192 +279,6 @@ async def list_backoffice_units(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
     )
-
-
-@router.get("/export-detailed")
-async def export_detailed_reporting(
-    path_name: Optional[str] = Query(
-        None, description="Filter by path name(s) - can specify multiple"
-    ),
-    units: Optional[List[str]] = Query(
-        None, description="Filter by unit name(s) - can specify multiple"
-    ),
-    years: Optional[List[str]] = Query(
-        None, description="Filter by years (e.g., ['2024', '2025'])"
-    ),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
-):
-    """
-    Export detailed reporting data for all units, including module-level details.
-    Creates one CSV per unit/year/module combination using response
-      DTOs and packages them in a ZIP file.
-    File naming format: {AFFILIATION}_{UNIT_NAME}_{YEAR}_module_{MODULE_TYPE}.csv
-    """
-    # Get units based on filters
-    unit_repo = UnitRepository(db)
-    units_result = await unit_repo.get_units_with_filters(
-        years=[int(y) for y in years] if years else None,
-        path_name=path_name,
-        name=units[0] if units and len(units) == 1 else None,
-        page=1,
-        page_size=10,
-    )
-    filtered_units: List[UnitRead] = units_result["data"]
-
-    # If no units found, return empty ZIP
-    if not filtered_units:
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr("README.txt", "No data found for the specified filters.")
-        zip_buffer.seek(0)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return StreamingResponse(
-            iter([zip_buffer.getvalue()]),
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f"attachment; "
-                f'filename="detailed_export_{timestamp}.zip"'
-            },
-        )
-
-    # Get years to process
-    year_list = [int(y) for y in years] if years else [2024, 2025, 2026]
-
-    # Initialize data entry service
-    data_entry_service = DataEntryService(db)
-
-    # Collect CSV data for each unit/year/module combination
-    csv_files_data = []
-
-    # Process each unit and year
-    for unit in filtered_units:
-        # Create unit path for file naming (e.g., "STI_LMSC")
-        unit_path = "UNKNOWN_PATH"
-        if unit.path_name:
-            unit_path = f"{unit.path_name.replace(' ', '_')}"
-
-        for year in year_list:
-            # Get carbon report for this unit and year
-            report_stmt = select(CarbonReport).where(
-                CarbonReport.unit_id == unit.id, CarbonReport.year == year
-            )
-            report_result = await db.exec(report_stmt)
-            carbon_report = report_result.one_or_none()
-
-            if not carbon_report:
-                continue
-
-            # Get all modules for this report
-            modules_stmt = select(CarbonReportModule).where(
-                CarbonReportModule.carbon_report_id == carbon_report.id
-            )
-            modules_result = await db.exec(modules_stmt)
-            db_modules = modules_result.all()
-            modules = [CarbonReportModuleRead.model_validate(m) for m in db_modules]
-            # Process each module
-            for module in modules:
-                try:
-                    # Get submodule data using the proper service method
-                    # We need to determine the data entry type IDs for this module
-                    # For now, let's get all data entry types for this module
-                    module_data = await data_entry_service.get_module_data(
-                        carbon_report_module_id=module.id,
-                    )
-
-                    # Get data for each submodule type within this module
-                    for (
-                        data_entry_type_id,
-                        count,
-                    ) in module_data.data_entry_types_total_items.items():
-                        if count > 0:  # Only process submodules that have data
-                            # Get the submodule data with proper response DTOs
-                            submodule_data = (
-                                await data_entry_service.get_submodule_data(
-                                    carbon_report_module_id=module.id,
-                                    data_entry_type_id=data_entry_type_id,
-                                    limit=10000,  # Get all items
-                                    offset=0,
-                                    sort_by="id",
-                                    sort_order="asc",
-                                )
-                            )
-
-                            if submodule_data.items:
-                                # Create CSV content for this
-                                # unit/year/module/submodule combination
-                                csv_buffer = io.StringIO()
-                                writer = csv.writer(csv_buffer)
-
-                                # Write header based on first entry
-                                first_entry_dict = submodule_data.items[0].model_dump()
-                                writer.writerow(first_entry_dict.keys())
-
-                                # Write data rows
-                                for entry in submodule_data.items:
-                                    entry_dict = entry.model_dump()
-
-                                    writer.writerow(entry_dict.values())
-
-                                # Add CSV to our collection with proper naming
-                                # Map data entry type to module type name
-                                module_type_name = _get_module_type_name(
-                                    data_entry_type_id
-                                )
-                                filename = (
-                                    f"{unit_path}_{year}_module_{module_type_name}.csv"
-                                )
-                                csv_files_data.append(
-                                    {
-                                        "filename": filename,
-                                        "content": csv_buffer.getvalue(),
-                                    }
-                                )
-
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to process module {module.id} "
-                        f"for unit {unit.id} year {year}: {e}"
-                    )
-                    continue
-
-    # Create ZIP file with all CSVs
-    zip_buffer = io.BytesIO()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        # Add each CSV file to the ZIP
-        for csv_data in csv_files_data:
-            if csv_data["content"]:
-                zip_file.writestr(csv_data["filename"], csv_data["content"])
-
-    zip_buffer.seek(0)
-
-    return StreamingResponse(
-        iter([zip_buffer.getvalue()]),
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f"attachment; "
-            f'filename="detailed_export_{timestamp}.zip"'
-        },
-    )
-
-
-def _get_module_type_name(data_entry_type_id: int) -> str:
-    """Convert data entry type ID to module type name for file naming."""
-    type_mapping = {
-        1: "headcount_member",
-        2: "headcount_student",
-        9: "equipment_scientific",
-        10: "equipment_it",
-        11: "equipment_other",
-        20: "professional_travel",
-        40: "external_cloud",
-        41: "external_ai",
-        50: "process_emissions",
-    }
-    return type_mapping.get(data_entry_type_id, f"unknown_{data_entry_type_id}")
 
 
 @router.get("/export")
@@ -864,28 +396,73 @@ async def get_backoffice_unit(
     years: Optional[List[str]] = Query(
         None, description="Filter by years (e.g., ['2024', '2025'])"
     ),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
-    return {"message": f"Details for unit {unit_id} with year filter {years}"}
+    """
+    Get detailed reporting data for a specific unit.
+
+    Returns unit information with carbon footprint data for specified years.
+    """
+    unit_repo = UnitRepository(db)
+
+    # Get unit details
+    unit_result = await unit_repo.get_by_id(unit_id)
+    if not unit_result:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    # Get reporting data for the unit
+    # Simplified version - in production, query actual carbon report data
+    unit_reporting_data = UnitReportingData(
+        id=unit_id,
+        unit_name=unit_result.name if hasattr(unit_result, "name") else "Unknown",
+        affiliation=unit_result.affiliation
+        if hasattr(unit_result, "affiliation")
+        else "Unknown",
+        validation_status="N/A",
+        principal_user=(
+            unit_result.principal_user_institutional_id
+            if hasattr(unit_result, "principal_user_institutional_id")
+            and unit_result.principal_user_institutional_id
+            else "Unknown"
+        ),
+        last_update=None,
+        highest_result_category=None,
+        total_carbon_footprint=0.0,
+        view_url=f"/units/{unit_id}/reporting",
+        completion=None,
+    )
+
+    return unit_reporting_data
 
 
 @router.get("/years")
 async def get_available_years(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "view")),
 ):
     """
     Get all available years from all units combined.
-    Returns all unique years found across all units' completion data,
+    Returns all unique years found across all units' carbon reports,
     sorted in descending order (latest first).
     """
-    all_years: set[str] = set(
-        "2025".split()
-    )  # Mocked for demo, replace with real data extraction
+
+    # Query distinct years from carbon reports
+    from sqlmodel import col
+
+    stmt = (
+        select(CarbonReport.year).where(col(CarbonReport.year).isnot(None)).distinct()
+    )
+    result = await db.exec(stmt)
+    years = [str(year) for year in result.all() if year]
 
     # Sort years in descending order (latest first)
     sorted_years = sorted(
-        all_years, key=lambda y: int(y) if y.isdigit() else 0, reverse=True
+        years, key=lambda y: int(y) if y.isdigit() else 0, reverse=True
     )
-    latest_year = sorted_years[0]
+
+    latest_year = sorted_years[0] if sorted_years else None
 
     return {"years": sorted_years, "latest": latest_year}

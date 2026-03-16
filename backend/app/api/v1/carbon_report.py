@@ -60,20 +60,6 @@ async def create_carbon_report(
     return result
 
 
-@router.get("/{carbon_report_id}", response_model=CarbonReportRead)
-async def get_carbon_report(
-    carbon_report_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get a carbon report by ID."""
-    service = CarbonReportService(db)
-    report = await service.get(carbon_report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Carbon report not found")
-    return report
-
-
 # --- CarbonReportModule endpoints ---
 
 
