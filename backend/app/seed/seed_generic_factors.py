@@ -222,6 +222,9 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
                         f" for {data_entry_type.name} factor: {row}"
                     )
                 value = row.get(field_name)
+                # Normalize whitespace from CSV; keep empty as None.
+                if isinstance(value, str):
+                    value = value.strip()
                 # Convert to float if it is not alphabetical
                 # (e.g., for currency we keep as string)
                 values[field_name] = (

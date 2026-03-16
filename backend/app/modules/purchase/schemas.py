@@ -436,6 +436,7 @@ class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
+    purchase_category: Optional[str] = None
     currency: Optional[str] = None
     ef_kg_co2eq_per_currency: Optional[float] = None
 

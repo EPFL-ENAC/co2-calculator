@@ -232,11 +232,11 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         year = 2025
 
         def _cloud_formula(ctx: dict, factor_values: dict) -> Optional[float]:
-            spent_amount = ctx.get("spent_amount", 0)
+            spent_amount = ctx.get("spent_amount")
             entry_currency = (ctx.get("currency", "") or "eur").lower()
-            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
+            ef = factor_values.get("ef_kg_co2eq_per_currency")
             ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
-            if not spent_amount or not ef:
+            if spent_amount is None or ef is None:
                 return None
 
             spent_amount_eur = spent_amount
