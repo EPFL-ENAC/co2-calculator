@@ -6,6 +6,7 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/lighthouse.yml"
+      - "frontend/.lighthouserc.json"
 
 jobs:
   lighthouse:
@@ -35,8 +36,6 @@ jobs:
         run: npm ci
 
       - name: Install ecoindex plugin
-        if: steps.build-cache.outputs.cache-hit != 'true'
-        working-directory: ./frontend
         run: npm install lighthouse-plugin-ecoindex-core --no-save
 
       - name: Build frontend
@@ -47,7 +46,7 @@ jobs:
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
-          configPath: "./.lighthouserc.json"
+          configPath: "./frontend/.lighthouserc.json"
           uploadArtifacts: true
           temporaryPublicStorage: true
           runs: 3
