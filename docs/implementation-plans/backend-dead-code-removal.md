@@ -1,12 +1,46 @@
 # Backend Dead Code Removal - Implementation Plan
 
 **Date**: March 16, 2026  
-**Status**: In Progress  
+**Status**: ✅ Completed  
 **Branch**: `chore/remove-dead-code`
 
 ## Overview
 
 This document outlines the implementation steps for removing dead code from the CO2 calculator backend based on the analysis of frontend API usage patterns.
+
+## Architecture Documentation
+
+### Request Flow Diagrams
+
+**File**: `docs/implementation-plans/backend-request-flow-diagrams.md`
+
+Contains 12 detailed Mermaid sequence diagrams showing the complete request flow from frontend to backend:
+
+1. **Authentication Flow** - JWT validation and user profile retrieval
+2. **Carbon Reports Flow** - Report creation and listing
+3. **Modules Data Flow** - Module data retrieval and item creation
+4. **Factors Flow** - Factor lookup and classification mapping
+5. **Backoffice Flow** - Unit reporting and year listing
+6. **Audit Flow** - Audit log retrieval and details
+7. **Data Sync Flow** - Ingestion job creation and streaming
+8. **Files Flow** - File listing, upload, and download
+9. **Architecture Layer Diagram** - Complete system layers
+10. **Request Processing Flow** - End-to-end request lifecycle
+11. **Module Data Flow (Detailed)** - Factor enrichment and emissions calculation
+12. **Audit Trail Creation Flow** - Audit document creation on mutations
+
+### Architecture Overview
+
+**File**: `docs/implementation-plans/backend-architecture-overview.md`
+
+Contains comprehensive architecture diagrams:
+
+- Complete System Architecture (all components and interactions)
+- Feature-specific data flows (6 diagrams)
+- Component Interaction Map
+- Technology Stack visualization
+- Deployment Architecture (Kubernetes)
+- Security Architecture (3 layers)
 
 ## Analysis Summary
 
