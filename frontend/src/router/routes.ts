@@ -6,7 +6,7 @@ import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSe
 import validateUnitGuard from './guards/validateUnitGuard';
 import {
   requirePermission,
-  requireModuleEditPermission,
+  requireModulePermission,
 } from './guards/permissionGuard';
 
 // Route parameter validation patterns
@@ -112,7 +112,7 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
-                beforeEnter: requireModuleEditPermission(),
+                beforeEnter: requireModulePermission(),
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry (edit permission required)',

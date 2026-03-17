@@ -47,7 +47,6 @@ class DataEntryTypeEnum(int, Enum):
     # Implementation of the module "Research facilities" and its sub-modules:
     research_facilities = 70
     mice_and_fish_animal_facilities = 71
-    other_research_facilities = 72
 
 
 ## Will be renamed to data_entries later

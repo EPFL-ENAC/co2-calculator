@@ -151,9 +151,11 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 }
                 permissions["modules.buildings"] = {"view": True, "edit": True}
                 permissions["modules.purchase"] = {"view": True, "edit": True}
+                # Principals can view research facilities but not edit
+                # (reserved for backoffice.metier)
                 permissions["modules.research_facilities"] = {
                     "view": True,
-                    "edit": True,
+                    "edit": False,
                 }
                 permissions["modules.external_cloud_and_ai"] = {
                     "view": True,

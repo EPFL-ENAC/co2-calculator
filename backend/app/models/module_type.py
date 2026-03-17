@@ -88,6 +88,10 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.additional_purchases,
     ],
+    ModuleTypeEnum.research_facilities: [
+        DataEntryTypeEnum.research_facilities,
+        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+    ],
     # Add more if needed for other modules
 }
 
@@ -108,6 +112,7 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
     ModuleTypeEnum.purchase: [EmissionType.purchases],
     ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
     ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
+    ModuleTypeEnum.research_facilities: [EmissionType.research_facilities],
 }
 
 
