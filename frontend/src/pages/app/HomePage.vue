@@ -215,13 +215,16 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
             <div class="flex items-center">
               <q-btn
                 v-if="
-                  hasModulePermission(
-                    moduleCard.module,
-                    PermissionAction.VIEW,
-                  ) &&
                   !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
                 "
-                icon="o_visibility"
+                :icon="
+                  hasModulePermission(moduleCard.module, PermissionAction.VIEW)
+                    ? 'o_visibility'
+                    : 'o_visibility_off'
+                "
+                :disable="
+                  !hasModulePermission(moduleCard.module, PermissionAction.VIEW)
+                "
                 :label="$t('home_view_btn')"
                 unelevated
                 no-caps
@@ -231,15 +234,15 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
               />
 
               <q-btn
+                v-if="
+                  hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                "
                 icon="o_edit"
                 :label="$t('home_edit_btn')"
                 unelevated
                 no-caps
                 size="sm"
                 class="text-weight-medium btn-secondary"
-                :disable="
-                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
-                "
                 :to="
                   hasModulePermission(moduleCard.module, PermissionAction.EDIT)
                     ? { name: 'module', params: { module: moduleCard.module } }
