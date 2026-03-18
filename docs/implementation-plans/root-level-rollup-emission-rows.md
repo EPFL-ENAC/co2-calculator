@@ -84,4 +84,76 @@ Add a **parent-level rollup `DataEntryEmission` row** per data entry that sums a
 ## Further Considerations
 
 1. **Data migration**: Existing `DataEntryEmission` rows in production won't have rollup rows. Options: (A) run a one-time migration script that recomputes all emissions (calls `upsert_by_data_entry` for every existing entry), or (B) add an Alembic data migration. Recommend (A) as a management command.
-2. **primary_factor on rollup**: The current `get_submodule_data` enriches response with `primary_factor.values` and `primary_factor.classification`. With rollup JOIN, `primary_factor_id` is `None`. Two options: (A) store the "representative" primary_factor_id on the rollup row (e.g., the first leaf's factor), or (B) keep a separate join for factor resolution. Recommend (A) — store `primary_factor_id` from the first leaf on the rollup for display purposes.
+
+/!\ SUPER IMPORTANT we need to fix it first 2. **primary_factor on rollup**: The current `get_submodule_data` enriches response with `primary_factor.values` and `primary_factor.classification`. With rollup JOIN, `primary_factor_id` is `None`. Two options: (A) store the "representative" primary_factor_id on the rollup row (e.g., the first leaf's factor), or (B) keep a separate join for factor resolution. Recommend (A) — store `primary_factor_id` from the first leaf on the rollup for display purposes.
+
+## FURTHER Information
+
+Looking at the `DATA_ENTRY_TO_EMISSION_TYPES` mapping, here are the `DataEntryTypeEnum` values that have **exactly one item** in their array (meaning they produce a single emission row per data entry):
+
+## Single Emission Type (No Rollup Logic Needed)
+
+**Energy Combustion:**
+
+- [`energy_combustion`](backend/app/models/data_entry.py) → [`EmissionType.buildings__combustion`](backend/app/models/data_entry_emission.py)
+
+**Equipment:**
+
+- [`scientific`](backend/app/models/data_entry.py) → [`EmissionType.equipment__scientific`](backend/app/models/data_entry_emission.py)
+- [`it`](backend/app/models/data_entry.py) → [`EmissionType.equipment__it`](backend/app/models/data_entry_emission.py)
+- [`other`](backend/app/models/data_entry.py) → [`EmissionType.equipment__other`](backend/app/models/data_entry_emission.py)
+
+**Purchases:**
+
+- [`scientific_equipment`](backend/app/models/data_entry.py) → [`EmissionType.purchases__scientific_equipment`](backend/app/models/data_entry_emission.py)
+- [`it_equipment`](backend/app/models/data_entry.py) → [`EmissionType.purchases__it_equipment`](backend/app/models/data_entry_emission.py)
+- [`consumable_accessories`](backend/app/models/data_entry.py) → [`EmissionType.purchases__consumable_accessories`](backend/app/models/data_entry_emission.py)
+- [`biological_chemical_gaseous_product`](backend/app/models/data_entry.py) → [`EmissionType.purchases__biological_chemical_gaseous`](backend/app/models/data_entry_emission.py)
+- [`services`](backend/app/models/data_entry.py) → [`EmissionType.purchases__services`](backend/app/models/data_entry_emission.py)
+- [`vehicles`](backend/app/models/data_entry.py) → [`EmissionType.purchases__vehicles`](backend/app/models/data_entry_emission.py)
+- [`other_purchases`](backend/app/models/data_entry.py) → [`EmissionType.purchases__other`](backend/app/models/data_entry_emission.py)
+- [`additional_purchases`](backend/app/models/data_entry.py) → [`EmissionType.purchases__additional`](backend/app/models/data_entry_emission.py)
+
+**Research Facilities:**
+
+- [`research_facilities`](backend/app/models/data_entry_emission.py) → [`EmissionType.research_facilities__facilities`](backend/app/models/data_entry_emission.py)
+- [`mice_and_fish_animal_facilities`](backend/app/models/data_entry.py) → [`EmissionType.research_facilities__animal`](backend/app/models/data_entry_emission.py)
+
+---
+
+## Multiple Emission Types (Need Rollup)
+
+**Headcount:**
+
+- [`member`](backend/app/models/data_entry.py), [`student`](backend/app/models/data_entry.py) → 4 types each (food, waste, commuting, grey_energy)
+
+**Buildings:**
+
+- [`building`](backend/app/models/data_entry.py) → 5 types (lighting, cooling, ventilation, heating_elec, heating_thermal)
+
+---
+
+## Runtime Resolved (None in Static Mapping)
+
+These are `None` in the static mapping and resolved at runtime:
+
+- [`plane`](backend/app/models/data_entry.py), [`train`](backend/app/models/data_entry.py) → resolved by cabin class
+- [`process_emissions`](backend/app/models/data_entry_emission.py) → resolved by gas type
+- [`external_clouds`](backend/app/models/data_entry.py) → resolved by service type
+- [`external_ai`](backend/app/models/data_entry.py) → resolved by provider (but has static fallback list)
+
+---
+
+**Summary:** 13 data entry types produce exactly **one emission row** per entry, so their rollup is straightforward (the rollup row equals the single leaf row).
+
+## Summary
+
+Identified the 13 `DataEntryTypeEnum` values that produce exactly one emission row per data entry (no rollup logic complexity needed):
+
+**Single emission types:** `energy_combustion`, `scientific`, `it`, `other`, `scientific_equipment`, `it_equipment`, `consumable_accessories`, `biological_chemical_gaseous_product`, `services`, `vehicles`, `other_purchases`, `additional_purchases`, `research_facilities`, `mice_and_fish_animal_facilities`
+
+**Multiple emission types (need rollup):** `member`, `student` (4 types each), `building` (5 types)
+
+**Runtime resolved:** `plane`, `train`, `process_emissions`, `external_clouds`, `external_ai`
+
+Task completed!

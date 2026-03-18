@@ -47,35 +47,35 @@ DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType | None]
     # Headcount — no rollup (4 independent roots, no kg_co2eq in table)
     DataEntryTypeEnum.member: None,
     DataEntryTypeEnum.student: None,
-    # Professional Travel — 1 leaf per entry, no rollup needed
-    DataEntryTypeEnum.plane: None,
-    DataEntryTypeEnum.train: None,
-    # Buildings — 5 leaf emissions per building room entry → needs rollup
+    # Professional Travel — 1 leaf per entry (cabin class), rollup to subcategory
+    DataEntryTypeEnum.plane: EmissionType.professional_travel__plane,
+    DataEntryTypeEnum.train: EmissionType.professional_travel__train,
+    # Buildings — 5 leaf emissions per building room entry → rollup to subcategory
     DataEntryTypeEnum.building: EmissionType.buildings__rooms,
-    # Energy combustion — single leaf, no rollup needed
-    DataEntryTypeEnum.energy_combustion: None,
-    # Equipment — single leaf per entry, no rollup needed
-    DataEntryTypeEnum.scientific: None,
-    DataEntryTypeEnum.it: None,
-    DataEntryTypeEnum.other: None,
-    # Process Emissions — single leaf, no rollup needed
-    DataEntryTypeEnum.process_emissions: None,
-    # Purchases — single leaf per entry, no rollup needed
-    DataEntryTypeEnum.scientific_equipment: None,
-    DataEntryTypeEnum.it_equipment: None,
-    DataEntryTypeEnum.consumable_accessories: None,
-    DataEntryTypeEnum.biological_chemical_gaseous_product: None,
-    DataEntryTypeEnum.services: None,
-    DataEntryTypeEnum.vehicles: None,
-    DataEntryTypeEnum.other_purchases: None,
-    DataEntryTypeEnum.additional_purchases: None,
-    # Research Facilities — single leaf, no rollup needed
-    DataEntryTypeEnum.research_facilities: None,
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: None,
-    # External Clouds — single leaf per entry (runtime-resolved), no rollup needed
-    DataEntryTypeEnum.external_clouds: None,
-    # External AI — single leaf per entry (runtime-resolved), no rollup needed
-    DataEntryTypeEnum.external_ai: None,
+    # Energy combustion — single leaf, rollup to category
+    DataEntryTypeEnum.energy_combustion: EmissionType.buildings,
+    # Equipment — single leaf per entry, rollup to category
+    DataEntryTypeEnum.scientific: EmissionType.equipment,
+    DataEntryTypeEnum.it: EmissionType.equipment,
+    DataEntryTypeEnum.other: EmissionType.equipment,
+    # Process Emissions — single leaf (gas type), rollup to category
+    DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
+    # Purchases — single leaf per entry, rollup to category
+    DataEntryTypeEnum.scientific_equipment: EmissionType.purchases,
+    DataEntryTypeEnum.it_equipment: EmissionType.purchases,
+    DataEntryTypeEnum.consumable_accessories: EmissionType.purchases,
+    DataEntryTypeEnum.biological_chemical_gaseous_product: EmissionType.purchases,
+    DataEntryTypeEnum.services: EmissionType.purchases,
+    DataEntryTypeEnum.vehicles: EmissionType.purchases,
+    DataEntryTypeEnum.other_purchases: EmissionType.purchases,
+    DataEntryTypeEnum.additional_purchases: EmissionType.purchases,
+    # Research Facilities — single leaf, rollup to category
+    DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: EmissionType.research_facilities,
+    # External Clouds — single leaf (service type), rollup to subcategory
+    DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
+    # External AI — single leaf (provider), rollup to subcategory
+    DataEntryTypeEnum.external_ai: EmissionType.external__ai,
 }
 
 # =============================================================================
