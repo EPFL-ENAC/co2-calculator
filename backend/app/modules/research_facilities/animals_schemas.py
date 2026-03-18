@@ -164,7 +164,6 @@ research_facilities_animal_classification_fields: list[str] = [
     "researchfacility_id",
     "researchfacility_name",
     "researchfacility_type",
-    "use_unit",
 ]
 research_facilities_animal_value_fields: list[str] = [
     "processemissions_share",
@@ -179,6 +178,7 @@ research_facilities_animal_value_fields: list[str] = [
     "kg_co2eq_sum_purchases_common",
     "kg_co2eq_sum_purchases_additional",
     "kg_co2eq_sum_equipments",
+    "use_unit",
     "total_use",
 ]
 

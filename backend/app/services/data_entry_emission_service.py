@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -121,9 +121,10 @@ class DataEntryEmissionService:
 
         # Build context: data_entry.data enriched with pre-computed values
         ctx: dict = {**data_entry.data}
-        # TBD Add year to context for time-sensitive factors
-        # Relates to #697
-        ctx["_year"] = 2025
+        # Add year to context for time-sensitive factors, derived from CarbonReport
+        year = await self._get_carbon_report_year(data_entry)
+        if year is not None:
+            ctx["_year"] = year
         ctx.update(await handler.pre_compute(data_entry, self.session))
 
         # Get year from CarbonReport for year-aware factor lookup
@@ -452,6 +453,34 @@ class DataEntryEmissionService:
     ) -> list[dict]:
         """Get travel emissions aggregated by year and category."""
         return await self.repo.get_travel_evolution_over_time(unit_id)
+
+    async def _get_carbon_report_year(
+        self, data_entry: DataEntry | DataEntryResponse
+    ) -> Optional[int]:
+        """Resolve the carbon report year for the given data entry."""
+        carbon_report_module_id = getattr(data_entry, "carbon_report_module_id", None)
+        if carbon_report_module_id is None:
+            return None
+        carbon_report_module = await self.session.get(
+            CarbonReportModule, carbon_report_module_id
+        )
+        if carbon_report_module is None:
+            logger.warning(
+                "CarbonReportModule not found for id=%s", carbon_report_module_id
+            )
+            return None
+        carbon_report_id = getattr(carbon_report_module, "carbon_report_id", None)
+        if carbon_report_id is None:
+            logger.warning(
+                "CarbonReportModule id=%s has no carbon_report_id",
+                carbon_report_module_id,
+            )
+            return None
+        carbon_report = await self.session.get(CarbonReport, carbon_report_id)
+        if carbon_report is None:
+            logger.warning("CarbonReport not found for id=%s", carbon_report_id)
+            return None
+        return getattr(carbon_report, "year", None)
 
     # # Dict of dataEntryTypeEnum , func to calculation formulas
     # FORMULAS: dict[EmissionType, Callable] = {}

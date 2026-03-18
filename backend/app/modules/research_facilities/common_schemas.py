@@ -140,9 +140,9 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
 research_facilities_common_classification_fields: list[str] = [
     "researchfacility_id",
     "researchfacility_name",
-    "use_unit",
 ]
 research_facilities_common_value_fields: list[str] = [
+    "use_unit",
     "kg_co2eq_sum",
     "total_use",
 ]
@@ -169,6 +169,15 @@ class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
     use_unit: Optional[str] = None
     kg_co2eq_sum: Optional[float] = None
     total_use: Optional[float] = None
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
 
 
 class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
