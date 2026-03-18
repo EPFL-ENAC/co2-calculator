@@ -75,7 +75,7 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
-        source: "DataEntrySourceEnum",  # type: ignore  # noqa: F821
+        source: int,  # DataEntrySourceEnum value
     ) -> None:
         """
         Bulk delete data entries by module, type, and source.
@@ -85,12 +85,10 @@ class DataEntryRepository:
             data_entry_type_id: The data entry type to delete
             source: Only delete entries from this source (e.g., CSV_MODULE_PER_YEAR)
         """
-        from app.models.data_entry import DataEntrySourceEnum  # noqa: F401
-
         statement = delete(DataEntry).where(
             col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
             col(DataEntry.data_entry_type_id) == data_entry_type_id.value,
-            col(DataEntry.source) == source.value,
+            col(DataEntry.source) == source,
         )
         await self.session.execute(statement)
         await self.session.flush()

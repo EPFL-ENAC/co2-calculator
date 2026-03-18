@@ -163,7 +163,7 @@ class DataEntryService:
         user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
         job_id: Optional[str | int] = None,
-        source: Optional["DataEntrySourceEnum"] = None,  # type: ignore  # noqa: F821
+        source: Optional[int] = None,  # DataEntrySourceEnum value
         created_by_id: Optional[int] = None,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> list[DataEntryResponse]:
@@ -187,7 +187,8 @@ class DataEntryService:
         if source is not None or created_by_id is not None:
             for entry in data_entries:
                 if source is not None:
-                    entry.source = source
+                    # Convert enum to integer value for database
+                    entry.source = source.value if hasattr(source, "value") else source
                 if created_by_id is not None:
                     entry.created_by_id = created_by_id
 
@@ -322,7 +323,7 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: DataEntryTypeEnum,
-        source: "DataEntrySourceEnum",  # type: ignore  # noqa: F821
+        source: int,  # DataEntrySourceEnum value
         user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
         background_tasks: Optional[BackgroundTasks] = None,
@@ -344,7 +345,6 @@ class DataEntryService:
             f"Bulk deleting data entries by source\n"
             f"for module_id={sanitize(carbon_report_module_id)}\n"
             f"data_entry_type_id={sanitize(data_entry_type_id.value)}\n"
-            f"source={sanitize(source.name)}"
         )
 
         # Fetch entries before deletion to capture snapshots (only if versioning needed)
@@ -364,7 +364,7 @@ class DataEntryService:
                 e
                 for e in entries_to_delete
                 if e.data_entry_type_id == data_entry_type_id.value
-                and e.source == source.value
+                and e.source == source
             ]
 
             # Capture snapshots and handled_ids before deletion
@@ -394,7 +394,7 @@ class DataEntryService:
                     "data_snapshot": snapshots[entry.id],
                     "change_type": AuditChangeTypeEnum.DELETE,
                     "changed_by": user.id,
-                    "change_reason": f"Bulk deletion by source: {source.name}",
+                    "change_reason": f"Bulk deletion by source: {source}",
                     "handler_id": user.institutional_id,
                     "handled_ids": handled_ids_map.get(entry.id, []),
                     "ip_address": request_context.get("ip_address"),

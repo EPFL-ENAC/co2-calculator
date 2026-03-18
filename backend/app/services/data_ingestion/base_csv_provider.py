@@ -510,7 +510,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         await data_entry_service.bulk_delete_by_source(
                             carbon_report_module_id=module_id,
                             data_entry_type_id=data_entry_type,
-                            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR,
+                            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
                             user=user_read,
                         )
                         deleted_count += 1
@@ -960,7 +960,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             batch,
             UserRead.model_validate(user) if user else None,
             job_id=self.job_id,
-            source=source,
+            source=source.value if source else None,
             created_by_id=self.job_id,
         )
 

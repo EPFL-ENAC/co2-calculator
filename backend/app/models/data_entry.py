@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Integer
 from sqlmodel import JSON, Field, SQLModel
 
 
@@ -129,10 +129,10 @@ class DataEntry(DataEntryBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
 
     # Source tracking fields
-    source: Optional[DataEntrySourceEnum] = Field(
+    source: Optional[int] = Field(
         default=None,
-        index=True,
         description="Entry source: user manual, CSV upload, API, etc.",
+        sa_column=Column(Integer, nullable=True, index=True),
     )
     created_by_id: Optional[int] = Field(
         default=None,

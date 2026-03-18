@@ -53,7 +53,7 @@ erDiagram
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
-    VARCHAR source "indexed"
+    INTEGER source "indexed"
     VARCHAR status
     DATETIME updated_at
   }
