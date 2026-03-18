@@ -151,10 +151,23 @@ class DataEntryEmissionService:
                     if temp_kg_co2eq is not None:
                         kg_co2eq = kg_co2eq + temp_kg_co2eq
                     if temp_kg_co2eq is None:
+                        # Log which values are missing for debugging
+                        missing_ctx_keys = [
+                            key
+                            for key in [comp.quantity_key, comp.multiplier_key]
+                            if key and ctx.get(key) is None
+                        ]
+                        missing_factor_keys = [
+                            key
+                            for key in [comp.formula_key, comp.multiplier_key]
+                            if key and factor.values.get(key) is None
+                        ]
                         logger.warning(
                             f"Formula returned None for "
                             f"emission_type={emission_type.name!r} "
-                            f"data_entry_id={data_entry.id!r}"
+                            f"data_entry_id={data_entry.id!r} - "
+                            f"Missing context keys: {missing_ctx_keys}, "
+                            f"Missing factor keys: {missing_factor_keys}"
                         )
                         continue
                 if kg_co2eq is not None:

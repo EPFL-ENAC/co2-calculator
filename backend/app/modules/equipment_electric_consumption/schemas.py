@@ -292,6 +292,7 @@ class EquipmentFactorHandler(BaseFactorHandler):
         DataEntryTypeEnum.it,
         DataEntryTypeEnum.other,
     ]
+    category_field: str = "equipment_category"
     emission_type: EmissionType = EmissionType.equipment
 
     create_dto = EquipmentFactorCreate

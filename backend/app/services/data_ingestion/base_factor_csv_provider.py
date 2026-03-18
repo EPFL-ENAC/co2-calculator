@@ -331,11 +331,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         factor_service: FactorService,
     ) -> tuple[Factor | None, str | None]:
         try:
-            valid_entry_types = setup_result["valid_entry_types"]
-
             # Resolve data_entry_type first
             data_entry_type = self._resolve_data_entry_type(
-                row, valid_entry_types, row_idx, stats, max_row_errors
+                row, setup_result, row_idx, stats, max_row_errors
             )
             if data_entry_type is None:
                 return None, "Missing data_entry_type"
@@ -407,7 +405,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
     def _resolve_data_entry_type(
         self,
         row: Dict[str, str],
-        valid_entry_types: list[DataEntryTypeEnum],
+        setup_result: Dict[str, Any],
         row_idx: int,
         stats: FactorStatsDict,
         max_row_errors: int,
@@ -422,8 +420,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             return DataEntryTypeEnum(int(configured))
 
         # Try to resolve from handler's category_field
-        # Get handlers from context if available
-        handlers = self.config.get("handlers", [])
+        # Get handlers from setup_result
+        handlers = setup_result.get("handlers", [])
         if len(handlers) == 1:
             handler = handlers[0]
             category_field = getattr(handler, "category_field", None)

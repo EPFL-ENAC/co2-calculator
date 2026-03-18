@@ -36,10 +36,11 @@ def test_resolve_data_entry_type_configured():
         data_session=MagicMock(),
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -53,10 +54,11 @@ def test_resolve_data_entry_type_from_id_invalid():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type_id": "999"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -73,10 +75,14 @@ def test_resolve_data_entry_type_from_name_valid():
         {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type": "member"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -90,10 +96,11 @@ def test_resolve_data_entry_type_from_name_invalid():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type": "not-valid"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -110,10 +117,14 @@ def test_resolve_data_entry_type_single_valid():
         {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type": "member"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -127,10 +138,14 @@ def test_resolve_data_entry_type_missing_multi():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [],
+        "valid_entry_types": [DataEntryTypeEnum.member, DataEntryTypeEnum.student],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
         row={},
-        valid_entry_types=[DataEntryTypeEnum.member, DataEntryTypeEnum.student],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -166,6 +181,7 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     )
 
     setup_result = {
+        "handlers": [handler],
         "expected_columns": {"data_entry_type", "kind"},
         "valid_entry_types": [DataEntryTypeEnum.member],
     }
@@ -222,6 +238,7 @@ async def test_process_row_success(monkeypatch):
     factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
 
     setup_result = {
+        "handlers": [handler_mock],
         "expected_columns": {"data_entry_type", "kind", "value"},
         "valid_entry_types": [DataEntryTypeEnum.member],
     }

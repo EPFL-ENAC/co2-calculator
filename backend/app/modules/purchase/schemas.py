@@ -402,6 +402,7 @@ class PurchaseCommonFactorHandler(BaseFactorHandler):
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
     ]
+    category_field: str = "purchase_category"
     emission_type = None  # resolved per type via DATA_ENTRY_TO_EMISSION_TYPES
 
     create_dto = PurchaseCommonFactorCreate

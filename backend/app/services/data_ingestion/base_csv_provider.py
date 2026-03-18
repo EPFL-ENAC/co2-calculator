@@ -898,12 +898,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
 
-            # TODO: that's here that we should add 'default' for some fields if needed
-            # like in equipement for standby and active usage
-            # TODO: make generic in handler above!
-            # it's already done in seed_generic_data_entries
-            # active_usage_hours_per_week
-            # standby_usage_hours_per_week
+            # Populate missing data fields from factor values
+            # (e.g., equipment usage hours)
+            # This matches the logic in seed_generic_data_entries.py (lines 391-395)
+            if factor and handler.factor_value_fields:
+                for field_name in handler.factor_value_fields:
+                    if field_name not in data or data[field_name] in (None, "", 0):
+                        data[field_name] = factor.values.get(field_name)
+
             # BEWaRE: We changed classsubclassmap to allow factors without subkind,
             # so we need to be careful when accessing subkind values in the factor
             data["primary_factor_id"] = primary_factor_id
