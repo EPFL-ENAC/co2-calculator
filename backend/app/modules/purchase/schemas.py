@@ -22,6 +22,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.services.exchange_rates_service import ExchangeRatesService
 
 logger = get_logger(__name__)
 
@@ -222,12 +223,46 @@ class PurchaseModuleHandler(BaseModuleHandler):
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
+
+        def _purchase_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            # Get the year to ensure we get the correct exchange rate for the year
+            # of the purchase
+            year = ctx.get("_year")
+            if year is None:
+                return None
+
+            total_spent_amount = ctx.get("total_spent_amount", 0)
+            entry_currency = (ctx.get("currency", "chf") or "chf").lower()
+            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
+            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
+            if total_spent_amount is None or ef is None:
+                return None
+
+            # Use the exchange rate service to convert the total
+            # spent amount to the eur currency
+            total_spent_amount_eur = total_spent_amount
+            if entry_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, entry_currency
+                )
+                total_spent_amount_eur = total_spent_amount * exchange_rate
+            # Similarly, convert the emission factor to eur if it's in a different
+            # currency, so that the final kg_co2eq is correctly computed in relation
+            # to the total spent amount in eur
+            ef_eur = ef
+            if ef_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, ef_currency
+                )
+                ef_eur = ef * exchange_rate
+
+            return total_spent_amount_eur * ef_eur
+
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                formula_key="ef_kg_co2eq_per_currency",
-                quantity_key="total_spent_amount",
+                formula_func=_purchase_formula,
             )
         ]
 

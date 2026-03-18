@@ -19,7 +19,10 @@ from app.modules.purchase import (
     schemas as _purchase_schemas,  # noqa: F401 — registers handlers
 )
 from app.modules.research_facilities import (
-    schemas as _rf_schemas,  # noqa: F401 — registers handlers
+    animals_schemas as _rf_animals_schemas,  # noqa: F401 — registers handlers
+)
+from app.modules.research_facilities import (
+    common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
 )
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import (
@@ -163,11 +166,14 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
 ]
 
 
-def get_float_or_none(value: str | None) -> float | None:
+def get_float_str_or_none(value: str | None) -> float | str | None:
     """Convert string to float or return None if empty."""
     if value is None or value == "":
         return None
-    return float(value)
+    try:
+        return float(value)
+    except ValueError:
+        return value
 
 
 async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
@@ -221,7 +227,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
                         f"Missing required value field '{field_name}'"
                         f" for {data_entry_type.name} factor: {row}"
                     )
-                values[field_name] = get_float_or_none(row.get(field_name))
+                values[field_name] = get_float_str_or_none(row.get(field_name))
 
             factor = await service.prepare_create(
                 emission_type_id=emission_type_id,

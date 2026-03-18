@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -50,7 +50,6 @@ class DataEntryEmissionService:
             return None
 
         # Fetch the CarbonReportModule to get carbon_report_id
-        from app.models.carbon_report import CarbonReportModule
 
         stmt = select(CarbonReportModule).where(
             col(CarbonReportModule.id) == data_entry.carbon_report_module_id
@@ -129,6 +128,8 @@ class DataEntryEmissionService:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"
             )
+        # Add factor year to context for year-specific formulas
+        ctx["_year"] = year
 
         results: list[DataEntryEmission] = []
 
