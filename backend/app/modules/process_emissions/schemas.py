@@ -121,7 +121,7 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _process_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+        def _process_formula(ctx: dict, factor_values: dict):
             quantity_kg = ctx.get("quantity", 0)
             if quantity_kg < 0:
                 return None

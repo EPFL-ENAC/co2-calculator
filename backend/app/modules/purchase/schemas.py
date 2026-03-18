@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import ValidationInfo, field_validator
+from pydantic import field_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -22,7 +22,6 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
-from app.services.exchange_rates_service import ExchangeRatesService
 
 logger = get_logger(__name__)
 
@@ -147,6 +146,7 @@ class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
 
 class PurchaseModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
+    category_field: str = "purchase_category"
     registration_keys = [
         DataEntryTypeEnum.scientific_equipment,
         DataEntryTypeEnum.it_equipment,
@@ -222,45 +222,12 @@ class PurchaseModuleHandler(BaseModuleHandler):
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
-
-        # TODO Get the year from the carbon report associated with the module, instead
-        # of hardcoding it here, to ensure we get the correct exchange rate for the year
-        # of the purchase
-        year = 2025
-
-        def _purchase_formula(ctx: dict, factor_values: dict) -> Optional[float]:
-            total_spent_amount = ctx.get("total_spent_amount", 0)
-            entry_currency = (ctx.get("currency", "chf") or "chf").lower()
-            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
-            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
-            if total_spent_amount is None or ef is None:
-                return None
-
-            # Use the exchange rate service to convert the total
-            # spent amount to the eur currency
-            total_spent_amount_eur = total_spent_amount
-            if entry_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
-                    year, entry_currency
-                )
-                total_spent_amount_eur = total_spent_amount * exchange_rate
-            # Similarly, convert the emission factor to eur if it's in a different
-            # currency, so that the final kg_co2eq is correctly computed in relation
-            # to the total spent amount in eur
-            ef_eur = ef
-            if ef_currency != "eur":
-                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
-                    year, ef_currency
-                )
-                ef_eur = ef * exchange_rate
-
-            return total_spent_amount_eur * ef_eur
-
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                formula_func=_purchase_formula,
+                formula_key="ef_kg_co2eq_per_currency",
+                quantity_key="total_spent_amount",
             )
         ]
 
@@ -312,9 +279,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        def _additional_purchase_formula(
-            ctx: dict, factor_values: dict
-        ) -> Optional[float]:
+        def _additional_purchase_formula(ctx: dict, factor_values: dict):
             annual_consumption = ctx.get("annual_consumption", 0)
             coef_to_kg = ctx.get("coef_to_kg", 0)
             ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
@@ -389,12 +354,9 @@ purchase_common_classification_fields: list[str] = [
     "purchase_institutional_code",
     "purchase_institutional_description",
     "purchase_additional_code",
-    "purchase_category",
-]
-purchase_common_value_fields: list[str] = [
-    "ef_kg_co2eq_per_currency",
     "currency",
 ]
+purchase_common_value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
@@ -405,30 +367,11 @@ class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
     ef_kg_co2eq_per_currency: float
 
-    @field_validator(
-        "ef_kg_co2eq_per_currency",
-        mode="after",
-    )
+    @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod
-    def validate_factor_non_negative(cls, v: float, info: ValidationInfo) -> float:
-        if v is None:
-            raise ValueError(f"{info.field_name} is required")
+    def validate_ef(cls, v: float) -> float:
         if v < 0:
-            raise ValueError(f"{info.field_name} must be non-negative")
-        return v
-
-    @field_validator("currency", mode="after")
-    @classmethod
-    def validate_currency(cls, v: str) -> str:
-        valid_currencies = [
-            "chf",
-            "eur",
-            "usd",
-        ]
-        if not v:
-            raise ValueError("Currency is required")
-        if v.lower() not in valid_currencies:
-            raise ValueError("Invalid currency")
+            raise ValueError("ef_kg_co2eq_per_currency must be non-negative")
         return v
 
 
@@ -436,44 +379,14 @@ class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
-    purchase_category: Optional[str] = None
     currency: Optional[str] = None
     ef_kg_co2eq_per_currency: Optional[float] = None
-
-    @field_validator(
-        "ef_kg_co2eq_per_currency",
-        mode="after",
-    )
-    @classmethod
-    def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        if v is None:
-            return v
-        if v < 0:
-            raise ValueError(f"{info.field_name} must be non-negative")
-        return v
-
-    @field_validator("currency", mode="after")
-    @classmethod
-    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
-        valid_currencies = [
-            "chf",
-            "eur",
-            "usd",
-        ]
-        if v is None:
-            return v
-        if v.lower() not in valid_currencies:
-            raise ValueError("Invalid currency")
-        return v
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_institutional_code: str
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
-    purchase_category: Optional[str] = None
     currency: str
     ef_kg_co2eq_per_currency: Optional[float] = None
 
@@ -489,6 +402,7 @@ class PurchaseCommonFactorHandler(BaseFactorHandler):
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
     ]
+    category_field: str = "purchase_category"
     emission_type = None  # resolved per type via DATA_ENTRY_TO_EMISSION_TYPES
 
     create_dto = PurchaseCommonFactorCreate

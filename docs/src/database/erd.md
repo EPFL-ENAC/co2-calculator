@@ -85,8 +85,8 @@ erDiagram
     INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id "indexed"
     INTEGER id PK
-    BOOLEAN is_conversion "indexed"
     JSON values
+    INTEGER year "indexed"
   }
   locations {
     VARCHAR airport_size

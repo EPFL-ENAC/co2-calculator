@@ -1,9 +1,11 @@
 from typing import Optional
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -31,6 +33,50 @@ class DataEntryEmissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
+
+    async def _get_year_from_data_entry(
+        self, data_entry: DataEntry | DataEntryResponse
+    ) -> Optional[int]:
+        """Extract year from DataEntry via CarbonReportModule -> CarbonReport.
+
+        The year is stored in the parent CarbonReport, which is linked
+        through the carbon_report_module_id.
+        """
+        if (
+            not hasattr(data_entry, "carbon_report_module_id")
+            or not data_entry.carbon_report_module_id
+        ):
+            logger.warning("DataEntry missing carbon_report_module_id")
+            return None
+
+        # Fetch the CarbonReportModule to get carbon_report_id
+        from app.models.carbon_report import CarbonReportModule
+
+        stmt = select(CarbonReportModule).where(
+            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
+        )
+        result = await self.session.exec(stmt)
+        module = result.one_or_none()
+
+        if not module:
+            logger.warning(
+                f"CarbonReportModule not found for id "
+                f"{data_entry.carbon_report_module_id}"
+            )
+            return None
+
+        # Fetch the CarbonReport to get year
+        stmt_cr = select(CarbonReport).where(
+            col(CarbonReport.id) == module.carbon_report_id
+        )
+        result_cr = await self.session.exec(stmt_cr)
+        report = result_cr.one_or_none()
+
+        if not report:
+            logger.warning(f"CarbonReport not found for id {module.carbon_report_id}")
+            return None
+
+        return report.year
 
     async def prepare_create(
         self,
@@ -77,33 +123,65 @@ class DataEntryEmissionService:
         ctx: dict = {**data_entry.data}
         ctx.update(await handler.pre_compute(data_entry, self.session))
 
+        # Get year from CarbonReport for year-aware factor lookup
+        year = await self._get_year_from_data_entry(data_entry)
+        if year is None:
+            logger.warning(
+                "Could not determine year for data entry, factors may not match"
+            )
+
         results: list[DataEntryEmission] = []
 
         for emission_type in emission_types:
             computations = handler.resolve_computations(data_entry, emission_type, ctx)
 
             for comp in computations:
-                factors = await self._fetch_factors(comp)
+                factors = await self._fetch_factors(comp, year)
                 kg_co2eq: float | None = None
-                for factor in factors:
-                    # If there are multiple factors for this computation,
-                    # we sum their contributions
-                    # only use case for now is headcount because because we don't have a
-                    # finer grain emission_type despite having factors
-                    # representing a new depth
-                    kg_co2eq = 0 if kg_co2eq is None else kg_co2eq
-                    temp_kg_co2eq: float | None = self._apply_formula(
-                        ctx, factor.values or {}, comp
+
+                # Check if CSV provides an override value (takes precedence)
+                csv_kg_co2eq = data_entry.data.get("kg_co2eq")
+                if csv_kg_co2eq is not None:
+                    # Use CSV-provided value as override
+                    logger.info(
+                        f"Using CSV-provided kg_co2eq={csv_kg_co2eq} override for "
+                        f"emission_type={emission_type.name!r} "
+                        f"data_entry_id={data_entry.id!r}"
                     )
-                    if temp_kg_co2eq is not None:
-                        kg_co2eq = kg_co2eq + temp_kg_co2eq
-                    if temp_kg_co2eq is None:
-                        logger.warning(
-                            f"Formula returned None for "
-                            f"emission_type={emission_type.name!r} "
-                            f"data_entry_id={data_entry.id!r}"
+                    kg_co2eq = float(csv_kg_co2eq)
+                else:
+                    # Compute kg_co2eq using factors and formulas
+                    for factor in factors:
+                        # If there are multiple factors for this computation,
+                        # we sum their contributions
+                        # only use case: headcount (multiple factors per emission)
+                        kg_co2eq = 0 if kg_co2eq is None else kg_co2eq
+                        temp_kg_co2eq: float | None = self._apply_formula(
+                            ctx, factor.values or {}, comp
                         )
-                        continue
+                        if temp_kg_co2eq is not None:
+                            kg_co2eq = kg_co2eq + temp_kg_co2eq
+                        if temp_kg_co2eq is None:
+                            # Log which values are missing for debugging
+                            missing_ctx_keys = [
+                                key
+                                for key in [comp.quantity_key, comp.multiplier_key]
+                                if key and ctx.get(key) is None
+                            ]
+                            missing_factor_keys = [
+                                key
+                                for key in [comp.formula_key, comp.multiplier_key]
+                                if key and factor.values.get(key) is None
+                            ]
+                            logger.warning(
+                                f"Formula returned None for "
+                                f"emission_type={emission_type.name!r} "
+                                f"data_entry_id={data_entry.id!r} - "
+                                f"Missing context keys: {missing_ctx_keys}, "
+                                f"Missing factor keys: {missing_factor_keys}"
+                            )
+                            continue
+
                 if kg_co2eq is not None:
                     results.append(
                         DataEntryEmission(
@@ -123,7 +201,9 @@ class DataEntryEmissionService:
 
         return results
 
-    async def _fetch_factors(self, comp: EmissionComputation) -> list[Factor]:
+    async def _fetch_factors(
+        self, comp: EmissionComputation, year: Optional[int] = None
+    ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
 
         Two mutually exclusive strategies (see implementation plan §Factor
@@ -144,6 +224,10 @@ class DataEntryEmissionService:
           3. By emission_type → returns N factors
              → e.g. all food sub-factors (vegetarian + non-vegetarian)
           4. By data_entry_type → broadest, returns all factors for the type
+
+        Args:
+            comp: Emission computation with factor lookup criteria
+            year: Optional year to filter factors by (enables year-specific factors)
         """
         factor_service = FactorService(self.session)
         result: list[Factor] = []
@@ -151,6 +235,13 @@ class DataEntryEmissionService:
         # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
             factor = await factor_service.get(comp.factor_id)
+            # Filter by year if factor exists and year is specified
+            if factor and year is not None and factor.year != year:
+                logger.warning(
+                    f"Factor {comp.factor_id} year ({factor.year}) "
+                    f"doesn't match data entry year ({year})"
+                )
+                return []
             result.append(factor) if factor else None
             return result
 
@@ -174,6 +265,7 @@ class DataEntryEmissionService:
                     data_entry_type=q.data_entry_type,
                     fallbacks=q.fallbacks if q.fallbacks else None,
                     kind=q.kind,
+                    year=year,
                     **classification,
                 )
                 result.append(factor) if factor else None
@@ -185,6 +277,7 @@ class DataEntryEmissionService:
                     data_entry_type=q.data_entry_type,
                     kind=q.kind,
                     subkind=None,
+                    year=year,
                 )
                 result.append(factor) if factor else None
 

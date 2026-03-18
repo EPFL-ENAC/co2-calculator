@@ -58,15 +58,17 @@ export function requirePermission(
 }
 
 /**
- * Route guard that requires view permission for the module in the route.
- * Standard users without view permission will be redirected to unauthorized.
+ * Route guard that requires edit permission for the module in the route.
+ * Standard users without view permission will be blocked entirely.
+ * Standard users with view but not edit permission will be redirected to unauthorized.
  *
- * This guard checks the module parameter from the route and verifies
- * that the user has view permission (if module is protected).
+ * Exception: professional-travel module allows view permission (read-only access for API data).
  *
- * Edit permissions are handled in the module page.
+ * This guard checks the module parameter from the route and verifies:
+ * 1. That the user has view permission (if module is protected)
+ * 2. That the user has edit permission (required for data entry, except professional-travel)
  */
-export function requireModulePermission() {
+export function requireModuleEditPermission() {
   return (to: RouteLocationNormalized): NavigationGuardReturn => {
     const authStore = useAuthStore();
     const module = to.params.module as Module;
@@ -91,6 +93,18 @@ export function requireModulePermission() {
       return { name: 'unauthorized' };
     }
 
-    return true;
+    // Check if user has edit permission (required for data entry for other modules)
+    const hasEditPermission = hasPermission(
+      authStore.user?.permissions,
+      permissionPath,
+      PermissionAction.EDIT,
+    );
+
+    if (hasEditPermission) {
+      return true;
+    } else {
+      // User has view but not edit - redirect to unauthorized
+      return { name: 'unauthorized' };
+    }
   };
 }

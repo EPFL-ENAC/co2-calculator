@@ -19,22 +19,6 @@ class ExchangeRatesService:
     def __init__(self):
         pass
 
-    def get_exchange_rate_to_eur(self, year: int, currency: str) -> float:
-        """Get the exchange rate from the specified currency to EUR.
-
-        Args:
-            year (int): The year for which to fetch the exchange rate.
-            currency (str): The currency code to fetch the exchange rate for.
-
-        Raises:
-            ValueError: If no exchange rate data is found for the specified year
-              and currency or if there is an error fetching the data.
-
-        Returns:
-            float: The exchange rate from the specified currency to EUR.
-        """
-        return self.get_exchange_rate(year, currency, invert=True)
-
     def get_exchange_rate(
         self, year: int, currency: str, invert: bool = False
     ) -> float:
@@ -57,7 +41,7 @@ class ExchangeRatesService:
               optionally inverted.
         """
         rates = self.get_exchange_rates(year)
-        filtered_rates = rates[rates["CURRENCY"] == self._normalize_currency(currency)]
+        filtered_rates = rates[rates["CURRENCY"] == currency]
         if filtered_rates.empty:
             raise ValueError(
                 f"No exchange rate data found for year {year} and currency {currency}"
@@ -65,7 +49,7 @@ class ExchangeRatesService:
         rate = float(filtered_rates["OBS_VALUE"].iloc[0])
         if invert:
             return 1 / rate
-        return float(rate)
+        return rate
 
     def get_exchange_rates(self, year: int) -> pd.DataFrame:
         """Get exchange rates for a specific year, using caching to avoid
@@ -128,8 +112,7 @@ class ExchangeRatesService:
             start_period = str(year)
             end_period = str(year)
 
-        currency_n = self._normalize_currency(currency) if currency else ""
-        url = f"{ECB_EXR_URL}{frequency}.{currency_n}.EUR.SP00.A"
+        url = f"{ECB_EXR_URL}{frequency}.{currency if currency else ''}.EUR.SP00.A"
         params = {
             "startPeriod": start_period,
             "endPeriod": end_period,
@@ -164,10 +147,6 @@ class ExchangeRatesService:
             df["OBS_VALUE"] = 1 / df["OBS_VALUE"]
 
         return df[["TIME_PERIOD", "CURRENCY", "OBS_VALUE"]]
-
-    def _normalize_currency(self, currency: str) -> str:
-        """Normalize the currency code to uppercase and strip whitespace."""
-        return currency.strip().upper()
 
     @staticmethod
     def clear_cache():

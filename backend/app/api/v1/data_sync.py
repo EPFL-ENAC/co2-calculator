@@ -66,11 +66,17 @@ async def sync_module_data_entries(
     syncRequest: SyncRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    example of request body for module_type_year:
+    Sync data entries for a specific module.
+
+    **Required Permission**: `backoffice.data_management.sync`
+
+    Example of request body for module_type_year:
     {
         "ingestion_method": "csv",
         "target_type": 0,
@@ -183,10 +189,18 @@ async def sync_module_factors(
     factor_type_id: int,
     syncRequest: SyncRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
 ):
-    # Implementation similar to sync_module_data_entries,
-    # but tailored for factor synchronization.
+    """
+    Sync factors for a specific module.
+
+    **Required Permission**: `backoffice.data_management.sync`
+
+    Implementation similar to sync_module_data_entries,
+    but tailored for factor synchronization.
+    """
     pass
 
 
@@ -194,10 +208,14 @@ async def sync_module_factors(
 async def get_jobs_by_status(
     filter_type: str = "completed",
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
 ) -> list:
     """
     Get jobs filtered by status.
+
+    **Required Permission**: `backoffice.data_management.view`
 
     Args:
         filter_type: "active" for in-progress jobs, "completed" for finished jobs
@@ -209,14 +227,58 @@ async def get_jobs_by_status(
     return jobs
 
 
+@router.get("/jobs/year/{year}", response_model=list[SyncJobResponse])
+async def get_jobs_by_year(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list:
+    """
+    Get all sync jobs for a specific year.
+
+    **Required Permission**: `backoffice.data_management.view`
+
+    Args:
+        year: The year to filter jobs by
+
+    Returns:
+        List of sync jobs for the specified year
+    """
+    jobs = await DataIngestionRepository(db).get_jobs_by_year(year)
+
+    # Transform to SyncJobResponse format
+    # Filter out jobs with None id (shouldn't happen but type checker needs it)
+    return [
+        SyncJobResponse(
+            job_id=job.id,
+            module_type_id=job.module_type_id,
+            year=job.year,
+            ingestion_method=job.ingestion_method,
+            target_type=job.target_type,
+            status=job.status,
+            status_message=job.status_message,
+            meta=job.meta,
+        )
+        for job in jobs
+        if job.id is not None
+    ]
+
+
 # SSE endpoint to stream job updates - MUST be before /jobs/{job_id}
 @router.get("/jobs/stream")
 async def job_stream(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
 ):
     """
     Server-Sent Events endpoint to stream job updates in real-time.
+
+    **Required Permission**: `backoffice.data_management.view`
+
     Polls the database for job status changes and sends updates to the client.
 
     Each update includes:
@@ -274,10 +336,15 @@ async def job_stream(
 async def job_stream_by_id(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("modules.*", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
 ):
     """
     Server-Sent Events endpoint to stream a single job update in real-time.
+
+    **Required Permission**: `backoffice.data_management.view`
+
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed or failed.
     """
@@ -325,3 +392,37 @@ async def job_stream_by_id(
             await asyncio.sleep(2)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/units", response_model=SyncStatusResponse)
+async def sync_units_from_accred(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync units from Accred API.
+
+    Triggers background task to fetch and upsert all units and principal users
+    from the Accred API. Uses hardcoded UserProvider.ACCRED for now.
+
+    **Required Permission**: `backoffice.data_management.sync`
+
+    Returns:
+        SyncStatusResponse with job status (note: job_id is 0 as this is a
+        simple background task without persistent job tracking)
+    """
+    from app.tasks.unit_sync_tasks import sync_units_from_accred_task
+
+    # Schedule background task
+    background_tasks.add_task(sync_units_from_accred_task)
+
+    return SyncStatusResponse(
+        job_id=0,  # No persistent job tracking for now
+        status="scheduled",
+        status_code=IngestionStatus.PENDING,
+        message="Unit sync from Accred API scheduled",
+    )

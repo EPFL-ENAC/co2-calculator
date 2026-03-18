@@ -17,10 +17,10 @@ from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.data_entry import ModuleHandler
 from app.schemas.user import UserRead
-from app.seed.seed_helper import lookup_factor
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -114,6 +114,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._repo: Any = None
         self._unit_service: Any = None
         self._user_service: Any = None
+        # Track missing unit codes to skip rows during processing
+        self._missing_unit_codes: set[str] = set()
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -500,23 +502,35 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 f"still missing {len(missing_codes)} units"
             )
 
-            # If still missing after fetch attempt, fail
+            # If still missing after fetch attempt, warn but continue
+            # Rows with missing units will be skipped during processing
             if missing_codes:
-                raise ValueError(
-                    "Unknown unit_institutional_id values in CSV (could not fetch): "
-                    f"{', '.join(missing_codes)}"
+                logger.warning(
+                    f"Missing {len(missing_codes)} units that could not be fetched: "
+                    f"{', '.join(missing_codes)}. "
+                    f"Rows with these units will be skipped."
                 )
+                # Store missing codes to skip rows during processing
+                self._missing_unit_codes = set(missing_codes)
+            else:
+                self._missing_unit_codes = set()
 
         # Build mapping of institutional_id to unit.id for DB operations
+        # Only include units that exist (skip missing ones)
         unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
 
         # Resolve carbon_report_module_id for each institutional_id
+        # Skip units that are missing
         carbon_report_service = CarbonReportService(self.data_session)
         code_to_module_map: Dict[str, int] = {}
         reports_created = 0
         reports_reused = 0
 
         for unit_institutional_id in unit_codes:
+            # Skip missing units - they will be handled during row processing
+            if unit_institutional_id in self._missing_unit_codes:
+                continue
+
             # Get the database ID for this institutional_id
             unit_id = unit_code_to_id.get(unit_institutional_id)
             if not unit_id:
@@ -789,7 +803,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         try:
             handlers = setup_result["handlers"]
-            factors_map = setup_result["factors_map"]
+            # factors_map = setup_result["factors_map"]
             expected_columns = setup_result["expected_columns"]
 
             # Filter row to only include expected columns
@@ -804,22 +818,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 filtered_row, handlers
             )
 
-            # Lookup factor
-            factor = None
-            if kind_value:
-                factor = lookup_factor(
-                    kind=kind_value,
-                    subkind=subkind_value,
-                    factors_map=factors_map,
-                )
-
-            # Resolve handler and validate (entity-specific)
+            # Resolve handler and data_entry_type first (needed for factor lookup)
             (
                 data_entry_type,
                 handler,
                 error_msg,
             ) = await self._resolve_handler_and_validate(
-                filtered_row, factor, stats, row_idx, max_row_errors, setup_result
+                filtered_row, None, stats, row_idx, max_row_errors, setup_result
             )
 
             if error_msg:
@@ -830,21 +835,36 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
+            # Use ModuleHandlerService to resolve primary_factor_id (unified with API)
+            handler_service = ModuleHandlerService(self.data_session)
+            payload_for_factor_resolution: Dict[str, str | int] = dict(filtered_row)
+            payload_with_factor = await handler_service.resolve_primary_factor_id(
+                handler=handler,
+                payload=payload_for_factor_resolution,
+                data_entry_type_id=data_entry_type,
+            )
+            primary_factor_id = payload_with_factor.get("primary_factor_id")
+
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
 
             if unit_to_module_map is not None:
                 # MODULE_PER_YEAR: resolve from unit_institutional_id
-                unit_institutional_id = row.get("unit_id")
+                unit_institutional_id = row.get("unit_institutional_id")
                 if (
                     unit_institutional_id is None
                     or str(unit_institutional_id).strip() == ""
                 ):
-                    error_msg = "Missing unit_id in row"
+                    error_msg = "Missing unit_institutional_id in row"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, error_msg, None
 
                 unit_institutional_id = str(unit_institutional_id).strip()
+
+                # Skip rows with missing units
+                if unit_institutional_id in self._missing_unit_codes:
+                    error_msg = f"Unit '{unit_institutional_id}' not found"
+
                 carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
                     error_msg = (
@@ -862,11 +882,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
-            # Validate payload with handler
-            payload: Dict[str, str | int] = dict(filtered_row)
+            # Validate payload with handler (primary_factor_id already
+            # set by ModuleHandlerService)
+            payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
             payload["status"] = DataEntryStatusEnum.VALIDATED.value
+            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 validated = handler.validate_create(payload)
@@ -876,18 +898,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 return None, error_msg, None
 
             # Build DataEntry
-            primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
 
-            # TODO: that's here that we should add 'default' for some fields if needed
-            # like in equipement for standby and active usage
-            # TODO: make generic in handler above!
-            # it's already done in seed_generic_data_entries
-            # active_usage_hours_per_week
-            # standby_usage_hours_per_week
-            # BEWaRE: We changed classsubclassmap to allow factors without subkind,
-            # so we need to be careful when accessing subkind values in the factor
-            data["primary_factor_id"] = primary_factor_id
+            # Note: primary_factor_id is already in payload and
+            # will be in validated.data
+            # No need to set it again
 
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
@@ -895,7 +910,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 data=data,
             )
 
-            return data_entry, None, factor
+            return data_entry, None, None
 
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
@@ -1003,6 +1018,49 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if emissions_to_create:
             await emission_service.bulk_create(emissions_to_create)
             logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+
+    @staticmethod
+    def _resolve_data_entry_type_from_category(
+        row: Dict[str, str],
+        handler: Any,
+        row_idx: int,
+        stats: StatsDict,
+        max_row_errors: int,
+    ) -> DataEntryTypeEnum | None:
+        """
+        Resolve data_entry_type from module-specific category column.
+
+        Args:
+            row: CSV row data
+            handler: Module handler with category_field defined
+            row_idx: Current row index for error reporting
+            stats: Stats dict for error tracking
+            max_row_errors: Maximum errors to record
+
+        Returns:
+            DataEntryTypeEnum if resolved, None otherwise
+        """
+        category_field = getattr(handler, "category_field", None)
+
+        if not category_field:
+            # No category field defined for this handler
+            return None
+
+        category_value = row.get(category_field, "").strip()
+
+        if not category_value:
+            # Category field not present in this row
+            return None
+
+        try:
+            # Map category string to DataEntryTypeEnum
+            # e.g., "scientific" -> DataEntryTypeEnum.scientific
+            data_entry_type = DataEntryTypeEnum[category_value.lower()]
+            return data_entry_type
+        except KeyError:
+            error_msg = f"Invalid {category_field}: {category_value}"
+            BaseCSVProvider._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None
 
     @staticmethod
     def _record_row_error(

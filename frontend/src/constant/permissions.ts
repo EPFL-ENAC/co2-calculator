@@ -40,7 +40,10 @@ export enum PermissionAction {
  * ```
  */
 export type PermissionPath =
+  | 'backoffice.reporting'
   | 'backoffice.users'
+  | 'backoffice.data_management'
+  | 'backoffice.documentation'
   | 'modules.headcount'
   | 'modules.equipment'
   | 'modules.professional_travel'
@@ -48,6 +51,7 @@ export type PermissionPath =
   | 'modules.purchase'
   | 'modules.research_facilities'
   | 'modules.external_cloud_and_ai'
+  | 'modules.process_emissions'
   | 'system.users';
 
 /**
@@ -99,10 +103,14 @@ export interface ModulePermissions {
  * ```
  */
 export interface BackOfficePermissions {
+  /** Reporting permissions (view reports, generate exports) */
+  reporting?: ModulePermissions;
   /** User management permissions */
   users?: ModulePermissions;
-  /** Log viewing permissions (reserved for future use) */
-  logs?: ModulePermissions;
+  /** Data management permissions (CSV upload/download, sync operations) */
+  data_management?: ModulePermissions;
+  /** Documentation permissions */
+  documentation?: ModulePermissions;
 }
 
 /**
@@ -197,14 +205,18 @@ export interface UserPermissions {
  * @see {@link UserPermissions} For nested structure representation
  */
 export interface FlatUserPermissions {
+  'backoffice.reporting'?: ModulePermissions;
   'backoffice.users'?: ModulePermissions;
+  'backoffice.data_management'?: ModulePermissions;
+  'backoffice.documentation'?: ModulePermissions;
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;
   'modules.professional_travel'?: ModulePermissions;
   'modules.buildings'?: ModulePermissions;
   'modules.purchase'?: ModulePermissions;
   'modules.research_facilities'?: ModulePermissions;
-  'modules.external_clouds'?: ModulePermissions;
+  'modules.external_cloud_and_ai'?: ModulePermissions;
+  'modules.process_emissions'?: ModulePermissions;
   'system.users'?: ModulePermissions;
   [key: string]: ModulePermissions | undefined;
 }
