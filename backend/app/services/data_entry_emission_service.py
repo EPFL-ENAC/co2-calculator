@@ -121,6 +121,9 @@ class DataEntryEmissionService:
 
         # Build context: data_entry.data enriched with pre-computed values
         ctx: dict = {**data_entry.data}
+        # TBD Add year to context for time-sensitive factors
+        # Relates to #697
+        ctx["_year"] = 2025
         ctx.update(await handler.pre_compute(data_entry, self.session))
 
         # Get year from CarbonReport for year-aware factor lookup

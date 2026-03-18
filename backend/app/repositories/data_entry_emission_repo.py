@@ -410,3 +410,36 @@ class DataEntryEmissionRepository:
                 }
             )
         return result_list
+
+    async def get_total_emissions_per_type(
+        self, emission_type_id: int, unit_id: int, year: int
+    ) -> float | None:
+        """Get total emissions for a given emission type, unit and year."""
+        query: Select[Any] = (
+            select(
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReport.year == year,
+                DataEntryEmission.emission_type_id == emission_type_id,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.kg_co2eq) > 0,
+            )
+        )
+
+        result = await self.session.execute(query)
+        rval = result.scalar_one_or_none()
+        return rval

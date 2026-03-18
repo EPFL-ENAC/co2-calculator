@@ -19,7 +19,10 @@ from app.modules.purchase import (
     schemas as _purchase_schemas,  # noqa: F401 — registers handlers
 )
 from app.modules.research_facilities import (
-    schemas as _rf_schemas,  # noqa: F401 — registers handlers
+    animals_schemas as _rf_animals_schemas,  # noqa: F401 — registers handlers
+)
+from app.modules.research_facilities import (
+    common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
 )
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import (

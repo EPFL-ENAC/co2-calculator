@@ -28,41 +28,48 @@ from app.schemas.factor import (
 logger = get_logger(__name__)
 
 
-class ResearchFacilitiesHandlerResponse(DataEntryResponseGen):
-    name: Optional[str] = None
+class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: Optional[str] = None
+    use: Optional[float] = None
+    use_unit: Optional[str] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
 
-class ResearchFacilitiesHandlerCreate(DataEntryCreate):
-    name: Optional[str] = None
+class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: Optional[str] = None
+    use: Optional[float] = None
+    use_unit: Optional[str] = None
     note: Optional[str] = None
 
 
-class ResearchFacilitiesHandlerUpdate(DataEntryUpdate):
-    name: Optional[str] = None
+class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
+    researchfacility_id: Optional[int] = None
+    researchfacility_name: Optional[str] = None
+    use: Optional[float] = None
+    use_unit: Optional[str] = None
     note: Optional[str] = None
 
 
-class ResearchFacilitiesModuleHandler(BaseModuleHandler):
-    """Handler for research facilities data entries (Strategy A — primary_factor_id).
-
-    Formula: TBD (returns None until factors and a formula are defined).
+class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
+    """Handler for research facilities data entries related
+    to mice and fish animal facilities.
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.research_facilities
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [
-        DataEntryTypeEnum.research_facilities,
         DataEntryTypeEnum.mice_and_fish_animal_facilities,
     ]
 
-    create_dto = ResearchFacilitiesHandlerCreate
-    update_dto = ResearchFacilitiesHandlerUpdate
-    response_dto = ResearchFacilitiesHandlerResponse
+    create_dto = ResearchFacilitiesAnimalHandlerCreate
+    update_dto = ResearchFacilitiesAnimalHandlerUpdate
+    response_dto = ResearchFacilitiesAnimalHandlerResponse
 
-    kind_field: Optional[str] = None
-    subkind_field: Optional[str] = None
+    kind_field: str = "researchfacility_id"
+    subkind_field: str = "researchfacility_type"
     require_subkind_for_factor = False
 
     sort_map = {
@@ -72,7 +79,9 @@ class ResearchFacilitiesModuleHandler(BaseModuleHandler):
 
     filter_map: dict = {}
 
-    def to_response(self, data_entry: DataEntry) -> ResearchFacilitiesHandlerResponse:
+    def to_response(
+        self, data_entry: DataEntry
+    ) -> ResearchFacilitiesAnimalHandlerResponse:
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
@@ -82,85 +91,72 @@ class ResearchFacilitiesModuleHandler(BaseModuleHandler):
             }
         )
 
-    def validate_create(self, payload: dict) -> ResearchFacilitiesHandlerCreate:
+    def validate_create(self, payload: dict) -> ResearchFacilitiesAnimalHandlerCreate:
         return self.create_dto.model_validate(payload)
 
-    def validate_update(self, payload: dict) -> ResearchFacilitiesHandlerUpdate:
+    def validate_update(self, payload: dict) -> ResearchFacilitiesAnimalHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
-        """Strategy A — primary_factor_id. Formula TBD; returns empty until defined."""
+        """Strategy A — primary_factor_id."""
 
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
+
+        def _research_facilities_formula(
+            ctx: dict, factor_values: dict
+        ) -> Optional[float]:
+            """
+            Compute emissions based on share of use of the facility compared
+            to total use.
+            Formula: (use / total_use) * kg_co2eq_sum, for each sources,
+            with unit check on use_unit.
+            """
+            use = ctx.get("use")
+            use_unit = ctx.get("use_unit")
+            if use is None or use_unit is None:
+                return None
+            # Must be same unit for the factor and the data entry to apply the formula
+            use_unit_factor = factor_values.get("use_unit")
+            if use_unit != use_unit_factor:
+                return None
+            # Compute share of use and apply to each source emissions
+            # and sum them up.
+            total_use = factor_values.get("total_use")
+            if total_use is None:
+                return None
+            sources = [
+                "processemissions",
+                "building_energycombustions",
+                "building_rooms",
+                "purchases_common",
+                "purchases_additional",
+                "equipments",
+            ]
+            kg_co2eq_sum = None
+            for source in sources:
+                source_share = factor_values.get(f"{source}_share")
+                kg_co2eq_sum_source = factor_values.get(f"kg_co2eq_sum_{source}")
+                if source_share is None or kg_co2eq_sum_source is None:
+                    continue
+                if kg_co2eq_sum is None:
+                    kg_co2eq_sum = 0
+                kg_co2eq_sum += (
+                    use * source_share / total_use if total_use > 0 else 0
+                ) * kg_co2eq_sum_source
+            return kg_co2eq_sum
+
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                # Formula TBD — no emission rows until factors are defined
+                formula_func=_research_facilities_formula,
             )
         ]
 
 
 ## RESEARCH FACILITIES FACTOR HANDLERS
-
-# --- Common (research_facilities) ---
-
-research_facilities_common_classification_fields: list[str] = [
-    "researchfacility_id",
-    "researchfacility_name",
-    "use_unit",
-]
-research_facilities_common_value_fields: list[str] = [
-    "kg_co2eq_sum",
-    "total_use",
-]
-
-
-class ResearchFacilitiesCommonFactorCreate(FactorCreate):
-    researchfacility_id: Optional[int] = None
-    researchfacility_name: str
-    use_unit: str
-    kg_co2eq_sum: Optional[float] = None
-    total_use: float
-
-    @field_validator("total_use", mode="after")
-    @classmethod
-    def validate_total_use(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("total_use must be non-negative")
-        return v
-
-
-class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
-    researchfacility_id: Optional[int] = None
-    researchfacility_name: Optional[str] = None
-    use_unit: Optional[str] = None
-    kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
-
-
-class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
-    researchfacility_id: Optional[int] = None
-    researchfacility_name: str
-    use_unit: str
-    kg_co2eq_sum: Optional[float] = None
-    total_use: Optional[float] = None
-
-
-class ResearchFacilitiesCommonFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [DataEntryTypeEnum.research_facilities]
-    emission_type = EmissionType.research_facilities__facilities
-
-    create_dto = ResearchFacilitiesCommonFactorCreate
-    update_dto = ResearchFacilitiesCommonFactorUpdate
-    response_dto = ResearchFacilitiesCommonFactorResponse
-
-    classification_fields: list[str] = research_facilities_common_classification_fields
-    value_fields: list[str] = research_facilities_common_value_fields
-
 
 # --- Animal (mice_and_fish_animal_facilities) ---
 
@@ -177,7 +173,12 @@ research_facilities_animal_value_fields: list[str] = [
     "purchases_common_share",
     "purchases_additional_share",
     "equipments_share",
-    "kg_co2eq_sum",
+    "kg_co2eq_sum_processemissions",
+    "kg_co2eq_sum_building_energycombustions",
+    "kg_co2eq_sum_building_rooms",
+    "kg_co2eq_sum_purchases_common",
+    "kg_co2eq_sum_purchases_additional",
+    "kg_co2eq_sum_equipments",
     "total_use",
 ]
 
@@ -193,7 +194,12 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     purchases_common_share: Optional[float] = None
     purchases_additional_share: Optional[float] = None
     equipments_share: Optional[float] = None
-    kg_co2eq_sum: Optional[float] = None
+    kg_co2eq_sum_processemissions: Optional[float] = None
+    kg_co2eq_sum_building_energycombustions: Optional[float] = None
+    kg_co2eq_sum_building_rooms: Optional[float] = None
+    kg_co2eq_sum_purchases_common: Optional[float] = None
+    kg_co2eq_sum_purchases_additional: Optional[float] = None
+    kg_co2eq_sum_equipments: Optional[float] = None
     total_use: float
 
     @field_validator("total_use", mode="after")
@@ -232,7 +238,12 @@ class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
     purchases_common_share: Optional[float] = None
     purchases_additional_share: Optional[float] = None
     equipments_share: Optional[float] = None
-    kg_co2eq_sum: Optional[float] = None
+    kg_co2eq_sum_processemissions: Optional[float] = None
+    kg_co2eq_sum_building_energycombustions: Optional[float] = None
+    kg_co2eq_sum_building_rooms: Optional[float] = None
+    kg_co2eq_sum_purchases_common: Optional[float] = None
+    kg_co2eq_sum_purchases_additional: Optional[float] = None
+    kg_co2eq_sum_equipments: Optional[float] = None
     total_use: Optional[float] = None
 
 
@@ -247,7 +258,12 @@ class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
     purchases_common_share: Optional[float] = None
     purchases_additional_share: Optional[float] = None
     equipments_share: Optional[float] = None
-    kg_co2eq_sum: Optional[float] = None
+    kg_co2eq_sum_processemissions: Optional[float] = None
+    kg_co2eq_sum_building_energycombustions: Optional[float] = None
+    kg_co2eq_sum_building_rooms: Optional[float] = None
+    kg_co2eq_sum_purchases_common: Optional[float] = None
+    kg_co2eq_sum_purchases_additional: Optional[float] = None
+    kg_co2eq_sum_equipments: Optional[float] = None
     total_use: Optional[float] = None
 
 
