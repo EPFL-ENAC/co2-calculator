@@ -5,7 +5,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
@@ -463,6 +468,60 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"CSV ingestion failed: {str(e)}")
             raise
 
+    async def _delete_existing_entries_for_module_per_year(
+        self,
+        unit_to_module_map: Dict[str, int],
+        stats: StatsDict,
+        data_entry_service: DataEntryService,
+    ) -> None:
+        """
+        Delete existing entries from previous CSV_MODULE_PER_YEAR uploads.
+
+        This ensures that MODULE_PER_YEAR uploads replace only the data
+        that was uploaded through the same mechanism, preserving manual
+        entries and unit-specific uploads.
+
+        Args:
+            unit_to_module_map: Mapping of unit ID to module ID
+            stats: Statistics dict to update
+            data_entry_service: DataEntryService instance to use
+        """
+        from app.models.data_entry import DataEntrySourceEnum
+
+        user_read = UserRead.model_validate(self.user) if self.user else None
+
+        deleted_count = 0
+        # Get all unique data_entry_types that will be processed
+        # We'll delete all CSV_MODULE_PER_YEAR entries for affected modules
+        for unit_id, module_id in unit_to_module_map.items():
+            # Delete entries for all data_entry_types that could be in this module
+            # We need to get the valid types for this module
+            if self.job and self.job.module_type_id:
+                from app.models.module_type import (
+                    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+                    ModuleTypeEnum,
+                )
+
+                module_type = ModuleTypeEnum(self.job.module_type_id)
+                valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+                for data_entry_type in valid_entry_types:
+                    try:
+                        await data_entry_service.bulk_delete_by_source(
+                            carbon_report_module_id=module_id,
+                            data_entry_type_id=data_entry_type,
+                            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR,
+                            user=user_read,
+                        )
+                        deleted_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete entries for module {module_id}, "
+                            f"type {data_entry_type}: {e}"
+                        )
+
+        logger.info(f"Deleted {deleted_count} entry sets from previous CSV uploads")
+
     async def process_csv_in_batches(self) -> Dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
@@ -471,6 +530,23 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Resolve carbon_report_module_ids if needed (MODULE_PER_YEAR only)
             unit_to_module_map: Dict[str, int] | None = None
+
+            # Initialize statistics early for deletion tracking
+            max_row_errors = int(self.config.get("max_row_errors", 100))
+            stats: StatsDict = {
+                "rows_processed": 0,
+                "rows_with_factors": 0,
+                "rows_without_factors": 0,
+                "rows_skipped": 0,
+                "batches_processed": 0,
+                "row_errors": [],
+                "row_errors_count": 0,
+            }
+
+            # Initialize services early (needed for deletion)
+            data_entry_service = DataEntryService(self.data_session)
+            emission_service = DataEntryEmissionService(self.data_session)
+
             if (
                 self.entity_type == EntityType.MODULE_PER_YEAR
                 and not self.carbon_report_module_id
@@ -483,19 +559,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
                 await self.data_session.flush()  # Flush report/module creation
 
-            # Initialize statistics and services
-            max_row_errors = int(self.config.get("max_row_errors", 100))
-            stats: StatsDict = {
-                "rows_processed": 0,
-                "rows_with_factors": 0,
-                "rows_without_factors": 0,
-                "rows_skipped": 0,
-                "batches_processed": 0,
-                "row_errors": [],
-                "row_errors_count": 0,
-            }
-            data_entry_service = DataEntryService(self.data_session)
-            emission_service = DataEntryEmissionService(self.data_session)
+                # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
+                logger.info(
+                    "Deleting existing CSV_MODULE_PER_YEAR entries before re-import"
+                )
+                await self._delete_existing_entries_for_module_per_year(
+                    unit_to_module_map, stats, data_entry_service
+                )
 
             # Process CSV rows
             batch: List[DataEntry] = []
@@ -882,11 +952,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         logger.info(f"Processing batch of {len(batch)} entries")
 
-        # 1. Bulk create data entries
+        # Determine source based on entity_type
+        source = self._get_source_from_entity_type()
+
+        # 1. Bulk create data entries with source tracking
         data_entries_response = await data_entry_service.bulk_create(
             batch,
             UserRead.model_validate(user) if user else None,
             job_id=self.job_id,
+            source=source,
+            created_by_id=self.job_id,
         )
 
         # 2. Prepare emissions for all created data entries
@@ -909,6 +984,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if emissions_to_create:
             await emission_service.bulk_create(emissions_to_create)
             logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+
+    def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
+        """
+        Determine source enum value based on entity_type.
+
+        Returns:
+            DataEntrySourceEnum value or None if not determinable
+        """
+        if self.entity_type == EntityType.MODULE_PER_YEAR:
+            return DataEntrySourceEnum.CSV_MODULE_PER_YEAR
+        elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            return DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC
+        return None
 
     @staticmethod
     def _resolve_data_entry_type_from_category(

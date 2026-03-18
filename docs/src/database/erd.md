@@ -49,9 +49,11 @@ erDiagram
   data_entries {
     INTEGER carbon_report_module_id FK
     DATETIME created_at
+    INTEGER created_by_id "indexed"
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
+    VARCHAR source "indexed"
     VARCHAR status
     DATETIME updated_at
   }
