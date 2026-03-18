@@ -224,12 +224,10 @@ class PurchaseModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        # Get the year from the carbon report associated with the module,
-        # to ensure we get the correct exchange rate for the year
-        # of the purchase
-        year = ctx.get("_year")
-
         def _purchase_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            # Get the year to ensure we get the correct exchange rate for the year
+            # of the purchase
+            year = ctx.get("_year")
             if year is None:
                 return None
 
