@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 
 class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
@@ -38,7 +38,7 @@ class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
 
 
 class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
@@ -46,7 +46,7 @@ class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
 
 
 class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
@@ -184,10 +184,10 @@ research_facilities_animal_value_fields: list[str] = [
 
 
 class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
-    researchfacility_id: Optional[int] = None
-    researchfacility_name: str
-    researchfacility_type: str
-    use_unit: str
+    researchfacility_id: Optional[str] = None
+    researchfacility_name: Optional[str] = None
+    researchfacility_type: Optional[str] = None
+    use_unit: Optional[str] = None
     processemissions_share: Optional[float] = None
     building_energycombustions_share: Optional[float] = None
     building_rooms_share: Optional[float] = None
@@ -200,7 +200,14 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
     kg_co2eq_sum_purchases_common: Optional[float] = None
     kg_co2eq_sum_purchases_additional: Optional[float] = None
     kg_co2eq_sum_equipments: Optional[float] = None
-    total_use: float
+    total_use: Optional[float] = None
+
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
     @field_validator("total_use", mode="after")
     @classmethod
@@ -228,7 +235,7 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
 
 
 class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     researchfacility_type: Optional[str] = None
     use_unit: Optional[str] = None
@@ -246,9 +253,16 @@ class ResearchFacilitiesAnimalFactorUpdate(FactorUpdate):
     kg_co2eq_sum_equipments: Optional[float] = None
     total_use: Optional[float] = None
 
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
+
 
 class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: str
     researchfacility_type: Optional[str] = None
     use_unit: str
@@ -265,6 +279,13 @@ class ResearchFacilitiesAnimalFactorResponse(FactorResponseGen):
     kg_co2eq_sum_purchases_additional: Optional[float] = None
     kg_co2eq_sum_equipments: Optional[float] = None
     total_use: Optional[float] = None
+
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 
 class ResearchFacilitiesAnimalFactorHandler(BaseFactorHandler):

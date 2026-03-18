@@ -29,28 +29,49 @@ logger = get_logger(__name__)
 
 
 class ResearchFacilitiesCommonHandlerResponse(DataEntryResponseGen):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
+
 
 class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None
+
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 
 class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None
+
+    @field_validator("researchfacility_id", mode="before")
+    @classmethod
+    def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 
 class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
@@ -149,7 +170,7 @@ research_facilities_common_value_fields: list[str] = [
 
 
 class ResearchFacilitiesCommonFactorCreate(FactorCreate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: str
     use_unit: str
     kg_co2eq_sum: Optional[float] = None
@@ -164,7 +185,7 @@ class ResearchFacilitiesCommonFactorCreate(FactorCreate):
 
 
 class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
     use_unit: Optional[str] = None
     kg_co2eq_sum: Optional[float] = None
@@ -181,7 +202,7 @@ class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
 
 
 class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
-    researchfacility_id: Optional[int] = None
+    researchfacility_id: Optional[str] = None
     researchfacility_name: str
     use_unit: str
     kg_co2eq_sum: Optional[float] = None
