@@ -17,10 +17,10 @@ from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.data_entry import ModuleHandler
 from app.schemas.user import UserRead
-from app.seed.seed_helper import lookup_factor
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -803,7 +803,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         try:
             handlers = setup_result["handlers"]
-            factors_map = setup_result["factors_map"]
+            # factors_map = setup_result["factors_map"]
             expected_columns = setup_result["expected_columns"]
 
             # Filter row to only include expected columns
@@ -818,22 +818,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 filtered_row, handlers
             )
 
-            # Lookup factor
-            factor = None
-            if kind_value:
-                factor = lookup_factor(
-                    kind=kind_value,
-                    subkind=subkind_value,
-                    factors_map=factors_map,
-                )
-
-            # Resolve handler and validate (entity-specific)
+            # Resolve handler and data_entry_type first (needed for factor lookup)
             (
                 data_entry_type,
                 handler,
                 error_msg,
             ) = await self._resolve_handler_and_validate(
-                filtered_row, factor, stats, row_idx, max_row_errors, setup_result
+                filtered_row, None, stats, row_idx, max_row_errors, setup_result
             )
 
             if error_msg:
@@ -843,6 +834,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
+
+            # Use ModuleHandlerService to resolve primary_factor_id (unified with API)
+            handler_service = ModuleHandlerService(self.data_session)
+            payload_for_factor_resolution: Dict[str, str | int] = dict(filtered_row)
+            payload_with_factor = await handler_service.resolve_primary_factor_id(
+                handler=handler,
+                payload=payload_for_factor_resolution,
+                data_entry_type_id=data_entry_type,
+            )
+            primary_factor_id = payload_with_factor.get("primary_factor_id")
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -881,11 +882,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
-            # Validate payload with handler
-            payload: Dict[str, str | int] = dict(filtered_row)
+            # Validate payload with handler (primary_factor_id already
+            # set by ModuleHandlerService)
+            payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
             payload["status"] = DataEntryStatusEnum.VALIDATED.value
+            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 validated = handler.validate_create(payload)
@@ -895,20 +898,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 return None, error_msg, None
 
             # Build DataEntry
-            primary_factor_id = factor.id if factor else None
             data = dict(validated.data)
 
-            # Populate missing data fields from factor values
-            # (e.g., equipment usage hours)
-            # This matches the logic in seed_generic_data_entries.py (lines 391-395)
-            if factor and handler.factor_value_fields:
-                for field_name in handler.factor_value_fields:
-                    if field_name not in data or data[field_name] in (None, "", 0):
-                        data[field_name] = factor.values.get(field_name)
-
-            # BEWaRE: We changed classsubclassmap to allow factors without subkind,
-            # so we need to be careful when accessing subkind values in the factor
-            data["primary_factor_id"] = primary_factor_id
+            # Note: primary_factor_id is already in payload and
+            # will be in validated.data
+            # No need to set it again
 
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
@@ -916,7 +910,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 data=data,
             )
 
-            return data_entry, None, factor
+            return data_entry, None, None
 
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")

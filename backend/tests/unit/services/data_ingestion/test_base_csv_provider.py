@@ -451,16 +451,26 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
 
     handler = MagicMock()
     handler.validate_create.return_value = SimpleNamespace(
-        data={"amount": 10, "label": "x"}
+        data={"amount": 10, "label": "x", "primary_factor_id": 77}
     )
+    handler.kind_field = "kind"
+    handler.subkind_field = None
 
     async def resolve_handler(*_args, **_kwargs):
         return (DataEntryTypeEnum.student, handler, None)
 
     provider._resolve_handler_and_validate = AsyncMock(side_effect=resolve_handler)
 
-    factor = SimpleNamespace(id=77)
-    monkeypatch.setattr(base_csv_provider, "lookup_factor", lambda **_kwargs: factor)
+    # Mock ModuleHandlerService directly in base_csv_provider module
+    mock_handler_service_instance = MagicMock()
+    mock_handler_service_instance.resolve_primary_factor_id = AsyncMock(
+        return_value={"primary_factor_id": 77}
+    )
+    mock_handler_service_class = MagicMock(return_value=mock_handler_service_instance)
+
+    monkeypatch.setattr(
+        base_csv_provider, "ModuleHandlerService", mock_handler_service_class
+    )
 
     setup_result = {
         "handlers": [handler],
@@ -480,7 +490,7 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     )
 
     assert error_msg is None
-    assert result_factor == factor
+    assert result_factor is None  # No longer returns factor
     assert data_entry is not None
     assert data_entry.carbon_report_module_id == 123
     assert data_entry.data.get("primary_factor_id") == 77
@@ -523,16 +533,29 @@ async def test_process_row_missing_unit_mapping_records_error():
 
 
 @pytest.mark.asyncio
-async def test_process_row_validation_error_records_error():
+async def test_process_row_validation_error_records_error(monkeypatch):
     """Test _process_row records handler validation errors."""
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
     handler.validate_create.side_effect = ValueError("bad payload")
+    handler.kind_field = "kind"
+    handler.subkind_field = None
 
     provider._resolve_handler_and_validate = AsyncMock(
         return_value=(DataEntryTypeEnum.student, handler, None)
+    )
+
+    # Mock ModuleHandlerService directly in base_csv_provider module
+    mock_handler_service_instance = MagicMock()
+    mock_handler_service_instance.resolve_primary_factor_id = AsyncMock(
+        return_value={"primary_factor_id": None}
+    )
+    mock_handler_service_class = MagicMock(return_value=mock_handler_service_instance)
+
+    monkeypatch.setattr(
+        base_csv_provider, "ModuleHandlerService", mock_handler_service_class
     )
 
     setup_result = {

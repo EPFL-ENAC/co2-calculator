@@ -175,12 +175,9 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
             require_subkind=handler.require_subkind_for_factor,
         )
 
-        # Validate factor requirement
-        if (
-            factor is None
-            and match_factors is False
-            and handler.require_factor_to_match
-        ):
+        # Validate factor requirement (check if factor exists in map)
+        # Note: Actual factor lookup is done by ModuleHandlerService in _process_row
+        if match_factors is False and handler.require_factor_to_match:
             error_msg = (
                 "Probably not part of authorized data entries. "
                 "No matching factor found for kind/subkind"
@@ -188,10 +185,7 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 
-        # Validate factor data_entry_type matches
-        if factor and factor.data_entry_type_id != data_entry_type.value:
-            error_msg = "Factor data_entry_type_id mismatch"
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, None, error_msg
+        # Note: Factor data_entry_type validation is now handled by ModuleHandlerService
+        # when it queries the database
 
         return data_entry_type, handler, None

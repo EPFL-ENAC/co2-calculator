@@ -104,6 +104,7 @@ async def test_setup_handlers_and_factors_invalid_data_entry_type(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_resolve_handler_and_validate_configured_missing_factor():
+    """Test validation succeeds with configured type even if factor not in map."""
     provider = ModulePerYearCSVProvider(
         {
             "file_path": "tmp/test.csv",
@@ -112,8 +113,17 @@ async def test_resolve_handler_and_validate_configured_missing_factor():
         data_session=MagicMock(),
     )
 
-    handler = SimpleNamespace(require_factor_to_match=True)
-    setup_result = {"handlers": [handler]}
+    handler = SimpleNamespace(
+        require_factor_to_match=True,
+        kind_field="kind",
+        subkind_field=None,
+        category_field=None,
+    )
+    # Empty factors_map, but configured type should bypass factor check
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+    }
     stats = _build_stats()
 
     (
@@ -122,21 +132,23 @@ async def test_resolve_handler_and_validate_configured_missing_factor():
         error_msg,
     ) = await provider._resolve_handler_and_validate(
         filtered_row={},
-        factor=None,
+        factor=None,  # No longer used but kept for signature compatibility
         stats=stats,
         row_idx=1,
         max_row_errors=5,
         setup_result=setup_result,
     )
 
-    assert data_entry_type is None
-    assert resolved_handler is None
-    assert "Missing factor" in error_msg
-    assert stats["rows_skipped"] == 1
+    # With configured data_entry_type_id, validation should succeed
+    # Factor lookup happens later via ModuleHandlerService
+    assert data_entry_type == DataEntryTypeEnum.member
+    assert resolved_handler == handler
+    assert error_msg is None
 
 
 @pytest.mark.asyncio
 async def test_resolve_handler_and_validate_factor_mismatch():
+    """Test validation passes when factor requirement is disabled."""
     provider = ModulePerYearCSVProvider(
         {
             "file_path": "tmp/test.csv",
@@ -145,9 +157,16 @@ async def test_resolve_handler_and_validate_factor_mismatch():
         data_session=MagicMock(),
     )
 
-    handler = SimpleNamespace(require_factor_to_match=False)
-    factor = SimpleNamespace(data_entry_type_id=DataEntryTypeEnum.student.value)
-    setup_result = {"handlers": [handler]}
+    handler = SimpleNamespace(
+        require_factor_to_match=False,
+        kind_field="kind",
+        subkind_field=None,
+        category_field=None,
+    )
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},  # Empty map, but require_factor_to_match=False
+    }
     stats = _build_stats()
 
     (
@@ -156,27 +175,36 @@ async def test_resolve_handler_and_validate_factor_mismatch():
         error_msg,
     ) = await provider._resolve_handler_and_validate(
         filtered_row={},
-        factor=factor,
+        factor=None,  # No longer used
         stats=stats,
         row_idx=1,
         max_row_errors=5,
         setup_result=setup_result,
     )
 
-    assert data_entry_type is None
-    assert resolved_handler is None
-    assert "mismatch" in error_msg
-    assert stats["rows_skipped"] == 1
+    # Should succeed because require_factor_to_match=False
+    assert data_entry_type == DataEntryTypeEnum.member
+    assert resolved_handler == handler
+    assert error_msg is None
 
 
 @pytest.mark.asyncio
 async def test_resolve_handler_and_validate_missing_factor_no_config():
+    """Test validation when no configured type and factor not in map."""
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
 
-    handler = SimpleNamespace(require_factor_to_match=True)
-    setup_result = {"handlers": [handler]}
+    handler = SimpleNamespace(
+        require_factor_to_match=True,
+        kind_field="kind",
+        subkind_field=None,
+        category_field=None,
+    )
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},  # Empty map
+    }
     stats = _build_stats()
 
     (
@@ -185,13 +213,14 @@ async def test_resolve_handler_and_validate_missing_factor_no_config():
         error_msg,
     ) = await provider._resolve_handler_and_validate(
         filtered_row={},
-        factor=None,
+        factor=None,  # No longer used
         stats=stats,
         row_idx=1,
         max_row_errors=5,
         setup_result=setup_result,
     )
 
+    # Should fail because no configured type and factor not found in map
     assert data_entry_type is None
     assert resolved_handler is None
     assert "Missing factor" in error_msg

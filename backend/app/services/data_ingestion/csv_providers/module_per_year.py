@@ -195,20 +195,35 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                     filtered_row, handler, row_idx, stats, max_row_errors
                 )
 
-            # Priority 3: Determine from factor
-            if data_entry_type is None and factor:
-                data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
-            elif data_entry_type is None and not factor:
-                # No configured type and no factor: check if handlers require factor
-                if any(getattr(h, "require_factor_to_match", False) for h in handlers):
+            # Priority 3: Determine from factors_map
+            # (since factor is not passed anymore)
+            if data_entry_type is None:
+                # Check if kind/subkind exists in factors_map to determine type
+                factors_map = setup_result.get("factors_map", {})
+                kind_value, subkind_value = self._extract_kind_subkind_values(
+                    filtered_row, handlers
+                )
+
+                # Check if factor exists in map
+                from app.seed.seed_helper import is_in_factors_map
+
+                match_factors = is_in_factors_map(
+                    kind=kind_value,
+                    subkind=subkind_value,
+                    factors_map=factors_map,
+                    require_subkind=False,
+                )
+
+                if match_factors and handlers:
+                    # Use first handler's data_entry_type as fallback
+                    handler = handlers[0]
+                    # Note: Actual factor lookup will be done by ModuleHandlerService
+                elif any(
+                    getattr(h, "require_factor_to_match", False) for h in handlers
+                ):
                     error_msg = "Missing factor for MODULE_PER_YEAR"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, None, error_msg
-
-                # If handlers don't require factor, we still can't determine type
-                error_msg = "Missing factor - cannot determine data_entry_type"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, None, error_msg
 
         # Validate we resolved a type and handler
         if data_entry_type is None:
@@ -226,16 +241,7 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 
-        # Validate factor if handler requires it
-        if handler.require_factor_to_match and not factor:
-            error_msg = "Missing factor for configured data_entry_type"
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, None, error_msg
-
-        # Validate factor matches if found
-        if factor and factor.data_entry_type_id != data_entry_type.value:
-            error_msg = "Factor data_entry_type_id mismatch"
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, None, error_msg
+        # Note: Factor validation is now handled by ModuleHandlerService
+        # when it queries the database in _process_row
 
         return data_entry_type, handler, None
