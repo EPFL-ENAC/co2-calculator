@@ -1,16 +1,22 @@
-# Branch Completion & PR Creation Workflow (Automated)
+---
+description: Branch Completion Workflow (Automated) - Backup, squash, analyze changes, and create a clean conventional commit.
+---
 
-**Workspace-scoped automated workflow** - Executes all commands via terminal tools to complete your branch and create a PR.
+# Branch Completion Workflow (Automated)
+
+**Workspace-scoped automated workflow** - Prepares your branch for PR by creating a clean, squashed commit following conventional commit standards.
 
 ## When to Use
 
-Use this prompt when you've completed work on a feature branch and need to automate:
+Use this prompt when you've completed work on a feature branch and need to:
 
-1. Backup commit and push
+1. Backup current state
 2. Reset to parent branch (squash workflow)
-3. Analyze changes and craft conventional commit
-4. Push final commit
-5. Create PR with proper template, reviewers, and labels
+3. Analyze changes
+4. Create a clean conventional commit
+5. Push final commit
+
+**Note**: This workflow prepares your branch but does NOT create the PR. Use `branch-pr-creation.prompt.md` for PR creation.
 
 ## Important: Context Management
 
@@ -181,116 +187,7 @@ git push -u origin HEAD --force-with-lease
 
 **Note**: `--force-with-lease` is safe since we rewrote history.
 
-### Step 8: Create PR with Full Automation
-
-**Verify clean state before PR creation**:
-
-```bash
-git status  # Should show clean working directory
-git log -1  # Verify commit is correct
-```
-
-**Auto-detect PR metadata**:
-
-- **Base branch**: `dev` (default)
-- **Title**: Use commit message title (first line)
-- **Reviewers**: Prompt user or use default from branch scope
-- **Labels**: Map from commit type:
-  - `feat` → `type: feature`
-  - `fix` → `type: bugfix`
-  - `refactor` → `type: refactor`
-  - `docs` → `type: documentation`
-  - `test` → `type: test`
-  - `chore` → `type: chore`
-  - `deps` → `dependencies`
-
-**Generate PR body** from template:
-
-```markdown
-## What does this change?
-
-<2-3 sentence summary from commit message context>
-
-## Why is this needed?
-
-<Problem statement - why this change is necessary>
-
-## Type of change
-
-Please check the type that applies:
-
-- [ ] 🐛 Bug fix
-- [ ] ✨ New feature
-- [ ] 📝 Documentation update
-- [ ] 🎨 Design/UI improvement
-- [ ] 🔧 Configuration change
-- [ ] 🧹 Code cleanup
-
-## Code quality checklist
-
-- [x] I confirm that my contribution is original and that I assign all intellectual property rights in this contribution to EPFL, retaining no ownership rights.
-- [x] Code follows our standards (linter passes)
-- [x] No hardcoded values or secrets
-- [x] Documentation updated for new features
-- [x] Commit messages follow convention
-- [x] No console.log or debug statements
-
-## Testing checklist
-
-- [ ] I've tested this change locally
-- [ ] `make ci` passes without errors
-- [ ] Tests added/updated (60% coverage minimum)
-- [ ] No test failures introduced
-
-## Related issues
-
-- Relates-to #<issue-number>
-```
-
-**Execute** (use `--web` flag for manual body editing - more reliable):
-
-```bash
-gh pr create \
-  --title "<commit-title>" \
-  --base dev \
-  --label "<label>" \
-  --web  # Opens browser for body editing
-```
-
-**Alternative** (if `--web` not available, use body file):
-
-```bash
-# Create temporary body file in workspace root
-cat > .github/PR_BODY.md << 'EOFMARKER'
-<pr-body-content>
-EOFMARKER
-
-gh pr create \
-  --title "<commit-title>" \
-  --body-file .github/PR_BODY.md \
-  --base dev \
-  --label "<label>"
-```
-
-**Output**: Show PR URL and confirmation message.
-
-**Note**: `--web` flag is preferred over `--body` or `--body-file` to avoid shell escaping issues with multi-line content.
-
-### Step 9: Cleanup Backup Branch (Optional)
-
-**After PR is successfully created and verified**:
-
-```bash
-# Ask user for confirmation
-"PR created successfully! Delete backup branch?"
-
-# If user confirms:
-git branch -d backup-<branch-name>
-```
-
-**Example**: `git branch -d backup-feat-243-backoffice-data-management`
-
-**Purpose**: Clean up temporary backup branch once workflow is complete and verified.
+**Next Step**: Your branch is now ready for PR creation. Use `branch-pr-creation.prompt.md` to create the PR.
 
 ## Execution Guidelines
 
@@ -312,7 +209,7 @@ git branch -d backup-<branch-name>
 
 1. **After Step 1**: Confirm detected branch info (type, scope, issue)
 2. **After Step 4**: Show commit message draft for approval
-3. **Before Step 8**: Ask for reviewer username if not auto-detected
+3. **After Step 7**: Confirm branch is ready for PR creation
 
 ## Checklist
 
@@ -341,12 +238,6 @@ git commit --amend
 git push --force-with-lease
 ```
 
-**Wrong base branch?**
-
-```bash
-gh pr edit <pr-number> --base main  # Change PR base
-```
-
 **gh CLI not authenticated?**
 
 ```bash
@@ -356,9 +247,7 @@ gh auth login
 ## Related Resources
 
 - [Conventional Commits](https://www.conventionalcommits.org/)
-- [gh CLI Documentation](https://cli.github.com/)
 - [Development Workflow](../docs/src/architecture/workflow-guide.md)
-- [PR Template](../.github/PULL_REQUEST_TEMPLATE.md)
 
 ## Lessons Learned & Common Pitfalls
 
@@ -368,30 +257,17 @@ gh auth login
    - Uncommitted files will be lost during `git reset`
    - Verify all changes are staged or committed before Step 3
 
-2. **Use `--web` flag for PR creation**
-   - Multi-line `--body` arguments cause shell escaping issues
-   - `--body-file` can fail with heredoc syntax in terminals
-   - `--web` opens browser for reliable manual editing
-
-3. **Use `Relates-to` not `Closes`**
-   - Only use `Closes #` when issue is truly complete
-   - `Relates-to #` is safer for ongoing work
-   - Match GitHub's linking syntax exactly
-
-4. **Create backup branch before reset**
+2. **Create backup branch before reset**
    - Local backup branch provides safety net
    - Easier to recover than reflog
    - Delete only after PR verification
 
-5. **Clean conversation context**
+3. **Clean conversation context**
    - Close unrelated files before running workflow
    - Start fresh conversation if context is polluted
    - Focus only on git operations
 
 ### Common Issues and Solutions
-
-**Issue**: PR creation fails with heredoc errors
-**Solution**: Use `--web` flag instead of `--body` or `--body-file`
 
 **Issue**: Lost uncommitted changes after reset
 **Solution**: Always run `git status` before Step 3, commit everything first
@@ -416,19 +292,6 @@ git reset --hard HEAD@{1}  # Go back
 ```bash
 git commit --amend
 git push --force-with-lease
-```
-
-**Wrong base branch?**
-
-```bash
-gh pr edit --base main  # Change PR base
-```
-
-**PR creation fails?**
-
-```bash
-# Use web interface instead
-gh pr create --web
 ```
 
 **Lost uncommitted changes?**
