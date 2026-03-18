@@ -193,3 +193,81 @@ def lookup_factor(
             f"Sub-kind selection required for accurate matching."
         )
         return factors_map[matches[0]]
+
+
+def lookup_data_entry_type_by_kind(
+    kind: str,
+    subkind: Optional[str],
+    factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Factor]],
+) -> Optional[DataEntryTypeEnum]:
+    """
+    Infer data_entry_type from kind/subkind using partial factor matching.
+
+    This function searches across multiple data entry types' factor maps to
+    determine which data_entry_type a given kind/subkind belongs to.
+
+    Use case: MODULE_PER_YEAR CSV ingestion where rows have kind/subkind but
+    no explicit data_entry_type_id, and the kind alone is sufficient to infer
+    the type (e.g., "Laminar flow hood" → scientific equipment).
+
+    Args:
+        kind: Primary classification (e.g., "Laminar flow hood")
+        subkind: Optional secondary classification (may be None)
+        factors_maps_by_type: Dictionary mapping DataEntryTypeEnum to its factors map
+
+    Returns:
+        DataEntryTypeEnum if a unique match is found, None otherwise
+
+    Logic:
+    - Search each data_entry_type's factors map for kind/subkind match
+    - If exactly one data_entry_type matches: return it
+    - If zero matches: return None (unknown kind)
+    - If multiple matches: log warning and return first match (ambiguous)
+    """
+    normalized_kind_value = normalize_kind(kind)
+    subkind_value = normalize_kind(subkind) if subkind else None
+
+    matching_types: list[DataEntryTypeEnum] = []
+
+    for data_entry_type, factors_map in factors_maps_by_type.items():
+        # Check if kind exists in this data_entry_type's factors
+        if subkind_value is None:
+            subkind_value = ""
+
+        # Search for kind in factor keys
+        keys = [
+            k
+            for k in factors_map.keys()
+            if k.__contains__(f":{normalized_kind_value}:")
+        ]
+
+        if not keys:
+            continue
+
+        # Check if we have an exact match (kind + subkind) or kind-only match
+        search_pattern = f":{normalized_kind_value}:{subkind_value}"
+        exact_matches = [k for k in keys if k.endswith(search_pattern)]
+
+        if exact_matches:
+            matching_types.append(data_entry_type)
+        elif subkind_value is None or subkind_value == "":
+            # When subkind is not provided, any match with the kind is valid
+            # The keys list already contains all factors with this kind
+            # So if we have keys, we have a match
+            matching_types.append(data_entry_type)
+
+    if len(matching_types) == 0:
+        # No data_entry_type found for this kind
+        return None
+    elif len(matching_types) == 1:
+        # Unambiguous match - return the single matching type
+        return matching_types[0]
+    else:
+        # Ambiguous - multiple data_entry_types match
+        logger.warning(
+            f"Ambiguous data_entry_type inference for kind '{kind}' "
+            f"and subkind '{subkind}': "
+            f"{len(matching_types)} data_entry_types match: {matching_types}. "
+            f"Returning first match."
+        )
+        return matching_types[0]

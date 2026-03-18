@@ -82,13 +82,18 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             )
         else:
             # Multiple data_entry_types - load all for this module
-            handlers = [
-                BaseModuleHandler.get_by_type(entry_type)
-                for entry_type in valid_entry_types
-            ]
+            # Deduplicate handlers by class type to avoid multiple identical instances
+            # (e.g., EquipmentModuleHandler registered for it/scientific/other)
+            handlers = []
+            seen_handler_classes: set[type[Any]] = set()
+            for entry_type in valid_entry_types:
+                handler = BaseModuleHandler.get_by_type(entry_type)
+                handler_class: type[Any] = type(handler)
+                if handler_class not in seen_handler_classes:
+                    handlers.append(handler)
+                    seen_handler_classes.add(handler_class)
 
             # Load factors for all entry types
-
             for entry_type in valid_entry_types:
                 type_factors = await load_factors_map(self.data_session, entry_type)
                 factors_map.update(type_factors)
@@ -195,33 +200,43 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                     filtered_row, handler, row_idx, stats, max_row_errors
                 )
 
-            # Priority 3: Determine from factors_map
-            # (since factor is not passed anymore)
+            # Priority 3: Determine from factors_map using new helper function
             if data_entry_type is None:
-                # Check if kind/subkind exists in factors_map to determine type
-                factors_map = setup_result.get("factors_map", {})
+                # Get module type to determine valid entry types
+                if self.job is None or self.job.module_type_id is None:
+                    error_msg = "module_type_id must be set for MODULE_PER_YEAR"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, None, error_msg
+
+                module_type = ModuleTypeEnum(self.job.module_type_id)
+                valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+                # Build a combined factors map by data_entry_type for lookup
+                factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {}
+                for entry_type in valid_entry_types:
+                    type_factors = await load_factors_map(self.data_session, entry_type)
+                    factors_maps_by_type[entry_type] = type_factors
+
+                # Extract kind/subkind from row
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
 
-                # Check if factor exists in map
-                from app.seed.seed_helper import is_in_factors_map
+                # Use new helper to infer data_entry_type from kind/subkind
+                from app.seed.seed_helper import lookup_data_entry_type_by_kind
 
-                match_factors = is_in_factors_map(
+                data_entry_type = lookup_data_entry_type_by_kind(
                     kind=kind_value,
                     subkind=subkind_value,
-                    factors_map=factors_map,
-                    require_subkind=False,
+                    factors_maps_by_type=factors_maps_by_type,
                 )
 
-                if match_factors and handlers:
-                    # Use first handler's data_entry_type as fallback
-                    handler = handlers[0]
-                    # Note: Actual factor lookup will be done by ModuleHandlerService
-                elif any(
-                    getattr(h, "require_factor_to_match", False) for h in handlers
-                ):
-                    error_msg = "Missing factor for MODULE_PER_YEAR"
+                if data_entry_type is None:
+                    error_msg = (
+                        "Missing data_entry_type_id in job config, category field,"
+                        " or factor and no matching factor found in factors map"
+                        f" (kind={kind_value}, subkind={subkind_value})"
+                    )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, None, error_msg
 
@@ -229,6 +244,8 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
         if data_entry_type is None:
             error_msg = (
                 "Missing data_entry_type_id in job config, category field, or factor"
+                " and no matching factor found in factors map"
+                f" (kind={kind_value}, subkind={subkind_value})"
             )
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
