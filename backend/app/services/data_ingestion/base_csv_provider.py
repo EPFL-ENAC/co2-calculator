@@ -664,7 +664,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # in handlers (some may not require it,
             # for module_year it is required for factor resolution,
             # but for module_unit_specific it is not needed and often not provided)
-            expected_columns.add("kg_co2eq")
+            # expected_columns.add("kg_co2eq")
 
             # Filter row to only include expected columns
             filtered_row = {
