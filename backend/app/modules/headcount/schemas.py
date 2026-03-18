@@ -162,6 +162,10 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     subkind_field = None
     require_subkind_for_factor = False
     require_factor_to_match = False
+    default_where: list = [
+        DataEntry.data["position_category"].as_string().is_(None)
+        | (DataEntry.data["position_category"].as_string() != "student")
+    ]
     filter_map: dict[str, Any] = {
         "name": DataEntry.data["name"].as_string(),
         "position_title": DataEntry.data["position_title"].as_string(),

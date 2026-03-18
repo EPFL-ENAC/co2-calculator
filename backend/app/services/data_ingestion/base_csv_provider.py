@@ -572,6 +572,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Process CSV rows
             batch: List[DataEntry] = []
+            # Track seen user_institutional_ids per module to catch intra-CSV duplicates
+            seen_institutional_ids: Dict[int, set] = {}
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -593,6 +595,33 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
                 if data_entry is None:
                     raise ValueError("Data entry is None without error message")
+
+                # Check institutional ID uniqueness for member entries
+                if (
+                    data_entry.data_entry_type_id == DataEntryTypeEnum.member
+                    and data_entry.data
+                    and data_entry.data.get("user_institutional_id")
+                ):
+                    uid = str(data_entry.data["user_institutional_id"])
+                    module_id = data_entry.carbon_report_module_id
+                    module_seen = seen_institutional_ids.setdefault(module_id, set())
+                    if uid in module_seen:
+                        error_msg = "DUPLICATE_INSTITUTIONAL_ID"
+                        self._record_row_error(
+                            stats, row_idx, error_msg, max_row_errors
+                        )
+                        continue
+                    is_unique = await data_entry_service.check_institutional_id_unique(
+                        carbon_report_module_id=module_id,
+                        uid=uid,
+                    )
+                    if not is_unique:
+                        error_msg = "DUPLICATE_INSTITUTIONAL_ID"
+                        self._record_row_error(
+                            stats, row_idx, error_msg, max_row_errors
+                        )
+                        continue
+                    module_seen.add(uid)
 
                 # Row processed successfully
                 batch.append(data_entry)
