@@ -35,6 +35,50 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 
 # =============================================================================
+# DATA_ENTRY_TYPE → ROLLUP EMISSION_TYPE  (1-to-1 or None)
+#
+# Maps each DataEntryTypeEnum to its parent EmissionType node for the rollup
+# DataEntryEmission row. The rollup row stores the total kg_co2eq for the
+# data entry (sum of all leaf emissions), enabling direct ORDER BY in queries.
+# None = no rollup (headcount: we don't show kg_co2eq in the table).
+# =============================================================================
+
+DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType | None] = {
+    # Headcount — no rollup (4 independent roots, no kg_co2eq in table)
+    DataEntryTypeEnum.member: None,
+    DataEntryTypeEnum.student: None,
+    # Professional Travel — 1 leaf per entry (cabin class), rollup to subcategory
+    DataEntryTypeEnum.plane: EmissionType.professional_travel__plane,
+    DataEntryTypeEnum.train: EmissionType.professional_travel__train,
+    # Buildings — 5 leaf emissions per building room entry → rollup to subcategory
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    # Energy combustion — single leaf, rollup to category
+    DataEntryTypeEnum.energy_combustion: EmissionType.buildings,
+    # Equipment — single leaf per entry, rollup to category
+    DataEntryTypeEnum.scientific: EmissionType.equipment,
+    DataEntryTypeEnum.it: EmissionType.equipment,
+    DataEntryTypeEnum.other: EmissionType.equipment,
+    # Process Emissions — single leaf (gas type), rollup to category
+    DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
+    # Purchases — single leaf per entry, rollup to category
+    DataEntryTypeEnum.scientific_equipment: EmissionType.purchases,
+    DataEntryTypeEnum.it_equipment: EmissionType.purchases,
+    DataEntryTypeEnum.consumable_accessories: EmissionType.purchases,
+    DataEntryTypeEnum.biological_chemical_gaseous_product: EmissionType.purchases,
+    DataEntryTypeEnum.services: EmissionType.purchases,
+    DataEntryTypeEnum.vehicles: EmissionType.purchases,
+    DataEntryTypeEnum.other_purchases: EmissionType.purchases,
+    DataEntryTypeEnum.additional_purchases: EmissionType.purchases,
+    # Research Facilities — single leaf, rollup to category
+    DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: EmissionType.research_facilities,
+    # External Clouds — single leaf (service type), rollup to subcategory
+    DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
+    # External AI — single leaf (provider), rollup to subcategory
+    DataEntryTypeEnum.external_ai: EmissionType.external__ai,
+}
+
+# =============================================================================
 # DATA_ENTRY_TYPE → EMISSION_TYPE mapping  (1-to-many)
 #
 # Most DataEntryTypeEnum values map to a single EmissionType leaf.
