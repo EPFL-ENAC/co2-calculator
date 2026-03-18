@@ -172,13 +172,42 @@ export default {
     en: 'Process emissions',
     fr: 'Emissions de procédés',
   },
+  'charts-buildings-room-category': {
+    en: 'Buildings room',
+    fr: 'Salles des bâtiments',
+  },
+  'charts-buildings-energy-combustion-category': {
+    en: 'Energy Combustion Emissions',
+    fr: 'Emissions de combustion d’énergie',
+  },
+  // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
-    en: 'Buildings energy combustion',
-    fr: "Combustion d'énergie des bâtiments",
+    en: 'Energy Combustion Emissions',
+    fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy combustion',
-    fr: "Combustion d'énergie",
+    en: 'Energy Combustion Emissions',
+    fr: "Émissions de combustion d'énergie",
+  },
+  'charts-lighting-subcategory': {
+    en: 'Lighting',
+    fr: 'Éclairage',
+  },
+  'charts-cooling-subcategory': {
+    en: 'Cooling',
+    fr: 'Climatisation',
+  },
+  'charts-ventilation-subcategory': {
+    en: 'Ventilation',
+    fr: 'Ventilation',
+  },
+  'charts-heating-elec-subcategory': {
+    en: 'Heating (electric)',
+    fr: 'Chauffage (électrique)',
+  },
+  'charts-heating-thermal-subcategory': {
+    en: 'Heating (thermal)',
+    fr: 'Chauffage (thermique)',
   },
   'charts-research-facilities-category': {
     en: 'Research Facilities',
@@ -295,18 +324,6 @@ export default {
   'charts-heating-subcategory': {
     en: 'Heating',
     fr: 'Chauffage',
-  },
-  'charts-cooling-subcategory': {
-    en: 'Cooling',
-    fr: 'Refroidissement',
-  },
-  'charts-ventilation-subcategory': {
-    en: 'Ventilation',
-    fr: 'Ventilation',
-  },
-  'charts-lighting-subcategory': {
-    en: 'Lighting',
-    fr: 'Éclairage',
   },
   'charts-scientific-subcategory': {
     en: 'Scientific Equipment',

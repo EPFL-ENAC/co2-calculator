@@ -23,9 +23,9 @@ MODULE_TYPE_TO_CATEGORY: dict[int, str] = {
 # Splits Building into two separate x-axis bars by emission type
 # TODO fix this without harcoding!
 _MODULE_EMISSION_CATEGORY: dict[tuple[int, int], str] = {
-    (3, EmissionType.buildings__rooms): "Buildings energy consumption",
-    (3, EmissionType.buildings__combustion): "Energy combustion",
-    (3, EmissionType.grey_energy): "Buildings room",
+    (3, EmissionType.buildings__rooms): "Buildings room",
+    (3, EmissionType.buildings__rooms__heating_thermal): "Buildings energy combustion",
+    (3, EmissionType.buildings__combustion): "Buildings energy combustion",
 }
 
 # Headcount emission types — routed to additional_breakdown, not the main chart
@@ -77,8 +77,7 @@ HEADCOUNT_PER_FTE_KG: dict[EmissionType, float] = {
 MODULE_BREAKDOWN_ORDER = [
     # Scope 1
     "Process Emissions",
-    "Buildings energy consumption",
-    "Energy combustion",
+    "Buildings energy combustion",
     # Scope 2
     "Buildings room",
     "Equipment",
@@ -93,9 +92,8 @@ MODULE_BREAKDOWN_ORDER = [
 # Now uses emission_type.name (path) for all modules.
 CATEGORY_CHART_KEYS: dict[str, list[str]] = {
     "Process Emissions": ["process_emissions"],
-    "Buildings energy consumption": ["energy"],
-    "Energy combustion": ["combustion"],
-    "Buildings room": ["grey_energy"],
+    "Buildings energy combustion": ["heating_thermal", "combustion"],
+    "Buildings room": ["lighting", "cooling", "ventilation", "heating_elec"],
     "Equipment": ["scientific", "it", "other"],
     "External cloud & AI": ["stockage", "virtualisation", "calcul", "ai_provider"],
     "Purchases": [
@@ -247,11 +245,6 @@ def _primary_or_sum(
 
 def _apply_chart_aggregates(entry: dict[str, object], category_name: str) -> None:
     """Add canonical chart keys so frontend can consume backend-ready rows."""
-    if category_name == "Buildings energy consumption":
-        entry["energy"] = _primary_or_sum(entry, "energy", ["rooms"])
-        entry["energyStdDev"] = _primary_or_sum(entry, "energyStdDev", ["roomsStdDev"])
-        return
-
     if category_name == "Process Emissions":
         entry["process_emissions"] = _primary_or_sum(
             entry, "process_emissions", ["co2", "ch4", "n2o", "refrigerants"]
