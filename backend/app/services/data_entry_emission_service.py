@@ -33,6 +33,8 @@ class DataEntryEmissionService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
+        self._year_by_carbon_report_module_id: dict[int, int] = {}
+        self._year_by_carbon_report_id: dict[int, int] = {}
 
     async def _get_year_from_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
@@ -122,7 +124,7 @@ class DataEntryEmissionService:
         # Build context: data_entry.data enriched with pre-computed values
         ctx: dict = {**data_entry.data}
         # Add year to context for time-sensitive factors, derived from CarbonReport
-        year = await self._get_carbon_report_year(data_entry)
+        year = await self._get_carbon_report_module_year(data_entry)
         if year is not None:
             ctx["_year"] = year
         ctx.update(await handler.pre_compute(data_entry, self.session))
@@ -454,10 +456,26 @@ class DataEntryEmissionService:
         """Get travel emissions aggregated by year and category."""
         return await self.repo.get_travel_evolution_over_time(unit_id)
 
+    async def _get_carbon_report_module_year(
+        self, data_entry: DataEntry | DataEntryResponse
+    ) -> Optional[int]:
+        """Resolve the carbon report year for a data entry, with caching."""
+        carbon_report_module_id = getattr(data_entry, "carbon_report_module_id", None)
+        if carbon_report_module_id is not None:
+            cached = self._year_by_carbon_report_module_id.get(carbon_report_module_id)
+            if cached is not None:
+                return cached
+        year = await self._get_carbon_report_year(data_entry)
+        if year is None:
+            return None
+        if carbon_report_module_id is not None:
+            self._year_by_carbon_report_module_id[carbon_report_module_id] = year
+        return year
+
     async def _get_carbon_report_year(
         self, data_entry: DataEntry | DataEntryResponse
     ) -> Optional[int]:
-        """Resolve the carbon report year for the given data entry."""
+        """Resolve the carbon report year for the given data entry, with caching."""
         carbon_report_module_id = getattr(data_entry, "carbon_report_module_id", None)
         if carbon_report_module_id is None:
             return None
@@ -476,11 +494,16 @@ class DataEntryEmissionService:
                 carbon_report_module_id,
             )
             return None
+        if carbon_report_id in self._year_by_carbon_report_id:
+            return self._year_by_carbon_report_id[carbon_report_id]
         carbon_report = await self.session.get(CarbonReport, carbon_report_id)
         if carbon_report is None:
             logger.warning("CarbonReport not found for id=%s", carbon_report_id)
             return None
-        return getattr(carbon_report, "year", None)
+        year = getattr(carbon_report, "year", None)
+        if year is not None:
+            self._year_by_carbon_report_id[carbon_report_id] = year
+        return year
 
     # # Dict of dataEntryTypeEnum , func to calculation formulas
     # FORMULAS: dict[EmissionType, Callable] = {}
