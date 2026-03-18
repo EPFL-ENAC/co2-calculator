@@ -110,29 +110,53 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         Resolve handler and validate for MODULE_UNIT_SPECIFIC.
 
         Logic:
+        - Use configured data_entry_type_id if present
+        - Otherwise, resolve from handler's category_field (e.g., equipment_category)
         - Validate required columns are present
         - Check if kind/subkind exists in factors_map
         - Validate factor matching if handler requires it
-        - Validate factor data_entry_type matches configured type
         """
+
         handlers = setup_result["handlers"]
         factors_map = setup_result["factors_map"]
         required_columns = setup_result["required_columns"]
-        # Get and validate data_entry_type_id
-        configured_data_entry_type_id = int(self.config["data_entry_type_id"])
+
+        # Get configured data_entry_type_id
+        configured_data_entry_type_id = self.config.get("data_entry_type_id")
+
+        # Determine data_entry_type
+        data_entry_type: DataEntryTypeEnum | None = None
+
+        if configured_data_entry_type_id is not None:
+            # Priority 1: Configured type from job config
+            data_entry_type = DataEntryTypeEnum(int(configured_data_entry_type_id))
+        else:
+            # Priority 2: Resolve from handler's category_field
+            handler = handlers[0] if handlers else None
+            if handler:
+                data_entry_type = self._resolve_data_entry_type_from_category(
+                    filtered_row, handler, row_idx, stats, max_row_errors
+                )
+
+        # Validate we resolved a type
+        if data_entry_type is None:
+            error_msg = (
+                "Missing data_entry_type_id in job config or category field in CSV"
+            )
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+
+        # Get handler for the resolved type
+        handler = handlers[0] if handlers else None
+        if not handler:
+            error_msg = "No handler available"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
 
         # Check required columns
         if required_columns and not required_columns.issubset(filtered_row.keys()):
             missing_fields = required_columns - set(filtered_row.keys())
             error_msg = f"Missing required fields {missing_fields}"
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, None, error_msg
-
-        data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
-        handler = handlers[0]
-
-        if not handler:
-            error_msg = "No handler available"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 

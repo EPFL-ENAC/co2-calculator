@@ -216,6 +216,12 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # multiple types, set ``registration_keys`` instead.
     data_entry_type: Optional[DataEntryTypeEnum] = None
 
+    # -- Category field for CSV ingestion --
+    # Name of the CSV column that determines the data_entry_type for this module.
+    # Examples: "equipment_category", "purchase_category", "headcount_category"
+    # When set, this column's value is mapped to DataEntryTypeEnum during CSV ingestion.
+    category_field: Optional[str] = None
+
     @classmethod
     def get_by_type(cls, data_entry_type: DataEntryTypeEnum) -> "ModuleHandler":
         """

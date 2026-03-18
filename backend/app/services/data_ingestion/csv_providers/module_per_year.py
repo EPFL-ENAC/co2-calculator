@@ -100,8 +100,8 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
 
         # Get expected and required columns
         expected_columns = _get_expected_columns_from_handlers(handlers)
-        # unit_id is required for MODULE_PER_YEAR to resolve carbon_report_module_id
-        required_columns: set[str] = {"unit_id"}
+        # unit_institutional_id required for MODULE_PER_YEAR
+        required_columns: set[str] = {"unit_institutional_id"}
 
         logger.info(
             f"Setup complete for MODULE_PER_YEAR: "
@@ -170,52 +170,72 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
         Resolve handler and validate for MODULE_PER_YEAR.
 
         Logic:
-        - Determine data_entry_type from factor
+        - Use configured data_entry_type_id if present
+        - Otherwise, resolve from handler's category_field (e.g., equipment_category)
+        - Otherwise, determine from factor
         - Validate factor requirement if handlers require it
         - Validate factor data_entry_type matches resolved type
         """
         handlers = setup_result["handlers"]
         configured_data_entry_type_id = self.config.get("data_entry_type_id")
 
-        # If specific data_entry_type_id configured, use it directly
+        # Determine data_entry_type
+        data_entry_type: DataEntryTypeEnum | None = None
+        handler: ModuleHandler | None = None
+
         if configured_data_entry_type_id is not None:
+            # Priority 1: Configured type from job config
             data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
-            handler = handlers[0]  # Should be the only handler
-
-            if not handler:
-                error_msg = "No handler available"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, None, error_msg
-
-            # Validate factor if handler requires it
-            if handler.require_factor_to_match and not factor:
-                error_msg = "Missing factor for configured data_entry_type"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, None, error_msg
-
-            # Validate factor matches if found
-            if factor and factor.data_entry_type_id != data_entry_type.value:
-                error_msg = "Factor data_entry_type_id mismatch"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, None, error_msg
-
-            return data_entry_type, handler, None
+            handler = handlers[0] if handlers else None
         else:
-            # No configured type: determine from factor
-            if not factor:
-                # Check if any handler requires a factor to match
-                if any(h.require_factor_to_match for h in handlers):
+            # Priority 2: Resolve from handler's category_field
+            handler = handlers[0] if len(handlers) == 1 else None
+            if handler:
+                data_entry_type = self._resolve_data_entry_type_from_category(
+                    filtered_row, handler, row_idx, stats, max_row_errors
+                )
+
+            # Priority 3: Determine from factor
+            if data_entry_type is None and factor:
+                data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
+            elif data_entry_type is None and not factor:
+                # No configured type and no factor: check if handlers require factor
+                if any(getattr(h, "require_factor_to_match", False) for h in handlers):
                     error_msg = "Missing factor for MODULE_PER_YEAR"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                     return None, None, error_msg
 
-                # If handlers don't require factor, we still can't
-                # determine data_entry_type
+                # If handlers don't require factor, we still can't determine type
                 error_msg = "Missing factor - cannot determine data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, None, error_msg
 
-            data_entry_type = DataEntryTypeEnum(factor.data_entry_type_id)
+        # Validate we resolved a type and handler
+        if data_entry_type is None:
+            error_msg = (
+                "Missing data_entry_type_id in job config, category field, or factor"
+            )
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+
+        if handler is None:
             handler = BaseModuleHandler.get_by_type(data_entry_type)
 
-            return data_entry_type, handler, None
+        if not handler:
+            error_msg = "No handler available"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+
+        # Validate factor if handler requires it
+        if handler.require_factor_to_match and not factor:
+            error_msg = "Missing factor for configured data_entry_type"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+
+        # Validate factor matches if found
+        if factor and factor.data_entry_type_id != data_entry_type.value:
+            error_msg = "Factor data_entry_type_id mismatch"
+            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+            return None, None, error_msg
+
+        return data_entry_type, handler, None

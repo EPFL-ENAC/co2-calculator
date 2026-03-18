@@ -78,7 +78,7 @@ async def test_setup_handlers_and_factors_multiple_types(monkeypatch):
 
     assert setup["handlers"]
     assert setup["expected_columns"] == {"kind", "value"}
-    assert "unit_id" in setup["required_columns"]
+    assert "unit_institutional_id" in setup["required_columns"]
 
 
 @pytest.mark.asyncio

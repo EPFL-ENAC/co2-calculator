@@ -42,18 +42,28 @@ class FactorService:
         data_entry_type: DataEntryTypeEnum,
         kind: str,
         subkind: Optional[str] = None,
+        year: Optional[int] = None,
     ) -> Optional[Factor]:
-        """Get power factor for given equipment class and optional subclass."""
+        """Get power factor for given equipment class and optional subclass.
+
+        Args:
+            data_entry_type: Data entry type filter
+            kind: Primary classification key
+            subkind: Secondary classification key (optional)
+            year: Year filter for year-scoped factors (should be provided)
+        """
         return await self.repo.get_by_classification(
             data_entry_type=data_entry_type,
             kind=kind,
             subkind=subkind,
+            year=year,
         )
 
     async def get_factor(
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[Dict[str, Any]] = None,
+        year: Optional[int] = None,
         **classification: Any,
     ) -> Optional[Factor]:
         """Flexible factor lookup with dynamic classification filters and fallbacks.
@@ -64,6 +74,7 @@ class FactorService:
             data_entry_type: Scopes the query to this data entry type.
             fallbacks: Optional fallback values for classification keys
                        (e.g. ``{"country_code": "RoW"}``).
+            year: Year filter for year-scoped factors (should be provided)
             **classification: Arbitrary classification key/value filters
                               (e.g. ``kind="plane"``, ``category="short_haul"``).
 
@@ -73,29 +84,48 @@ class FactorService:
         return await self.repo.get_factor(
             data_entry_type=data_entry_type,
             fallbacks=fallbacks,
+            year=year,
             **classification,
         )
 
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
+        year: Optional[int] = None,
     ) -> List[int]:
-        """List all factors for a data entry type and emission type."""
-        return await self.repo.list_id_by_data_entry_type(data_entry_type_id)
+        """List all factors for a data entry type and emission type.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Optional year filter for year-scoped factors
+        """
+        return await self.repo.list_id_by_data_entry_type(data_entry_type_id, year)
 
     async def list_by_emission_type(
         self,
         emission_type: EmissionType,
-    ):
-        """List all factors for a given emission type."""
-        return await self.repo.list_by_emission_type(emission_type)
+        year: Optional[int] = None,
+    ) -> List[Factor]:
+        """List all factors for a given emission type.
+
+        Args:
+            emission_type: Emission type filter
+            year: Optional year filter for year-scoped factors
+        """
+        return await self.repo.list_by_emission_type(emission_type, year)
 
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
+        year: Optional[int] = None,
     ) -> List[Factor]:
-        """List all factors for a data entry type and emission type."""
-        return await self.repo.list_by_data_entry_type(data_entry_type_id)
+        """List all factors for a data entry type and emission type.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Optional year filter for year-scoped factors
+        """
+        return await self.repo.list_by_data_entry_type(data_entry_type_id, year)
 
     async def get_class_subclass_map(
         self,
@@ -113,19 +143,27 @@ class FactorService:
     async def prepare_create(
         self,
         emission_type_id: int,  # DataEntryTypeEnum, #
-        is_conversion: bool,
         data_entry_type_id: int,  # DataEntryTypeEnum,
         classification: Dict[str, Any],
         values: Dict[str, float | int | str | None],
+        year: Optional[int] = None,
     ) -> Factor:
-        """Prepare a factor for creation."""
+        """Prepare a factor for creation.
+
+        Args:
+            emission_type_id: Emission type ID
+            data_entry_type_id: Data entry type ID
+            classification: Classification dictionary
+            values: Factor values dictionary
+            year: Year for which this factor applies
+        """
 
         factor = Factor(
             emission_type_id=emission_type_id,
-            is_conversion=is_conversion,
             data_entry_type_id=data_entry_type_id,
             classification=classification,
             values=values,
+            year=year,
         )
         return factor
 
@@ -136,10 +174,10 @@ class FactorService:
     ) -> Factor:
         factor = await self.prepare_create(
             factor.emission_type_id,
-            factor.is_conversion,
             factor.data_entry_type_id,
             factor.classification,
             factor.values,
+            factor.year,
         )
 
         factor = await self.repo.create(factor)

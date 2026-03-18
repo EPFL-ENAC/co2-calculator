@@ -17,6 +17,7 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.factor import BaseFactorHandler
+from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
     _validate_file_path,
@@ -330,15 +331,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         factor_service: FactorService,
     ) -> tuple[Factor | None, str | None]:
         try:
-            expected_columns = setup_result["expected_columns"]
             valid_entry_types = setup_result["valid_entry_types"]
 
-            filtered_row = {
-                k: v
-                for k, v in row.items()
-                if k in expected_columns and v is not None and str(v).strip() != ""
-            }
-
+            # Resolve data_entry_type first
             data_entry_type = self._resolve_data_entry_type(
                 row, valid_entry_types, row_idx, stats, max_row_errors
             )
@@ -346,26 +341,61 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 return None, "Missing data_entry_type"
 
             handler = BaseFactorHandler.get_by_type(data_entry_type)
-            payload: Dict[str, Any] = dict(filtered_row)
-            payload["data_entry_type_id"] = data_entry_type.value
+
+            # Build classification with explicit None for missing fields
+            # (like seed_generic_factors.py - don't rely on validated DTO)
+            classification: Dict[str, Any] = {}
+            for field_name in handler.classification_fields:
+                value = row.get(field_name)
+                classification[field_name] = (
+                    value.strip() if value and value.strip() else None
+                )
+
+            # Build values with type conversion, filtering empty values
+            values: Dict[str, Any] = {}
+            for field_name in handler.value_fields:
+                value = row.get(field_name)
+                if value and str(value).strip():
+                    converted = self._convert_value(value)
+                    values[field_name] = converted
+
+            # Resolve emission_type_id using external function
+            try:
+                emission_type_id = get_factor_emission_type_id(
+                    data_entry_type, classification
+                )
+            except Exception as e:
+                error_msg = f"Emission type resolution failed: {e}"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg
+
+            # Validate the payload (ensures data types are correct)
+            # but use our manually built classification/values dicts
+            validation_payload: Dict[str, Any] = {
+                **classification,
+                **values,
+                "data_entry_type_id": data_entry_type.value,
+                "emission_type_id": emission_type_id,
+            }
 
             try:
-                validated = handler.validate_create(payload)
+                handler.validate_create(validation_payload)
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg
 
-            classification = dict(validated.classification)
+            # Add year to classification if specified
             if self.year is not None:
                 classification["year"] = self.year
 
+            # Create factor using prepare_create (like seed_generic_factors.py)
             factor = await factor_service.prepare_create(
-                emission_type_id=validated.emission_type_id,
-                is_conversion=validated.is_conversion,
-                data_entry_type_id=validated.data_entry_type_id,
+                emission_type_id=emission_type_id,
+                data_entry_type_id=data_entry_type.value,
                 classification=classification,
-                values=validated.values,
+                values=values,
+                year=self.year,
             )
             return factor, None
         except Exception as row_error:
@@ -382,33 +412,34 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         stats: FactorStatsDict,
         max_row_errors: int,
     ) -> DataEntryTypeEnum | None:
+        """
+        Resolve data_entry_type with priority:
+        1. Configured data_entry_type_id
+        2. Handler's category_field (e.g., equipment_category)
+        """
         configured = self.data_entry_type_id
         if configured is not None:
             return DataEntryTypeEnum(int(configured))
 
-        raw_type_id = row.get("data_entry_type_id")
-        raw_type_name = row.get("data_entry_type")
+        # Try to resolve from handler's category_field
+        # Get handlers from context if available
+        handlers = self.config.get("handlers", [])
+        if len(handlers) == 1:
+            handler = handlers[0]
+            category_field = getattr(handler, "category_field", None)
+            if category_field:
+                category_value = row.get(category_field, "").strip()
+                if category_value:
+                    try:
+                        return DataEntryTypeEnum[category_value.lower()]
+                    except KeyError:
+                        error_msg = f"Invalid {category_field}: {category_value}"
+                        self._record_row_error(
+                            stats, row_idx, error_msg, max_row_errors
+                        )
+                        return None
 
-        if raw_type_id:
-            try:
-                return DataEntryTypeEnum(int(raw_type_id))
-            except (ValueError, KeyError):
-                error_msg = f"Invalid data_entry_type_id: {raw_type_id}"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None
-
-        if raw_type_name:
-            try:
-                return DataEntryTypeEnum[str(raw_type_name).strip().lower()]
-            except KeyError:
-                error_msg = f"Invalid data_entry_type: {raw_type_name}"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None
-
-        if len(valid_entry_types) == 1:
-            return valid_entry_types[0]
-
-        error_msg = "Missing data_entry_type in CSV"
+        error_msg = "Missing data_entry_type_id in config or category field in CSV"
         self._record_row_error(stats, row_idx, error_msg, max_row_errors)
         return None
 
@@ -456,7 +487,19 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         pass
 
     @staticmethod
+    def _convert_value(value: str | None) -> float | int | str | None:
+        """Convert CSV value to appropriate type."""
+        if value is None or str(value).strip() == "":
+            return None
+        value = str(value).strip()
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        return value
+
     def _record_row_error(
+        self,
         stats: FactorStatsDict,
         row_idx: int,
         reason: str,
@@ -469,6 +512,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             stats["row_errors"].append({"row": row_idx, "reason": reason})
 
     def _resolve_valid_entry_types(self) -> list[DataEntryTypeEnum]:
+        """Resolve valid data entry types for this ingestion job."""
         module_type_id = self.module_type_id
         if not module_type_id and self.job and self.job.module_type_id:
             module_type_id = self.job.module_type_id

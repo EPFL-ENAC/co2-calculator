@@ -123,6 +123,7 @@ class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdat
 class EquipmentModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.equipment_electric_consumption
     data_entry_type: DataEntryTypeEnum | None = None
+    category_field: str = "equipment_category"
     registration_keys = [
         DataEntryTypeEnum.it,
         DataEntryTypeEnum.scientific,

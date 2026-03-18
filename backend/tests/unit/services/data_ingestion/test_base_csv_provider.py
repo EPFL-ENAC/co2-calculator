@@ -465,9 +465,9 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     setup_result = {
         "handlers": [handler],
         "factors_map": {"x": []},
-        "expected_columns": {"unit_id", "amount", "label"},
+        "expected_columns": {"unit_institutional_id", "amount", "label"},
     }
-    row = {"unit_id": "U1", "amount": "10", "label": "x"}
+    row = {"unit_institutional_id": "U1", "amount": "10", "label": "x"}
     stats = _build_stats()
 
     data_entry, error_msg, result_factor = await provider._process_row(

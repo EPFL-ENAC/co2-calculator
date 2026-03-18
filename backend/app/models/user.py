@@ -58,7 +58,15 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     Permission Structure (flat with dot notation):
     {
-        "backoffice.users": {"view": bool, "edit": bool, "export": bool},
+        "backoffice.reporting": {"view": bool, "export": bool},
+        "backoffice.users": {"view": bool, "edit": bool},
+        "backoffice.data_management": {
+            "view": bool,
+            "edit": bool,
+            "export": bool,
+            "sync": bool,
+        },
+        "backoffice.documentation": {"view": bool, "edit": bool},
         "modules.headcount": {"view": bool, "edit": bool},
         "modules.equipment": {"view": bool, "edit": bool},
         "modules.professional_travel": {"view": bool, "edit": bool},
@@ -70,8 +78,12 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
-    - CO2_BACKOFFICE_METIER: Backoffice administrator with reporting, documentation,
-      and data update capabilities (view/edit/export users)
+    - CO2_BACKOFFICE_METIER: Full backoffice access including:
+      * backoffice.reporting: view, export (view reports, generate exports)
+      * backoffice.users: view, edit (view user list, assign roles)
+      * backoffice.data_management: view, edit, export, sync
+        (upload/download CSV, trigger sync)
+      * backoffice.documentation: view, edit (view/edit documentation)
 
     User Roles (affect modules.* ONLY):
     - CO2_USER_PRINCIPAL: Full module access (view + edit) + can assign co2.user.std
@@ -94,8 +106,15 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
 
     # Initialize with all permissions set to False
     permissions = {
+        "backoffice.reporting": {"view": False, "export": False},
         "backoffice.users": {"view": False, "edit": False, "export": False},
-        "backoffice.files": {"view": False},
+        "backoffice.data_management": {
+            "view": False,
+            "edit": False,
+            "export": False,
+            "sync": False,
+        },
+        "backoffice.documentation": {"view": False, "edit": False},
         "system.users": {"edit": False},
         "modules.headcount": {"view": False, "edit": False},
         "modules.equipment": {"view": False, "edit": False},
@@ -133,12 +152,19 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
             # Backoffice metier can have either global scope or affiliation scope
             # Grants full backoffice access for reporting, docs, and data updates
             if is_global_scope(scope) or is_role_scope(scope):
+                permissions["backoffice.reporting"] = {"view": True, "export": True}
                 permissions["backoffice.users"] = {
                     "view": True,
                     "edit": True,
                     "export": True,
                 }
-                permissions["backoffice.files"]["view"] = True
+                permissions["backoffice.data_management"] = {
+                    "view": True,
+                    "edit": True,
+                    "export": True,
+                    "sync": True,
+                }
+                permissions["backoffice.documentation"] = {"view": True, "edit": True}
 
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
@@ -151,11 +177,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 }
                 permissions["modules.buildings"] = {"view": True, "edit": True}
                 permissions["modules.purchase"] = {"view": True, "edit": True}
-                # Principals can view research facilities but not edit
-                # (reserved for backoffice.metier)
                 permissions["modules.research_facilities"] = {
                     "view": True,
-                    "edit": False,
+                    "edit": True,
                 }
                 permissions["modules.external_cloud_and_ai"] = {
                     "view": True,
@@ -185,12 +209,19 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
             if is_global_scope(scope):
                 # Super admin has full system and backoffice access
                 permissions["system.users"]["edit"] = True
+                permissions["backoffice.reporting"] = {"view": True, "export": True}
                 permissions["backoffice.users"] = {
                     "view": True,
                     "edit": True,
                     "export": True,
                 }
-                permissions["backoffice.files"]["view"] = True
+                permissions["backoffice.data_management"] = {
+                    "view": True,
+                    "edit": True,
+                    "export": True,
+                    "sync": True,
+                }
+                permissions["backoffice.documentation"] = {"view": True, "edit": True}
 
     return permissions
 

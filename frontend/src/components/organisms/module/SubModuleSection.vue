@@ -66,7 +66,7 @@
         />
       </div>
       <div
-        v-else-if="hasModuleForm && !disable && !canEdit"
+        v-else-if="submodule.moduleFields && !disable && !canEdit"
         class="q-mx-lg q-my-md"
       >
         <q-badge color="warning" class="q-px-md q-py-sm">

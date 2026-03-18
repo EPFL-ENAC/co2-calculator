@@ -17,6 +17,7 @@ DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 async def async_session():
     engine = create_async_engine(DATABASE_URL, echo=False, future=True)
     async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)  # Ensure a clean slate
         await conn.run_sync(SQLModel.metadata.create_all)
     async_session = sessionmaker(engine, class_=SAAsyncSession, expire_on_commit=False)
     async with async_session() as session:

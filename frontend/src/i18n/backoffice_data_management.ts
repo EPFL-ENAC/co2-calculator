@@ -1,4 +1,12 @@
 export default {
+  backoffice_data_management_title: {
+    en: 'Data Management',
+    fr: 'Gestion des données',
+  },
+  'backoffice-data-management-description': {
+    en: 'Manage and configure data imports, emission factors, and module settings for CO₂ calculations.',
+    fr: "Gérer et configurer les importations de données, les facteurs d'émission et les paramètres des modules pour les calculs de CO₂.",
+  },
   threshold_fixed_title: {
     en: 'Fixed Threshold',
     fr: 'Seuil fixe',
@@ -228,5 +236,33 @@ export default {
   data_management_upload_reference: {
     en: 'Upload Reference',
     fr: 'Téléverser référence',
+  },
+  data_management_sync_units_from_accred: {
+    en: 'Sync Units from Accred',
+    fr: 'Synchroniser les unités depuis Accred',
+  },
+  data_management_unit_sync_started: {
+    en: 'Unit sync started',
+    fr: 'Synchronisation des unités démarrée',
+  },
+  data_management_unit_sync_started_caption: {
+    en: 'This may take a few minutes...',
+    fr: 'Cela peut prendre quelques minutes...',
+  },
+  data_management_unit_sync_success: {
+    en: 'Units synced successfully!',
+    fr: 'Unités synchronisées avec succès !',
+  },
+  data_management_unit_sync_success_caption: {
+    en: 'All units and principal users have been updated',
+    fr: 'Toutes les unités et utilisateurs principaux ont été mis à jour',
+  },
+  data_management_unit_sync_error: {
+    en: 'Unit sync failed',
+    fr: 'La synchronisation des unités a échoué',
+  },
+  data_management_unit_sync_error_caption: {
+    en: 'Please try again later',
+    fr: 'Veuillez réessayer plus tard',
   },
 } as const;
