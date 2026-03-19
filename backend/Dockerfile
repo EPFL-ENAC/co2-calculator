@@ -27,13 +27,13 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
-FROM python:3.12-alpine3.21 AS runtime
+FROM python:3.12-alpine3.23 AS runtime
 
 WORKDIR /app
 
 RUN addgroup -g 1001 appgroup && \
-    adduser -D -H -u 1001 -G appgroup appuser && \
-    chown -R appuser:appgroup /app
+  adduser -D -H -u 1001 -G appgroup appuser && \
+  chown -R appuser:appgroup /app
 
 USER appuser
 
@@ -43,12 +43,12 @@ COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
-    HOST=0.0.0.0 \
-    PORT=8000 \
-    WORKERS=1 \
-    OTEL_PYTHON_FORK_SAFE=true
+  PYTHONUNBUFFERED=1 \
+  PYTHONFAULTHANDLER=1 \
+  HOST=0.0.0.0 \
+  PORT=8000 \
+  WORKERS=1 \
+  OTEL_PYTHON_FORK_SAFE=true
 
 EXPOSE 8000
 
