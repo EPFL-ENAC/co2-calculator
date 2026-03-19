@@ -43,6 +43,8 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - Favor readability over clever abstractions.
 - Add short comments only where intent is non-obvious.
 - Keep naming aligned with domain language (room type, factor, module, category, etc.).
+- Avoid introducing new patterns/styles in the same file; follow existing local conventions.
+- Do not use inline imports in Python. They are considered bad code smell, reduce readability, and can hide circular dependencies. Always import at the top of the file.
 
 # FORMATTING RULES
 

@@ -13,11 +13,21 @@ from enacit4r_files.services import (
     S3Service,
 )
 from enacit4r_files.utils.files import FileChecker
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 
+from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.security import require_permission
+from app.core.security import is_permitted
 from app.models.user import User
 
 logger = get_logger(__name__)
@@ -93,17 +103,16 @@ file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
 async def list_files(
     path: str = Query("", description="Path to list files from"),
     recursive: bool = Query(False, description="List files recursively"),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     List files in the specified directory.
 
-    **Required Permission**: `backoffice.data_management.view`
+    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
 
     **Authorization**:
     - Backoffice metier: Can list all data management files
+    - User principal: Can list data management files
     - Other users: No access
 
     This endpoint lists files stored in the file storage (local or S3)
@@ -113,6 +122,20 @@ async def list_files(
         403: Missing required permission
         400: Invalid file path
     """
+    # Check for EITHER backoffice.data_management.view OR modules.* view
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "view"
+    ) or await is_permitted(current_user, "modules.*", "view")
+
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.view "
+                "or modules.* view"
+            ),
+        )
+
     logger.info(
         "File list requested",
         extra={"user_id": current_user.id, "path": path},
@@ -159,17 +182,16 @@ async def get_file(
     download: bool = Query(
         False, alias="d", description="Download file instead of inline display"
     ),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retrieve a file from file storage.
 
-    **Required Permission**: `backoffice.data_management.view`
+    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
 
     **Authorization**:
     - Backoffice metier: Can access all data management files
+    - User principal: Can access data management files
     - Other users: No access
 
     Raises:
@@ -178,6 +200,20 @@ async def get_file(
         400: Invalid file path
         500: Internal server error
     """
+    # Check for EITHER backoffice.data_management.view OR modules.* view
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "view"
+    ) or await is_permitted(current_user, "modules.*", "view")
+
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.view "
+                "or modules.* view"
+            ),
+        )
+
     logger.info(
         "File requested",
         extra={
@@ -220,17 +256,29 @@ async def get_file(
 )
 async def upload_temp_files(
     files: list[UploadFile] = File(description="Multiple file upload"),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "edit")
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload files to the /tmp folder in the file storage.
 
-    **Required Permission**: `backoffice.data_management.edit`
+    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
 
     Used for temporary file uploads before processing (e.g., CSV imports).
     """
+    # Check for EITHER backoffice.data_management.edit OR modules.* edit
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "edit"
+    ) or await is_permitted(current_user, "modules.*", "edit")
+
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.edit "
+                "or modules.* edit"
+            ),
+        )
+
     logger.info(
         "File upload to /tmp requested",
         extra={"user_id": current_user.id, "file_count": len(files)},
@@ -256,17 +304,29 @@ async def upload_temp_files(
 )
 async def delete_temp_files(
     file_path: str,
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "edit")
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Delete files from the /tmp folder.
 
-    **Required Permission**: `backoffice.data_management.edit`
+    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
 
     Only files in /tmp/ folder can be deleted.
     """
+    # Check for EITHER backoffice.data_management.edit OR modules.* edit
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "edit"
+    ) or await is_permitted(current_user, "modules.*", "edit")
+
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.edit "
+                "or modules.* edit"
+            ),
+        )
+
     logger.info(
         "File deletion from /tmp requested",
         extra={"user_id": current_user.id, "file_path": file_path},
