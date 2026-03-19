@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
     researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
+    researchfacility_type: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None
@@ -40,6 +41,7 @@ class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
 class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
     researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
+    researchfacility_type: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None
@@ -48,6 +50,7 @@ class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
 class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
     researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
+    researchfacility_type: Optional[str] = None
     use: Optional[float] = None
     use_unit: Optional[str] = None
     note: Optional[str] = None

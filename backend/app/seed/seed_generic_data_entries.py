@@ -152,16 +152,16 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
         data_entry_types=[DataEntryTypeEnum.building],
         module_type=ModuleTypeEnum.buildings,
     ),
-    # DataEntrySeedConfig(
-    #     path=SEED_FOLDER / "researchfacilities_common_data.csv",
-    #     data_entry_types=[DataEntryTypeEnum.research_facilities],
-    #     module_type=ModuleTypeEnum.internal_services,
-    # ),
-    # DataEntrySeedConfig(
-    #     path=SEED_FOLDER / "researchfacilities_animals_data.csv",
-    #     data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
-    #     module_type=ModuleTypeEnum.internal_services,
-    # ),
+    DataEntrySeedConfig(
+        path=SEED_FOLDER / "researchfacilities_common_data.csv",
+        data_entry_types=[DataEntryTypeEnum.research_facilities],
+        module_type=ModuleTypeEnum.research_facilities,
+    ),
+    DataEntrySeedConfig(
+        path=SEED_FOLDER / "researchfacilities_animals_data.csv",
+        data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
+        module_type=ModuleTypeEnum.research_facilities,
+    ),
 ]
 
 

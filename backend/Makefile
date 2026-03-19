@@ -116,8 +116,6 @@ test-cov-xml: ## Run tests with coverage and output XML report
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
-# seeds units from accred
-# 	$(UV) run -m app.seed.seed_units_from_accred
 # Random seeds: 
 #	$(UV) run -m app.seed.ramdom.seed_all
 # seeds fake user + unit associations (for testing)
@@ -126,6 +124,10 @@ seed-data: ## Seed the database with initial data
 # 	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors
 # 	$(UV) run -m app.seed.seed_generic_data_entries
+
+.PHONY: seed-units
+seed-units: ## Seed units from accred
+	$(UV) run -m app.seed.seed_units_from_accred
 
 .PHONY: seed-generic-data
 seed-generic-data: ## Seed data entries from seed_data CSVs

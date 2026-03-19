@@ -328,7 +328,14 @@ export default {
     en: 'AI Provider',
     fr: 'Fournisseur IA',
   },
-
+  'charts-research-facilities-subcategory': {
+    en: 'Research Facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  'charts-research-animal-subcategory': {
+    en: 'Animal Facilities',
+    fr: 'Infrastructures pour animaux',
+  },
   'charts-equipment-it': {
     en: 'IT Equipment',
     fr: 'IT Équipement',
