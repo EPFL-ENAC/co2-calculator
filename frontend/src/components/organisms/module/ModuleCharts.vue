@@ -31,76 +31,15 @@
 import { storeToRefs } from 'pinia';
 import { computed, watch } from 'vue';
 import { Module, MODULES } from 'src/constant/modules';
-import {
-  CHART_CATEGORY_COLOR_SCHEMES,
-  MODULE_TO_CATEGORIES,
-} from 'src/constant/charts';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import { useModuleStore } from 'src/stores/modules';
-import type {
-  EmissionBreakdownResponse,
-  EmissionBreakdownCategoryRow,
-} from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
-
-type EmissionTreemapChild = {
-  name: string;
-  value: number;
-  percentage?: number;
-  color?: string;
-  children?: EmissionTreemapChild[];
-};
-
-type EmissionTreemapCategory = {
-  name: string;
-  value: number;
-  color: string;
-  children: EmissionTreemapChild[];
-};
-
-function getCategoryTotal(row: EmissionBreakdownCategoryRow): number {
-  return row.emissions.reduce((total, emission) => {
-    return total + (Number(emission.value) || 0);
-  }, 0);
-}
-
-function buildTreemapChildren(
-  row: EmissionBreakdownCategoryRow,
-): EmissionTreemapChild[] {
-  const direct: EmissionTreemapChild[] = [];
-  const grouped = new Map<string, EmissionTreemapChild>();
-
-  for (const emission of row.emissions) {
-    const value = Number(emission.value) || 0;
-    if (value <= 0) continue;
-
-    const child: EmissionTreemapChild = {
-      name: emission.key,
-      value,
-    };
-
-    if (!emission.parent_key) {
-      direct.push(child);
-      continue;
-    }
-
-    const parent = grouped.get(emission.parent_key);
-    if (!parent) {
-      grouped.set(emission.parent_key, {
-        name: emission.parent_key,
-        value,
-        children: [child],
-      });
-      continue;
-    }
-
-    parent.value += value;
-    parent.children?.push(child);
-  }
-
-  return [...direct, ...Array.from(grouped.values())];
-}
+import {
+  buildModuleTreemapData,
+  CATEGORY_CHART_KEYS,
+} from 'src/composables/useEmissionTreemap';
+import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
 
 const props = defineProps<{
   type: Module;
@@ -138,37 +77,20 @@ const hasStats = computed(() => {
   return !!stats && Object.keys(stats).length > 0;
 });
 
-function buildTreemapFromRows(
-  breakdown: EmissionBreakdownResponse,
-  categories: string[],
-): EmissionTreemapCategory[] {
-  const colorSchemes = CHART_CATEGORY_COLOR_SCHEMES.value;
-  return breakdown.module_breakdown
-    .filter(
-      (item) =>
-        categories.includes(item.category) && getCategoryTotal(item) > 0,
-    )
-    .map((item) => ({
-      name: item.category,
-      value: getCategoryTotal(item),
-      color: colorSchemes[item.category] ?? '#999999',
-      children: buildTreemapChildren(item),
-    }));
-}
+const moduleTreemapData = computed(() => {
+  const breakdown = moduleStore.state.emissionBreakdown?.module_breakdown;
+  if (!breakdown || breakdown.length === 0) return [];
 
-function buildModuleTreemapData(
-  breakdown: EmissionBreakdownResponse | null,
-  moduleKey: string,
-): EmissionTreemapCategory[] {
-  if (!breakdown) return [];
-  const categories = MODULE_TO_CATEGORIES.value[moduleKey] ?? [];
-  if (categories.length === 0) return [];
-  return buildTreemapFromRows(breakdown, categories);
-}
+  const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
+  const filteredKeys = Object.fromEntries(
+    Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
+  ) as Record<string, string[]>;
 
-const moduleTreemapData = computed(() =>
-  buildModuleTreemapData(moduleStore.state.emissionBreakdown, props.type),
-);
+  return buildModuleTreemapData(
+    breakdown as Array<{ category: string; [key: string]: number | string }>,
+    filteredKeys,
+  );
+});
 </script>
 
 <style scoped lang="scss">

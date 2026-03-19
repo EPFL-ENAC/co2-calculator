@@ -486,7 +486,7 @@ def _build_category_row(
 
 
 def build_chart_breakdown(
-    rows: list[tuple[int, int, float | None]],
+    rows: list[tuple[int, int, float]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
@@ -529,7 +529,8 @@ def build_chart_breakdown(
     module_totals_kg: dict[int, float] = {}
     real_kg = 0.0
 
-    for module_type_id, emission_type_id, kg_co2eq in rows:
+    for row in rows:
+        module_type_id, emission_type_id, kg_co2eq = row
         if kg_co2eq is None:
             continue
         emission_type = _resolve_emission_type(emission_type_id)

@@ -32,6 +32,8 @@ const props = defineProps<{
   perPersonBreakdown?: Record<string, number> | null;
   validatedCategories?: string[] | null;
   headcountValidated?: boolean;
+  showValidationPlaceholder?: boolean;
+  title?: string;
 }>();
 
 const { t } = useI18n();
@@ -468,7 +470,7 @@ const downloadCSV = () => {
     <q-card-section class="flex justify-between items-center">
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ $t('results_carbon_footprint_per_person_title') }}
+          {{ props.title ?? $t('results_carbon_footprint_per_person_title') }}
         </span>
       </div>
 
@@ -503,7 +505,7 @@ const downloadCSV = () => {
       />
     </q-card-section>
 
-    <template v-if="headcountValidated">
+    <template v-if="headcountValidated || showValidationPlaceholder === false">
       <q-card-section class="chart-container flex justify-center items-center">
         <v-chart
           ref="chartRef"
