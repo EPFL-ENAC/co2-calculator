@@ -10,7 +10,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -560,6 +560,7 @@ async def list_backoffice_units(
     return PaginatedUnitReportingData(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
+        emission_breakdown=result.get("emission_breakdown"),
     )
 
 
@@ -872,20 +873,16 @@ async def get_backoffice_unit(
 @router.get("/years")
 async def get_available_years(
     current_user: User = Depends(require_permission("backoffice.users", "view")),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get all available years from all units combined.
-    Returns all unique years found across all units' completion data,
+    Get all available years from CarbonReport records in the database,
     sorted in descending order (latest first).
     """
-    all_years: set[str] = set(
-        "2025".split()
-    )  # Mocked for demo, replace with real data extraction
-
-    # Sort years in descending order (latest first)
-    sorted_years = sorted(
-        all_years, key=lambda y: int(y) if y.isdigit() else 0, reverse=True
+    result = await db.exec(
+        select(CarbonReport.year).distinct().order_by(desc(CarbonReport.year))
     )
-    latest_year = sorted_years[0]
-
-    return {"years": sorted_years, "latest": latest_year}
+    years = [str(y) for y in result.all()]
+    if not years:
+        return {"years": [], "latest": ""}
+    return {"years": years, "latest": years[0]}

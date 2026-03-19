@@ -435,7 +435,7 @@ class DataEntryEmissionService:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, float | None]]:
+    ) -> list[tuple[int, int, float]]:
         """Get emission breakdown by module and emission type.
 
         Returns list of (module_type_id, emission_type_id, sum_kg_co2eq).

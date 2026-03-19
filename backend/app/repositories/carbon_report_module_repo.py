@@ -3,7 +3,7 @@
 from math import ceil
 from typing import Any, List, Optional
 
-from sqlmodel import and_, case, col, desc, func, select
+from sqlmodel import and_, case, col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -13,6 +13,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.utils.emission_category import build_chart_breakdown
 
 logger = get_logger(__name__)
 
@@ -173,6 +174,130 @@ class CarbonReportModuleRepository:
         await self.session.flush()
         return count
 
+    @staticmethod
+    def _split_filter_values(
+        values: Optional[List[str]],
+    ) -> tuple[List[int], List[str]]:
+        """Split mixed query values into integer IDs and string names."""
+        ids: List[int] = []
+        names: List[str] = []
+        for raw in values or []:
+            value = str(raw).strip()
+            if not value:
+                continue
+            if value.isdigit():
+                ids.append(int(value))
+            else:
+                names.append(value)
+        return ids, names
+
+    async def _get_selected_units(
+        self, values: Optional[List[str]]
+    ) -> List[tuple[int, Optional[str]]]:
+        """Resolve selected units from mixed ID/name values to id/code tuples."""
+        ids, names = self._split_filter_values(values)
+        if not ids and not names:
+            return []
+
+        filters = []
+        if ids:
+            filters.append(col(Unit.id).in_(ids))
+        if names:
+            filters.append(col(Unit.name).in_(names))
+
+        statement = select(Unit.id, Unit.institutional_code).where(or_(*filters))
+        rows = (await self.session.exec(statement)).all()
+        # Unit.id is expected to be present, but SQL typing can expose Optional.
+        return [(unit_id, code) for unit_id, code in rows if unit_id is not None]
+
+    async def _get_descendant_unit_ids(self, values: Optional[List[str]]) -> set[int]:
+        """Resolve hierarchy nodes to descendant unit IDs, including self."""
+        selected_units = await self._get_selected_units(values)
+        if not selected_units:
+            return set()
+
+        selected_ids = {unit_id for unit_id, _ in selected_units}
+        selected_codes = {code for _, code in selected_units if code}
+
+        path_conditions = []
+        for code in selected_codes:
+            # Token-boundary matching for ancestor code in path string.
+            path_conditions.extend(
+                [
+                    col(Unit.path_institutional_code) == code,
+                    col(Unit.path_institutional_code).like(f"{code} %"),
+                    col(Unit.path_institutional_code).like(f"% {code}"),
+                    col(Unit.path_institutional_code).like(f"% {code} %"),
+                ]
+            )
+
+        descendants_stmt = select(Unit.id)
+        if path_conditions:
+            descendants_stmt = descendants_stmt.where(or_(*path_conditions))
+        descendant_ids = {
+            unit_id
+            for unit_id in (await self.session.exec(descendants_stmt)).all()
+            if unit_id is not None
+        }
+
+        # Ensure selected units are included even if path is null or non-standard.
+        return selected_ids.union(descendant_ids)
+
+    async def _get_direct_unit_ids(self, values: Optional[List[str]]) -> set[int]:
+        """Resolve direct unit filter values (ID/name) to unit IDs."""
+        selected_units = await self._get_selected_units(values)
+        return {unit_id for unit_id, _ in selected_units}
+
+    async def _resolve_hierarchy_unit_ids(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+    ) -> Optional[set[int]]:
+        """
+        Build the effective unit ID filter with intersection semantics across levels.
+
+        Returns:
+            - None when no hierarchy filters were provided (no-op)
+            - set of unit IDs when at least one hierarchy filter is provided
+        """
+        filter_sets: List[set[int]] = []
+
+        if path_lvl2:
+            filter_sets.append(await self._get_descendant_unit_ids(path_lvl2))
+        if path_lvl3:
+            filter_sets.append(await self._get_descendant_unit_ids(path_lvl3))
+        if path_lvl4:
+            filter_sets.append(await self._get_direct_unit_ids(path_lvl4))
+
+        if not filter_sets:
+            return None
+
+        effective_ids = filter_sets[0]
+        for ids in filter_sets[1:]:
+            effective_ids = effective_ids.intersection(ids)
+        return effective_ids
+
+    @staticmethod
+    def _get_completion_status_from_progress(
+        completion_progress: Optional[str],
+    ) -> ModuleStatus:
+        """Map completion progress string (e.g. '5/7') to ModuleStatus."""
+        if not completion_progress:
+            return ModuleStatus.NOT_STARTED
+
+        completed_raw, _, total_raw = completion_progress.partition("/")
+        if not completed_raw.isdigit() or not total_raw.isdigit():
+            return ModuleStatus.NOT_STARTED
+
+        completed = int(completed_raw)
+        total = int(total_raw)
+        if total <= 0 or completed <= 0:
+            return ModuleStatus.NOT_STARTED
+        if completed >= total:
+            return ModuleStatus.VALIDATED
+        return ModuleStatus.IN_PROGRESS
+
     async def get_reporting_overview(
         self,
         path_lvl2: Optional[List[str]] = None,
@@ -193,14 +318,39 @@ class CarbonReportModuleRepository:
             raise ValueError(
                 "At least one year must be specified for the reporting overview."
             )
+
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+
+        # If filters were provided but resolve to no units, short-circuit early.
+        if hierarchy_unit_ids is not None and len(hierarchy_unit_ids) == 0:
+            return {
+                "data": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+            }
+
         # --- STEP 1: The Cheap Count ---
         count_statement = (
             select(func.count(col(Unit.id)))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
-        # if unit_ids:
-        #     count_statement = count_statement.where(col(Unit.id).in_(unit_ids))
+
+        if completion_status is not None:
+            count_statement = count_statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+
+        if hierarchy_unit_ids is not None:
+            count_statement = count_statement.where(
+                col(Unit.id).in_(hierarchy_unit_ids)
+            )
 
         total = (await self.session.exec(count_statement)).one()
 
@@ -222,6 +372,7 @@ class CarbonReportModuleRepository:
             col(Unit.path_name).label("path_name"),
             col(User.display_name).label("principal_user_name"),
             col(CarbonReport.id).label("carbon_report_id"),
+            col(CarbonReport.completion_progress).label("completion_progress"),
         ]
 
         # 2. Unpack them into the select statement
@@ -233,6 +384,34 @@ class CarbonReportModuleRepository:
             )
             .where(col(CarbonReport.year).in_(years))
         )
+        if hierarchy_unit_ids is not None:
+            units_stmt = units_stmt.where(col(Unit.id).in_(hierarchy_unit_ids))
+
+        if completion_status is not None:
+            units_stmt = units_stmt.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+
+        filtered_report_ids_stmt = (
+            select(col(CarbonReport.id))
+            .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
+            .where(col(CarbonReport.year).in_(years))
+        )
+        if hierarchy_unit_ids is not None:
+            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
+                col(Unit.id).in_(hierarchy_unit_ids)
+            )
+
+        if completion_status is not None:
+            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+
+        filtered_report_ids = [
+            report_id
+            for report_id in (await self.session.exec(filtered_report_ids_stmt)).all()
+            if report_id is not None
+        ]
 
         # if unit_ids:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
@@ -246,6 +425,76 @@ class CarbonReportModuleRepository:
 
         paginated_units = (await self.session.exec(units_stmt)).all()
         page_report_ids = [u.carbon_report_id for u in paginated_units]
+
+        # Build an aggregated emission breakdown from module stats by_emission_type
+        # so frontend can reuse result-page charts with reporting filters.
+        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = []
+        if filtered_report_ids:
+            module_stats_stmt = select(
+                CarbonReportModule.module_type_id,
+                CarbonReportModule.status,
+                CarbonReportModule.stats,
+            ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids))
+            raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
+            module_stats_rows = [
+                (
+                    int(module_type_id),
+                    int(status),
+                    stats if isinstance(stats, dict) else None,
+                )
+                for module_type_id, status, stats in raw_module_stats_rows
+            ]
+
+        global_fte_stmt = (
+            select(func.sum(func.coalesce(DataEntry.data["fte"].as_float(), 0.0)))
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
+            )
+            .where(
+                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids),
+                col(CarbonReportModule.module_type_id) == ModuleTypeEnum.headcount,
+            )
+        )
+        global_fte_result = (await self.session.exec(global_fte_stmt)).one()
+        global_fte = float(global_fte_result or 0.0)
+
+        chart_rows: list[tuple[int, int, float]] = []
+        validated_module_type_ids: set[int] = set()
+        headcount_validated = False
+
+        for module_type_id, status, stats in module_stats_rows:
+            if status == ModuleStatus.VALIDATED:
+                validated_module_type_ids.add(int(module_type_id))
+                if int(module_type_id) == int(ModuleTypeEnum.headcount):
+                    headcount_validated = True
+
+            if not isinstance(stats, dict):
+                continue
+
+            by_emission_type = stats.get("by_emission_type", {})
+            if not isinstance(by_emission_type, dict):
+                continue
+
+            for emission_type_id_raw, kg_value in by_emission_type.items():
+                try:
+                    emission_type_id = int(emission_type_id_raw)
+                except (TypeError, ValueError):
+                    continue
+
+                if not isinstance(kg_value, (int, float)):
+                    continue
+
+                chart_rows.append(
+                    (int(module_type_id), emission_type_id, float(kg_value))
+                )
+
+        emission_breakdown = build_chart_breakdown(
+            rows=chart_rows,
+            total_fte=global_fte,
+            headcount_validated=headcount_validated,
+            validated_module_type_ids=validated_module_type_ids,
+        )
 
         # --- STEP 3: The Heavy Math (Restricted to max 50 reports) ---
         # We no longer need to join CarbonReport here,
@@ -344,25 +593,16 @@ class CarbonReportModuleRepository:
             # or default empty values
             aggs = agg_map.get(u.carbon_report_id)
 
-            agg_value = (
-                f"{aggs.val_count if aggs else 0}/{aggs.total_count if aggs else 0}"
-            )
-            # TODO: fix logic should be coming from carbon_report module directly
-            # via aggregated stats, not re-deriving it here
-            #  This is just a temporary solution to unblock the frontend.
-            completion_status = (
-                ModuleStatus.VALIDATED
-                if aggs and aggs.val_count == aggs.total_count and aggs.total_count > 0
-                else ModuleStatus.IN_PROGRESS
-                if aggs and aggs.val_count > 0
-                else ModuleStatus.NOT_STARTED
+            completion_progress = u.completion_progress or "0/7"
+            completion_status_value = self._get_completion_status_from_progress(
+                completion_progress
             )
             reporting_data.append(
                 {
                     "id": u.unit_id,
                     "unit_name": u.unit_name,
                     "affiliation": aff,
-                    "validation_status": agg_value,
+                    "validation_status": completion_progress,
                     "principal_user": u.principal_user_name or "Unknown",
                     "last_update": aggs.last_update if aggs else None,
                     "highest_result_category": self._map_module_id_to_name(
@@ -372,7 +612,8 @@ class CarbonReportModuleRepository:
                     if aggs
                     else 0.0,
                     "view_url": f"/backoffice/unit/{u.unit_id}",
-                    "completion": completion_status,
+                    "completion": completion_status_value,
+                    "completion_progress": completion_progress,
                 }
             )
 
@@ -382,6 +623,7 @@ class CarbonReportModuleRepository:
             "page": page,
             "page_size": page_size,
             "total_pages": ceil(total / page_size),
+            "emission_breakdown": emission_breakdown,
         }
 
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:

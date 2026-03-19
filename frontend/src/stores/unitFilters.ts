@@ -199,7 +199,20 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
   const setSearchQueryLevel2 = (query: string) => {
     searchQueryLevel2.value = query;
     currentPageLevel2.value = 1;
-    fetchLevel2Units(query, 1);
+    // Reset data when clearing search to ensure fresh fetch
+    if (query === '') {
+      dataLevel2.value = [];
+      paginationLevel2.value = {
+        page: 1,
+        page_size: 50,
+        total_pages: 1,
+        total: 0,
+      };
+    }
+    // Use nextTick to ensure data is reset before fetching
+    Promise.resolve().then(() => {
+      fetchLevel2Units(query, 1);
+    });
   };
 
   const filterLevel2Units = (val: string, update: (cb: () => void) => void) => {
@@ -225,7 +238,20 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
   const setSearchQueryLevel3 = (query: string) => {
     searchQueryLevel3.value = query;
     currentPageLevel3.value = 1;
-    fetchLevel3Units(query, 1);
+    // Reset data when clearing search to ensure fresh fetch
+    if (query === '') {
+      dataLevel3.value = [];
+      paginationLevel3.value = {
+        page: 1,
+        page_size: 50,
+        total_pages: 1,
+        total: 0,
+      };
+    }
+    // Use nextTick to ensure data is reset before fetching
+    Promise.resolve().then(() => {
+      fetchLevel3Units(query, 1);
+    });
   };
 
   const filterLevel3Units = (val: string, update: (cb: () => void) => void) => {
@@ -251,7 +277,20 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
   const setSearchQueryLevel4 = (query: string) => {
     searchQueryLevel4.value = query;
     currentPageLevel4.value = 1;
-    fetchLevel4Units(query, 1);
+    // Reset data when clearing search to ensure fresh fetch
+    if (query === '') {
+      dataLevel4.value = [];
+      paginationLevel4.value = {
+        page: 1,
+        page_size: 50,
+        total_pages: 1,
+        total: 0,
+      };
+    }
+    // Use nextTick to ensure data is reset before fetching
+    Promise.resolve().then(() => {
+      fetchLevel4Units(query, 1);
+    });
   };
 
   const filterLevel4Units = (val: string, update: (cb: () => void) => void) => {

@@ -353,6 +353,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       stockage: colors.value.paleYellowGreen.default,
       virtualisation: colors.value.paleYellowGreen.light,
       calcul: colors.value.paleYellowGreen.lighter,
+      // Backend flattens AI providers under the parent key `provider`
+      // (from emission type `external__ai__provider_*`).
+      provider: colors.value.paleYellowGreen.light,
       ai_provider: colors.value.paleYellowGreen.light,
     },
     purchases: {
