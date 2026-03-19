@@ -119,6 +119,48 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return [id for id in result.all() if id is not None]
 
+    async def list_id_by_data_entry_type_and_year(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+    ) -> List[int]:
+        """List factor IDs for data entry type and specific year.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Year filter (mandatory)
+        """
+        conditions = [
+            col(Factor.data_entry_type_id) == data_entry_type_id.value,
+            col(Factor.year) == year,
+        ]
+
+        stmt = select(Factor.id).where(*conditions)
+
+        result = await self.session.exec(stmt)
+        return [id for id in result.all() if id is not None]
+
+    async def count_by_data_entry_type_and_year(
+        self,
+        data_entry_type_id: int,
+        year: int,
+    ) -> int:
+        """Count factors for data entry type and specific year.
+
+        Args:
+            data_entry_type_id: Data entry type ID (int value)
+            year: Year filter (mandatory)
+        """
+        conditions = [
+            col(Factor.data_entry_type_id) == data_entry_type_id,
+            col(Factor.year) == year,
+        ]
+
+        stmt = select(Factor.id).where(*conditions)
+
+        result = await self.session.exec(stmt)
+        return len(result.all())
+
     async def list_by_emission_type(
         self,
         emission_type: EmissionType,

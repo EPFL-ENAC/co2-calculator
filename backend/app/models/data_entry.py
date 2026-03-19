@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Integer
 from sqlmodel import JSON, Field, SQLModel
 
 
@@ -48,6 +48,22 @@ class DataEntryTypeEnum(int, Enum):
     research_facilities = 70
     mice_and_fish_animal_facilities = 71
     other_research_facilities = 72
+
+
+class DataEntrySourceEnum(int, Enum):
+    """
+    Enum representing the source of a data entry.
+
+    Used to track how data entries were created, enabling selective deletion
+    and audit trails for different upload methods.
+    """
+
+    USER_MANUAL = 0  # Manual entry via UI
+    CSV_MODULE_PER_YEAR = 1  # CSV upload via module_per_year provider
+    CSV_MODULE_UNIT_SPECIFIC = 2  # CSV upload via module_unit_specific provider
+    API_MODULE_PER_YEAR = 3  # API upload for module per year
+    API_MODULE_UNIT_SPECIFIC = 4  # API upload for unit specific module
+    EXTERNAL_INTEGRATION = 5  # Third-party integration or import
 
 
 ## Will be renamed to data_entries later
@@ -100,6 +116,8 @@ class DataEntry(DataEntryBase, table=True):
     - data_entry_type_id defines the subcategory (student, member, etc.)
     - carbon_report_module_id links to the specific carbon report module instance
     - data stores the actual row data as JSON
+    - source tracks the origin (user manual, CSV upload, API, etc.)
+    - created_by_id tracks the specific creator (user.id or job.id)
 
     Examples:
     - Headcount student: module_type=1, data_entry_type=2, data={...}
@@ -109,6 +127,19 @@ class DataEntry(DataEntryBase, table=True):
     __tablename__ = "data_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
+
+    # Source tracking fields
+    source: Optional[int] = Field(
+        default=None,
+        description="Entry source: user manual, CSV upload, API, etc.",
+        sa_column=Column(Integer, nullable=True, index=True),
+    )
+    created_by_id: Optional[int] = Field(
+        default=None,
+        index=True,
+        description="Creator ID: user.id or data_ingestion_job.id",
+    )
+
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
@@ -124,5 +155,6 @@ class DataEntry(DataEntryBase, table=True):
         return (
             f"<DataEntry {self.id}>: "
             f"data_entry_type={self.data_entry_type_id} "
-            f"carbon_report_module={self.carbon_report_module_id}>"
+            f"carbon_report_module={self.carbon_report_module_id} "
+            f"source={self.source}>"
         )

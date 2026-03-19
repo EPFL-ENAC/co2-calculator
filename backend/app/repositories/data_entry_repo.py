@@ -71,6 +71,28 @@ class DataEntryRepository:
         await self.session.execute(statement)
         await self.session.flush()
 
+    async def bulk_delete_by_source(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: DataEntryTypeEnum,
+        source: int,  # DataEntrySourceEnum value
+    ) -> None:
+        """
+        Bulk delete data entries by module, type, and source.
+
+        Args:
+            carbon_report_module_id: The module to delete from
+            data_entry_type_id: The data entry type to delete
+            source: Only delete entries from this source (e.g., CSV_MODULE_PER_YEAR)
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id.value,
+            col(DataEntry.source) == source,
+        )
+        await self.session.execute(statement)
+        await self.session.flush()
+
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> Optional[DataEntry]:

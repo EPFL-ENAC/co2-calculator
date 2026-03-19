@@ -5,7 +5,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
@@ -13,7 +18,6 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.user import User
-from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.data_entry import ModuleHandler
 from app.schemas.user import UserRead
@@ -309,113 +313,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         pass
 
-    async def _fetch_and_upsert_missing_units(
-        self, missing_codes: list[str], batch_size: int = 100
-    ) -> None:
-        """
-        Fetch missing units from provider and upsert them.
-
-        Inspired by unit_sync_from_provider in user_service:
-        - Validate user and provider are configured
-        - Get unit provider based on user's provider type
-        - Fetch units from provider in batches
-        - Upsert each unit via unit_service.upsert()
-
-        Args:
-            missing_codes: List of unit institutional_ids to fetch
-            batch_size: Number of units to fetch per API call (default: 100)
-
-        Raises:
-            ValueError: If user or provider not configured
-            Exception: If fetching units from provider fails
-        """
-        # Validate user and provider are configured
-        job_user_provider = self.config.get("provider", None)
-        if job_user_provider is None:
-            raise ValueError(
-                """job_user_provider: a.k.a. User Provider is required to
-                    fetch missing units from provider"""
-            )
-
-        logger.info(
-            f"Fetching {len(missing_codes)} missing units from provider",
-            extra={"missing_codes": sorted(missing_codes), "batch_size": batch_size},
-        )
-
-        # Get unit provider based on user's provider type
-        unit_provider = get_unit_provider(
-            provider_type=job_user_provider, db_session=self.data_session
-        )
-
-        # Process units in batches
-        units_fetched = 0
-        units_upserted = 0
-
-        for i in range(0, len(missing_codes), batch_size):
-            batch = missing_codes[i : i + batch_size]
-            logger.info(f"Fetching batch {i // batch_size + 1} ({len(batch)} units)")
-
-            try:
-                # Fetch units from provider (batch already contains string codes)
-                fetched_units = await unit_provider.get_units(unit_ids=batch)
-                units_fetched += len(fetched_units)
-
-                # Upsert each unit
-                for unit in fetched_units:
-                    try:
-                        if unit.principal_user_institutional_id:
-                            principal_user = await self.user_service.get_by_code(
-                                unit.principal_user_institutional_id
-                            )
-                            if not principal_user:
-                                # Create minimal principal user if it doesn't exist
-                                logger.info(
-                                    "Creating minimal principal user record",
-                                    extra={
-                                        "institutional_id": (
-                                            unit.principal_user_institutional_id
-                                        )
-                                    },
-                                )
-                                await self.user_service.upsert_user(
-                                    id=None,
-                                    institutional_id=unit.principal_user_institutional_id,
-                                    email=f"{unit.principal_user_institutional_id}@placeholder.local",
-                                    provider=job_user_provider,
-                                )
-
-                        await self.unit_service.upsert(unit_data=unit)
-                        units_upserted += 1
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to upsert unit {unit.institutional_code}",
-                            extra={
-                                "unit_institutional_code": unit.institutional_code,
-                                "error": str(e),
-                            },
-                        )
-                        raise
-
-            except Exception as e:
-                logger.error(
-                    "Failed to fetch batch of units",
-                    extra={
-                        "batch": sorted(batch),
-                        "error": str(e),
-                        "type": type(e).__name__,
-                    },
-                )
-                raise
-
-        logger.info(
-            "Fetched and upserted missing units",
-            extra={
-                "units_fetched": units_fetched,
-                "units_upserted": units_upserted,
-                "missing_count": len(missing_codes),
-            },
-        )
-
     async def _resolve_carbon_report_modules(self, csv_text: str) -> Dict[str, int]:
         """
         Pre-scan CSV to extract unique unit_ids (institutional_ids)
@@ -476,44 +373,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 f"Found {len(missing_codes)} missing units in database, "
                 f"attempting to fetch from provider"
             )
-            try:
-                await self._fetch_and_upsert_missing_units(missing_codes)
-            except Exception as e:
-                logger.error(f"Failed to fetch missing units from provider: {str(e)}")
-                raise
-
-            # Commit the upserted units so they're visible to subsequent queries
-            await self.data_session.commit()
-            logger.info("Committed upserted units to database")
-
-            # Create a NEW repository instance after commit to get fresh data
-            unit_repo = UnitRepository(self.data_session)
-            logger.info(
-                f"Reloading units after upsert - checking for "
-                f"{len(unit_codes)} institutional_ids"
-            )
-
-            existing_units = await unit_repo.get_by_institutional_ids(list(unit_codes))
-            existing_codes = {unit.institutional_id for unit in existing_units}
-            missing_codes = sorted(unit_codes - existing_codes)
-
-            logger.info(
-                f"After upsert: found {len(existing_codes)} units, "
-                f"still missing {len(missing_codes)} units"
-            )
-
-            # If still missing after fetch attempt, warn but continue
-            # Rows with missing units will be skipped during processing
-            if missing_codes:
-                logger.warning(
-                    f"Missing {len(missing_codes)} units that could not be fetched: "
-                    f"{', '.join(missing_codes)}. "
-                    f"Rows with these units will be skipped."
-                )
-                # Store missing codes to skip rows during processing
-                self._missing_unit_codes = set(missing_codes)
-            else:
-                self._missing_unit_codes = set()
 
         # Build mapping of institutional_id to unit.id for DB operations
         # Only include units that exist (skip missing ones)
@@ -534,10 +393,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Get the database ID for this institutional_id
             unit_id = unit_code_to_id.get(unit_institutional_id)
             if not unit_id:
-                raise ValueError(
-                    f"Unit with institutional_id={unit_institutional_id} not found "
-                    f"after validation"
+                logger.warning(
+                    f"Unit with institutional_id={unit_institutional_id} not found"
                 )
+                # TODO: fix accred?
+                continue
 
             # Check if carbon report exists
             carbon_report = await carbon_report_service.get_by_unit_and_year(
@@ -608,6 +468,60 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"CSV ingestion failed: {str(e)}")
             raise
 
+    async def _delete_existing_entries_for_module_per_year(
+        self,
+        unit_to_module_map: Dict[str, int],
+        stats: StatsDict,
+        data_entry_service: DataEntryService,
+    ) -> None:
+        """
+        Delete existing entries from previous CSV_MODULE_PER_YEAR uploads.
+
+        This ensures that MODULE_PER_YEAR uploads replace only the data
+        that was uploaded through the same mechanism, preserving manual
+        entries and unit-specific uploads.
+
+        Args:
+            unit_to_module_map: Mapping of unit ID to module ID
+            stats: Statistics dict to update
+            data_entry_service: DataEntryService instance to use
+        """
+        from app.models.data_entry import DataEntrySourceEnum
+
+        user_read = UserRead.model_validate(self.user) if self.user else None
+
+        deleted_count = 0
+        # Get all unique data_entry_types that will be processed
+        # We'll delete all CSV_MODULE_PER_YEAR entries for affected modules
+        for unit_id, module_id in unit_to_module_map.items():
+            # Delete entries for all data_entry_types that could be in this module
+            # We need to get the valid types for this module
+            if self.job and self.job.module_type_id:
+                from app.models.module_type import (
+                    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+                    ModuleTypeEnum,
+                )
+
+                module_type = ModuleTypeEnum(self.job.module_type_id)
+                valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+                for data_entry_type in valid_entry_types:
+                    try:
+                        await data_entry_service.bulk_delete_by_source(
+                            carbon_report_module_id=module_id,
+                            data_entry_type_id=data_entry_type,
+                            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+                            user=user_read,
+                        )
+                        deleted_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete entries for module {module_id}, "
+                            f"type {data_entry_type}: {e}"
+                        )
+
+        logger.info(f"Deleted {deleted_count} entry sets from previous CSV uploads")
+
     async def process_csv_in_batches(self) -> Dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
@@ -616,6 +530,23 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Resolve carbon_report_module_ids if needed (MODULE_PER_YEAR only)
             unit_to_module_map: Dict[str, int] | None = None
+
+            # Initialize statistics early for deletion tracking
+            max_row_errors = int(self.config.get("max_row_errors", 100))
+            stats: StatsDict = {
+                "rows_processed": 0,
+                "rows_with_factors": 0,
+                "rows_without_factors": 0,
+                "rows_skipped": 0,
+                "batches_processed": 0,
+                "row_errors": [],
+                "row_errors_count": 0,
+            }
+
+            # Initialize services early (needed for deletion)
+            data_entry_service = DataEntryService(self.data_session)
+            emission_service = DataEntryEmissionService(self.data_session)
+
             if (
                 self.entity_type == EntityType.MODULE_PER_YEAR
                 and not self.carbon_report_module_id
@@ -628,19 +559,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
                 await self.data_session.flush()  # Flush report/module creation
 
-            # Initialize statistics and services
-            max_row_errors = int(self.config.get("max_row_errors", 100))
-            stats: StatsDict = {
-                "rows_processed": 0,
-                "rows_with_factors": 0,
-                "rows_without_factors": 0,
-                "rows_skipped": 0,
-                "batches_processed": 0,
-                "row_errors": [],
-                "row_errors_count": 0,
-            }
-            data_entry_service = DataEntryService(self.data_session)
-            emission_service = DataEntryEmissionService(self.data_session)
+                # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
+                logger.info(
+                    "Deleting existing CSV_MODULE_PER_YEAR entries before re-import"
+                )
+                await self._delete_existing_entries_for_module_per_year(
+                    unit_to_module_map, stats, data_entry_service
+                )
 
             # Process CSV rows
             batch: List[DataEntry] = []
@@ -805,6 +730,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             handlers = setup_result["handlers"]
             # factors_map = setup_result["factors_map"]
             expected_columns = setup_result["expected_columns"]
+            # force kg_co2eq column in expected columns to allow flexibility
+            # in handlers (some may not require it,
+            # for module_year it is required for factor resolution,
+            # but for module_unit_specific it is not needed and often not provided)
+            # expected_columns.add("kg_co2eq")
 
             # Filter row to only include expected columns
             filtered_row = {
@@ -904,6 +834,37 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # will be in validated.data
             # No need to set it again
 
+            # Populate missing data fields from factor values
+            # (e.g., equipment usage hours, default quantities)
+            # Only do this if we have a primary_factor_id and factors_map available
+            if primary_factor_id and "factors_map" in setup_result:
+                factors_map = setup_result["factors_map"]
+                # Lookup factor by primary_factor_id
+                factor = None
+                # Could do better: factors_map is keyed by classification and
+                # we have to loop through to find the factor with matching ID
+                for factor_key, factor_obj in factors_map.items():
+                    if getattr(factor_obj, "id", None) == primary_factor_id:
+                        factor = factor_obj
+                        break
+
+                # Populate defaults from factor if handler defines factor_value_fields
+                if (
+                    factor
+                    and hasattr(handler, "factor_value_fields")
+                    and handler.factor_value_fields
+                ):
+                    for field_name in handler.factor_value_fields:
+                        if field_name not in data or data[field_name] in (None, "", 0):
+                            default_value = factor.values.get(field_name)
+                            if default_value is not None:
+                                data[field_name] = default_value
+                                logger.debug(
+                                    f"Row {row_idx}: Populated "
+                                    f"{field_name}={default_value}"
+                                    f"from factor"
+                                )
+
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
@@ -991,11 +952,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         logger.info(f"Processing batch of {len(batch)} entries")
 
-        # 1. Bulk create data entries
+        # Determine source based on entity_type
+        source = self._get_source_from_entity_type()
+
+        # 1. Bulk create data entries with source tracking
         data_entries_response = await data_entry_service.bulk_create(
             batch,
             UserRead.model_validate(user) if user else None,
             job_id=self.job_id,
+            source=source.value if source else None,
+            created_by_id=self.job_id,
         )
 
         # 2. Prepare emissions for all created data entries
@@ -1018,6 +984,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if emissions_to_create:
             await emission_service.bulk_create(emissions_to_create)
             logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+
+    def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
+        """
+        Determine source enum value based on entity_type.
+
+        Returns:
+            DataEntrySourceEnum value or None if not determinable
+        """
+        if self.entity_type == EntityType.MODULE_PER_YEAR:
+            return DataEntrySourceEnum.CSV_MODULE_PER_YEAR
+        elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            return DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC
+        return None
 
     @staticmethod
     def _resolve_data_entry_type_from_category(

@@ -131,6 +131,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
     ]
     # Allow subkind to be optional for equipment
     require_subkind_for_factor = False
+    require_factor_to_match = False
 
     create_dto = EquipmentHandlerCreate
     update_dto = EquipmentHandlerUpdate
