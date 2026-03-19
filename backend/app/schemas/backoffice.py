@@ -36,6 +36,9 @@ class UnitReportingData(BaseModel):
     # Completion data for whole report
     completion: Optional[ModuleStatus] = None
 
+    # Progress string from carbon_reports.completion_progress (e.g. "5/7")
+    completion_progress: Optional[str] = None
+
     class Config:
         # Allows using the field names or the original aliases
         populate_by_name = True

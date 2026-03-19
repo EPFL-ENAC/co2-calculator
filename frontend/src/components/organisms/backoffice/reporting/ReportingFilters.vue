@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUnitFiltersStore } from 'src/stores/unitFilters';
 
 const emit = defineEmits<{
   (
     e: 'update:filters',
-    filters: { selectedUnits: number[]; completion_status: number | string },
+    filters: {
+      path_lvl2: number[];
+      path_lvl3: number[];
+      path_lvl4: number[];
+      completion_status: number | string;
+    },
   ): void;
 }>();
 
@@ -29,16 +34,11 @@ const completion = ref('');
 // LVL3: http://localhost:8000/api/v1/backoffice-reporting/units?level=3&unit_type_label=Institut
 // LVL4: http://localhost:8000/api/v1/backoffice-reporting/units?level=4&parent_unit_type_label=Institut
 
-// Combine all selected units (OR logic)
-const selectedUnits = computed(() => [
-  ...selectedLevel2Units.value,
-  ...selectedLevel3Units.value,
-  ...selectedLevel4Units.value,
-]);
-
 function handleFiltersChange() {
   emit('update:filters', {
-    selectedUnits: selectedUnits.value,
+    path_lvl2: selectedLevel2Units.value,
+    path_lvl3: selectedLevel3Units.value,
+    path_lvl4: selectedLevel4Units.value,
     completion_status: completion.value,
   });
 }
@@ -207,6 +207,7 @@ function handleFiltersChange() {
         :label="$t('backoffice_reporting_row_completion_label')"
         class="full-width"
         style="flex-grow: 1"
+        @update:model-value="handleFiltersChange"
       >
         <template #prepend>
           <q-icon name="o_check_small" color="grey-6" size="xs" />
