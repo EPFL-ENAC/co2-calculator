@@ -27,7 +27,15 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
+<<<<<<< Updated upstream
 FROM python:3.12-alpine3.23 AS runtime
+||||||| Stash base
+FROM python:3.12-alpine3.21 AS runtime
+=======
+FROM python:3.12.13-alpine3.23 AS runtime
+
+RUN apk upgrade --no-cache
+>>>>>>> Stashed changes
 
 WORKDIR /app
 
