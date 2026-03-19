@@ -1128,6 +1128,12 @@ function isCompleteEquipement(row: ModuleRow) {
   return hasRequiredValues(row, required);
 }
 
+function isCompleteResearchFacilities(row: ModuleRow) {
+  const required = ['researchfacility_name', 'use', 'use_unit'];
+
+  return hasRequiredValues(row, required);
+}
+
 function isCompleteHeadcount(row: ModuleRow) {
   const requiredMember = ['name', 'fte', 'function'];
   const requiredStudent = ['fte'];
@@ -1187,6 +1193,9 @@ function isComplete(row: ModuleRow) {
   }
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
     return isCompleteEquipement(row);
+  }
+  if (props.moduleType === MODULES.ResearchFacilities) {
+    return isCompleteResearchFacilities(row);
   }
   if (
     props.moduleType === MODULES.ExternalCloudAndAI &&

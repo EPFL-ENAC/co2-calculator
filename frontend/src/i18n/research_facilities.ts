@@ -22,8 +22,8 @@ export default {
   },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`]:
     {
-      en: 'Research Facilities',
-      fr: 'Infrastructures de recherche',
+      en: 'Research Facilities ({count})',
+      fr: 'Infrastructures de recherche ({count})',
     },
   [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title-info-tooltip`]:
     {
@@ -32,8 +32,8 @@ export default {
     },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`]:
     {
-      en: 'Mice and fish animal facilities',
-      fr: 'Animaleries rongeurs et poissons',
+      en: 'Mice and fish animal facilities ({count})',
+      fr: 'Animaleries rongeurs et poissons ({count})',
     },
   [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title-info-tooltip`]:
     {
@@ -41,24 +41,20 @@ export default {
       fr: "Les émissions des animaleries rongeurs et poissons sont attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Combustion d'énergie, Bâtiments, Équipements et Achats en considérant comme clé de répartition le nombre d'hébergements (cages, aquariums) par année.",
     },
   [`${MODULES.ResearchFacilities}.inputs.name`]: {
-    en: 'Name',
-    fr: 'Nom',
+    en: 'Research Facility',
+    fr: 'Infrastructure de recherche',
   },
-  [`${MODULES.ResearchFacilities}.inputs.unit_use`]: {
-    en: 'Unit Use',
-    fr: "Unité d'utilisation",
+  [`${MODULES.ResearchFacilities}.inputs.use_unit`]: {
+    en: 'Unit',
+    fr: 'Unité',
   },
-  [`${MODULES.ResearchFacilities}.inputs.unit_type`]: {
-    en: 'Unit Type',
-    fr: "Type d'unité",
+  [`${MODULES.ResearchFacilities}.inputs.use`]: {
+    en: 'Use',
+    fr: 'Utilisation',
   },
   [`${MODULES.ResearchFacilities}.inputs.type`]: {
     en: 'Type',
     fr: 'Type',
-  },
-  [`${MODULES.ResearchFacilities}.inputs.housing_nb`]: {
-    en: 'Housing Units',
-    fr: "Nombre d'hébergements",
   },
   [`${MODULES.ResearchFacilities}.inputs.housing_nb-tooltip`]: {
     en: 'For the mice and fish facilities of the CPG unit, we consider only the annual housing component, and not phenotyping or UDP.',

@@ -80,6 +80,9 @@ const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
   virtualisation: 'charts-virtualisation-subcategory',
   calcul: 'charts-calcul-subcategory',
   ai_provider: 'charts-ai-provider-subcategory',
+  // Research facilities
+  facilities: 'charts-research-facilities-subcategory',
+  animal: 'charts-research-animal-subcategory',
 };
 
 function resolveLabel(raw: string): string {
