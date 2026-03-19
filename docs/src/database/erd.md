@@ -42,7 +42,11 @@ erDiagram
     INTEGER status "indexed"
   }
   carbon_reports {
+    VARCHAR completion_progress
     INTEGER id PK
+    INTEGER last_updated
+    INTEGER overall_status
+    JSON stats
     INTEGER unit_id FK
     INTEGER year
   }

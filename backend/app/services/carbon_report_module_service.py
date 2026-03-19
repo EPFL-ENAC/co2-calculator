@@ -223,6 +223,12 @@ class CarbonReportModuleService:
             f"{len(stats['by_emission_type'])} emission types"
         )
 
+        # Trigger parent carbon report stats recomputation
+        from app.services.carbon_report_service import CarbonReportService
+
+        report_service = CarbonReportService(self.session)
+        await report_service.recompute_report_stats(module.carbon_report_id)
+
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""
         return await self.repo.delete_by_report(carbon_report_id)

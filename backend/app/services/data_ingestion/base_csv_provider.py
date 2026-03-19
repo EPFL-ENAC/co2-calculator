@@ -19,8 +19,12 @@ from app.models.data_ingestion import (
 )
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.schemas.data_entry import ModuleHandler
+from app.repositories.unit_repo import UnitRepository
+from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
 from app.schemas.user import UserRead
+from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
@@ -78,8 +82,6 @@ def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
 
 
 def _get_required_columns_from_handler(handler: Any) -> set[str]:
-    from app.schemas.data_entry import DATA_ENTRY_META_FIELDS
-
     meta_fields = set(DATA_ENTRY_META_FIELDS) | {"data"}
     return {
         name
@@ -327,9 +329,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Returns: {institutional_id: carbon_report_module_id} mapping
         """
-        from app.repositories.unit_repo import UnitRepository
-        from app.schemas.carbon_report import CarbonReportCreate
-        from app.services.carbon_report_service import CarbonReportService
 
         # Validate year is present
         if not self.year:
@@ -486,7 +485,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             stats: Statistics dict to update
             data_entry_service: DataEntryService instance to use
         """
-        from app.models.data_entry import DataEntrySourceEnum
 
         user_read = UserRead.model_validate(self.user) if self.user else None
 
@@ -557,6 +555,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 unit_to_module_map = await self._resolve_carbon_report_modules(
                     setup_result["csv_text"]
                 )
+                # Store for later use in _recompute_module_stats
+                self._unit_to_module_map = unit_to_module_map
                 await self.data_session.flush()  # Flush report/module creation
 
                 # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
@@ -919,6 +919,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             extra={"job_id": self.job_id, "length": stats["rows_processed"]},
         )
 
+        # Recompute stats for affected carbon report modules
+        await self._recompute_module_stats()
+
         # Update job status to COMPLETED with summary
         status_message = (
             f"Processed {stats['rows_processed']} rows: "
@@ -984,6 +987,79 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if emissions_to_create:
             await emission_service.bulk_create(emissions_to_create)
             logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+
+    async def _recompute_module_stats(self) -> None:
+        """
+        Recompute stats for all affected carbon report modules and parent reports.
+
+        For MODULE_PER_YEAR: recomputes stats for each module in unit_to_module_map,
+        then recomputes stats for each affected carbon report.
+        For MODULE_UNIT_SPECIFIC: recomputes stats for self.carbon_report_module_id,
+        then recomputes stats for the parent carbon report.
+        """
+        from app.services.carbon_report_service import CarbonReportService
+
+        crm_service = CarbonReportModuleService(self.data_session)
+        cr_service = CarbonReportService(self.data_session)
+        module_ids_to_recompute: set[int] = set()
+        carbon_report_ids_to_recompute: set[int] = set()
+
+        # Collect module IDs and carbon report IDs based on entity type
+        if self.entity_type == EntityType.MODULE_PER_YEAR:
+            # Resolve carbon_report_module_ids if not already done
+            if (
+                not hasattr(self, "_unit_to_module_map")
+                or self._unit_to_module_map is None
+            ):
+                logger.warning(
+                    "unit_to_module_map not available for stats recomputation"
+                )
+                return
+            module_ids_to_recompute = set(self._unit_to_module_map.values())
+            # Extract unique carbon_report_ids from modules
+            # Need to fetch modules to get their carbon_report_id
+            for module_id in module_ids_to_recompute:
+                module = await crm_service.repo.get(module_id)
+                if module:
+                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
+        elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            if self.carbon_report_module_id:
+                module_ids_to_recompute.add(self.carbon_report_module_id)
+                # Get the carbon_report_id from the module
+                module = await crm_service.repo.get(self.carbon_report_module_id)
+                if module:
+                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
+            else:
+                logger.warning(
+                    "carbon_report_module_id not set for MODULE_UNIT_SPECIFIC"
+                )
+                return
+
+        # Recompute stats for each module
+        for module_id in module_ids_to_recompute:
+            try:
+                await crm_service.recompute_stats(module_id)
+                logger.info(f"Recomputed stats for carbon_report_module_id={module_id}")
+            except Exception as stats_error:
+                logger.error(
+                    "Failed to recompute stats for carbon_report_module_id=%s: %s",
+                    module_id,
+                    stats_error,
+                    exc_info=True,
+                )
+
+        # Recompute stats for each affected carbon report
+        for carbon_report_id in carbon_report_ids_to_recompute:
+            try:
+                await cr_service.recompute_report_stats(carbon_report_id)
+                logger.info(f"Recomputed stats for carbon_report_id={carbon_report_id}")
+            except Exception as stats_error:
+                logger.error(
+                    "Failed to recompute stats for carbon_report_id=%s: %s",
+                    carbon_report_id,
+                    stats_error,
+                    exc_info=True,
+                )
 
     def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
         """
