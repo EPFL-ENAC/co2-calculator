@@ -34,6 +34,7 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
+    factors_deleted: int
 
 
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
@@ -168,8 +169,26 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 "batches_processed": 0,
                 "row_errors": [],
                 "row_errors_count": 0,
+                "factors_deleted": 0,
             }
             factor_service = FactorService(self.data_session)
+
+            # Delete existing factors for this data_entry_type and year
+            # This ensures idempotent uploads - no duplicates
+            if self.data_entry_type_id and self.year:
+                existing_count = await factor_service.count_by_data_entry_type_and_year(
+                    data_entry_type_id=int(self.data_entry_type_id),
+                    year=self.year,
+                )
+                logger.info(
+                    f"Deleting {existing_count} existing factors for "
+                    f"data_entry_type_id={self.data_entry_type_id}, year={self.year}"
+                )
+                await factor_service.bulk_delete_by_data_entry_type(
+                    data_entry_type_id=DataEntryTypeEnum(self.data_entry_type_id),
+                    year=self.year,
+                )
+                stats["factors_deleted"] = existing_count
 
             batch: List[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))

@@ -101,6 +101,22 @@ class FactorService:
         """
         return await self.repo.list_id_by_data_entry_type(data_entry_type_id, year)
 
+    async def count_by_data_entry_type_and_year(
+        self,
+        data_entry_type_id: int,
+        year: int,
+    ) -> int:
+        """Count factors for data entry type and specific year.
+
+        Args:
+            data_entry_type_id: Data entry type ID (int value)
+            year: Year filter (mandatory)
+        """
+        return await self.repo.count_by_data_entry_type_and_year(
+            data_entry_type_id=data_entry_type_id,
+            year=year,
+        )
+
     async def list_by_emission_type(
         self,
         emission_type: EmissionType,
@@ -202,12 +218,35 @@ class FactorService:
         return await self.repo.bulk_delete(factor_ids)
 
     async def bulk_delete_by_data_entry_type(
-        self, data_entry_type_id: DataEntryTypeEnum
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: Optional[int] = None,
     ) -> None:
-        """Bulk delete factors by data entry type."""
-        factor_ids = await self.repo.list_id_by_data_entry_type(
-            data_entry_type_id=data_entry_type_id,
-        )
+        """Bulk delete factors by data entry type and optional year.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Optional year filter. If provided, only deletes factors for that year.
+                  If not provided, deletes all factors for the data entry type.
+        """
+        if year is not None:
+            factor_ids = await self.repo.list_id_by_data_entry_type_and_year(
+                data_entry_type_id=data_entry_type_id,
+                year=year,
+            )
+            logger.info(
+                f"Deleting {len(factor_ids)} factors for "
+                f"data_entry_type={data_entry_type_id}, year={year}"
+            )
+        else:
+            factor_ids = await self.repo.list_id_by_data_entry_type(
+                data_entry_type_id=data_entry_type_id,
+            )
+            logger.info(
+                f"Deleting {len(factor_ids)} factors for "
+                f"data_entry_type={data_entry_type_id} (all years)"
+            )
+
         await self.repo.bulk_delete(factor_ids)
 
     async def find_modules_for_recalculation(self, factor_id: int) -> List[int]:
