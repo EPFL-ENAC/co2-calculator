@@ -150,6 +150,8 @@
               :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
+              emit-value
+              map-options
               outlined
               :title="col.hint ? $t(col.hint) : undefined"
               :min="col.min"

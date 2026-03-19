@@ -55,6 +55,7 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: Optional[str] = None
     provider: Optional[str] = None
     spent_amount: Optional[float] = None
+    currency: Optional[str] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
@@ -87,8 +88,8 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        valid_currencies = ["chf", "eur"]
-        if v not in valid_currencies:
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
@@ -141,8 +142,8 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        valid_currencies = ["chf", "eur"]
-        if v not in valid_currencies:
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
@@ -296,10 +297,11 @@ class _ExternalCloudFactorValidationMixin:
         valid_currencies = [
             "chf",
             "eur",
+            "usd",
         ]
         if not v:
             raise ValueError("")
-        if v not in valid_currencies:
+        if v.lower() not in valid_currencies:
             raise ValueError("Invalid currency")
         return v
 
