@@ -8,6 +8,7 @@ For system architecture and deployment decisions, see:
 - [Environments](../architecture/05-environments.md) - Environment configuration
 - [CI/CD Pipeline](../architecture/06-cicd-pipeline.md) - Automated deployment
 - [Tech Stack](../architecture/08-tech-stack.md) - Infrastructure technology choices
+- [Disaster Recovery Plan](https://github.com/EPFL-ENAC/openshift-app-config/blob/main/epfl/co2-calculator/DRP.md) - Need access (private repo)
 
 ---
 
