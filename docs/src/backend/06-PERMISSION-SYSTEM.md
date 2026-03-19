@@ -4,6 +4,8 @@ The CO2 Calculator uses permission-based access control. Permissions
 are calculated dynamically from user roles on every request. They are
 never stored in the database.
 
+CF https://github.com/EPFL-ENAC/co2-calculator/issues/414
+
 ## How It Works
 
 The backend calculates permissions during `/auth/me` response
