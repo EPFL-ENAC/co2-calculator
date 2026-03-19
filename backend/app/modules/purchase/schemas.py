@@ -32,6 +32,7 @@ class PurchaseHandlerResponse(DataEntryResponseGen):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: float
+    currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None

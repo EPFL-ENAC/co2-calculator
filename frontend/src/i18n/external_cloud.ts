@@ -60,8 +60,16 @@ export default {
     fr: 'Région',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.spent_amount`]: {
-    en: 'Spending (€)',
-    fr: 'Dépenses (€)',
+    en: 'Spending',
+    fr: 'Dépenses',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.currency-hint`]: {
+    en: 'Default is EUR.',
+    fr: 'EUR par défaut.',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.currency`]: {
+    en: 'Currency',
+    fr: 'Devise',
   },
   // Co2eq is the same in both languages is using common key
   // AI SUBMODULE

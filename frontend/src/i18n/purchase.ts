@@ -41,9 +41,13 @@ export default {
     en: 'Total Spent Amount',
     fr: 'Montant total dépensé',
   },
-  [`${MODULES.Purchase}.inputs.total_spent_amount-hint`]: {
-    en: 'Amounts should be entered in CHF.',
-    fr: 'Les montants sont à saisir en CHF.',
+  [`${MODULES.Purchase}.inputs.currency`]: {
+    en: 'Currency',
+    fr: 'Devise',
+  },
+  [`${MODULES.Purchase}.inputs.currency-hint`]: {
+    en: 'Default is CHF.',
+    fr: 'CHF par défaut.',
   },
   [`${MODULES.Purchase}.inputs.annual_consumption`]: {
     en: 'Annual Consumption',
