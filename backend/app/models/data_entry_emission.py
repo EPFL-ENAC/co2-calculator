@@ -209,85 +209,6 @@ def get_all_nodes(root: EmissionType) -> list[EmissionType]:
     return result
 
 
-# =============================================================================
-# Scope
-# =============================================================================
-
-
-class Scope(int, Enum):
-    scope1 = 1
-    scope2 = 2
-    scope3 = 3
-
-
-class HeatingEnergyType(str, Enum):
-    electric = "electric"
-    thermal = "thermal"
-
-
-EMISSION_SCOPE: dict[EmissionType, Scope] = {
-    # Additional Categories — scope 3
-    EmissionType.food: Scope.scope3,
-    EmissionType.waste: Scope.scope3,
-    EmissionType.commuting: Scope.scope3,
-    EmissionType.grey_energy: Scope.scope3,
-    # Professional Travel — all scope 3
-    EmissionType.professional_travel__train__class_1: Scope.scope3,
-    EmissionType.professional_travel__train__class_2: Scope.scope3,
-    EmissionType.professional_travel__plane__first: Scope.scope3,
-    EmissionType.professional_travel__plane__business: Scope.scope3,
-    EmissionType.professional_travel__plane__eco: Scope.scope3,
-    # Buildings — scope 2 except heating_thermal (scope 1)
-    EmissionType.buildings__rooms__lighting: Scope.scope2,
-    EmissionType.buildings__rooms__cooling: Scope.scope2,
-    EmissionType.buildings__rooms__ventilation: Scope.scope2,
-    EmissionType.buildings__rooms__heating_elec: Scope.scope2,
-    EmissionType.buildings__rooms__heating_thermal: Scope.scope1,  # confirmed
-    EmissionType.buildings__combustion: Scope.scope1,  # direct fuel combustion
-    # Process Emissions — all scope 1
-    EmissionType.process_emissions__ch4: Scope.scope1,
-    EmissionType.process_emissions__co2: Scope.scope1,
-    EmissionType.process_emissions__n2o: Scope.scope1,
-    EmissionType.process_emissions__refrigerants: Scope.scope1,
-    # Equipment — all scope 2
-    EmissionType.equipment__scientific: Scope.scope2,
-    EmissionType.equipment__it: Scope.scope2,
-    EmissionType.equipment__other: Scope.scope2,
-    # Purchases — scope 3 except additional (scope 1)
-    EmissionType.purchases__goods_and_services: Scope.scope3,
-    EmissionType.purchases__scientific_equipment: Scope.scope3,
-    EmissionType.purchases__it_equipment: Scope.scope3,
-    EmissionType.purchases__consumable_accessories: Scope.scope3,
-    EmissionType.purchases__biological_chemical_gaseous: Scope.scope3,
-    EmissionType.purchases__services: Scope.scope3,
-    EmissionType.purchases__vehicles: Scope.scope3,
-    EmissionType.purchases__other: Scope.scope3,
-    EmissionType.purchases__additional: Scope.scope1,
-    # Research Facilities — all scope 3
-    EmissionType.research_facilities__facilities: Scope.scope3,
-    EmissionType.research_facilities__animal: Scope.scope3,
-    # External Clouds & AI — all scope 3
-    EmissionType.external__clouds__virtualisation: Scope.scope3,
-    EmissionType.external__clouds__calcul: Scope.scope3,
-    EmissionType.external__clouds__stockage: Scope.scope3,
-    EmissionType.external__ai__provider_google: Scope.scope3,
-    EmissionType.external__ai__provider_mistral_ai: Scope.scope3,
-    EmissionType.external__ai__provider_anthropic: Scope.scope3,
-    EmissionType.external__ai__provider_openai: Scope.scope3,
-    EmissionType.external__ai__provider_cohere: Scope.scope3,
-    EmissionType.external__ai__provider_others: Scope.scope3,
-}
-
-
-def get_scope(e: EmissionType) -> Scope | None:
-    """
-    Returns the scope for a leaf emission type.
-    For non-leaf (category/subcategory) nodes, returns None — scope only
-    makes sense at the leaf level where data is actually recorded.
-    """
-    return EMISSION_SCOPE.get(e)
-
-
 ### =============================================================================
 # DataEntryEmission model
 # =============================================================================
@@ -390,11 +311,6 @@ class DataEntryEmissionBase(SQLModel):
         description="Primary factor used for calculation (power, headcount,"
         "flight, etc.)",
     )
-    # Scope (1, 2, or 3) for fast filtering/aggregation
-    scope: Optional[int] = Field(
-        default=None,
-        description="Scope (1=direct, 2=indirect, 3=other) for aggregations",
-    )
     # TODO: move to Decimal! (precision issues)
     kg_co2eq: float = Field(
         nullable=False,
@@ -404,10 +320,6 @@ class DataEntryEmissionBase(SQLModel):
         default_factory=dict,
         sa_column=Column(JSON),
         description="Calculation inputs and factors_used array for full traceability",
-    )
-    formula_version: Optional[str] = Field(
-        default=None,
-        description="Git SHA1 or version tag of the codebase used for calculation",
     )
     computed_at: datetime = Field(
         default_factory=datetime.utcnow,
@@ -444,11 +356,6 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     - meta.factors_used → [{role: 'primary', ...headcount_factor}]
     - Formula: kg_co2eq = fte x factor.values.kg_co2eq_per_fte
 
-    Scope-based queries:
-    ```sql
-    SELECT scope, SUM(kg_co2eq) FROM data_entry_emissions GROUP BY scope
-    ```
-
     Category/treemaps: Use emission_type.path or emission_type.parent
     to derive categories (e.g., "professional_travel__planes__eco"
     ->  "Professional Travel")
@@ -459,7 +366,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     Examples:
         Equipment emission (1 row):
             data_entry_id=42, emission_type_id=80100 (equipment__scientific),
-            kg_co2eq=123.4, primary_factor_id=5 (power), scope=2,
+            kg_co2eq=123.4, primary_factor_id=5 (power),
             meta={
                 "annual_kwh": 3569.3,
                 "factors_used": [
@@ -472,7 +379,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
 
         Headcount emissions (4 rows):
             data_entry_id=77, emission_type_id=10000 (food), kg_co2eq=336.0,
-            primary_factor_id=11 (food factor), scope=3,
+            primary_factor_id=11 (food factor),
             meta={
                 "fte": 0.8,
                 "factors_used": [{"id": 11, "role": "primary", "values": {...}}]
@@ -486,6 +393,5 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     def __repr__(self) -> str:
         return (
             f"<DataEntryEmission data_entry={self.data_entry_id} "
-            f"""type={self.emission_type_id}
-                scope={self.scope}: {self.kg_co2eq} kgCO2eq>"""
+            f"type={self.emission_type_id}: {self.kg_co2eq} kgCO2eq>"
         )

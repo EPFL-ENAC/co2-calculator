@@ -12,7 +12,6 @@ from app.models.data_entry_emission import (
     EmissionComputation,
     EmissionType,
     FactorQuery,
-    get_scope,
     get_subtree_leaves,
 )
 from app.models.factor import Factor
@@ -189,7 +188,6 @@ class DataEntryEmissionService:
                             data_entry_id=data_entry.id,
                             emission_type_id=emission_type.value,
                             primary_factor_id=factor.id,
-                            scope=get_scope(emission_type),
                             kg_co2eq=kg_co2eq,
                             meta={
                                 "factors_used": [
@@ -426,10 +424,10 @@ class DataEntryEmissionService:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, int | None, float | None]]:
-        """Get emission breakdown by module, emission type, and scope.
+    ) -> list[tuple[int, int, float | None]]:
+        """Get emission breakdown by module and emission type.
 
-        Returns list of (module_type_id, emission_type_id, scope, sum_kg_co2eq).
+        Returns list of (module_type_id, emission_type_id, sum_kg_co2eq).
         """
         return await self.repo.get_emission_breakdown(
             carbon_report_id=carbon_report_id,

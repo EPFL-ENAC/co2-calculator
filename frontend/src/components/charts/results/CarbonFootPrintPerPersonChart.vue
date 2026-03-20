@@ -29,7 +29,6 @@ use([
 import { formatTonnesForChart } from 'src/utils/number';
 
 const props = defineProps<{
-  viewUncertainties?: boolean;
   perPersonBreakdown?: Record<string, number> | null;
   validatedCategories?: string[] | null;
   headcountValidated?: boolean;
@@ -41,30 +40,16 @@ const SHOW_EPFL_REFERENCE_ROW = false;
 const SHOW_OBJECTIVE_ROW = false;
 const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
 
-const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Process Emissions': [' '],
-  'Buildings energy consumption': ['buildings'],
-  'Energy combustion': ['buildings'],
-  Equipment: ['equipment'],
-  'External cloud & AI': ['externalCloudAndAI'],
-  Purchases: ['purchases'],
-  'Research facilities': ['researchFacilities'],
-  'Professional travel': ['professionalTravel'],
-  Commuting: ['commuting'],
-  Food: ['food'],
-  Waste: ['waste'],
-  'Grey Energy': ['grey_energy'],
-};
-
 const validatedPPKeys = computed(() => {
   if (!props.validatedCategories) return new Set<string>();
-  const keys = new Set<string>();
-  for (const cat of props.validatedCategories) {
-    for (const k of CATEGORY_TO_PP_KEYS[cat] ?? []) {
-      keys.add(k);
-    }
+  const keys = new Set(props.validatedCategories);
+
+  // Per-person data merges both buildings categories into one key.
+  if (keys.has('buildings_room') || keys.has('buildings_energy_combustion')) {
+    keys.add('buildings');
   }
-  return keys;
+
+  return new Set(keys);
 });
 
 const myUnitRow = computed<Record<string, unknown>>(() => {
@@ -78,13 +63,13 @@ const myUnitRow = computed<Record<string, unknown>>(() => {
 });
 
 const EPFL_REFERENCE_VALUES: Record<string, number> = {
-  processEmissions: 2.5,
-  infrastructure: 6.6,
+  process_emissions: 2.5,
+  buildings: 6.6,
   equipment: 4.4,
-  researchFacilities: 4.0,
-  professionalTravel: 14.7,
+  research_facilities: 4.0,
+  professional_travel: 14.7,
   purchases: 31.3,
-  externalCloudAndAI: 3.0,
+  external_cloud_and_ai: 3.0,
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
@@ -99,14 +84,12 @@ const epflReferenceRow = computed<Record<string, unknown>>(() => {
       row[key] = val;
     }
   }
-  row.stdDev = 10;
   return row;
 });
 
 const objectiveRow = computed<Record<string, unknown>>(() => ({
   category: t('charts-objective-tick'),
   objective2030: 12,
-  stdDev: 5,
 }));
 
 const datasetSource = computed(() => {
@@ -118,53 +101,6 @@ const datasetSource = computed(() => {
     baseData.push(objectiveRow.value);
   }
   return baseData;
-});
-
-const allValueKeys = computed(() => {
-  const baseKeys = [
-    'processEmissions',
-    'buildings',
-    'equipment',
-    'researchFacilities',
-    'professionalTravel',
-    'purchases',
-    'externalCloudAndAI',
-  ];
-
-  if (toggleAdditionalData.value) {
-    return [
-      ...baseKeys,
-      'commuting',
-      'food',
-      'waste',
-      'grey_energy',
-      ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
-    ];
-  }
-  return baseKeys;
-});
-
-const markLineData = computed(() => {
-  if (!props.viewUncertainties) return [];
-
-  return datasetSource.value
-    .map((item, index) => {
-      const total =
-        allValueKeys.value.reduce(
-          (sum, key) => sum + (Number(item[key]) || 0),
-          0,
-        ) + (SHOW_OBJECTIVE_BAR ? Number(item.objective2030) || 0 : 0);
-
-      const stdDev = Number(item.stdDev) || 0;
-
-      if (total <= 0 || stdDev <= 0) return null;
-
-      return [
-        { xAxis: index, yAxis: total + stdDev },
-        { xAxis: index, yAxis: Math.max(0, total - stdDev) },
-      ];
-    })
-    .filter((item) => item !== null);
 });
 
 const additionalSeriesData = computed(() => {
@@ -235,7 +171,6 @@ const additionalSeriesData = computed(() => {
 });
 
 const chartOption = computed((): EChartsOption => {
-  const showUncertainties = props.viewUncertainties ?? false;
   const seriesArray = [
     {
       name: t('charts-process-emissions-category'),
@@ -243,17 +178,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'processEmissions',
-      },
-      markLine: {
-        silent: true,
-        symbol: ['none', 'none'],
-        lineStyle: {
-          color: '#333',
-          width: 1.5,
-          type: 'solid' as const,
-        },
-        data: markLineData.value,
+        y: 'process_emissions',
       },
       itemStyle: {
         color: colors.value.apricot.darker,
@@ -298,7 +223,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'researchFacilities',
+        y: 'research_facilities',
       },
       itemStyle: {
         color: colors.value.lavender.darker,
@@ -313,7 +238,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'professionalTravel',
+        y: 'professional_travel',
       },
       itemStyle: {
         color: colors.value.babyBlue.darker,
@@ -343,7 +268,7 @@ const chartOption = computed((): EChartsOption => {
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'externalCloudAndAI',
+        y: 'external_cloud_and_ai',
       },
       itemStyle: {
         color: colors.value.paleYellowGreen.darker,
@@ -404,12 +329,7 @@ const chartOption = computed((): EChartsOption => {
           }
         });
 
-        let totalDisplay = formatTonnesForChart(total);
-        if (showUncertainties && data) {
-          const stdDev = Number(data.stdDev) || 0;
-          if (stdDev > 0)
-            totalDisplay = `${formatTonnesForChart(total)} ± ${formatTonnesForChart(stdDev)}`;
-        }
+        const totalDisplay = formatTonnesForChart(total);
 
         return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
       },
@@ -470,19 +390,18 @@ const chartOption = computed((): EChartsOption => {
     dataset: {
       dimensions: [
         'category',
-        'processEmissions',
+        'process_emissions',
         'buildings',
         'equipment',
-        'researchFacilities',
-        'professionalTravel',
+        'research_facilities',
+        'professional_travel',
         'purchases',
-        'externalCloudAndAI',
+        'external_cloud_and_ai',
         'commuting',
         'food',
         'waste',
         'grey_energy',
         ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
-        'stdDev',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
