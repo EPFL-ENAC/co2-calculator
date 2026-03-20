@@ -560,6 +560,7 @@ async def list_backoffice_units(
     return PaginatedUnitReportingData(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
+        emission_breakdown=result.get("emission_breakdown"),
     )
 
 

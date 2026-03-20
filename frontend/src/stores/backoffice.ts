@@ -27,6 +27,7 @@ interface BackofficeUnitData {
   last_update: string;
   highest_result_category: string;
   total_carbon_footprint: number;
+  total_fte?: number | null;
   view_url: string;
   completion?: number;
   completion_progress?: string;
@@ -40,6 +41,14 @@ interface BackofficeUnitDataPagination {
     total_pages: number;
     total: number;
   };
+  emission_breakdown?: {
+    module_breakdown: Array<Record<string, unknown>>;
+    additional_breakdown: Array<Record<string, unknown>>;
+    per_person_breakdown: Record<string, number>;
+    validated_categories: string[];
+    total_tonnes_co2eq: number;
+    total_fte: number;
+  } | null;
 }
 
 interface UnitFilters {

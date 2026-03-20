@@ -1,7 +1,7 @@
 """Backoffice reporting schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,9 @@ class UnitReportingData(BaseModel):
 
     # Numeric value for the sum of emissions
     total_carbon_footprint: float = Field(..., description="Total tCO2-eq")
+
+    # Aggregated FTE from headcount module data entries
+    total_fte: Optional[float] = Field(None, description="Total FTE")
 
     # URL or ID for the eye icon action
     view_url: Optional[str] = None
@@ -58,3 +61,4 @@ class PaginatedUnitReportingData(BaseModel):
 
     data: List[UnitReportingData]
     pagination: PaginationMeta
+    emission_breakdown: Optional[Dict[str, Any]] = None

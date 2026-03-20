@@ -175,6 +175,31 @@ export default {
     fr: 'Nombre de modules validées',
   },
 
+  backoffice_reporting_chart_unit_footprint_title: {
+    en: 'Unit Carbon Footprint',
+    fr: 'Empreinte carbone par unite',
+  },
+  backoffice_reporting_chart_unit_footprint_description: {
+    en: 'One bar per unit using aggregated total carbon footprint (tCO2-eq).',
+    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO2-eq).',
+  },
+  backoffice_reporting_chart_per_fte_title: {
+    en: 'Carbon Footprint per FTE',
+    fr: 'Empreinte carbone par EPT',
+  },
+  backoffice_reporting_chart_per_fte_description: {
+    en: 'Computed as total carbon footprint divided by total FTE (tCO2-eq/FTE).',
+    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO2-eq/EPT).',
+  },
+  backoffice_reporting_chart_no_data: {
+    en: 'No data available for the current filters.',
+    fr: 'Aucune donnee disponible pour les filtres actuels.',
+  },
+  backoffice_reporting_chart_no_fte_data: {
+    en: 'No units with valid FTE data for the current filters.',
+    fr: 'Aucune unite avec des donnees EPT valides pour les filtres actuels.',
+  },
+
   backoffice_reporting_generate_formats: {
     en: 'PDF: Formatted report with charts and visualizations, ideal for presentations and sharing.\nCSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
     fr: 'PDF : Rapport mis en forme avec graphiques, idéal pour les présentations et le partage.\nCSV : Données brutes au format tableur pour analyse dans Excel ou d’autres outils.',

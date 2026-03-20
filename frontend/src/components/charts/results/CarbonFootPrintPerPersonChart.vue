@@ -42,7 +42,9 @@ const SHOW_OBJECTIVE_ROW = false;
 const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
 
 const CATEGORY_TO_PP_KEYS: Record<string, string[]> = {
-  'Process Emissions': [' '],
+  'Process Emissions': ['processEmissions'],
+  'Buildings room': ['buildings'],
+  'Buildings energy combustion': ['buildings'],
   'Buildings energy consumption': ['buildings'],
   'Energy combustion': ['buildings'],
   Equipment: ['equipment'],
@@ -79,7 +81,7 @@ const myUnitRow = computed<Record<string, unknown>>(() => {
 
 const EPFL_REFERENCE_VALUES: Record<string, number> = {
   processEmissions: 2.5,
-  infrastructure: 6.6,
+  buildings: 6.6,
   equipment: 4.4,
   researchFacilities: 4.0,
   professionalTravel: 14.7,

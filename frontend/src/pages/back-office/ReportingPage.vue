@@ -17,6 +17,8 @@ import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable
 import ReportExport from 'src/components/organisms/backoffice/reporting/ReportExport.vue';
 import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDialogue.vue';
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
+import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 
@@ -76,20 +78,25 @@ const selectedUnitId = ref<string | number>('');
 
 const units = computed(() => backofficeStore.units);
 const loading = computed(() => backofficeStore.unitsLoading);
+const reportingEmissionBreakdown = computed(
+  () => units.value?.emission_breakdown ?? null,
+);
 
 function isFullyValidatedProgress(progress?: string): boolean {
   if (!progress) return false;
   const [validatedRaw, totalRaw] = progress.split('/');
   const validated = Number(validatedRaw);
   const total = Number(totalRaw);
-  return Number.isFinite(validated) && Number.isFinite(total)
-    ? total > 0 && validated >= total
-    : false;
+  if (!Number.isFinite(validated) || !Number.isFinite(total)) return false;
+  return total > 0 && validated >= total;
 }
 
 const tableRows = computed(() => units.value?.data ?? []);
 const validatedCount = computed(
-  () => tableRows.value.filter((row) => isFullyValidatedProgress(row.completion_progress)).length,
+  () =>
+    tableRows.value.filter((row) =>
+      isFullyValidatedProgress(row.completion_progress),
+    ).length,
 );
 const tableTotal = computed(() => tableRows.value.length);
 
@@ -266,6 +273,26 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           scope-label="in current table"
         />
       </div>
+      <q-card flat class="grid-2-col q-mt-xl">
+        <ModuleCarbonFootprintChart
+          :view-uncertainties="false"
+          :breakdown-data="reportingEmissionBreakdown"
+        />
+        <CarbonFootPrintPerPersonChart
+          :view-uncertainties="false"
+          :per-person-breakdown="
+            reportingEmissionBreakdown?.per_person_breakdown ?? null
+          "
+          :validated-categories="
+            reportingEmissionBreakdown?.validated_categories ?? null
+          "
+          :headcount-validated="
+            reportingEmissionBreakdown?.validated_categories?.includes(
+              'Commuting',
+            ) ?? false
+          "
+        />
+      </q-card>
       <div class="q-mt-xl">
         <div class="container full-width">
           <div class="q-mb-xs">

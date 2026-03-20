@@ -13,6 +13,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.utils.emission_breakdown import build_chart_breakdown
 
 logger = get_logger(__name__)
 
@@ -350,8 +351,6 @@ class CarbonReportModuleRepository:
             count_statement = count_statement.where(
                 col(Unit.id).in_(hierarchy_unit_ids)
             )
-        # if unit_ids:
-        #     count_statement = count_statement.where(col(Unit.id).in_(unit_ids))
 
         total = (await self.session.exec(count_statement)).one()
 
@@ -393,6 +392,27 @@ class CarbonReportModuleRepository:
                 col(CarbonReport.overall_status) == int(completion_status)
             )
 
+        filtered_report_ids_stmt = (
+            select(col(CarbonReport.id))
+            .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
+            .where(col(CarbonReport.year).in_(years))
+        )
+        if hierarchy_unit_ids is not None:
+            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
+                col(Unit.id).in_(hierarchy_unit_ids)
+            )
+
+        if completion_status is not None:
+            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+
+        filtered_report_ids = [
+            report_id
+            for report_id in (await self.session.exec(filtered_report_ids_stmt)).all()
+            if report_id is not None
+        ]
+
         # if unit_ids:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
@@ -405,6 +425,76 @@ class CarbonReportModuleRepository:
 
         paginated_units = (await self.session.exec(units_stmt)).all()
         page_report_ids = [u.carbon_report_id for u in paginated_units]
+
+        # Build an aggregated emission breakdown from module stats by_emission_type
+        # so frontend can reuse result-page charts with reporting filters.
+        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = []
+        if filtered_report_ids:
+            module_stats_stmt = select(
+                CarbonReportModule.module_type_id,
+                CarbonReportModule.status,
+                CarbonReportModule.stats,
+            ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids))
+            raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
+            module_stats_rows = [
+                (
+                    int(module_type_id),
+                    int(status),
+                    stats if isinstance(stats, dict) else None,
+                )
+                for module_type_id, status, stats in raw_module_stats_rows
+            ]
+
+        global_fte_stmt = (
+            select(func.sum(func.coalesce(DataEntry.data["fte"].as_float(), 0.0)))
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
+            )
+            .where(
+                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids),
+                col(CarbonReportModule.module_type_id) == ModuleTypeEnum.headcount,
+            )
+        )
+        global_fte_result = (await self.session.exec(global_fte_stmt)).one()
+        global_fte = float(global_fte_result or 0.0)
+
+        chart_rows: list[tuple[int, int, int | None, float | None]] = []
+        validated_module_type_ids: set[int] = set()
+        headcount_validated = False
+
+        for module_type_id, status, stats in module_stats_rows:
+            if status == ModuleStatus.VALIDATED:
+                validated_module_type_ids.add(int(module_type_id))
+                if int(module_type_id) == int(ModuleTypeEnum.headcount):
+                    headcount_validated = True
+
+            if not isinstance(stats, dict):
+                continue
+
+            by_emission_type = stats.get("by_emission_type", {})
+            if not isinstance(by_emission_type, dict):
+                continue
+
+            for emission_type_id_raw, kg_value in by_emission_type.items():
+                try:
+                    emission_type_id = int(emission_type_id_raw)
+                except (TypeError, ValueError):
+                    continue
+
+                if not isinstance(kg_value, (int, float)):
+                    continue
+
+                chart_rows.append(
+                    (int(module_type_id), emission_type_id, None, float(kg_value))
+                )
+
+        emission_breakdown = build_chart_breakdown(
+            rows=chart_rows,
+            total_fte=global_fte,
+            headcount_validated=headcount_validated,
+            validated_module_type_ids=validated_module_type_ids,
+        )
 
         # --- STEP 3: The Heavy Math (Restricted to max 50 reports) ---
         # We no longer need to join CarbonReport here,
@@ -503,7 +593,7 @@ class CarbonReportModuleRepository:
             # or default empty values
             aggs = agg_map.get(u.carbon_report_id)
 
-            completion_progress = u.completion_progress or "0/0"
+            completion_progress = u.completion_progress or "0/7"
             completion_status_value = self._get_completion_status_from_progress(
                 completion_progress
             )
@@ -533,6 +623,7 @@ class CarbonReportModuleRepository:
             "page": page,
             "page_size": page_size,
             "total_pages": ceil(total / page_size),
+            "emission_breakdown": emission_breakdown,
         }
 
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:
