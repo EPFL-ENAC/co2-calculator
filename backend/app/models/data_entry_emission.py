@@ -221,7 +221,7 @@ class Scope(int, Enum):
 
 
 class HeatingEnergyType(str, Enum):
-    elec = "elec"
+    electric = "electric"
     thermal = "thermal"
 
 

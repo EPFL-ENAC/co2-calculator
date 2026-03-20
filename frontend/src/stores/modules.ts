@@ -426,6 +426,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function getSubmoduleTaxonomy(
     moduleType: Module,
     submoduleType: string,
+    year: string,
   ) {
     state.loading = true;
     state.error = null;
@@ -433,7 +434,7 @@ export const useModuleStore = defineStore('modules', () => {
     try {
       const taxonomy = (await api
         .get(
-          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}`,
+          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
         )
         .json()) as TaxonomyNode;
       state.taxonomySubmodule[submoduleType] = taxonomy;

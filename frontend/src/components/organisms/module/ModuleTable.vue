@@ -1429,7 +1429,11 @@ watch(
           unit: props.unitId,
           year: String(props.year),
         });
-        moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
+        moduleStore.getSubmoduleTaxonomy(
+          props.moduleType,
+          props.submoduleType,
+          String(props.year),
+        );
       }
     }
   },
@@ -1453,7 +1457,11 @@ onMounted(async () => {
       unit: props.unitId,
       year: String(props.year),
     });
-    moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
+    moduleStore.getSubmoduleTaxonomy(
+      props.moduleType,
+      props.submoduleType,
+      String(props.year),
+    );
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names in the table

@@ -311,11 +311,21 @@ class _BuildingsFactorValidationMixin:
             "thermal",
             None,
         ]
-        if not v:
+        # Normalize aliases
+        energy_type_aliases = {
+            "electric": "electric",
+            "elec": "electric",
+            "electricity": "electric",
+            "therm": "thermal",
+        }
+        normalized = energy_type_aliases.get(v.lower() if v else v, v)
+        if not normalized:
             raise ValueError("Energy type is required")
-        if v not in valid_energy_types:
-            raise ValueError("Invalid energy type")
-        return v
+        if normalized not in valid_energy_types:
+            raise ValueError(
+                f"Invalid energy type: {v}. Must be one of: electric, thermal"
+            )
+        return normalized
 
     # todo: if conversion_factor is None -> 1.0
     # but should we enforce it to be set explicitly in the factor?
