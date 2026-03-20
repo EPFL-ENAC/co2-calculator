@@ -149,6 +149,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
         if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
+            # to stream sync/jobs
             # Backoffice metier can have either global scope or affiliation scope
             # Grants full backoffice access for reporting, docs, and data updates
             if is_global_scope(scope) or is_role_scope(scope):
@@ -169,25 +170,45 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
             if is_role_scope(scope):
-                permissions["modules.headcount"] = {"view": True, "edit": True}
-                permissions["modules.equipment"] = {"view": True, "edit": True}
+                permissions["modules.headcount"] = {
+                    "view": True,
+                    "edit": True,
+                    "sync": True,
+                }
+                permissions["modules.equipment"] = {
+                    "view": True,
+                    "edit": True,
+                    "sync": True,
+                }
                 permissions["modules.professional_travel"] = {
                     "view": True,
                     "edit": True,
+                    "sync": True,
                 }
-                permissions["modules.buildings"] = {"view": True, "edit": True}
-                permissions["modules.purchase"] = {"view": True, "edit": True}
+                permissions["modules.buildings"] = {
+                    "view": True,
+                    "edit": True,
+                    "sync": True,
+                }
+                permissions["modules.purchase"] = {
+                    "view": True,
+                    "edit": True,
+                    "sync": True,
+                }
                 permissions["modules.research_facilities"] = {
                     "view": True,
                     "edit": True,
+                    "sync": True,
                 }
                 permissions["modules.external_cloud_and_ai"] = {
                     "view": True,
                     "edit": True,
+                    "sync": True,
                 }
                 permissions["modules.process_emissions"] = {
                     "view": True,
                     "edit": True,
+                    "sync": True,
                 }
                 # Principals can assign co2.user.std role to unit members
                 # This grants backoffice.users.edit for unit-scoped role assignment

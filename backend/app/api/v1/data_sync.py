@@ -2,13 +2,13 @@ import asyncio
 import json
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import get_db
-from app.core.security import require_permission
+from app.api.deps import get_current_user, get_db
+from app.core.security import is_permitted, require_permission
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -66,10 +66,8 @@ async def sync_module_data_entries(
     syncRequest: SyncRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Sync data entries for a specific module.
@@ -96,6 +94,18 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "sync"
+    ) or await is_permitted(current_user, "modules.*", "sync")
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.sync "
+                "or modules.* sync permission"
+            ),
+        )
+
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
         raise HTTPException(
             status_code=400,
@@ -266,79 +276,12 @@ async def get_jobs_by_year(
     ]
 
 
-# SSE endpoint to stream job updates - MUST be before /jobs/{job_id}
-@router.get("/jobs/stream")
-async def job_stream(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
-    ),
-):
-    """
-    Server-Sent Events endpoint to stream job updates in real-time.
-
-    **Required Permission**: `backoffice.data_management.view`
-
-    Polls the database for job status changes and sends updates to the client.
-
-    Each update includes:
-    - job_id: unique job identifier
-    - module_type_id: the module type for this job
-    - target_type: data_entries or factors
-    - year: year for the job
-    - status: current ingestion status
-    - status_message: detailed message
-    - updated_at: last update timestamp
-    """
-
-    async def event_generator():
-        # Track last seen job IDs and statuses
-        last_jobs = {}
-
-        while True:
-            # Fetch all active jobs (not completed or failed)
-            # jobs = await DataIngestionRepository(db).get_active_jobs()
-            jobs = await DataIngestionRepository(db).get_completed_jobs()
-
-            # Compare with last state
-            for job in jobs:
-                job_key = f"{job.id}"
-                current_status = {
-                    "job_id": job.id,
-                    "module_type_id": job.module_type_id,
-                    "target_type": job.target_type,
-                    "year": job.year,
-                    "status": job.status,
-                    "status_message": job.status_message,
-                    "meta": job.meta if job.meta else None,
-                    "updated_at": job.updated_at.isoformat()
-                    if job.updated_at
-                    else None,
-                }
-
-                # Send update if status changed
-                if job_key not in last_jobs or last_jobs[job_key] != current_status:
-                    yield f"data: {json.dumps(current_status)}\n\n"
-                    last_jobs[job_key] = current_status
-
-            # Remove jobs that no longer exist
-            existing_job_ids = {f"{job.id}" for job in jobs}
-            last_jobs = {k: v for k, v in last_jobs.items() if k in existing_job_ids}
-
-            # Wait before next poll (adjust interval as needed)
-            await asyncio.sleep(2)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Server-Sent Events endpoint to stream a single job update in real-time.
@@ -347,7 +290,20 @@ async def job_stream_by_id(
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed or failed.
+    // technically we should check permissions on the specific job's module_type_id
+    but for simplicity we check general view permissions here
     """
+    has_permission = await is_permitted(
+        current_user, "backoffice.data_management", "view"
+    ) or await is_permitted(current_user, "modules.*", "view")
+    if not has_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Permission denied: requires backoffice.data_management.view "
+                "or modules.* view permission"
+            ),
+        )
 
     async def event_generator():
         last_status = None
