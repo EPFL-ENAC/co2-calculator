@@ -73,65 +73,104 @@ def test_build_chart_breakdown_basic():
 
 
 def test_build_chart_breakdown_emission_type_for_buildings():
-    """Buildings energy → 'Buildings energy consumption' bar."""
+    """Buildings room energy → 'Buildings room' bar with leaf keys."""
     rows = [
         (
             ModuleTypeEnum.buildings.value,
-            EmissionType.buildings__rooms.value,
-            "Building",
-            9_000.0,
+            EmissionType.buildings__rooms__lighting.value,
+            2,
+            3_000.0,
+        ),
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms__cooling.value,
+            2,
+            2_000.0,
+        ),
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms__heating_elec.value,
+            2,
+            4_000.0,
         ),
     ]
     result = build_chart_breakdown(rows)
 
-    infra = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Buildings energy consumption"
+    room_bar = next(
+        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
     )
-    assert infra["rooms"] == pytest.approx(9.0)
+    assert room_bar["lighting"] == pytest.approx(3.0)
+    assert room_bar["cooling"] == pytest.approx(2.0)
+    assert room_bar["heating_elec"] == pytest.approx(4.0)
+    assert room_bar["ventilation"] == pytest.approx(0.0)
 
 
 def test_build_chart_breakdown_energy_combustion():
-    """Buildings combustion → 'Energy combustion' bar."""
+    """Buildings combustion and heating_thermal → 'Buildings energy combustion' bar."""
     rows = [
         (
             ModuleTypeEnum.buildings.value,
-            EmissionType.buildings__rooms.value,
-            1,
+            EmissionType.buildings__rooms__lighting.value,
+            2,
             4_000.0,
-        ),  # energy → Buildings energy consumption
+        ),  # lighting → Buildings room
         (
             ModuleTypeEnum.buildings.value,
             EmissionType.buildings__combustion.value,
             1,
             2_000.0,
-        ),  # combustion → Energy combustion
+        ),  # combustion → Buildings energy combustion
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms__heating_thermal.value,
+            1,
+            1_000.0,
+        ),  # heating_thermal (Scope 1) → Buildings energy combustion
     ]
     result = build_chart_breakdown(rows)
 
-    energy_bar = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Buildings energy consumption"
+    room_bar = next(
+        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
     )
-    assert energy_bar["rooms"] == pytest.approx(4.0)
+    assert room_bar["lighting"] == pytest.approx(4.0)
+    assert room_bar.get("heating_thermal", 0.0) == pytest.approx(0.0)
 
     combustion_bar = next(
-        d for d in result["module_breakdown"] if d["category"] == "Energy combustion"
+        d
+        for d in result["module_breakdown"]
+        if d["category"] == "Buildings energy combustion"
     )
     assert combustion_bar["combustion"] == pytest.approx(2.0)
+    assert combustion_bar["heating_thermal"] == pytest.approx(1.0)
 
-    assert result["total_tonnes_co2eq"] == pytest.approx(6.0)
+    assert result["total_tonnes_co2eq"] == pytest.approx(7.0)
 
 
 def test_get_category_building_leaf_inherits_parent_override():
-    """A building leaf emission inherits the parent module/category override."""
+    """Building room leaf (non-thermal) inherits 'Buildings room' from parent."""
     category = _get_category(
         ModuleTypeEnum.buildings.value,
         EmissionType.buildings__rooms__lighting.value,
     )
-    assert category == "Buildings energy consumption"
+    assert category == "Buildings room"
+
+
+def test_get_category_heating_thermal_routes_to_energy_combustion():
+    """heating_thermal explicit override beats parent 'Buildings room' route."""
+    category = _get_category(
+        ModuleTypeEnum.buildings.value,
+        EmissionType.buildings__rooms__heating_thermal.value,
+    )
+    assert category == "Buildings energy combustion"
+
+
+def test_get_category_combustion_routes_to_energy_combustion():
+    """Direct fuel combustion routes to 'Buildings energy combustion'."""
+    category = _get_category(
+        ModuleTypeEnum.buildings.value,
+        EmissionType.buildings__combustion.value,
+    )
+    assert category == "Buildings energy combustion"
 
 
 def test_build_chart_breakdown_emission_type_for_cloud():
@@ -213,11 +252,11 @@ def test_build_chart_breakdown_external_cloud_parents_map():
 def test_build_chart_breakdown_exposes_backend_canonical_aggregates():
     """Canonical aggregate keys are computed server-side for chart consumers."""
     rows = [
-        # Buildings leaf should expose aggregate "energy"
+        # Buildings room leaf should appear in "Buildings room" bar
         (
             ModuleTypeEnum.buildings.value,
-            EmissionType.buildings__rooms.value,
-            1,
+            EmissionType.buildings__rooms__lighting.value,
+            2,
             900.0,
         ),
         # Travel leaves should expose aggregate "plane" / "train"
@@ -250,11 +289,9 @@ def test_build_chart_breakdown_exposes_backend_canonical_aggregates():
     result = build_chart_breakdown(rows)
 
     buildings = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Buildings energy consumption"
+        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
     )
-    assert buildings["energy"] == pytest.approx(0.9)
+    assert buildings["lighting"] == pytest.approx(0.9)
 
     travel = next(
         d for d in result["module_breakdown"] if d["category"] == "Professional travel"
@@ -306,7 +343,12 @@ def test_build_chart_breakdown_category_ordering():
             1,
             1_000.0,
         ),
-        (ModuleTypeEnum.buildings.value, EmissionType.buildings__rooms.value, 1, 500.0),
+        (
+            ModuleTypeEnum.buildings.value,
+            EmissionType.buildings__rooms__lighting.value,
+            2,
+            500.0,
+        ),
         (
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
@@ -331,11 +373,9 @@ def test_build_chart_breakdown_category_ordering():
     assert travel["plane"] == pytest.approx(1.0)
 
     infra = next(
-        d
-        for d in result["module_breakdown"]
-        if d["category"] == "Buildings energy consumption"
+        d for d in result["module_breakdown"] if d["category"] == "Buildings room"
     )
-    assert infra["rooms"] == pytest.approx(0.5)
+    assert infra["lighting"] == pytest.approx(0.5)
 
     rcf = next(
         d for d in result["module_breakdown"] if d["category"] == "External cloud & AI"
@@ -461,10 +501,10 @@ def test_build_chart_breakdown_stddev_keys():
         (4, EmissionType.equipment__scientific.value, 1, 10_000.0),
         (
             3,
-            EmissionType.buildings__rooms.value,
-            1,
+            EmissionType.buildings__rooms__lighting.value,
+            2,
             9_000.0,
-        ),  # maps to "Buildings energy consumption"
+        ),  # maps to "Buildings room"
     ]
     result = build_chart_breakdown(rows)
 
@@ -522,7 +562,8 @@ def test_build_chart_breakdown_validated_categories():
     )
     assert "Equipment" in result["validated_categories"]
     assert "Professional travel" not in result["validated_categories"]
-    assert "Buildings energy consumption" not in result["validated_categories"]
+    assert "Buildings room" not in result["validated_categories"]
+    assert "Buildings energy combustion" not in result["validated_categories"]
 
 
 def test_build_chart_breakdown_validated_includes_additional_when_headcount():

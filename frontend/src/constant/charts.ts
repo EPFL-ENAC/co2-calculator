@@ -290,9 +290,8 @@ export const colors = computed(() => {
 // Maps chart category name → hex color (matches ModuleCarbonFootprintChart color ordering)
 export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   'Process Emissions': colors.value.apricot.darker,
-  'Buildings energy consumption': colors.value.lilac.darker,
-  'Energy combustion': colors.value.lilac.light,
-  'Buildings room': colors.value.skyBlue.darker,
+  'Buildings energy combustion': colors.value.lilac.light,
+  'Buildings room': colors.value.lilac.darker,
   Equipment: colors.value.mauve.darker,
   'External cloud & AI': colors.value.paleYellowGreen.darker,
   Purchases: colors.value.lavender.darker,
@@ -307,9 +306,8 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   'Process Emissions': colors.value.apricot,
-  'Buildings energy consumption': colors.value.lilac,
-  'Energy combustion': colors.value.lilac,
-  'Buildings room': colors.value.skyBlue,
+  'Buildings energy combustion': colors.value.lilac,
+  'Buildings room': colors.value.lilac,
   Equipment: colors.value.lilac,
   'External cloud & AI': colors.value.paleYellowGreen,
   Purchases: colors.value.lightGreen,
@@ -324,16 +322,15 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 // Maps category -> subcategory key -> exact shade, shared across charts.
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
-    'Buildings energy consumption': {
-      rooms: colors.value.lilac.darker,
+    'Buildings room': {
       lighting: colors.value.lilac.dark,
-      cooling: colors.value.lilac.dark,
-      ventilation: colors.value.lilac.dark,
-      heating_elec: colors.value.lilac.dark,
-      heating_thermal: colors.value.lilac.dark,
+      cooling: colors.value.lilac.default,
+      ventilation: colors.value.lilac.light,
+      heating_elec: colors.value.lilac.lighter,
     },
-    'Energy combustion': {
-      combustion: colors.value.lilac.light,
+    'Buildings energy combustion': {
+      combustion: colors.value.apricot.darker,
+      heating_thermal: colors.value.apricot.dark,
     },
     'Process Emissions': {
       co2: colors.value.apricot.darker,
@@ -342,9 +339,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       refrigerants: colors.value.apricot.light,
     },
     Equipment: {
-      scientific: colors.value.lilac.darker,
-      it: colors.value.lilac.dark,
-      other: colors.value.lilac.default,
+      scientific: colors.value.periwinkle.darker,
+      it: colors.value.periwinkle.dark,
+      other: colors.value.periwinkle.default,
     },
     'Professional travel': {
       plane: colors.value.babyBlue.darker,
@@ -385,11 +382,7 @@ export function getChartSubcategoryColor(
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({
     [MODULES.ProcessEmissions]: ['Process Emissions'],
-    [MODULES.Buildings]: [
-      'Buildings energy consumption',
-      'Energy combustion',
-      'Buildings room',
-    ],
+    [MODULES.Buildings]: ['Buildings room', 'Buildings energy combustion'],
     [MODULES.EquipmentElectricConsumption]: ['Equipment'],
     [MODULES.Purchase]: ['Purchases'],
     [MODULES.ResearchFacilities]: ['Research facilities'],
