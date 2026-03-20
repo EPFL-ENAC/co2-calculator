@@ -399,7 +399,6 @@ class PurchaseCommonFactorCreate(FactorCreate):
     purchase_institutional_code: str
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: str
-    purchase_category: str
     currency: str
     ef_kg_co2eq_per_currency: float
 

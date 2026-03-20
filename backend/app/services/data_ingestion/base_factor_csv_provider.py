@@ -452,10 +452,15 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         # Try to resolve from handler's category_field
         # Get handlers from setup_result
         handlers = setup_result.get("handlers", [])
-        if len(handlers) == 1:
-            handler = handlers[0]
+        # because for purchases or other types we might have multiple handlers,
+        # we need to check each one for its category field and see if
+        # it matches the CSV row
+
+        for handler in handlers:
+            if not hasattr(handler, "category_field"):
+                continue
             category_field = getattr(handler, "category_field", None)
-            if category_field:
+            if category_field and category_field in row:
                 category_value = row.get(category_field, "").strip()
                 if category_value:
                     try:
@@ -466,7 +471,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                             stats, row_idx, error_msg, max_row_errors
                         )
                         return None
-
+        # If we can't resolve, record error
         error_msg = "Missing data_entry_type_id in config or category field in CSV"
         self._record_row_error(stats, row_idx, error_msg, max_row_errors)
         return None
