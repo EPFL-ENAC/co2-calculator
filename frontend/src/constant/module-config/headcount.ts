@@ -147,7 +147,6 @@ export const headcount: ModuleConfig = {
       hasTableTopBar: false,
       hasFormTooltip: false,
       hasFormSubtitle: true,
-      hasStudentHelper: true,
       hasFormAddWithNote: false,
       hasTablePagination: false,
       hasTableAction: false,

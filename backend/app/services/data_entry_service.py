@@ -51,12 +51,26 @@ class DataEntryService:
         carbon_report_module_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
+        data_entry_type_id: Optional[int] = None,
     ) -> dict[str, float | None]:
         """Get module statistics such as total items and submodules."""
         return await self.repo.get_stats(
             carbon_report_module_id=carbon_report_module_id,
             aggregate_by=aggregate_by,
             aggregate_field=aggregate_field,
+            data_entry_type_id=data_entry_type_id,
+        )
+
+    async def check_institutional_id_unique(
+        self, carbon_report_module_id: int, uid: str, exclude_id: Optional[int] = None
+    ) -> bool:
+        """Check whether user_institutional_id is unique in member submodule."""
+        return await self.repo.check_json_field_unique(
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            field="user_institutional_id",
+            value=uid,
+            exclude_id=exclude_id,
         )
 
     async def get_stats_by_carbon_report_id(

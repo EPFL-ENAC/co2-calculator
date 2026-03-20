@@ -56,7 +56,6 @@
           :module-type="moduleType"
           :item="item"
           :has-subtitle="submodule.hasFormSubtitle"
-          :has-student-helper="submodule.hasStudentHelper"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
           :has-tooltip="submodule.hasFormTooltip"
@@ -151,7 +150,7 @@ const item = computed(() => {
   }
   return null;
 });
-const { te } = useI18n();
+const { te, t } = useI18n();
 
 const hasModuleForm = computed(() => {
   return (
@@ -192,13 +191,17 @@ async function submitForm(payload: Record<string, FieldValue>) {
         payload,
       );
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : 'Unexpected error';
       // Replace generic "user institutional id" in server error messages with
       // the institution-specific label (SCIPER for EPFL).
-      formRef.value?.setFieldError(
-        'user_institutional_id',
-        raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL),
-      );
+      const raw = err instanceof Error ? err.message : 'Unexpected error';
+      const message =
+        raw === 'DUPLICATE_INSTITUTIONAL_ID'
+          ? t('headcount-member-error-duplicate-uid', {
+              label: INSTITUTIONAL_ID_LABEL,
+            })
+          : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
+
+      formRef.value?.setFieldError('user_institutional_id', message);
     }
   }
 }
