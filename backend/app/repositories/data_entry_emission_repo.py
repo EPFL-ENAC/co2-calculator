@@ -201,20 +201,16 @@ class DataEntryEmissionRepository:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, int | None, float | None]]:
-        """Aggregate emissions by module_type_id, emission_type_id, and scope.
-
-        Same join pattern as get_stats_by_carbon_report_id but with finer
-        granularity (scope + emission_type_id) needed for chart breakdown.
+    ) -> list[tuple[int, int, float | None]]:
+        """Aggregate emissions by module_type_id and emission_type_id.
 
         Returns:
-            [(module_type_id, emission_type_id, scope, sum_kg_co2eq), ...]
+            [(module_type_id, emission_type_id, sum_kg_co2eq), ...]
         """
         query = (
             select(
                 col(CarbonReportModule.module_type_id),
                 col(DataEntryEmission.emission_type_id),
-                col(DataEntryEmission.scope),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
             )
             .join(
@@ -232,7 +228,6 @@ class DataEntryEmissionRepository:
             .group_by(
                 col(CarbonReportModule.module_type_id),
                 col(DataEntryEmission.emission_type_id),
-                col(DataEntryEmission.scope),
             )
         )
 
@@ -243,7 +238,6 @@ class DataEntryEmissionRepository:
             (
                 int(row.module_type_id),
                 int(row.emission_type_id),
-                row.scope,
                 float(row.total) if row.total is not None else 0.0,
             )
             for row in rows

@@ -13,11 +13,18 @@ This module is the backend contract for chart-related category semantics:
     ``commuting``, ``food``, ``waste``, ``grey_energy`` when applicable.
 """
 
-from enum import StrEnum
+# Define Scope enum locally (if needed for legacy)
+from enum import IntEnum, StrEnum
 from typing import Any, NotRequired, TypedDict
 
-from app.models.data_entry_emission import EmissionType, Scope
+from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
+
+
+class Scope(IntEnum):
+    scope1 = 1
+    scope2 = 2
+    scope3 = 3
 
 
 class EmissionCategory(StrEnum):
@@ -330,7 +337,7 @@ def _build_category_row(
 
 
 def build_chart_breakdown(
-    rows: list[tuple[int, int, int | None, float | None]],
+    rows: list[tuple[int, int, float | None]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
@@ -339,7 +346,7 @@ def build_chart_breakdown(
 
     Args:
         rows: Aggregated tuples of
-            ``(module_type_id, emission_type_id, scope, kg_co2eq)``.
+            ``(module_type_id, emission_type_id, kg_co2eq)``.
         total_fte: Total headcount FTE used for per-person normalization and
             headcount-derived additional categories.
         headcount_validated: Whether headcount module is validated for the
@@ -373,7 +380,7 @@ def build_chart_breakdown(
     module_totals_kg: dict[int, float] = {}
     real_kg = 0.0
 
-    for module_type_id, emission_type_id, _scope, kg_co2eq in rows:
+    for module_type_id, emission_type_id, kg_co2eq in rows:
         if kg_co2eq is None:
             continue
         emission_type = _resolve_emission_type(emission_type_id)

@@ -25,13 +25,11 @@ def test_build_chart_breakdown_returns_emission_entries_only():
         (
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
-            2,
             10_000.0,
         ),
         (
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
-            3,
             3_000.0,
         ),
     ]
@@ -54,9 +52,9 @@ def test_build_chart_breakdown_returns_emission_entries_only():
 
 def test_build_chart_breakdown_aggregates_same_emission_type():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 2, 4_000.0),
-        (4, EmissionType.equipment__scientific.value, 2, 2_000.0),
-        (4, EmissionType.equipment__it.value, 2, 1_000.0),
+        (4, EmissionType.equipment__scientific.value, 4_000.0),
+        (4, EmissionType.equipment__scientific.value, 2_000.0),
+        (4, EmissionType.equipment__it.value, 1_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -67,8 +65,8 @@ def test_build_chart_breakdown_aggregates_same_emission_type():
 
 def test_build_chart_breakdown_separates_building_categories():
     rows = [
-        (3, EmissionType.buildings__rooms__lighting.value, 2, 3_000.0),
-        (3, EmissionType.buildings__combustion.value, 1, 2_000.0),
+        (3, EmissionType.buildings__rooms__lighting.value, 3_000.0),
+        (3, EmissionType.buildings__combustion.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -98,9 +96,9 @@ def test_build_chart_breakdown_headcount_goes_to_additional_breakdown():
 
 def test_build_chart_breakdown_per_person_exposes_only_value_keys():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 2, 5_000.0),
-        (4, EmissionType.equipment__it.value, 2, 3_000.0),
-        (2, EmissionType.professional_travel__plane__eco.value, 3, 2_000.0),
+        (4, EmissionType.equipment__scientific.value, 5_000.0),
+        (4, EmissionType.equipment__it.value, 3_000.0),
+        (2, EmissionType.professional_travel__plane__eco.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows, total_fte=10.0)
@@ -122,7 +120,6 @@ def test_build_chart_breakdown_validated_categories_follow_module_validation():
         (
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
-            2,
             1_000.0,
         )
     ]
