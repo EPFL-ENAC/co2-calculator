@@ -35,14 +35,26 @@ interface YearlyValidatedEmission {
 }
 
 export interface EmissionBreakdownResponse {
-  module_breakdown: Array<Record<string, unknown>>;
-  module_breakdown_parents?: Record<string, Record<string, string>>;
-  module_treemap?: Array<Record<string, unknown>>;
-  additional_breakdown: Array<Record<string, unknown>>;
+  module_breakdown: EmissionBreakdownCategoryRow[];
+  additional_breakdown: EmissionBreakdownCategoryRow[];
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
   total_tonnes_co2eq: number;
   total_fte: number;
+}
+
+export interface EmissionBreakdownValue {
+  emission_type: string;
+  key: string;
+  value: number;
+  parent_key?: string;
+}
+
+export interface EmissionBreakdownCategoryRow {
+  category: string;
+  category_key: string;
+  emissions: EmissionBreakdownValue[];
+  [key: string]: unknown;
 }
 
 /**

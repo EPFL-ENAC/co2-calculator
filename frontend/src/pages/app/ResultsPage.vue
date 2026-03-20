@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import { colorblindMode } from 'src/constant/charts';
@@ -20,7 +19,7 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { MODULES, Module } from 'src/constant/modules';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
-const { t } = useI18n();
+import { useI18n } from 'vue-i18n';
 
 const FORMAT_INTEGER = {
   options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
@@ -100,11 +99,17 @@ const getModuleResult = (module: string): ModuleResult | undefined => {
     (m) => m.module_type_id === typeId,
   );
 };
+const { t } = useI18n();
 
 const viewUncertainties = ref(false);
 const compareYears = ref(false);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
+
+const downloadPDF = () => {
+  // Open browser print dialog where user can save as PDF
+  window.print();
+};
 
 const getUncertainty = (
   uncertainty?: string,
@@ -119,11 +124,6 @@ const getUncertainty = (
     default:
       return { color: 'primary', label: '' };
   }
-};
-
-const downloadPDF = () => {
-  // Open browser print dialog where user can save as PDF
-  window.print();
 };
 </script>
 
@@ -274,7 +274,7 @@ const downloadPDF = () => {
           "
           :headcount-validated="
             moduleStore.state.emissionBreakdown?.validated_categories?.includes(
-              'Commuting',
+              'commuting',
             ) ?? false
           "
         />

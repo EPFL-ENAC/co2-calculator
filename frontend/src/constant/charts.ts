@@ -289,65 +289,65 @@ export const colors = computed(() => {
 
 // Maps chart category name → hex color (matches ModuleCarbonFootprintChart color ordering)
 export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
-  'Process Emissions': colors.value.apricot.darker,
-  'Buildings energy combustion': colors.value.lilac.light,
-  'Buildings room': colors.value.lilac.darker,
-  Equipment: colors.value.mauve.darker,
-  'External cloud & AI': colors.value.paleYellowGreen.darker,
-  Purchases: colors.value.lavender.darker,
-  'Research facilities': colors.value.peach.darker,
-  'Professional travel': colors.value.babyBlue.darker,
-  Commuting: colors.value.aqua.darker,
-  Food: colors.value.mint.darker,
-  Waste: colors.value.periwinkle.darker,
-  'Grey Energy': colors.value.skyBlue.dark,
+  process_emissions: colors.value.apricot.darker,
+  buildings_energy_combustion: colors.value.lilac.light,
+  buildings_room: colors.value.lilac.darker,
+  equipment: colors.value.mauve.darker,
+  external_cloud_and_ai: colors.value.paleYellowGreen.darker,
+  purchases: colors.value.lavender.darker,
+  research_facilities: colors.value.peach.darker,
+  professional_travel: colors.value.babyBlue.darker,
+  commuting: colors.value.aqua.darker,
+  food: colors.value.mint.darker,
+  waste: colors.value.periwinkle.darker,
+  grey_energy: colors.value.skyBlue.dark,
 }));
 
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
-  'Process Emissions': colors.value.apricot,
-  'Buildings energy combustion': colors.value.lilac,
-  'Buildings room': colors.value.lilac,
-  Equipment: colors.value.lilac,
-  'External cloud & AI': colors.value.paleYellowGreen,
-  Purchases: colors.value.lightGreen,
-  'Research facilities': colors.value.peach,
-  'Professional travel': colors.value.babyBlue,
-  Commuting: colors.value.aqua,
-  Food: colors.value.mint,
-  Waste: colors.value.periwinkle,
-  'Grey Energy': colors.value.skyBlue,
+  process_emissions: colors.value.apricot,
+  buildings_energy_combustion: colors.value.lilac,
+  buildings_room: colors.value.lilac,
+  equipment: colors.value.lilac,
+  external_cloud_and_ai: colors.value.paleYellowGreen,
+  purchases: colors.value.lightGreen,
+  research_facilities: colors.value.peach,
+  professional_travel: colors.value.babyBlue,
+  commuting: colors.value.aqua,
+  food: colors.value.mint,
+  waste: colors.value.periwinkle,
+  grey_energy: colors.value.skyBlue,
 }));
 
 // Maps category -> subcategory key -> exact shade, shared across charts.
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
-    'Buildings room': {
+    buildings_room: {
       lighting: colors.value.lilac.dark,
       cooling: colors.value.lilac.default,
       ventilation: colors.value.lilac.light,
       heating_elec: colors.value.lilac.lighter,
     },
-    'Buildings energy combustion': {
+    buildings_energy_combustion: {
       combustion: colors.value.apricot.darker,
       heating_thermal: colors.value.apricot.dark,
     },
-    'Process Emissions': {
+    process_emissions: {
       co2: colors.value.apricot.darker,
       ch4: colors.value.apricot.dark,
       n2o: colors.value.apricot.default,
       refrigerants: colors.value.apricot.light,
     },
-    Equipment: {
+    equipment: {
       scientific: colors.value.periwinkle.darker,
       it: colors.value.periwinkle.dark,
       other: colors.value.periwinkle.default,
     },
-    'Professional travel': {
+    professional_travel: {
       plane: colors.value.babyBlue.darker,
       train: colors.value.babyBlue.dark,
     },
-    'External cloud & AI': {
+    external_cloud_and_ai: {
       clouds: colors.value.paleYellowGreen.darker,
       ai: colors.value.paleYellowGreen.dark,
       stockage: colors.value.paleYellowGreen.default,
@@ -355,7 +355,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       calcul: colors.value.paleYellowGreen.lighter,
       ai_provider: colors.value.paleYellowGreen.light,
     },
-    Purchases: {
+    purchases: {
       scientific_equipment: colors.value.lightGreen.darker,
       it_equipment: colors.value.lightGreen.dark,
       consumable_accessories: colors.value.lightGreen.default,
@@ -381,16 +381,13 @@ export function getChartSubcategoryColor(
 // Maps Module enum value → category names present in module_breakdown
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({
-    [MODULES.ProcessEmissions]: ['Process Emissions'],
-    [MODULES.Buildings]: ['Buildings room', 'Buildings energy combustion'],
-    [MODULES.EquipmentElectricConsumption]: ['Equipment'],
-    [MODULES.Purchase]: ['Purchases'],
-    [MODULES.ResearchFacilities]: ['Research facilities'],
-    [MODULES.ExternalCloudAndAI]: [
-      'External cloud & AI',
-      'External clouds & AI',
-    ],
-    [MODULES.ProfessionalTravel]: ['Professional travel'],
+    [MODULES.ProcessEmissions]: ['process_emissions'],
+    [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
+    [MODULES.EquipmentElectricConsumption]: ['equipment'],
+    [MODULES.Purchase]: ['purchases'],
+    [MODULES.ResearchFacilities]: ['research_facilities'],
+    [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
+    [MODULES.ProfessionalTravel]: ['professional_travel'],
   }),
 );
 

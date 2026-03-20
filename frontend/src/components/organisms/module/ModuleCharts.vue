@@ -38,12 +38,72 @@ import {
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import { useModuleStore } from 'src/stores/modules';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type {
+  EmissionBreakdownResponse,
+  EmissionBreakdownCategoryRow,
+} from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+
+type EmissionTreemapChild = {
+  name: string;
+  value: number;
+  percentage?: number;
+  color?: string;
+  children?: EmissionTreemapChild[];
+};
+
+type EmissionTreemapCategory = {
+  name: string;
+  value: number;
+  color: string;
+  children: EmissionTreemapChild[];
+};
+
+function getCategoryTotal(row: EmissionBreakdownCategoryRow): number {
+  return row.emissions.reduce((total, emission) => {
+    return total + (Number(emission.value) || 0);
+  }, 0);
+}
+
+function buildTreemapChildren(
+  row: EmissionBreakdownCategoryRow,
+): EmissionTreemapChild[] {
+  const direct: EmissionTreemapChild[] = [];
+  const grouped = new Map<string, EmissionTreemapChild>();
+
+  for (const emission of row.emissions) {
+    const value = Number(emission.value) || 0;
+    if (value <= 0) continue;
+
+    const child: EmissionTreemapChild = {
+      name: emission.key,
+      value,
+    };
+
+    if (!emission.parent_key) {
+      direct.push(child);
+      continue;
+    }
+
+    const parent = grouped.get(emission.parent_key);
+    if (!parent) {
+      grouped.set(emission.parent_key, {
+        name: emission.parent_key,
+        value,
+        children: [child],
+      });
+      continue;
+    }
+
+    parent.value += value;
+    parent.children?.push(child);
+  }
+
+  return [...direct, ...Array.from(grouped.values())];
+}
 
 const props = defineProps<{
   type: Module;
-  viewUncertainties?: boolean;
   showEvolutionChart?: boolean;
 }>();
 
@@ -78,50 +138,21 @@ const hasStats = computed(() => {
   return !!stats && Object.keys(stats).length > 0;
 });
 
-type EmissionTreemapChild = {
-  name: string;
-  value: number;
-  percentage?: number;
-  color?: string;
-  children?: EmissionTreemapChild[];
-};
-
-type EmissionTreemapCategory = {
-  name: string;
-  value: number;
-  color: string;
-  children: EmissionTreemapChild[];
-};
-
-type BackendTreemapCategory = {
-  name: string;
-  value: number;
-  children: EmissionTreemapChild[];
-};
-
 function buildTreemapFromRows(
   breakdown: EmissionBreakdownResponse,
   categories: string[],
 ): EmissionTreemapCategory[] {
   const colorSchemes = CHART_CATEGORY_COLOR_SCHEMES.value;
-  const backendTreemap = (breakdown.module_treemap ??
-    []) as BackendTreemapCategory[];
-
-  return backendTreemap
+  return breakdown.module_breakdown
     .filter(
       (item) =>
-        item &&
-        typeof item.name === 'string' &&
-        categories.includes(item.name) &&
-        Number(item.value) > 0 &&
-        Array.isArray(item.children) &&
-        item.children.length > 0,
+        categories.includes(item.category) && getCategoryTotal(item) > 0,
     )
     .map((item) => ({
-      name: item.name,
-      value: Number(item.value),
-      color: colorSchemes[item.name] ?? '#999999',
-      children: item.children,
+      name: item.category,
+      value: getCategoryTotal(item),
+      color: colorSchemes[item.category] ?? '#999999',
+      children: buildTreemapChildren(item),
     }));
 }
 

@@ -17,7 +17,7 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_totals_service import UnitTotalsService
-from app.utils.emission_breakdown import build_chart_breakdown
+from app.utils.emission_category import build_chart_breakdown
 from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
