@@ -19,6 +19,7 @@ import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDial
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 
@@ -293,6 +294,10 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           "
         />
       </q-card>
+      <EmissionBreakdownChart
+        :breakdown-data="reportingEmissionBreakdown"
+        class="q-mt-xl"
+      />
       <div class="q-mt-xl">
         <div class="container full-width">
           <div class="q-mb-xs">

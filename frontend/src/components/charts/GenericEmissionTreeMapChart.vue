@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { TreemapChart } from 'echarts/charts';
@@ -15,27 +14,11 @@ import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { formatTonnesForChart } from 'src/utils/number';
-import {
-  CHART_CATEGORY_COLOR_SCALES,
-  getChartSubcategoryColor,
-} from 'src/constant/charts';
+import type {
+  EmissionTreemapCategory,
+  EmissionTreemapChild,
+} from 'src/composables/useEmissionTreemap';
 
-interface EmissionTreemapChild {
-  name: string;
-  value: number;
-  percentage?: number;
-  color?: string;
-  children?: EmissionTreemapChild[];
-}
-
-interface EmissionTreemapCategory {
-  name: string;
-  value: number;
-  color: string;
-  children: EmissionTreemapChild[];
-}
-
-const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
 
@@ -53,103 +36,6 @@ const props = defineProps<{
   showEvolutionDialog?: boolean;
 }>();
 
-const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
-  // Core subcategories
-  scientific: 'charts-scientific-subcategory',
-  it: 'charts-equipment-it',
-  other: 'charts-other-purchases-subcategory',
-  plane: 'charts-plane-subcategory',
-  train: 'charts-train-subcategory',
-  clouds: 'charts-clouds-subcategory',
-  ai: 'charts-ai-subcategory',
-  // Process emissions gases
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
-  // Purchases
-  scientific_equipment: 'charts-scientific-subcategory',
-  it_equipment: 'charts-equipment-it',
-  consumable_accessories: 'charts-consumables-subcategory',
-  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
-  services: 'charts-services-subcategory',
-  vehicles: 'charts-other-purchases-subcategory',
-  additional: 'charts-other-purchases-subcategory',
-  // External cloud & AI leaves
-  stockage: 'charts-stockage-subcategory',
-  virtualisation: 'charts-virtualisation-subcategory',
-  calcul: 'charts-calcul-subcategory',
-  ai_provider: 'charts-ai-provider-subcategory',
-  // Research facilities
-  facilities: 'charts-research-facilities-subcategory',
-  animal: 'charts-research-animal-subcategory',
-};
-
-function resolveLabel(raw: string): string {
-  const key = TREEMAP_LABEL_KEY_MAP[raw];
-  return key ? t(key) : raw.replace(/_/g, ' ');
-}
-
-type ColorScale = {
-  darker: string;
-  dark: string;
-  default: string;
-  light: string;
-  lighter: string;
-};
-
-function getCategoryScale(
-  categoryName: string,
-  fallbackColor: string,
-): ColorScale {
-  const byCategory =
-    CHART_CATEGORY_COLOR_SCALES.value[
-      categoryName as keyof typeof CHART_CATEGORY_COLOR_SCALES.value
-    ];
-  if (byCategory) return byCategory;
-  return {
-    darker: fallbackColor,
-    dark: fallbackColor,
-    default: fallbackColor,
-    light: fallbackColor,
-    lighter: fallbackColor,
-  };
-}
-
-function levelColor(
-  scale: ColorScale,
-  level: number,
-  siblingIndex: number,
-): string {
-  if (level === 0) return scale.darker;
-  if (level === 1) {
-    const shades = [
-      scale.darker,
-      scale.dark,
-      scale.default,
-      scale.light,
-      scale.lighter,
-    ];
-    return shades[siblingIndex % shades.length];
-  }
-  const leafShades = [
-    scale.darker,
-    scale.dark,
-    scale.default,
-    scale.light,
-    scale.lighter,
-  ];
-  return leafShades[siblingIndex % leafShades.length];
-}
-
-function getFixedSubcategoryColor(
-  categoryName: string,
-  subcategoryKey: string,
-): string | null {
-  const resolved = getChartSubcategoryColor(categoryName, subcategoryKey, '');
-  return resolved || null;
-}
-
 type TreemapNode = {
   name: string;
   value: number;
@@ -159,70 +45,43 @@ type TreemapNode = {
 
 function toTreemapNode(
   node: EmissionTreemapCategory | EmissionTreemapChild,
-  categoryName: string,
-  scale: ColorScale,
-  level: number,
-  siblingIndex: number,
 ): TreemapNode {
-  const fixedNodeColor = getFixedSubcategoryColor(categoryName, node.name);
-  const color =
-    fixedNodeColor ?? node.color ?? levelColor(scale, level, siblingIndex);
-
-  const label = resolveLabel(node.name);
-
+  const label = node.name.replace(/_/g, ' ');
   const treeNode: TreemapNode = {
     name: label,
     value: node.value,
-    itemStyle: { color },
+    itemStyle: { color: node.color },
   };
-
-  if (Array.isArray(node.children) && node.children.length > 0) {
-    treeNode.children = node.children.map((child, index) =>
-      toTreemapNode(child, categoryName, scale, level + 1, index),
-    );
+  if (
+    'children' in node &&
+    Array.isArray(node.children) &&
+    node.children.length > 0
+  ) {
+    treeNode.children = node.children.map((child) => toTreemapNode(child));
   }
-
   return treeNode;
 }
 
 const treemapData = computed(() => {
   return props.data
     .filter((item) => item.value > 0 && item.children.length > 0)
-    .map((item, index) =>
-      toTreemapNode(
-        item,
-        item.name,
-        getCategoryScale(item.name, item.color),
-        0,
-        index,
-      ),
-    );
+    .map((item) => toTreemapNode(item));
 });
 
 const legendData = computed(() => {
-  const yyLegend: Array<{ name: string; color: string }> = [];
-
-  props.data
-    .filter((category) => category.value > 0)
-    .forEach((category) => {
-      const scale = getCategoryScale(category.name, category.color);
-      category.children
-        .filter((yy) => yy.value > 0)
-        .forEach((yy, yyIndex) => {
-          const fixed = getFixedSubcategoryColor(category.name, yy.name);
-          yyLegend.push({
-            name: resolveLabel(yy.name),
-            color: fixed ?? levelColor(scale, 1, yyIndex),
-          });
-        });
-    });
-
   const seen = new Set<string>();
-  return yyLegend.filter((item) => {
-    if (seen.has(item.name)) return false;
-    seen.add(item.name);
-    return true;
-  });
+  return props.data
+    .filter((cat) => cat.value > 0)
+    .flatMap((cat) =>
+      cat.children
+        .filter((c) => c.value > 0)
+        .map((c) => ({ name: c.name.replace(/_/g, ' '), color: c.color })),
+    )
+    .filter((item) => {
+      if (seen.has(item.name)) return false;
+      seen.add(item.name);
+      return true;
+    });
 });
 
 const chartOption = computed(

@@ -31,15 +31,15 @@
 import { storeToRefs } from 'pinia';
 import { computed, watch } from 'vue';
 import { Module, MODULES } from 'src/constant/modules';
-import {
-  CHART_CATEGORY_COLOR_SCHEMES,
-  MODULE_TO_CATEGORIES,
-} from 'src/constant/charts';
+import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import { useModuleStore } from 'src/stores/modules';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import {
+  buildModuleTreemapData,
+  CATEGORY_CHART_KEYS,
+} from 'src/composables/useEmissionTreemap';
 
 const props = defineProps<{
   type: Module;
@@ -78,66 +78,19 @@ const hasStats = computed(() => {
   return !!stats && Object.keys(stats).length > 0;
 });
 
-type EmissionTreemapChild = {
-  name: string;
-  value: number;
-  percentage?: number;
-  color?: string;
-  children?: EmissionTreemapChild[];
-};
-
-type EmissionTreemapCategory = {
-  name: string;
-  value: number;
-  color: string;
-  children: EmissionTreemapChild[];
-};
-
-type BackendTreemapCategory = {
-  name: string;
-  value: number;
-  children: EmissionTreemapChild[];
-};
-
-function buildTreemapFromRows(
-  breakdown: EmissionBreakdownResponse,
-  categories: string[],
-): EmissionTreemapCategory[] {
-  const colorSchemes = CHART_CATEGORY_COLOR_SCHEMES.value;
-  const backendTreemap = (breakdown.module_treemap ??
-    []) as BackendTreemapCategory[];
-
-  return backendTreemap
-    .filter(
-      (item) =>
-        item &&
-        typeof item.name === 'string' &&
-        categories.includes(item.name) &&
-        Number(item.value) > 0 &&
-        Array.isArray(item.children) &&
-        item.children.length > 0,
-    )
-    .map((item) => ({
-      name: item.name,
-      value: Number(item.value),
-      color: colorSchemes[item.name] ?? '#999999',
-      children: item.children,
-    }));
-}
-
-function buildModuleTreemapData(
-  breakdown: EmissionBreakdownResponse | null,
-  moduleKey: string,
-): EmissionTreemapCategory[] {
+const moduleTreemapData = computed(() => {
+  const breakdown = moduleStore.state.emissionBreakdown;
   if (!breakdown) return [];
-  const categories = MODULE_TO_CATEGORIES.value[moduleKey] ?? [];
-  if (categories.length === 0) return [];
-  return buildTreemapFromRows(breakdown, categories);
-}
-
-const moduleTreemapData = computed(() =>
-  buildModuleTreemapData(moduleStore.state.emissionBreakdown, props.type),
-);
+  const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
+  const filteredKeys = Object.fromEntries(
+    Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
+  );
+  const rows = breakdown.module_breakdown as Array<{
+    category: string;
+    [key: string]: number | string;
+  }>;
+  return buildModuleTreemapData(rows, filteredKeys);
+});
 </script>
 
 <style scoped lang="scss">
