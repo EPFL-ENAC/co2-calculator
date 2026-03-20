@@ -33,13 +33,17 @@ for branch in $BRANCHES; do
         if [[ $branch == *"frontend/"* ]]; then
             # Frontend dependency
             pkg_info=$(echo $branch | sed 's/dependabot\/npm_and_yarn\/frontend\///')
-            pkg_name=$(echo $pkg_info | sed 's/\/dev\///' | sed 's/\/@.*\///' | sed 's/-[0-9].*//' | sed 's/@//')
-            version=$(echo $pkg_info | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?' | tail -1)
+            # Remove dev/ prefix if present
+            pkg_info_clean=$(echo $pkg_info | sed 's/^dev\///')
+            # Extract version (last occurrence of semver pattern)
+            version=$(echo $pkg_info_clean | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?' | tail -1)
+            # Extract package name (everything before the last -version)
+            pkg_name=$(echo $pkg_info_clean | sed "s/-${version}\$//")
             
             # Handle scoped packages
-            if [[ $pkg_info == *"@storybook/addon-docs"* ]]; then
+            if [[ $pkg_info_clean == *"@storybook/addon-docs"* ]]; then
                 FRONTEND_DEPS+=("@storybook/addon-docs:$version")
-            elif [[ $pkg_info == *"@types/node"* ]]; then
+            elif [[ $pkg_info_clean == *"@types/node"* ]]; then
                 FRONTEND_DEPS+=("@types/node:$version")
             else
                 FRONTEND_DEPS+=("$pkg_name:$version")
@@ -83,7 +87,9 @@ if [ ${#ROOT_DEPS[@]} -gt 0 ]; then
         pkg=$(echo $dep | cut -d: -f1)
         version=$(echo $dep | cut -d: -f2)
         echo "  - $pkg: ^$version"
-        sed -i '' "s/\"$pkg\": \"\^[^\"]*\"/\"$pkg\": \"^$version\"/" package.json
+        # Escape special characters in package name for sed
+        pkg_escaped=$(echo $pkg | sed 's/[\/&]/\\&/g')
+        sed -i '' "s#\"$pkg_escaped\": \"\^[^\"]*\"#\"$pkg_escaped\": \"^$version\"#" package.json
     done
     echo ""
 fi
@@ -95,7 +101,9 @@ if [ ${#FRONTEND_DEPS[@]} -gt 0 ]; then
         pkg=$(echo $dep | cut -d: -f1)
         version=$(echo $dep | cut -d: -f2)
         echo "  - $pkg: =$version"
-        sed -i '' "s/\"$pkg\": \"[^\"]*\"/\"$pkg\": \"=$version\"/" frontend/package.json
+        # Escape special characters in package name for sed
+        pkg_escaped=$(echo $pkg | sed 's/[\/&]/\\&/g')
+        sed -i '' "s#\"$pkg_escaped\": \"[^\"]*\"#\"$pkg_escaped\": \"=$version\"#" frontend/package.json
     done
     echo ""
 fi
@@ -107,7 +115,9 @@ if [ ${#BACKEND_PROD_DEPS[@]} -gt 0 ]; then
         pkg=$(echo $dep | cut -d: -f1)
         version=$(echo $dep | cut -d: -f2)
         echo "  - $pkg:==$version"
-        sed -i '' "s/\"$pkg==[^\"]*\"/\"$pkg==$version\"/" backend/pyproject.toml
+        # Escape special characters in package name for sed
+        pkg_escaped=$(echo $pkg | sed 's/[\/&]/\\&/g')
+        sed -i '' "s#\"$pkg_escaped==[^\"]*\"#\"$pkg_escaped==$version\"#" backend/pyproject.toml
     done
     echo ""
 fi
@@ -119,7 +129,9 @@ if [ ${#BACKEND_DEV_DEPS[@]} -gt 0 ]; then
         pkg=$(echo $dep | cut -d: -f1)
         version=$(echo $dep | cut -d: -f2)
         echo "  - $pkg:>=$version"
-        sed -i '' "s/\"$pkg>=\[0-9.]*\"/\"$pkg>=$version\"/" backend/pyproject.toml
+        # Escape special characters in package name for sed
+        pkg_escaped=$(echo $pkg | sed 's/[\/&]/\\&/g')
+        sed -i '' "s#\"$pkg_escaped>=\[0-9.]*\"#\"$pkg_escaped>=$version\"#" backend/pyproject.toml
     done
     echo ""
 fi
