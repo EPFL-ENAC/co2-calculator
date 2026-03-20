@@ -38,7 +38,7 @@ class EmissionType(int, Enum):
     waste__incineration = 20001
     waste__composting = 20002
     waste__biogas = 20003
-    waste__biogas__organic_waste_leftovers = 2000301
+    waste__biogas__organic_waste_food_leftovers = 2000301
     waste__biogas__cooking_vegetable_oil = 2000302
     waste__recycling = 20004
     waste__recycling__paper = 2000401

@@ -172,23 +172,34 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 "factors_deleted": 0,
             }
             factor_service = FactorService(self.data_session)
-
+            listed_entry_types = setup_result.get("valid_entry_types", [])
             # Delete existing factors for this data_entry_type and year
             # This ensures idempotent uploads - no duplicates
-            if self.data_entry_type_id and self.year:
-                existing_count = await factor_service.count_by_data_entry_type_and_year(
-                    data_entry_type_id=int(self.data_entry_type_id),
-                    year=self.year,
+            data_entry_type_to_iterates = []
+            if self.data_entry_type_id is not None:
+                data_entry_type_to_iterates.append(
+                    DataEntryTypeEnum(int(self.data_entry_type_id))
                 )
-                logger.info(
-                    f"Deleting {existing_count} existing factors for "
-                    f"data_entry_type_id={self.data_entry_type_id}, year={self.year}"
-                )
-                await factor_service.bulk_delete_by_data_entry_type(
-                    data_entry_type_id=DataEntryTypeEnum(self.data_entry_type_id),
-                    year=self.year,
-                )
-                stats["factors_deleted"] = existing_count
+            else:
+                data_entry_type_to_iterates.extend(listed_entry_types)
+            stats["factors_deleted"] = 0
+            if len(data_entry_type_to_iterates) > 0 and self.year:
+                for data_entry_type in data_entry_type_to_iterates:
+                    existing_count = (
+                        await factor_service.count_by_data_entry_type_and_year(
+                            data_entry_type_id=int(data_entry_type.value),
+                            year=self.year,
+                        )
+                    )
+                    logger.info(
+                        f"Deleting {existing_count} existing factors for "
+                        f"data_entry_type_id={data_entry_type.value}, year={self.year}"
+                    )
+                    await factor_service.bulk_delete_by_data_entry_type(
+                        data_entry_type_id=data_entry_type,
+                        year=self.year,
+                    )
+                    stats["factors_deleted"] += existing_count
 
             batch: List[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
@@ -497,6 +508,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 metadata=dict(stats),
             )
 
+        logger.info(
+            f"CSV processing completed: {stats['rows_processed']} rows processed, "
+            f"{stats['rows_skipped']} rows skipped, {stats['row_errors_count']} errors"
+            f"{stats['factors_deleted']} existing factors deleted"
+        )
         return dict(stats)
 
     @abstractmethod
