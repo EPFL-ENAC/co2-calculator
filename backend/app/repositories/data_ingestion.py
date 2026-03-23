@@ -136,6 +136,10 @@ class DataIngestionRepository:
         Mark a job as current, unsetting any previous current job.
 
         This must be called within a transaction to ensure atomicity.
+        # TODO: change that. jobs that have started processing can be marked as current,
+        # even if they are not finished yet. Goal is to allow the frontend to show the
+        # latest job as current, even if it's still processing, instead of showing the
+        # previous finished job as current until the new one is finished.
         Only FINISHED jobs can be marked as current.
 
         Args:
