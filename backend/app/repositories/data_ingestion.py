@@ -5,12 +5,7 @@ from typing import List, Optional
 from sqlmodel import col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.data_ingestion import (
-    DataIngestionJob,
-    IngestionResult,
-    IngestionState,
-    IngestionStatus,
-)
+from app.models.data_ingestion import DataIngestionJob, IngestionResult, IngestionState
 
 
 class DataIngestionRepository:
@@ -47,7 +42,6 @@ class DataIngestionRepository:
         self,
         job_id: int,
         status_message: str,
-        status_code: IngestionStatus,
         metadata: dict,
         completed_at: Optional[datetime] = None,
         state: Optional[IngestionState] = None,
@@ -74,16 +68,12 @@ class DataIngestionRepository:
             DataIngestionJob.model_validate(result_job)
 
             result_job.status_message = status_message
-            result_job.status = status_code
+            result_job.state = state
             # Use new state/result if provided, otherwise derive from legacy status_code
             if state is not None:
                 result_job.state = state
-            else:
-                result_job.state = self._legacy_status_to_state(status_code)
             if result is not None:
                 result_job.result = result
-            else:
-                result_job.result = self._legacy_status_to_result(status_code)
 
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
@@ -93,7 +83,7 @@ class DataIngestionRepository:
                     if completed_at
                     else (
                         datetime.now(timezone.utc).isoformat()
-                        if status_code in (IngestionStatus.COMPLETED, IngestionStatus.FAILED)
+                        if state in (IngestionState.FINISHED,)
                         else None
                     )
                 ),
@@ -102,25 +92,6 @@ class DataIngestionRepository:
             await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
-
-    def _legacy_status_to_state(self, status_code: IngestionStatus) -> IngestionState:
-        """Convert legacy IngestionStatus to new IngestionState."""
-        mapping = {
-            IngestionStatus.NOT_STARTED: IngestionState.NOT_STARTED,
-            IngestionStatus.PENDING: IngestionState.QUEUED,
-            IngestionStatus.IN_PROGRESS: IngestionState.RUNNING,
-            IngestionStatus.COMPLETED: IngestionState.FINISHED,
-            IngestionStatus.FAILED: IngestionState.FINISHED,
-        }
-        return mapping.get(status_code, IngestionState.NOT_STARTED)
-
-    def _legacy_status_to_result(self, status_code: IngestionStatus) -> Optional[IngestionResult]:
-        """Convert legacy IngestionStatus to new IngestionResult (None for non-finished states)."""
-        if status_code == IngestionStatus.COMPLETED:
-            return IngestionResult.SUCCESS
-        if status_code == IngestionStatus.FAILED:
-            return IngestionResult.ERROR
-        return None
 
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)

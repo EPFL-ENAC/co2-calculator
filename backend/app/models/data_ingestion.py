@@ -78,7 +78,7 @@ class IngestionState(int, Enum):
     NOT_STARTED = 0
     QUEUED = 1
     RUNNING = 2
-    FINISHED = 3
+    FINISHED = 3  # terminal state no more updates expected (error + success)
 
 
 class IngestionResult(int, Enum):
@@ -87,15 +87,6 @@ class IngestionResult(int, Enum):
     SUCCESS = 0
     WARNING = 1
     ERROR = 2
-
-
-# Legacy enum - kept for backward compatibility during migration
-class IngestionStatus(int, Enum):
-    NOT_STARTED = 0
-    PENDING = 1
-    IN_PROGRESS = 2
-    COMPLETED = 3
-    FAILED = 4
 
 
 # ==========================================
@@ -182,16 +173,6 @@ class DataIngestionJobBase(SQLModel):
         description=_provider_comment,
     )
 
-    _status_comment = "Current status of the ingestion job IngestionStatus (legacy, deprecated)"
-    status: IngestionStatus = Field(
-        default=IngestionStatus.NOT_STARTED,
-        sa_column=Column(
-            SAEnum(IngestionStatus, name="ingestion_status_enum", native_enum=True),
-            nullable=False,
-        ),
-        description=_status_comment,
-    )
-
     _state_comment = "Lifecycle state of the ingestion job (IngestionState)"
     state: Optional[IngestionState] = Field(
         default=None,
@@ -202,7 +183,10 @@ class DataIngestionJobBase(SQLModel):
         description=_state_comment,
     )
 
-    _result_comment = "NULLABLE: Outcome result of the ingestion job (only valid when state is FINISHED)"
+    _result_comment = (
+        "NULLABLE: Outcome result of the ingestion job"
+        " (only valid when state is FINISHED)"
+    )
     result: Optional[IngestionResult] = Field(
         default=None,
         sa_column=Column(
@@ -238,4 +222,4 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
 
     def __repr__(self) -> str:
         return f"""<DataIngestionJob id={self.id}
-            provider={self.provider} status={self.status}>"""
+            provider={self.provider} status={self.state} result={self.result}>"""

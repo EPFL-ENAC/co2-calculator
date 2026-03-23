@@ -293,18 +293,55 @@ const onFilesUploaded = async (filePaths: string[]) => {
     dataManagementStore.subscribeToJobUpdates(
       jobId,
       (payload?: JobUpdatePayload) => {
+        // Determine notification type based on result (SUCCESS, WARNING, ERROR)
+        const result = payload?.result;
+        const rowsProcessed = payload?.meta?.rows_processed as
+          | number
+          | undefined;
+        const rowsSkipped = payload?.meta?.rows_skipped as number | undefined;
+
+        let color: string;
+        let message: string;
+        let caption: string;
+
+        if (result === 1) {
+          // WARNING: some rows skipped
+          color = 'warning';
+          message = $t('csv_sync_completed_with_warnings');
+          caption = $t('csv_sync_warnings_caption', {
+            processed: rowsProcessed || 0,
+            skipped: rowsSkipped || 0,
+          });
+        } else if (result === 0) {
+          // SUCCESS: all rows processed
+          color = 'positive';
+          message = $t('csv_sync_completed');
+          caption = $t('csv_sync_success_caption', {
+            processed: rowsProcessed || 0,
+          });
+        } else {
+          // ERROR: nothing processed or failed
+          color = 'negative';
+          message = $t('csv_sync_failed');
+          caption = payload?.status_message || '';
+        }
+
         $q.notify({
-          color: 'positive',
-          message: $t('csv_sync_completed'),
+          color,
+          message,
+          caption,
           position: 'top',
+          timeout: 5000,
         });
         console.log('Sync completed:', payload);
       },
       (payload?: JobUpdatePayload) => {
         $q.notify({
           color: 'negative',
-          message: `${$t('csv_sync_failed')} ${payload?.status_message || ''}`,
+          message: $t('csv_sync_failed'),
+          caption: payload?.status_message || $t('csv_sync_failed_caption'),
           position: 'top',
+          timeout: 5000,
         });
         console.error('Sync failed:', payload);
       },
@@ -312,6 +349,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
         $q.notify({
           color: 'negative',
           message: $t('csv_sync_connection_lost'),
+          caption: $t('csv_sync_connection_lost_caption'),
           position: 'top',
           timeout: 30000,
         });

@@ -324,6 +324,22 @@ export default {
     en: 'CSV sync completed with {count} row error(s).',
     fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
   },
+  csv_sync_completed_with_warnings: {
+    en: 'CSV sync completed with {count} warning(s).',
+    fr: 'Synchronisation CSV terminée avec {count} avertissement(s).',
+  },
+  csv_sync_warnings_caption: {
+    en: 'Processed {processed} rows with {skipped} warnings',
+    fr: '{processed} lignes traitées avec {skipped} avertissements',
+  },
+  csv_sync_success_caption: {
+    en: 'Processed {processed} rows successfully',
+    fr: '{processed} lignes traitées avec succès',
+  },
+  csv_sync_failed: {
+    en: 'CSV sync failed. Please check the logs for details.',
+    fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
+  },
   close_error_details: {
     en: 'Close error details',
     fr: "Fermer les détails de l'erreur",

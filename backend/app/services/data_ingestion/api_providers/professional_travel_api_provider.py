@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_ingestion import IngestionResult, IngestionState, IngestionStatus
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.location import Location
 from app.models.user import User
 from app.services.data_entry_service import DataEntryService
@@ -106,7 +106,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             logger.error(error_message)
             await self._update_job(
                 status_message="failed",
-                status_code=IngestionStatus.FAILED,
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": error_message},
@@ -187,7 +186,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             logger.error(error_message)
             await self._update_job(
                 status_message="failed",
-                status_code=IngestionStatus.FAILED,
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": error_message},

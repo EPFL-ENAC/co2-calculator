@@ -11,7 +11,6 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
-    IngestionStatus,
     TargetType,
 )
 from app.models.factor import Factor
@@ -142,21 +141,19 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         try:
             await self._update_job(
                 status_message="processing",
-                status_code=IngestionStatus.IN_PROGRESS,
                 state=IngestionState.RUNNING,
                 result=None,
                 extra_metadata={"message": "Starting CSV processing..."},
             )
             result = await self.process_csv_in_batches()
             return {
-                "status_code": IngestionStatus.COMPLETED,
+                "state": IngestionState.FINISHED,
                 "status_message": "Success",
                 "data": result,
             }
         except Exception as e:
             await self._update_job(
                 status_message=f"failed: {str(e)}",
-                status_code=IngestionStatus.FAILED,
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -242,7 +239,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                             repo=self.repo,
                             job_id=self.job_id,
                             status_message=f"Processing: {stats['rows_processed']}",
-                            status_code=IngestionStatus.IN_PROGRESS,
                             state=IngestionState.RUNNING,
                             result=None,
                             metadata=dict(stats),
@@ -260,7 +256,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     repo=self.repo,
                     job_id=self.job_id,
                     status_message=f"Processing failed: {str(e)}",
-                    status_code=IngestionStatus.FAILED,
                     state=IngestionState.FINISHED,
                     result=IngestionResult.ERROR,
                     metadata={"error": str(e)},
@@ -275,7 +270,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 repo=self.repo,
                 job_id=self.job_id,
                 status_message="Starting CSV processing",
-                status_code=IngestionStatus.IN_PROGRESS,
                 state=IngestionState.RUNNING,
                 result=None,
                 metadata={},
@@ -496,6 +490,32 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         await factor_service.bulk_create(batch)
         logger.info(f"Created {len(batch)} factors in batch")
 
+    def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
+        """
+        Compute ingestion result based on success rate.
+
+        Rules:
+        - SUCCESS: rows_skipped == 0 (100% processed)
+        - WARNING: rows_skipped > 0 and rows_processed > 0 (partial success)
+        - ERROR: rows_processed == 0 (nothing processed)
+
+        Args:
+            stats: Statistics dict with rows_processed and rows_skipped
+
+        Returns:
+            IngestionResult enum value
+        """
+        rows_processed = stats["rows_processed"]
+        rows_skipped = stats["rows_skipped"]
+
+        if rows_processed == 0:
+            return IngestionResult.ERROR  # Nothing processed at all
+
+        if rows_skipped == 0:
+            return IngestionResult.SUCCESS  # 100% success
+
+        return IngestionResult.WARNING  # Partial success (some skipped)
+
     async def _finalize_and_commit(
         self,
         batch: List[Factor],
@@ -517,13 +537,14 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         await self.data_session.flush()
 
         if self.job_id is not None:
+            # Compute result dynamically based on success rate
+            result = self._compute_ingestion_result(stats)
             await self._update_job_and_sync(
                 repo=self.repo,
                 job_id=self.job_id,
                 status_message="CSV processing completed",
-                status_code=IngestionStatus.COMPLETED,
                 state=IngestionState.FINISHED,
-                result=IngestionResult.SUCCESS,
+                result=result,
                 metadata=dict(stats),
             )
 

@@ -10,7 +10,9 @@ export interface DataIngestionJob {
   year: number;
   provider_type: string;
   target_type: number;
-  status: number; // 0: pending, 1: in_progress, 2: completed, 3: failed
+  status: number; // Legacy: 0: NOT_STARTED, 1: PENDING, 2: IN_PROGRESS, 3: COMPLETED, 4: FAILED
+  state?: number; // New: 0: NOT_STARTED, 1: QUEUED, 2: RUNNING, 3: FINISHED
+  result?: number; // New: 0: SUCCESS, 1: WARNING, 2: ERROR (only valid when state is FINISHED)
   status_message?: string;
   meta?: Record<string, unknown>;
 }
@@ -40,7 +42,9 @@ export interface JobUpdatePayload {
 export interface SyncJobStatus {
   module_type_id: number;
   year: number;
-  status: number; // 0: pending, 1: in_progress, 2: completed, 3: failed
+  status: number; // Legacy status
+  state?: number; // New state
+  result?: number; // New result
   provider_type: string;
 }
 
@@ -75,6 +79,8 @@ export const useBackofficeDataManagement = defineStore(
         module_type_id: job.module_type_id,
         year: job.year,
         status: job.status,
+        state: job.state,
+        result: job.result,
         provider_type: job.provider_type,
       }));
     });
@@ -87,6 +93,94 @@ export const useBackofficeDataManagement = defineStore(
       const jobs = syncJobs[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job ? job.status : 0; // Default to pending (0) if no job found
+    };
+
+    /**
+     * Get the new state value for a job by module type.
+     * Returns the state enum value or 0 (NOT_STARTED) if no job found.
+     */
+    const getSyncStateByModule = (moduleType: Module, year: number): number => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state ?? 0; // Default to NOT_STARTED (0) if no job found
+    };
+
+    /**
+     * Get the result value for a job by module type.
+     * Returns the result enum value or undefined if job not finished.
+     */
+    const getSyncResultByModule = (
+      moduleType: Module,
+      year: number,
+    ): number | undefined => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.result;
+    };
+
+    /**
+     * Check if a job is finished (state = FINISHED).
+     */
+    const isJobFinished = (moduleType: Module, year: number): boolean => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state === 3; // FINISHED
+    };
+
+    /**
+     * Check if a job has succeeded (state = FINISHED && result = SUCCESS).
+     */
+    const hasJobSucceeded = (moduleType: Module, year: number): boolean => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state === 3 && job?.result === 0; // FINISHED && SUCCESS
+    };
+
+    /**
+     * Calculate the success rate of a job based on meta stats.
+     * Returns percentage (0-100) or null if stats not available.
+     *
+     * Logic:
+     * - 100% if rows_skipped === 0
+     * - 0% if rows_processed === 0
+     * - Otherwise: (rows_processed / (rows_processed + rows_skipped)) * 100
+     */
+    const getSuccessRate = (job: DataIngestionJob): number | null => {
+      if (!job.meta) return null;
+
+      const meta = job.meta as Record<string, unknown>;
+      const stats = (meta as { stats?: Record<string, unknown> }).stats || meta;
+
+      const rowsProcessed = (stats.rows_processed as number) || 0;
+      const rowsSkipped = (stats.rows_skipped as number) || 0;
+
+      if (rowsProcessed === 0) return 0;
+      if (rowsSkipped === 0) return 100;
+
+      const totalRows = rowsProcessed + rowsSkipped;
+      return Math.round((rowsProcessed / totalRows) * 100);
+    };
+
+    /**
+     * Get human-readable result label based on state and result.
+     */
+    const getResultLabel = (state?: number, result?: number): string => {
+      if (state !== 3) return 'In Progress'; // Not FINISHED
+
+      switch (result) {
+        case 0:
+          return 'Success';
+        case 1:
+          return 'Warning';
+        case 2:
+          return 'Error';
+        default:
+          return 'Unknown';
+      }
     };
 
     // Methods
@@ -244,6 +338,7 @@ provider_type
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
             const update: JobUpdatePayload = JSON.parse(event.data);
+            // Legacy status mapping (for backward compatibility)
             const statusMap: Record<string, number> = {
               NOT_STARTED: 0,
               PENDING: 1,
@@ -257,8 +352,11 @@ provider_type
                 ? update.status
                 : (statusMap[update.status] ?? 0);
 
+            // New state/result values (may be undefined for older data)
+            const state = update.state;
+            const result = update.result;
+
             const job_id = update.job_id;
-            // const module_type_id = update.module_type_id;
             const year = update.year;
 
             // Find and update the job in the store
@@ -270,19 +368,27 @@ provider_type
                 syncJobs[year][jobIndex] = {
                   ...syncJobs[year][jobIndex],
                   status,
+                  state,
+                  result,
                   status_message: update.status_message || '',
                 };
               }
             }
 
-            if (status === 3) {
+            // Use new state/result for completion detection if available
+            // Fall back to legacy status for backward compatibility
+            const isFinished = state === 3 || status === 3 || status === 4; // FINISHED || COMPLETED || FAILED
+            const isSuccess = (state === 3 && result === 0) || status === 3; // FINISHED + SUCCESS || COMPLETED
+            const isFailure = (state === 3 && result === 2) || status === 4; // FINISHED + ERROR || FAILED
+
+            if (isSuccess) {
               onCompleted?.(update);
             }
 
-            if (status === 4) {
+            if (isFailure) {
               onFail?.(update);
             }
-            if (status === 3 || status === 4) {
+            if (isFinished) {
               unsubscribeFromJobUpdates();
             }
           } catch (err) {
@@ -351,6 +457,12 @@ provider_type
       currentYear,
       syncJobStatuses,
       getSyncStatusByModule,
+      getSyncStateByModule,
+      getSyncResultByModule,
+      isJobFinished,
+      hasJobSucceeded,
+      getSuccessRate,
+      getResultLabel,
       fetchSyncJobsByYear,
       initiateSync,
       subscribeToJobUpdates,

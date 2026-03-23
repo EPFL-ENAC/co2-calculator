@@ -16,7 +16,6 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
-    IngestionStatus,
     TargetType,
 )
 from app.models.module_type import ModuleTypeEnum
@@ -45,8 +44,7 @@ class SyncRequest(BaseModel):
 
 class SyncStatusResponse(BaseModel):
     job_id: int
-    status: str
-    status_code: IngestionStatus
+    state: IngestionState
     message: str
     progress: Optional[dict] = None
 
@@ -57,7 +55,6 @@ class SyncJobResponse(BaseModel):
     year: Optional[int] = None
     ingestion_method: IngestionMethod
     target_type: Optional[TargetType] = None
-    status: IngestionStatus
     status_message: Optional[str] = None
     meta: Optional[dict] = None
     state: Optional[IngestionState] = None
@@ -112,7 +109,7 @@ async def sync_module_data_entries(
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="year is required for factor CSV ingestion",
         )
 
@@ -142,14 +139,15 @@ async def sync_module_data_entries(
 
     if not provider:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"""Provider '{syncRequest.ingestion_method}'
                 not supported for module '{module_type_id}'""",
         )
 
     if not await provider.validate_connection():
         raise HTTPException(
-            status_code=503, detail=f"Cannot connect to {syncRequest.ingestion_method}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {syncRequest.ingestion_method}",
         )
 
     factor_type_id = getattr(syncRequest, "factor_type_id", None)
@@ -190,8 +188,7 @@ async def sync_module_data_entries(
 
     return {
         "job_id": job_id,
-        "status": "pending",
-        "status_code": IngestionStatus.IN_PROGRESS,
+        "state": IngestionState.NOT_STARTED,
         "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
     }
@@ -271,7 +268,7 @@ async def get_jobs_by_year(
             year=job.year,
             ingestion_method=job.ingestion_method,
             target_type=job.target_type,
-            status=job.status,
+            state=job.state if job.state else None,
             status_message=job.status_message,
             meta=job.meta,
         )
@@ -329,7 +326,7 @@ async def job_stream_by_id(
                 "module_type_id": job.module_type_id,
                 "target_type": job.target_type,
                 "year": job.year,
-                "status": job.status,
+                "status": job.state,
                 "state": job.state,
                 "result": job.result,
                 "status_message": job.status_message,
@@ -384,7 +381,6 @@ async def sync_units_from_accred(
 
     return SyncStatusResponse(
         job_id=0,  # No persistent job tracking for now
-        status="scheduled",
-        status_code=IngestionStatus.PENDING,
+        state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
     )

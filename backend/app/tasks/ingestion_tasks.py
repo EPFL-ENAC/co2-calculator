@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from app.db import SessionLocal
-from app.models.data_ingestion import IngestionResult, IngestionState, IngestionStatus
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
@@ -57,12 +57,16 @@ async def run_sync_task(
             result = await provider.ingest(filters_to_use)
             # Commit the data transaction atomically (all or nothing)
             await data_session.commit()
-            # Update final job status
+            # Extract the result from ingest() - provider already computed it
+            # in _finalize_and_commit() based on rows_processed/rows_skipped
+            ingestion_result = result.get("data", {}).get(
+                "result", IngestionResult.SUCCESS
+            )
+            # Update final job status with the computed result
             await provider._update_job(
-                status_code=result["status_code"],
                 state=IngestionState.FINISHED,
-                result=IngestionResult.SUCCESS,
-                status_message=result["status_message"],
+                result=ingestion_result,
+                status_message=result.get("status_message", "Success"),
                 extra_metadata=result.get("data", {}),
             )
             logger.info("Sync completed successfully ")
@@ -72,7 +76,6 @@ async def run_sync_task(
             await data_session.rollback()
             # Job updates are preserved because they commit immediately
             await provider._update_job(
-                status_code=IngestionStatus.FAILED,
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 status_message=str(e),

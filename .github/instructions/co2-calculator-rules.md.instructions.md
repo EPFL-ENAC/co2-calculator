@@ -60,6 +60,7 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Tooling**: Use `uv` for dependency management and environment execution. All common tasks (lint, test, run) must be executed via `Makefile` commands.
 - **Ruff**: line-length=88, indent=4, select=["E","F","I"], double quotes, fix=true, exclude migrations.
 - **Mypy**: strict mode — all public functions must have full type annotations. No `Any` unless unavoidable. `warn_unused_ignores=true`.
+- **Alembic**: Use for all database schema changes. No direct SQL schema edits. Keep migrations focused and reversible. Only use `revision` and `upgrade` commands; avoid manual edits to migration files unless necessary for complex operations.
 - **SQLAlchemy**: Always wrap column references in `col()` (e.g., `col(Model.field) == value`) to satisfy Mypy `ColumnElement` types.
 - **Docstrings**: Google-style docstrings mandatory for all public functions/classes.
 - **Structure**: Imports: stdlib → third-party → local (alphabetical). Functions ≤40 lines, single responsibility, ≤2 levels nesting.
