@@ -33,6 +33,7 @@ interface ImportRow {
   other?: string;
   hasOtherUpload?: boolean;
   isDisabled?: boolean;
+  lastDataJob?: SyncJobResponse;
   lastJobId?: number;
   lastJobState?: number;
   lastJobResult?: number;
@@ -422,9 +423,18 @@ async function initiateSync(
         <q-tab-panels v-model="activeTab" animated>
           <!-- Upload CSV Tab -->
           <q-tab-panel name="upload" class="q-pa-none">
-            <div class="text-h6 q-mb-md">
+            <!-- <div class="text-h6 q-mb-md">
               {{ $t('data_management_tab_upload_csv') }}
-            </div>
+            </div> -->
+            <q-banner
+              v-if="row.lastDataJob && row.lastDataJob.result !== 2"
+              color="warning"
+              class="q-mb-md"
+              inline-action
+            >
+              <q-icon name="warning" size="sm" class="q-mr-sm" />
+              {{ $t('data_management_last_upload_overwrite') }}
+            </q-banner>
             <q-form class="q-gutter-md" @submit.prevent="uploadFiles">
               <q-file
                 v-model="selectedFiles"
@@ -455,9 +465,9 @@ async function initiateSync(
 
           <!-- Connect API Tab -->
           <q-tab-panel v-if="row.hasApi" name="api" class="q-pa-none">
-            <div class="text-h6 q-mb-md">
+            <!-- <div class="text-h6 q-mb-md">
               {{ $t('data_management_tab_connect_api') }}
-            </div>
+            </div> -->
             <q-form class="q-gutter-md" @submit.prevent="connectAndSync">
               <q-input
                 v-model="apiServerUrl"
@@ -517,9 +527,9 @@ async function initiateSync(
 
           <!-- Copy from Previous Year Tab -->
           <q-tab-panel name="copy" class="q-pa-none">
-            <div class="text-h6 q-mb-md">
+            <!-- <div class="text-h6 q-mb-md">
               {{ $t('data_management_tab_copy_previous') }}
-            </div>
+            </div> -->
             <div
               v-if="previousYearJobs.length === 0"
               class="text-grey-7 q-pa-md"

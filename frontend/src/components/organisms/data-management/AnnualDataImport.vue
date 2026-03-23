@@ -417,7 +417,7 @@ async function handleJobCompleted() {
 
           <!-- Data -->
           <td align="left">
-            <template v-if="row.hasData">
+            <div v-if="row.hasData" class="flex flex-row gap-1 justify-between">
               <q-btn
                 :color="dataButtonColor(row)"
                 icon="add"
@@ -429,7 +429,7 @@ async function handleJobCompleted() {
               />
               <div
                 v-if="importInfo(row.lastDataJob)"
-                class="q-mt-xs text-caption text-grey-7"
+                class="q-mt-xs text-caption text-grey-7 flex flex-row gap-4 justify-between"
               >
                 <div>
                   {{ importInfo(row.lastDataJob)!.rows }}
@@ -452,13 +452,16 @@ async function handleJobCompleted() {
                   </q-btn>
                 </div>
               </div>
-            </template>
+            </div>
             <span v-else class="text-grey-5">—</span>
           </td>
 
           <!-- Factors -->
           <td align="left">
-            <template v-if="row.hasFactors">
+            <div
+              v-if="row.hasFactors"
+              class="flex flex-row gap-1 justify-between"
+            >
               <q-btn
                 :color="factorButtonColor(row)"
                 icon="add"
@@ -470,7 +473,7 @@ async function handleJobCompleted() {
               />
               <div
                 v-if="importInfo(row.lastFactorJob)"
-                class="q-mt-xs text-caption text-grey-7"
+                class="q-mt-xs text-caption text-grey-7 flex flex-row gap-1"
               >
                 <div>
                   {{ importInfo(row.lastFactorJob)!.rows }}
@@ -493,7 +496,7 @@ async function handleJobCompleted() {
                   </q-btn>
                 </div>
               </div>
-            </template>
+            </div>
             <span v-else class="text-grey-5">—</span>
           </td>
 

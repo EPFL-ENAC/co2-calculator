@@ -362,4 +362,8 @@ export default {
     en: 'Please try again later',
     fr: 'Veuillez réessayer plus tard',
   },
+  data_management_last_upload_overwrite: {
+    en: 'The last uploaded data will be overwritten',
+    fr: 'Les dernières données téléversées seront écrasées',
+  },
 } as const;
