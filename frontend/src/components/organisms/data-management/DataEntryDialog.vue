@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useFilesStore, type FileObject } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
-import type { SyncJobResponse } from 'src/stores/backofficeDataManagement';
+import type {
+  SyncJobResponse,
+  JobUpdatePayload,
+} from 'src/stores/backofficeDataManagement';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -113,22 +116,6 @@ async function loadPreviousYearJobs() {
   }
 }
 
-function getFileNameFromPath(filePath?: string): string {
-  if (!filePath) return '';
-  const parts = filePath.split('/');
-  return parts[parts.length - 1] || filePath;
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '';
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString();
-  } catch {
-    return dateStr;
-  }
-}
-
 // CSV Upload
 const uploadFiles = async () => {
   if (!selectedFiles.value || selectedFiles.value.length === 0) {
@@ -147,8 +134,8 @@ const uploadFiles = async () => {
     const filePaths = uploadedFiles.map((file) => file.path);
     await initiateSync('csv', filePaths[0]);
     showDialog.value = false;
-  } catch (error) {
-    console.error('Error uploading files:', error);
+  } catch (err) {
+    console.error('Error uploading files:', err);
     $q.notify({
       color: 'negative',
       message: $t('csv_sync_failed'),
@@ -185,7 +172,7 @@ const testApiConnection = async () => {
       message: $t('data_management_connection_success'),
       position: 'top',
     });
-  } catch (err) {
+  } catch {
     apiConnectionResult.value = 'error';
     $q.notify({
       color: 'negative',
@@ -214,10 +201,12 @@ const connectAndSync = async () => {
 
   isConnecting.value = true;
   try {
-    await initiateSync('api', null);
+    await initiateSync('api', undefined, undefined);
     showDialog.value = false;
   } catch (err) {
-    console.error('Error connecting to API:', err);
+    if (err instanceof Error) {
+      console.error('Error connecting to API:', err.message);
+    }
     $q.notify({
       color: 'negative',
       message: $t('data_management_connection_failed'),
@@ -241,10 +230,12 @@ const copyFromPreviousYear = async () => {
 
   isCopying.value = true;
   try {
-    await initiateSync('copy', null, selectedPreviousJob.value);
+    await initiateSync('copy', undefined, selectedPreviousJob.value);
     showDialog.value = false;
   } catch (err) {
-    console.error('Error copying from previous year:', err);
+    if (err instanceof Error) {
+      console.error('Error copying from previous year:', err.message);
+    }
     $q.notify({
       color: 'negative',
       message: $t('data_management_copy_failed'),
@@ -261,7 +252,7 @@ async function initiateSync(
   filePath?: string,
   sourceJobId?: number,
 ) {
-  const syncParams: any = {
+  const syncParams: Record<string, unknown> = {
     module_type_id: props.row.moduleTypeId,
     year: props.year,
     provider_type: providerType === 'copy' ? 'csv' : providerType,
@@ -283,13 +274,24 @@ async function initiateSync(
   }
 
   if (sourceJobId && providerType === 'copy') {
+    const existingConfig = syncParams.config as
+      | Record<string, unknown>
+      | undefined;
     syncParams.config = {
-      ...syncParams.config,
+      ...(existingConfig || {}),
       source_job_id: sourceJobId,
     };
   }
 
-  const jobId = await dataManagementStore.initiateSync(syncParams);
+  const jobId = await dataManagementStore.initiateSync({
+    module_type_id: props.row.moduleTypeId,
+    year: props.year,
+    provider_type: providerType === 'copy' ? 'csv' : providerType,
+    target_type: props.targetType,
+    data_entry_type_id: props.row.dataEntryTypeId,
+    config: syncParams.config as Record<string, unknown>,
+    file_path: filePath,
+  });
 
   // Subscribe to job updates
   dataManagementStore.subscribeToJobUpdates(
@@ -325,13 +327,13 @@ async function initiateSync(
           emit('completed', {
             job_id: payload.job_id,
             module_type_id: payload.module_type_id,
-            year: payload.year,
+            year: payload.year ?? props.year,
             target_type: payload.target_type as 0 | 1,
-            state: payload.state,
-            result: payload.result,
+            state: payload.state ?? 3,
+            result: payload.result ?? 0,
             status_message: payload.status_message,
             meta: payload.meta,
-          });
+          } as SyncJobResponse);
         }
       } else {
         // ERROR: nothing processed or failed
@@ -370,18 +372,6 @@ async function initiateSync(
     },
   );
 }
-
-const downloadLastCsv = () => {
-  const filePath = props.row.lastJobMeta?.file_path;
-  if (!filePath) return;
-
-  const a = document.createElement('a');
-  a.href = `/files/${filePath}`;
-  a.download = getFileNameFromPath(filePath);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-};
 </script>
 
 <template>
@@ -405,9 +395,9 @@ const downloadLastCsv = () => {
       <!-- Tabs -->
       <q-tabs
         v-model="activeTab"
-        narrow-indicator
-        align="left"
+        :align="'justify'"
         class="text-grey"
+        :shrink="true"
       >
         <q-tab
           name="upload"
@@ -570,3 +560,9 @@ const downloadLastCsv = () => {
     </q-card>
   </q-dialog>
 </template>
+
+<style scoped>
+:deep(.q-tabs__arrow) {
+  display: none !important;
+}
+</style>

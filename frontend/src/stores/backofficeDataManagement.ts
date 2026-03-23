@@ -104,6 +104,11 @@ export const useBackofficeDataManagement = defineStore(
       }));
     });
 
+    // In the store, alongside your other computed properties
+    const getLatestJobsByYear = computed(() => (year: number) => {
+      return syncJobs[year] ?? [];
+    });
+
     const getSyncStatusByModule = (
       moduleType: Module,
       year: number,
@@ -233,8 +238,6 @@ export const useBackofficeDataManagement = defineStore(
     async function fetchLatestSyncJobsByYear(
       year: number,
     ): Promise<DataIngestionJob[]> {
-      if (loading.value) return [];
-
       loading.value = true;
       error.value = null;
       currentYear.value = year;
@@ -497,7 +500,9 @@ provider_type
       targetType: 'data_entries' | 'factors',
     ): Promise<SyncJobResponse[]> {
       try {
-        const jobs = (await api.get(`sync/jobs/year/${year}`).json()) as SyncJobResponse[];
+        const jobs = (await api
+          .get(`sync/jobs/year/${year}`)
+          .json()) as SyncJobResponse[];
 
         const resolvedTargetType = targetType === 'data_entries' ? 0 : 1;
 
@@ -532,6 +537,7 @@ provider_type
       getSyncStatusByModule,
       getSyncStateByModule,
       getSyncResultByModule,
+      getLatestJobsByYear,
       isJobFinished,
       hasJobSucceeded,
       getSuccessRate,

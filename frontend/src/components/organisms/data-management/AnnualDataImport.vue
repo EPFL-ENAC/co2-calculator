@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useFilesStore } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import type {
   SyncJobResponse,
   DataIngestionJob,
+  IngestionState,
+  IngestionResult,
 } from 'src/stores/backofficeDataManagement';
 import { useI18n } from 'vue-i18n';
 import DataEntryDialog from './DataEntryDialog.vue';
@@ -30,12 +32,10 @@ interface ImportRow {
   other?: string;
   hasOtherUpload?: boolean;
   isDisabled?: boolean;
-  // Job tracking fields
   lastDataJob?: SyncJobResponse;
   lastFactorJob?: SyncJobResponse;
 }
 
-// Static row definitions (base configuration)
 const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
   {
     key: 'headcount_members',
@@ -204,227 +204,139 @@ const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
   },
 ];
 
-// Reactive map of jobs by module_type_id and target_type
-const jobsByModule = ref<Map<string, DataIngestionJob>>(new Map());
+// ── Pure helpers (no reactive side-effects) ───────────────────────────────────
 
-// Dialog state
-const showDataEntryDialog = ref<boolean>(false);
-const dialogCurrentRow = ref<ImportRow | null>(null);
-const dialogTargetType = ref<'data_entries' | 'factors'>('data_entries');
-
-// Fetch sync jobs and store in reactive map
-async function loadSyncJobs() {
-  try {
-    // Use the new endpoint that returns pre-filtered latest jobs
-    const jobs = await dataManagementStore.fetchLatestSyncJobsByYear(
-      props.year,
+function findJob(
+  jobs: DataIngestionJob[],
+  moduleTypeId: number,
+  targetType: 0 | 1,
+  dataEntryTypeId?: number,
+): DataIngestionJob | undefined {
+  const candidates = jobs.filter(
+    (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
+  );
+  if (dataEntryTypeId !== undefined) {
+    return candidates.find(
+      (j) =>
+        (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
+        dataEntryTypeId,
     );
-
-    // Build new map and replace (triggers reactivity)
-    // Key by module_type_id-target_type for general matching
-    const newMap = new Map<string, DataIngestionJob>();
-    jobs.forEach((job: DataIngestionJob) => {
-      // Use root module_type_id for general matching
-      const key = `${job.module_type_id}-${job.target_type}`;
-      newMap.set(key, job);
-    });
-    jobsByModule.value = newMap;
-  } catch (err) {
-    console.error('Failed to load sync jobs:', err);
   }
+  return candidates[0];
 }
 
-// Computed import rows with latest job data
+function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
+  return {
+    job_id: job.job_id,
+    module_type_id: job.module_type_id,
+    year: job.year,
+    target_type: job.target_type as 0 | 1,
+    state: job.state as IngestionState,
+    result: job.result as IngestionResult,
+    status_message: job.status_message,
+    meta: job.meta,
+  };
+}
+
+function importInfo(job: SyncJobResponse | undefined) {
+  if (!job?.meta) return null;
+  const meta = job.meta as Record<string, unknown>;
+  const filePath = (meta.file_path as string) || '';
+  return {
+    rows: (meta.rows_processed as number) || 0,
+    fileName: filePath.split('/').pop() || '',
+  };
+}
+
+// ── Computed: reads from store cache, parent owns the fetch ───────────────────
+
 const importRows = computed<ImportRow[]>(() => {
+  const jobs: DataIngestionJob[] = dataManagementStore.getLatestJobsByYear(
+    props.year,
+  );
   return BASE_IMPORT_ROWS.map((row) => {
-    // Get all jobs for this module_type_id and target_type
-    const allDataJobs = Array.from(jobsByModule.value.values()).filter(
-      (j) => j.module_type_id === row.moduleTypeId && j.target_type === 0,
-    );
-    const allFactorJobs = Array.from(jobsByModule.value.values()).filter(
-      (j) => j.module_type_id === row.moduleTypeId && j.target_type === 1,
-    );
-
-    // If row has dataEntryTypeId, filter by it from meta.config.data_entry_type_id
-    let dataJob: DataIngestionJob | undefined;
-    let factorJob: DataIngestionJob | undefined;
-
-    if (row.dataEntryTypeId !== undefined) {
-      // Match by data_entry_type_id in meta.config
-      dataJob = allDataJobs.find((j) => {
-        const configDataEntryTypeId = (j.meta?.config as any)
-          ?.data_entry_type_id;
-        return configDataEntryTypeId === row.dataEntryTypeId;
-      });
-
-      factorJob = allFactorJobs.find((j) => {
-        const configDataEntryTypeId = (j.meta?.config as any)
-          ?.data_entry_type_id;
-        return configDataEntryTypeId === row.dataEntryTypeId;
-      });
-    } else {
-      // No specific data_entry_type_id, use first available
-      dataJob = allDataJobs[0];
-      factorJob = allFactorJobs[0];
-    }
+    const dataJob = findJob(jobs, row.moduleTypeId, 0, row.dataEntryTypeId);
+    const factorJob = findJob(jobs, row.moduleTypeId, 1, row.dataEntryTypeId);
 
     return {
       ...row,
-      lastDataJob: dataJob
-        ? ({
-            job_id: dataJob.job_id,
-            module_type_id: dataJob.module_type_id,
-            year: dataJob.year,
-            target_type: dataJob.target_type as 0 | 1,
-            state: dataJob.state,
-            result: dataJob.result,
-            status_message: dataJob.status_message,
-            meta: dataJob.meta,
-          } as SyncJobResponse)
-        : undefined,
-      lastFactorJob: factorJob
-        ? ({
-            job_id: factorJob.job_id,
-            module_type_id: factorJob.module_type_id,
-            year: factorJob.year,
-            target_type: factorJob.target_type as 0 | 1,
-            state: factorJob.state,
-            result: factorJob.result,
-            status_message: factorJob.status_message,
-            meta: factorJob.meta,
-          } as SyncJobResponse)
-        : undefined,
+      lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
+      lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
     };
   });
 });
 
-// Button color computation
-const getDataButtonColor = computed(() => {
-  return (row: ImportRow): string => {
-    if (row.isDisabled) return 'grey-4';
-    if (!row.lastDataJob) return 'accent'; // No job yet
-    if (row.lastDataJob.result === 2) return 'negative'; // ERROR
-    if (row.lastDataJob.result === 1) return 'warning'; // WARNING
-    return 'positive'; // SUCCESS or default
-  };
-});
+// ── Button helpers ────────────────────────────────────────────────────────────
 
-const getFactorButtonColor = computed(() => {
-  return (row: ImportRow): string => {
-    if (row.isDisabled) return 'grey-4';
-    if (!row.lastFactorJob) return 'accent'; // No job yet
-    if (row.lastFactorJob.result === 2) return 'negative'; // ERROR
-    if (row.lastFactorJob.result === 1) return 'warning'; // WARNING
-    return 'positive'; // SUCCESS or default
-  };
-});
+function dataButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastDataJob) return 'accent';
+  if (row.lastDataJob.result === 2) return 'negative';
+  if (row.lastDataJob.result === 1) return 'warning';
+  return 'positive';
+}
 
-// Button label computation
-const getDataButtonLabel = computed(() => {
-  return (row: ImportRow): string => {
-    if (row.isDisabled) return '';
-    return row.lastDataJob
-      ? $t('data_management_reupload_data')
-      : $t('data_management_add_data');
-  };
-});
+function factorButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastFactorJob) return 'accent';
+  if (row.lastFactorJob.result === 2) return 'negative';
+  if (row.lastFactorJob.result === 1) return 'warning';
+  return 'positive';
+}
 
-const getFactorButtonLabel = computed(() => {
-  return (row: ImportRow): string => {
-    if (row.isDisabled) return '';
-    return row.lastFactorJob
-      ? $t('data_management_reupload_factors')
-      : $t('data_management_add_factors');
-  };
-});
+function dataButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastDataJob
+    ? $t('data_management_reupload_data')
+    : $t('data_management_add_data');
+}
 
-// Get last import info
-const getLastDataImportInfo = computed(() => {
-  return (
-    row: ImportRow,
-  ): { date: string; rows: number; fileName: string } | null => {
-    const job = row.lastDataJob;
-    if (!job || !job.meta) return null;
+function factorButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastFactorJob
+    ? $t('data_management_reupload_factors')
+    : $t('data_management_add_factors');
+}
 
-    const meta = job.meta as Record<string, unknown>;
-    const rowsProcessed = (meta.rows_processed as number) || 0;
-    const filePath = (meta.file_path as string) || '';
-    const fileName = filePath.split('/').pop() || '';
+// ── CSV download ──────────────────────────────────────────────────────────────
 
-    return {
-      date: $t('data_management_last_import_date'),
-      rows: rowsProcessed,
-      fileName,
-    };
-  };
-});
-
-const getLastFactorImportInfo = computed(() => {
-  return (
-    row: ImportRow,
-  ): { date: string; rows: number; fileName: string } | null => {
-    const job = row.lastFactorJob;
-    if (!job || !job.meta) return null;
-
-    const meta = job.meta as Record<string, unknown>;
-    const rowsProcessed = (meta.rows_processed as number) || 0;
-    const filePath = (meta.file_path as string) || '';
-    const fileName = filePath.split('/').pop() || '';
-
-    return {
-      date: $t('data_management_last_import_date'),
-      rows: rowsProcessed,
-      fileName,
-    };
-  };
-});
-
-// Open dialog
-const openDataEntryDialog = (
+function downloadLastCsv(
   row: ImportRow,
   targetType: 'data_entries' | 'factors',
-) => {
-  dialogCurrentRow.value = row;
-  dialogTargetType.value = targetType;
-  showDataEntryDialog.value = true;
-};
-
-// Handle job completion - reload jobs to update button states
-const handleJobCompleted = async () => {
-  await loadSyncJobs();
-};
-
-// Download last CSV
-const downloadLastCsv = (
-  row: ImportRow,
-  targetType: 'data_entries' | 'factors',
-) => {
+) {
   const job =
     targetType === 'data_entries' ? row.lastDataJob : row.lastFactorJob;
-  if (!job || !job.meta) return;
-
-  const meta = job.meta as Record<string, unknown>;
-  const filePath = (meta.file_path as string) || '';
+  if (!job?.meta) return;
+  const filePath =
+    ((job.meta as Record<string, unknown>).file_path as string) || '';
   if (!filePath) return;
-
-  const fileName = filePath.split('/').pop() || filePath;
   const a = document.createElement('a');
   a.href = `/files/${filePath}`;
-  a.download = fileName;
+  a.download = filePath.split('/').pop() || filePath;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-};
+}
 
-// Unsubscribe from SSE when component unmounts
-onUnmounted(() => {
-  dataManagementStore.unsubscribeFromJobUpdates();
-});
+// ── Dialog ────────────────────────────────────────────────────────────────────
 
-// Load jobs on mount
-onMounted(() => {
-  loadSyncJobs();
-});
+const showDataEntryDialog = ref(false);
+const dialogCurrentRow = ref<ImportRow | null>(null);
+const dialogTargetType = ref<'data_entries' | 'factors'>('data_entries');
+
+function openDataEntryDialog(
+  row: ImportRow,
+  targetType: 'data_entries' | 'factors',
+) {
+  dialogCurrentRow.value = row;
+  dialogTargetType.value = targetType;
+  showDataEntryDialog.value = true;
+}
+
+// Re-fetch after upload so the store cache (and this view) updates
+async function handleJobCompleted() {
+  await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
+}
 </script>
 
 <template>
@@ -436,175 +348,179 @@ onMounted(() => {
     <div class="q-my-md">
       {{ $t('data_management_annual_data_import_hint') }}
     </div>
-    <div>
-      <q-banner class="bg-grey-2 text-grey-8">
-        <q-icon name="info" size="xs" class="on-left" />
-        <span class="q-ml-sm">
-          {{
-            filesStore.tempFiles.length > 0
-              ? $t('data_management_temp_files_uploaded', {
-                  count: filesStore.tempFiles.length,
-                })
-              : $t('data_management_no_temp_files_uploaded')
-          }}
-        </span>
+
+    <q-banner class="bg-grey-2 text-grey-8">
+      <q-icon name="info" size="xs" class="on-left" />
+      <span class="q-ml-sm">
+        {{
+          filesStore.tempFiles.length > 0
+            ? $t('data_management_temp_files_uploaded', {
+                count: filesStore.tempFiles.length,
+              })
+            : $t('data_management_no_temp_files_uploaded')
+        }}
+      </span>
+      <q-btn
+        v-if="filesStore.tempFiles.length > 0"
+        no-caps
+        outline
+        color="negative"
+        icon="delete"
+        size="sm"
+        :label="$t('data_management_delete_temp_files')"
+        class="text-weight-medium on-right"
+        @click="filesStore.deleteTempFiles()"
+      />
+    </q-banner>
+
+    <q-banner inline-actions class="q-px-none">
+      <template #action>
         <q-btn
-          v-if="filesStore.tempFiles.length > 0"
           no-caps
           outline
-          color="negative"
-          icon="delete"
+          color="secondary"
+          icon="file_download"
           size="sm"
-          :label="$t('data_management_delete_temp_files')"
-          class="text-weight-medium on-right"
-          @click="filesStore.deleteTempFiles()"
+          :label="$t('data_management_download_csv_templates')"
+          class="text-weight-medium"
         />
-      </q-banner>
-    </div>
-    <div>
-      <q-banner inline-actions class="q-px-none">
-        <template #action>
-          <q-btn
-            no-caps
-            outline
-            color="secondary"
-            icon="file_download"
-            size="sm"
-            :label="$t('data_management_download_csv_templates')"
-            class="text-weight-medium"
-          />
-        </template>
-        <div>
-          {{
-            $t('data_management_data_imports_count', {
-              count: importRows.length,
-            })
-          }}
-        </div>
-      </q-banner>
-      <q-markup-table flat bordered>
-        <thead>
-          <tr>
-            <th align="left">{{ $t('data_management_category') }}</th>
-            <th align="left">{{ $t('data_management_data') }}</th>
-            <th align="left">{{ $t('data_management_factor') }}</th>
-            <th align="left">{{ $t('data_management_column_other') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in importRows" :key="row.key">
-            <td class="text-weight-medium" align="left">
-              {{ $t(row.labelKey) }}
-              <q-badge
-                v-if="row.isDisabled"
-                color="grey-4"
-                text-color="grey-8"
-                :label="$t('data_management_tbd')"
-                class="q-ml-sm"
+      </template>
+      <div>
+        {{
+          $t('data_management_data_imports_count', { count: importRows.length })
+        }}
+      </div>
+    </q-banner>
+
+    <q-markup-table flat bordered>
+      <thead>
+        <tr>
+          <th align="left">{{ $t('data_management_category') }}</th>
+          <th align="left">{{ $t('data_management_data') }}</th>
+          <th align="left">{{ $t('data_management_factor') }}</th>
+          <th align="left">{{ $t('data_management_column_other') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="row in importRows" :key="row.key">
+          <!-- Category -->
+          <td class="text-weight-medium" align="left">
+            {{ $t(row.labelKey) }}
+            <q-badge
+              v-if="row.isDisabled"
+              color="grey-4"
+              text-color="grey-8"
+              :label="$t('data_management_tbd')"
+              class="q-ml-sm"
+            />
+          </td>
+
+          <!-- Data -->
+          <td align="left">
+            <template v-if="row.hasData">
+              <q-btn
+                :color="dataButtonColor(row)"
+                icon="add"
+                size="sm"
+                :label="dataButtonLabel(row)"
+                class="text-weight-medium"
+                :disable="row.isDisabled"
+                @click="openDataEntryDialog(row, 'data_entries')"
               />
-            </td>
-            <td align="left">
-              <template v-if="row.hasData">
-                <q-btn
-                  :color="getDataButtonColor(row)"
-                  icon="add"
-                  size="sm"
-                  :label="getDataButtonLabel(row)"
-                  class="text-weight-medium"
-                  :disable="row.isDisabled"
-                  @click="openDataEntryDialog(row, 'data_entries')"
-                />
-                <div
-                  v-if="row.lastDataJob && getLastDataImportInfo(row)"
-                  class="q-mt-xs text-caption text-grey-7"
-                >
-                  <div>
-                    {{ getLastDataImportInfo(row)!.rows }}
-                    {{ $t('data_management_rows_imported') }}
-                  </div>
-                  <div class="row items-center q-gutter-xs">
-                    <span>{{ getLastDataImportInfo(row)!.fileName }}</span>
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="download"
-                      size="xs"
-                      color="grey-6"
-                      @click="downloadLastCsv(row, 'data_entries')"
-                    >
-                      <q-tooltip>{{
-                        $t('data_management_download_last_csv')
-                      }}</q-tooltip>
-                    </q-btn>
-                  </div>
+              <div
+                v-if="importInfo(row.lastDataJob)"
+                class="q-mt-xs text-caption text-grey-7"
+              >
+                <div>
+                  {{ importInfo(row.lastDataJob)!.rows }}
+                  {{ $t('data_management_rows_imported') }}
                 </div>
-              </template>
-              <span v-else class="text-grey-5">—</span>
-            </td>
-            <td align="left">
-              <template v-if="row.hasFactors">
-                <q-btn
-                  :color="getFactorButtonColor(row)"
-                  icon="add"
-                  size="sm"
-                  :label="getFactorButtonLabel(row)"
-                  class="text-weight-medium"
-                  :disable="row.isDisabled"
-                  @click="openDataEntryDialog(row, 'factors')"
-                />
-                <div
-                  v-if="row.lastFactorJob && getLastFactorImportInfo(row)"
-                  class="q-mt-xs text-caption text-grey-7"
-                >
-                  <div>
-                    {{ getLastFactorImportInfo(row)!.rows }}
-                    {{ $t('data_management_rows_imported') }}
-                  </div>
-                  <div class="row items-center q-gutter-xs">
-                    <span>{{ getLastFactorImportInfo(row)!.fileName }}</span>
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="download"
-                      size="xs"
-                      color="grey-6"
-                      @click="downloadLastCsv(row, 'factors')"
-                    >
-                      <q-tooltip>{{
-                        $t('data_management_download_last_csv')
-                      }}</q-tooltip>
-                    </q-btn>
-                  </div>
+                <div class="row items-center q-gutter-xs">
+                  <span>{{ importInfo(row.lastDataJob)!.fileName }}</span>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="download"
+                    size="xs"
+                    color="grey-6"
+                    @click="downloadLastCsv(row, 'data_entries')"
+                  >
+                    <q-tooltip>{{
+                      $t('data_management_download_last_csv')
+                    }}</q-tooltip>
+                  </q-btn>
                 </div>
-              </template>
-              <span v-else class="text-grey-5">—</span>
-            </td>
-            <td align="left">
-              <template v-if="row.other">
-                <div class="q-mb-xs text-caption text-grey-7">
-                  {{ $t(row.other) }}
+              </div>
+            </template>
+            <span v-else class="text-grey-5">—</span>
+          </td>
+
+          <!-- Factors -->
+          <td align="left">
+            <template v-if="row.hasFactors">
+              <q-btn
+                :color="factorButtonColor(row)"
+                icon="add"
+                size="sm"
+                :label="factorButtonLabel(row)"
+                class="text-weight-medium"
+                :disable="row.isDisabled"
+                @click="openDataEntryDialog(row, 'factors')"
+              />
+              <div
+                v-if="importInfo(row.lastFactorJob)"
+                class="q-mt-xs text-caption text-grey-7"
+              >
+                <div>
+                  {{ importInfo(row.lastFactorJob)!.rows }}
+                  {{ $t('data_management_rows_imported') }}
                 </div>
-                <q-btn
-                  v-if="row.hasOtherUpload"
-                  no-caps
-                  outline
-                  color="accent"
-                  icon="file_upload"
-                  size="sm"
-                  :label="$t('data_management_upload_reference')"
-                  class="text-weight-medium"
-                  disable
-                >
-                  <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
-                </q-btn>
-              </template>
-            </td>
-          </tr>
-        </tbody>
-      </q-markup-table>
-    </div>
+                <div class="row items-center q-gutter-xs">
+                  <span>{{ importInfo(row.lastFactorJob)!.fileName }}</span>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="download"
+                    size="xs"
+                    color="grey-6"
+                    @click="downloadLastCsv(row, 'factors')"
+                  >
+                    <q-tooltip>{{
+                      $t('data_management_download_last_csv')
+                    }}</q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
+            </template>
+            <span v-else class="text-grey-5">—</span>
+          </td>
+
+          <!-- Other -->
+          <td align="left">
+            <template v-if="row.other">
+              <div class="q-mb-xs text-caption text-grey-7">
+                {{ $t(row.other) }}
+              </div>
+              <q-btn
+                v-if="row.hasOtherUpload"
+                no-caps
+                outline
+                color="accent"
+                icon="file_upload"
+                size="sm"
+                :label="$t('data_management_upload_reference')"
+                class="text-weight-medium"
+                disable
+              >
+                <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
+              </q-btn>
+            </template>
+          </td>
+        </tr>
+      </tbody>
+    </q-markup-table>
 
     <data-entry-dialog
       v-model="showDataEntryDialog"

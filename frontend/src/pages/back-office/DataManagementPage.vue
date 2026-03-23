@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import AnnualDataImport from 'src/components/organisms/data-management/AnnualDataImport.vue';
 import ModulesConfig from 'src/components/organisms/data-management/ModulesConfig.vue';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
-import { Notify } from 'quasar';
+import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 // TODO: fix the available years dynamically
@@ -62,6 +62,25 @@ const handleUnitSync = async () => {
     });
   }
 };
+
+watch(
+  () => backofficeDataManagement.loading,
+  (newValue) => {
+    if (newValue) {
+      Loading.show({
+        message: $t('data_management_loading'),
+      });
+    } else {
+      Loading.hide();
+    }
+  },
+);
+
+onMounted(() => {
+  // Loading.show({
+  //   message: $t('data_management_loading'),
+  // });
+});
 </script>
 
 <template>

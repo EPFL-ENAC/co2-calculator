@@ -296,7 +296,7 @@ export default {
   },
   data_management_copy_from_year: {
     en: 'Copy from {year}',
-    fr: "Copier de {year}",
+    fr: 'Copier de {year}',
   },
   data_management_select_import: {
     en: 'Select import to copy',
