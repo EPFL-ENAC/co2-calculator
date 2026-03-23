@@ -186,19 +186,19 @@ const testApiConnection = async () => {
 };
 
 const connectAndSync = async () => {
-  if (
-    !apiServerUrl.value ||
-    !apiClientId.value ||
-    !apiSecretId.value ||
-    !apiSecretValue.value
-  ) {
-    $q.notify({
-      color: 'negative',
-      message: 'All fields are required',
-      position: 'top',
-    });
-    return;
-  }
+  // if (
+  //   !apiServerUrl.value ||
+  //   !apiClientId.value ||
+  //   !apiSecretId.value ||
+  //   !apiSecretValue.value
+  // ) {
+  //   $q.notify({
+  //     color: 'negative',
+  //     message: 'All fields are required',
+  //     position: 'top',
+  //   });
+  //   return;
+  // }
 
   isConnecting.value = true;
   try {
@@ -283,7 +283,6 @@ async function initiateSync(
       source_job_id: sourceJobId,
     };
   }
-
   const jobId = await dataManagementStore.initiateSync({
     module_type_id: props.row.moduleTypeId,
     year: props.year,
@@ -406,7 +405,7 @@ async function initiateSync(
           icon="file_upload"
         />
         <q-tab
-          v-if="row.hasApi"
+          :disable="!row.hasApi"
           name="api"
           :label="$t('data_management_tab_connect_api')"
           icon="link"
