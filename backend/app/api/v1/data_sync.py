@@ -277,6 +277,44 @@ async def get_jobs_by_year(
     ]
 
 
+@router.get("/jobs/year/{year}/latest", response_model=list[SyncJobResponse])
+async def get_latest_jobs_by_year(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list:
+    """
+    Get the current job for each (module_type_id, target_type) combination.
+
+    **Required Permission**: `backoffice.data_management.view`
+
+    Args:
+        year: The year to filter jobs by
+
+    Returns:
+        List of sync jobs where is_current = true
+    """
+    jobs = await DataIngestionRepository(db).get_latest_jobs_by_year(year)
+
+    return [
+        SyncJobResponse(
+            job_id=job.id,
+            module_type_id=job.module_type_id,
+            year=job.year,
+            ingestion_method=job.ingestion_method,
+            target_type=job.target_type,
+            state=job.state if job.state else None,
+            result=job.result if job.result else None,
+            status_message=job.status_message,
+            meta=job.meta,
+        )
+        for job in jobs
+        if job.id is not None
+    ]
+
+
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(

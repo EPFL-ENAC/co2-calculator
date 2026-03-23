@@ -352,10 +352,6 @@ export default {
     en: '... and {count} more error(s)',
     fr: '... et {count} autre(s) erreur(s)',
   },
-  csv_sync_failed: {
-    en: 'CSV sync failed. Please check the logs for details.',
-    fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
-  },
   csv_sync_connection_lost: {
     en: 'Connection to sync job lost. Please refresh to check status.',
     fr: 'Connexion au job de synchronisation perdue. Veuillez rafraîchir pour vérifier le statut.',

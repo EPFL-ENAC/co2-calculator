@@ -214,6 +214,13 @@ class DataIngestionProvider(ABC):
             state=state,
             result=result,
         )
+
+        # Mark as current if job is finished
+        if state == IngestionState.FINISHED:
+            job = await repo.get_job_by_id(self.job_id)
+            if job:
+                await repo.mark_job_as_current(job)
+
         # Commit immediately so SSE endpoints can see the update
         await self.job_session.commit()
 

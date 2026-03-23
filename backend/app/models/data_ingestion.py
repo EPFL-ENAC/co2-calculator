@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import JSON, Column, Integer
+from sqlalchemy import JSON, Column, Index, Integer, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -219,7 +219,28 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    is_current: bool = Field(
+        default=False,
+        description=(
+            "Whether this is the current active job "
+            "for this module/target/year combination"
+        ),
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_data_ingestion_jobs_is_current_unique",
+            "module_type_id",
+            "target_type",
+            "year",
+            unique=True,
+            postgresql_where=text("is_current = true"),
+        ),
+    )
 
     def __repr__(self) -> str:
-        return f"""<DataIngestionJob id={self.id}
-            provider={self.provider} status={self.state} result={self.result}>"""
+        return (
+            f"<DataIngestionJob id={self.id} "
+            f"provider={self.provider} status={self.state} "
+            f"result={self.result} is_current={self.is_current}>"
+        )

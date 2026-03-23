@@ -28,6 +28,8 @@ export interface JobUpdatePayload {
   target_type: number;
   year: number | null;
   status: string | number;
+  state?: number;
+  result?: number;
   status_message: string;
   meta?: {
     row_errors?: JobRowError[];
@@ -47,6 +49,23 @@ export interface SyncJobStatus {
   result?: number; // New result
   provider_type: string;
 }
+
+export interface SyncJobResponse {
+  job_id: number;
+  module_type_id?: number;
+  year?: number;
+  ingestion_method?: IngestionMethod;
+  target_type?: TargetType;
+  state?: IngestionState;
+  status_message?: string;
+  meta?: Record<string, unknown>;
+  result?: IngestionResult;
+}
+
+export type IngestionMethod = 0 | 1 | 2; // api, csv, manual
+export type TargetType = 0 | 1; // data_entries, factors
+export type IngestionState = 0 | 1 | 2 | 3; // NOT_STARTED, QUEUED, RUNNING, FINISHED
+export type IngestionResult = 0 | 1 | 2; // SUCCESS, WARNING, ERROR
 
 export type InitiateSyncParams = {
   module_type_id: number;
@@ -204,6 +223,33 @@ export const useBackofficeDataManagement = defineStore(
           error.value = err.message ?? 'Failed to fetch sync jobs';
         } else {
           error.value = 'Failed to fetch sync jobs';
+        }
+        return [];
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    async function fetchLatestSyncJobsByYear(
+      year: number,
+    ): Promise<DataIngestionJob[]> {
+      if (loading.value) return [];
+
+      loading.value = true;
+      error.value = null;
+      currentYear.value = year;
+
+      try {
+        const response = (await api
+          .get(`sync/jobs/year/${year}/latest`)
+          .json()) as DataIngestionJob[];
+        syncJobs[year] = response;
+        return response;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value = err.message ?? 'Failed to fetch latest sync jobs';
+        } else {
+          error.value = 'Failed to fetch latest sync jobs';
         }
         return [];
       } finally {
@@ -441,6 +487,33 @@ provider_type
       }
     }
 
+    /**
+     * Get successful jobs from a specific year, filtered by module type and target type.
+     * Returns only jobs that have state = FINISHED (3) and result = SUCCESS (0).
+     */
+    async function getPreviousYearSuccessfulJobs(
+      year: number,
+      moduleTypeId: number,
+      targetType: 'data_entries' | 'factors',
+    ): Promise<SyncJobResponse[]> {
+      try {
+        const jobs = (await api.get(`sync/jobs/year/${year}`).json()) as SyncJobResponse[];
+
+        const resolvedTargetType = targetType === 'data_entries' ? 0 : 1;
+
+        return jobs.filter(
+          (job) =>
+            job.module_type_id === moduleTypeId &&
+            job.target_type === resolvedTargetType &&
+            job.state === 3 && // FINISHED
+            job.result === 0, // SUCCESS
+        );
+      } catch (err: unknown) {
+        console.error('Failed to fetch previous year jobs:', err);
+        return [];
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -464,6 +537,8 @@ provider_type
       getSuccessRate,
       getResultLabel,
       fetchSyncJobsByYear,
+      fetchLatestSyncJobsByYear,
+      getPreviousYearSuccessfulJobs,
       initiateSync,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,

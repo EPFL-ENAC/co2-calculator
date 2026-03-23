@@ -2,7 +2,8 @@ import enum
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlmodel import col, desc, select
+from sqlalchemy import and_
+from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_ingestion import DataIngestionJob, IngestionResult, IngestionState
@@ -106,6 +107,60 @@ class DataIngestionRepository:
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
+
+    async def get_latest_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
+        """
+        Get the current job for each (module_type_id, target_type) combination.
+
+        Args:
+            year: The year to filter jobs by
+
+        Returns:
+            List of DataIngestionJob objects where is_current = true
+        """
+        stmt = (
+            select(DataIngestionJob)
+            .where(
+                DataIngestionJob.year == year,
+                DataIngestionJob.is_current,
+            )
+            .order_by(
+                col(DataIngestionJob.module_type_id), col(DataIngestionJob.target_type)
+            )
+        )
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
+
+    async def mark_job_as_current(self, job: DataIngestionJob) -> None:
+        """
+        Mark a job as current, unsetting any previous current job.
+
+        This must be called within a transaction to ensure atomicity.
+        Only FINISHED jobs can be marked as current.
+
+        Args:
+            job: The DataIngestionJob to mark as current
+        """
+        if job.state != IngestionState.FINISHED:
+            return  # Only FINISHED jobs can be current
+
+        # Build where clause to match job's module_type_id, target_type, and year
+        where_clause = and_(
+            col(DataIngestionJob.is_current),
+            col(DataIngestionJob.module_type_id) == job.module_type_id,
+            col(DataIngestionJob.target_type) == job.target_type,
+            col(DataIngestionJob.year) == job.year,
+        )
+
+        # Unset previous current job for this combination
+        unset_stmt = (
+            update(DataIngestionJob).where(where_clause).values(is_current=False)
+        )
+        await self.session.execute(unset_stmt)
+
+        # Set new current job
+        job.is_current = True
+        await self.session.flush()
 
     async def _get_jobs_by_state(
         self, states: list[IngestionState], negate: bool = False
