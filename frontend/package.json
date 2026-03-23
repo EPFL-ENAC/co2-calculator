@@ -54,7 +54,7 @@
     "autoprefixer": "^10.4.2",
     "chokidar": "^4.0.3",
     "concurrently": "=9.2.1",
-    "eslint": "^10.0.2",
+    "eslint": "^10.1.0",
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-storybook": "=10.2.19",
     "eslint-plugin-vue": "^10.8.0",
