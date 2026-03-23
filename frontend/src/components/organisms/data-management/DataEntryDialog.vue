@@ -319,6 +319,20 @@ async function initiateSync(
         caption = $t('csv_sync_success_caption', {
           processed: rowsProcessed || 0,
         });
+
+        // Emit completed event to parent for refresh
+        if (payload) {
+          emit('completed', {
+            job_id: payload.job_id,
+            module_type_id: payload.module_type_id,
+            year: payload.year,
+            target_type: payload.target_type as 0 | 1,
+            state: payload.state,
+            result: payload.result,
+            status_message: payload.status_message,
+            meta: payload.meta,
+          });
+        }
       } else {
         // ERROR: nothing processed or failed
         color = 'negative';

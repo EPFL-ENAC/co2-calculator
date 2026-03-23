@@ -305,8 +305,8 @@ async def get_latest_jobs_by_year(
             year=job.year,
             ingestion_method=job.ingestion_method,
             target_type=job.target_type,
-            state=job.state if job.state else None,
-            result=job.result if job.result else None,
+            state=job.state,
+            result=job.result,
             status_message=job.status_message,
             meta=job.meta,
         )

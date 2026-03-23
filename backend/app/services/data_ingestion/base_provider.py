@@ -193,7 +193,22 @@ class DataIngestionProvider(ABC):
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
     ):
-        metadata = {"config": self.config}
+        # Only store essential config fields to avoid recursive nesting
+        # (self.config may contain snapshots of previous meta, causing meta.config.meta.config...)
+        essential_config = {
+            "module_type_id": self.config.get("module_type_id"),
+            "year": self.config.get("year"),
+            "target_type": self.config.get("target_type"),
+            "ingestion_method": self.config.get("ingestion_method"),
+            "data_entry_type_id": self.config.get("data_entry_type_id"),
+            "carbon_report_module_id": self.config.get("carbon_report_module_id"),
+            "entity_type": self.config.get("entity_type"),
+            "file_path": self.config.get("file_path"),
+        }
+        # Remove None values
+        essential_config = {k: v for k, v in essential_config.items() if v is not None}
+
+        metadata = {"config": essential_config}
         if extra_metadata:
             metadata.update(extra_metadata)
         if not self.job_id:

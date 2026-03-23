@@ -9,7 +9,7 @@ import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 // TODO: fix the available years dynamically
-const MIN_YEARS = 2025;
+const MIN_YEARS = 2024;
 const availableYears = ref<number[]>([]);
 const currentYear = new Date().getFullYear();
 if (currentYear > MIN_YEARS) {
@@ -26,7 +26,7 @@ const { t: $t } = useI18n();
 
 // Fetch sync jobs when year changes
 const fetchSyncJobs = async () => {
-  await backofficeDataManagement.fetchSyncJobsByYear(selectedYear.value);
+  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
 };
 
 // Watch for year changes and fetch sync jobs

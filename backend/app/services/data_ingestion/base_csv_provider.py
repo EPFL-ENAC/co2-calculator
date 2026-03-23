@@ -964,11 +964,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         )
         # Compute result dynamically based on success rate
         result = self._compute_ingestion_result(stats)
+
+        # Prepare metadata: exclude row_errors from root level to avoid duplication
+        # (row_errors remain in stats for detailed error reporting)
+        metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
+        # Add stats with row_errors for detailed reporting
+        metadata_for_job["stats"] = stats
+
         await self._update_job(
             status_message=status_message,
             state=IngestionState.FINISHED,
             result=result,
-            extra_metadata=dict(stats),
+            extra_metadata=metadata_for_job,
         )
 
         return {

@@ -35,7 +35,8 @@ interface ImportRow {
   lastFactorJob?: SyncJobResponse;
 }
 
-const importRows = ref<ImportRow[]>([
+// Static row definitions (base configuration)
+const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
   {
     key: 'headcount_members',
     labelKey: 'data_management_row_headcount_members',
@@ -201,14 +202,17 @@ const importRows = ref<ImportRow[]>([
     isDisabled: true,
     hasData: true,
   },
-]);
+];
+
+// Reactive map of jobs by module_type_id and target_type
+const jobsByModule = ref<Map<string, DataIngestionJob>>(new Map());
 
 // Dialog state
 const showDataEntryDialog = ref<boolean>(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<'data_entries' | 'factors'>('data_entries');
 
-// Fetch sync jobs and map to import rows
+// Fetch sync jobs and store in reactive map
 async function loadSyncJobs() {
   try {
     // Use the new endpoint that returns pre-filtered latest jobs
@@ -216,54 +220,83 @@ async function loadSyncJobs() {
       props.year,
     );
 
-    // Map jobs to import rows - no filtering needed, backend already did it
-    importRows.value = importRows.value.map((row) => {
-      const dataJob = jobs.find(
-        (j: DataIngestionJob) =>
-          j.module_type_id === row.moduleTypeId &&
-          j.target_type === 0 && // data_entries
-          j.year === props.year,
-      );
-
-      const factorJob = jobs.find(
-        (j: DataIngestionJob) =>
-          j.module_type_id === row.moduleTypeId &&
-          j.target_type === 1 && // factors
-          j.year === props.year,
-      );
-
-      return {
-        ...row,
-        lastDataJob: dataJob
-          ? ({
-              job_id: dataJob.job_id,
-              module_type_id: dataJob.module_type_id,
-              year: dataJob.year,
-              target_type: dataJob.target_type as 0 | 1,
-              state: dataJob.state,
-              result: dataJob.result,
-              status_message: dataJob.status_message,
-              meta: dataJob.meta,
-            } as SyncJobResponse)
-          : undefined,
-        lastFactorJob: factorJob
-          ? ({
-              job_id: factorJob.job_id,
-              module_type_id: factorJob.module_type_id,
-              year: factorJob.year,
-              target_type: factorJob.target_type as 0 | 1,
-              state: factorJob.state,
-              result: factorJob.result,
-              status_message: factorJob.status_message,
-              meta: factorJob.meta,
-            } as SyncJobResponse)
-          : undefined,
-      };
+    // Build new map and replace (triggers reactivity)
+    // Key by module_type_id-target_type for general matching
+    const newMap = new Map<string, DataIngestionJob>();
+    jobs.forEach((job: DataIngestionJob) => {
+      // Use root module_type_id for general matching
+      const key = `${job.module_type_id}-${job.target_type}`;
+      newMap.set(key, job);
     });
+    jobsByModule.value = newMap;
   } catch (err) {
     console.error('Failed to load sync jobs:', err);
   }
 }
+
+// Computed import rows with latest job data
+const importRows = computed<ImportRow[]>(() => {
+  return BASE_IMPORT_ROWS.map((row) => {
+    // Get all jobs for this module_type_id and target_type
+    const allDataJobs = Array.from(jobsByModule.value.values()).filter(
+      (j) => j.module_type_id === row.moduleTypeId && j.target_type === 0,
+    );
+    const allFactorJobs = Array.from(jobsByModule.value.values()).filter(
+      (j) => j.module_type_id === row.moduleTypeId && j.target_type === 1,
+    );
+
+    // If row has dataEntryTypeId, filter by it from meta.config.data_entry_type_id
+    let dataJob: DataIngestionJob | undefined;
+    let factorJob: DataIngestionJob | undefined;
+
+    if (row.dataEntryTypeId !== undefined) {
+      // Match by data_entry_type_id in meta.config
+      dataJob = allDataJobs.find((j) => {
+        const configDataEntryTypeId = (j.meta?.config as any)
+          ?.data_entry_type_id;
+        return configDataEntryTypeId === row.dataEntryTypeId;
+      });
+
+      factorJob = allFactorJobs.find((j) => {
+        const configDataEntryTypeId = (j.meta?.config as any)
+          ?.data_entry_type_id;
+        return configDataEntryTypeId === row.dataEntryTypeId;
+      });
+    } else {
+      // No specific data_entry_type_id, use first available
+      dataJob = allDataJobs[0];
+      factorJob = allFactorJobs[0];
+    }
+
+    return {
+      ...row,
+      lastDataJob: dataJob
+        ? ({
+            job_id: dataJob.job_id,
+            module_type_id: dataJob.module_type_id,
+            year: dataJob.year,
+            target_type: dataJob.target_type as 0 | 1,
+            state: dataJob.state,
+            result: dataJob.result,
+            status_message: dataJob.status_message,
+            meta: dataJob.meta,
+          } as SyncJobResponse)
+        : undefined,
+      lastFactorJob: factorJob
+        ? ({
+            job_id: factorJob.job_id,
+            module_type_id: factorJob.module_type_id,
+            year: factorJob.year,
+            target_type: factorJob.target_type as 0 | 1,
+            state: factorJob.state,
+            result: factorJob.result,
+            status_message: factorJob.status_message,
+            meta: factorJob.meta,
+          } as SyncJobResponse)
+        : undefined,
+    };
+  });
+});
 
 // Button color computation
 const getDataButtonColor = computed(() => {
@@ -354,6 +387,11 @@ const openDataEntryDialog = (
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
   showDataEntryDialog.value = true;
+};
+
+// Handle job completion - reload jobs to update button states
+const handleJobCompleted = async () => {
+  await loadSyncJobs();
 };
 
 // Download last CSV
@@ -573,6 +611,7 @@ onMounted(() => {
       :row="dialogCurrentRow || ({} as ImportRow)"
       :year="year"
       :target-type="dialogTargetType"
+      @completed="handleJobCompleted"
     />
   </q-card>
 </template>
