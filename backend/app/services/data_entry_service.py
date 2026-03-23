@@ -108,6 +108,8 @@ class DataEntryService:
         data: DataEntryCreate,
         request_context: Optional[dict] = None,
         background_tasks: Optional[BackgroundTasks] = None,
+        source: Optional[int] = None,
+        created_by_id: Optional[int] = None,
     ) -> DataEntryResponse:
         logger.info(
             f"Creating data entry for module_id={sanitize(carbon_report_module_id)} "
@@ -119,6 +121,12 @@ class DataEntryService:
             data_entry_type_id=data_entry_type_id,
             data=data.data,
         )
+
+        # Set source tracking fields
+        if source is not None:
+            entry.source = source
+        if created_by_id is not None:
+            entry.created_by_id = created_by_id
 
         created_entry = await self.repo.create(entry)
 
@@ -418,6 +426,8 @@ class DataEntryService:
         user: UserRead,
         request_context: Optional[dict] = None,
         background_tasks: Optional[BackgroundTasks] = None,
+        source: Optional[int] = None,
+        created_by_id: Optional[int] = None,
     ) -> DataEntryResponse:
         """Update an existing record."""
         try:
@@ -433,6 +443,13 @@ class DataEntryService:
             )
             if entry is None:
                 raise ValueError(f"Data entry with id={id} not found")
+
+            # Set source tracking fields if provided
+            if source is not None or created_by_id is not None:
+                entry.source = source
+                entry.created_by_id = created_by_id
+                await self.session.flush()
+
             await self.session.refresh(entry)
 
             # Extract context information
