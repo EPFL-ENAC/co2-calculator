@@ -476,9 +476,6 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
 ## ENERGY COMBUSTION FACTOR HANDLER
 
-
-## FACTORS for energy combustion
-
 energy_combustion_classification_fields: list[str] = ["unit", "name"]
 energy_combustion_value_fields: list[str] = [
     "ef_kg_co2eq_per_unit",
@@ -530,6 +527,45 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
 
     classification_fields: list[str] = energy_combustion_classification_fields
     value_fields: list[str] = energy_combustion_value_fields
+
+    def to_response(self, factor: Factor) -> FactorResponseGen:
+        return self.response_dto.model_validate(factor.model_dump)
+
+
+## EMBODIED ENERGY FACTOR HANDLER
+
+
+class EmbodiedEnergyFactorCreate(FactorCreate):
+    building_name: str
+    category: str
+    ef_kgco2eq_per_m2: float
+
+
+class EmbodiedEnergyFactorUpdate(FactorUpdate):
+    building_name: Optional[str] = None
+    category: Optional[str] = None
+    ef_kgco2eq_per_m2: Optional[float] = None
+
+
+class EmbodiedEnergyFactorResponse(FactorResponseGen):
+    building_name: str
+    category: str
+    ef_kgco2eq_per_m2: float
+
+
+class EmbodiedEnergyFactorHandler(BaseFactorHandler):
+    data_entry_type: DataEntryTypeEnum | None = None
+    registration_keys = [
+        DataEntryTypeEnum.embodied_energy,
+    ]
+    emission_type: EmissionType = EmissionType.buildings__embodied_energy
+
+    create_dto = EmbodiedEnergyFactorCreate
+    update_dto = EmbodiedEnergyFactorUpdate
+    response_dto = EmbodiedEnergyFactorResponse
+
+    classification_fields: list[str] = ["building_name", "category"]
+    value_fields: list[str] = ["ef_kg_co2eq_per_m2"]
 
     def to_response(self, factor: Factor) -> FactorResponseGen:
         return self.response_dto.model_validate(factor.model_dump)

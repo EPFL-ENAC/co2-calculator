@@ -53,7 +53,6 @@ class Factor(FactorBase, table=True):
     - food (id=3): Headcount food calculation (FTE-based)
     - waste (id=4): Headcount waste calculation (FTE-based)
     - transport (id=5): Headcount transport/commute calculation (FTE-based)
-    - grey_energy (id=6): Headcount grey energy calculation (FTE-based)
     - professional_travel (id=7): Flight/train calculation (distance-based)
 
     Note: emission_type_id=1 (energy conversion) has been removed.
@@ -65,7 +64,7 @@ class Factor(FactorBase, table=True):
     - equipment: data_entry_type_id
         + classification->>'class' + classification->>'sub_class'
         + values include ef_kg_co2eq_per_kwh for energy mix
-    - food/waste/transport/grey_energy: data_entry_type_id (member vs student)
+    - food/waste/transport: data_entry_type_id (member vs student)
     - professional_travel:
         classification->>'distance_band' + classification->>'cabin_class'
 

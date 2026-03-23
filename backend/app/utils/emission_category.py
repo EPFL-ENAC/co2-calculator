@@ -10,7 +10,7 @@ This module is the backend contract for chart-related category semantics:
     ``process_emissions``, ``buildings``, ``equipment``,
     ``research_facilities``, ``professional_travel``, ``purchases``,
     ``external_cloud_and_ai``, plus headcount keys
-    ``commuting``, ``food``, ``waste``, ``grey_energy`` when applicable.
+    ``commuting``, ``food``, ``waste`` when applicable.
 """
 
 # Define Scope enum locally (if needed for legacy)
@@ -43,7 +43,7 @@ class EmissionCategory(StrEnum):
     commuting = "commuting"
     food = "food"
     waste = "waste"
-    grey_energy = "grey_energy"
+    embodied_energy = "embodied_energy"
 
 
 class EmissionMeta(TypedDict):
@@ -77,10 +77,6 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
     EmissionType.commuting: {
         "scope": Scope.scope3,
         "category": EmissionCategory.commuting,
-    },
-    EmissionType.grey_energy: {
-        "scope": Scope.scope3,
-        "category": EmissionCategory.grey_energy,
     },
     # Professional Travel — all scope 3
     EmissionType.professional_travel__train__class_1: {
@@ -128,6 +124,10 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
         "scope": Scope.scope1,
         "category": EmissionCategory.buildings_energy_combustion,
     },  # direct fuel combustion
+    EmissionType.buildings__embodied_energy: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.embodied_energy,
+    },
     # Process Emissions — all scope 1
     EmissionType.process_emissions__ch4: {
         "scope": Scope.scope1,
@@ -245,7 +245,7 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
 
 
 # Headcount categories are those whose emission types sit at level 0 in
-# EMISSION_SCOPE (food, waste, commuting, grey_energy — no "__" sub-path).
+# EMISSION_SCOPE (food, waste, commuting — no "__" sub-path).
 _ADDITIONAL_CATEGORIES: frozenset[EmissionCategory] = frozenset(
     meta["category"] for etype, meta in EMISSION_SCOPE.items() if etype.level == 0
 )
@@ -285,7 +285,6 @@ HEADCOUNT_PER_FTE_KG: dict[EmissionType, float] = {
     EmissionType.food: 420.0,
     EmissionType.waste: 125.0,
     EmissionType.commuting: 1375.0,
-    EmissionType.grey_energy: 500.0,
 }
 
 
@@ -362,7 +361,7 @@ def build_chart_breakdown(
           order, each row containing category keys, emission entries, and
           flattened YY/parent sums in tonnes.
         - ``additional_breakdown``: headcount-derived categories
-          (``commuting``, ``food``, ``waste``, ``grey_energy``).
+          (``commuting``, ``food``, ``waste``).
         - ``per_person_breakdown``: snake_case metric keys normalized by FTE.
         - ``validated_categories``: validated category keys (snake_case).
         - ``total_tonnes_co2eq``: global total including real emissions and

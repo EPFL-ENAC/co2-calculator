@@ -61,8 +61,6 @@ class EmissionType(int, Enum):
     commuting__public_transport = 30004
     commuting__car = 30005
 
-    grey_energy = 40000
-
     # -------------------------------------------------------------------------
     # Professional Travel
     # -------------------------------------------------------------------------
@@ -86,6 +84,9 @@ class EmissionType(int, Enum):
     buildings__rooms__heating_elec = 60104
     buildings__rooms__heating_thermal = 60105
     buildings__combustion = 60200  # scope 1 — direct fuel combustion
+    buildings__embodied_energy = (
+        60300  # scope 3 — embodied emissions of construction materials
+    )
 
     # -------------------------------------------------------------------------
     # Process Emissions
@@ -333,7 +334,7 @@ class DataEntryEmission(DataEntryEmissionBase, table=True):
     Generic emission results table.
 
     Stores computed CO2 emissions for all module types. Supports:
-    - Multiple emissions per data entry (headcount → food, waste, commute, grey_energy)
+    - Multiple emissions per data entry (headcount → food, waste, commute)
     - Single emission per data entry (equipment → equipment)
     - Multi-factor calculations (all factors stored in meta.factors_used)
 

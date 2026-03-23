@@ -9,7 +9,6 @@
 # EmissionType.food                      → EmissionType.food                    (kept)
 # EmissionType.waste                     → EmissionType.waste                   (kept)
 # EmissionType.commuting                 → EmissionType.commuting               (kept)
-# EmissionType.grey_energy               → EmissionType.grey_energy             (kept)
 # EmissionType.plane                     → (removed — use resolve_emission_types)
 # EmissionType.train                     → (removed — use resolve_emission_types)
 # EmissionType.stockage                  → EmissionType.external__clouds__stockage
@@ -55,8 +54,8 @@ class HeatingEnergyType(str, Enum):
 FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
-    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
-    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    # commuting). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed.
     DataEntryTypeEnum.building: [EmissionType.buildings__rooms],
     # --- Professional Travel — one factor per haul/country, not per cabin -----
     DataEntryTypeEnum.plane: [EmissionType.professional_travel__plane],
@@ -66,19 +65,17 @@ FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
 DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
-    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
-    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    # commuting). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed.
     DataEntryTypeEnum.member: [
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
-        EmissionType.grey_energy,
     ],
     DataEntryTypeEnum.student: [
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
-        EmissionType.grey_energy,
     ],
     # --- Professional Travel — resolved at runtime (cabin_class key) ----------
     DataEntryTypeEnum.plane: None,  # → _resolve_plane()
