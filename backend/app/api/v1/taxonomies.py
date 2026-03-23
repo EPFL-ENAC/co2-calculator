@@ -111,12 +111,10 @@ async def get_taxonomy_for_module_data_entry(
     current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module and data entry type."""
-    # data_entry_name = data_entry.replace("-", "_")
+    data_entry_name = data_entry.replace("-", "_")
     data_entry_type = (
-        DataEntryTypeEnum[data_entry]
-        if data_entry in DataEntryTypeEnum.__members__
-        # DataEntryTypeEnum[data_entry_name]
-        # if data_entry_name in DataEntryTypeEnum.__members__
+        DataEntryTypeEnum[data_entry_name]
+        if data_entry_name in DataEntryTypeEnum.__members__
         else None
     )
     if not data_entry_type:
