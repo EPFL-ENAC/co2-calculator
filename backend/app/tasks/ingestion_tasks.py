@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from app.db import SessionLocal
-from app.models.data_ingestion import IngestionStatus
+from app.models.data_ingestion import IngestionResult, IngestionState, IngestionStatus
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 
@@ -60,6 +60,8 @@ async def run_sync_task(
             # Update final job status
             await provider._update_job(
                 status_code=result["status_code"],
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
                 status_message=result["status_message"],
                 extra_metadata=result.get("data", {}),
             )
@@ -71,6 +73,8 @@ async def run_sync_task(
             # Job updates are preserved because they commit immediately
             await provider._update_job(
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 status_message=str(e),
                 extra_metadata={"message": "run_sync_task failure"},
             )

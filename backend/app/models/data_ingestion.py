@@ -72,6 +72,24 @@ class TargetType(int, Enum):
     FACTORS = 1
 
 
+class IngestionState(int, Enum):
+    """Lifecycle state of an ingestion job."""
+
+    NOT_STARTED = 0
+    QUEUED = 1
+    RUNNING = 2
+    FINISHED = 3
+
+
+class IngestionResult(int, Enum):
+    """Outcome result of an ingestion job (only valid when state is FINISHED)."""
+
+    SUCCESS = 0
+    WARNING = 1
+    ERROR = 2
+
+
+# Legacy enum - kept for backward compatibility during migration
 class IngestionStatus(int, Enum):
     NOT_STARTED = 0
     PENDING = 1
@@ -164,7 +182,7 @@ class DataIngestionJobBase(SQLModel):
         description=_provider_comment,
     )
 
-    _status_comment = "Current status of the ingestion job IngestionStatus"
+    _status_comment = "Current status of the ingestion job IngestionStatus (legacy, deprecated)"
     status: IngestionStatus = Field(
         default=IngestionStatus.NOT_STARTED,
         sa_column=Column(
@@ -172,6 +190,26 @@ class DataIngestionJobBase(SQLModel):
             nullable=False,
         ),
         description=_status_comment,
+    )
+
+    _state_comment = "Lifecycle state of the ingestion job (IngestionState)"
+    state: Optional[IngestionState] = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(IngestionState, name="ingestion_state_enum", native_enum=True),
+            nullable=True,
+        ),
+        description=_state_comment,
+    )
+
+    _result_comment = "NULLABLE: Outcome result of the ingestion job (only valid when state is FINISHED)"
+    result: Optional[IngestionResult] = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(IngestionResult, name="ingestion_result_enum", native_enum=True),
+            nullable=True,
+        ),
+        description=_result_comment,
     )
 
     _status_message_comment = "NULLABLE: Detailed status or error message"

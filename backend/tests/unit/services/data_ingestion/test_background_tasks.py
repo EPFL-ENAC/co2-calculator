@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.data_ingestion import IngestionStatus
+from app.models.data_ingestion import IngestionResult, IngestionState, IngestionStatus
 from app.tasks.ingestion_tasks import run_sync_task
 
 
@@ -10,6 +10,8 @@ from app.tasks.ingestion_tasks import run_sync_task
 async def test_run_sync_task_success():
     fake_job = MagicMock()
     fake_job.status_code = IngestionStatus.PENDING
+    fake_job.state = IngestionState.NOT_STARTED
+    fake_job.result = None
     fake_job.id = 123
     fake_job.user = None
     fake_job.meta = None

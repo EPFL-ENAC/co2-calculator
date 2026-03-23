@@ -10,6 +10,8 @@ from app.models.data_ingestion import (
     EntityType,
     FactorType,
     IngestionMethod,
+    IngestionResult,
+    IngestionState,
     IngestionStatus,
     TargetType,
 )
@@ -95,6 +97,8 @@ class DataIngestionProvider(ABC):
             entity_type=entity_type,
             target_type=target_type,
             status=IngestionStatus.NOT_STARTED,
+            state=IngestionState.NOT_STARTED,
+            result=None,
             status_message="Job created",
             meta=meta,
             provider=self.user.provider if self.user else None,
@@ -142,24 +146,32 @@ class DataIngestionProvider(ABC):
             await self._update_job(
                 status_message="processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Starting sync..."},
             )
             raw_data = await self.fetch_data(filters or {})
             await self._update_job(
                 status_message="processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": f"Fetched {len(raw_data)} records"},
             )
             transformed_data = await self.transform_data(raw_data)
             await self._update_job(
                 status_message="processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Transforming data..."},
             )
             result = await self._load_data(transformed_data)
             await self._update_job(
                 status_message="completed",
                 status_code=IngestionStatus.COMPLETED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
                 extra_metadata={
                     "message": f"Successfully processed {result['inserted']} records"
                 },
@@ -173,6 +185,8 @@ class DataIngestionProvider(ABC):
             await self._update_job(
                 status_message=f"failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             logger.error(f"Ingestion failed: {str(e)}")
@@ -183,6 +197,8 @@ class DataIngestionProvider(ABC):
         status_message: str,
         status_code: IngestionStatus,
         extra_metadata: dict | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ):
         metadata = {"config": self.config}
         if extra_metadata:
@@ -201,8 +217,10 @@ class DataIngestionProvider(ABC):
             status_code=status_code,
             metadata=metadata,
             completed_at=datetime.now(timezone.utc)
-            if status_code in [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
+            if status_code in (IngestionStatus.COMPLETED, IngestionStatus.FAILED)
             else None,
+            state=state,
+            result=result,
         )
         # Commit immediately so SSE endpoints can see the update
         await self.job_session.commit()
@@ -215,6 +233,8 @@ class DataIngestionProvider(ABC):
         status_code: IngestionStatus,
         metadata: dict | None = None,
         completed_at: datetime | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
         """
         Update ingestion job and keep self.job in sync.
@@ -228,6 +248,8 @@ class DataIngestionProvider(ABC):
             status_code=status_code,
             metadata=metadata or {},
             completed_at=completed_at,
+            state=state,
+            result=result,
         )
         if updated_job:
             self.job = updated_job

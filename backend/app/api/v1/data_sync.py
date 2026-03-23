@@ -14,6 +14,8 @@ from app.models.data_ingestion import (
     EntityType,
     FactorType,
     IngestionMethod,
+    IngestionResult,
+    IngestionState,
     IngestionStatus,
     TargetType,
 )
@@ -58,6 +60,8 @@ class SyncJobResponse(BaseModel):
     status: IngestionStatus
     status_message: Optional[str] = None
     meta: Optional[dict] = None
+    state: Optional[IngestionState] = None
+    result: Optional[IngestionResult] = None
 
 
 @router.post("/data-entries/{module_type_id}", response_model=SyncStatusResponse)
@@ -233,7 +237,7 @@ async def get_jobs_by_status(
     if filter_type.lower() == "active":
         jobs = await DataIngestionRepository(db).get_active_jobs()
     else:
-        jobs = await DataIngestionRepository(db).get_completed_jobs()
+        jobs = await DataIngestionRepository(db).get_finished_jobs()
     return jobs
 
 
@@ -326,6 +330,8 @@ async def job_stream_by_id(
                 "target_type": job.target_type,
                 "year": job.year,
                 "status": job.status,
+                "state": job.state,
+                "result": job.result,
                 "status_message": job.status_message,
                 "meta": job.meta if job.meta else None,
             }
@@ -336,8 +342,8 @@ async def job_stream_by_id(
                 last_status = current_status
                 last_message = job.status_message
 
-            # If job is completed or failed...
-            if job.status in {IngestionStatus.COMPLETED, IngestionStatus.FAILED}:
+            # If job is finished...
+            if job.state == IngestionState.FINISHED:
                 polls_after_completion += 1
                 if polls_after_completion >= 2:
                     # Send final completion message before closing stream

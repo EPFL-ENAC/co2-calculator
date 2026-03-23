@@ -14,6 +14,8 @@ from app.models.data_entry import (
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
+    IngestionResult,
+    IngestionState,
     IngestionStatus,
     TargetType,
 )
@@ -450,6 +452,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message="processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Starting CSV processing..."},
             )
             result = await self.process_csv_in_batches()
@@ -462,6 +466,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message=f"failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             logger.error(f"CSV ingestion failed: {str(e)}")
@@ -615,6 +621,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         await self._update_job(
                             status_message=f"Processing: {stats['rows_processed']}",
                             status_code=IngestionStatus.IN_PROGRESS,
+                            state=IngestionState.RUNNING,
+                            result=None,
                             extra_metadata=dict(stats),
                         )
 
@@ -629,6 +637,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message=f"Processing failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             raise
@@ -650,6 +660,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         await self._update_job(
             status_message="Starting CSV processing",
             status_code=IngestionStatus.IN_PROGRESS,
+            state=IngestionState.RUNNING,
+            result=None,
             extra_metadata={},
         )
 
@@ -692,6 +704,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message=f"Column validation failed: {error_message}",
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"validation_error": error_message},
             )
             raise
@@ -932,6 +946,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         await self._update_job(
             status_message=status_message,
             status_code=IngestionStatus.COMPLETED,
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
             extra_metadata=dict(stats),
         )
 

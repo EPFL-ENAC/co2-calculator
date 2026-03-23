@@ -9,6 +9,8 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
+    IngestionResult,
+    IngestionState,
     IngestionStatus,
     TargetType,
 )
@@ -141,6 +143,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message="processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Starting CSV processing..."},
             )
             result = await self.process_csv_in_batches()
@@ -153,6 +157,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             await self._update_job(
                 status_message=f"failed: {str(e)}",
                 status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             logger.error(f"CSV ingestion failed: {str(e)}")
@@ -237,6 +243,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                             job_id=self.job_id,
                             status_message=f"Processing: {stats['rows_processed']}",
                             status_code=IngestionStatus.IN_PROGRESS,
+                            state=IngestionState.RUNNING,
+                            result=None,
                             metadata=dict(stats),
                         )
                         await self.data_session.flush()
@@ -253,6 +261,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     job_id=self.job_id,
                     status_message=f"Processing failed: {str(e)}",
                     status_code=IngestionStatus.FAILED,
+                    state=IngestionState.FINISHED,
+                    result=IngestionResult.ERROR,
                     metadata={"error": str(e)},
                 )
             raise
@@ -266,6 +276,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 job_id=self.job_id,
                 status_message="Starting CSV processing",
                 status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 metadata={},
             )
         await self.data_session.flush()
@@ -510,6 +522,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 job_id=self.job_id,
                 status_message="CSV processing completed",
                 status_code=IngestionStatus.COMPLETED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
                 metadata=dict(stats),
             )
 

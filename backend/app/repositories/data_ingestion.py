@@ -5,7 +5,12 @@ from typing import List, Optional
 from sqlmodel import col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.data_ingestion import DataIngestionJob, IngestionStatus
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    IngestionResult,
+    IngestionState,
+    IngestionStatus,
+)
 
 
 class DataIngestionRepository:
@@ -45,10 +50,23 @@ class DataIngestionRepository:
         status_code: IngestionStatus,
         metadata: dict,
         completed_at: Optional[datetime] = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
+        """Update ingestion job with legacy status_code and new state/result.
+
+        Args:
+            job_id: Job ID to update
+            status_message: Status message
+            status_code: Legacy status code (for backward compatibility)
+            metadata: Metadata to merge
+            completed_at: Optional completed timestamp
+            state: New state value (optional, for new code)
+            result: New result value (optional, for new code)
+        """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
-        result = await self.session.execute(stmt)
-        result_job = result.scalar_one_or_none()
+        exec_result = await self.session.execute(stmt)
+        result_job = exec_result.scalar_one_or_none()
         if not result_job:
             return None
 
@@ -57,6 +75,16 @@ class DataIngestionRepository:
 
             result_job.status_message = status_message
             result_job.status = status_code
+            # Use new state/result if provided, otherwise derive from legacy status_code
+            if state is not None:
+                result_job.state = state
+            else:
+                result_job.state = self._legacy_status_to_state(status_code)
+            if result is not None:
+                result_job.result = result
+            else:
+                result_job.result = self._legacy_status_to_result(status_code)
+
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
                 **self.sanitize_for_json(metadata or {}),
@@ -65,7 +93,7 @@ class DataIngestionRepository:
                     if completed_at
                     else (
                         datetime.now(timezone.utc).isoformat()
-                        if status_code == IngestionStatus.COMPLETED
+                        if status_code in (IngestionStatus.COMPLETED, IngestionStatus.FAILED)
                         else None
                     )
                 ),
@@ -75,10 +103,29 @@ class DataIngestionRepository:
             await self.session.refresh(result_job)
         return result_job
 
+    def _legacy_status_to_state(self, status_code: IngestionStatus) -> IngestionState:
+        """Convert legacy IngestionStatus to new IngestionState."""
+        mapping = {
+            IngestionStatus.NOT_STARTED: IngestionState.NOT_STARTED,
+            IngestionStatus.PENDING: IngestionState.QUEUED,
+            IngestionStatus.IN_PROGRESS: IngestionState.RUNNING,
+            IngestionStatus.COMPLETED: IngestionState.FINISHED,
+            IngestionStatus.FAILED: IngestionState.FINISHED,
+        }
+        return mapping.get(status_code, IngestionState.NOT_STARTED)
+
+    def _legacy_status_to_result(self, status_code: IngestionStatus) -> Optional[IngestionResult]:
+        """Convert legacy IngestionStatus to new IngestionResult (None for non-finished states)."""
+        if status_code == IngestionStatus.COMPLETED:
+            return IngestionResult.SUCCESS
+        if status_code == IngestionStatus.FAILED:
+            return IngestionResult.ERROR
+        return None
+
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
-        result = await self.session.execute(stmt)
-        job = result.scalar_one_or_none()
+        exec_result = await self.session.execute(stmt)
+        job = exec_result.scalar_one_or_none()
         if job:
             await self.session.refresh(job)
         return job
@@ -86,46 +133,44 @@ class DataIngestionRepository:
     async def get_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.year == year)
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
 
-    async def _get_jobs_by_status(
-        self, statuses: list[IngestionStatus], negate: bool = False
+    async def _get_jobs_by_state(
+        self, states: list[IngestionState], negate: bool = False
     ) -> list[DataIngestionJob]:
         """
-        Helper method to fetch jobs filtered by status.
+        Helper method to fetch jobs filtered by state.
 
         Args:
-            statuses: List of IngestionStatus values to filter by
-            negate: If True, exclude jobs with these statuses (use notin_)
+            states: List of IngestionState values to filter by
+            negate: If True, exclude jobs with these states (use notin_)
 
         Returns:
             List of DataIngestionJob objects ordered by id descending
         """
-        status_filter = (
-            col(DataIngestionJob.status).notin_(statuses)
+        state_filter = (
+            col(DataIngestionJob.state).notin_(states)
             if negate
-            else col(DataIngestionJob.status).in_(statuses)
+            else col(DataIngestionJob.state).in_(states)
         )
         stmt = (
             select(DataIngestionJob)
-            .where(status_filter)
+            .where(state_filter)
             .order_by(desc(DataIngestionJob.id))
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
 
-    async def get_completed_jobs(self) -> list[DataIngestionJob]:
+    async def get_finished_jobs(self) -> list[DataIngestionJob]:
         """
-        Get all jobs that are in a final state (COMPLETED or FAILED).
+        Get all jobs that are in a finished state.
         """
-        final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-        return await self._get_jobs_by_status(final_states)
+        return await self._get_jobs_by_state([IngestionState.FINISHED])
 
     async def get_active_jobs(self) -> list[DataIngestionJob]:
         """
-        Get all jobs that are not in a final state (not COMPLETED or FAILED).
+        Get all jobs that are not in a finished state.
         Used for SSE streaming of job updates.
         """
-        final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-        return await self._get_jobs_by_status(final_states, negate=True)
+        return await self._get_jobs_by_state([IngestionState.FINISHED], negate=True)
