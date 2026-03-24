@@ -193,7 +193,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     ),
                     "note": None,
                     # Preserve CO2 and distance from source
-                    "co2_kg": record.get("OUT_CO2_CORRECTED"),
+                    "kg_co2eq": record.get("OUT_CO2_CORRECTED"),
                     "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
                     # Keep original values for reference
                     "supplier": record.get("IN_Supplier"),
@@ -385,13 +385,13 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 continue
 
             # Extract CO2 values from item (preserved from source)
-            co2_kg = item.get("co2_kg") or item.get("OUT_CO2_CORRECTED")
+            kg_co2eq = item.get("kg_co2eq") or item.get("OUT_CO2_CORRECTED")
             distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
 
             # Store in data payload
             data_payload = dict(item)
-            if co2_kg is not None:
-                data_payload["co2_kg"] = co2_kg
+            if kg_co2eq is not None:
+                data_payload["kg_co2eq"] = kg_co2eq
             if distance_km is not None:
                 data_payload["distance_km"] = distance_km
 
@@ -419,7 +419,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         for data_entry_response in data_entries_response:
             try:
                 # Use emission service to prepare emissions
-                # This will use the preserved co2_kg from data payload
+                # This will use the preserved kg_co2eq from data payload
                 emission_objs = await emission_service.prepare_create(
                     data_entry_response
                 )

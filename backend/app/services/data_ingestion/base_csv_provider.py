@@ -778,6 +778,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 for k, v in row.items()
                 if k in expected_columns and v is not None and v.strip() != ""
             }
+            # special kg_co2eq handling: include it if present in row,
+            # even if not in expected_columns
+            if (
+                "kg_co2eq" in row
+                and row["kg_co2eq"] is not None
+                and row["kg_co2eq"].strip() != ""
+            ):
+                filtered_row["kg_co2eq"] = row["kg_co2eq"]
 
             # Extract kind/subkind values (entity-specific extraction)
             kind_value, subkind_value = self._extract_kind_subkind_values(

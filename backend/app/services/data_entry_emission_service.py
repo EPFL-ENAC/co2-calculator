@@ -181,17 +181,28 @@ class DataEntryEmissionService:
                                 f"Missing factor keys: {missing_factor_keys}"
                             )
                             continue
-
                 if kg_co2eq is not None:
+                    emission_chosen_factor: Factor | None = (
+                        factors[0] if factors is not None and len(factors) > 0 else None
+                    )  # attach first factor for reference
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
                             emission_type_id=emission_type.value,
-                            primary_factor_id=factor.id,
+                            primary_factor_id=emission_chosen_factor.id
+                            if emission_chosen_factor is not None
+                            else None,
                             kg_co2eq=kg_co2eq,
                             meta={
                                 "factors_used": [
-                                    {"id": factor.id, "values": factor.values}
+                                    {
+                                        "id": emission_chosen_factor.id
+                                        if emission_chosen_factor is not None
+                                        else None,
+                                        "values": factor.values
+                                        if factor is not None
+                                        else None,
+                                    }
                                 ],
                                 **ctx,
                             },

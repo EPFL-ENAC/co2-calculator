@@ -494,6 +494,7 @@ async function initiateSync(
                 dense
                 outlined
                 type="password"
+                auto-complete="current-password"
                 :label="$t('data_management_api_secret_value')"
                 placeholder="secret-value"
               />

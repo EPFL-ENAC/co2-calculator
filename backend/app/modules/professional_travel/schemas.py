@@ -249,6 +249,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         )
         if distance_one_trip_km is None:
             return {}
+        # TODO: find factors depending on distance not get_haul_category
         haul_category = get_haul_category(distance_one_trip_km)
         distance_km = distance_one_trip_km * number_of_trips
         return {
