@@ -129,6 +129,7 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    defaultFrom: 'total_fte',
   },
   {
     id: 'requests_per_user_per_day',
