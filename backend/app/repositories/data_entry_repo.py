@@ -652,9 +652,7 @@ class DataEntryRepository:
         for data in rows:
             uid = data.get("user_institutional_id")
             if uid:
-                members.append(
-                    {"institutional_id": int(uid), "name": data.get("name", "")}
-                )
+                members.append({"institutional_id": uid, "name": data.get("name", "")})
         return members
 
     async def get_member_by_institutional_id(

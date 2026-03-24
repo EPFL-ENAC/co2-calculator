@@ -147,7 +147,7 @@ class HeadCountUpdate(DataEntryUpdate):
 class HeadcountMemberDropdownItem(BaseModel):
     """Lightweight member record used to populate traveler dropdowns."""
 
-    institutional_id: int
+    institutional_id: str
     name: str
 
 
