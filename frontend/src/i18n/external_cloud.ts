@@ -98,7 +98,7 @@ export default {
     fr: '>100 fois/jour',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
-    en: 'Number of users',
-    fr: "Nombre d'utilisateurs",
+    en: 'Number of users (fte)',
+    fr: "Nombre d'utilisateurs (EPT)",
   },
 } as const;

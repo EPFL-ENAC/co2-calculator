@@ -325,6 +325,7 @@ const props = withDefaults(
     addButtonLabelKey?: string;
     unitId?: number;
     year?: string | number;
+    formDefaults?: Record<string, unknown>;
   }>(),
   {
     fields: null,
@@ -335,6 +336,7 @@ const props = withDefaults(
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
+    formDefaults: undefined,
   },
 );
 
@@ -576,9 +578,11 @@ function init() {
     if (props.rowData && props.rowData[i.id] !== undefined) {
       form[i.id] = props.rowData[i.id];
     } else {
-      // Check if field has a default value
+      // Check if field has a default value (static config or dynamic formDefaults)
       if (i.default !== undefined) {
         form[i.id] = i.default;
+      } else if (props.formDefaults?.[i.id] !== undefined) {
+        form[i.id] = props.formDefaults[i.id] as FieldValue;
       } else {
         switch (effectiveType) {
           case 'checkbox':
@@ -627,9 +631,9 @@ function init() {
   });
 }
 
-// re-init when inputs or rowData change (e.g. dynamic config or edit mode)
+// re-init when inputs, rowData, or external defaults change
 watch(
-  () => [props.fields, props.rowData],
+  () => [props.fields, props.rowData, props.formDefaults],
   () => init(),
   { deep: true, immediate: true },
 );
@@ -843,9 +847,11 @@ function onSubmit() {
 function reset() {
   visibleFields.value.forEach((i) => {
     const effectiveType = i.type;
-    // Check if field has a default value
+    // Check if field has a default value (static config or dynamic formDefaults)
     if (i.default !== undefined) {
       form[i.id] = i.default;
+    } else if (props.formDefaults?.[i.id] !== undefined) {
+      form[i.id] = props.formDefaults[i.id] as FieldValue;
     } else if (effectiveType === 'checkbox' || effectiveType === 'boolean')
       form[i.id] = false;
     else if (effectiveType === 'number') form[i.id] = null;

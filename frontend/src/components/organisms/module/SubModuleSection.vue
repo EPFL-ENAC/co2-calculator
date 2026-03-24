@@ -61,6 +61,7 @@
           :has-tooltip="submodule.hasFormTooltip"
           :unit-id="unitId"
           :year="year"
+          :form-defaults="formDefaults"
           @submit="submitForm"
         />
       </div>
@@ -83,7 +84,7 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
@@ -96,7 +97,7 @@ import type {
   EnumSubmoduleType,
 } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 interface Option {
   label: string;
@@ -104,6 +105,31 @@ interface Option {
 }
 type FieldValue = string | number | boolean | null | Option;
 const moduleStore = useModuleStore();
+const timelineStore = useTimelineStore();
+
+onMounted(() => {
+  const needsFte = props.submodule.moduleFields?.some(
+    (f) => f.defaultFrom === 'total_fte',
+  );
+  const carbonReportId = timelineStore.currentCarbonReportId;
+  if (
+    needsFte &&
+    carbonReportId &&
+    carbonReportId !== moduleStore.validatedTotalsCarbonReportId
+  ) {
+    moduleStore.getValidatedTotals(carbonReportId);
+  }
+});
+
+const formDefaults = computed<Record<string, unknown> | undefined>(() => {
+  const fte = moduleStore.state.validatedTotals?.total_fte;
+
+  const defaults: Record<string, unknown> = {};
+  for (const field of props.submodule.moduleFields ?? []) {
+    if (field.defaultFrom === 'total_fte') defaults[field.id] = Math.round(fte);
+  }
+  return Object.keys(defaults).length > 0 ? defaults : undefined;
+});
 
 type CommonProps = {
   submodule: ConfigSubmodule;

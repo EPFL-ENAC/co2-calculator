@@ -56,6 +56,7 @@ export interface ModuleField {
   max?: number;
   step?: number;
   default?: string | number | boolean;
+  defaultFrom?: 'total_fte';
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
   appendFromFieldId?: string;
