@@ -74,6 +74,16 @@ async def get_carbon_report(
     return carbon_report_module
 
 
+async def get_request_context(request: Request) -> dict:
+    """Helper to extract request context for logging and auditing."""
+    # This function can be expanded to include more contextual information as needed
+    return {
+        "ip_address": extract_ip_address(request),
+        "route_path": request.url.path,
+        "route_payload": await extract_route_payload(request),
+    }
+
+
 async def get_carbon_report_id(
     unit_id: int,
     year: int,
@@ -355,11 +365,7 @@ async def get_submodule(
         sort_order=sort_order,
         filter=filter,
         current_user=UserRead.model_validate(current_user),
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
+        request_context=await get_request_context(request),
         background_tasks=background_tasks,
     )
 
@@ -494,20 +500,23 @@ async def create(
     submodule_key = submodule_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
+    request_context = await get_request_context(request)
 
     response = await CarbonReportModuleWorkflow(db).create(
         carbon_report_module=carbon_report_module,
         data_entry_type_id=data_entry_type_id,
         item_data=item_data,
         current_user=UserRead.model_validate(current_user),
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
+        request_context=request_context,
         background_tasks=background_tasks,
     )
-    await EmbodiedEnergyWorkflow(db).post_process(response)
+    await EmbodiedEnergyWorkflow(db).post_create(
+        carbon_report_module,
+        response,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
+    )
     return response
 
 
@@ -599,20 +608,24 @@ async def update(
         db=db,
     )
 
+    request_context = await get_request_context(request)
+
     response = await CarbonReportModuleWorkflow(db).update(
         carbon_report_module=carbon_report_module,
         data_entry_type_id=data_entry_type_id,
         item_id=item_id,
         item_data=item_data,
         current_user=UserRead.model_validate(current_user),
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
+        request_context=request_context,
         background_tasks=background_tasks,
     )
-    await EmbodiedEnergyWorkflow(db).post_process(response)
+    await EmbodiedEnergyWorkflow(db).post_update(
+        carbon_report_module,
+        response,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
+    )
     return response
 
 
@@ -659,16 +672,26 @@ async def delete(
             module_type_id=ModuleTypeEnum[module_key],
             db=db,
         )
+        carbon_report_module = await get_carbon_report(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum[module_key],
+            db=db,
+        )
+        request_context = await get_request_context(request)
 
         await CarbonReportModuleWorkflow(db).delete(
             carbon_report_module=carbon_report_module,
-            item_id=item_id,
+            data_entry_id=item_id,
             current_user=UserRead.model_validate(current_user),
-            request_context={
-                "ip_address": extract_ip_address(request),
-                "route_path": request.url.path,
-                "route_payload": await extract_route_payload(request),
-            },
+            request_context=request_context,
+            background_tasks=background_tasks,
+        )
+        await EmbodiedEnergyWorkflow(db).post_delete(
+            carbon_report_module,
+            item_id,
+            current_user=UserRead.model_validate(current_user),
+            request_context=request_context,
             background_tasks=background_tasks,
         )
     except HTTPException:

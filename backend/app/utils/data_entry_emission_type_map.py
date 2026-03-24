@@ -91,6 +91,9 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.energy_combustion: [
         EmissionType.buildings__combustion
     ],  # scope 1
+    DataEntryTypeEnum.building_embodied_energy: [
+        EmissionType.buildings__embodied_energy
+    ],  # embodied energy for buildings, scope 3
     # --- Process Emissions — resolved at runtime (emitted_gas key) ------------
     DataEntryTypeEnum.process_emissions: None,  # → _resolve_process_emissions()
     # --- Equipment -----------------------------------------------------------

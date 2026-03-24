@@ -232,13 +232,13 @@ class CarbonReportModuleWorkflow:
     async def delete(
         self,
         carbon_report_module: CarbonReportModuleRead,
-        item_id: int,
+        data_entry_id: int,
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
         await DataEntryService(self.session).delete(
-            id=item_id,
+            id=data_entry_id,
             current_user=current_user,
             request_context=request_context,
             background_tasks=background_tasks,

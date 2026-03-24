@@ -535,34 +535,118 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
 ## EMBODIED ENERGY FACTOR HANDLER
 
 
-class EmbodiedEnergyFactorCreate(FactorCreate):
+class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
     building_name: str
-    category: str
-    ef_kgco2eq_per_m2: float
+    category: Optional[str] = None
+    ef_kgco2eq_per_m2: Optional[float] = None
 
 
-class EmbodiedEnergyFactorUpdate(FactorUpdate):
+class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
+    building_name: str
+    category: Optional[str] = None
+    ef_kgco2eq_per_m2: Optional[float] = None
+
+
+class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
     category: Optional[str] = None
     ef_kgco2eq_per_m2: Optional[float] = None
 
 
-class EmbodiedEnergyFactorResponse(FactorResponseGen):
+class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
+    module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building_embodied_energy
+
+    create_dto = BuildingEmbodiedEnergyHandlerCreate
+    update_dto = BuildingEmbodiedEnergyHandlerUpdate
+    response_dto = BuildingEmbodiedEnergyHandlerResponse
+
+    kind_field: str = "building_name"
+    subkind_field: str = "category"
+    require_subkind_for_factor = False
+
+    sort_map = {
+        "id": DataEntry.id,
+        "building_name": Factor.classification["building_name"].as_string(),
+        "category": Factor.classification["category"].as_string(),
+        "ef_kgco2eq_per_m2": Factor.values["ef_kgco2eq_per_m2"].as_float(),
+    }
+
+    filter_map = {
+        "building_name": Factor.classification["building_name"].as_string(),
+        "category": Factor.classification["category"].as_string(),
+    }
+
+    def to_response(
+        self, data_entry: DataEntry
+    ) -> BuildingEmbodiedEnergyHandlerResponse:
+        primary_factor = data_entry.data.get("primary_factor", {})
+        factor_values = primary_factor.get("values", {})
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data_entry.data,
+                "building_name": primary_factor.get("kind")
+                or data_entry.data.get("building_name"),
+                "category": primary_factor.get("subkind")
+                or data_entry.data.get("category"),
+                "ef_kgco2eq_per_m2": factor_values.get("ef_kgco2eq_per_m2")
+                or data_entry.data.get("ef_kgco2eq_per_m2"),
+            }
+        )
+
+    def validate_create(self, payload: dict) -> BuildingEmbodiedEnergyHandlerCreate:
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict) -> BuildingEmbodiedEnergyHandlerUpdate:
+        return self.update_dto.model_validate(payload)
+
+    def resolve_computations(self, data_entry, emission_type, ctx):
+        factor_id = ctx.get("primary_factor_id")
+        if factor_id is None:
+            return []
+        if emission_type != EmissionType.buildings__embodied_energy:
+            return []
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_id=int(factor_id),
+                formula_key="ef_kgco2eq_per_m2",
+                quantity_key="room_surface_square_meter",
+            )
+        ]
+
+
+class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
     building_name: str
     category: str
     ef_kgco2eq_per_m2: float
 
 
-class EmbodiedEnergyFactorHandler(BaseFactorHandler):
+class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
+    building_name: Optional[str] = None
+    category: Optional[str] = None
+    ef_kgco2eq_per_m2: Optional[float] = None
+
+
+class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
+    building_name: str
+    category: str
+    ef_kgco2eq_per_m2: float
+
+
+class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [
-        DataEntryTypeEnum.embodied_energy,
+        DataEntryTypeEnum.building_embodied_energy,
     ]
     emission_type: EmissionType = EmissionType.buildings__embodied_energy
 
-    create_dto = EmbodiedEnergyFactorCreate
-    update_dto = EmbodiedEnergyFactorUpdate
-    response_dto = EmbodiedEnergyFactorResponse
+    create_dto = BuildingEmbodiedEnergyFactorCreate
+    update_dto = BuildingEmbodiedEnergyFactorUpdate
+    response_dto = BuildingEmbodiedEnergyFactorResponse
 
     classification_fields: list[str] = ["building_name", "category"]
     value_fields: list[str] = ["ef_kg_co2eq_per_m2"]
