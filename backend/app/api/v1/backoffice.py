@@ -562,7 +562,10 @@ async def list_backoffice_units(
         pagination=PaginationMeta(**result),
         emission_breakdown=result.get("emission_breakdown"),
         validated_units_count=result.get("validated_units_count", 0),
+        in_progress_units_count=result.get("in_progress_units_count", 0),
+        not_started_units_count=result.get("not_started_units_count", 0),
         total_units_count=result.get("total_units_count", 0),
+        module_status_counts=result.get("module_status_counts"),
     )
 
 

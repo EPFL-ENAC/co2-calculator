@@ -11,6 +11,7 @@ import ModuleSelector, {
 } from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
 import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
 import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
+import type { ReportingStats } from 'src/api/reporting';
 import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
 import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
@@ -86,6 +87,26 @@ const reportingEmissionBreakdown = computed(
 const tableRows = computed(() => units.value?.data ?? []);
 const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
 const tableTotal = computed(() => units.value?.total_units_count ?? 0);
+
+const usageStats = computed<ReportingStats>(() => ({
+  [MODULE_STATES.Default]: units.value?.not_started_units_count ?? 0,
+  [MODULE_STATES.InProgress]: units.value?.in_progress_units_count ?? 0,
+  [MODULE_STATES.Validated]: units.value?.validated_units_count ?? 0,
+}));
+
+const moduleStats = computed<ReportingStats>(() => {
+  const counts = units.value?.module_status_counts ?? {};
+  return {
+    [MODULE_STATES.Default]: counts[0] ?? 0,
+    [MODULE_STATES.InProgress]: counts[1] ?? 0,
+    [MODULE_STATES.Validated]: counts[2] ?? 0,
+  };
+});
+
+const totalModules = computed(() => {
+  const counts = units.value?.module_status_counts ?? {};
+  return Object.values(counts).reduce((a, b) => a + b, 0);
+});
 
 async function fetchUnits() {
   if (selectedYears.value.length === 0) {
@@ -241,22 +262,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           @view-unit="handleViewUnit"
         />
       </div>
-      <!--  Usage Statistics Box #461 -->
-      <ReportingStatCards
-        v-if="(units?.data ?? []).length > 1"
-        :stats="{
-          [MODULE_STATES.Default]: 31,
-          [MODULE_STATES.InProgress]: 1,
-          [MODULE_STATES.Validated]: 13,
-        }"
-        :loading="false"
-      />
-      <ReportingStatCardUnit
-        v-else
-        :stats="{ total_entries: 12 }"
-        :loading="false"
-      />
-      <!-- Aggregated Results Box #460 -->
+
       <div class="q-mt-xl">
         <CompletionRateBar
           :validated-units="validatedCount"
@@ -286,6 +292,17 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       <EmissionBreakdownChart
         :breakdown-data="reportingEmissionBreakdown"
         class="q-mt-xl"
+      />
+      <ReportingStatCards
+        v-if="tableRows.length > 1"
+        :stats="usageStats"
+        :loading="loading"
+      />
+      <ReportingStatCardUnit
+        v-else-if="tableRows.length === 1"
+        :validated-modules="moduleStats[MODULE_STATES.Validated]"
+        :total-modules="totalModules"
+        :loading="loading"
       />
       <div class="q-mt-xl">
         <div class="container full-width">
