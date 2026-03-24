@@ -481,13 +481,13 @@ class DataEntryEmissionService:
     # ) -> list[DataEntryEmission]:
     #     """Prepare emissions for member/student types (one row per emission type).
 
-    #     Each emission type (food, waste, commuting, grey_energy) uses its own factor.
+    #     Each emission type (food, waste, commuting) uses its own factor.
     #     The kg_co2eq is calculated as: fte × factor_value.kg_co2eq_per_fte
 
     #     Args:
     #         data_entry: The data entry (member or student)
     #         emission_types: List of emission types (food, waste
-    #  commuting, grey_energy)
+    #  commuting)
     #         factor_service: FactorService for looking up factors
 
     #     Returns:

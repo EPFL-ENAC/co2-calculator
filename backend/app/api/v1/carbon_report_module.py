@@ -12,37 +12,35 @@ from fastapi import (
     Response,
     status,
 )
-from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.modules.headcount.schemas import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
 )
+from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
 )
 from app.schemas.data_entry import (
-    BaseModuleHandler,
-    DataEntryCreate,
     DataEntryResponse,
-    DataEntryUpdate,
-    ModuleHandler,
 )
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.utils.request_context import extract_ip_address, extract_route_payload
+from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
+from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -51,13 +49,13 @@ router = APIRouter()
 # on batch/create/update/delete
 
 
-async def get_carbon_report_id(
+async def get_carbon_report(
     unit_id: int,
     year: int,
     module_type_id: ModuleTypeEnum,
     db: AsyncSession,
-) -> int:
-    """Helper to get carbon report module ID from unit and year."""
+) -> CarbonReportModuleRead:
+    """Helper to get carbon report module from unit and year."""
     # TODO: PLACEHOLDER UNTIL INTEGRATION WITH CARBON REPORT MODULE ID in frontend
     # find carbon_report_module_id from year/unit_id mapping:
     CarbonReportModuleService_instance = CarbonReportModuleService(db)
@@ -73,6 +71,32 @@ async def get_carbon_report_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
+    return carbon_report_module
+
+
+async def get_request_context(request: Request) -> dict:
+    """Helper to extract request context for logging and auditing."""
+    # This function can be expanded to include more contextual information as needed
+    return {
+        "ip_address": extract_ip_address(request),
+        "route_path": request.url.path,
+        "route_payload": await extract_route_payload(request),
+    }
+
+
+async def get_carbon_report_id(
+    unit_id: int,
+    year: int,
+    module_type_id: ModuleTypeEnum,
+    db: AsyncSession,
+) -> int:
+    """Helper to get carbon report module ID from unit and year."""
+    carbon_report_module = await get_carbon_report(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=module_type_id,
+        db=db,
+    )
     return carbon_report_module.id
 
 
@@ -341,11 +365,7 @@ async def get_submodule(
         sort_order=sort_order,
         filter=filter,
         current_user=UserRead.model_validate(current_user),
-        request_context={
-            "ip_address": extract_ip_address(request),
-            "route_path": request.url.path,
-            "route_payload": await extract_route_payload(request),
-        },
+        request_context=await get_request_context(request),
         background_tasks=background_tasks,
     )
 
@@ -449,152 +469,54 @@ async def create(
     Returns:
          with created equipment
     """
+    if current_user.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current user ID is required to create item",
+        )
     await _check_module_permission(current_user, module_id, "edit")
 
     module_key = module_id.replace("-", "_")
     module_type_id = ModuleTypeEnum[module_key].value
     submodule_key = submodule_id.replace("-", "_")
     data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-    carbon_report_module_id = await get_carbon_report_id(
+    carbon_report_module = await get_carbon_report(
         unit_id=unit_id,
         year=year,
         module_type_id=ModuleTypeEnum(module_type_id),
         db=db,
     )
+    if carbon_report_module is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Carbon report module could not be determined",
+        )
 
     logger.info(
         f"POST item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
-    item: Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ]
 
     submodule_key = submodule_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
     data_entry_type_id = data_entry_type.value
+    request_context = await get_request_context(request)
 
-    if current_user.id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current user ID is required to create item",
-        )
-    if carbon_report_module_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Carbon report module ID could not be determined",
-        )
-
-    try:
-        create_payload = {
-            **item_data,
-            "data_entry_type_id": data_entry_type_id,
-            "carbon_report_module_id": carbon_report_module_id,
-        }
-        handler = BaseModuleHandler.get_by_type(data_entry_type)
-
-        from app.services.module_handler_service import ModuleHandlerService
-
-        handler_service = ModuleHandlerService(db)
-        create_payload = await handler_service.resolve_primary_factor_id(
-            handler, create_payload, data_entry_type
-        )
-
-        validated_data = handler.validate_create(create_payload)
-
-        data_entry_create = DataEntryCreate(
-            **validated_data.model_dump(exclude_unset=True)
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "Error validating item_data for data entry creation",
-            extra={"error": str(e), "item_data": sanitize(item_data)},
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid item_data for creation: {str(e)}",
-        )
-
-    if data_entry_type == DataEntryTypeEnum.member and validated_data.model_dump().get(
-        "user_institutional_id"
-    ):
-        uid = validated_data.model_dump()["user_institutional_id"]
-        is_unique = await DataEntryService(db).check_institutional_id_unique(
-            carbon_report_module_id=carbon_report_module_id,
-            uid=uid,
-        )
-        if not is_unique:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="DUPLICATE_INSTITUTIONAL_ID",
-            )
-
-    try:
-        item = await DataEntryService(db).create(
-            carbon_report_module_id=carbon_report_module_id,
-            data_entry_type_id=data_entry_type_id,
-            user=UserRead.model_validate(current_user),
-            data=data_entry_create,
-            request_context={
-                "ip_address": extract_ip_address(request),
-                "route_path": request.url.path,
-                "route_payload": await extract_route_payload(request),
-            },
-            background_tasks=background_tasks,
-            source=DataEntrySourceEnum.USER_MANUAL,
-            created_by_id=current_user.id,
-        )
-        if item is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to create item",
-            )
-
-        await DataEntryEmissionService(db).upsert_by_data_entry(
-            data_entry_response=item,
-        )
-        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-
-        if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="This user institutional id already exists in this module.",
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Database integrity error.",
-        ) from e
-
-    except Exception as e:
-        await db.rollback()
-        logger.error(
-            f"Failed to create item for module_id={sanitize(module_id)}",
-            exc_info=True,
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create data entry",
-        ) from e
-    response = DataEntryResponse.model_validate(item)
-    # todo kg_co2eq in response is never used and can be removed, but for now set to 0
-    # to avoid confusion until we clean up the schema
-    response.data = {
-        **response.data,
-        "kg_co2eq": 0,
-    }
-    logger.info(
-        f"Created {sanitize(module_id)}:{sanitize(response.id)} for {sanitize(unit_id)}"
+    response = await CarbonReportModuleWorkflow(db).create(
+        carbon_report_module=carbon_report_module,
+        data_entry_type_id=data_entry_type_id,
+        item_data=item_data,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
     )
-
+    await EmbodiedEnergyWorkflow(db).post_create(
+        carbon_report_module,
+        response,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
+    )
     return response
 
 
@@ -665,10 +587,6 @@ async def update(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-    item: Union[
-        HeadcountItemResponse,
-        DataEntryResponse,
-    ]
     submodule_key = submodule_id.replace("-", "_")
     module_key = module_id.replace("-", "_")
     data_entry_type = DataEntryTypeEnum[submodule_key]
@@ -683,93 +601,32 @@ async def update(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Submodule not supported for update",
         )
-    carbon_report_module_id = await get_carbon_report_id(
+    carbon_report_module = await get_carbon_report(
         unit_id=unit_id,
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
     )
 
-    try:
-        existing_entry = await DataEntryService(db).get(id=item_id)
-        existing_data = existing_entry.data if existing_entry else {}
-        update_payload = {
-            **item_data,
-            "data_entry_type_id": data_entry_type_id,
-            "carbon_report_module_id": carbon_report_module_id,
-        }
-        handler: ModuleHandler = BaseModuleHandler.get_by_type(data_entry_type)
+    request_context = await get_request_context(request)
 
-        from app.services.module_handler_service import ModuleHandlerService
-
-        handler_service = ModuleHandlerService(db)
-        update_payload = await handler_service.resolve_primary_factor_if_changed(
-            handler, update_payload, data_entry_type, item_data, existing_data
-        )
-
-        # For equipment partial PATCH, validate against merged persisted+incoming
-        # values so active+standby weekly sum constraints are always enforced.
-        # TODO: we should validate on merge data also for patch
-
-        validated_data = handler.validate_update(update_payload)
-
-        data_entry_update = DataEntryUpdate(
-            **validated_data.model_dump(exclude_unset=True)
-        )
-    except Exception as e:
-        logger.error(
-            f"Error validating update data for item_id={sanitize(item_id)}: {str(e)}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid item_data for update: {str(e)}",
-        )
-    if current_user.id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current user ID is required to update item",
-        )
-    try:
-        item = await DataEntryService(db).update(
-            id=item_id,
-            data=data_entry_update,
-            user=UserRead.model_validate(current_user),
-            request_context={
-                "ip_address": extract_ip_address(request),
-                "route_path": request.url.path,
-                "route_payload": await extract_route_payload(request),
-            },
-            background_tasks=background_tasks,
-            source=None,
-            created_by_id=current_user.id,
-        )
-        await db.flush()
-        if item is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Data entry item not found",
-            )
-        # Recalculate emission after update
-        await DataEntryEmissionService(db).upsert_by_data_entry(
-            data_entry_response=item,
-        )
-        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
-        # upsert could fail if emission factor lookup fails, but we still want to
-        # return the updated item
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        logger.error(
-            f"Failed to update item_id={sanitize(item_id)}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update data entry",
-        ) from e
-    logger.info(f"Updated item {sanitize(item_id)}")
-    return item
+    response = await CarbonReportModuleWorkflow(db).update(
+        carbon_report_module=carbon_report_module,
+        data_entry_type_id=data_entry_type_id,
+        item_id=item_id,
+        item_data=item_data,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
+    )
+    await EmbodiedEnergyWorkflow(db).post_update(
+        carbon_report_module,
+        response,
+        current_user=UserRead.model_validate(current_user),
+        request_context=request_context,
+        background_tasks=background_tasks,
+    )
+    return response
 
 
 @router.delete(
@@ -809,25 +666,28 @@ async def delete(
 
         # Resolve module ID before deleting the entry (needed for stats recompute)
         module_key = module_id.replace("-", "_")
-        carbon_report_module_id = await get_carbon_report_id(
+        carbon_report_module = await get_carbon_report(
             unit_id=unit_id,
             year=year,
             module_type_id=ModuleTypeEnum[module_key],
             db=db,
         )
+        request_context = await get_request_context(request)
 
-        await DataEntryService(db).delete(
-            id=item_id,
+        await CarbonReportModuleWorkflow(db).delete(
+            carbon_report_module=carbon_report_module,
+            data_entry_id=item_id,
             current_user=UserRead.model_validate(current_user),
-            request_context={
-                "ip_address": extract_ip_address(request),
-                "route_path": request.url.path,
-                "route_payload": await extract_route_payload(request),
-            },
+            request_context=request_context,
             background_tasks=background_tasks,
         )
-        await CarbonReportModuleService(db).recompute_stats(carbon_report_module_id)
-        await db.commit()
+        await EmbodiedEnergyWorkflow(db).post_delete(
+            carbon_report_module,
+            item_id,
+            current_user=UserRead.model_validate(current_user),
+            request_context=request_context,
+            background_tasks=background_tasks,
+        )
     except HTTPException:
         # Re-raise HTTP exceptions (404, 403, etc.) from services
         raise

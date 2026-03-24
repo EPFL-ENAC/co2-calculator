@@ -81,6 +81,12 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
             DataEntryTypeEnum.building,
         ],
     ),
+    FactorSeedConfig(
+        path=BACKEND_FOLDER / "buildings_greyenergy_factors.csv",
+        data_entry_types=[
+            DataEntryTypeEnum.building_embodied_energy,
+        ],
+    ),
     # FactorSeedConfig(
     #     path=BACKEND_FOLDER / "commuting_factors.csv", data_entry_types=[]
     # ),

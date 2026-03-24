@@ -120,8 +120,8 @@ seed-data: ## Seed the database with initial data
 #	$(UV) run -m app.seed.ramdom.seed_all
 # seeds fake user + unit associations (for testing)
 # 	$(UV) run -m app.seed.seed_fake_user_unit
-# 	$(UV) run -m app.seed.seed_locations
-# 	$(UV) run -m app.seed.seed_building_rooms
+	$(UV) run -m app.seed.seed_locations
+	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors
 # 	$(UV) run -m app.seed.seed_generic_data_entries
 
