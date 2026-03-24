@@ -68,16 +68,7 @@ const animalFields: ModuleField[] = [
   },
   {
     id: 'use',
-    labelKey: `${MODULES.ResearchFacilities}.inputs.use`,
-    type: 'text',
-    editableInline: false,
-    ratio: '1/5',
-    hideIn: { form: true },
-    sortable: true,
-  },
-  {
-    id: 'use_unit',
-    labelKey: `${MODULES.ResearchFacilities}.inputs.use_unit`,
+    labelKey: `${MODULES.ResearchFacilities}.inputs.nb_housing`,
     type: 'text',
     editableInline: false,
     ratio: '1/5',

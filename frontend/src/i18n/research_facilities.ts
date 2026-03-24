@@ -56,6 +56,10 @@ export default {
     en: 'Type',
     fr: 'Type',
   },
+  [`${MODULES.ResearchFacilities}.inputs.nb_housing`]: {
+    en: 'Number of housing',
+    fr: "Nombre d'hébergements",
+  },
   [`${MODULES.ResearchFacilities}.inputs.housing_nb-tooltip`]: {
     en: 'For the mice and fish facilities of the CPG unit, we consider only the annual housing component, and not phenotyping or UDP.',
     fr: "Pour les animaleries rongeurs et poissons de l'unité CPG, nous ne considérons que la partie hébergement annuel et non le phénotypage ou UDP.",
