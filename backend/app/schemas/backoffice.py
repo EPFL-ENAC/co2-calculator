@@ -63,4 +63,7 @@ class PaginatedUnitReportingData(BaseModel):
     pagination: PaginationMeta
     emission_breakdown: Optional[Dict[str, Any]] = None
     validated_units_count: int = 0
+    in_progress_units_count: int = 0
+    not_started_units_count: int = 0
     total_units_count: int = 0
+    module_status_counts: Optional[Dict[int, int]] = None
