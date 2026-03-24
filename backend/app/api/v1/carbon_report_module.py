@@ -136,11 +136,18 @@ async def get_module(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=None,
         )
-        module_data.stats = await DataEntryService(db).get_stats(
+        member_stats: dict = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
             aggregate_by="position_category",
             aggregate_field="fte",
+            data_entry_type_id=DataEntryTypeEnum.member.value,
         )
+        student_total: float | None = await DataEntryService(db).get_total_per_field(
+            field_name="fte",
+            carbon_report_module_id=carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.student.value,
+        )
+        module_data.stats = {**member_stats, "student": student_total}
     else:
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
@@ -511,6 +518,21 @@ async def create(
             status_code=400,
             detail=f"Invalid item_data for creation: {str(e)}",
         )
+
+    if data_entry_type == DataEntryTypeEnum.member and validated_data.model_dump().get(
+        "user_institutional_id"
+    ):
+        uid = validated_data.model_dump()["user_institutional_id"]
+        is_unique = await DataEntryService(db).check_institutional_id_unique(
+            carbon_report_module_id=carbon_report_module_id,
+            uid=uid,
+        )
+        if not is_unique:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="DUPLICATE_INSTITUTIONAL_ID",
+            )
+
     try:
         item = await DataEntryService(db).create(
             carbon_report_module_id=carbon_report_module_id,

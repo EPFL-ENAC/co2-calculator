@@ -107,7 +107,6 @@ export interface Submodule {
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
   hasTablePagination?: boolean;
-  hasStudentHelper?: boolean;
   hasFormTooltip?: boolean | string;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;

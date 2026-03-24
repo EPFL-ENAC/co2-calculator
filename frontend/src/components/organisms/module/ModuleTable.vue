@@ -354,6 +354,7 @@ import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import { getTemplateFileName } from 'src/constant/templateMapping';
+import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -469,9 +470,20 @@ const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
   const rowErrors = payload?.meta?.row_errors ?? [];
   if (rowErrors.length === 0) return undefined;
   const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
-  const lines = rowErrors
-    .slice(0, MAX_DISPLAYED_ROW_ERRORS)
-    .map((e) => $t('csv_sync_row_error', { row: e.row, reason: e.reason }));
+  const lines = rowErrors.slice(0, MAX_DISPLAYED_ROW_ERRORS).map((e) => {
+    let reason = e.reason;
+
+    // Special handling for headcount duplicate institutional ID error to provide a more user-friendly message
+    if (reason === 'DUPLICATE_INSTITUTIONAL_ID') {
+      reason = $t('headcount-member-error-duplicate-uid', {
+        label:
+          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
+            ? INSTITUTIONAL_ID_LABEL
+            : '',
+      });
+    }
+    return $t('csv_sync_row_error', { row: e.row, reason });
+  });
   if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
     lines.push(
       $t('csv_sync_and_more_errors', {
@@ -1060,11 +1072,16 @@ async function commitInline(
       },
     );
   } catch (err) {
-    setError(
-      row,
-      col,
-      err instanceof Error ? err.message : $t('validation_save_failed'),
-    );
+    let msg = err instanceof Error ? err.message : $t('validation_save_failed');
+    if (msg === 'DUPLICATE_INSTITUTIONAL_ID') {
+      msg = $t('headcount-member-error-duplicate-uid', {
+        label:
+          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
+            ? INSTITUTIONAL_ID_LABEL
+            : '',
+      });
+    }
+    setError(row, col, msg);
   }
 }
 

@@ -735,11 +735,12 @@ async def test_get_headcount_members_returns_members_with_institutional_id(
     module = CarbonReportModule(
         carbon_report_id=1,
         module_type_id=ModuleTypeEnum.headcount.value,
-        status="in_progress",
+        status=0,  # in_progress
     )
     db_session.add(module)
     await db_session.flush()
-
+    if module.id is None:
+        pytest.fail("Module ID should not be None after flush")
     db_session.add_all(
         [
             DataEntry(
@@ -761,9 +762,9 @@ async def test_get_headcount_members_returns_members_with_institutional_id(
     assert len(result) == 2
     # ordered by name ascending
     assert result[0]["name"] == "Alice Dupont"
-    assert result[0]["institutional_id"] == 100001
+    assert result[0]["institutional_id"] == "100001"
     assert result[1]["name"] == "Zara Ali"
-    assert result[1]["institutional_id"] == 200002
+    assert result[1]["institutional_id"] == "200002"
 
 
 @pytest.mark.asyncio
@@ -776,7 +777,7 @@ async def test_get_headcount_members_excludes_entries_without_institutional_id(
     module = CarbonReportModule(
         carbon_report_id=1,
         module_type_id=ModuleTypeEnum.headcount.value,
-        status="in_progress",
+        status=0,  # in_progress
     )
     db_session.add(module)
     await db_session.flush()
@@ -813,7 +814,7 @@ async def test_get_headcount_members_excludes_non_member_types(
     module = CarbonReportModule(
         carbon_report_id=1,
         module_type_id=ModuleTypeEnum.headcount.value,
-        status="in_progress",
+        status=0,  # in_progress
     )
     db_session.add(module)
     await db_session.flush()
