@@ -295,7 +295,7 @@ async def get_submodule(
     request: Request,
     background_tasks: BackgroundTasks,
     page: int = Query(default=1, ge=1, description="Page number"),
-    limit: int = Query(default=50, le=1000, description="Items per page"),
+    limit: int = Query(default=100, le=1000, description="Items per page"),
     sort_by: str = Query(default="id", description="Field to sort by"),
     sort_order: str = Query(default="asc", description="Sort order: 'asc' or 'desc'"),
     filter: Optional[str] = Query(

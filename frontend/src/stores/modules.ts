@@ -39,6 +39,7 @@ export interface EmissionBreakdownResponse {
   additional_breakdown: EmissionBreakdownCategoryRow[];
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
+  headcount_validated: boolean;
   total_tonnes_co2eq: number;
   total_fte: number;
 }

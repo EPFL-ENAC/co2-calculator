@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { TreemapChart } from 'echarts/charts';
@@ -19,8 +20,50 @@ import type {
   EmissionTreemapChild,
 } from 'src/composables/useEmissionTreemap';
 
+const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+
+const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
+  // process_emissions
+  co2: 'charts-co2-subcategory',
+  ch4: 'charts-ch4-subcategory',
+  n2o: 'charts-n2o-subcategory',
+  refrigerants: 'charts-refrigerants-subcategory',
+  // buildings
+  heating_thermal: 'charts-heating-thermal-subcategory',
+  lighting: 'charts-lighting-subcategory',
+  cooling: 'charts-cooling-subcategory',
+  ventilation: 'charts-ventilation-subcategory',
+  // equipment
+  scientific: 'charts-scientific-subcategory',
+  it: 'charts-equipment-it',
+  // external cloud & AI
+  stockage: 'charts-stockage-subcategory',
+  virtualisation: 'charts-virtualisation-subcategory',
+  calcul: 'charts-calcul-subcategory',
+  provider: 'charts-ai-provider-subcategory',
+  ai_provider: 'charts-ai-provider-subcategory',
+  // purchases
+  scientific_equipment: 'charts-scientific-subcategory',
+  it_equipment: 'charts-equipment-it',
+  consumable_accessories: 'charts-consumables-subcategory',
+  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
+  services: 'charts-services-subcategory',
+  vehicles: 'charts-other-purchases-subcategory',
+  additional: 'charts-other-purchases-subcategory',
+  // research facilities
+  facilities: 'charts-research-facilities-subcategory',
+  animal: 'charts-research-animal-subcategory',
+  // professional travel
+  plane: 'charts-plane-subcategory',
+  train: 'charts-train-subcategory',
+};
+
+function resolveLabel(raw: string): string {
+  const key = TREEMAP_LABEL_KEY_MAP[raw];
+  return key ? t(key) : raw.replace(/_/g, ' ');
+}
 
 use([
   CanvasRenderer,
@@ -46,7 +89,7 @@ type TreemapNode = {
 function toTreemapNode(
   node: EmissionTreemapCategory | EmissionTreemapChild,
 ): TreemapNode {
-  const label = node.name.replace(/_/g, ' ');
+  const label = resolveLabel(node.name);
   const treeNode: TreemapNode = {
     name: label,
     value: node.value,
@@ -75,7 +118,7 @@ const legendData = computed(() => {
     .flatMap((cat) =>
       cat.children
         .filter((c) => c.value > 0)
-        .map((c) => ({ name: c.name.replace(/_/g, ' '), color: c.color })),
+        .map((c) => ({ name: resolveLabel(c.name), color: c.color })),
     )
     .filter((item) => {
       if (seen.has(item.name)) return false;

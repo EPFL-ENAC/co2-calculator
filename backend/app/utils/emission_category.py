@@ -531,8 +531,6 @@ def build_chart_breakdown(
 
     for row in rows:
         module_type_id, emission_type_id, kg_co2eq = row
-        if kg_co2eq is None:
-            continue
         emission_type = _resolve_emission_type(emission_type_id)
         if emission_type is None:
             continue
@@ -598,6 +596,7 @@ def build_chart_breakdown(
         "additional_breakdown": additional_breakdown,
         "per_person_breakdown": per_person,
         "validated_categories": validated_categories,
+        "headcount_validated": headcount_validated,
         "total_tonnes_co2eq": total_tonnes,
         "total_fte": total_fte,
     }

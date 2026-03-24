@@ -9,7 +9,6 @@ interface Props {
   totalUnits: number;
   scopeLabel?: string;
   helperText?: string;
-  loading?: boolean;
 }
 
 const { t } = useI18n();
@@ -18,7 +17,6 @@ const props = withDefaults(defineProps<Props>(), {
   title: undefined,
   scopeLabel: undefined,
   helperText: undefined,
-  loading: false,
 });
 
 const resolvedTitle = computed(
