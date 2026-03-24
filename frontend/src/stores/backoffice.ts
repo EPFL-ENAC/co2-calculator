@@ -43,6 +43,8 @@ interface BackofficeUnitDataPagination {
     total: number;
   };
   emission_breakdown?: EmissionBreakdownResponse | null;
+  validated_units_count?: number;
+  total_units_count?: number;
 }
 
 interface UnitFilters {

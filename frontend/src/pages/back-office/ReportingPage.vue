@@ -83,23 +83,9 @@ const reportingEmissionBreakdown = computed(
   () => units.value?.emission_breakdown ?? null,
 );
 
-function isFullyValidatedProgress(progress?: string): boolean {
-  if (!progress) return false;
-  const [validatedRaw, totalRaw] = progress.split('/');
-  const validated = Number(validatedRaw);
-  const total = Number(totalRaw);
-  if (!Number.isFinite(validated) || !Number.isFinite(total)) return false;
-  return total > 0 && validated >= total;
-}
-
 const tableRows = computed(() => units.value?.data ?? []);
-const validatedCount = computed(
-  () =>
-    tableRows.value.filter((row) =>
-      isFullyValidatedProgress(row.completion_progress),
-    ).length,
-);
-const tableTotal = computed(() => tableRows.value.length);
+const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
+const tableTotal = computed(() => units.value?.total_units_count ?? 0);
 
 async function fetchUnits() {
   if (selectedYears.value.length === 0) {
@@ -291,9 +277,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
             reportingEmissionBreakdown?.validated_categories ?? null
           "
           :headcount-validated="
-            reportingEmissionBreakdown?.validated_categories?.includes(
-              'commuting',
-            ) ?? false
+            reportingEmissionBreakdown?.headcount_validated ?? false
           "
           :show-validation-placeholder="false"
           :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"

@@ -561,6 +561,8 @@ async def list_backoffice_units(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
         emission_breakdown=result.get("emission_breakdown"),
+        validated_units_count=result.get("validated_units_count", 0),
+        total_units_count=result.get("total_units_count", 0),
     )
 
 

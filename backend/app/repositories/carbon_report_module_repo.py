@@ -219,6 +219,11 @@ class CarbonReportModuleRepository:
         selected_ids = {unit_id for unit_id, _ in selected_units}
         selected_codes = {code for _, code in selected_units if code}
 
+        # No institutional codes — descendants can only be looked up by path,
+        # so return the directly resolved IDs to avoid a full-table scan.
+        if not selected_codes:
+            return selected_ids
+
         path_conditions = []
         for code in selected_codes:
             # Token-boundary matching for ancestor code in path string.
@@ -231,9 +236,7 @@ class CarbonReportModuleRepository:
                 ]
             )
 
-        descendants_stmt = select(Unit.id)
-        if path_conditions:
-            descendants_stmt = descendants_stmt.where(or_(*path_conditions))
+        descendants_stmt = select(Unit.id).where(or_(*path_conditions))
         descendant_ids = {
             unit_id
             for unit_id in (await self.session.exec(descendants_stmt)).all()
@@ -277,6 +280,21 @@ class CarbonReportModuleRepository:
         for ids in filter_sets[1:]:
             effective_ids = effective_ids.intersection(ids)
         return effective_ids
+
+    @staticmethod
+    def _apply_report_filters(
+        stmt: Any,
+        hierarchy_unit_ids: Optional[set[int]],
+        completion_status: Optional["ModuleStatus"],
+    ) -> Any:
+        """Apply hierarchy and completion-status filters to a statement."""
+        if hierarchy_unit_ids is not None:
+            stmt = stmt.where(col(Unit.id).in_(hierarchy_unit_ids))
+        if completion_status is not None:
+            stmt = stmt.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        return stmt
 
     @staticmethod
     def _get_completion_status_from_progress(
@@ -333,23 +351,36 @@ class CarbonReportModuleRepository:
                 "page": page,
                 "page_size": page_size,
                 "total_pages": 0,
+                "validated_units_count": 0,
+                "total_units_count": 0,
             }
 
         # --- STEP 1: The Cheap Count ---
-        count_statement = (
+        # Base count (hierarchy + year only — used for the completion bar).
+        base_count_stmt = (
             select(func.count(col(Unit.id)))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
+        if hierarchy_unit_ids is not None:
+            base_count_stmt = base_count_stmt.where(
+                col(Unit.id).in_(hierarchy_unit_ids)
+            )
 
+        total_units_count = (await self.session.exec(base_count_stmt)).one()
+        validated_units_count = (
+            await self.session.exec(
+                base_count_stmt.where(
+                    col(CarbonReport.overall_status) == int(ModuleStatus.VALIDATED)
+                )
+            )
+        ).one()
+
+        # Filtered count (adds optional completion_status filter for the table).
+        count_statement = base_count_stmt
         if completion_status is not None:
             count_statement = count_statement.where(
                 col(CarbonReport.overall_status) == int(completion_status)
-            )
-
-        if hierarchy_unit_ids is not None:
-            count_statement = count_statement.where(
-                col(Unit.id).in_(hierarchy_unit_ids)
             )
 
         total = (await self.session.exec(count_statement)).one()
@@ -384,34 +415,22 @@ class CarbonReportModuleRepository:
             )
             .where(col(CarbonReport.year).in_(years))
         )
-        if hierarchy_unit_ids is not None:
-            units_stmt = units_stmt.where(col(Unit.id).in_(hierarchy_unit_ids))
+        units_stmt = self._apply_report_filters(
+            units_stmt, hierarchy_unit_ids, completion_status
+        )
 
-        if completion_status is not None:
-            units_stmt = units_stmt.where(
-                col(CarbonReport.overall_status) == int(completion_status)
-            )
-
-        filtered_report_ids_stmt = (
+        filtered_report_ids_stmt = self._apply_report_filters(
             select(col(CarbonReport.id))
             .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
-            .where(col(CarbonReport.year).in_(years))
+            .where(col(CarbonReport.year).in_(years)),
+            hierarchy_unit_ids,
+            completion_status,
         )
-        if hierarchy_unit_ids is not None:
-            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
-                col(Unit.id).in_(hierarchy_unit_ids)
-            )
 
-        if completion_status is not None:
-            filtered_report_ids_stmt = filtered_report_ids_stmt.where(
-                col(CarbonReport.overall_status) == int(completion_status)
-            )
-
-        filtered_report_ids = [
-            report_id
-            for report_id in (await self.session.exec(filtered_report_ids_stmt)).all()
-            if report_id is not None
-        ]
+        # Use a subquery instead of materializing the full list of report IDs
+        # to avoid large IN (...) parameter lists for big datasets.
+        filtered_report_ids_subq = filtered_report_ids_stmt.subquery()
+        filtered_report_ids_in = select(filtered_report_ids_subq.c.id)
 
         # if unit_ids:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
@@ -428,22 +447,20 @@ class CarbonReportModuleRepository:
 
         # Build an aggregated emission breakdown from module stats by_emission_type
         # so frontend can reuse result-page charts with reporting filters.
-        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = []
-        if filtered_report_ids:
-            module_stats_stmt = select(
-                CarbonReportModule.module_type_id,
-                CarbonReportModule.status,
-                CarbonReportModule.stats,
-            ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids))
-            raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
-            module_stats_rows = [
-                (
-                    int(module_type_id),
-                    int(status),
-                    stats if isinstance(stats, dict) else None,
-                )
-                for module_type_id, status, stats in raw_module_stats_rows
-            ]
+        module_stats_stmt = select(
+            CarbonReportModule.module_type_id,
+            CarbonReportModule.status,
+            CarbonReportModule.stats,
+        ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in))
+        raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
+        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = [
+            (
+                int(module_type_id),
+                int(status),
+                stats if isinstance(stats, dict) else None,
+            )
+            for module_type_id, status, stats in raw_module_stats_rows
+        ]
 
         global_fte_stmt = (
             select(func.sum(func.coalesce(DataEntry.data["fte"].as_float(), 0.0)))
@@ -452,7 +469,7 @@ class CarbonReportModuleRepository:
                 col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
             )
             .where(
-                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids),
+                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in),
                 col(CarbonReportModule.module_type_id) == ModuleTypeEnum.headcount,
             )
         )
@@ -624,6 +641,8 @@ class CarbonReportModuleRepository:
             "page_size": page_size,
             "total_pages": ceil(total / page_size),
             "emission_breakdown": emission_breakdown,
+            "validated_units_count": validated_units_count,
+            "total_units_count": total_units_count,
         }
 
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:

@@ -105,7 +105,7 @@ const treemapData = computed<EmissionTreemapCategory[]>(() => {
         :unelevated="activeTab === mod"
         no-caps
         size="sm"
-        :color="activeTab === mod ? 'primary' : 'primary'"
+        color="primary"
         class="tab-btn text-weight-medium"
         @click="selectTab(mod)"
       >

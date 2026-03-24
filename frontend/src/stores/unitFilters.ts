@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 
 export interface Options {
   label: string;
@@ -209,10 +209,7 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
         total: 0,
       };
     }
-    // Use nextTick to ensure data is reset before fetching
-    Promise.resolve().then(() => {
-      fetchLevel2Units(query, 1);
-    });
+    void nextTick(() => fetchLevel2Units(query, 1));
   };
 
   const filterLevel2Units = (val: string, update: (cb: () => void) => void) => {
@@ -248,10 +245,7 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
         total: 0,
       };
     }
-    // Use nextTick to ensure data is reset before fetching
-    Promise.resolve().then(() => {
-      fetchLevel3Units(query, 1);
-    });
+    void nextTick(() => fetchLevel3Units(query, 1));
   };
 
   const filterLevel3Units = (val: string, update: (cb: () => void) => void) => {
@@ -287,10 +281,7 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
         total: 0,
       };
     }
-    // Use nextTick to ensure data is reset before fetching
-    Promise.resolve().then(() => {
-      fetchLevel4Units(query, 1);
-    });
+    void nextTick(() => fetchLevel4Units(query, 1));
   };
 
   const filterLevel4Units = (val: string, update: (cb: () => void) => void) => {
