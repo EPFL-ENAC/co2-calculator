@@ -404,7 +404,7 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
 
-const headcountMembersMap = ref<Map<number, string>>(new Map());
+const headcountMembersMap = ref<Map<string, string>>(new Map());
 
 const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
@@ -881,9 +881,11 @@ function renderCell(
 ) {
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
   if (col.field === 'traveler_name') {
-    const uid = row['user_institutional_id'] as number | undefined;
-    if (uid != null) {
-      return headcountMembersMap.value.get(uid) ?? '-';
+    const user_institutional_id = row['user_institutional_id'] as
+      | string
+      | undefined;
+    if (user_institutional_id != null) {
+      return headcountMembersMap.value.get(user_institutional_id) ?? '-';
     }
     return '-';
   }

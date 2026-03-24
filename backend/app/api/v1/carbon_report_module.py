@@ -19,7 +19,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.modules.headcount.schemas import (
@@ -523,6 +523,8 @@ async def create(
                 "route_payload": await extract_route_payload(request),
             },
             background_tasks=background_tasks,
+            source=DataEntrySourceEnum.USER_MANUAL,
+            created_by_id=current_user.id,
         )
         if item is None:
             raise HTTPException(
@@ -717,6 +719,8 @@ async def update(
                 "route_payload": await extract_route_payload(request),
             },
             background_tasks=background_tasks,
+            source=None,
+            created_by_id=current_user.id,
         )
         await db.flush()
         if item is None:

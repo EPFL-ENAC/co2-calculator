@@ -2,10 +2,11 @@ import enum
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlmodel import col, desc, select
+from sqlalchemy import and_
+from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.data_ingestion import DataIngestionJob, IngestionStatus
+from app.models.data_ingestion import DataIngestionJob, IngestionResult, IngestionState
 
 
 class DataIngestionRepository:
@@ -42,13 +43,25 @@ class DataIngestionRepository:
         self,
         job_id: int,
         status_message: str,
-        status_code: IngestionStatus,
         metadata: dict,
         completed_at: Optional[datetime] = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
+        """Update ingestion job with legacy status_code and new state/result.
+
+        Args:
+            job_id: Job ID to update
+            status_message: Status message
+            status_code: Legacy status code (for backward compatibility)
+            metadata: Metadata to merge
+            completed_at: Optional completed timestamp
+            state: New state value (optional, for new code)
+            result: New result value (optional, for new code)
+        """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
-        result = await self.session.execute(stmt)
-        result_job = result.scalar_one_or_none()
+        exec_result = await self.session.execute(stmt)
+        result_job = exec_result.scalar_one_or_none()
         if not result_job:
             return None
 
@@ -56,7 +69,13 @@ class DataIngestionRepository:
             DataIngestionJob.model_validate(result_job)
 
             result_job.status_message = status_message
-            result_job.status = status_code
+            result_job.state = state
+            # Use new state/result if provided, otherwise derive from legacy status_code
+            if state is not None:
+                result_job.state = state
+            if result is not None:
+                result_job.result = result
+
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
                 **self.sanitize_for_json(metadata or {}),
@@ -65,7 +84,7 @@ class DataIngestionRepository:
                     if completed_at
                     else (
                         datetime.now(timezone.utc).isoformat()
-                        if status_code == IngestionStatus.COMPLETED
+                        if state in (IngestionState.FINISHED,)
                         else None
                     )
                 ),
@@ -77,8 +96,8 @@ class DataIngestionRepository:
 
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
-        result = await self.session.execute(stmt)
-        job = result.scalar_one_or_none()
+        exec_result = await self.session.execute(stmt)
+        job = exec_result.scalar_one_or_none()
         if job:
             await self.session.refresh(job)
         return job
@@ -86,46 +105,102 @@ class DataIngestionRepository:
     async def get_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.year == year)
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
 
-    async def _get_jobs_by_status(
-        self, statuses: list[IngestionStatus], negate: bool = False
-    ) -> list[DataIngestionJob]:
+    async def get_latest_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         """
-        Helper method to fetch jobs filtered by status.
+        Get the current job for each (module_type_id, target_type) combination.
 
         Args:
-            statuses: List of IngestionStatus values to filter by
-            negate: If True, exclude jobs with these statuses (use notin_)
+            year: The year to filter jobs by
+
+        Returns:
+            List of DataIngestionJob objects where is_current = true
+        """
+        stmt = (
+            select(DataIngestionJob)
+            .where(
+                DataIngestionJob.year == year,
+                DataIngestionJob.is_current,
+            )
+            .order_by(
+                col(DataIngestionJob.module_type_id), col(DataIngestionJob.target_type)
+            )
+        )
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
+
+    async def mark_job_as_current(self, job: DataIngestionJob) -> None:
+        """
+        Mark a job as current, unsetting any previous current job.
+
+        This must be called within a transaction to ensure atomicity.
+        # TODO: change that. jobs that have started processing can be marked as current,
+        # even if they are not finished yet. Goal is to allow the frontend to show the
+        # latest job as current, even if it's still processing, instead of showing the
+        # previous finished job as current until the new one is finished.
+        Only FINISHED jobs can be marked as current.
+
+        Args:
+            job: The DataIngestionJob to mark as current
+        """
+        if job.state != IngestionState.FINISHED:
+            return  # Only FINISHED jobs can be current
+
+        # Build where clause to match job's module_type_id, target_type, and year
+        where_clause = and_(
+            col(DataIngestionJob.is_current),
+            col(DataIngestionJob.module_type_id) == job.module_type_id,
+            col(DataIngestionJob.target_type) == job.target_type,
+            col(DataIngestionJob.year) == job.year,
+        )
+
+        # Unset previous current job for this combination
+        unset_stmt = (
+            update(DataIngestionJob).where(where_clause).values(is_current=False)
+        )
+        await self.session.execute(unset_stmt)
+
+        # Set new current job
+        job.is_current = True
+        await self.session.flush()
+
+    async def _get_jobs_by_state(
+        self, states: list[IngestionState], negate: bool = False
+    ) -> list[DataIngestionJob]:
+        """
+        Helper method to fetch jobs filtered by state.
+
+        Args:
+            states: List of IngestionState values to filter by
+            negate: If True, exclude jobs with these states (use notin_)
 
         Returns:
             List of DataIngestionJob objects ordered by id descending
         """
-        status_filter = (
-            col(DataIngestionJob.status).notin_(statuses)
+        state_filter = (
+            col(DataIngestionJob.state).notin_(states)
             if negate
-            else col(DataIngestionJob.status).in_(statuses)
+            else col(DataIngestionJob.state).in_(states)
         )
         stmt = (
             select(DataIngestionJob)
-            .where(status_filter)
+            .where(state_filter)
             .order_by(desc(DataIngestionJob.id))
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
 
-    async def get_completed_jobs(self) -> list[DataIngestionJob]:
+    async def get_finished_jobs(self) -> list[DataIngestionJob]:
         """
-        Get all jobs that are in a final state (COMPLETED or FAILED).
+        Get all jobs that are in a finished state.
         """
-        final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-        return await self._get_jobs_by_status(final_states)
+        return await self._get_jobs_by_state([IngestionState.FINISHED])
 
     async def get_active_jobs(self) -> list[DataIngestionJob]:
         """
-        Get all jobs that are not in a final state (not COMPLETED or FAILED).
+        Get all jobs that are not in a finished state.
         Used for SSE streaming of job updates.
         """
-        final_states = [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
-        return await self._get_jobs_by_status(final_states, negate=True)
+        return await self._get_jobs_by_state([IngestionState.FINISHED], negate=True)

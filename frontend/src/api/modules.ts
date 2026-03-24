@@ -63,7 +63,7 @@ export interface ResultsSummary {
  * Dropdown item returned by GET /modules/{unitId}/{year}/headcount/members.
  */
 export interface HeadcountMemberDropdownItem {
-  institutional_id: number;
+  institutional_id: string;
   name: string;
 }
 

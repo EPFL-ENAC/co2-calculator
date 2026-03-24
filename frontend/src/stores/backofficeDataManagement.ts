@@ -10,7 +10,9 @@ export interface DataIngestionJob {
   year: number;
   provider_type: string;
   target_type: number;
-  status: number; // 0: pending, 1: in_progress, 2: completed, 3: failed
+  status: number; // Legacy: 0: NOT_STARTED, 1: PENDING, 2: IN_PROGRESS, 3: COMPLETED, 4: FAILED
+  state?: number; // New: 0: NOT_STARTED, 1: QUEUED, 2: RUNNING, 3: FINISHED
+  result?: number; // New: 0: SUCCESS, 1: WARNING, 2: ERROR (only valid when state is FINISHED)
   status_message?: string;
   meta?: Record<string, unknown>;
 }
@@ -26,6 +28,8 @@ export interface JobUpdatePayload {
   target_type: number;
   year: number | null;
   status: string | number;
+  state?: number;
+  result?: number;
   status_message: string;
   meta?: {
     row_errors?: JobRowError[];
@@ -40,9 +44,28 @@ export interface JobUpdatePayload {
 export interface SyncJobStatus {
   module_type_id: number;
   year: number;
-  status: number; // 0: pending, 1: in_progress, 2: completed, 3: failed
+  status: number; // Legacy status
+  state?: number; // New state
+  result?: number; // New result
   provider_type: string;
 }
+
+export interface SyncJobResponse {
+  job_id: number;
+  module_type_id?: number;
+  year?: number;
+  ingestion_method?: IngestionMethod;
+  target_type?: TargetType;
+  state?: IngestionState;
+  status_message?: string;
+  meta?: Record<string, unknown>;
+  result?: IngestionResult;
+}
+
+export type IngestionMethod = 0 | 1 | 2; // api, csv, manual
+export type TargetType = 0 | 1; // data_entries, factors
+export type IngestionState = 0 | 1 | 2 | 3; // NOT_STARTED, QUEUED, RUNNING, FINISHED
+export type IngestionResult = 0 | 1 | 2; // SUCCESS, WARNING, ERROR
 
 export type InitiateSyncParams = {
   module_type_id: number;
@@ -75,8 +98,15 @@ export const useBackofficeDataManagement = defineStore(
         module_type_id: job.module_type_id,
         year: job.year,
         status: job.status,
+        state: job.state,
+        result: job.result,
         provider_type: job.provider_type,
       }));
+    });
+
+    // In the store, alongside your other computed properties
+    const getLatestJobsByYear = computed(() => (year: number) => {
+      return syncJobs[year] ?? [];
     });
 
     const getSyncStatusByModule = (
@@ -87,6 +117,94 @@ export const useBackofficeDataManagement = defineStore(
       const jobs = syncJobs[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job ? job.status : 0; // Default to pending (0) if no job found
+    };
+
+    /**
+     * Get the new state value for a job by module type.
+     * Returns the state enum value or 0 (NOT_STARTED) if no job found.
+     */
+    const getSyncStateByModule = (moduleType: Module, year: number): number => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state ?? 0; // Default to NOT_STARTED (0) if no job found
+    };
+
+    /**
+     * Get the result value for a job by module type.
+     * Returns the result enum value or undefined if job not finished.
+     */
+    const getSyncResultByModule = (
+      moduleType: Module,
+      year: number,
+    ): number | undefined => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.result;
+    };
+
+    /**
+     * Check if a job is finished (state = FINISHED).
+     */
+    const isJobFinished = (moduleType: Module, year: number): boolean => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state === 3; // FINISHED
+    };
+
+    /**
+     * Check if a job has succeeded (state = FINISHED && result = SUCCESS).
+     */
+    const hasJobSucceeded = (moduleType: Module, year: number): boolean => {
+      const moduleTypeId = getModuleTypeId(moduleType);
+      const jobs = syncJobs[year] || [];
+      const job = jobs.find((j) => j.module_type_id === moduleTypeId);
+      return job?.state === 3 && job?.result === 0; // FINISHED && SUCCESS
+    };
+
+    /**
+     * Calculate the success rate of a job based on meta stats.
+     * Returns percentage (0-100) or null if stats not available.
+     *
+     * Logic:
+     * - 100% if rows_skipped === 0
+     * - 0% if rows_processed === 0
+     * - Otherwise: (rows_processed / (rows_processed + rows_skipped)) * 100
+     */
+    const getSuccessRate = (job: DataIngestionJob): number | null => {
+      if (!job.meta) return null;
+
+      const meta = job.meta as Record<string, unknown>;
+      const stats = (meta as { stats?: Record<string, unknown> }).stats || meta;
+
+      const rowsProcessed = (stats.rows_processed as number) || 0;
+      const rowsSkipped = (stats.rows_skipped as number) || 0;
+
+      if (rowsProcessed === 0) return 0;
+      if (rowsSkipped === 0) return 100;
+
+      const totalRows = rowsProcessed + rowsSkipped;
+      return Math.round((rowsProcessed / totalRows) * 100);
+    };
+
+    /**
+     * Get human-readable result label based on state and result.
+     */
+    const getResultLabel = (state?: number, result?: number): string => {
+      if (state !== 3) return 'In Progress'; // Not FINISHED
+
+      switch (result) {
+        case 0:
+          return 'Success';
+        case 1:
+          return 'Warning';
+        case 2:
+          return 'Error';
+        default:
+          return 'Unknown';
+      }
     };
 
     // Methods
@@ -110,6 +228,31 @@ export const useBackofficeDataManagement = defineStore(
           error.value = err.message ?? 'Failed to fetch sync jobs';
         } else {
           error.value = 'Failed to fetch sync jobs';
+        }
+        return [];
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    async function fetchLatestSyncJobsByYear(
+      year: number,
+    ): Promise<DataIngestionJob[]> {
+      loading.value = true;
+      error.value = null;
+      currentYear.value = year;
+
+      try {
+        const response = (await api
+          .get(`sync/jobs/year/${year}/latest`)
+          .json()) as DataIngestionJob[];
+        syncJobs[year] = response;
+        return response;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value = err.message ?? 'Failed to fetch latest sync jobs';
+        } else {
+          error.value = 'Failed to fetch latest sync jobs';
         }
         return [];
       } finally {
@@ -244,6 +387,7 @@ provider_type
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
             const update: JobUpdatePayload = JSON.parse(event.data);
+            // Legacy status mapping (for backward compatibility)
             const statusMap: Record<string, number> = {
               NOT_STARTED: 0,
               PENDING: 1,
@@ -257,8 +401,11 @@ provider_type
                 ? update.status
                 : (statusMap[update.status] ?? 0);
 
+            // New state/result values (may be undefined for older data)
+            const state = update.state;
+            const result = update.result;
+
             const job_id = update.job_id;
-            // const module_type_id = update.module_type_id;
             const year = update.year;
 
             // Find and update the job in the store
@@ -270,19 +417,27 @@ provider_type
                 syncJobs[year][jobIndex] = {
                   ...syncJobs[year][jobIndex],
                   status,
+                  state,
+                  result,
                   status_message: update.status_message || '',
                 };
               }
             }
 
-            if (status === 3) {
+            // Use new state/result for completion detection if available
+            // Fall back to legacy status for backward compatibility
+            const isFinished = state === 3 || status === 3 || status === 4; // FINISHED || COMPLETED || FAILED
+            const isSuccess = (state === 3 && result === 0) || status === 3; // FINISHED + SUCCESS || COMPLETED
+            const isFailure = (state === 3 && result === 2) || status === 4; // FINISHED + ERROR || FAILED
+
+            if (isSuccess) {
               onCompleted?.(update);
             }
 
-            if (status === 4) {
+            if (isFailure) {
               onFail?.(update);
             }
-            if (status === 3 || status === 4) {
+            if (isFinished) {
               unsubscribeFromJobUpdates();
             }
           } catch (err) {
@@ -335,6 +490,35 @@ provider_type
       }
     }
 
+    /**
+     * Get successful jobs from a specific year, filtered by module type and target type.
+     * Returns only jobs that have state = FINISHED (3) and result = SUCCESS (0).
+     */
+    async function getPreviousYearSuccessfulJobs(
+      year: number,
+      moduleTypeId: number,
+      targetType: 'data_entries' | 'factors',
+    ): Promise<SyncJobResponse[]> {
+      try {
+        const jobs = (await api
+          .get(`sync/jobs/year/${year}`)
+          .json()) as SyncJobResponse[];
+
+        const resolvedTargetType = targetType === 'data_entries' ? 0 : 1;
+
+        return jobs.filter(
+          (job) =>
+            job.module_type_id === moduleTypeId &&
+            job.target_type === resolvedTargetType &&
+            job.state === 3 && // FINISHED
+            job.result === 0, // SUCCESS
+        );
+      } catch (err: unknown) {
+        console.error('Failed to fetch previous year jobs:', err);
+        return [];
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -351,7 +535,16 @@ provider_type
       currentYear,
       syncJobStatuses,
       getSyncStatusByModule,
+      getSyncStateByModule,
+      getSyncResultByModule,
+      getLatestJobsByYear,
+      isJobFinished,
+      hasJobSucceeded,
+      getSuccessRate,
+      getResultLabel,
       fetchSyncJobsByYear,
+      fetchLatestSyncJobsByYear,
+      getPreviousYearSuccessfulJobs,
       initiateSync,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,

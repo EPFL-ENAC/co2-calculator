@@ -14,7 +14,8 @@ from app.models.data_ingestion import (
     EntityType,
     FactorType,
     IngestionMethod,
-    IngestionStatus,
+    IngestionResult,
+    IngestionState,
     TargetType,
 )
 from app.models.module_type import ModuleTypeEnum
@@ -43,8 +44,7 @@ class SyncRequest(BaseModel):
 
 class SyncStatusResponse(BaseModel):
     job_id: int
-    status: str
-    status_code: IngestionStatus
+    state: IngestionState
     message: str
     progress: Optional[dict] = None
 
@@ -55,9 +55,10 @@ class SyncJobResponse(BaseModel):
     year: Optional[int] = None
     ingestion_method: IngestionMethod
     target_type: Optional[TargetType] = None
-    status: IngestionStatus
     status_message: Optional[str] = None
     meta: Optional[dict] = None
+    state: Optional[IngestionState] = None
+    result: Optional[IngestionResult] = None
 
 
 @router.post("/data-entries/{module_type_id}", response_model=SyncStatusResponse)
@@ -108,7 +109,7 @@ async def sync_module_data_entries(
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="year is required for factor CSV ingestion",
         )
 
@@ -138,14 +139,15 @@ async def sync_module_data_entries(
 
     if not provider:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"""Provider '{syncRequest.ingestion_method}'
                 not supported for module '{module_type_id}'""",
         )
 
     if not await provider.validate_connection():
         raise HTTPException(
-            status_code=503, detail=f"Cannot connect to {syncRequest.ingestion_method}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {syncRequest.ingestion_method}",
         )
 
     factor_type_id = getattr(syncRequest, "factor_type_id", None)
@@ -186,8 +188,7 @@ async def sync_module_data_entries(
 
     return {
         "job_id": job_id,
-        "status": "pending",
-        "status_code": IngestionStatus.IN_PROGRESS,
+        "state": IngestionState.NOT_STARTED,
         "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
     }
@@ -233,7 +234,7 @@ async def get_jobs_by_status(
     if filter_type.lower() == "active":
         jobs = await DataIngestionRepository(db).get_active_jobs()
     else:
-        jobs = await DataIngestionRepository(db).get_completed_jobs()
+        jobs = await DataIngestionRepository(db).get_finished_jobs()
     return jobs
 
 
@@ -267,7 +268,45 @@ async def get_jobs_by_year(
             year=job.year,
             ingestion_method=job.ingestion_method,
             target_type=job.target_type,
-            status=job.status,
+            state=job.state if job.state else None,
+            status_message=job.status_message,
+            meta=job.meta,
+        )
+        for job in jobs
+        if job.id is not None
+    ]
+
+
+@router.get("/jobs/year/{year}/latest", response_model=list[SyncJobResponse])
+async def get_latest_jobs_by_year(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list:
+    """
+    Get the current job for each (module_type_id, target_type) combination.
+
+    **Required Permission**: `backoffice.data_management.view`
+
+    Args:
+        year: The year to filter jobs by
+
+    Returns:
+        List of sync jobs where is_current = true
+    """
+    jobs = await DataIngestionRepository(db).get_latest_jobs_by_year(year)
+
+    return [
+        SyncJobResponse(
+            job_id=job.id,
+            module_type_id=job.module_type_id,
+            year=job.year,
+            ingestion_method=job.ingestion_method,
+            target_type=job.target_type,
+            state=job.state,
+            result=job.result,
             status_message=job.status_message,
             meta=job.meta,
         )
@@ -325,7 +364,9 @@ async def job_stream_by_id(
                 "module_type_id": job.module_type_id,
                 "target_type": job.target_type,
                 "year": job.year,
-                "status": job.status,
+                "status": job.state,
+                "state": job.state,
+                "result": job.result,
                 "status_message": job.status_message,
                 "meta": job.meta if job.meta else None,
             }
@@ -336,8 +377,8 @@ async def job_stream_by_id(
                 last_status = current_status
                 last_message = job.status_message
 
-            # If job is completed or failed...
-            if job.status in {IngestionStatus.COMPLETED, IngestionStatus.FAILED}:
+            # If job is finished...
+            if job.state == IngestionState.FINISHED:
                 polls_after_completion += 1
                 if polls_after_completion >= 2:
                     # Send final completion message before closing stream
@@ -378,7 +419,6 @@ async def sync_units_from_accred(
 
     return SyncStatusResponse(
         job_id=0,  # No persistent job tracking for now
-        status="scheduled",
-        status_code=IngestionStatus.PENDING,
+        state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
     )

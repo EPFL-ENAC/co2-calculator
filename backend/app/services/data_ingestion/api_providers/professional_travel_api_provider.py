@@ -7,14 +7,12 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 from joserfc import jwt as JWT
 from joserfc.jwk import OctKey
-from sqlmodel import select
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_ingestion import IngestionStatus
-from app.models.location import Location
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.user import User
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
@@ -106,7 +104,8 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             logger.error(error_message)
             await self._update_job(
                 status_message="failed",
-                status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": error_message},
             )
             raise
@@ -117,64 +116,50 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         try:
             transformed = []
 
-            async def get_location_id_by_code(code: str) -> Optional[int]:
-                async with SessionLocal() as db:
-                    result = await db.execute(
-                        select(Location).where(Location.iata_code == code)
-                    )
-                    location = result.scalar_one_or_none()
-                return location.id if location else None
-
             for record in raw_data:
-                # check date < 01.01.year+1
+                # Filter by target year
                 departure_date_str = record.get("IN_Departure date") or ""
                 departure_date = self._parse_date(departure_date_str)
                 if (not departure_date) or (departure_date.year != self.config["year"]):
-                    continue  # Skip records not in the target year
-                # In your transform_data method, before appending entry:
-                origin_code: str = record.get("IN_Segment origin airport code") or ""
-                destination_code: str = (
-                    record.get("IN_Segment destination airport code") or ""
-                )
-                origin_location_id = await get_location_id_by_code(origin_code)
-                destination_location_id = await get_location_id_by_code(
-                    destination_code
-                )
-                if (origin_location_id is None) or (destination_location_id is None):
-                    continue  # Skip records with unknown locations
+                    continue
+
+                # Validate SCIPER
                 sciper = record.get("SCIPER")
                 if not sciper or str(sciper).strip() == "":
-                    continue  # Skip records without valid sciper
+                    continue
 
-                traveler_name = sciper if sciper else "Unknown"
+                # Validate IATA codes
+                origin_iata: str = record.get("IN_Segment origin airport code") or ""
+                destination_iata: str = (
+                    record.get("IN_Segment destination airport code") or ""
+                )
+                if not origin_iata or not destination_iata:
+                    continue
 
+                # Parse number of trips
+                raw_trips = record.get("Number of trips")
+                try:
+                    number_of_trips = int(raw_trips) if raw_trips is not None else 1
+                except (ValueError, TypeError):
+                    number_of_trips = 1
+                number_of_trips = max(1, number_of_trips)
+                logger.info(record.get("ROUND_TRIP"))
+                unit_institutional_id = record.get("Centre financier") or "unknown_unit"
+                unit_institutional_id2 = (
+                    record.get("IN_Centre financier") or "unknown_unit"
+                )
                 entry = {
-                    "sciper": sciper,
-                    "centre_financier": record.get("Centre financier"),
-                    "departure_date": self._parse_date(
-                        record.get("IN_Departure date") or ""
-                    ),
-                    "origin": record.get("IN_Segment origin"),
-                    "destination": record.get("IN_Segment destination"),
-                    "origin_code": record.get("IN_Segment origin airport code"),
-                    "destination_code": record.get(
-                        "IN_Segment destination airport code"
-                    ),
+                    "unit_institutional_id": unit_institutional_id[1:],
+                    "unit_institutional_id2": unit_institutional_id2[1:],
+                    "user_institutional_id": sciper,
+                    "origin_iata": origin_iata,
+                    "destination_iata": destination_iata,
+                    "departure_date": departure_date,
+                    "number_of_trips": number_of_trips,
                     "cabin_class": self._normalize_class(
                         record.get("IN_Segment class") or ""
                     ),
-                    "supplier": record.get("IN_Supplier"),
-                    "ticket_number": record.get("IN_Ticket number"),
-                    "transport_type": record.get("TRANSPORT_TYPE"),
-                    "round_trip": record.get("ROUND_TRIP") == "YES",
-                    "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
-                    "co2_kg": record.get("OUT_CO2_CORRECTED"),
-                    "traveler_name": traveler_name,
-                    "user_institutional_id": sciper,
-                    "provider": self.config["provider"],
-                    "origin_location_id": origin_location_id,
-                    "destination_location_id": destination_location_id,
-                    "year": self.config["year"],
+                    "note": None,
                 }
                 transformed.append(entry)
 
@@ -185,24 +170,13 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             logger.error(error_message)
             await self._update_job(
                 status_message="failed",
-                status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": error_message},
             )
             raise
 
     async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        def resolve_data_entry_type_id(item: Dict[str, Any]) -> int:
-            raw_transport_type = (item.get("transport_type") or "").strip().lower()
-            if "train" in raw_transport_type:
-                return DataEntryTypeEnum.train.value
-            if "plane" in raw_transport_type:
-                return DataEntryTypeEnum.plane.value
-
-            logger.warning(
-                "Unknown transport_type '%s'; defaulting to plane",
-                item.get("transport_type"),
-            )
-            return DataEntryTypeEnum.plane.value
 
         result = []
         async with SessionLocal() as db:
@@ -210,8 +184,8 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             entries = [
                 DataEntry(
                     carbon_report_module_id=item.get("carbon_report_module_id"),
-                    data_entry_type_id=resolve_data_entry_type_id(item),
-                    data={k: v for k, v in item.items() if k != "transport_type"},
+                    data_entry_type_id=DataEntryTypeEnum.plane.value,
+                    data=item,
                 )
                 for item in data
             ]

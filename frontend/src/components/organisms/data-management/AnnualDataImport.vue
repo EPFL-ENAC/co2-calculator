@@ -1,28 +1,24 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
-import FilesUploadDialog from './FilesUploadDialog.vue';
+import { ref, computed } from 'vue';
 import { useFilesStore } from 'src/stores/files';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import type {
-  JobUpdatePayload,
-  InitiateSyncParams,
+  SyncJobResponse,
+  DataIngestionJob,
+  IngestionState,
+  IngestionResult,
 } from 'src/stores/backofficeDataManagement';
-import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import DataEntryDialog from './DataEntryDialog.vue';
 
 const filesStore = useFilesStore();
 const dataManagementStore = useBackofficeDataManagement();
-const $q = useQuasar();
 const { t: $t } = useI18n();
 
 interface Props {
   year: number;
 }
-defineProps<Props>();
-const showUploadDialog = ref<boolean>(false);
-const uploadTargetType = ref<'data_entries' | 'factors'>('data_entries');
-const uploadFactorVariant = ref<string | null>(null);
-const uploadDataEntryTypeId = ref<number | null>(null);
+const props = defineProps<Props>();
 
 interface ImportRow {
   key: string;
@@ -32,13 +28,15 @@ interface ImportRow {
   factorVariant?: 'plane' | 'train';
   hasFactors: boolean;
   hasApi: boolean;
-  hasData: boolean; //
+  hasData: boolean;
   other?: string;
   hasOtherUpload?: boolean;
   isDisabled?: boolean;
+  lastDataJob?: SyncJobResponse;
+  lastFactorJob?: SyncJobResponse;
 }
 
-const importRows: ImportRow[] = [
+const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
   {
     key: 'headcount_members',
     labelKey: 'data_management_row_headcount_members',
@@ -206,167 +204,139 @@ const importRows: ImportRow[] = [
   },
 ];
 
-/**
- * Initiate CSV upload sync for a module (MODULE_PER_YEAR bulk import).
- * For headcount: CSV contains unit_id (institutional_id) column.
- * Backend resolves unit -> carbon_report_module_id per row.
- */
-const onFilesUploaded = async (filePaths: string[]) => {
-  showUploadDialog.value = false;
+// ── Pure helpers (no reactive side-effects) ───────────────────────────────────
 
-  if (!filePaths || filePaths.length === 0) {
-    $q.notify({
-      color: 'negative',
-      message: $t('csv_no_files_uploaded'),
-      position: 'top',
-      closeBtn: true,
-    });
-    return;
-  }
-
-  // retrieve moduleTypeId from clicked module's upload button (stored in filesStore) and initiate sync for that module
-  // Storing per-click UI context (moduleTypeId, year)
-  // in a global store makes the flow fragile (e.g., multiple dialogs, rapid clicks, navigation)
-  // and the TODO comment is unclear.
-  // Prefer passing moduleTypeId/year through the dialog component (props/events) or storing them as local refs in this component;
-  // also replace the TODO with an actionable comment (or enforce the restriction in code).
-  const module_type_id = filesStore.currentUploadModuleTypeId;
-  if (module_type_id === null) {
-    $q.notify({
-      color: 'negative',
-      message: `${$t('csv_sync_failed_to_initiate')}: missing moduleTypeId`,
-      position: 'top',
-    });
-    return;
-  }
-  const year = filesStore.currentUploadYear;
-  if (year === null) {
-    $q.notify({
-      color: 'negative',
-      message: `${$t('csv_sync_failed_to_initiate')}: missing year`,
-      position: 'top',
-    });
-    return;
-  }
-
-  // start initiating sync for the files
-  // subscribe to job updates and show notifications on completion/failure
-
-  const filePath = filePaths[0]; // use the path of the first uploaded file (assuming single file upload for now)
-
-  try {
-    $q.notify({
-      color: 'info',
-      message: $t('csv_sync_starting'),
-      position: 'top',
-    });
-
-    // For headcount (moduleTypeId=1): specify data_entry_type_id for members
-    const syncParams: InitiateSyncParams = {
-      module_type_id,
-      year,
-      provider_type: 'csv',
-      target_type: uploadTargetType.value,
-      file_path: filePath,
-    };
-
-    if (uploadDataEntryTypeId.value !== null) {
-      syncParams.data_entry_type_id = uploadDataEntryTypeId.value;
-    } else if (
-      uploadTargetType.value === 'data_entries' &&
-      module_type_id === 1
-    ) {
-      // Keep existing headcount default behavior
-      syncParams.data_entry_type_id = 1;
-    }
-
-    if (uploadTargetType.value === 'factors' && uploadFactorVariant.value) {
-      syncParams.config = {
-        ...(syncParams.config || {}),
-        factor_variant: uploadFactorVariant.value,
-      };
-    }
-
-    const jobId = await dataManagementStore.initiateSync(syncParams);
-
-    // Subscribe to job-specific SSE stream
-    dataManagementStore.subscribeToJobUpdates(
-      jobId,
-      (payload?: JobUpdatePayload) => {
-        $q.notify({
-          color: 'positive',
-          message: $t('csv_sync_completed'),
-          position: 'top',
-        });
-        console.log('Sync completed:', payload);
-      },
-      (payload?: JobUpdatePayload) => {
-        $q.notify({
-          color: 'negative',
-          message: `${$t('csv_sync_failed')} ${payload?.status_message || ''}`,
-          position: 'top',
-        });
-        console.error('Sync failed:', payload);
-      },
-      () => {
-        $q.notify({
-          color: 'negative',
-          message: $t('csv_sync_connection_lost'),
-          position: 'top',
-          timeout: 30000,
-        });
-      },
+function findJob(
+  jobs: DataIngestionJob[],
+  moduleTypeId: number,
+  targetType: 0 | 1,
+  dataEntryTypeId?: number,
+): DataIngestionJob | undefined {
+  const candidates = jobs.filter(
+    (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
+  );
+  if (dataEntryTypeId !== undefined) {
+    return candidates.find(
+      (j) =>
+        (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
+        dataEntryTypeId,
     );
-
-    $q.notify({
-      color: 'positive',
-      message: $t('csv_sync_initiated'),
-      position: 'top',
-    });
-  } catch (err) {
-    console.error('Failed to initiate sync:', err);
-    $q.notify({
-      color: 'negative',
-      message:
-        err instanceof Error ? err.message : $t('csv_sync_failed_to_initiate'),
-      position: 'top',
-    });
   }
-};
+  return candidates[0];
+}
 
-const dataEntrySync = async (moduleTypeId: number, year: number) => {
-  await dataManagementStore.initiateSync({
-    module_type_id: moduleTypeId,
-    year,
-    provider_type: 'api',
-    target_type: 'data_entries',
+function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
+  return {
+    job_id: job.job_id,
+    module_type_id: job.module_type_id,
+    year: job.year,
+    target_type: job.target_type as 0 | 1,
+    state: job.state as IngestionState,
+    result: job.result as IngestionResult,
+    status_message: job.status_message,
+    meta: job.meta,
+  };
+}
+
+function importInfo(job: SyncJobResponse | undefined) {
+  if (!job?.meta) return null;
+  const meta = job.meta as Record<string, unknown>;
+  const filePath = (meta.file_path as string) || '';
+  return {
+    rows: (meta.rows_processed as number) || 0,
+    fileName: filePath.split('/').pop() || '',
+  };
+}
+
+// ── Computed: reads from store cache, parent owns the fetch ───────────────────
+
+const importRows = computed<ImportRow[]>(() => {
+  const jobs: DataIngestionJob[] = dataManagementStore.getLatestJobsByYear(
+    props.year,
+  );
+  return BASE_IMPORT_ROWS.map((row) => {
+    const dataJob = findJob(jobs, row.moduleTypeId, 0, row.dataEntryTypeId);
+    const factorJob = findJob(jobs, row.moduleTypeId, 1, row.dataEntryTypeId);
+
+    return {
+      ...row,
+      lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
+      lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
+    };
   });
-};
-
-const openUploadCsvDialog = (row: ImportRow, year: number) => {
-  // store moduleTypeId in filesStore to retrieve later when files are uploaded
-  // TODO: FORBID USER to CHANGE
-  filesStore.currentUploadModuleTypeId = row.moduleTypeId;
-  filesStore.currentUploadYear = year;
-  uploadTargetType.value = 'data_entries';
-  uploadFactorVariant.value = null;
-  uploadDataEntryTypeId.value = row.dataEntryTypeId ?? null;
-  showUploadDialog.value = true;
-};
-
-const openUploadFactorsDialog = (row: ImportRow, year: number) => {
-  filesStore.currentUploadModuleTypeId = row.moduleTypeId;
-  filesStore.currentUploadYear = year;
-  uploadTargetType.value = 'factors';
-  uploadDataEntryTypeId.value = row.dataEntryTypeId ?? null;
-  uploadFactorVariant.value = row.factorVariant ?? null;
-  showUploadDialog.value = true;
-};
-
-// Unsubscribe from SSE when component unmounts
-onUnmounted(() => {
-  dataManagementStore.unsubscribeFromJobUpdates();
 });
+
+// ── Button helpers ────────────────────────────────────────────────────────────
+
+function dataButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastDataJob) return 'accent';
+  if (row.lastDataJob.result === 2) return 'negative';
+  if (row.lastDataJob.result === 1) return 'warning';
+  return 'positive';
+}
+
+function factorButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastFactorJob) return 'accent';
+  if (row.lastFactorJob.result === 2) return 'negative';
+  if (row.lastFactorJob.result === 1) return 'warning';
+  return 'positive';
+}
+
+function dataButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastDataJob
+    ? $t('data_management_reupload_data')
+    : $t('data_management_add_data');
+}
+
+function factorButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastFactorJob
+    ? $t('data_management_reupload_factors')
+    : $t('data_management_add_factors');
+}
+
+// ── CSV download ──────────────────────────────────────────────────────────────
+
+function downloadLastCsv(
+  row: ImportRow,
+  targetType: 'data_entries' | 'factors',
+) {
+  const job =
+    targetType === 'data_entries' ? row.lastDataJob : row.lastFactorJob;
+  if (!job?.meta) return;
+  const filePath =
+    ((job.meta as Record<string, unknown>).file_path as string) || '';
+  if (!filePath) return;
+  const a = document.createElement('a');
+  a.href = `/files/${filePath}`;
+  a.download = filePath.split('/').pop() || filePath;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── Dialog ────────────────────────────────────────────────────────────────────
+
+const showDataEntryDialog = ref(false);
+const dialogCurrentRow = ref<ImportRow | null>(null);
+const dialogTargetType = ref<'data_entries' | 'factors'>('data_entries');
+
+function openDataEntryDialog(
+  row: ImportRow,
+  targetType: 'data_entries' | 'factors',
+) {
+  dialogCurrentRow.value = row;
+  dialogTargetType.value = targetType;
+  showDataEntryDialog.value = true;
+}
+
+// Re-fetch after upload so the store cache (and this view) updates
+async function handleJobCompleted() {
+  await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
+}
 </script>
 
 <template>
@@ -378,175 +348,189 @@ onUnmounted(() => {
     <div class="q-my-md">
       {{ $t('data_management_annual_data_import_hint') }}
     </div>
-    <div>
-      <q-banner class="bg-grey-2 text-grey-8">
-        <q-icon name="info" size="xs" class="on-left" />
-        <span class="q-ml-sm">
-          {{
-            filesStore.tempFiles.length > 0
-              ? $t('data_management_temp_files_uploaded', {
-                  count: filesStore.tempFiles.length,
-                })
-              : $t('data_management_no_temp_files_uploaded')
-          }}
-        </span>
+
+    <q-banner class="bg-grey-2 text-grey-8">
+      <q-icon name="info" size="xs" class="on-left" />
+      <span class="q-ml-sm">
+        {{
+          filesStore.tempFiles.length > 0
+            ? $t('data_management_temp_files_uploaded', {
+                count: filesStore.tempFiles.length,
+              })
+            : $t('data_management_no_temp_files_uploaded')
+        }}
+      </span>
+      <q-btn
+        v-if="filesStore.tempFiles.length > 0"
+        no-caps
+        outline
+        color="negative"
+        icon="delete"
+        size="sm"
+        :label="$t('data_management_delete_temp_files')"
+        class="text-weight-medium on-right"
+        @click="filesStore.deleteTempFiles()"
+      />
+    </q-banner>
+
+    <q-banner inline-actions class="q-px-none">
+      <template #action>
         <q-btn
-          v-if="filesStore.tempFiles.length > 0"
           no-caps
           outline
-          color="negative"
-          icon="delete"
+          color="secondary"
+          icon="file_download"
           size="sm"
-          :label="$t('data_management_delete_temp_files')"
-          class="text-weight-medium on-right"
-          @click="filesStore.deleteTempFiles()"
+          :label="$t('data_management_download_csv_templates')"
+          class="text-weight-medium"
         />
-      </q-banner>
-    </div>
-    <div>
-      <q-banner inline-actions class="q-px-none">
-        <template #action>
-          <q-btn
-            no-caps
-            outline
-            color="secondary"
-            icon="file_download"
-            size="sm"
-            :label="$t('data_management_download_csv_templates')"
-            class="text-weight-medium"
-          />
-        </template>
-        <div>
-          {{
-            $t('data_management_data_imports_count', {
-              count: importRows.length,
-            })
-          }}
-        </div>
-      </q-banner>
-      <q-markup-table flat bordered>
-        <thead>
-          <tr>
-            <th align="left">{{ $t('data_management_category') }}</th>
-            <th align="left">{{ $t('data_management_data') }}</th>
-            <th align="left">{{ $t('data_management_factor') }}</th>
-            <th align="left">{{ $t('data_management_column_other') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in importRows" :key="row.key">
-            <td class="text-weight-medium" align="left">
-              {{ $t(row.labelKey) }}
-              <q-badge
-                v-if="row.isDisabled"
-                color="grey-4"
-                text-color="grey-8"
-                :label="$t('data_management_tbd')"
-                class="q-ml-sm"
+      </template>
+      <div>
+        {{
+          $t('data_management_data_imports_count', { count: importRows.length })
+        }}
+      </div>
+    </q-banner>
+
+    <q-markup-table flat bordered>
+      <thead>
+        <tr>
+          <th align="left">{{ $t('data_management_category') }}</th>
+          <th align="left">{{ $t('data_management_data') }}</th>
+          <th align="left">{{ $t('data_management_factor') }}</th>
+          <th align="left">{{ $t('data_management_column_other') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="row in importRows" :key="row.key">
+          <!-- Category -->
+          <td class="text-weight-medium" align="left">
+            {{ $t(row.labelKey) }}
+            <q-badge
+              v-if="row.isDisabled"
+              color="grey-4"
+              text-color="grey-8"
+              :label="$t('data_management_tbd')"
+              class="q-ml-sm"
+            />
+          </td>
+
+          <!-- Data -->
+          <td align="left">
+            <div v-if="row.hasData" class="flex flex-row gap-1 justify-between">
+              <q-btn
+                :color="dataButtonColor(row)"
+                icon="add"
+                size="sm"
+                :label="dataButtonLabel(row)"
+                class="text-weight-medium"
+                :disable="row.isDisabled"
+                @click="openDataEntryDialog(row, 'data_entries')"
               />
-            </td>
-            <td align="left">
-              <template v-if="row.hasData">
-                <div class="q-mb-sm">
-                  <q-icon name="warning" size="xs" color="warning" />
-                  <span class="q-ml-sm text-warning">{{
-                    $t('data_management_no_data_warning')
-                  }}</span>
-                </div>
+              <div
+                v-if="importInfo(row.lastDataJob)"
+                class="q-mt-xs text-caption text-grey-7 flex flex-row gap-4 justify-between"
+              >
                 <div>
-                  <q-btn
-                    no-caps
-                    color="accent"
-                    icon="file_upload"
-                    size="sm"
-                    :label="$t('data_management_upload_csv_files')"
-                    class="text-weight-medium"
-                    :disable="row.isDisabled"
-                    @click="openUploadCsvDialog(row, year)"
-                  />
-                  <q-btn
-                    v-if="row.hasApi"
-                    no-caps
-                    color="accent"
-                    icon="link"
-                    size="sm"
-                    :label="$t('data_management_connect_api')"
-                    class="text-weight-medium on-right"
-                    :disable="row.isDisabled"
-                    @click="dataEntrySync(row.moduleTypeId, year)"
-                  />
-                  <q-btn
-                    no-caps
-                    color="accent"
-                    icon="file_copy"
-                    size="sm"
-                    :label="$t('data_management_copy_previous_year')"
-                    class="text-weight-medium on-right"
-                    :disable="row.isDisabled"
-                  />
+                  {{ importInfo(row.lastDataJob)!.rows }}
+                  {{ $t('data_management_rows_imported') }}
                 </div>
-              </template>
-              <span v-else class="text-grey-5">—</span>
-            </td>
-            <td align="left">
-              <template v-if="row.hasFactors">
-                <div class="q-mb-sm">
-                  <q-icon name="error" size="xs" color="negative" />
-                  <span class="q-ml-sm text-negative">{{
-                    $t('data_management_no_factors_error')
-                  }}</span>
+                <div class="row items-center q-gutter-xs">
+                  <span>{{ importInfo(row.lastDataJob)!.fileName }}</span>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="download"
+                    size="xs"
+                    color="grey-6"
+                    @click="downloadLastCsv(row, 'data_entries')"
+                  >
+                    <q-tooltip>{{
+                      $t('data_management_download_last_csv')
+                    }}</q-tooltip>
+                  </q-btn>
                 </div>
+              </div>
+            </div>
+            <span v-else class="text-grey-5">—</span>
+          </td>
+
+          <!-- Factors -->
+          <td align="left">
+            <div
+              v-if="row.hasFactors"
+              class="flex flex-row gap-1 justify-between"
+            >
+              <q-btn
+                :color="factorButtonColor(row)"
+                icon="add"
+                size="sm"
+                :label="factorButtonLabel(row)"
+                class="text-weight-medium"
+                :disable="row.isDisabled"
+                @click="openDataEntryDialog(row, 'factors')"
+              />
+              <div
+                v-if="importInfo(row.lastFactorJob)"
+                class="q-mt-xs text-caption text-grey-7 flex flex-row gap-1"
+              >
                 <div>
-                  <q-btn
-                    no-caps
-                    color="accent"
-                    icon="file_upload"
-                    size="sm"
-                    :label="$t('data_management_upload_csv_files')"
-                    class="text-weight-medium"
-                    :disable="row.isDisabled"
-                    @click="openUploadFactorsDialog(row, year)"
-                  />
-                  <q-btn
-                    no-caps
-                    color="accent"
-                    icon="file_copy"
-                    size="sm"
-                    :label="$t('data_management_copy_previous_year')"
-                    class="text-weight-medium on-right"
-                    :disable="row.isDisabled"
-                  />
+                  {{ importInfo(row.lastFactorJob)!.rows }}
+                  {{ $t('data_management_rows_imported') }}
                 </div>
-              </template>
-              <span v-else class="text-grey-5">—</span>
-            </td>
-            <td align="left">
-              <template v-if="row.other">
-                <div class="q-mb-xs text-caption text-grey-7">
-                  {{ $t(row.other) }}
+                <div class="row items-center q-gutter-xs">
+                  <span>{{ importInfo(row.lastFactorJob)!.fileName }}</span>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="download"
+                    size="xs"
+                    color="grey-6"
+                    @click="downloadLastCsv(row, 'factors')"
+                  >
+                    <q-tooltip>{{
+                      $t('data_management_download_last_csv')
+                    }}</q-tooltip>
+                  </q-btn>
                 </div>
-                <q-btn
-                  v-if="row.hasOtherUpload"
-                  no-caps
-                  outline
-                  color="accent"
-                  icon="file_upload"
-                  size="sm"
-                  :label="$t('data_management_upload_reference')"
-                  class="text-weight-medium"
-                  disable
-                >
-                  <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
-                </q-btn>
-              </template>
-            </td>
-          </tr>
-        </tbody>
-      </q-markup-table>
-    </div>
-    <files-upload-dialog
-      v-model="showUploadDialog"
-      @files-uploaded="onFilesUploaded"
+              </div>
+            </div>
+            <span v-else class="text-grey-5">—</span>
+          </td>
+
+          <!-- Other -->
+          <td align="left">
+            <template v-if="row.other">
+              <div class="q-mb-xs text-caption text-grey-7">
+                {{ $t(row.other) }}
+              </div>
+              <q-btn
+                v-if="row.hasOtherUpload"
+                no-caps
+                outline
+                color="accent"
+                icon="file_upload"
+                size="sm"
+                :label="$t('data_management_upload_reference')"
+                class="text-weight-medium"
+                disable
+              >
+                <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
+              </q-btn>
+            </template>
+          </td>
+        </tr>
+      </tbody>
+    </q-markup-table>
+
+    <data-entry-dialog
+      v-model="showDataEntryDialog"
+      :row="dialogCurrentRow || ({} as ImportRow)"
+      :year="year"
+      :target-type="dialogTargetType"
+      @completed="handleJobCompleted"
     />
   </q-card>
 </template>
