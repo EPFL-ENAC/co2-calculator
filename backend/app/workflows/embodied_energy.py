@@ -31,7 +31,7 @@ class EmbodiedEnergyWorkflow:
         data_entry_type = DataEntryTypeEnum(data_entry.data_entry_type_id)
 
         if data_entry_type == DataEntryTypeEnum.building:
-            return await self._post_create_building(
+            await self._post_create_building(
                 carbon_report_module,
                 data_entry,
                 current_user,
@@ -50,6 +50,7 @@ class EmbodiedEnergyWorkflow:
         """Post-process the updated data entry to recalculate
         embodied energy emissions.
         """
+        # TODO proper update
         # Delete the existing embodied energy data entry
         # corresponding to this data entry, if it exists
         await self.post_delete(

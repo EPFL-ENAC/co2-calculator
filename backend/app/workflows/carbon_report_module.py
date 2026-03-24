@@ -69,11 +69,14 @@ class CarbonReportModuleWorkflow:
                 detail=f"Invalid item_data for creation: {str(e)}",
             )
 
-        if data_entry_type == DataEntryTypeEnum.member and validated_data.model_dump().get(
-            "user_institutional_id"
+        if (
+            data_entry_type == DataEntryTypeEnum.member
+            and validated_data.model_dump().get("user_institutional_id")
         ):
             uid = validated_data.model_dump()["user_institutional_id"]
-            is_unique = await DataEntryService(self.session).check_institutional_id_unique(
+            is_unique = await DataEntryService(
+                self.session
+            ).check_institutional_id_unique(
                 carbon_report_module_id=carbon_report_module.id,
                 uid=uid,
             )

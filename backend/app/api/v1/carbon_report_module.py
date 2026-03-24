@@ -18,7 +18,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.modules.headcount.schemas import (
@@ -666,12 +666,6 @@ async def delete(
 
         # Resolve module ID before deleting the entry (needed for stats recompute)
         module_key = module_id.replace("-", "_")
-        carbon_report_module = await get_carbon_report(
-            unit_id=unit_id,
-            year=year,
-            module_type_id=ModuleTypeEnum[module_key],
-            db=db,
-        )
         carbon_report_module = await get_carbon_report(
             unit_id=unit_id,
             year=year,

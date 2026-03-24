@@ -649,7 +649,7 @@ class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
     response_dto = BuildingEmbodiedEnergyFactorResponse
 
     classification_fields: list[str] = ["building_name", "category"]
-    value_fields: list[str] = ["ef_kg_co2eq_per_m2"]
+    value_fields: list[str] = ["ef_kgco2eq_per_m2"]
 
     def to_response(self, factor: Factor) -> FactorResponseGen:
         return self.response_dto.model_validate(factor.model_dump)
