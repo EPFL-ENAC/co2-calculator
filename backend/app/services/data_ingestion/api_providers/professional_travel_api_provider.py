@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, TypedDict
 
 import requests
 from joserfc import jwt as JWT
@@ -10,14 +10,29 @@ from joserfc.jwk import OctKey
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.db import SessionLocal
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.user import User
+from app.repositories.unit_repo import UnitRepository
+from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.user import UserRead
+from app.services.carbon_report_service import CarbonReportService
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
 logger = get_logger(__name__)
+
+
+class StatsDict(TypedDict):
+    """Type definition for travel data processing statistics"""
+
+    rows_processed: int
+    rows_with_factors: int
+    rows_without_factors: int
+    rows_skipped: int
+    row_errors: list[dict[str, Any]]
+    row_errors_count: int
 
 
 # todo: hard code travel ?
@@ -67,6 +82,8 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         self.verify_ssl = to_bool(self.settings.TABLEAU_VERIFY_SSL)
         self.min_api_version = self.settings.TABLEAU_REST_MIN_API_VERSION
         self.max_fields = self.settings.TABLEAU_MAX_FIELDS
+        # Extract module_type_id from config for carbon report resolution
+        self.module_type_id = config.get("module_type_id")
 
     async def validate_connection(self) -> bool:
         try:
@@ -118,6 +135,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
 
             for record in raw_data:
                 # Filter by target year
+                # Filter by target year
                 departure_date_str = record.get("IN_Departure date") or ""
                 departure_date = self._parse_date(departure_date_str)
                 if (not departure_date) or (departure_date.year != self.config["year"]):
@@ -145,21 +163,44 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 number_of_trips = max(1, number_of_trips)
                 logger.info(record.get("ROUND_TRIP"))
                 unit_institutional_id = record.get("Centre financier") or "unknown_unit"
-                unit_institutional_id2 = (
-                    record.get("IN_Centre financier") or "unknown_unit"
-                )
+
+                # Strip leading character only if it's a prefix (e.g., 'F' in 'F0828')
+                # Otherwise use as-is
+                def strip_unit_prefix(unit_id: str) -> str:
+                    """Strip leading prefix character from unit ID if present."""
+                    if not unit_id or unit_id == "unknown_unit":
+                        return unit_id
+                    # If starts with letter followed by digits, strip the letter
+                    if (
+                        len(unit_id) > 1
+                        and unit_id[0].isalpha()
+                        and unit_id[1:].isdigit()
+                    ):
+                        return unit_id[1:]
+                    return unit_id
+
                 entry = {
-                    "unit_institutional_id": unit_institutional_id[1:],
-                    "unit_institutional_id2": unit_institutional_id2[1:],
+                    "unit_institutional_id": strip_unit_prefix(unit_institutional_id),
                     "user_institutional_id": sciper,
                     "origin_iata": origin_iata,
                     "destination_iata": destination_iata,
-                    "departure_date": departure_date,
+                    "departure_date": (
+                        departure_date.isoformat() if departure_date else None
+                    ),
                     "number_of_trips": number_of_trips,
                     "cabin_class": self._normalize_class(
                         record.get("IN_Segment class") or ""
                     ),
                     "note": None,
+                    # Preserve CO2 and distance from source
+                    "co2_kg": record.get("OUT_CO2_CORRECTED"),
+                    "distance_km": record.get("OUT_DISTANCE_CORRECTED"),
+                    # Keep original values for reference
+                    "supplier": record.get("IN_Supplier"),
+                    "ticket_number": record.get("IN_Ticket number"),
+                    "transport_type": record.get("TRANSPORT_TYPE"),
+                    "round_trip": record.get("ROUND_TRIP") == "YES",
+                    "passenger_type": record.get("PASSENGER_TYPE"),
                 }
                 transformed.append(entry)
 
@@ -176,22 +217,229 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             )
             raise
 
-    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def ingest(
+        self,
+        filters: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """
+        Override ingest to resolve carbon report modules before loading.
 
-        result = []
-        async with SessionLocal() as db:
-            service = DataEntryService(db)
-            entries = [
-                DataEntry(
-                    carbon_report_module_id=item.get("carbon_report_module_id"),
-                    data_entry_type_id=DataEntryTypeEnum.plane.value,
-                    data=item,
+        Matches the pattern from base_csv_provider with stats tracking
+        and graceful error handling.
+        """
+        try:
+            await self._update_job(
+                status_message="processing",
+                state=IngestionState.RUNNING,
+                result=None,
+                extra_metadata={"message": "Starting travel data processing..."},
+            )
+
+            # Fetch data from Tableau API
+            raw_data = await self.fetch_data(filters or {})
+            await self._update_job(
+                status_message="processing",
+                state=IngestionState.RUNNING,
+                result=None,
+                extra_metadata={"message": f"Fetched {len(raw_data)} records"},
+            )
+
+            # Transform data (extract and validate fields)
+            transformed_data = await self.transform_data(raw_data)
+            await self._update_job(
+                status_message="processing",
+                state=IngestionState.RUNNING,
+                result=None,
+                extra_metadata={"message": "Resolving carbon report modules..."},
+            )
+
+            # Initialize statistics
+            max_row_errors = int(self.config.get("max_row_errors", 100))
+            stats: StatsDict = {
+                "rows_processed": 0,
+                "rows_with_factors": 0,
+                "rows_without_factors": 0,
+                "rows_skipped": 0,
+                "row_errors": [],
+                "row_errors_count": 0,
+            }
+
+            # Resolve carbon report modules
+            try:
+                unit_to_module_map = await self._resolve_carbon_report_modules(
+                    transformed_data
                 )
-                for item in data
-            ]
-            result = await service.bulk_create(entries)
-            await db.flush()
-        return {"inserted": len(result)}
+            except ValueError as resolve_error:
+                logger.error(f"Carbon report module resolution failed: {resolve_error}")
+                await self._update_job(
+                    status_message=f"Module resolution failed: {resolve_error}",
+                    state=IngestionState.FINISHED,
+                    result=IngestionResult.ERROR,
+                    extra_metadata={"error": str(resolve_error)},
+                )
+                raise
+
+            # Inject carbon_report_module_id into each record
+            # Skip records with missing/invalid unit_institutional_id
+            valid_records = []
+            for idx, record in enumerate(transformed_data, start=1):
+                unit_code = record.get("unit_institutional_id")
+                if not unit_code or str(unit_code).strip() == "":
+                    self._record_row_error(
+                        stats, idx, "Missing unit_institutional_id", max_row_errors
+                    )
+                    continue
+
+                unit_code = str(unit_code).strip()
+                carbon_report_module_id = unit_to_module_map.get(unit_code)
+
+                if not carbon_report_module_id:
+                    self._record_row_error(
+                        stats,
+                        idx,
+                        f"No carbon_report_module_id for unit {unit_code}",
+                        max_row_errors,
+                    )
+                    continue
+
+                record["carbon_report_module_id"] = carbon_report_module_id
+                valid_records.append(record)
+                stats["rows_processed"] += 1
+
+            if not valid_records:
+                error_msg = "No valid records to process after module resolution"
+                logger.error(error_msg)
+                await self._update_job(
+                    status_message=error_msg,
+                    state=IngestionState.FINISHED,
+                    result=IngestionResult.ERROR,
+                    extra_metadata={"error": error_msg, "stats": stats},
+                )
+                raise ValueError(error_msg)
+
+            # Load data into database
+            result = await self._load_data(valid_records)
+
+            # Compute result based on success rate
+            if stats["rows_skipped"] == 0:
+                ingestion_result = IngestionResult.SUCCESS
+            else:
+                ingestion_result = IngestionResult.WARNING
+
+            # Update job with summary
+            status_message = (
+                f"Processed {stats['rows_processed']} records: "
+                f"{stats['rows_with_factors']} with factors, "
+                f"{stats['rows_without_factors']} without factors, "
+                f"{stats['rows_skipped']} skipped"
+            )
+
+            # Prepare metadata (exclude row_errors from root to avoid duplication)
+            metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
+            metadata_for_job["stats"] = stats
+
+            await self._update_job(
+                status_message=status_message,
+                state=IngestionState.FINISHED,
+                result=ingestion_result,
+                extra_metadata=metadata_for_job,
+            )
+
+            return {
+                "state": IngestionState.FINISHED,
+                "result": ingestion_result,
+                "inserted": result.get("inserted", 0),
+                "skipped": stats["rows_skipped"],
+                "stats": stats,
+            }
+
+        except Exception as e:
+            logger.error(f"Travel data ingestion failed: {str(e)}", exc_info=True)
+            await self._update_job(
+                status_message=f"failed: {str(e)}",
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+                extra_metadata={"error": str(e)},
+            )
+            raise
+
+    async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Load transformed travel data into database.
+
+        Expects each record to have carbon_report_module_id already resolved.
+        Uses self.data_session for consistency.
+        Preserves CO2 values from source data (don't recalculate).
+        """
+        if not data:
+            return {"inserted": 0}
+
+        service = DataEntryService(self.data_session)
+        emission_service = DataEntryEmissionService(self.data_session)
+
+        # Create data entries with preserved CO2 values
+        entries = []
+        for item in data:
+            carbon_report_module_id = item.get("carbon_report_module_id")
+            if not carbon_report_module_id:
+                continue
+
+            # Extract CO2 values from item (preserved from source)
+            co2_kg = item.get("co2_kg") or item.get("OUT_CO2_CORRECTED")
+            distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
+
+            # Store in data payload
+            data_payload = dict(item)
+            if co2_kg is not None:
+                data_payload["co2_kg"] = co2_kg
+            if distance_km is not None:
+                data_payload["distance_km"] = distance_km
+
+            entry = DataEntry(
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_type_id=DataEntryTypeEnum.plane.value,
+                data=data_payload,
+            )
+            entries.append(entry)
+
+        if not entries:
+            return {"inserted": 0}
+
+        # Bulk create entries
+        data_entries_response = await service.bulk_create(
+            entries,
+            UserRead.model_validate(self.user) if self.user else None,
+            job_id=self.job_id,
+            source=DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
+            created_by_id=self.job_id,
+        )
+
+        # Prepare and create emissions using preserved CO2 values
+        emissions_to_create = []
+        for data_entry_response in data_entries_response:
+            try:
+                # Use emission service to prepare emissions
+                # This will use the preserved co2_kg from data payload
+                emission_objs = await emission_service.prepare_create(
+                    data_entry_response
+                )
+                if emission_objs is not None:
+                    emissions_to_create.extend(emission_objs)
+            except Exception as emission_error:
+                logger.warning(
+                    f"Failed to prepare emission for "
+                    f"data_entry_id={data_entry_response.id}: "
+                    f"{str(emission_error)}"
+                )
+
+        if emissions_to_create:
+            await emission_service.bulk_create(emissions_to_create)
+            logger.info(f"Created {len(emissions_to_create)} emissions")
+
+        # Flush all changes
+        await self.data_session.flush()
+
+        return {"inserted": len(data_entries_response)}
 
     def _generate_jwt(self) -> str:
         key = OctKey.import_key(self.secret_value)
@@ -340,6 +588,146 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             "AIR FIRST CLASS": "first",
         }
         return mapping.get(class_str, "eco")
+
+    async def _resolve_carbon_report_modules(
+        self,
+        transformed_data: List[Dict[str, Any]],
+    ) -> Dict[str, int]:
+        """
+        Extract unique unit_institutional_ids from travel data
+        and resolve carbon_report_module_id.
+
+        Uses 'Centre financier' field (with leading character stripped).
+
+        For each unique unit_institutional_id:
+        - Check if carbon report exists for (unit_id, year)
+        - Create report if missing (auto-creates all 7 modules)
+        - Extract carbon_report_module_id for self.module_type_id
+
+        Args:
+            transformed_data: List of transformed travel records
+
+        Returns: {unit_institutional_id: carbon_report_module_id} mapping
+        """
+        # Validate year is present
+        year = self.config.get("year")
+        if not year:
+            raise ValueError("year is required for travel data import")
+
+        module_type_id = self.module_type_id
+        if not module_type_id and self.job and self.job.module_type_id:
+            module_type_id = self.job.module_type_id
+
+        if not module_type_id:
+            raise ValueError("module_type_id is required for travel data import")
+
+        # Extract unique unit_institutional_ids from transformed data
+        unit_codes = set()
+        for record in transformed_data:
+            unit_code = record.get("unit_institutional_id")
+            if unit_code and str(unit_code).strip():
+                unit_codes.add(str(unit_code).strip())
+
+        if not unit_codes:
+            raise ValueError(
+                "No valid unit_institutional_id values found in travel data. "
+                "Centre financier column is required."
+            )
+
+        logger.info(
+            f"Resolving carbon report modules for {len(unit_codes)} unique units: "
+            f"{sorted(unit_codes)}"
+        )
+
+        # Validate units exist in database
+        unit_repo = UnitRepository(self.data_session)
+        existing_units = await unit_repo.get_by_institutional_ids(list(unit_codes))
+        existing_codes = {unit.institutional_id for unit in existing_units}
+        missing_codes = sorted(unit_codes - existing_codes)
+
+        if missing_codes:
+            logger.warning(
+                f"Found {len(missing_codes)} missing units in database: {missing_codes}"
+            )
+            # Fail gracefully - don't attempt to fetch from provider
+
+        # Build mapping: institutional_id → unit.id
+        unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
+
+        # Resolve carbon report modules
+        carbon_report_service = CarbonReportService(self.data_session)
+        code_to_module_map: dict[str, int] = {}
+        reports_created = 0
+        reports_reused = 0
+
+        for unit_institutional_id in unit_codes:
+            # Skip missing units
+            unit_id = unit_code_to_id.get(unit_institutional_id)
+            if not unit_id:
+                logger.warning(
+                    "Unit with institutional_id=%s not found, skipping",
+                    unit_institutional_id,
+                )
+                continue
+
+            # Check if carbon report exists
+            carbon_report = await carbon_report_service.get_by_unit_and_year(
+                unit_id, year
+            )
+
+            if not carbon_report:
+                # Create new carbon report (auto-creates all 7 modules)
+                logger.info(
+                    "Creating carbon_report for unit_institutional_id=%s "
+                    "(unit_id=%s), year=%s",
+                    unit_institutional_id,
+                    unit_id,
+                    year,
+                )
+                carbon_report = await carbon_report_service.create(
+                    CarbonReportCreate(unit_id=unit_id, year=year)
+                )
+                reports_created += 1
+            else:
+                reports_reused += 1
+
+            # Get the carbon_report_module_id for this module_type
+            module_service = carbon_report_service.module_service
+            carbon_report_module = await module_service.get_module(
+                carbon_report.id, module_type_id
+            )
+
+            if not carbon_report_module:
+                raise ValueError(
+                    f"No carbon_report_module found for "
+                    f"carbon_report_id={carbon_report.id}, "
+                    f"module_type_id={module_type_id}"
+                )
+
+            # Map institutional_id to carbon_report_module_id
+            code_to_module_map[unit_institutional_id] = carbon_report_module.id
+
+        logger.info(
+            f"Resolved carbon_report_module_ids: "
+            f"created {reports_created} new reports, "
+            f"reused {reports_reused} existing reports"
+        )
+
+        return code_to_module_map
+
+    @staticmethod
+    def _record_row_error(
+        stats: StatsDict,
+        row_idx: int,
+        reason: str,
+        max_row_errors: int,
+    ) -> None:
+        """Record a row processing error in stats."""
+        stats["rows_skipped"] += 1
+        stats["row_errors_count"] += 1
+        logger.warning(f"Row {row_idx}: {reason}")
+        if len(stats["row_errors"]) < max_row_errors:
+            stats["row_errors"].append({"row": row_idx, "reason": reason})
 
 
 def to_bool(value: str) -> bool:

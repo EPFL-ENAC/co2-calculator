@@ -76,13 +76,15 @@ erDiagram
     VARCHAR entity_type
     INTEGER id PK
     VARCHAR ingestion_method
+    BOOLEAN is_current
     JSON meta
-    INTEGER module_type_id
+    INTEGER module_type_id "indexed"
     VARCHAR provider
-    VARCHAR status
+    VARCHAR result
+    VARCHAR state
     VARCHAR status_message
-    VARCHAR target_type
-    INTEGER year
+    VARCHAR target_type "indexed"
+    INTEGER year "indexed"
   }
   factors {
     JSON classification
