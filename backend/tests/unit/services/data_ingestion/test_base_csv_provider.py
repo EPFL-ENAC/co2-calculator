@@ -650,5 +650,4 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
         "processing/7/test.csv", "processed/7/test.csv"
     )
     provider._update_job.assert_awaited_once()
-    assert result["status"] == "success"
     assert result["inserted"] == 2

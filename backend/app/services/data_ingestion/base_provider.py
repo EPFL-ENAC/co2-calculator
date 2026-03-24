@@ -194,7 +194,8 @@ class DataIngestionProvider(ABC):
         result: Optional[IngestionResult] = None,
     ):
         # Only store essential config fields to avoid recursive nesting
-        # (self.config may contain snapshots of previous meta, causing meta.config.meta.config...)
+        # (self.config may contain snapshots of previous meta, causing
+        # meta.config.meta.config...)
         essential_config = {
             "module_type_id": self.config.get("module_type_id"),
             "year": self.config.get("year"),
