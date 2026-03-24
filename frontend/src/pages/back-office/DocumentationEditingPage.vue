@@ -230,7 +230,7 @@ const columns: QTableColumn[] = [
                   no-caps
                   outline
                   size="sm"
-                  class="text-weight-medium"
+                  class="text-weight-medium github-btn"
                   :href="props.row.githubUrl"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -282,7 +282,7 @@ const columns: QTableColumn[] = [
                   no-caps
                   outline
                   size="sm"
-                  class="text-weight-medium"
+                  class="text-weight-medium github-btn"
                   :href="props.row.githubUrl"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -306,5 +306,9 @@ const columns: QTableColumn[] = [
 .table-spacing {
   margin-top: 24px;
   margin-bottom: 40px;
+}
+
+.github-btn :deep(.q-btn__content) {
+  flex-wrap: nowrap;
 }
 </style>
