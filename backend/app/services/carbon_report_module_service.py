@@ -11,6 +11,7 @@ from app.models.carbon_report import ModuleStatus
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
+    get_children,
     get_subtree_leaves,
 )
 from app.models.module_type import (
@@ -63,7 +64,7 @@ def compute_module_stats(
 
     # 2. Compute rollups for non-leaf nodes from their subtree leaves
     for node in all_nodes:
-        if node.children():  # non-leaf
+        if get_children(node):  # non-leaf
             leaf_ids = get_subtree_leaves(node)
             rollup = sum(leaf_emissions.get(str(lid), 0) or 0 for lid in leaf_ids)
             if rollup != 0:
