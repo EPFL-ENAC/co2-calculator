@@ -208,8 +208,8 @@ const showOverwriteWarning = computed(() => {
 });
 
 const showOverwriteWarningAPI = computed(() => {
-  const lastJob = props.row.hasApi ? props.row.lastApiDataJob : null;
-  return !!lastJob && lastJob.result !== 2; // result 2 = ERROR
+  const lastJob = props.row?.hasApi ? props.row?.lastApiDataJob : null;
+  return !!lastJob && lastJob?.result !== 2; // result 2 = ERROR
 });
 
 // Copy from Previous Year

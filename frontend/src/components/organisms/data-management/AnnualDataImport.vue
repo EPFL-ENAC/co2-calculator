@@ -445,18 +445,18 @@ async function handleJobCompleted() {
                 v-if="importInfo(row.lastDataJob)"
                 class="q-mt-xs text-caption text-grey-7 flex flex-row gap-4 justify-between"
               >
-                <div v-if="row.hasApi" class="q-ma-xs">
-                  api: {{ importInfo(row.lastApiDataJob)!.rows }}
+                <div v-if="row.hasApi && row?.lastApiDataJob" class="q-ma-xs">
+                  api: {{ importInfo(row?.lastApiDataJob)!.rows }}
                   {{ $t('data_management_rows_imported') }}
                   <span>/ </span>
                 </div>
                 <div class="q-ma-xs">
                   data:
-                  {{ importInfo(row.lastDataJob)!.rows }}
+                  {{ importInfo(row?.lastDataJob)!.rows }}
                   {{ $t('data_management_rows_imported') }}
                 </div>
                 <div class="row items-center q-gutter-xs">
-                  <span>{{ importInfo(row.lastDataJob)!.fileName }}</span>
+                  <span>{{ importInfo(row?.lastDataJob)!.fileName }}</span>
                   <q-btn
                     flat
                     dense
