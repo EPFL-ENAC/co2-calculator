@@ -2,13 +2,18 @@ todo-for-dataentry
 
 1. [x] replace factors on upload (basic)
 2. [x] replace data on upload (basic)
-3. [ ] change the frontend to match Charlie's behavior
+3. [x] change the frontend to match Charlie's behavior
 4. [ ] display status! from the database backend
 5. [/] display full log! and more status info!?
 
 6. [ ] weird no error if 'data?entry_type' -> does not come back in the frontend
        [ ] -> purchase_category
-7. [ ] kg_co2eq from csv should overide emission
+7. [x] kg_co2eq from csv should overide emission
+       8 - TODO:
+
+1) is_current is never set for API traveler job
+2) is_current should be set at the granualariy (data_entry_type_id, target_type, module_type_id, ingestion_method)
+   currently it's only this module/target/year combination
 
 # Implementation Complete: Delete-Before-Insert Pattern for Factors
 

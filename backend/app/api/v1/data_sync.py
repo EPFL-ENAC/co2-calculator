@@ -52,6 +52,7 @@ class SyncStatusResponse(BaseModel):
 class SyncJobResponse(BaseModel):
     job_id: int
     module_type_id: Optional[int] = None
+    data_entry_type_id: Optional[int] = None
     year: Optional[int] = None
     ingestion_method: IngestionMethod
     target_type: Optional[TargetType] = None
@@ -302,6 +303,7 @@ async def get_latest_jobs_by_year(
         SyncJobResponse(
             job_id=job.id,
             module_type_id=job.module_type_id,
+            data_entry_type_id=job.data_entry_type_id,
             year=job.year,
             ingestion_method=job.ingestion_method,
             target_type=job.target_type,

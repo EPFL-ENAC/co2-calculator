@@ -981,6 +981,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             logger.warning(
                 f"Failed to move file from {processing_path} to {processed_path}"
             )
+        else:
+            metadata_update = {"processed_file_path": processed_path}
+            await self._update_job(
+                status_message="Processing completed", extra_metadata=metadata_update
+            )
 
         # Flush all changes
         await self.data_session.flush()

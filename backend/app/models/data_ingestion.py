@@ -223,7 +223,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         default=False,
         description=(
             "Whether this is the current active job "
-            "for this module/target/year combination"
+            "for this module/data_entry_type/ingestion_method/target/year combination"
         ),
     )
 
@@ -231,7 +231,9 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         Index(
             "ix_data_ingestion_jobs_is_current_unique",
             "module_type_id",
+            "data_entry_type_id",
             "target_type",
+            "ingestion_method",
             "year",
             unique=True,
             postgresql_where=text("is_current = true"),

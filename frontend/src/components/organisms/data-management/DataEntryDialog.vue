@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useFilesStore, type FileObject } from 'src/stores/files';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import {
+  useBackofficeDataManagement,
+  TargetType,
+} from 'src/stores/backofficeDataManagement';
 import type {
   SyncJobResponse,
   JobUpdatePayload,
+  ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -18,30 +22,7 @@ interface Props {
   modelValue: boolean;
   row: ImportRow;
   year: number;
-  targetType: 'data_entries' | 'factors';
-}
-
-interface ImportRow {
-  key: string;
-  labelKey: string;
-  moduleTypeId: number;
-  dataEntryTypeId?: number;
-  factorVariant?: 'plane' | 'train';
-  hasFactors: boolean;
-  hasApi: boolean;
-  hasData: boolean;
-  other?: string;
-  hasOtherUpload?: boolean;
-  isDisabled?: boolean;
-  lastDataJob?: SyncJobResponse;
-  lastJobId?: number;
-  lastJobState?: number;
-  lastJobResult?: number;
-  lastJobMeta?: {
-    rows_processed?: number;
-    rows_skipped?: number;
-    file_path?: string;
-  };
+  targetType: TargetType;
 }
 
 const props = withDefaults(defineProps<Props>(), {});
@@ -218,6 +199,19 @@ const connectAndSync = async () => {
   }
 };
 
+const showOverwriteWarning = computed(() => {
+  const lastJob =
+    props.targetType === TargetType.DATA_ENTRIES.valueOf()
+      ? props.row.lastDataJob
+      : props.row.lastFactorJob;
+  return !!lastJob && lastJob.result !== 2; // result 2 = ERROR
+});
+
+const showOverwriteWarningAPI = computed(() => {
+  const lastJob = props.row.hasApi ? props.row.lastApiDataJob : null;
+  return !!lastJob && lastJob.result !== 2; // result 2 = ERROR
+});
+
 // Copy from Previous Year
 const copyFromPreviousYear = async () => {
   if (!selectedPreviousJob.value) {
@@ -328,7 +322,7 @@ async function initiateSync(
             job_id: payload.job_id,
             module_type_id: payload.module_type_id,
             year: payload.year ?? props.year,
-            target_type: payload.target_type as 0 | 1,
+            target_type: payload.target_type,
             state: payload.state ?? 3,
             result: payload.result ?? 0,
             status_message: payload.status_message,
@@ -375,11 +369,28 @@ async function initiateSync(
 </script>
 
 <template>
-  <q-dialog v-model="showDialog" class="modal modal--lg" persistent>
-    <q-card class="column">
+  <q-dialog
+    v-model="showDialog"
+    class="modal modal--lg"
+    persistent
+    @keyup.escape="showDialog = false"
+  >
+    <q-card class="column" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
-          {{ $t('data_management_import_title', { type: targetType }) }}
+          {{
+            $t('data_management_import_title', {
+              type: $t(TargetType[props.targetType]),
+            })
+          }}
+          <span
+            v-if="
+              props.row.dataEntryTypeId == undefined && props.row.moduleTypeId
+            "
+          >
+            {{ props.row.moduleTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
+          </span>
+          {{ props.row.dataEntryTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
         </div>
         <q-btn
           v-close-popup
@@ -422,11 +433,8 @@ async function initiateSync(
         <q-tab-panels v-model="activeTab" animated>
           <!-- Upload CSV Tab -->
           <q-tab-panel name="upload" class="q-pa-none">
-            <!-- <div class="text-h6 q-mb-md">
-              {{ $t('data_management_tab_upload_csv') }}
-            </div> -->
             <q-banner
-              v-if="row.lastDataJob && row.lastDataJob.result !== 2"
+              v-if="showOverwriteWarning"
               color="warning"
               class="q-mb-md"
               inline-action
@@ -464,9 +472,15 @@ async function initiateSync(
 
           <!-- Connect API Tab -->
           <q-tab-panel v-if="row.hasApi" name="api" class="q-pa-none">
-            <!-- <div class="text-h6 q-mb-md">
-              {{ $t('data_management_tab_connect_api') }}
-            </div> -->
+            <q-banner
+              v-if="showOverwriteWarningAPI"
+              color="warning"
+              class="q-mb-md"
+              inline-action
+            >
+              <q-icon name="warning" size="sm" class="q-mr-sm" />
+              {{ $t('data_management_last_upload_overwrite') }}
+            </q-banner>
             <q-form class="q-gutter-md" @submit.prevent="connectAndSync">
               <q-input
                 v-model="apiServerUrl"

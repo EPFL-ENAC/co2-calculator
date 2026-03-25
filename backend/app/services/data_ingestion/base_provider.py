@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from asyncio.log import logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -17,6 +17,8 @@ from app.models.data_ingestion import (
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
+
+logger = get_logger(__name__)
 
 
 class DataIngestionProvider(ABC):
@@ -232,7 +234,7 @@ class DataIngestionProvider(ABC):
         )
 
         # Mark as current if job is finished
-        if state == IngestionState.FINISHED:
+        if state in (IngestionState.FINISHED, IngestionState.RUNNING) and self.job_id:
             job = await repo.get_job_by_id(self.job_id)
             if job:
                 await repo.mark_job_as_current(job)

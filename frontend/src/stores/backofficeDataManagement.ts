@@ -10,11 +10,28 @@ export interface DataIngestionJob {
   year: number;
   provider_type: string;
   target_type: number;
-  status: number; // Legacy: 0: NOT_STARTED, 1: PENDING, 2: IN_PROGRESS, 3: COMPLETED, 4: FAILED
+  ingestion_method: number; // 0: api, 1: csv, 2: manual
   state?: number; // New: 0: NOT_STARTED, 1: QUEUED, 2: RUNNING, 3: FINISHED
   result?: number; // New: 0: SUCCESS, 1: WARNING, 2: ERROR (only valid when state is FINISHED)
   status_message?: string;
   meta?: Record<string, unknown>;
+}
+
+export interface ImportRow {
+  key: string;
+  labelKey: string;
+  moduleTypeId: number;
+  dataEntryTypeId?: number;
+  factorVariant?: 'plane' | 'train';
+  hasFactors: boolean;
+  hasApi: boolean;
+  hasData: boolean;
+  other?: string;
+  hasOtherUpload?: boolean;
+  isDisabled?: boolean;
+  lastDataJob?: SyncJobResponse;
+  lastApiDataJob?: SyncJobResponse;
+  lastFactorJob?: SyncJobResponse;
 }
 
 export interface JobRowError {
@@ -44,7 +61,6 @@ export interface JobUpdatePayload {
 export interface SyncJobStatus {
   module_type_id: number;
   year: number;
-  status: number; // Legacy status
   state?: number; // New state
   result?: number; // New result
   provider_type: string;
@@ -62,16 +78,45 @@ export interface SyncJobResponse {
   result?: IngestionResult;
 }
 
-export type IngestionMethod = 0 | 1 | 2; // api, csv, manual
-export type TargetType = 0 | 1; // data_entries, factors
-export type IngestionState = 0 | 1 | 2 | 3; // NOT_STARTED, QUEUED, RUNNING, FINISHED
-export type IngestionResult = 0 | 1 | 2; // SUCCESS, WARNING, ERROR
+export enum IngestionMethod {
+  API = 0,
+  CSV = 1,
+  MANUAL = 2,
+}
+
+export enum TargetType {
+  DATA_ENTRIES = 0,
+  FACTORS = 1,
+}
+
+export enum EntityType {
+  MODULE_PER_YEAR = 2,
+  MODULE_UNIT_SPECIFIC = 3,
+}
+
+export enum FactorType {
+  EMISSION_FACTOR = 0,
+  MODULE_FACTOR = 1,
+}
+
+export enum IngestionState {
+  NOT_STARTED = 0,
+  QUEUED = 1,
+  RUNNING = 2,
+  FINISHED = 3,
+}
+
+export enum IngestionResult {
+  SUCCESS = 0,
+  WARNING = 1,
+  ERROR = 2,
+}
 
 export type InitiateSyncParams = {
   module_type_id: number;
   year?: number;
   provider_type: 'csv' | 'api';
-  target_type?: 'data_entries' | 'factors';
+  target_type?: TargetType;
   filters?: Record<string, unknown>;
   config?: Record<string, unknown>;
   file_path?: string;
@@ -97,7 +142,6 @@ export const useBackofficeDataManagement = defineStore(
       return jobs.map((job) => ({
         module_type_id: job.module_type_id,
         year: job.year,
-        status: job.status,
         state: job.state,
         result: job.result,
         provider_type: job.provider_type,
@@ -116,7 +160,7 @@ export const useBackofficeDataManagement = defineStore(
       const moduleTypeId = getModuleTypeId(moduleType);
       const jobs = syncJobs[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
-      return job ? job.status : 0; // Default to pending (0) if no job found
+      return job ? (job.state ?? 0) : 0; // Default to NOT_STARTED (0) if no job found
     };
 
     /**
@@ -151,7 +195,7 @@ export const useBackofficeDataManagement = defineStore(
       const moduleTypeId = getModuleTypeId(moduleType);
       const jobs = syncJobs[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
-      return job?.state === 3; // FINISHED
+      return job?.state === IngestionState.FINISHED; // FINISHED
     };
 
     /**
@@ -161,7 +205,10 @@ export const useBackofficeDataManagement = defineStore(
       const moduleTypeId = getModuleTypeId(moduleType);
       const jobs = syncJobs[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
-      return job?.state === 3 && job?.result === 0; // FINISHED && SUCCESS
+      return (
+        job?.state === IngestionState.FINISHED &&
+        job?.result === IngestionResult.SUCCESS
+      ); // FINISHED && SUCCESS
     };
 
     /**
@@ -193,14 +240,14 @@ export const useBackofficeDataManagement = defineStore(
      * Get human-readable result label based on state and result.
      */
     const getResultLabel = (state?: number, result?: number): string => {
-      if (state !== 3) return 'In Progress'; // Not FINISHED
+      if (state !== IngestionState.FINISHED) return 'In Progress';
 
       switch (result) {
-        case 0:
+        case IngestionResult.SUCCESS:
           return 'Success';
-        case 1:
+        case IngestionResult.WARNING:
           return 'Warning';
-        case 2:
+        case IngestionResult.ERROR:
           return 'Error';
         default:
           return 'Unknown';
@@ -277,7 +324,7 @@ provider_type
       module_type_id,
       year,
       provider_type,
-      target_type = 'data_entries',
+      target_type = TargetType.DATA_ENTRIES.valueOf(),
       filters,
       config,
       file_path,
@@ -303,9 +350,9 @@ provider_type
 
         // Prepare request body
         const requestBody: Record<string, unknown> = {
-          // to be aligned with backend enums // todo: retrieve enum from backend
-          ingestion_method: provider_type === 'api' ? 0 : 1, // 0: api, 1: csv
-          target_type: target_type === 'data_entries' ? 0 : 1,
+          ingestion_method:
+            provider_type === 'api' ? IngestionMethod.API : IngestionMethod.CSV,
+          target_type: target_type, // Use TargetType enum value
           year,
           filters: filters || {},
           config: mergedConfig,
@@ -327,14 +374,17 @@ provider_type
           if (!syncJobs[year]) {
             syncJobs[year] = [];
           }
-          const resolvedTargetType = target_type === 'data_entries' ? 0 : 1;
           syncJobs[year].push({
             job_id: response.job_id,
             module_type_id,
             year,
             provider_type,
-            target_type: resolvedTargetType,
-            status: 0, // pending
+            ingestion_method:
+              provider_type === 'api'
+                ? IngestionMethod.API
+                : IngestionMethod.CSV,
+            target_type,
+            state: IngestionState.NOT_STARTED,
             status_message: 'Sync initiated',
             meta: {},
           });
@@ -416,7 +466,6 @@ provider_type
               if (jobIndex !== -1) {
                 syncJobs[year][jobIndex] = {
                   ...syncJobs[year][jobIndex],
-                  status,
                   state,
                   result,
                   status_message: update.status_message || '',
@@ -426,9 +475,15 @@ provider_type
 
             // Use new state/result for completion detection if available
             // Fall back to legacy status for backward compatibility
-            const isFinished = state === 3 || status === 3 || status === 4; // FINISHED || COMPLETED || FAILED
-            const isSuccess = (state === 3 && result === 0) || status === 3; // FINISHED + SUCCESS || COMPLETED
-            const isFailure = (state === 3 && result === 2) || status === 4; // FINISHED + ERROR || FAILED
+            const isFinished =
+              state === IngestionState.FINISHED || status === 3 || status === 4;
+            const isSuccess =
+              (state === IngestionState.FINISHED &&
+                result === IngestionResult.SUCCESS) ||
+              status === 3;
+            const isFailure =
+              (state === IngestionState.FINISHED && result === 2) ||
+              status === 4;
 
             if (isSuccess) {
               onCompleted?.(update);
@@ -497,22 +552,21 @@ provider_type
     async function getPreviousYearSuccessfulJobs(
       year: number,
       moduleTypeId: number,
-      targetType: 'data_entries' | 'factors',
+      targetType: TargetType,
     ): Promise<SyncJobResponse[]> {
       try {
         const jobs = (await api
-          .get(`sync/jobs/year/${year}`)
+          .get(`sync/jobs/year/${year}/latest`)
           .json()) as SyncJobResponse[];
 
-        const resolvedTargetType = targetType === 'data_entries' ? 0 : 1;
-
-        return jobs.filter(
+        const result = jobs.filter(
           (job) =>
             job.module_type_id === moduleTypeId &&
-            job.target_type === resolvedTargetType &&
-            job.state === 3 && // FINISHED
-            job.result === 0, // SUCCESS
+            job.target_type === targetType &&
+            job.state === IngestionState.FINISHED && // FINISHED
+            job.result === IngestionResult.SUCCESS, // SUCCESS
         );
+        return result;
       } catch (err: unknown) {
         console.error('Failed to fetch previous year jobs:', err);
         return [];

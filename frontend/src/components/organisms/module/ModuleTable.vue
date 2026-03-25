@@ -349,7 +349,10 @@ import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import {
+  useBackofficeDataManagement,
+  TargetType,
+} from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
@@ -520,7 +523,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
       provider_type: 'csv',
-      target_type: 'data_entries',
+      target_type: TargetType.DATA_ENTRIES,
       file_path: filePath,
       carbon_report_module_id: carbonReportModuleId,
       config: {

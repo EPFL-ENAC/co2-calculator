@@ -71,11 +71,11 @@ erDiagram
     INTEGER primary_factor_id FK
   }
   data_ingestion_jobs {
-    INTEGER data_entry_type_id
+    INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
     INTEGER id PK
-    VARCHAR ingestion_method
+    VARCHAR ingestion_method "indexed"
     BOOLEAN is_current
     JSON meta
     INTEGER module_type_id "indexed"

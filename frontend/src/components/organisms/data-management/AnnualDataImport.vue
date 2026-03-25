@@ -7,6 +7,11 @@ import type {
   DataIngestionJob,
   IngestionState,
   IngestionResult,
+  ImportRow,
+} from 'src/stores/backofficeDataManagement';
+import {
+  IngestionMethod,
+  TargetType,
 } from 'src/stores/backofficeDataManagement';
 import { useI18n } from 'vue-i18n';
 import DataEntryDialog from './DataEntryDialog.vue';
@@ -20,23 +25,10 @@ interface Props {
 }
 const props = defineProps<Props>();
 
-interface ImportRow {
-  key: string;
-  labelKey: string;
-  moduleTypeId: number;
-  dataEntryTypeId?: number;
-  factorVariant?: 'plane' | 'train';
-  hasFactors: boolean;
-  hasApi: boolean;
-  hasData: boolean;
-  other?: string;
-  hasOtherUpload?: boolean;
-  isDisabled?: boolean;
-  lastDataJob?: SyncJobResponse;
-  lastFactorJob?: SyncJobResponse;
-}
-
-const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
+const BASE_IMPORT_ROWS: Omit<
+  ImportRow,
+  'lastDataJob' | 'lastApiDataJob' | 'lastFactorJob'
+>[] = [
   {
     key: 'headcount_members',
     labelKey: 'data_management_row_headcount_members',
@@ -209,17 +201,19 @@ const BASE_IMPORT_ROWS: Omit<ImportRow, 'lastDataJob' | 'lastFactorJob'>[] = [
 function findJob(
   jobs: DataIngestionJob[],
   moduleTypeId: number,
-  targetType: 0 | 1,
+  targetType: TargetType | null,
   dataEntryTypeId?: number,
+  ingestionMethod?: IngestionMethod,
 ): DataIngestionJob | undefined {
   const candidates = jobs.filter(
     (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
   );
+
   if (dataEntryTypeId !== undefined) {
     return candidates.find(
       (j) =>
         (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
-        dataEntryTypeId,
+          dataEntryTypeId && j.ingestion_method === ingestionMethod?.valueOf(),
     );
   }
   return candidates[0];
@@ -230,7 +224,7 @@ function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
     job_id: job.job_id,
     module_type_id: job.module_type_id,
     year: job.year,
-    target_type: job.target_type as 0 | 1,
+    target_type: job.target_type as TargetType,
     state: job.state as IngestionState,
     result: job.result as IngestionResult,
     status_message: job.status_message,
@@ -255,13 +249,35 @@ const importRows = computed<ImportRow[]>(() => {
     props.year,
   );
   return BASE_IMPORT_ROWS.map((row) => {
-    const dataJob = findJob(jobs, row.moduleTypeId, 0, row.dataEntryTypeId);
-    const factorJob = findJob(jobs, row.moduleTypeId, 1, row.dataEntryTypeId);
+    const dataJob = findJob(
+      jobs,
+      row.moduleTypeId,
+      0,
+      row.dataEntryTypeId,
+      IngestionMethod.CSV,
+    );
+    const apiDataJob = row.hasApi
+      ? findJob(
+          jobs,
+          row.moduleTypeId,
+          0,
+          row.dataEntryTypeId,
+          IngestionMethod.API,
+        )
+      : undefined;
+    const factorJob = findJob(
+      jobs,
+      row.moduleTypeId,
+      1,
+      row.dataEntryTypeId,
+      IngestionMethod.CSV,
+    );
 
     return {
       ...row,
       lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
       lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
+      lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
     };
   });
 });
@@ -300,18 +316,19 @@ function factorButtonLabel(row: ImportRow): string {
 
 // ── CSV download ──────────────────────────────────────────────────────────────
 
-function downloadLastCsv(
-  row: ImportRow,
-  targetType: 'data_entries' | 'factors',
-) {
+function downloadLastCsv(row: ImportRow, targetType: TargetType) {
   const job =
-    targetType === 'data_entries' ? row.lastDataJob : row.lastFactorJob;
+    targetType === TargetType.DATA_ENTRIES
+      ? row.lastDataJob
+      : row.lastFactorJob;
   if (!job?.meta) return;
-  const filePath =
-    ((job.meta as Record<string, unknown>).file_path as string) || '';
+  const filePath = (job.meta as Record<string, unknown>)
+    .processed_file_path as string;
   if (!filePath) return;
   const a = document.createElement('a');
-  a.href = `/files/${filePath}`;
+  //  add /api/v1/files to prefix?
+  a.href = `/api/v1/files/${filePath}`;
+  console.log(a.href);
   a.download = filePath.split('/').pop() || filePath;
   document.body.appendChild(a);
   a.click();
@@ -322,12 +339,9 @@ function downloadLastCsv(
 
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
-const dialogTargetType = ref<'data_entries' | 'factors'>('data_entries');
+const dialogTargetType = ref<TargetType | null>(null);
 
-function openDataEntryDialog(
-  row: ImportRow,
-  targetType: 'data_entries' | 'factors',
-) {
+function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
   showDataEntryDialog.value = true;
@@ -425,13 +439,19 @@ async function handleJobCompleted() {
                 :label="dataButtonLabel(row)"
                 class="text-weight-medium"
                 :disable="row.isDisabled"
-                @click="openDataEntryDialog(row, 'data_entries')"
+                @click="openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
               />
               <div
                 v-if="importInfo(row.lastDataJob)"
                 class="q-mt-xs text-caption text-grey-7 flex flex-row gap-4 justify-between"
               >
-                <div>
+                <div v-if="row.hasApi" class="q-ma-xs">
+                  api: {{ importInfo(row.lastApiDataJob)!.rows }}
+                  {{ $t('data_management_rows_imported') }}
+                  <span>/ </span>
+                </div>
+                <div class="q-ma-xs">
+                  data:
                   {{ importInfo(row.lastDataJob)!.rows }}
                   {{ $t('data_management_rows_imported') }}
                 </div>
@@ -444,7 +464,7 @@ async function handleJobCompleted() {
                     icon="download"
                     size="xs"
                     color="grey-6"
-                    @click="downloadLastCsv(row, 'data_entries')"
+                    @click="downloadLastCsv(row, TargetType.DATA_ENTRIES)"
                   >
                     <q-tooltip>{{
                       $t('data_management_download_last_csv')
@@ -469,7 +489,7 @@ async function handleJobCompleted() {
                 :label="factorButtonLabel(row)"
                 class="text-weight-medium"
                 :disable="row.isDisabled"
-                @click="openDataEntryDialog(row, 'factors')"
+                @click="openDataEntryDialog(row, TargetType.FACTORS)"
               />
               <div
                 v-if="importInfo(row.lastFactorJob)"
@@ -488,7 +508,7 @@ async function handleJobCompleted() {
                     icon="download"
                     size="xs"
                     color="grey-6"
-                    @click="downloadLastCsv(row, 'factors')"
+                    @click="downloadLastCsv(row, TargetType.FACTORS)"
                   >
                     <q-tooltip>{{
                       $t('data_management_download_last_csv')

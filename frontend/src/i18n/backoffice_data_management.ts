@@ -7,6 +7,14 @@ export default {
     en: 'Manage and configure data imports, emission factors, and module settings for CO₂ calculations.',
     fr: "Gérer et configurer les importations de données, les facteurs d'émission et les paramètres des modules pour les calculs de CO₂.",
   },
+  DATA_ENTRIES: {
+    en: 'Data Entries',
+    fr: 'Saisies de données',
+  },
+  FACTORS: {
+    en: 'Factors',
+    fr: 'Facteurs',
+  },
   threshold_fixed_title: {
     en: 'Fixed Threshold',
     fr: 'Seuil fixe',

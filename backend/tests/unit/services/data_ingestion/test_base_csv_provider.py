@@ -624,6 +624,8 @@ async def test_process_batch_creates_emissions():
 @pytest.mark.asyncio
 async def test_finalize_and_commit_moves_file_and_updates_job():
     """Test _finalize_and_commit updates job and moves file."""
+    from app.models.data_ingestion import IngestionResult, IngestionState
+
     config = {"file_path": "tmp/test.csv", "job_id": 7}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -632,9 +634,11 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()
     provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
 
     stats = _build_stats()
     stats["rows_processed"] = 2
+    stats["batches_processed"] = 1
     setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
 
     result = await provider._finalize_and_commit(
@@ -649,5 +653,28 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     provider._files_store.move_file.assert_awaited_once_with(
         "processing/7/test.csv", "processed/7/test.csv"
     )
-    provider._update_job.assert_awaited_once()
+
+    # _update_job is now called twice:
+    # 1. After file move with processed_file_path
+    # 2. At the end with full summary
+    assert provider._update_job.await_count == 2
+
+    # First call: after file move
+    first_call = provider._update_job.call_args_list[0]
+    assert first_call.kwargs["status_message"] == "Processing completed"
+    assert first_call.kwargs["extra_metadata"] == {
+        "processed_file_path": "processed/7/test.csv"
+    }
+
+    # Second call: final summary
+    second_call = provider._update_job.call_args_list[1]
+    assert (
+        second_call.kwargs["status_message"]
+        == "Processed 2 rows: 0 with factors, 0 without factors, 0 skipped"
+    )
+    assert second_call.kwargs["state"] == IngestionState.FINISHED
+    assert second_call.kwargs["result"] == IngestionResult.SUCCESS
+    assert "rows_processed" in second_call.kwargs["extra_metadata"]
+    assert "stats" in second_call.kwargs["extra_metadata"]
+
     assert result["inserted"] == 2

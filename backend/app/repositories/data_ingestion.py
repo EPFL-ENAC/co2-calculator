@@ -6,7 +6,10 @@ from sqlalchemy import and_
 from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.data_ingestion import DataIngestionJob, IngestionResult, IngestionState
+
+logger = get_logger(__name__)
 
 
 class DataIngestionRepository:
@@ -118,6 +121,7 @@ class DataIngestionRepository:
         Returns:
             List of DataIngestionJob objects where is_current = true
         """
+        # // maybe we can optimize, by not giving the meta field ?
         stmt = (
             select(DataIngestionJob)
             .where(
@@ -140,31 +144,54 @@ class DataIngestionRepository:
         # even if they are not finished yet. Goal is to allow the frontend to show the
         # latest job as current, even if it's still processing, instead of showing the
         # previous finished job as current until the new one is finished.
-        Only FINISHED jobs can be marked as current.
+        Only FINISHED AND RUNNING jobs can be marked as current.
 
         Args:
             job: The DataIngestionJob to mark as current
         """
-        if job.state != IngestionState.FINISHED:
-            return  # Only FINISHED jobs can be current
+        if job.state not in (IngestionState.RUNNING, IngestionState.FINISHED):
+            logger.warning(
+                f"Job {job.id} state {job.state} not eligible for is_current"
+            )
+            return
 
-        # Build where clause to match job's module_type_id, target_type, and year
-        where_clause = and_(
-            col(DataIngestionJob.is_current),
-            col(DataIngestionJob.module_type_id) == job.module_type_id,
-            col(DataIngestionJob.target_type) == job.target_type,
-            col(DataIngestionJob.year) == job.year,
-        )
+        if job.target_type is None:
+            raise ValueError("target_type cannot be None when marking job as current")
 
-        # Unset previous current job for this combination
-        unset_stmt = (
-            update(DataIngestionJob).where(where_clause).values(is_current=False)
-        )
-        await self.session.execute(unset_stmt)
+        try:
+            where_clause = and_(
+                col(DataIngestionJob.is_current),
+                col(DataIngestionJob.module_type_id) == job.module_type_id,
+                col(DataIngestionJob.target_type) == job.target_type,
+                col(DataIngestionJob.year) == job.year,
+                col(DataIngestionJob.ingestion_method) == job.ingestion_method,
+            )
 
-        # Set new current job
-        job.is_current = True
-        await self.session.flush()
+            if job.data_entry_type_id is not None:
+                where_clause = and_(
+                    where_clause,
+                    col(DataIngestionJob.data_entry_type_id) == job.data_entry_type_id,
+                )
+
+            logger.info(f"Unsetting is_current for: {where_clause}")
+
+            # Unset previous current job for this combination
+            unset_stmt = (
+                update(DataIngestionJob).where(where_clause).values(is_current=False)
+            )
+            result = await self.session.execute(unset_stmt)
+            if result is not None and hasattr(result, "rowcount"):
+                logger.info(
+                    f"Unset is_current for {result.rowcount} job(s) matching criteria"
+                )
+            # Set new current job
+            job.is_current = True
+            await self.session.flush()
+            logger.info(f"Job {job.id} marked as current")
+
+        except Exception as e:
+            logger.error(f"Failed to mark job {job.id} as current: {e}")
+            raise
 
     async def _get_jobs_by_state(
         self, states: list[IngestionState], negate: bool = False
