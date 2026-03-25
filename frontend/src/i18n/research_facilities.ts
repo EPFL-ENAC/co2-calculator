@@ -30,6 +30,11 @@ export default {
       en: 'Emissions from research facilities allocated to the units are calculated based on Process emission, Energy combustion, Building, Equipment, and Purchases emissions, using billing or the number of hours used by your unit as the allocation key. If one or several research facilities are missing in the tool, do not hesitate to contact us so that we can provide you with more details.',
       fr: "Les émissions des infrastructures de recherche attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Combustion d'énergie, Bâtiments, Équipements et Achats en considérant comme clé de répartition les facturations ou le nombre d'heures d'utilisation de votre unité. Si une ou plusieurs infrastructures de recherche manquent dans l'outil, n'hésitez pas à nous contacter afin que nous puissions vous fournir plus de détails.",
     },
+  [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}`]:
+    {
+      en: 'Mice and fish animal facilities',
+      fr: 'Animaleries rongeurs et poissons',
+    },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`]:
     {
       en: 'Mice and fish animal facilities ({count})',

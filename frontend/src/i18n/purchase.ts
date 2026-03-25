@@ -5,6 +5,10 @@ export default {
     en: 'Purchases',
     fr: 'Achats',
   },
+  [`${MODULES.Purchase}-common`]: {
+    en: 'Common Purchase | Common Purchases',
+    fr: 'Achat Communs | Achats Communs',
+  },
   [`${MODULES.Purchase}-description`]: {
     en: 'Review annual purchase data and its carbon footprint.',
     fr: "Vérifiez vos données d'achats annuelles et leur empreintes carbones.",
@@ -135,6 +139,11 @@ export default {
     {
       en: 'Add Other Purchase',
       fr: 'Ajouter un autre achat',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]:
+    {
+      en: 'Additional Purchase | Additional Purchases',
+      fr: 'Achat supplémentaire | Achats supplémentaires',
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
     {

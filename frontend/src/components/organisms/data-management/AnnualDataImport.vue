@@ -30,8 +30,9 @@ const BASE_IMPORT_ROWS: Omit<
   'lastDataJob' | 'lastApiDataJob' | 'lastFactorJob'
 >[] = [
   {
-    key: 'headcount_members',
-    labelKey: 'data_management_row_headcount_members',
+    key: 'headcount-member',
+    labelKey: 'headcount',
+    labelDataEntryKey: 'headcount-member',
     moduleTypeId: 1,
     dataEntryTypeId: 1,
     hasFactors: true,
@@ -39,8 +40,9 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'headcount_students',
-    labelKey: 'data_management_row_headcount_students',
+    key: 'headcount-student',
+    labelKey: 'headcount',
+    labelDataEntryKey: 'headcount-student',
     moduleTypeId: 1,
     dataEntryTypeId: 2,
     hasFactors: true,
@@ -48,8 +50,9 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: false,
   },
   {
-    key: 'travel_train',
-    labelKey: 'data_management_row_travel_train',
+    key: 'professional-travel',
+    labelKey: 'professional-travel',
+    labelDataEntryKey: 'professional-travel-train',
     moduleTypeId: 2,
     dataEntryTypeId: 21,
     factorVariant: 'train',
@@ -60,8 +63,9 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'travel_plane',
-    labelKey: 'data_management_row_travel_plane',
+    key: 'professional-travel',
+    labelKey: 'professional-travel',
+    labelDataEntryKey: 'professional-travel-plane',
     moduleTypeId: 2,
     dataEntryTypeId: 20,
     factorVariant: 'plane',
@@ -72,8 +76,9 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'buildings_rooms',
-    labelKey: 'data_management_row_buildings_rooms',
+    key: 'buildings',
+    labelKey: 'buildings',
+    labelDataEntryKey: 'buildings-rooms',
     moduleTypeId: 3,
     dataEntryTypeId: 30,
     hasFactors: true,
@@ -84,7 +89,8 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'buildings_energy_combustion',
-    labelKey: 'data_management_row_buildings_energy_combustion',
+    labelKey: 'buildings',
+    labelDataEntryKey: 'buildings-combustion',
     moduleTypeId: 3,
     dataEntryTypeId: 31,
     hasFactors: true,
@@ -92,8 +98,8 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'process_emissions',
-    labelKey: 'data_management_row_process_emissions',
+    key: 'process-emissions',
+    labelKey: 'process-emissions',
     moduleTypeId: 8,
     dataEntryTypeId: 50,
     hasFactors: true,
@@ -102,7 +108,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'equipment',
-    labelKey: 'data_management_row_equipment',
+    labelKey: 'equipment-electric-consumption',
     moduleTypeId: 4,
     hasFactors: true,
     hasApi: false,
@@ -110,7 +116,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'purchases_common',
-    labelKey: 'data_management_row_purchases_common',
+    labelKey: 'purchase-common',
     moduleTypeId: 5,
     hasFactors: true,
     hasApi: false,
@@ -118,7 +124,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'purchases_additional',
-    labelKey: 'data_management_row_purchases_additional',
+    labelKey: 'purchase-additional_purchases',
     moduleTypeId: 5,
     dataEntryTypeId: 67,
     hasFactors: true,
@@ -127,7 +133,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'research_facilities',
-    labelKey: 'data_management_row_research_facilities',
+    labelKey: 'research-facilities',
     moduleTypeId: 6,
     dataEntryTypeId: 70,
     hasFactors: true,
@@ -136,7 +142,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'research_facilities_animal',
-    labelKey: 'data_management_row_research_facilities_animal',
+    labelKey: 'research-facilities.mice_and_fish_animal_facilities',
     moduleTypeId: 6,
     dataEntryTypeId: 71,
     hasFactors: true,
@@ -145,7 +151,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'external_clouds',
-    labelKey: 'data_management_row_external_clouds',
+    labelKey: 'external-cloud-and-ai.cloud-services',
     moduleTypeId: 7,
     dataEntryTypeId: 40,
     hasFactors: true,
@@ -154,7 +160,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'external_ai',
-    labelKey: 'data_management_row_external_ai',
+    labelKey: 'external-cloud-and-ai.ai-services',
     moduleTypeId: 7,
     dataEntryTypeId: 41,
     hasFactors: true,
@@ -163,7 +169,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'food',
-    labelKey: 'data_management_row_food',
+    labelKey: 'food',
     moduleTypeId: 10,
     hasFactors: true,
     hasApi: false,
@@ -171,7 +177,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'waste',
-    labelKey: 'data_management_row_waste',
+    labelKey: 'waste',
     moduleTypeId: 11,
     hasFactors: true,
     hasApi: false,
@@ -179,7 +185,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'commuting',
-    labelKey: 'data_management_row_commuting',
+    labelKey: 'commuting',
     moduleTypeId: 9,
     hasFactors: true,
     hasApi: false,
@@ -187,7 +193,7 @@ const BASE_IMPORT_ROWS: Omit<
   },
   {
     key: 'grey_energy',
-    labelKey: 'data_management_row_grey_energy',
+    labelKey: 'grey_energy',
     moduleTypeId: 12,
     hasFactors: false,
     hasApi: false,
@@ -420,6 +426,9 @@ async function handleJobCompleted() {
           <!-- Category -->
           <td class="text-weight-medium" align="left">
             {{ $t(row.labelKey) }}
+            <span v-if="row.labelDataEntryKey"
+              >({{ $t(row.labelDataEntryKey) }})</span
+            >
             <q-badge
               v-if="row.isDisabled"
               color="grey-4"

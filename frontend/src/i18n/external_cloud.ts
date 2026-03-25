@@ -40,11 +40,18 @@ export default {
     en: 'External Cloud ({count}) | External Clouds ({count})',
     fr: 'Cloud Externe ({count}) | Clouds Externes ({count})',
   },
-
+  [`${MODULES.ExternalCloudAndAI}.cloud-services`]: {
+    en: 'External Cloud | External Clouds',
+    fr: 'Cloud Externe | Clouds Externes',
+  },
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {
     en: 'External AI ({count}) | External AI ({count})',
     fr: 'IA externe ({count}) | IA externes ({count})',
+  },
+  [`${MODULES.ExternalCloudAndAI}.ai-services`]: {
+    en: 'External AI | External AI',
+    fr: 'IA externe | IA externes',
   },
   // CLOUD SUBMODULE
   [`${MODULES.ExternalCloudAndAI}.inputs.service_type`]: {

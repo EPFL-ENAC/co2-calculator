@@ -19,7 +19,8 @@ export interface DataIngestionJob {
 
 export interface ImportRow {
   key: string;
-  labelKey: string;
+  labelKey: string; // label key of module_type // e.g 'headcount'
+  labelDataEntryKey?: string;
   moduleTypeId: number;
   dataEntryTypeId?: number;
   factorVariant?: 'plane' | 'train';

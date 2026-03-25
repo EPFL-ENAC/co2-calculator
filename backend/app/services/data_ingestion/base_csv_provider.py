@@ -642,8 +642,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"{stats['rows_processed']} rows total"
                     )
                     batch = []
-                    # Update job progress every 5 batches
-                    if stats["batches_processed"] % 5 == 0:
+                    # Update job progress every batche
+                    if stats["batches_processed"]:
                         await self._update_job(
                             status_message=f"Processing: {stats['rows_processed']}",
                             state=IngestionState.RUNNING,
@@ -977,15 +977,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         processed_path = f"processed/{self.job_id}/{filename}"
         logger.info(f"Moving file from {processing_path} to {processed_path}")
         move_result = await self.files_store.move_file(processing_path, processed_path)
+        metadata_update = {}
         if not move_result:
             logger.warning(
                 f"Failed to move file from {processing_path} to {processed_path}"
             )
+            metadata_update["processed_file_path"] = processing_path
         else:
             metadata_update = {"processed_file_path": processed_path}
-            await self._update_job(
-                status_message="Processing completed", extra_metadata=metadata_update
-            )
 
         # Flush all changes
         await self.data_session.flush()
@@ -1012,7 +1011,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
         # Add stats with row_errors for detailed reporting
         metadata_for_job["stats"] = stats
-
+        metadata_for_job.update(metadata_update)
         await self._update_job(
             status_message=status_message,
             state=IngestionState.FINISHED,
