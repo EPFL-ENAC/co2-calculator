@@ -108,16 +108,26 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
         # unit_institutional_id required for MODULE_PER_YEAR
         required_columns: set[str] = {"unit_institutional_id"}
 
+        # Create factor_id_to_factor mapping for O(1) lookup during row processing
+        # This avoids O(n) loop through factors_map for each row
+        factor_id_to_factor: Dict[int, Any] = {}
+        for factor in factors_map.values():
+            factor_id = getattr(factor, "id", None)
+            if factor_id is not None:
+                factor_id_to_factor[factor_id] = factor
+
         logger.info(
             f"Setup complete for MODULE_PER_YEAR: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
+            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}"
         )
 
         return {
             "handlers": handlers,
             "factors_map": factors_map,
+            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }
@@ -211,11 +221,13 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                 module_type = ModuleTypeEnum(self.job.module_type_id)
                 valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
-                # Build a combined factors map by data_entry_type for lookup
-                factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {}
-                for entry_type in valid_entry_types:
-                    type_factors = await load_factors_map(self.data_session, entry_type)
-                    factors_maps_by_type[entry_type] = type_factors
+                # Use factors_map already loaded in setup_result
+                # (NOT per-row DB queries)
+                # Build factors_maps_by_type from existing setup_result["factors_map"]
+                factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {
+                    entry_type: setup_result["factors_map"]
+                    for entry_type in valid_entry_types
+                }
 
                 # Extract kind/subkind from row
                 kind_value, subkind_value = self._extract_kind_subkind_values(

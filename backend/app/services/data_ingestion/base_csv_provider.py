@@ -4,6 +4,8 @@ import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
+from sqlmodel import col
+
 from app.core.logging import get_logger
 from app.models.data_entry import (
     DataEntry,
@@ -29,7 +31,6 @@ from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -123,6 +124,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._user_service: Any = None
         # Track missing unit codes to skip rows during processing
         self._missing_unit_codes: set[str] = set()
+        # Track which missing units we've already warned about (deduplication)
+        self._missing_units_logged: set[str] = set()
+        # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
+        self._year_cache: Dict[int, int] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -809,15 +814,26 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None
 
-            # Use ModuleHandlerService to resolve primary_factor_id (unified with API)
-            handler_service = ModuleHandlerService(self.data_session)
-            payload_for_factor_resolution: Dict[str, str | int] = dict(filtered_row)
-            payload_with_factor = await handler_service.resolve_primary_factor_id(
-                handler=handler,
-                payload=payload_for_factor_resolution,
-                data_entry_type_id=data_entry_type,
-            )
-            primary_factor_id = payload_with_factor.get("primary_factor_id")
+            # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
+            # This avoids 100k+ DB queries - factors already loaded in setup phase
+            primary_factor_id: int | None = None
+            if "factors_map" in setup_result and handler.kind_field:
+                kind_value, subkind_value = self._extract_kind_subkind_values(
+                    filtered_row, handlers
+                )
+                # Build lookup key same way as load_factors_map does
+                key_full = (
+                    f"{data_entry_type.value}:"
+                    f"{(kind_value or '').lower()}:"
+                    f"{(subkind_value or '').lower()}"
+                )
+                factor = setup_result["factors_map"].get(key_full)
+                # Fallback: try without subkind
+                if not factor and subkind_value:
+                    key_kind = f"{data_entry_type.value}:{(kind_value or '').lower()}"
+                    factor = setup_result["factors_map"].get(key_kind)
+                if factor:
+                    primary_factor_id = factor.id
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -837,7 +853,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
                 # Skip rows with missing units
                 if unit_institutional_id in self._missing_unit_codes:
+                    # Only log warning once per unique institutional_id (deduplication)
+                    if unit_institutional_id not in self._missing_units_logged:
+                        logger.warning(
+                            f"Unit '{unit_institutional_id}' not found in database - "
+                            f"skipping all rows for this unit"
+                        )
+                        self._missing_units_logged.add(unit_institutional_id)
                     error_msg = f"Unit '{unit_institutional_id}' not found"
+                    self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                    return None, error_msg, None
 
                 carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
@@ -880,17 +905,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Populate missing data fields from factor values
             # (e.g., equipment usage hours, default quantities)
-            # Only do this if we have a primary_factor_id and factors_map available
-            if primary_factor_id and "factors_map" in setup_result:
-                factors_map = setup_result["factors_map"]
-                # Lookup factor by primary_factor_id
-                factor = None
-                # Could do better: factors_map is keyed by classification and
-                # we have to loop through to find the factor with matching ID
-                for factor_key, factor_obj in factors_map.items():
-                    if getattr(factor_obj, "id", None) == primary_factor_id:
-                        factor = factor_obj
-                        break
+            # Use O(1) lookup with factor_id_to_factor instead of O(n) loop
+            if primary_factor_id and "factor_id_to_factor" in setup_result:
+                factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
 
                 # Populate defaults from factor if handler defines factor_value_fields
                 if (
@@ -903,11 +920,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             default_value = factor.values.get(field_name)
                             if default_value is not None:
                                 data[field_name] = default_value
-                                logger.debug(
-                                    f"Row {row_idx}: Populated "
-                                    f"{field_name}={default_value}"
-                                    f"from factor"
-                                )
+                                # Throttle logging: only first 5 rows or every 1000 rows
+                                if row_idx <= 5 or row_idx % 1000 == 0:
+                                    logger.debug(
+                                        f"Row {row_idx}: Populated "
+                                        f"{field_name}={default_value} from factor"
+                                    )
 
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
@@ -1039,6 +1057,33 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return
 
         logger.info(f"Processing batch of {len(batch)} entries")
+
+        # Pre-fetch years for all carbon_report_modules in this batch
+        # This avoids per-row DB queries in emission_service.prepare_create
+        module_ids: set[int] = {
+            entry.carbon_report_module_id
+            for entry in batch
+            if entry.carbon_report_module_id is not None
+            and entry.carbon_report_module_id not in self._year_cache
+        }
+        if module_ids:
+            from sqlmodel import select
+
+            from app.models.carbon_report import CarbonReport, CarbonReportModule
+
+            stmt = (
+                select(CarbonReportModule, CarbonReport)
+                .join(
+                    CarbonReport,
+                    CarbonReport.id == CarbonReportModule.carbon_report_id,  # type: ignore[arg-type]
+                )
+                .where(col(CarbonReportModule.id).in_(list(module_ids)))
+            )
+            results = await self.data_session.exec(stmt)
+            for module, report in results:
+                if module.id is not None and report.year is not None:
+                    self._year_cache[module.id] = report.year
+            logger.debug(f"Cached years for {len(module_ids)} carbon_report_modules")
 
         # Determine source based on entity_type
         source = self._get_source_from_entity_type()

@@ -92,8 +92,8 @@ export default {
     fr: 'Statut de validation',
   },
   backoffice_reporting_column_principal_user: {
-    en: 'Principal user',
-    fr: 'Utilisateur principal',
+    en: 'Unit manager',
+    fr: "Responsable de l'unité",
   },
   backoffice_reporting_column_last_update: {
     en: 'Last update',

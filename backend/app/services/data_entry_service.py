@@ -217,16 +217,20 @@ class DataEntryService:
         db_objs = await self.repo.bulk_create(data_entries)
         await self.session.flush()  # Ensure data_entry IDs are populated
 
+        # Skip audit trail for CSV bulk imports (performance optimization)
+        # Audit trails are still created for manual API operations
+        if job_id is not None:
+            logger.debug(
+                f"Skipping audit trail for CSV import job {job_id} "
+                f"({len(db_objs)} entries) - performance optimization"
+            )
+            return [DataEntryResponse.model_validate(obj) for obj in db_objs]
+
         # Create versions for all entries (only if user context available)
-        if user or job_id:
+        if user:
             request_context = request_context or {}
-            changed_by = user.id if user else None
-            if changed_by is None and job_id is not None:
-                try:
-                    changed_by = int(job_id)
-                except (TypeError, ValueError):
-                    changed_by = None
-            handler_id = user.institutional_id if user else "csv_ingestion"
+            changed_by = user.id
+            handler_id = user.institutional_id
 
             # Build list of version metadata for bulk creation
             versions_data = []
@@ -245,9 +249,7 @@ class DataEntryService:
                         "data_snapshot": data_snapshot,
                         "change_type": AuditChangeTypeEnum.CREATE,
                         "changed_by": changed_by,
-                        "change_reason": "Bulk data entry creation"
-                        if user
-                        else f"Imported via CSV job {job_id}",
+                        "change_reason": "Bulk data entry creation",
                         "handler_id": handler_id,
                         "handled_ids": handled_ids,
                         "ip_address": request_context.get("ip_address"),

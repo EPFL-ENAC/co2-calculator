@@ -130,8 +130,8 @@ onMounted(async () => {
     });
   });
 
-  await backofficeStore.getAvailableYears();
-  await fetchUnits();
+  // await backofficeStore.getAvailableYears();
+  // await fetchUnits();
 });
 
 function handleViewUnit(unitId: string | number) {
@@ -173,6 +173,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         <ReportingYear
           @update:years="
             (y) => {
+              console.log('Selected years:', y);
               selectedYears = y;
               fetchUnits();
             }
