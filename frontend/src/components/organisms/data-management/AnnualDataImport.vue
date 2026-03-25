@@ -5,11 +5,12 @@ import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement
 import type {
   SyncJobResponse,
   DataIngestionJob,
-  IngestionState,
-  IngestionResult,
   ImportRow,
 } from 'src/stores/backofficeDataManagement';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
+  IngestionResult,
+  IngestionState,
   IngestionMethod,
   TargetType,
 } from 'src/stores/backofficeDataManagement';
@@ -357,6 +358,12 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
 async function handleJobCompleted() {
   await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
 }
+
+async function handleJobProgressing(job: SyncJobResponse) {
+  console.log('Job progressing:', job);
+
+  await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
+}
 </script>
 
 <template>
@@ -440,8 +447,13 @@ async function handleJobCompleted() {
 
           <!-- Data -->
           <td align="left">
-            <div v-if="row.hasData" class="flex flex-row gap-1 justify-between">
+            <div
+              v-if="row.hasData"
+              class="flex flex-row gap-1 justify-left items-center"
+              style="gap: 1rem"
+            >
               <q-btn
+                :loading="row.lastDataJob?.state === 2"
                 :color="dataButtonColor(row)"
                 icon="add"
                 size="sm"
@@ -450,6 +462,34 @@ async function handleJobCompleted() {
                 :disable="row.isDisabled"
                 @click="openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
               />
+              <q-icon
+                v-if="
+                  row.lastDataJob?.result === IngestionResult.WARNING ||
+                  row.lastDataJob?.result === IngestionResult.ERROR
+                "
+                :name="outlinedInfo"
+                size="sm"
+                class="cursor-pointer"
+                :aria-label="$t('module-info-label')"
+              >
+                <!-- tooltip with detail errors  or warnings -->
+                <q-tooltip
+                  v-if="
+                    row.lastDataJob?.result === IngestionResult.WARNING ||
+                    row.lastDataJob?.result === IngestionResult.ERROR
+                  "
+                >
+                  <div class="text-left">
+                    <div
+                      v-for="(key, value, index) in row.lastDataJob?.meta
+                        ?.stats || []"
+                      :key="index"
+                    >
+                      {{ key }}: {{ value }}
+                    </div>
+                  </div>
+                </q-tooltip>
+              </q-icon>
               <div
                 v-if="importInfo(row.lastDataJob)"
                 class="q-mt-xs text-caption text-grey-7 flex flex-row gap-4 justify-between"
@@ -560,6 +600,7 @@ async function handleJobCompleted() {
       :year="year"
       :target-type="dialogTargetType"
       @completed="handleJobCompleted"
+      @progressing="handleJobProgressing"
     />
   </q-card>
 </template>

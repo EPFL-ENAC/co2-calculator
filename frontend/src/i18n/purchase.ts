@@ -140,11 +140,10 @@ export default {
       en: 'Add Other Purchase',
       fr: 'Ajouter un autre achat',
     },
-  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]:
-    {
-      en: 'Additional Purchase | Additional Purchases',
-      fr: 'Achat supplémentaire | Achats supplémentaires',
-    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]: {
+    en: 'Additional Purchase | Additional Purchases',
+    fr: 'Achat supplémentaire | Achats supplémentaires',
+  },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
     {
       en: 'Additional Purchases ({count})',

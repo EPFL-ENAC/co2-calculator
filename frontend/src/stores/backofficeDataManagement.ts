@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 import { Module } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
@@ -131,7 +131,7 @@ export const useBackofficeDataManagement = defineStore(
     // State
     const loading = ref(false);
     const error = ref<string | null>(null);
-    const syncJobs = reactive<Record<string, DataIngestionJob[]>>({}); // Initialize as empty object
+    const syncJobs = ref<Record<string, DataIngestionJob[]>>({}); // Initialize as empty object
     const currentYear = ref<number | null>(null);
     let sseConnection: EventSource | null = null;
 
@@ -139,7 +139,7 @@ export const useBackofficeDataManagement = defineStore(
     const syncJobStatuses = computed<SyncJobStatus[]>(() => {
       if (!currentYear.value) return [];
 
-      const jobs = syncJobs[currentYear.value] || [];
+      const jobs = syncJobs.value[currentYear.value] || [];
       return jobs.map((job) => ({
         module_type_id: job.module_type_id,
         year: job.year,
@@ -151,7 +151,7 @@ export const useBackofficeDataManagement = defineStore(
 
     // In the store, alongside your other computed properties
     const getLatestJobsByYear = computed(() => (year: number) => {
-      return syncJobs[year] ?? [];
+      return syncJobs.value[year] ?? [];
     });
 
     const getSyncStatusByModule = (
@@ -159,7 +159,7 @@ export const useBackofficeDataManagement = defineStore(
       year: number,
     ): number => {
       const moduleTypeId = getModuleTypeId(moduleType);
-      const jobs = syncJobs[year] || [];
+      const jobs = syncJobs.value[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job ? (job.state ?? 0) : 0; // Default to NOT_STARTED (0) if no job found
     };
@@ -170,7 +170,7 @@ export const useBackofficeDataManagement = defineStore(
      */
     const getSyncStateByModule = (moduleType: Module, year: number): number => {
       const moduleTypeId = getModuleTypeId(moduleType);
-      const jobs = syncJobs[year] || [];
+      const jobs = syncJobs.value[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job?.state ?? 0; // Default to NOT_STARTED (0) if no job found
     };
@@ -184,7 +184,7 @@ export const useBackofficeDataManagement = defineStore(
       year: number,
     ): number | undefined => {
       const moduleTypeId = getModuleTypeId(moduleType);
-      const jobs = syncJobs[year] || [];
+      const jobs = syncJobs.value[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job?.result;
     };
@@ -194,7 +194,7 @@ export const useBackofficeDataManagement = defineStore(
      */
     const isJobFinished = (moduleType: Module, year: number): boolean => {
       const moduleTypeId = getModuleTypeId(moduleType);
-      const jobs = syncJobs[year] || [];
+      const jobs = syncJobs.value[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return job?.state === IngestionState.FINISHED; // FINISHED
     };
@@ -204,7 +204,7 @@ export const useBackofficeDataManagement = defineStore(
      */
     const hasJobSucceeded = (moduleType: Module, year: number): boolean => {
       const moduleTypeId = getModuleTypeId(moduleType);
-      const jobs = syncJobs[year] || [];
+      const jobs = syncJobs.value[year] || [];
       const job = jobs.find((j) => j.module_type_id === moduleTypeId);
       return (
         job?.state === IngestionState.FINISHED &&
@@ -269,7 +269,7 @@ export const useBackofficeDataManagement = defineStore(
         const response = (await api
           .get(`sync/jobs/year/${year}`)
           .json()) as DataIngestionJob[];
-        syncJobs[year] = response;
+        syncJobs.value[year] = response;
         return response;
       } catch (err: unknown) {
         if (err instanceof Error) {
@@ -294,7 +294,7 @@ export const useBackofficeDataManagement = defineStore(
         const response = (await api
           .get(`sync/jobs/year/${year}/latest`)
           .json()) as DataIngestionJob[];
-        syncJobs[year] = response;
+        syncJobs.value[year] = response;
         return response;
       } catch (err: unknown) {
         if (err instanceof Error) {
@@ -372,10 +372,10 @@ provider_type
 
         // Update local state with new job
         if (year !== undefined) {
-          if (!syncJobs[year]) {
-            syncJobs[year] = [];
+          if (!syncJobs.value[year]) {
+            syncJobs.value[year] = [];
           }
-          syncJobs[year].push({
+          syncJobs.value[year].push({
             job_id: response.job_id,
             module_type_id,
             year,
@@ -422,6 +422,7 @@ provider_type
       onCompleted?: (payload?: JobUpdatePayload) => void,
       onFail?: (payload?: JobUpdatePayload) => void,
       onError?: () => void,
+      onMessage?: (payload?: JobUpdatePayload) => void,
     ): void {
       if (!jobId) {
         return;
@@ -438,19 +439,6 @@ provider_type
         sseConnection.onmessage = (event: MessageEvent) => {
           try {
             const update: JobUpdatePayload = JSON.parse(event.data);
-            // Legacy status mapping (for backward compatibility)
-            const statusMap: Record<string, number> = {
-              NOT_STARTED: 0,
-              PENDING: 1,
-              IN_PROGRESS: 2,
-              COMPLETED: 3,
-              FAILED: 4,
-            };
-
-            const status =
-              typeof update.status === 'number'
-                ? update.status
-                : (statusMap[update.status] ?? 0);
 
             // New state/result values (may be undefined for older data)
             const state = update.state;
@@ -460,31 +448,29 @@ provider_type
             const year = update.year;
 
             // Find and update the job in the store
-            if (year !== null && syncJobs[year]) {
-              const jobIndex = syncJobs[year].findIndex(
+            if (year !== null && syncJobs.value[year]) {
+              const jobIndex = syncJobs.value[year].findIndex(
                 (j: DataIngestionJob) => j.job_id === job_id,
               );
               if (jobIndex !== -1) {
-                syncJobs[year][jobIndex] = {
-                  ...syncJobs[year][jobIndex],
+                syncJobs.value[year].splice(jobIndex, 1, {
+                  ...syncJobs.value[year][jobIndex],
                   state,
                   result,
                   status_message: update.status_message || '',
-                };
+                });
               }
             }
 
             // Use new state/result for completion detection if available
             // Fall back to legacy status for backward compatibility
-            const isFinished =
-              state === IngestionState.FINISHED || status === 3 || status === 4;
+            const isFinished = state === IngestionState.FINISHED;
             const isSuccess =
-              (state === IngestionState.FINISHED &&
-                result === IngestionResult.SUCCESS) ||
-              status === 3;
+              state === IngestionState.FINISHED &&
+              result === IngestionResult.SUCCESS;
             const isFailure =
-              (state === IngestionState.FINISHED && result === 2) ||
-              status === 4;
+              state === IngestionState.FINISHED &&
+              result === IngestionResult.ERROR;
 
             if (isSuccess) {
               onCompleted?.(update);
@@ -496,6 +482,7 @@ provider_type
             if (isFinished) {
               unsubscribeFromJobUpdates();
             }
+            onMessage?.(update);
           } catch (err) {
             console.error('Error parsing SSE message:', err);
           }
@@ -578,7 +565,7 @@ provider_type
       loading.value = false;
       error.value = null;
       // Reset syncJobs by clearing all properties
-      Object.keys(syncJobs).forEach((key) => delete syncJobs[key]);
+      Object.keys(syncJobs.value).forEach((key) => delete syncJobs.value[key]);
       currentYear.value = null;
       unsubscribeFromJobUpdates();
     }

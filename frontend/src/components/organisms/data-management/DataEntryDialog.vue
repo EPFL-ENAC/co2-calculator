@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<Props>(), {});
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'completed', job: SyncJobResponse): void;
+  (e: 'progressing', job: SyncJobResponse): void;
 }>();
 
 const showDialog = ref<boolean>(false);
@@ -299,7 +300,6 @@ async function initiateSync(
       let color: string;
       let message: string;
       let caption: string;
-
       if (result === 1) {
         // WARNING: some rows skipped
         color = 'warning';
@@ -315,25 +315,25 @@ async function initiateSync(
         caption = $t('csv_sync_success_caption', {
           processed: rowsProcessed || 0,
         });
-
-        // Emit completed event to parent for refresh
-        if (payload) {
-          emit('completed', {
-            job_id: payload.job_id,
-            module_type_id: payload.module_type_id,
-            year: payload.year ?? props.year,
-            target_type: payload.target_type,
-            state: payload.state ?? 3,
-            result: payload.result ?? 0,
-            status_message: payload.status_message,
-            meta: payload.meta,
-          } as SyncJobResponse);
-        }
       } else {
         // ERROR: nothing processed or failed
         color = 'negative';
         message = $t('csv_sync_failed');
         caption = payload?.status_message || '';
+      }
+
+      // Emit completed event to parent for refresh
+      if (payload) {
+        emit('completed', {
+          job_id: payload.job_id,
+          module_type_id: payload.module_type_id,
+          year: payload.year ?? props.year,
+          target_type: payload.target_type,
+          state: payload.state ?? 3,
+          result: payload.result ?? 0,
+          status_message: payload.status_message,
+          meta: payload.meta,
+        } as SyncJobResponse);
       }
 
       $q.notify({
@@ -363,6 +363,19 @@ async function initiateSync(
         position: 'top',
         timeout: 30000,
       });
+    },
+    (payload?: JobUpdatePayload) => {
+      if (!payload) return;
+      emit('progressing', {
+        job_id: payload.job_id,
+        module_type_id: payload.module_type_id,
+        year: payload.year ?? props.year,
+        target_type: payload.target_type,
+        state: payload.state ?? 3,
+        result: payload.result ?? 0,
+        status_message: payload.status_message,
+        meta: payload.meta,
+      } as SyncJobResponse);
     },
   );
 }
