@@ -452,8 +452,20 @@ async function handleJobProgressing(job: SyncJobResponse) {
               class="flex flex-row gap-1 justify-left items-center"
               style="gap: 1rem"
             >
+              <q-spinner-rings
+                v-if="row.lastDataJob?.state === IngestionState.RUNNING"
+                color="grey"
+              >
+                <q-tooltip>
+                  <div class="text-left">
+                    {{
+                      row.lastDataJob?.status_message ||
+                      $t('data_management_processing')
+                    }}
+                  </div>
+                </q-tooltip>
+              </q-spinner-rings>
               <q-btn
-                :loading="row.lastDataJob?.state === 2"
                 :color="dataButtonColor(row)"
                 icon="add"
                 size="sm"
@@ -480,6 +492,17 @@ async function handleJobProgressing(job: SyncJobResponse) {
                   "
                 >
                   <div class="text-left">
+                    {{ row.lastDataJob?.status_message }}:
+                    <span
+                      v-if="
+                        row.lastDataJob?.meta?.error !==
+                        row.lastDataJob?.status_message
+                      "
+                      class="text-negative"
+                    >
+                      {{ row.lastDataJob?.meta?.error || '' }}
+                    </span>
+                    <hr />
                     <div
                       v-for="(key, value, index) in row.lastDataJob?.meta
                         ?.stats || []"
