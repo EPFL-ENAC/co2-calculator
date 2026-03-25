@@ -23,9 +23,8 @@ class EmissionType(int, Enum):
       050100 = Professional Travel > Trains (subcategory)
       050101 = Professional Travel > Trains > Class 1 (item)
 
-    Possible to go 8-digits if needed
-    (e.g., 05010101 for "Professional Travel > Trains > Class 1 > CFF")
-    but currently 6 digits is sufficient for all planned levels.,
+    Extensible to 8-digits (XX YY ZZ WW) for a 4th level:
+      06010101 = Buildings > Rooms > Lighting > Office
     """
 
     # -------------------------------------------------------------------------
@@ -78,12 +77,54 @@ class EmissionType(int, Enum):
     # -------------------------------------------------------------------------
     buildings = 60000
     buildings__rooms = 60100
+
     buildings__rooms__lighting = 60101
+    buildings__rooms__lighting__office = 6010101
+    buildings__rooms__lighting__laboratories = 6010102
+    buildings__rooms__lighting__archives = 6010103
+    buildings__rooms__lighting__libraries = 6010104
+    buildings__rooms__lighting__auditoriums = 6010105
+    buildings__rooms__lighting__miscellaneous = 6010106
+
     buildings__rooms__cooling = 60102
+    buildings__rooms__cooling__office = 6010201
+    buildings__rooms__cooling__laboratories = 6010202
+    buildings__rooms__cooling__archives = 6010203
+    buildings__rooms__cooling__libraries = 6010204
+    buildings__rooms__cooling__auditoriums = 6010205
+    buildings__rooms__cooling__miscellaneous = 6010206
+
     buildings__rooms__ventilation = 60103
+    buildings__rooms__ventilation__office = 6010301
+    buildings__rooms__ventilation__laboratories = 6010302
+    buildings__rooms__ventilation__archives = 6010303
+    buildings__rooms__ventilation__libraries = 6010304
+    buildings__rooms__ventilation__auditoriums = 6010305
+    buildings__rooms__ventilation__miscellaneous = 6010306
+
     buildings__rooms__heating_elec = 60104
+    buildings__rooms__heating_elec__office = 6010401
+    buildings__rooms__heating_elec__laboratories = 6010402
+    buildings__rooms__heating_elec__archives = 6010403
+    buildings__rooms__heating_elec__libraries = 6010404
+    buildings__rooms__heating_elec__auditoriums = 6010405
+    buildings__rooms__heating_elec__miscellaneous = 6010406
+
     buildings__rooms__heating_thermal = 60105
+    buildings__rooms__heating_thermal__office = 6010501
+    buildings__rooms__heating_thermal__laboratories = 6010502
+    buildings__rooms__heating_thermal__archives = 6010503
+    buildings__rooms__heating_thermal__libraries = 6010504
+    buildings__rooms__heating_thermal__auditoriums = 6010505
+    buildings__rooms__heating_thermal__miscellaneous = 6010506
+
     buildings__combustion = 60200  # scope 1 — direct fuel combustion
+    buildings__combustion__natural_gas = 60201
+    buildings__combustion__heating_oil = 60202
+    buildings__combustion__biomethane = 60203
+    buildings__combustion__pellets = 60204
+    buildings__combustion__forest_chips = 60205
+    buildings__combustion__wood_logs = 60206
     buildings__embodied_energy = (
         60300  # scope 3 — embodied emissions of construction materials
     )
@@ -118,6 +159,7 @@ class EmissionType(int, Enum):
     purchases__vehicles = 90700
     purchases__other = 90800
     purchases__additional = 90900
+    purchases__additional__ln2 = 90901
 
     # -------------------------------------------------------------------------
     # Research Facilities
@@ -149,6 +191,9 @@ class EmissionType(int, Enum):
     @property
     def level(self) -> int:
         v = self.value
+        if v >= 1_000_000:
+            # 8-digit WW level (e.g. 6010101 = buildings > rooms > lighting > office)
+            return 3
         if v % 100 != 0:
             return 2
         if v % 10000 != 0:
@@ -164,6 +209,9 @@ class EmissionType(int, Enum):
     def parent_value(self) -> int | None:
         """Returns the int value of the logical parent, or None if root."""
         v = self.value
+        if v >= 1_000_000:
+            # 8-digit WW level: parent is the ZZ code (v // 100)
+            return v // 100
         if v % 100 != 0:
             # item → subcategory
             return (v // 100) * 100

@@ -204,7 +204,10 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
+        # Try direct match, then fall back to parent (WW→ZZ)
         kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)
+        if not kwh_field and emission_type.parent is not None:
+            kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type.parent)
         if not kwh_field:
             return []
 
