@@ -120,10 +120,156 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
         "scope": Scope.scope1,
         "category": EmissionCategory.buildings_energy_combustion,
     },  # confirmed
+    # --- Room-type granularity (8-digit WW items) ---
+    EmissionType.buildings__rooms__lighting__office: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__laboratories: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__archives: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__libraries: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__auditoriums: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__miscellaneous: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__office: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__laboratories: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__archives: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__libraries: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__auditoriums: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__miscellaneous: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__office: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__laboratories: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__archives: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__libraries: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__auditoriums: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__miscellaneous: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__office: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__laboratories: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__archives: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__libraries: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__auditoriums: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__miscellaneous: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_thermal__office: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__laboratories: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__archives: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__libraries: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__auditoriums: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__miscellaneous: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    # --- Combustion fuel-type granularity ---
     EmissionType.buildings__combustion: {
         "scope": Scope.scope1,
         "category": EmissionCategory.buildings_energy_combustion,
     },  # direct fuel combustion
+    EmissionType.buildings__combustion__natural_gas: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__heating_oil: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__biomethane: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__pellets: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__forest_chips: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__wood_logs: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
     EmissionType.buildings__embodied_energy: {
         "scope": Scope.scope3,
         "category": EmissionCategory.embodied_energy,
@@ -192,6 +338,10 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
         "category": EmissionCategory.purchases,
     },
     EmissionType.purchases__additional: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__additional__ln2: {
         "scope": Scope.scope1,
         "category": EmissionCategory.purchases,
     },
@@ -304,7 +454,7 @@ def _build_emission_value(
         "key": emission_type.name.split("__")[-1],
         "value": kg_co2eq / 1000.0,
     }
-    if emission_type.level == 2 and emission_type.parent is not None:
+    if emission_type.level >= 2 and emission_type.parent is not None:
         value["parent_key"] = emission_type.parent.name.split("__")[-1]
     return value
 

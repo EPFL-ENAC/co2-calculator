@@ -209,6 +209,58 @@ export default {
     en: 'Heating (thermal)',
     fr: 'Chauffage (thermique)',
   },
+  'charts-office-subcategory': {
+    en: 'Office',
+    fr: 'Bureau',
+  },
+  'charts-laboratories-subcategory': {
+    en: 'Laboratories',
+    fr: 'Laboratoires',
+  },
+  'charts-archives-subcategory': {
+    en: 'Archives',
+    fr: 'Archives',
+  },
+  'charts-libraries-subcategory': {
+    en: 'Libraries',
+    fr: 'Bibliothèques',
+  },
+  'charts-auditoriums-subcategory': {
+    en: 'Auditoriums',
+    fr: 'Auditoires',
+  },
+  'charts-miscellaneous-subcategory': {
+    en: 'Miscellaneous',
+    fr: 'Divers',
+  },
+  'charts-natural-gas-subcategory': {
+    en: 'Natural Gas',
+    fr: 'Gaz naturel',
+  },
+  'charts-heating-oil-subcategory': {
+    en: 'Heating Oil',
+    fr: 'Mazout',
+  },
+  'charts-biomethane-subcategory': {
+    en: 'Biomethane',
+    fr: 'Biométhane',
+  },
+  'charts-pellets-subcategory': {
+    en: 'Pellets',
+    fr: 'Pellets',
+  },
+  'charts-forest-chips-subcategory': {
+    en: 'Forest Chips',
+    fr: 'Plaquettes forestières',
+  },
+  'charts-wood-logs-subcategory': {
+    en: 'Wood Logs',
+    fr: 'Bûches',
+  },
+  'charts-ln2-subcategory': {
+    en: 'LN2',
+    fr: 'LN2',
+  },
   'charts-research-facilities-category': {
     en: 'Research Facilities',
     fr: 'Infrastructures de recherche',
