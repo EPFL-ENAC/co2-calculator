@@ -400,4 +400,40 @@ export default {
     en: 'Save failed',
     fr: "Échec de l'enregistrement",
   },
+  carbon_footprint_title: {
+    en: '{module} Carbon Footprint',
+    fr: '{module} empreinte carbone ',
+  },
+  'carbon_footprint_title.professional-travel': {
+    en: 'Professional travel carbon footprint',
+    fr: 'Empreinte carbone des voyages professionnels',
+  },
+  'carbon_footprint_title.process-emissions': {
+    en: 'Process gas carbon footprint',
+    fr: 'Empreinte carbone de gaz de procédés',
+  },
+  'carbon_footprint_title.equipment-electric-consumption': {
+    en: 'Equipment use carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des équipements",
+  },
+  'carbon_footprint_tooltip.equipment-electric-consumption': {
+    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  },
+  'carbon_footprint_title.purchase': {
+    en: 'Purchases carbon footprint',
+    fr: 'Empreinte carbone des achats',
+  },
+  'carbon_footprint_title.buildings': {
+    en: 'Energy combustion carbon footprint',
+    fr: "Empreinte carbone de la combustion d'énergie",
+  },
+  'carbon_footprint_title.external-cloud-and-ai': {
+    en: 'Carbon footprint from the use of AI services and external cloud services',
+    fr: "Empreinte carbone liée à l'utilisation des services d'IA et des services cloud externes",
+  },
+  'carbon_footprint_title.research-facilities': {
+    en: 'Carbon footprint from the use of research infrastructures',
+    fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
+  },
 };

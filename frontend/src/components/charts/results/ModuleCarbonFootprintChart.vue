@@ -722,7 +722,7 @@ const chartOption = computed((): EChartsOption => {
       type: 'value',
       name: t('tco2eq'),
       nameLocation: 'middle',
-      nameGap: 30,
+      nameGap: 40,
       nameRotate: 90,
       nameTextStyle: {
         fontSize: 11,
