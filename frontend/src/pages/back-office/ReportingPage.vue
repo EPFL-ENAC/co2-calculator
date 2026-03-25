@@ -16,6 +16,10 @@ import ReportingFilters from 'src/components/organisms/backoffice/reporting/Repo
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
 import ReportExport from 'src/components/organisms/backoffice/reporting/ReportExport.vue';
 import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDialogue.vue';
+import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
+import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
+import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
+import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 
@@ -51,14 +55,22 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
 
 const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
-// Track selected units from ReportingFilters
-const selectedUnits = ref<number[]>([]);
+// Track selected hierarchy filters from ReportingFilters
+const selectedPathLvl2 = ref<number[]>([]);
+const selectedPathLvl3 = ref<number[]>([]);
+const selectedPathLvl4 = ref<number[]>([]);
+const selectedCompletionStatus = ref<string | number>('');
 
 function handleFiltersUpdate(payload: {
-  selectedUnits: number[];
+  path_lvl2: number[];
+  path_lvl3: number[];
+  path_lvl4: number[];
   completion_status: string | number;
 }) {
-  selectedUnits.value = payload.selectedUnits;
+  selectedPathLvl2.value = payload.path_lvl2;
+  selectedPathLvl3.value = payload.path_lvl3;
+  selectedPathLvl4.value = payload.path_lvl4;
+  selectedCompletionStatus.value = payload.completion_status;
   fetchUnits();
 }
 
@@ -67,15 +79,38 @@ const selectedUnitId = ref<string | number>('');
 
 const units = computed(() => backofficeStore.units);
 const loading = computed(() => backofficeStore.unitsLoading);
+const reportingEmissionBreakdown = computed(
+  () => units.value?.emission_breakdown ?? null,
+);
+
+const tableRows = computed(() => units.value?.data ?? []);
+const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
+const tableTotal = computed(() => units.value?.total_units_count ?? 0);
 
 async function fetchUnits() {
+  if (selectedYears.value.length === 0) {
+    backofficeStore.units = null;
+    return;
+  }
   const filtersToSend: {
-    units?: number[];
+    path_lvl2?: Array<number | string>;
+    path_lvl3?: Array<number | string>;
+    path_lvl4?: Array<number | string>;
     years?: string[];
+    completion_status?: number | string;
     modules?: Array<{ module: string; state: ModuleState }>;
   } = {
-    units: selectedUnits.value.length > 0 ? selectedUnits.value : undefined,
+    path_lvl2:
+      selectedPathLvl2.value.length > 0 ? selectedPathLvl2.value : undefined,
+    path_lvl3:
+      selectedPathLvl3.value.length > 0 ? selectedPathLvl3.value : undefined,
+    path_lvl4:
+      selectedPathLvl4.value.length > 0 ? selectedPathLvl4.value : undefined,
     years: selectedYears.value,
+    completion_status:
+      selectedCompletionStatus.value !== ''
+        ? selectedCompletionStatus.value
+        : undefined,
     modules: Array.from(moduleStates.value.values()).map((data) => ({
       module: data.module,
       state: data.states.length > 0 ? data.states[0] : 0,
@@ -200,7 +235,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       </div>
       <div class="q-mt-xl">
         <UnitsTable
-          :units="units?.data || []"
+          :units="tableRows"
           :pagination="units?.pagination"
           :loading="loading"
           @view-unit="handleViewUnit"
@@ -223,26 +258,35 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       />
       <!-- Aggregated Results Box #460 -->
       <div class="q-mt-xl">
-        <div class="container full-width">
-          <!-- <div class="q-mb-xs">
-            <span class="text-h5 text-weight-medium">{{
-              $t('backoffice_reporting_aggregated_results_title')
-            }}</span>
-          </div>
-          <span class="text-body2">{{
-            $t('backoffice_reporting_aggregated_results_description')
-          }}</span> -->
-
-          <!-- Placeholder for aggregated results -->
-          <div class="q-pa-md bg-grey-2 rounded">
-            <img
-              src="/placeholder-reporting.png"
-              alt="Aggregated Results Placeholder"
-              class="full-width"
-            />
-          </div>
-        </div>
+        <CompletionRateBar
+          :validated-units="validatedCount"
+          :total-units="tableTotal"
+          :scope-label="$t('backoffice_reporting_completion_bar_scope_table')"
+        />
       </div>
+      <q-card flat class="grid-2-col q-mt-xl">
+        <ModuleCarbonFootprintChart
+          :breakdown-data="reportingEmissionBreakdown"
+          :title="$t('backoffice_reporting_aggregated_results_title')"
+        />
+        <CarbonFootPrintPerPersonChart
+          :per-person-breakdown="
+            reportingEmissionBreakdown?.per_person_breakdown ?? null
+          "
+          :validated-categories="
+            reportingEmissionBreakdown?.validated_categories ?? null
+          "
+          :headcount-validated="
+            reportingEmissionBreakdown?.headcount_validated ?? false
+          "
+          :show-validation-placeholder="false"
+          :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
+        />
+      </q-card>
+      <EmissionBreakdownChart
+        :breakdown-data="reportingEmissionBreakdown"
+        class="q-mt-xl"
+      />
       <div class="q-mt-xl">
         <div class="container full-width">
           <div class="q-mb-xs">

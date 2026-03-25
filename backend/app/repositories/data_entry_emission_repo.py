@@ -201,7 +201,7 @@ class DataEntryEmissionRepository:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, float | None]]:
+    ) -> list[tuple[int, int, float]]:
         """Aggregate emissions by module_type_id and emission_type_id.
 
         Returns:

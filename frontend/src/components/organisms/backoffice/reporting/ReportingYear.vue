@@ -31,10 +31,6 @@ watch(
 watch(
   years,
   (newYears) => {
-    if (newYears.length === 0) {
-      // Fallback to latest year or default
-      return {};
-    }
     emit('update:years', newYears);
   },
   { immediate: true },
@@ -55,6 +51,8 @@ onMounted(async () => {
       :options="yearOptions"
       option-value="value"
       option-label="label"
+      emit-value
+      map-options
       multiple
       use-chips
       outlined

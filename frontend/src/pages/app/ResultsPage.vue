@@ -261,11 +261,9 @@ const getUncertainty = (
       </q-card>
       <q-card flat class="grid-2-col">
         <ModuleCarbonFootprintChart
-          :view-uncertainties="viewUncertainties"
           :breakdown-data="moduleStore.state.emissionBreakdown"
         />
         <CarbonFootPrintPerPersonChart
-          :view-uncertainties="viewUncertainties"
           :per-person-breakdown="
             moduleStore.state.emissionBreakdown?.per_person_breakdown
           "

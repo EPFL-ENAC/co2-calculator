@@ -31,6 +31,7 @@ import { formatTonnesForChart } from 'src/utils/number';
 
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
+  title?: string;
 }>();
 
 const { t } = useI18n();
@@ -983,7 +984,7 @@ const downloadCSV = () => {
     <q-card-section class="flex justify-between items-center">
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ $t('unit_carbon_footprint_title') }}
+          {{ props.title ?? $t('unit_carbon_footprint_title') }}
         </span>
       </div>
 

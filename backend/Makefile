@@ -123,7 +123,6 @@ seed-data: ## Seed the database with initial data
 	$(UV) run -m app.seed.seed_locations
 	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors
-# 	$(UV) run -m app.seed.seed_generic_data_entries
 
 .PHONY: seed-units
 seed-units: ## Seed units from accred
