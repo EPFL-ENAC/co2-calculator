@@ -352,11 +352,35 @@ class CarbonReportModuleRepository:
                 "page_size": page_size,
                 "total_pages": 0,
                 "validated_units_count": 0,
+                "in_progress_units_count": 0,
+                "not_started_units_count": 0,
                 "total_units_count": 0,
             }
 
         # --- STEP 1: The Cheap Count ---
-        # Base count (hierarchy + year only — used for the completion bar).
+        # Count units per status in a single GROUP BY query.
+        status_count_stmt = (
+            select(
+                col(CarbonReport.overall_status),
+                func.count(col(Unit.id)),
+            )
+            .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
+            .where(col(CarbonReport.year).in_(years))
+            .group_by(col(CarbonReport.overall_status))
+        )
+        if hierarchy_unit_ids is not None:
+            status_count_stmt = status_count_stmt.where(
+                col(Unit.id).in_(hierarchy_unit_ids)
+            )
+
+        status_count_rows = (await self.session.exec(status_count_stmt)).all()
+        status_counts = {int(status): count for status, count in status_count_rows}
+        total_units_count = sum(status_counts.values())
+        validated_units_count = status_counts.get(int(ModuleStatus.VALIDATED), 0)
+        in_progress_units_count = status_counts.get(int(ModuleStatus.IN_PROGRESS), 0)
+        not_started_units_count = status_counts.get(int(ModuleStatus.NOT_STARTED), 0)
+
+        # Base count stmt still needed for the filtered table count below.
         base_count_stmt = (
             select(func.count(col(Unit.id)))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
@@ -366,15 +390,6 @@ class CarbonReportModuleRepository:
             base_count_stmt = base_count_stmt.where(
                 col(Unit.id).in_(hierarchy_unit_ids)
             )
-
-        total_units_count = (await self.session.exec(base_count_stmt)).one()
-        validated_units_count = (
-            await self.session.exec(
-                base_count_stmt.where(
-                    col(CarbonReport.overall_status) == int(ModuleStatus.VALIDATED)
-                )
-            )
-        ).one()
 
         # Filtered count (adds optional completion_status filter for the table).
         count_statement = base_count_stmt
@@ -634,6 +649,24 @@ class CarbonReportModuleRepository:
                 }
             )
 
+        # --- Single-unit case: per-module status breakdown ---
+        module_status_counts = None
+        if total == 1 and paginated_units:
+            single_report_id = paginated_units[0].carbon_report_id
+            if single_report_id is not None:
+                module_status_stmt = (
+                    select(
+                        col(CarbonReportModule.status),
+                        func.count(col(CarbonReportModule.id)),
+                    )
+                    .where(col(CarbonReportModule.carbon_report_id) == single_report_id)
+                    .group_by(col(CarbonReportModule.status))
+                )
+                module_status_rows = (await self.session.exec(module_status_stmt)).all()
+                module_status_counts = {
+                    int(status): count for status, count in module_status_rows
+                }
+
         return {
             "data": reporting_data,
             "total": total,
@@ -642,7 +675,10 @@ class CarbonReportModuleRepository:
             "total_pages": ceil(total / page_size),
             "emission_breakdown": emission_breakdown,
             "validated_units_count": validated_units_count,
+            "in_progress_units_count": in_progress_units_count,
+            "not_started_units_count": not_started_units_count,
             "total_units_count": total_units_count,
+            "module_status_counts": module_status_counts,
         }
 
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:

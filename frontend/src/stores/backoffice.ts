@@ -44,7 +44,10 @@ interface BackofficeUnitDataPagination {
   };
   emission_breakdown?: EmissionBreakdownResponse | null;
   validated_units_count?: number;
+  in_progress_units_count?: number;
+  not_started_units_count?: number;
   total_units_count?: number;
+  module_status_counts?: Record<number, number> | null;
 }
 
 interface UnitFilters {
