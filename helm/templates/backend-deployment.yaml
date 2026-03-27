@@ -233,11 +233,12 @@ spec:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: TABLEAU_VERIFY_SSL
             - name: TABLEAU_REQUEST_TIMEOUT_SECONDS
-              value: {{ .Values.backend.tableau.requestTimeoutSeconds | default "" }}
+              value: {{ .Values.backend.tableau.requestTimeoutSeconds | default "" | quote }}
             - name: TABLEAU_REST_MIN_API_VERSION
-              value: {{ .Values.backend.tableau.restMinApiVersion | default "" }}
+              value: {{ .Values.backend.tableau.restMinApiVersion | default "" | quote }}
             - name: TABLEAU_MAX_FIELDS
-              value: {{ .Values.backend.tableau.maxFields | default "" }}
+              value: {{ .Values.backend.tableau.maxFields | default "" | quote }}
+
             - name: ELASTICSEARCH_CA_CERT
               value: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
             - name: POD_NAME
