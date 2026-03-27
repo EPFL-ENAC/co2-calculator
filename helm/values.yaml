@@ -138,9 +138,9 @@ backend:
       filename: http_ca_test.crt
       path: /tmp/
   tableau:
-    requestTimeoutSeconds: 300
-    restMinApiVersion: 2.4
-    maxFields: 50
+    requestTimeoutSeconds: "300"
+    restMinApiVersion: "2.4"
+    maxFields: "50"
 
   initContainers:
     waitForPostgres:
