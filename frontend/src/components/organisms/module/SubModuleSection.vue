@@ -122,11 +122,14 @@ onMounted(() => {
 });
 
 const formDefaults = computed<Record<string, unknown> | undefined>(() => {
-  const fte = moduleStore.state.validatedTotals?.total_fte;
+  const validatedTotals = moduleStore.state.validatedTotals;
+  if (!validatedTotals) return undefined;
 
   const defaults: Record<string, unknown> = {};
   for (const field of props.submodule.moduleFields ?? []) {
-    if (field.defaultFrom === 'total_fte') defaults[field.id] = Math.round(fte);
+    if (field.defaultFrom === 'total_fte') {
+      defaults[field.id] = Math.round(validatedTotals.total_fte);
+    }
   }
   return Object.keys(defaults).length > 0 ? defaults : undefined;
 });
