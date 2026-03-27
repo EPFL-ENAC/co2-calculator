@@ -400,4 +400,8 @@ export default {
     en: 'Save failed',
     fr: "Échec de l'enregistrement",
   },
+  carbon_footprint_title: {
+    en: '{module} Carbon Footprint',
+    fr: '{module} empreinte carbone ',
+  },
 };

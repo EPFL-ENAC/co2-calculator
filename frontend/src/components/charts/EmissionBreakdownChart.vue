@@ -3,13 +3,18 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
-import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
+import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
+import {
+  MODULE_TO_CATEGORIES,
+  CHART_CATEGORY_COLOR_SCALES,
+} from 'src/constant/charts';
 import { MODULES } from 'src/constant/modules';
 import {
   buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
   type EmissionTreemapCategory,
 } from 'src/composables/useEmissionTreemap';
+import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
 
 interface BreakdownData {
   module_breakdown: Array<Record<string, unknown>>;
@@ -52,6 +57,8 @@ const availableModules = computed(() => {
 
 type TabKey = (typeof TREEMAP_MODULES)[number];
 
+const chartView = ref<'breakdown' | 'type'>('breakdown');
+
 const selectedTab = ref<TabKey | null>(null);
 
 const activeTab = computed<TabKey | null>(() => {
@@ -59,6 +66,15 @@ const activeTab = computed<TabKey | null>(() => {
     return selectedTab.value;
   }
   return availableModules.value[0] ?? null;
+});
+
+const activeColor = computed(() => {
+  const firstCategory = MODULE_TO_CATEGORIES.value[activeTab.value ?? '']?.[0];
+  const scale =
+    CHART_CATEGORY_COLOR_SCALES.value[
+      firstCategory as keyof typeof CHART_CATEGORY_COLOR_SCALES.value
+    ];
+  return scale?.darker ?? '#00a79f';
 });
 
 function selectTab(tab: TabKey) {
@@ -75,6 +91,30 @@ function toRow(r: Record<string, unknown>): BreakdownRow {
   }
   return row;
 }
+
+const categoryRows = computed<EmissionBreakdownCategoryRow[]>(() => {
+  if (!props.breakdownData || !activeTab.value) return [];
+  const categories = MODULE_TO_CATEGORIES.value[activeTab.value] ?? [];
+  const rows = props.breakdownData.module_breakdown.filter((row) =>
+    categories.includes(String(row.category ?? '')),
+  ) as EmissionBreakdownCategoryRow[];
+
+  return rows.map((row) => {
+    const allowedBarNames = new Set(
+      CATEGORY_CHART_KEYS[row.category_key] ?? [],
+    );
+    const isFilterApplicable = row.emissions.some((e) =>
+      allowedBarNames.has((e.parent_key ?? e.key) as string),
+    );
+    if (!isFilterApplicable) return row;
+    return {
+      ...row,
+      emissions: row.emissions.filter((e) =>
+        allowedBarNames.has((e.parent_key ?? e.key) as string),
+      ),
+    };
+  });
+});
 
 const treemapData = computed<EmissionTreemapCategory[]>(() => {
   if (!props.breakdownData || !activeTab.value) return [];
@@ -94,6 +134,34 @@ const treemapData = computed<EmissionTreemapCategory[]>(() => {
       <span class="text-h5 text-weight-medium">{{
         $t('results_treemap_title')
       }}</span>
+      <div class="chart-view-toggle">
+        <q-btn
+          unelevated
+          dense
+          :style="
+            chartView === 'type'
+              ? { backgroundColor: activeColor, color: '#fff' }
+              : {}
+          "
+          :class="chartView !== 'type' ? 'toggle-inactive' : ''"
+          icon="stacked_bar_chart"
+          size="sm"
+          @click="chartView = 'type'"
+        />
+        <q-btn
+          unelevated
+          dense
+          :style="
+            chartView === 'breakdown'
+              ? { backgroundColor: activeColor, color: '#fff' }
+              : {}
+          "
+          :class="chartView !== 'breakdown' ? 'toggle-inactive' : ''"
+          icon="grid_view"
+          size="sm"
+          @click="chartView = 'breakdown'"
+        />
+      </div>
     </div>
 
     <!-- Module tab buttons -->
@@ -119,19 +187,46 @@ const treemapData = computed<EmissionTreemapCategory[]>(() => {
       </q-btn>
     </div>
 
-    <GenericEmissionTreeMapChart
-      v-if="treemapData.length > 0"
-      :data="treemapData"
-      :height="height ?? '250px'"
-    />
-    <span v-else class="text-body2 text-secondary">
-      {{ $t('backoffice_reporting_chart_no_data') }}
-    </span>
+    <template v-if="chartView === 'breakdown'">
+      <GenericEmissionTreeMapChart
+        v-if="treemapData.length > 0"
+        :data="treemapData"
+        :height="height ?? '250px'"
+      />
+      <span v-else class="text-body2 text-secondary">
+        {{ $t('backoffice_reporting_chart_no_data') }}
+      </span>
+    </template>
+    <template v-else>
+      <EmissionTypeBreakdownChart
+        v-if="categoryRows.length"
+        :category-rows="categoryRows"
+        class="full-width"
+      />
+      <span v-else class="text-body2 text-secondary">
+        {{ $t('backoffice_reporting_chart_no_data') }}
+      </span>
+    </template>
   </q-card>
 </template>
 
 <style scoped>
 .tab-btn {
   border-radius: 3px;
+}
+
+.chart-view-toggle {
+  display: inline-flex;
+  border-radius: 4px;
+  overflow: hidden;
+
+  .q-btn {
+    border-radius: 0;
+  }
+
+  .toggle-inactive {
+    background-color: #eeeeee;
+    color: #757575;
+  }
 }
 </style>

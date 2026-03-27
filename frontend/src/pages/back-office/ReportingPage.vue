@@ -5,6 +5,7 @@ import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { Module } from 'src/constant/modules';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
 import { useBackofficeStore } from 'src/stores/backoffice';
+import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import ModuleSelector, {
   type ModuleStateData,
@@ -18,12 +19,10 @@ import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable
 import ReportExport from 'src/components/organisms/backoffice/reporting/ReportExport.vue';
 import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDialogue.vue';
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
-
 const router = useRouter();
 const moduleStates = ref<Map<Module, ModuleStateData>>(new Map());
 

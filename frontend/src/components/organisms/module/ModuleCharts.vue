@@ -13,38 +13,100 @@
       </span>
     </template>
     <template v-else>
-      <generic-emission-tree-map-chart
-        v-if="moduleTreemapData.length"
-        :data="moduleTreemapData"
-        :show-evolution-dialog="
-          type === MODULES.ProfessionalTravel && showEvolutionChart
-        "
-      />
-      <span v-else class="text-body2 text-secondary">
-        {{ $t('no-chart-data') }}
-      </span>
+      <div class="flex w-full items-center justify-between">
+        <div class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black">
+          {{ $t('carbon_footprint_title', { module: $t(props.type) }) }}
+        </div>
+        <div class="q-mb-sm">
+          <div class="chart-view-toggle">
+            <q-btn
+              unelevated
+              dense
+              :style="
+                moduleChartView === 'type'
+                  ? { backgroundColor: activeColor, color: '#fff' }
+                  : {}
+              "
+              :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
+              icon="stacked_bar_chart"
+              size="sm"
+              @click="moduleChartView = 'type'"
+            />
+            <q-btn
+              unelevated
+              dense
+              :style="
+                moduleChartView === 'breakdown'
+                  ? { backgroundColor: activeColor, color: '#fff' }
+                  : {}
+              "
+              :class="moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''"
+              icon="grid_view"
+              size="sm"
+              @click="moduleChartView = 'breakdown'"
+            />
+          </div>
+        </div>
+      </div>
+
+      <template v-if="moduleChartView === 'breakdown'">
+        <generic-emission-tree-map-chart
+          v-if="moduleTreemapData.length"
+          :data="moduleTreemapData"
+          :show-evolution-dialog="
+            type === MODULES.ProfessionalTravel && showEvolutionChart
+          "
+        />
+        <span v-else class="text-body2 text-secondary">
+          {{ $t('no-chart-data') }}
+        </span>
+      </template>
+      <template v-else>
+        <emission-type-breakdown-chart
+          v-if="moduleCategoryRows.length"
+          :category-rows="moduleCategoryRows"
+        />
+        <span v-else class="text-body2 text-secondary">
+          {{ $t('no-chart-data') }}
+        </span>
+      </template>
     </template>
   </q-card-section>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Module, MODULES } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
+import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
 } from 'src/composables/useEmissionTreemap';
-import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
+import {
+  CHART_CATEGORY_COLOR_SCALES,
+  MODULE_TO_CATEGORIES,
+} from 'src/constant/charts';
 
 const props = defineProps<{
   type: Module;
   showEvolutionChart?: boolean;
 }>();
+
+const moduleChartView = ref<'breakdown' | 'type'>('type');
+
+const activeColor = computed(() => {
+  const firstCategory = MODULE_TO_CATEGORIES.value[props.type]?.[0];
+  const scale =
+    CHART_CATEGORY_COLOR_SCALES.value[
+      firstCategory as keyof typeof CHART_CATEGORY_COLOR_SCALES.value
+    ];
+  return scale?.darker ?? '#00a79f';
+});
 
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
@@ -80,15 +142,22 @@ const hasStats = computed(() => {
 const moduleTreemapData = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown?.module_breakdown;
   if (!breakdown || breakdown.length === 0) return [];
-
   const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
   const filteredKeys = Object.fromEntries(
     Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
   ) as Record<string, string[]>;
-
   return buildModuleTreemapData(
-    breakdown as Array<{ category: string; [key: string]: number | string }>,
+    breakdown as Array<{ category: string; [key: string]: string | number }>,
     filteredKeys,
+  );
+});
+
+const moduleCategoryRows = computed(() => {
+  const breakdown = moduleStore.state.emissionBreakdown;
+  if (!breakdown) return [];
+  const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
+  return breakdown.module_breakdown.filter((row) =>
+    categories.includes(row.category),
   );
 });
 </script>
@@ -97,10 +166,25 @@ const moduleTreemapData = computed(() => {
 @use 'src/css/02-tokens' as tokens;
 
 .module-charts {
-  // padding: tokens.$graph-card-padding; // Example padding, adjust as needed
-  color: tokens.$graph-color-primary; // Use your token for secondary text
+  color: tokens.$graph-color-primary;
   font-weight: tokens.$graph-font-weight;
   font-size: tokens.$graph-font-size;
   line-height: tokens.$graph-line-height;
+}
+
+.chart-view-toggle {
+  display: inline-flex;
+
+  border-radius: 4px;
+  overflow: hidden;
+
+  .q-btn {
+    border-radius: 0;
+  }
+
+  .toggle-inactive {
+    background-color: #eeeeee;
+    color: #757575;
+  }
 }
 </style>

@@ -397,6 +397,30 @@ export default {
     en: 'AI Provider',
     fr: 'Fournisseur IA',
   },
+  'charts-ai-provider-google-subcategory': {
+    en: 'Google',
+    fr: 'Google',
+  },
+  'charts-ai-provider-openai-subcategory': {
+    en: 'OpenAI',
+    fr: 'OpenAI',
+  },
+  'charts-ai-provider-anthropic-subcategory': {
+    en: 'Anthropic',
+    fr: 'Anthropic',
+  },
+  'charts-ai-provider-mistral-ai-subcategory': {
+    en: 'Mistral AI',
+    fr: 'Mistral AI',
+  },
+  'charts-ai-provider-cohere-subcategory': {
+    en: 'Cohere',
+    fr: 'Cohere',
+  },
+  'charts-ai-provider-others-subcategory': {
+    en: 'Others',
+    fr: 'Autres',
+  },
   'charts-research-facilities-subcategory': {
     en: 'Research Facilities',
     fr: 'Infrastructures de recherche',
@@ -452,5 +476,13 @@ export default {
   'charts-objective-tick': {
     en: '2030 Objective',
     fr: 'Objectif 2030',
+  },
+  'charts-view-emission-breakdown': {
+    en: 'Emission Breakdown',
+    fr: 'Répartition des émissions',
+  },
+  'charts-view-emission-type': {
+    en: 'Emission Type',
+    fr: "Type d'émission",
   },
 } as const;
