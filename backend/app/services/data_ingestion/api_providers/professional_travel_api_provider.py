@@ -87,11 +87,39 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
 
     async def validate_connection(self) -> bool:
         try:
+            logger.info(
+                "Validating Tableau connection",
+                extra={
+                    "server_url": self.server_url,
+                    "site_content_url": self.site_content_url,
+                    "client_id": self.client_id,
+                },
+            )
             jwt_token = self._generate_jwt()
+            logger.debug("JWT token generated successfully")
             session = self._create_session()
+            logger.debug("HTTP session created")
             x_auth = await self._signin_with_jwt(session, jwt_token)
-            return x_auth is not None
-        except Exception:
+            if x_auth is not None:
+                logger.info("Tableau connection validated successfully")
+                return True
+            else:
+                logger.error(
+                    "Tableau authentication returned None token",
+                    extra={"server_url": self.server_url},
+                )
+                return False
+        except Exception as e:
+            logger.error(
+                "Tableau connection validation failed",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "server_url": self.server_url,
+                    "site_content_url": self.site_content_url,
+                },
+                exc_info=True,
+            )
             return False
 
     async def fetch_data(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -442,27 +470,59 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         return {"inserted": len(data_entries_response)}
 
     def _generate_jwt(self) -> str:
-        key = OctKey.import_key(self.secret_value)
-        header = {"alg": "HS256", "kid": self.secret_id}
+        logger.debug(
+            "Generating JWT token",
+            extra={
+                "client_id": self.client_id,
+                "username": self.settings.TABLEAU_USERNAME,
+                "secret_id": self.secret_id,
+            },
+        )
+        try:
+            key = OctKey.import_key(self.secret_value)
+            header = {"alg": "HS256", "kid": self.secret_id}
 
-        now_utc = datetime.now(timezone.utc)
-        exp_utc = now_utc + timedelta(minutes=5)
+            now_utc = datetime.now(timezone.utc)
+            exp_utc = now_utc + timedelta(minutes=5)
 
-        payload = {
-            "iss": self.client_id,
-            "sub": self.settings.TABLEAU_USERNAME,
-            "aud": "tableau",
-            "exp": exp_utc,
-            "iat": now_utc,
-            "jti": str(uuid.uuid4()),
-            "scp": ["tableau:viz_data_service:read"],
-        }
-        return JWT.encode(header, payload, key)
+            payload = {
+                "iss": self.client_id,
+                "sub": self.settings.TABLEAU_USERNAME,
+                "aud": "tableau",
+                "exp": exp_utc,
+                "iat": now_utc,
+                "jti": str(uuid.uuid4()),
+                "scp": ["tableau:viz_data_service:read"],
+            }
+            token = JWT.encode(header, payload, key)
+            logger.debug("JWT token encoded successfully")
+            return token
+        except Exception as e:
+            logger.error(
+                "JWT generation failed",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "client_id": self.client_id,
+                },
+                exc_info=True,
+            )
+            raise
 
     async def _signin_with_jwt(
         self, session: requests.Session, jwt_token: str
     ) -> Optional[str]:
         url = f"{self.server_url}/api/{self.min_api_version}/auth/signin"
+
+        logger.debug(
+            "Attempting Tableau sign-in",
+            extra={
+                "url": url,
+                "site_content_url": self.site_content_url,
+                "timeout": self.timeout,
+                "verify_ssl": self.verify_ssl,
+            },
+        )
 
         payload = {
             "credentials": {
@@ -471,28 +531,72 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             }
         }
 
-        response = await asyncio.to_thread(
-            session.post, url, json=payload, timeout=self.timeout
-        )
-
-        if response.status_code == HTTPStatus.OK:
-            return response.json()["credentials"]["token"]
-
-        # Log error details for debugging
         try:
-            error_body = response.text
-            logger.error(
-                f"Tableau sign-in failed status {response.status_code}: {error_body}"
+            response = await asyncio.to_thread(
+                session.post, url, json=payload, timeout=self.timeout
             )
-        except Exception as e:
-            logger.error(f"Tableau sign-in failed {response.status_code},  {str(e)}")
 
-        return None
+            logger.debug(
+                "Tableau sign-in response received",
+                extra={
+                    "status_code": response.status_code,
+                    "url": url,
+                },
+            )
+
+            if response.status_code == HTTPStatus.OK:
+                token = response.json()["credentials"]["token"]
+                logger.info("Tableau sign-in successful")
+                return token
+
+            # Log error details for debugging
+            try:
+                error_body = response.text
+                logger.error(
+                    "Tableau sign-in failed",
+                    extra={
+                        "status_code": response.status_code,
+                        "url": url,
+                        "error_body": error_body,
+                        "site_content_url": self.site_content_url,
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    "Tableau sign-in failed and error body parsing failed",
+                    extra={
+                        "status_code": response.status_code,
+                        "url": url,
+                        "parse_error": str(e),
+                    },
+                )
+
+            return None
+        except Exception as e:
+            logger.error(
+                "Tableau sign-in request failed",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "url": url,
+                    "server_url": self.server_url,
+                },
+                exc_info=True,
+            )
+            return None
 
     def _create_session(self) -> requests.Session:
+        logger.debug(
+            "Creating HTTP session",
+            extra={
+                "verify_ssl": self.verify_ssl,
+                "timeout": self.timeout,
+            },
+        )
         session = requests.Session()
         session.verify = self.verify_ssl
         session.headers.update({"Accept": "application/json"})
+        logger.debug("HTTP session created successfully")
         return session
 
     async def _vds_read_metadata(self, session: requests.Session, x_auth: str) -> Dict:
