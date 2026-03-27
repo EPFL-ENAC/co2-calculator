@@ -199,8 +199,8 @@ class DataEntryEmissionService:
                                         "id": emission_chosen_factor.id
                                         if emission_chosen_factor is not None
                                         else None,
-                                        "values": factor.values
-                                        if factor is not None
+                                        "values": emission_chosen_factor.values
+                                        if emission_chosen_factor is not None
                                         else None,
                                     }
                                 ],
