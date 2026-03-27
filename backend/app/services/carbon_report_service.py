@@ -5,9 +5,9 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import ModuleStatus
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import (
     CarbonReportCreate,
@@ -46,6 +46,10 @@ class CarbonReportService:
         if carbon_report is None:
             return None
         return CarbonReportRead.model_validate(carbon_report)
+
+    async def get_reporting_overview(self, args) -> list[CarbonReportRead]:
+        results = await self.repo.get_reporting_overview(*args)
+        return [CarbonReportRead.model_validate(cr) for cr in results]
 
     async def list_by_unit(self, unit_id: int) -> List[CarbonReportRead]:
         """List all carbon reports for a unit."""

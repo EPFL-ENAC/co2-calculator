@@ -1,10 +1,11 @@
 """Carbon report repository for database operations."""
 
-from typing import Optional
+from typing import List, Optional
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
@@ -47,6 +48,30 @@ class CarbonReportRepository:
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
+
+    async def get_reporting_overview(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        modules: Optional[List[str]] = None,  # complex TBD
+        years: Optional[List[int]] = None,  # Default to first year for overview for now
+        page: int = 1,
+        page_size: int = 50,
+    ) -> list[CarbonReport]:
+        """
+        Retrieves the aggregated reporting data using a Deferred Join strategy.
+        First paginates the Units, then calculates footprints ONLY for those 50 units.
+        """
+        statement = select(CarbonReport).where(
+            (col(CarbonReport.year).in_(years)) if years else True
+        )
+
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
 
     async def update(
         self, carbon_report_id: int, data: CarbonReportUpdate

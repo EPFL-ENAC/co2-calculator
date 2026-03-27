@@ -6,8 +6,9 @@ from typing import Any, List, Optional
 from sqlmodel import and_, case, col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule, ModuleStatus
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum

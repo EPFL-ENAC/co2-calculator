@@ -6,10 +6,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.carbon_report import CarbonReportModule, ModuleStatus
+from app.models.carbon_report import CarbonReportModule
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
