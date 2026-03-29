@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Select
+from sqlalchemy import Select, case, literal
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -356,19 +356,23 @@ class DataEntryEmissionRepository:
                  ``"purchase_institutional_description"``).
             top_n: Number of top items to show per subcategory (default 3).
         """
+        det_name_map = {det.value: det.name for det in data_entry_types}
         category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data[group_by_field].as_string()
 
-        query: Select[Any] = (
+        ranked = (
             select(
                 category_expr.label("category"),
-                class_expr.label("class_key"),
+                func.coalesce(class_expr, literal("unknown")).label("class_key"),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+                func.row_number()
+                .over(
+                    partition_by=category_expr,
+                    order_by=func.sum(col(DataEntryEmission.kg_co2eq)).desc(),
+                )
+                .label("rn"),
             )
-            .join(
-                DataEntry,
-                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
-            )
+            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
                 col(DataEntry.data_entry_type_id).in_(
@@ -378,56 +382,33 @@ class DataEntryEmissionRepository:
                 col(DataEntryEmission.kg_co2eq) > 0,
             )
             .group_by(category_expr, class_expr)
+            .cte("ranked")
         )
 
-        result = await self.session.execute(query)
-        rows = result.all()
+        bucketed_class = case(
+            (ranked.c.rn <= top_n, ranked.c.class_key),
+            else_=literal("rest"),
+        ).label("class_key")
 
-        # Build a reverse lookup: data_entry_type_id → name
-        det_name_map = {det.value: det.name for det in data_entry_types}
+        query: Select[Any] = select(
+            ranked.c.category.label("category"),
+            bucketed_class,
+            func.sum(ranked.c.kg_co2eq).label("kg_co2eq"),
+        ).group_by(ranked.c.category, bucketed_class)
 
-        # Group by category, aggregate by class
-        data_dict: Dict[str, Dict[str, float]] = {}
+        rows = (await self.session.execute(query)).all()
+
+        data_dict: Dict[int, Dict[str, Any]] = {}
         for row in rows:
-            category = det_name_map.get(row.category)
-            if category is None:
-                continue
-            class_key = row.class_key or "unknown"
-            kg_co2eq = float(row.kg_co2eq or 0.0)
-            if kg_co2eq <= 0:
-                continue
-
-            if category not in data_dict:
-                data_dict[category] = {}
-            data_dict[category][class_key] = (
-                data_dict[category].get(class_key, 0.0) + kg_co2eq
+            entry = data_dict.setdefault(
+                row.category,
+                {"name": det_name_map[row.category], "value": 0.0, "children": []},
             )
+            kg = float(row.kg_co2eq)
+            entry["children"].append({"name": row.class_key, "value": kg})
+            entry["value"] += kg
 
-        # Build result: top N classes + rest per category
-        result_list: List[Dict[str, Any]] = []
-        for category, classes in data_dict.items():
-            sorted_classes = sorted(classes.items(), key=lambda x: x[1], reverse=True)
-            top_classes = sorted_classes[:top_n]
-            rest_value = sum(v for _, v in sorted_classes[top_n:])
-
-            children: List[Dict[str, Any]] = [
-                {"name": class_key, "value": kg_co2eq}
-                for class_key, kg_co2eq in top_classes
-            ]
-            if rest_value > 0:
-                children.append({"name": "rest", "value": rest_value})
-
-            category_total = sum(c["value"] for c in children)
-            if category_total > 0:
-                result_list.append(
-                    {
-                        "name": category,
-                        "value": category_total,
-                        "children": children,
-                    }
-                )
-
-        return result_list
+        return list(data_dict.values())
 
     async def get_travel_evolution_over_time(
         self,

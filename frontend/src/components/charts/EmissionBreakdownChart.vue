@@ -8,6 +8,7 @@ import {
   MODULE_TO_CATEGORIES,
   CHART_CATEGORY_COLOR_SCALES,
 } from 'src/constant/charts';
+import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 import { MODULES } from 'src/constant/modules';
 import {
   buildModuleTreemapData,
@@ -126,6 +127,10 @@ const treemapData = computed<EmissionTreemapCategory[]>(() => {
   const rows = props.breakdownData.module_breakdown.map(toRow);
   return buildModuleTreemapData(rows, filteredKeys);
 });
+
+const emissionTypeInfoKey = computed(() =>
+  getEmissionTypeBreakdownInfoKey(activeTab.value),
+);
 </script>
 
 <template>
@@ -134,33 +139,55 @@ const treemapData = computed<EmissionTreemapCategory[]>(() => {
       <span class="text-h5 text-weight-medium">{{
         $t('results_treemap_title')
       }}</span>
-      <div class="chart-view-toggle">
+      <div class="flex items-center no-wrap q-gutter-xs">
         <q-btn
-          unelevated
+          v-if="emissionTypeInfoKey && chartView === 'type'"
+          flat
+          round
           dense
-          :style="
-            chartView === 'type'
-              ? { backgroundColor: activeColor, color: '#fff' }
-              : {}
-          "
-          :class="chartView !== 'type' ? 'toggle-inactive' : ''"
-          icon="stacked_bar_chart"
+          icon="info_outline"
           size="sm"
-          @click="chartView = 'type'"
-        />
-        <q-btn
-          unelevated
-          dense
-          :style="
-            chartView === 'breakdown'
-              ? { backgroundColor: activeColor, color: '#fff' }
-              : {}
-          "
-          :class="chartView !== 'breakdown' ? 'toggle-inactive' : ''"
-          icon="grid_view"
-          size="sm"
-          @click="chartView = 'breakdown'"
-        />
+          class="text-grey-7"
+          :aria-label="t('emission-type-breakdown-info-aria')"
+        >
+          <q-tooltip
+            anchor="bottom right"
+            self="top right"
+            :offset="[0, 8]"
+            max-width="320px"
+            class="text-body2"
+          >
+            {{ t(emissionTypeInfoKey) }}
+          </q-tooltip>
+        </q-btn>
+        <div class="chart-view-toggle">
+          <q-btn
+            unelevated
+            dense
+            :style="
+              chartView === 'type'
+                ? { backgroundColor: activeColor, color: '#fff' }
+                : {}
+            "
+            :class="chartView !== 'type' ? 'toggle-inactive' : ''"
+            icon="stacked_bar_chart"
+            size="sm"
+            @click="chartView = 'type'"
+          />
+          <q-btn
+            unelevated
+            dense
+            :style="
+              chartView === 'breakdown'
+                ? { backgroundColor: activeColor, color: '#fff' }
+                : {}
+            "
+            :class="chartView !== 'breakdown' ? 'toggle-inactive' : ''"
+            icon="grid_view"
+            size="sm"
+            @click="chartView = 'breakdown'"
+          />
+        </div>
       </div>
     </div>
 

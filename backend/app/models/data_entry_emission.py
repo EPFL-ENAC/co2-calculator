@@ -230,19 +230,18 @@ class EmissionType(int, Enum):
         except ValueError:
             return None
 
-
-def get_children(root: EmissionType) -> list[EmissionType]:
-    """Return direct enum children for a given emission type node."""
-    children: list[EmissionType] = []
-    for node in EmissionType:
-        if node.parent == root:
-            children.append(node)
-    return children
+    def children(self) -> list["EmissionType"]:
+        """Returns direct children (one level down)."""
+        results = []
+        for e in type(self):
+            if e.parent_value == self.value and e != self:
+                results.append(e)
+        return results
 
 
 def get_subtree_leaves(root: EmissionType) -> list[int]:
     """Get all leaf emission_type_id values under a given node (recursive)."""
-    kids = get_children(root)
+    kids = root.children()
     if not kids:
         return [root.value]
     result: list[int] = []
@@ -254,7 +253,7 @@ def get_subtree_leaves(root: EmissionType) -> list[int]:
 def get_all_nodes(root: EmissionType) -> list[EmissionType]:
     """Get all nodes (root + intermediates + leaves) under a given node."""
     result: list[EmissionType] = [root]
-    for child in get_children(root):
+    for child in root.children():
         result.extend(get_all_nodes(child))
     return result
 

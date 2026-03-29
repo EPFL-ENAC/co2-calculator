@@ -17,7 +17,27 @@
         <div class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black">
           {{ carbonFootprintTitle }}
         </div>
-        <div class="q-mb-sm">
+        <div class="flex items-center no-wrap q-gutter-xs q-mb-sm">
+          <q-btn
+            v-if="emissionTypeInfoKey && moduleChartView === 'type'"
+            flat
+            round
+            dense
+            icon="info_outline"
+            size="sm"
+            class="text-grey-7"
+            :aria-label="t('emission-type-breakdown-info-aria')"
+          >
+            <q-tooltip
+              anchor="bottom right"
+              self="top right"
+              :offset="[0, 8]"
+              max-width="320px"
+              class="text-body2"
+            >
+              {{ t(emissionTypeInfoKey) }}
+            </q-tooltip>
+          </q-btn>
           <div class="chart-view-toggle">
             <q-btn
               unelevated
@@ -93,6 +113,7 @@ import {
   CHART_CATEGORY_COLOR_SCALES,
   MODULE_TO_CATEGORIES,
 } from 'src/constant/charts';
+import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 
 const props = defineProps<{
   type: Module;
@@ -103,8 +124,12 @@ const { t, te } = useI18n();
 
 const moduleChartView = ref<'breakdown' | 'type'>('type');
 
+const emissionTypeInfoKey = computed(() =>
+  getEmissionTypeBreakdownInfoKey(props.type),
+);
+
 const carbonFootprintTitle = computed(() => {
-  const moduleKey = `carbon_footprint_title.${props.type}`;
+  const moduleKey = `carbon_footprint_title_${props.type}`;
   if (te(moduleKey)) return t(moduleKey);
   return t('carbon_footprint_title', { module: t(props.type) });
 });

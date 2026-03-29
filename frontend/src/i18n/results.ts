@@ -59,6 +59,34 @@ export default {
     en: 'Total {module} carbon footprint',
     fr: 'Empreinte carbone totale de {module}',
   },
+  results_total_module_carbon_footprint_purchase: {
+    en: 'Total purchases carbon footprint',
+    fr: 'Empreinte carbone totale des achats',
+  },
+  'results_total_module_carbon_footprint_equipment-electric-consumption': {
+    en: 'Total equipment use carbon footprint',
+    fr: "Empreinte carbone totale liée à l'utilisation des équipements",
+  },
+  'results_total_module_carbon_footprint_process-emissions': {
+    en: 'Total process emission carbon footprint',
+    fr: 'Empreinte carbone totale des émissions de procédés',
+  },
+  'results_total_module_carbon_footprint_professional-travel': {
+    en: 'Total professional travel carbon footprint',
+    fr: 'Empreinte carbone totale des voyages professionnels',
+  },
+  results_total_module_carbon_footprint_buildings: {
+    en: 'Buildings total carbon footprint',
+    fr: 'Empreinte carbone totale des bâtiments',
+  },
+  'results_total_module_carbon_footprint_external-cloud-and-ai': {
+    en: 'Total carbon footprint from the use of AI & external clouds',
+    fr: "Empreinte carbone totale liée à l'utilisation d'IA & des clouds externes",
+  },
+  'results_total_module_carbon_footprint_research-facilities': {
+    en: 'Total research facilities carbon footprint',
+    fr: 'Empreinte carbone totale des infrastructures de recherche',
+  },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE',
     fr: 'Empreinte carbone par ETP',
@@ -308,6 +336,26 @@ export default {
   'charts-external-cloud-category': {
     en: 'External Cloud',
     fr: 'Cloud externe',
+  },
+  'emission-type-breakdown-info-equipment': {
+    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  },
+  'emission-type-breakdown-info-buildings': {
+    en: 'The emissions considered here are those related to the energy used for heating, lighting, ventilation, and cooling in buildings.',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire pour le chauffage, l'éclairage, la ventilation et le froid dans les bâtiments.",
+  },
+  'emission-type-breakdown-info-external-cloud': {
+    en: 'Here, we visualize the emissions corresponding to the use of AI and external clouds. Other emissions related to IT services are present in other modules, such as IT equipment purchases in the Purchases module, electricity consumption in the Equipment module, and the use of internal clouds in the Research Facilities module.',
+    fr: "Ici, on visualise les émissions correspondantes à l'utilisation de l'IA et de clouds externes. D'autres émissions liées aux services informatiques sont présentes dans d'autres modules, comme les achats d'équipements informatiques dans le module Achats, la consommation d'électricité dans le module Équipement et l'utilisation de clouds internes dans le module Infrastructure de recherche.",
+  },
+  'emission-type-breakdown-info-research-facilities': {
+    en: 'If these research activities were performed independently by the unit, the emissions coming from them would be higher. Using shared research facilities helps to reduce overall EPFL emissions.',
+    fr: "Si ces activités de recherche étaient menées de manière indépendante par l'unité, les émissions qu'elles génèrent seraient plus élevées. L'utilisation mutualisée d'infrastructures de recherche contribue à réduire les émissions globales de l'EPFL.",
+  },
+  'emission-type-breakdown-info-aria': {
+    en: 'Additional information about this emission breakdown',
+    fr: 'Informations complémentaires sur cette répartition des émissions',
   },
   'charts-purchase-category': {
     en: 'Purchase',
