@@ -541,20 +541,14 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
 
 class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
     building_name: str
-    category: Optional[str] = None
-    ef_kgco2eq_per_m2: Optional[float] = None
 
 
 class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
     building_name: str
-    category: Optional[str] = None
-    ef_kgco2eq_per_m2: Optional[float] = None
 
 
 class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
-    category: Optional[str] = None
-    ef_kgco2eq_per_m2: Optional[float] = None
 
 
 class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
@@ -572,20 +566,16 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     sort_map = {
         "id": DataEntry.id,
         "building_name": Factor.classification["building_name"].as_string(),
-        "category": Factor.classification["category"].as_string(),
-        "ef_kgco2eq_per_m2": Factor.values["ef_kgco2eq_per_m2"].as_float(),
     }
 
     filter_map = {
         "building_name": Factor.classification["building_name"].as_string(),
-        "category": Factor.classification["category"].as_string(),
     }
 
     def to_response(
         self, data_entry: DataEntry
     ) -> BuildingEmbodiedEnergyHandlerResponse:
         primary_factor = data_entry.data.get("primary_factor", {})
-        factor_values = primary_factor.get("values", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
@@ -594,10 +584,6 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
                 **data_entry.data,
                 "building_name": primary_factor.get("kind")
                 or data_entry.data.get("building_name"),
-                "category": primary_factor.get("subkind")
-                or data_entry.data.get("category"),
-                "ef_kgco2eq_per_m2": factor_values.get("ef_kgco2eq_per_m2")
-                or data_entry.data.get("ef_kgco2eq_per_m2"),
             }
         )
 
