@@ -153,7 +153,7 @@ export default {
   },
   results_by_category_subtitle: {
     en: 'Annual Carbon Footprint {year}',
-    fr: 'Bilan CO2 Annuel {year}',
+    fr: 'Bilan CO₂ Annuel {year}',
   },
   results_equipment_distribution_title: {
     en: 'Equipment Distribution',
@@ -406,8 +406,8 @@ export default {
     fr: 'IA',
   },
   'charts-co2-subcategory': {
-    en: 'CO2',
-    fr: 'CO2',
+    en: 'CO₂',
+    fr: 'CO₂',
   },
   'charts-ch4-subcategory': {
     en: 'CH4',
