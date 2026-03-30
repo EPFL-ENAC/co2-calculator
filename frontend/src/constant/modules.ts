@@ -11,7 +11,7 @@ export const MODULES = {
   Commuting: 'commuting',
   Food: 'food',
   Waste: 'waste',
-  GreyEnergy: 'grey-energy',
+  EmbodiedEnergy: 'embodied-energy',
 } as const;
 
 export type BackendModule = keyof typeof MODULES;
@@ -176,7 +176,7 @@ type ChartOnlyProps = {
     | typeof MODULES.Commuting
     | typeof MODULES.Food
     | typeof MODULES.Waste
-    | typeof MODULES.GreyEnergy;
+    | typeof MODULES.EmbodiedEnergy;
   submoduleType?: AllSubmoduleTypes;
 };
 
@@ -276,7 +276,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Commuting]: 'commuting',
     [MODULES.Food]: 'food',
     [MODULES.Waste]: 'waste',
-    [MODULES.GreyEnergy]: 'grey_energy',
+    [MODULES.EmbodiedEnergy]: 'embodied_energy',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

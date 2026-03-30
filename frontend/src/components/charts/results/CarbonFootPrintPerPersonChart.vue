@@ -75,7 +75,7 @@ const EPFL_REFERENCE_VALUES: Record<string, number> = {
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
-  grey_energy: 0.0,
+  embodied_energy: 0.0,
 };
 
 const epflReferenceRow = computed<Record<string, unknown>>(() => {
@@ -155,12 +155,12 @@ const additionalSeriesData = computed(() => {
       },
     },
     {
-      name: t('charts-grey-energy-category'),
+      name: t('charts-embodied-energy-category'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'grey_energy',
+        y: 'embodied_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -402,7 +402,7 @@ const chartOption = computed((): EChartsOption => {
         'commuting',
         'food',
         'waste',
-        'grey_energy',
+        'embodied_energy',
         ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,

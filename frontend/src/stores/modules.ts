@@ -82,7 +82,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Commuting]: MODULE_STATES.Default,
     [MODULES.Food]: MODULE_STATES.Default,
     [MODULES.Waste]: MODULE_STATES.Default,
-    [MODULES.GreyEnergy]: MODULE_STATES.Default,
+    [MODULES.EmbodiedEnergy]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);

@@ -41,7 +41,7 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   commuting: 'charts-commuting-category',
   food: 'charts-food-category',
   waste: 'charts-waste-category',
-  grey_energy: 'charts-grey-energy-category',
+  embodied_energy: 'charts-embodied-energy-category',
 };
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
