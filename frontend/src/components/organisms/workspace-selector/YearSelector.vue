@@ -72,7 +72,7 @@ const columns = computed<QTableColumn[]>(() => [
           <span class="text-h6 text-weight-medium">{{ props.row.year }}</span>
         </q-td>
 
-        <!-- tCO2-eq -->
+        <!-- tCO₂-eq -->
         <q-td key="tco2eq" :props="props" class="text-center">
           <span class="text-weight-bold">{{ nOrDash(props.row.tco2eq) }}</span>
         </q-td>

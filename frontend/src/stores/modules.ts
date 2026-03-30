@@ -21,7 +21,7 @@ import { useRoute } from 'vue-router';
 /**
  * API response for validated totals endpoint.
  * `modules` maps module_type_id to its display value
- * (FTE for headcount, tonnes CO2eq for others).
+ * (FTE for headcount, tonnes CO₂eq for others).
  */
 interface ValidatedTotalsResponse {
   modules: Record<number, number>;

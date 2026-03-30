@@ -192,16 +192,16 @@ export default {
     fr: 'Empreinte carbone par unite',
   },
   backoffice_reporting_chart_unit_footprint_description: {
-    en: 'One bar per unit using aggregated total carbon footprint (tCO2-eq).',
-    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO2-eq).',
+    en: 'One bar per unit using aggregated total carbon footprint (tCO₂-eq).',
+    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO₂-eq).',
   },
   backoffice_reporting_chart_per_fte_title: {
     en: 'Carbon Footprint per FTE',
     fr: 'Empreinte carbone par EPT',
   },
   backoffice_reporting_chart_per_fte_description: {
-    en: 'Computed as total carbon footprint divided by total FTE (tCO2-eq/FTE).',
-    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO2-eq/EPT).',
+    en: 'Computed as total carbon footprint divided by total FTE (tCO₂-eq/FTE).',
+    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO₂-eq/EPT).',
   },
   backoffice_reporting_chart_no_data: {
     en: 'No data available for the current filters.',

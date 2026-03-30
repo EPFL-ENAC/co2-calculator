@@ -12,11 +12,11 @@ export interface ModuleTotalsResponse {
 }
 
 /**
- * Fetch total tCO2eq for modules.
+ * Fetch total tCO₂eq for modules.
  *
  * @param unitId - Unit ID
  * @param year - Year for the data
- * @returns Dictionary with `total` tCO2eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
+ * @returns Dictionary with `total` tCO₂eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
  */
 export async function getModuleTotals(
   unitId: number,

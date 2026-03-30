@@ -264,7 +264,7 @@ const chartOption = computed((): EChartsOption => {
   const seriesArray = [
     // Process Emissions — YY subcategories
     {
-      name: 'CO2',
+      name: 'CO₂',
       type: 'bar' as const,
       stack: 'total',
       animation: true,
