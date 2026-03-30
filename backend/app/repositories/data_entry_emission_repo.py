@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Select
+from sqlalchemy import Select, case, literal
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -334,6 +334,81 @@ class DataEntryEmissionRepository:
                 )
 
         return result_list
+
+    async def get_top_class_breakdown(
+        self,
+        carbon_report_module_id: int,
+        data_entry_types: List[DataEntryTypeEnum],
+        group_by_field: str,
+        top_n: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """Aggregate emissions by data entry type and a grouping field.
+
+        Generic method that works for any module. Groups emissions within each
+        subcategory (data_entry_type) by the specified JSON data field, returning
+        the top N items plus a "rest" bucket.
+
+        Args:
+            carbon_report_module_id: The carbon report module to query.
+            data_entry_types: Which data entry types to include.
+             group_by_field: The DataEntry.data JSON field to group by
+                 (e.g. ``"equipment_class"`` or
+                 ``"purchase_institutional_description"``).
+            top_n: Number of top items to show per subcategory (default 3).
+        """
+        det_name_map = {det.value: det.name for det in data_entry_types}
+        category_expr = col(DataEntry.data_entry_type_id)
+        class_expr = DataEntry.data[group_by_field].as_string()
+
+        ranked = (
+            select(
+                category_expr.label("category"),
+                func.coalesce(class_expr, literal("unknown")).label("class_key"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+                func.row_number()
+                .over(
+                    partition_by=category_expr,
+                    order_by=func.sum(col(DataEntryEmission.kg_co2eq)).desc(),
+                )
+                .label("rn"),
+            )
+            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
+            .where(
+                DataEntry.carbon_report_module_id == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id).in_(
+                    [det.value for det in data_entry_types]
+                ),
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.kg_co2eq) > 0,
+            )
+            .group_by(category_expr, class_expr)
+            .cte("ranked")
+        )
+
+        bucketed_class = case(
+            (ranked.c.rn <= top_n, ranked.c.class_key),
+            else_=literal("rest"),
+        ).label("class_key")
+
+        query: Select[Any] = select(
+            ranked.c.category.label("category"),
+            bucketed_class,
+            func.sum(ranked.c.kg_co2eq).label("kg_co2eq"),
+        ).group_by(ranked.c.category, bucketed_class)
+
+        rows = (await self.session.execute(query)).all()
+
+        data_dict: Dict[int, Dict[str, Any]] = {}
+        for row in rows:
+            entry = data_dict.setdefault(
+                row.category,
+                {"name": det_name_map[row.category], "value": 0.0, "children": []},
+            )
+            kg = float(row.kg_co2eq)
+            entry["children"].append({"name": row.class_key, "value": kg})
+            entry["value"] += kg
+
+        return list(data_dict.values())
 
     async def get_travel_evolution_over_time(
         self,

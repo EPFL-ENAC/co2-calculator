@@ -228,6 +228,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: Array<Record<string, unknown>>;
     loadingTravelEvolutionOverTime: boolean;
     errorTravelEvolutionOverTime: string | null;
+    topClassBreakdown: Array<Record<string, unknown>>;
+    loadingTopClassBreakdown: boolean;
+    errorTopClassBreakdown: string | null;
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
@@ -256,6 +259,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: [],
     loadingTravelEvolutionOverTime: false,
     errorTravelEvolutionOverTime: null,
+    topClassBreakdown: [],
+    loadingTopClassBreakdown: false,
+    errorTopClassBreakdown: null,
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
@@ -709,6 +715,30 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getTopClassBreakdown(
+    unit: number,
+    year: string,
+    moduleId: string,
+  ) {
+    state.loadingTopClassBreakdown = true;
+    state.errorTopClassBreakdown = null;
+    try {
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.topClassBreakdown = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorTopClassBreakdown = err.message ?? 'Unknown error';
+        state.topClassBreakdown = [];
+      } else {
+        state.errorTopClassBreakdown = 'Unknown error';
+        state.topClassBreakdown = [];
+      }
+    } finally {
+      state.loadingTopClassBreakdown = false;
+    }
+  }
+
   // Track which carbon report the cached emission breakdown belongs to
   const emissionBreakdownCarbonReportId = ref<number | null>(null);
   const emissionBreakdownInFlightReportId = ref<number | null>(null);
@@ -847,6 +877,7 @@ export const useModuleStore = defineStore('modules', () => {
     deleteItem,
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
+    getTopClassBreakdown,
     getValidatedTotals,
     invalidateValidatedTotals,
     getYearlyValidatedEmissions,

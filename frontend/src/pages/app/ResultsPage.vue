@@ -99,7 +99,13 @@ const getModuleResult = (module: string): ModuleResult | undefined => {
     (m) => m.module_type_id === typeId,
   );
 };
-const { t } = useI18n();
+const { t, te } = useI18n();
+
+function getTotalModuleCarbonFootprintTitle(module: Module): string {
+  const specificKey = `results_total_module_carbon_footprint_${module}`;
+  if (te(specificKey)) return t(specificKey);
+  return t('results_total_module_carbon_footprint', { module: t(module) });
+}
 
 const viewUncertainties = ref(false);
 const compareYears = ref(false);
@@ -363,9 +369,7 @@ const getUncertainty = (
                   <q-card flat class="grid-3-col q-mb-lg">
                     <BigNumber
                       :title="
-                        $t('results_total_module_carbon_footprint', {
-                          module: $t(module),
-                        })
+                        getTotalModuleCarbonFootprintTitle(module as Module)
                       "
                       :number="
                         getModuleConfig(module).totalFormatter(

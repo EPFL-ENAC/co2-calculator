@@ -327,6 +327,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       cooling: colors.value.lilac.default,
       ventilation: colors.value.lilac.light,
       heating_elec: colors.value.lilac.lighter,
+      heating_thermal: colors.value.lilac.lighter,
       office: colors.value.lilac.darker,
       laboratories: colors.value.lilac.dark,
       archives: colors.value.lilac.default,

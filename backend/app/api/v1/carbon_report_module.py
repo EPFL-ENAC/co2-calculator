@@ -19,7 +19,10 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.module_type import ModuleTypeEnum
+from app.models.module_type import (
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.user import User
 from app.modules.headcount.schemas import (
     HeadcountItemResponse,
@@ -225,6 +228,59 @@ async def get_stats_by_class(
 
     stats = await DataEntryEmissionService(db).get_travel_stats_by_class(
         carbon_report_module_id=carbon_report_module_id,
+    )
+    return stats
+
+
+# Configuration for the generic top-class breakdown endpoint.
+# Maps module type → JSON data field to group by.
+_MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
+    ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
+    ModuleTypeEnum.purchase: "purchase_institutional_description",
+}
+
+
+@router.get(
+    "/{unit_id}/{year}/{module_id}/top-class-breakdown",
+)
+async def get_top_class_breakdown(
+    unit_id: int,
+    year: int,
+    module_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> List:
+    """Get emissions aggregated by subcategory with top 3 items per subcategory.
+
+    Returns a list per subcategory, each containing the top 3 items (by
+    emission) and a "rest" bucket. Works for any module configured in
+    ``_MODULE_TOP_CLASS_GROUP_FIELD``.
+    """
+    await _check_module_permission(current_user, module_id, "view")
+
+    module_key = module_id.replace("-", "_")
+    module_type = ModuleTypeEnum[module_key]
+
+    group_field = _MODULE_TOP_CLASS_GROUP_FIELD.get(module_type)
+    if group_field is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Top-class breakdown not supported for module '{module_id}'",
+        )
+
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=module_type,
+        db=db,
+    )
+
+    data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+    stats = await DataEntryEmissionService(db).get_top_class_breakdown(
+        carbon_report_module_id=carbon_report_module_id,
+        data_entry_types=data_entry_types,
+        group_by_field=group_field,
     )
     return stats
 
