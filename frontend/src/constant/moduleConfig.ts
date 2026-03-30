@@ -56,6 +56,7 @@ export interface ModuleField {
   max?: number;
   step?: number;
   default?: string | number | boolean;
+  defaultFrom?: 'total_fte';
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
   appendFromFieldId?: string;
@@ -107,7 +108,6 @@ export interface Submodule {
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
   hasTablePagination?: boolean;
-  hasStudentHelper?: boolean;
   hasFormTooltip?: boolean | string;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;

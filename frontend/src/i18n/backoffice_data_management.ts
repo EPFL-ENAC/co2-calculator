@@ -1,4 +1,20 @@
 export default {
+  backoffice_data_management_title: {
+    en: 'Data Management',
+    fr: 'Gestion des données',
+  },
+  'backoffice-data-management-description': {
+    en: 'Manage and configure data imports, emission factors, and module settings for CO₂ calculations.',
+    fr: "Gérer et configurer les importations de données, les facteurs d'émission et les paramètres des modules pour les calculs de CO₂.",
+  },
+  DATA_ENTRIES: {
+    en: 'Data Entries',
+    fr: 'Saisies de données',
+  },
+  FACTORS: {
+    en: 'Factors',
+    fr: 'Facteurs',
+  },
   threshold_fixed_title: {
     en: 'Fixed Threshold',
     fr: 'Seuil fixe',
@@ -141,78 +157,6 @@ export default {
     en: 'Coming soon',
     fr: 'Bientôt disponible',
   },
-  data_management_row_headcount_members: {
-    en: 'Headcount Members',
-    fr: 'Effectifs Membres',
-  },
-  data_management_row_headcount_students: {
-    en: 'Headcount Students',
-    fr: 'Effectifs Étudiants',
-  },
-  data_management_row_travel_train: {
-    en: 'Professional Travel Train',
-    fr: 'Voyages professionnels Train',
-  },
-  data_management_row_travel_plane: {
-    en: 'Professional Travel Plane',
-    fr: 'Voyages professionnels Avion',
-  },
-  data_management_row_buildings_rooms: {
-    en: 'Buildings Rooms',
-    fr: 'Bâtiments Salles',
-  },
-  data_management_row_buildings_energy_combustion: {
-    en: 'Buildings Energy Combustion',
-    fr: 'Bâtiments Énergie Combustion',
-  },
-  data_management_row_process_emissions: {
-    en: 'Process Emissions',
-    fr: 'Émissions de processus',
-  },
-  data_management_row_equipment: {
-    en: 'Equipment',
-    fr: 'Équipements',
-  },
-  data_management_row_purchases_common: {
-    en: 'Purchases Common',
-    fr: 'Achats communs',
-  },
-  data_management_row_purchases_additional: {
-    en: 'Purchases Additional',
-    fr: 'Achats supplémentaires',
-  },
-  data_management_row_research_facilities: {
-    en: 'Research Facilities',
-    fr: 'Installations de recherche',
-  },
-  data_management_row_research_facilities_animal: {
-    en: 'Research Facilities Animal',
-    fr: 'Installations de recherche Animal',
-  },
-  data_management_row_external_clouds: {
-    en: 'External Clouds',
-    fr: 'Clouds externes',
-  },
-  data_management_row_external_ai: {
-    en: 'External AI',
-    fr: 'IA externe',
-  },
-  data_management_row_food: {
-    en: 'Food',
-    fr: 'Alimentation',
-  },
-  data_management_row_waste: {
-    en: 'Waste',
-    fr: 'Déchets',
-  },
-  data_management_row_commuting: {
-    en: 'Commuting',
-    fr: 'Pendulaire',
-  },
-  data_management_row_grey_energy: {
-    en: 'Grey Energy',
-    fr: 'Énergie grise',
-  },
   data_management_other_train_stations: {
     en: 'Locations train-station',
     fr: 'Localisations gare',
@@ -228,5 +172,134 @@ export default {
   data_management_upload_reference: {
     en: 'Upload Reference',
     fr: 'Téléverser référence',
+  },
+  // Data entry dialog
+  data_management_add_data: {
+    en: 'Add Data',
+    fr: 'Ajouter des données',
+  },
+  data_management_reupload_data: {
+    en: 'ReUpload Data',
+    fr: 'Re-téléverser des données',
+  },
+  data_management_add_factors: {
+    en: 'Add Factors',
+    fr: 'Ajouter des facteurs',
+  },
+  data_management_reupload_factors: {
+    en: 'ReUpload Factors',
+    fr: 'Re-téléverser des facteurs',
+  },
+  data_management_import_title: {
+    en: 'Import {type}',
+    fr: 'Importer {type}',
+  },
+  data_management_tab_upload_csv: {
+    en: 'Upload CSV',
+    fr: 'Téléverser CSV',
+  },
+  data_management_tab_connect_api: {
+    en: 'Connect API',
+    fr: 'Connecter API',
+  },
+  data_management_tab_copy_previous: {
+    en: 'Copy from Previous Year',
+    fr: "Copier de l'année précédente",
+  },
+  data_management_api_server_url: {
+    en: 'Server URL',
+    fr: 'URL du serveur',
+  },
+  data_management_api_client_id: {
+    en: 'Client ID',
+    fr: 'ID client',
+  },
+  data_management_api_secret_id: {
+    en: 'Secret ID',
+    fr: 'ID du secret',
+  },
+  data_management_api_secret_value: {
+    en: 'Secret Value',
+    fr: 'Valeur du secret',
+  },
+  data_management_api_test_connection: {
+    en: 'Test Connection',
+    fr: 'Tester la connexion',
+  },
+  data_management_api_connect_and_sync: {
+    en: 'Connect & Sync',
+    fr: 'Connecter et synchroniser',
+  },
+  data_management_copy_from_year: {
+    en: 'Copy from {year}',
+    fr: 'Copier de {year}',
+  },
+  data_management_select_import: {
+    en: 'Select import to copy',
+    fr: "Sélectionner l'import à copier",
+  },
+  data_management_copy_start: {
+    en: 'Start Copy',
+    fr: 'Démarrer la copie',
+  },
+  data_management_no_previous_jobs: {
+    en: 'No successful imports from previous year',
+    fr: "Aucune importation réussie de l'année précédente",
+  },
+  data_management_connection_success: {
+    en: 'Connection successful',
+    fr: 'Connexion réussie',
+  },
+  data_management_connection_failed: {
+    en: 'Connection failed',
+    fr: 'Connexion échouée',
+  },
+  data_management_copy_failed: {
+    en: 'Failed to copy from previous year',
+    fr: "Échec de la copie de l'année précédente",
+  },
+  data_management_last_import_date: {
+    en: 'Last import',
+    fr: 'Dernier import',
+  },
+  data_management_rows_imported: {
+    en: 'rows imported',
+    fr: 'lignes importées',
+  },
+  data_management_download_last_csv: {
+    en: 'Download last CSV',
+    fr: 'Télécharger le dernier CSV',
+  },
+  data_management_sync_units_from_accred: {
+    en: 'Sync Units from Accred',
+    fr: 'Synchroniser les unités depuis Accred',
+  },
+  data_management_unit_sync_started: {
+    en: 'Unit sync started',
+    fr: 'Synchronisation des unités démarrée',
+  },
+  data_management_unit_sync_started_caption: {
+    en: 'This may take a few minutes...',
+    fr: 'Cela peut prendre quelques minutes...',
+  },
+  data_management_unit_sync_success: {
+    en: 'Units synced successfully!',
+    fr: 'Unités synchronisées avec succès !',
+  },
+  data_management_unit_sync_success_caption: {
+    en: 'All units and principal users have been updated',
+    fr: 'Toutes les unités et utilisateurs principaux ont été mis à jour',
+  },
+  data_management_unit_sync_error: {
+    en: 'Unit sync failed',
+    fr: 'La synchronisation des unités a échoué',
+  },
+  data_management_unit_sync_error_caption: {
+    en: 'Please try again later',
+    fr: 'Veuillez réessayer plus tard',
+  },
+  data_management_last_upload_overwrite: {
+    en: 'The last uploaded data will be overwritten',
+    fr: 'Les dernières données téléversées seront écrasées',
   },
 } as const;

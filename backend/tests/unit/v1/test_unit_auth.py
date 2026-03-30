@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import app.api.v1.auth as auth_module
 from app.api.v1.auth import router as auth_router
 from app.main import app
+from app.models.user import UserProvider
 
 app.include_router(auth_router, prefix="/api/v1/auth")
 
@@ -212,11 +213,25 @@ async def test_refresh_token_logs_audit_event(monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "decode_jwt",
-        MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 42}),
+        MagicMock(
+            return_value={
+                "type": "refresh",
+                "sub": "1",
+                "institutional_id": "123456",
+                "provider": UserProvider.TEST,
+            }
+        ),
     )
-    mock_user = MagicMock(id=42, email="test@example.com", institutional_id="123456")
+    mock_user = MagicMock(
+        id=42,
+        email="test@example.com",
+        institutional_id="123456",
+        provider=UserProvider.TEST,
+    )
     monkeypatch.setattr(
-        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
+        auth_module.UserService,
+        "get_by_institutional_id_and_provider",
+        AsyncMock(return_value=mock_user),
     )
     log_mock = AsyncMock()
     monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)

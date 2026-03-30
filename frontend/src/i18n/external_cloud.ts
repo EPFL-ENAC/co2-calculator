@@ -40,11 +40,18 @@ export default {
     en: 'External Cloud ({count}) | External Clouds ({count})',
     fr: 'Cloud Externe ({count}) | Clouds Externes ({count})',
   },
-
+  [`${MODULES.ExternalCloudAndAI}.cloud-services`]: {
+    en: 'External Cloud | External Clouds',
+    fr: 'Cloud Externe | Clouds Externes',
+  },
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {
     en: 'External AI ({count}) | External AI ({count})',
     fr: 'IA externe ({count}) | IA externes ({count})',
+  },
+  [`${MODULES.ExternalCloudAndAI}.ai-services`]: {
+    en: 'External AI | External AI',
+    fr: 'IA externe | IA externes',
   },
   // CLOUD SUBMODULE
   [`${MODULES.ExternalCloudAndAI}.inputs.service_type`]: {
@@ -60,8 +67,16 @@ export default {
     fr: 'Région',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.spent_amount`]: {
-    en: 'Spending (€)',
-    fr: 'Dépenses (€)',
+    en: 'Spending',
+    fr: 'Dépenses',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.currency-hint`]: {
+    en: 'Default is EUR.',
+    fr: 'EUR par défaut.',
+  },
+  [`${MODULES.ExternalCloudAndAI}.inputs.currency`]: {
+    en: 'Currency',
+    fr: 'Devise',
   },
   // Co2eq is the same in both languages is using common key
   // AI SUBMODULE
@@ -90,7 +105,7 @@ export default {
     fr: '>100 fois/jour',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
-    en: 'Number of users',
-    fr: "Nombre d'utilisateurs",
+    en: 'Number of users (fte)',
+    fr: "Nombre d'utilisateurs (EPT)",
   },
 } as const;

@@ -71,6 +71,28 @@ class DataEntryRepository:
         await self.session.execute(statement)
         await self.session.flush()
 
+    async def bulk_delete_by_source(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type_id: DataEntryTypeEnum,
+        source: int,  # DataEntrySourceEnum value
+    ) -> None:
+        """
+        Bulk delete data entries by module, type, and source.
+
+        Args:
+            carbon_report_module_id: The module to delete from
+            data_entry_type_id: The data entry type to delete
+            source: Only delete entries from this source (e.g., CSV_MODULE_PER_YEAR)
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id.value,
+            col(DataEntry.source) == source,
+        )
+        await self.session.execute(statement)
+        await self.session.flush()
+
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
     ) -> Optional[DataEntry]:
@@ -350,6 +372,9 @@ class DataEntryRepository:
         )
 
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+        handler_default = getattr(handler, "default_where", [])
+        if handler_default:
+            statement = statement.where(*handler_default)
         statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
 
         sort_map = dict(
@@ -366,6 +391,8 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
+        if handler_default:
+            count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
             # Get filter map from handler, default to filtering by name
             filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
@@ -491,6 +518,7 @@ class DataEntryRepository:
         carbon_report_module_id,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
+        data_entry_type_id: Optional[int] = None,
     ) -> Dict[str, Optional[float]]:
         """Aggregate DataEntry data by submodule or function.
                 SELECT
@@ -523,6 +551,8 @@ class DataEntryRepository:
             )
             .group_by(group_field)
         )
+        if data_entry_type_id is not None:
+            query = query.where(DataEntry.data_entry_type_id == data_entry_type_id)
 
         result = await self.session.execute(
             query
@@ -622,9 +652,7 @@ class DataEntryRepository:
         for data in rows:
             uid = data.get("user_institutional_id")
             if uid:
-                members.append(
-                    {"institutional_id": int(uid), "name": data.get("name", "")}
-                )
+                members.append({"institutional_id": uid, "name": data.get("name", "")})
         return members
 
     async def get_member_by_institutional_id(

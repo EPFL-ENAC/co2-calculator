@@ -35,14 +35,27 @@ interface YearlyValidatedEmission {
 }
 
 export interface EmissionBreakdownResponse {
-  module_breakdown: Array<Record<string, unknown>>;
-  module_breakdown_parents?: Record<string, Record<string, string>>;
-  module_treemap?: Array<Record<string, unknown>>;
-  additional_breakdown: Array<Record<string, unknown>>;
+  module_breakdown: EmissionBreakdownCategoryRow[];
+  additional_breakdown: EmissionBreakdownCategoryRow[];
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
+  headcount_validated: boolean;
   total_tonnes_co2eq: number;
   total_fte: number;
+}
+
+export interface EmissionBreakdownValue {
+  emission_type: string;
+  key: string;
+  value: number;
+  parent_key?: string;
+}
+
+export interface EmissionBreakdownCategoryRow {
+  category: string;
+  category_key: string;
+  emissions: EmissionBreakdownValue[];
+  [key: string]: unknown;
 }
 
 /**
@@ -215,6 +228,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: Array<Record<string, unknown>>;
     loadingTravelEvolutionOverTime: boolean;
     errorTravelEvolutionOverTime: string | null;
+    topClassBreakdown: Array<Record<string, unknown>>;
+    loadingTopClassBreakdown: boolean;
+    errorTopClassBreakdown: string | null;
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
@@ -243,6 +259,9 @@ export const useModuleStore = defineStore('modules', () => {
     travelEvolutionOverTime: [],
     loadingTravelEvolutionOverTime: false,
     errorTravelEvolutionOverTime: null,
+    topClassBreakdown: [],
+    loadingTopClassBreakdown: false,
+    errorTopClassBreakdown: null,
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
@@ -426,6 +445,7 @@ export const useModuleStore = defineStore('modules', () => {
   async function getSubmoduleTaxonomy(
     moduleType: Module,
     submoduleType: string,
+    year: string,
   ) {
     state.loading = true;
     state.error = null;
@@ -433,7 +453,7 @@ export const useModuleStore = defineStore('modules', () => {
     try {
       const taxonomy = (await api
         .get(
-          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}`,
+          `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
         )
         .json()) as TaxonomyNode;
       state.taxonomySubmodule[submoduleType] = taxonomy;
@@ -695,6 +715,30 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getTopClassBreakdown(
+    unit: number,
+    year: string,
+    moduleId: string,
+  ) {
+    state.loadingTopClassBreakdown = true;
+    state.errorTopClassBreakdown = null;
+    try {
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.topClassBreakdown = data;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        state.errorTopClassBreakdown = err.message ?? 'Unknown error';
+        state.topClassBreakdown = [];
+      } else {
+        state.errorTopClassBreakdown = 'Unknown error';
+        state.topClassBreakdown = [];
+      }
+    } finally {
+      state.loadingTopClassBreakdown = false;
+    }
+  }
+
   // Track which carbon report the cached emission breakdown belongs to
   const emissionBreakdownCarbonReportId = ref<number | null>(null);
   const emissionBreakdownInFlightReportId = ref<number | null>(null);
@@ -833,6 +877,7 @@ export const useModuleStore = defineStore('modules', () => {
     deleteItem,
     getTravelStatsByClass,
     getTravelEvolutionOverTime,
+    getTopClassBreakdown,
     getValidatedTotals,
     invalidateValidatedTotals,
     getYearlyValidatedEmissions,

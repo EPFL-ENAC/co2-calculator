@@ -30,25 +30,9 @@ class ModuleTypeEnum(IntEnum):
     research_facilities = 6
     external_cloud_and_ai = 7
     process_emissions = 8
-    # Chart-only bars (headcount-derived, not real input modules)
-    commuting = 9
-    food = 10
-    waste = 11
-    grey_energy = 12
-
-    global_energy = 99
 
 
-_CHART_ONLY_MODULE_TYPES = {
-    ModuleTypeEnum.commuting,
-    ModuleTypeEnum.food,
-    ModuleTypeEnum.waste,
-    ModuleTypeEnum.grey_energy,
-}
-
-ALL_MODULE_TYPE_IDS = [
-    mt for mt in ModuleTypeEnum if mt not in _CHART_ONLY_MODULE_TYPES
-]
+ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
 
 
 # corresponding data_entry_type enum for each module type
@@ -88,6 +72,10 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.additional_purchases,
     ],
+    ModuleTypeEnum.research_facilities: [
+        DataEntryTypeEnum.research_facilities,
+        DataEntryTypeEnum.mice_and_fish_animal_facilities,
+    ],
     # Add more if needed for other modules
 }
 
@@ -100,10 +88,12 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
-        EmissionType.grey_energy,
     ],
     ModuleTypeEnum.professional_travel: [EmissionType.professional_travel],
-    ModuleTypeEnum.buildings: [EmissionType.buildings],
+    ModuleTypeEnum.buildings: [
+        EmissionType.buildings,
+        EmissionType.buildings__embodied_energy,
+    ],
     ModuleTypeEnum.equipment_electric_consumption: [EmissionType.equipment],
     ModuleTypeEnum.purchase: [EmissionType.purchases],
     ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],

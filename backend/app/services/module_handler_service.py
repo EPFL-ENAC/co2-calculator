@@ -113,6 +113,7 @@ class ModuleHandlerService:
         self,
         handler: "ModuleHandler",
         data_entry_type: DataEntryTypeEnum,
+        year: int,
     ) -> TaxonomyNode:
         """Build taxonomy tree from factors for the given handler.
 
@@ -122,9 +123,12 @@ class ModuleHandlerService:
         Args:
             handler: The module handler providing field config
             data_entry_type: The data entry type to build taxonomy for
+            year: The year for which to retrieve factors
         """
 
-        factors = await self.factor_service.list_by_data_entry_type(data_entry_type)
+        factors = await self.factor_service.list_by_data_entry_type(
+            data_entry_type, year
+        )
         children: list[TaxonomyNode] = []
 
         for factor in factors:

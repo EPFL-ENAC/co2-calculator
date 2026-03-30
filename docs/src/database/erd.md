@@ -42,16 +42,22 @@ erDiagram
     INTEGER status "indexed"
   }
   carbon_reports {
+    VARCHAR completion_progress
     INTEGER id PK
+    INTEGER last_updated
+    INTEGER overall_status
+    JSON stats
     INTEGER unit_id FK
     INTEGER year
   }
   data_entries {
     INTEGER carbon_report_module_id FK
     DATETIME created_at
+    INTEGER created_by_id "indexed"
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
+    INTEGER source "indexed"
     VARCHAR status
     DATETIME updated_at
   }
@@ -59,34 +65,34 @@ erDiagram
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
     INTEGER emission_type_id "indexed"
-    VARCHAR formula_version
     INTEGER id PK
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
-    INTEGER scope
   }
   data_ingestion_jobs {
-    INTEGER data_entry_type_id
+    INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
     INTEGER id PK
-    VARCHAR ingestion_method
+    VARCHAR ingestion_method "indexed"
+    BOOLEAN is_current
     JSON meta
-    INTEGER module_type_id
+    INTEGER module_type_id "indexed"
     VARCHAR provider
-    VARCHAR status
+    VARCHAR result
+    VARCHAR state
     VARCHAR status_message
-    VARCHAR target_type
-    INTEGER year
+    VARCHAR target_type "indexed"
+    INTEGER year "indexed"
   }
   factors {
     JSON classification
     INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id "indexed"
     INTEGER id PK
-    BOOLEAN is_conversion "indexed"
     JSON values
+    INTEGER year "indexed"
   }
   locations {
     VARCHAR airport_size

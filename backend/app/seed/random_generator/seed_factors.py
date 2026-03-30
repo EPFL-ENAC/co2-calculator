@@ -76,12 +76,11 @@ async def create_factors(session: AsyncSession):
                 )
                 factors.append(factor)
 
-    # Create headcount factors (food, waste, transport, grey_energy)
+    # Create headcount factors (food, waste, transport)
     headcount_types = [
         (EmissionType.food, "kg_co2eq_per_fte", "Food consumption"),
         (EmissionType.waste, "kg_co2eq_per_fte", "Waste generation"),
         (EmissionType.commuting, "kg_co2eq_per_fte", "Commuting emissions"),
-        (EmissionType.grey_energy, "kg_co2eq_per_fte", "Grey energy consumption"),
     ]
 
     for emission_type, value_key, description in headcount_types:

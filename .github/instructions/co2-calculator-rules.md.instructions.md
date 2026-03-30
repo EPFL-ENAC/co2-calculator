@@ -43,6 +43,8 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - Favor readability over clever abstractions.
 - Add short comments only where intent is non-obvious.
 - Keep naming aligned with domain language (room type, factor, module, category, etc.).
+- Avoid introducing new patterns/styles in the same file; follow existing local conventions.
+- Do not use inline imports in Python. They are considered bad code smell, reduce readability, and can hide circular dependencies. Always import at the top of the file.
 
 # FORMATTING RULES
 
@@ -58,6 +60,7 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Tooling**: Use `uv` for dependency management and environment execution. All common tasks (lint, test, run) must be executed via `Makefile` commands.
 - **Ruff**: line-length=88, indent=4, select=["E","F","I"], double quotes, fix=true, exclude migrations.
 - **Mypy**: strict mode — all public functions must have full type annotations. No `Any` unless unavoidable. `warn_unused_ignores=true`.
+- **Alembic**: Use for all database schema changes. No direct SQL schema edits. Keep migrations focused and reversible. Only use `revision` and `upgrade` commands; avoid manual edits to migration files unless necessary for complex operations: INDEX ARE CODE FIRST, alembic second.
 - **SQLAlchemy**: Always wrap column references in `col()` (e.g., `col(Model.field) == value`) to satisfy Mypy `ColumnElement` types.
 - **Docstrings**: Google-style docstrings mandatory for all public functions/classes.
 - **Structure**: Imports: stdlib → third-party → local (alphabetical). Functions ≤40 lines, single responsibility, ≤2 levels nesting.
@@ -67,6 +70,8 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Derived values**: Avoid storing derived or redundant values in entries when they can be resolved from factors/lookups.
 - **Fallback categories**: Avoid ambiguous fallback categories (for example "misc") unless explicitly required by product rules.
 - **Legacy logic**: Remove legacy logic when replacement is validated (do not keep dead dual paths).
+- **No backward compatibility**: Do not maintain backward compatibility for deprecated columns, APIs, or patterns. When introducing new approaches, remove old ones immediately.
+  UNLESS explicitly required for a migration path, in which case clearly document the migration steps and timelines.
 - **Source of truth**: Backend is the single source of truth for data manipulation and business transformations.
 - **Factor resolution**: Keep factor resolution logic centralized to avoid divergence across modules.
 - **Silent fallbacks**: Avoid silent fallbacks that hide data issues; surface missing mappings/factors clearly.
@@ -79,6 +84,8 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Script**: `<script setup lang="ts">` only. Composition API mandatory (No Options API).
 - **Style**: Prettier (singleQuote=true, semi=true). ESLint (vue/flat/recommended + vueTsConfigs.recommended).
 - **Types**: `defineProps`/`defineEmits` with explicit interface types; no implicit `any`.
+- **Error Handling**: Never use `any` for catch error parameters. Use `unknown` and narrow with `instanceof Error` or type guards.
+- **Unused Variables**: Remove unused imports and variables (e.g., unused Quasar `$q` injection).
 - **Logic**: No business logic in templates; extract to Composables (`useX`). Keep business calculations in composables/store logic, not in presentational chart components.
 - **Composables**: Prefer module/domain-specific composables instead of overloading unrelated shared composables.
 - **Legacy logic**: Remove legacy logic when replacement is validated (do not keep dead dual paths).

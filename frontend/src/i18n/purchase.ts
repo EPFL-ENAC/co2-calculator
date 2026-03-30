@@ -5,6 +5,10 @@ export default {
     en: 'Purchases',
     fr: 'Achats',
   },
+  [`${MODULES.Purchase}-common`]: {
+    en: 'Common Purchase | Common Purchases',
+    fr: 'Achat Communs | Achats Communs',
+  },
   [`${MODULES.Purchase}-description`]: {
     en: 'Review annual purchase data and its carbon footprint.',
     fr: "Vérifiez vos données d'achats annuelles et leur empreintes carbones.",
@@ -41,9 +45,13 @@ export default {
     en: 'Total Spent Amount',
     fr: 'Montant total dépensé',
   },
-  [`${MODULES.Purchase}.inputs.total_spent_amount-hint`]: {
-    en: 'Amounts should be entered in CHF.',
-    fr: 'Les montants sont à saisir en CHF.',
+  [`${MODULES.Purchase}.inputs.currency`]: {
+    en: 'Currency',
+    fr: 'Devise',
+  },
+  [`${MODULES.Purchase}.inputs.currency-hint`]: {
+    en: 'Default is CHF.',
+    fr: 'CHF par défaut.',
   },
   [`${MODULES.Purchase}.inputs.annual_consumption`]: {
     en: 'Annual Consumption',
@@ -59,8 +67,8 @@ export default {
   },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
     {
-      en: 'Scientific Equipments',
-      fr: 'Équipements scientifiques',
+      en: 'Scientific Equipments ({count})',
+      fr: 'Équipements scientifiques ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-form-title`]:
     {
@@ -74,8 +82,8 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
     {
-      en: 'IT Equipments',
-      fr: 'Équipements informatiques',
+      en: 'IT Equipments ({count})',
+      fr: 'Équipements informatiques ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-form-title`]:
     {
@@ -84,8 +92,8 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title`]:
     {
-      en: 'Consumables & Accessories',
-      fr: 'Consommables et accessoires',
+      en: 'Consumables & Accessories ({count})',
+      fr: 'Consommables et accessoires ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-form-title`]:
     {
@@ -94,8 +102,8 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-table-title`]:
     {
-      en: 'Biological, Chemical & Gaseous Products',
-      fr: 'Produits biologiques chimiques et gazeux',
+      en: 'Biological, Chemical & Gaseous Products ({count})',
+      fr: 'Produits biologiques chimiques et gazeux ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-form-title`]:
     {
@@ -104,8 +112,8 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-table-title`]:
     {
-      en: 'Services',
-      fr: 'Services',
+      en: 'Services ({count})',
+      fr: 'Services ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-form-title`]:
     {
@@ -114,8 +122,8 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-table-title`]:
     {
-      en: 'Vehicles',
-      fr: 'Véhicules',
+      en: 'Vehicles ({count})',
+      fr: 'Véhicules ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-form-title`]:
     {
@@ -124,18 +132,22 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-table-title`]:
     {
-      en: 'Other Purchases',
-      fr: 'Autres achats',
+      en: 'Other Purchases ({count})',
+      fr: 'Autres achats ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-form-title`]:
     {
       en: 'Add Other Purchase',
       fr: 'Ajouter un autre achat',
     },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]: {
+    en: 'Additional Purchase | Additional Purchases',
+    fr: 'Achat supplémentaire | Achats supplémentaires',
+  },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
     {
-      en: 'Additional Purchases',
-      fr: 'Achats supplémentaires',
+      en: 'Additional Purchases ({count})',
+      fr: 'Achats supplémentaires ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title-info-tooltip`]:
     {

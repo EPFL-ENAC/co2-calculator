@@ -56,12 +56,12 @@
           :module-type="moduleType"
           :item="item"
           :has-subtitle="submodule.hasFormSubtitle"
-          :has-student-helper="submodule.hasStudentHelper"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
           :has-tooltip="submodule.hasFormTooltip"
           :unit-id="unitId"
           :year="year"
+          :form-defaults="formDefaults"
           @submit="submitForm"
         />
       </div>
@@ -84,7 +84,7 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
@@ -97,7 +97,7 @@ import type {
   EnumSubmoduleType,
 } from 'src/constant/modules';
 import { enumSubmodule } from 'src/constant/modules';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 interface Option {
   label: string;
@@ -105,6 +105,34 @@ interface Option {
 }
 type FieldValue = string | number | boolean | null | Option;
 const moduleStore = useModuleStore();
+const timelineStore = useTimelineStore();
+
+onMounted(() => {
+  const needsFte = props.submodule.moduleFields?.some(
+    (f) => f.defaultFrom === 'total_fte',
+  );
+  const carbonReportId = timelineStore.currentCarbonReportId;
+  if (
+    needsFte &&
+    carbonReportId &&
+    carbonReportId !== moduleStore.validatedTotalsCarbonReportId
+  ) {
+    moduleStore.getValidatedTotals(carbonReportId);
+  }
+});
+
+const formDefaults = computed<Record<string, unknown> | undefined>(() => {
+  const validatedTotals = moduleStore.state.validatedTotals;
+  if (!validatedTotals) return undefined;
+
+  const defaults: Record<string, unknown> = {};
+  for (const field of props.submodule.moduleFields ?? []) {
+    if (field.defaultFrom === 'total_fte') {
+      defaults[field.id] = Math.round(validatedTotals.total_fte);
+    }
+  }
+  return Object.keys(defaults).length > 0 ? defaults : undefined;
+});
 
 type CommonProps = {
   submodule: ConfigSubmodule;
@@ -151,7 +179,7 @@ const item = computed(() => {
   }
   return null;
 });
-const { te } = useI18n();
+const { te, t } = useI18n();
 
 const hasModuleForm = computed(() => {
   return (
@@ -192,13 +220,17 @@ async function submitForm(payload: Record<string, FieldValue>) {
         payload,
       );
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : 'Unexpected error';
       // Replace generic "user institutional id" in server error messages with
       // the institution-specific label (SCIPER for EPFL).
-      formRef.value?.setFieldError(
-        'user_institutional_id',
-        raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL),
-      );
+      const raw = err instanceof Error ? err.message : 'Unexpected error';
+      const message =
+        raw === 'DUPLICATE_INSTITUTIONAL_ID'
+          ? t('headcount-member-error-duplicate-uid', {
+              label: INSTITUTIONAL_ID_LABEL,
+            })
+          : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
+
+      formRef.value?.setFieldError('user_institutional_id', message);
     }
   }
 }

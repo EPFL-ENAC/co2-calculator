@@ -4,6 +4,8 @@ The CO2 Calculator uses permission-based access control. Permissions
 are calculated dynamically from user roles on every request. They are
 never stored in the database.
 
+CF https://github.com/EPFL-ENAC/co2-calculator/issues/414
+
 ## How It Works
 
 The backend calculates permissions during `/auth/me` response
@@ -23,16 +25,23 @@ Permissions use flat dot-notation keys:
 
 ```json
 {
+  "backoffice.reporting": {
+    "view": true,
+    "export": true
+  },
   "backoffice.users": {
     "view": true,
-    "edit": false,
-    "export": false
+    "edit": true
   },
-  "backoffice.files": {
-    "view": false
+  "backoffice.data_management": {
+    "view": true,
+    "edit": true,
+    "export": true,
+    "sync": true
   },
-  "backoffice.access": {
-    "view": false
+  "backoffice.documentation": {
+    "view": true,
+    "edit": true
   },
   "system.users": {
     "edit": false
@@ -50,7 +59,7 @@ Permissions use flat dot-notation keys:
     "edit": false,
     "export": false
   },
-  "modules.infrastructure": {
+  "modules.buildings": {
     "view": true,
     "edit": false
   },
@@ -58,24 +67,30 @@ Permissions use flat dot-notation keys:
     "view": true,
     "edit": false
   },
-  "modules.internal_services": {
+  "modules.research_facilities": {
     "view": true,
     "edit": false
   },
-  "modules.external_cloud": {
+  "modules.external_cloud_and_ai": {
     "view": true,
     "edit": false
   },
-  "modules.surface": {
+  "modules.process_emissions": {
     "view": true,
     "edit": false
   }
 }
 ```
 
-Three independent domains exist:
+Four independent backoffice areas exist:
 
-- `backoffice.*` - Administrative features
+- `backoffice.reporting` - View reports and generate exports
+- `backoffice.users` - User management (view users, assign roles)
+- `backoffice.data_management` - Data operations (CSV upload/download, sync)
+- `backoffice.documentation` - View/edit documentation
+
+Two additional domains:
+
 - `modules.*` - CO2 calculation modules
 - `system.*` - System routes (reserved)
 
@@ -83,12 +98,36 @@ Domains are independent. Backoffice roles do not grant module access.
 
 ## Role Mapping
 
-| Role                    | Scope  | Permissions                                                                  |
-| ----------------------- | ------ | ---------------------------------------------------------------------------- |
-| `co2.superadmin`        | Global | `backoffice.users`: view, edit, export; `system.users`: edit                 |
-| `co2.backoffice.metier` | Global | `backoffice.users`: view, edit, export (reporting and data access)           |
-| `co2.user.principal`    | Unit   | `modules.*`: view, edit (all modules); `backoffice.users`: edit (unit scope) |
-| `co2.user.std`          | Unit   | `modules.professional_travel`: view, edit (own trips only, no other modules) |
+| Role                    | Scope  | Permissions                                                                                |
+| ----------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| `co2.superadmin`        | Global | All backoffice.\* (reporting, users, data_management, documentation); `system.users`: edit |
+| `co2.backoffice.metier` | Global | All backoffice.\* (reporting, users, data_management, documentation)                       |
+| `co2.user.principal`    | Unit   | `modules.*`: view, edit (all modules); `backoffice.users`: edit (unit scope)               |
+| `co2.user.std`          | Unit   | `modules.professional_travel`: view, edit (own trips only, no other modules)               |
+
+### Backoffice Permissions Detail
+
+**`backoffice.reporting`** (view, export)
+
+- View carbon reports and statistics
+- Generate and download reports
+
+**`backoffice.users`** (view, edit)
+
+- View user list and roles
+- Assign roles to unit members (principals only, unit-scoped)
+
+**`backoffice.data_management`** (view, edit, export, sync)
+
+- View data management interface
+- Upload/download CSV files
+- Trigger data synchronization (API/CSV imports)
+- Export data entries
+
+**`backoffice.documentation`** (view, edit)
+
+- View documentation links
+- Edit documentation (future feature)
 
 Permissions from different domains combine when a user has multiple
 roles.
@@ -103,15 +142,19 @@ The `/auth/me` endpoint returns:
   "email": "user@epfl.ch",
   "roles": [...],
   "permissions": {
-    "backoffice.users": {"view": false, "edit": false, "export": false},
+    "backoffice.reporting": {"view": true, "export": true},
+    "backoffice.users": {"view": true, "edit": true},
+    "backoffice.data_management": {"view": true, "edit": true, "export": true, "sync": true},
+    "backoffice.documentation": {"view": true, "edit": true},
     "system.users": {"edit": false},
     "modules.headcount": {"view": true, "edit": true},
     "modules.equipment": {"view": true, "edit": true},
     "modules.professional_travel": {"view": true, "edit": true},
-    "modules.infrastructure": {"view": true, "edit": true},
+    "modules.buildings": {"view": true, "edit": true},
     "modules.purchase": {"view": true, "edit": true},
-    "modules.internal_services": {"view": true, "edit": true},
-    "modules.external_cloud": {"view": true, "edit": true}
+    "modules.research_facilities": {"view": true, "edit": true},
+    "modules.external_cloud_and_ai": {"view": true, "edit": true},
+    "modules.process_emissions": {"view": true, "edit": true}
   }
 }
 ```

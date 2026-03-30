@@ -150,6 +150,8 @@
               :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
+              emit-value
+              map-options
               outlined
               :title="col.hint ? $t(col.hint) : undefined"
               :min="col.min"
@@ -347,11 +349,15 @@ import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import {
+  useBackofficeDataManagement,
+  TargetType,
+} from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import { getTemplateFileName } from 'src/constant/templateMapping';
+import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import type {
   Module,
   ConditionalSubmoduleProps,
@@ -402,7 +408,7 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const dataManagementStore = useBackofficeDataManagement();
 
-const headcountMembersMap = ref<Map<number, string>>(new Map());
+const headcountMembersMap = ref<Map<string, string>>(new Map());
 
 const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
@@ -467,9 +473,20 @@ const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
   const rowErrors = payload?.meta?.row_errors ?? [];
   if (rowErrors.length === 0) return undefined;
   const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
-  const lines = rowErrors
-    .slice(0, MAX_DISPLAYED_ROW_ERRORS)
-    .map((e) => $t('csv_sync_row_error', { row: e.row, reason: e.reason }));
+  const lines = rowErrors.slice(0, MAX_DISPLAYED_ROW_ERRORS).map((e) => {
+    let reason = e.reason;
+
+    // Special handling for headcount duplicate institutional ID error to provide a more user-friendly message
+    if (reason === 'DUPLICATE_INSTITUTIONAL_ID') {
+      reason = $t('headcount-member-error-duplicate-uid', {
+        label:
+          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
+            ? INSTITUTIONAL_ID_LABEL
+            : '',
+      });
+    }
+    return $t('csv_sync_row_error', { row: e.row, reason });
+  });
   if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
     lines.push(
       $t('csv_sync_and_more_errors', {
@@ -506,7 +523,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
       provider_type: 'csv',
-      target_type: 'data_entries',
+      target_type: TargetType.DATA_ENTRIES,
       file_path: filePath,
       carbon_report_module_id: carbonReportModuleId,
       config: {
@@ -879,9 +896,11 @@ function renderCell(
 ) {
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
   if (col.field === 'traveler_name') {
-    const uid = row['user_institutional_id'] as number | undefined;
-    if (uid != null) {
-      return headcountMembersMap.value.get(uid) ?? '-';
+    const user_institutional_id = row['user_institutional_id'] as
+      | string
+      | undefined;
+    if (user_institutional_id != null) {
+      return headcountMembersMap.value.get(user_institutional_id) ?? '-';
     }
     return '-';
   }
@@ -1056,11 +1075,16 @@ async function commitInline(
       },
     );
   } catch (err) {
-    setError(
-      row,
-      col,
-      err instanceof Error ? err.message : $t('validation_save_failed'),
-    );
+    let msg = err instanceof Error ? err.message : $t('validation_save_failed');
+    if (msg === 'DUPLICATE_INSTITUTIONAL_ID') {
+      msg = $t('headcount-member-error-duplicate-uid', {
+        label:
+          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
+            ? INSTITUTIONAL_ID_LABEL
+            : '',
+      });
+    }
+    setError(row, col, msg);
   }
 }
 
@@ -1128,6 +1152,12 @@ function isCompleteEquipement(row: ModuleRow) {
   return hasRequiredValues(row, required);
 }
 
+function isCompleteResearchFacilities(row: ModuleRow) {
+  const required = ['researchfacility_name', 'use', 'use_unit'];
+
+  return hasRequiredValues(row, required);
+}
+
 function isCompleteHeadcount(row: ModuleRow) {
   const requiredMember = ['name', 'fte', 'function'];
   const requiredStudent = ['fte'];
@@ -1187,6 +1217,9 @@ function isComplete(row: ModuleRow) {
   }
   if (props.moduleType === MODULES.EquipmentElectricConsumption) {
     return isCompleteEquipement(row);
+  }
+  if (props.moduleType === MODULES.ResearchFacilities) {
+    return isCompleteResearchFacilities(row);
   }
   if (
     props.moduleType === MODULES.ExternalCloudAndAI &&
@@ -1418,7 +1451,11 @@ watch(
           unit: props.unitId,
           year: String(props.year),
         });
-        moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
+        moduleStore.getSubmoduleTaxonomy(
+          props.moduleType,
+          props.submoduleType,
+          String(props.year),
+        );
       }
     }
   },
@@ -1442,7 +1479,11 @@ onMounted(async () => {
       unit: props.unitId,
       year: String(props.year),
     });
-    moduleStore.getSubmoduleTaxonomy(props.moduleType, props.submoduleType);
+    moduleStore.getSubmoduleTaxonomy(
+      props.moduleType,
+      props.submoduleType,
+      String(props.year),
+    );
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names in the table

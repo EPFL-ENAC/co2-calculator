@@ -9,7 +9,6 @@
 # EmissionType.food                      → EmissionType.food                    (kept)
 # EmissionType.waste                     → EmissionType.waste                   (kept)
 # EmissionType.commuting                 → EmissionType.commuting               (kept)
-# EmissionType.grey_energy               → EmissionType.grey_energy             (kept)
 # EmissionType.plane                     → (removed — use resolve_emission_types)
 # EmissionType.train                     → (removed — use resolve_emission_types)
 # EmissionType.stockage                  → EmissionType.external__clouds__stockage
@@ -31,8 +30,9 @@
 # from EmissionType.path
 
 
+# Define HeatingEnergyType locally (legacy compatibility)
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType, HeatingEnergyType
+from app.models.data_entry_emission import EmissionType
 
 # =============================================================================
 # DATA_ENTRY_TYPE → EMISSION_TYPE mapping  (1-to-many)
@@ -46,8 +46,8 @@ from app.models.data_entry_emission import EmissionType, HeatingEnergyType
 FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
-    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
-    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    # commuting). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed.
     DataEntryTypeEnum.building: [EmissionType.buildings__rooms],
     # --- Professional Travel — one factor per haul/country, not per cabin -----
     DataEntryTypeEnum.plane: [EmissionType.professional_travel__plane],
@@ -57,34 +57,27 @@ FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
 DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,
-    # commuting, grey_energy). kg_co2eq per row comes from each factor's own
-    # formula; no splitting needed. Grey_energy rows will be added once factors exist.
+    # commuting). kg_co2eq per row comes from each factor's own
+    # formula; no splitting needed.
     DataEntryTypeEnum.member: [
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
-        EmissionType.grey_energy,
     ],
     DataEntryTypeEnum.student: [
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
-        EmissionType.grey_energy,
     ],
     # --- Professional Travel — resolved at runtime (cabin_class key) ----------
     DataEntryTypeEnum.plane: None,  # → _resolve_plane()
     DataEntryTypeEnum.train: None,  # → _resolve_train()
-    # --- Buildings (one data_entry produces one row per sub-emission) ---------
-    DataEntryTypeEnum.building: [
-        EmissionType.buildings__rooms__lighting,
-        EmissionType.buildings__rooms__cooling,
-        EmissionType.buildings__rooms__ventilation,
-        EmissionType.buildings__rooms__heating_elec,
-        EmissionType.buildings__rooms__heating_thermal,
-    ],
-    DataEntryTypeEnum.energy_combustion: [
-        EmissionType.buildings__combustion
-    ],  # scope 1
+    # --- Buildings (resolved at runtime for room-type granularity) ---------
+    DataEntryTypeEnum.building: None,  # → _resolve_building_rooms()
+    DataEntryTypeEnum.energy_combustion: None,  # → _resolve_combustion()
+    DataEntryTypeEnum.building_embodied_energy: [
+        EmissionType.buildings__embodied_energy
+    ],  # embodied energy for buildings, scope 3
     # --- Process Emissions — resolved at runtime (emitted_gas key) ------------
     DataEntryTypeEnum.process_emissions: None,  # → _resolve_process_emissions()
     # --- Equipment -----------------------------------------------------------
@@ -105,7 +98,7 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.services: [EmissionType.purchases__services],
     DataEntryTypeEnum.vehicles: [EmissionType.purchases__vehicles],
     DataEntryTypeEnum.other_purchases: [EmissionType.purchases__other],
-    DataEntryTypeEnum.additional_purchases: [EmissionType.purchases__additional],
+    DataEntryTypeEnum.additional_purchases: None,
     # --- Research Facilities -------------------------------------------------
     DataEntryTypeEnum.research_facilities: [
         EmissionType.research_facilities__facilities
@@ -194,34 +187,94 @@ def _resolve_ai(data: dict) -> list[EmissionType] | None:
     return [et] if et else [EmissionType.external__ai__provider_others]
 
 
+_VALID_ROOM_TYPES: frozenset[str] = frozenset(
+    {
+        "office",
+        "laboratories",
+        "archives",
+        "libraries",
+        "auditoriums",
+        "miscellaneous",
+    }
+)
+
+_ENERGY_TYPES: list[str] = [
+    "lighting",
+    "cooling",
+    "ventilation",
+    "heating_elec",
+    "heating_thermal",
+]
+
+
+def _resolve_building_rooms(
+    data: dict,
+) -> list[EmissionType] | None:
+    """Resolve building data entry to room-type-specific emission types.
+
+    If room_type is set, returns 8-digit WW-level types (one per energy).
+    Otherwise falls back to 6-digit ZZ-level types.
+    """
+    room_type = (data.get("room_type") or "").lower()
+    if room_type in _VALID_ROOM_TYPES:
+        result = []
+        for energy in _ENERGY_TYPES:
+            name = f"buildings__rooms__{energy}__{room_type}"
+            try:
+                result.append(EmissionType[name])
+            except KeyError:
+                # fallback to parent energy type
+                result.append(EmissionType[f"buildings__rooms__{energy}"])
+        return result
+
+    # No room_type — use generic ZZ-level types
+    return [
+        EmissionType.buildings__rooms__lighting,
+        EmissionType.buildings__rooms__cooling,
+        EmissionType.buildings__rooms__ventilation,
+        EmissionType.buildings__rooms__heating_elec,
+        EmissionType.buildings__rooms__heating_thermal,
+    ]
+
+
+_COMBUSTION_FUEL_MAP: dict[str, EmissionType] = {
+    "natural_gas": EmissionType.buildings__combustion__natural_gas,
+    "heating_oil": EmissionType.buildings__combustion__heating_oil,
+    "biomethane": EmissionType.buildings__combustion__biomethane,
+    "pellets": EmissionType.buildings__combustion__pellets,
+    "forest_chips": EmissionType.buildings__combustion__forest_chips,
+    "wood_logs": EmissionType.buildings__combustion__wood_logs,
+}
+
+
+def _resolve_combustion(data: dict) -> list[EmissionType] | None:
+    name = (data.get("name") or "").lower().replace(" ", "_")
+    et = _COMBUSTION_FUEL_MAP.get(name)
+    if et:
+        return [et]
+    # fallback to generic combustion for unknown fuel types
+    return [EmissionType.buildings__combustion]
+
+
+_ADDITIONAL_PURCHASES_MAP: dict[str, EmissionType] = {
+    "ln2": EmissionType.purchases__additional__ln2,
+}
+
+
+def _resolve_additional_purchases(
+    data: dict,
+) -> list[EmissionType] | None:
+    name = (data.get("name") or "").lower().replace(" ", "_")
+    et = _ADDITIONAL_PURCHASES_MAP.get(name)
+    if et:
+        return [et]
+    return [EmissionType.purchases__additional]
+
+
 def _resolve_process_emissions(data: dict) -> list[EmissionType] | None:
     gas = data.get("category", (data.get("kind", "") or "")).lower()
     et = _PROCESS_GAS_MAP.get(gas)
     return [et] if et else None  # None = unknown gas, caller should warn + skip
-
-
-# not sure about that logic
-# for building factors, we have multiple emission types per factor (heating_elec..)
-# like headcount
-def _resolve_building(data: dict) -> list[EmissionType] | None:
-    category = (data.get("category") or "").lower()
-    energy_type = (data.get("energy_type") or "").lower()
-    if category == "heating":
-        if energy_type == HeatingEnergyType.elec.value:
-            return [EmissionType.buildings__rooms__heating_elec]
-        elif energy_type == HeatingEnergyType.thermal.value:
-            # never happend in seed data, but if energy type is thermal
-            # (e.g. district heating), we want to use the correct factor,
-            # not the electric one
-            return [EmissionType.buildings__rooms__heating_thermal]
-    if category == "cooling":
-        return [EmissionType.buildings__rooms__cooling]
-    if category == "ventilation":
-        return [EmissionType.buildings__rooms__ventilation]
-    if category == "lighting":
-        return [EmissionType.buildings__rooms__lighting]
-
-    return None  # unknown category or energy type
 
 
 def _resolve_headcount_factor(data: dict) -> list[EmissionType] | None:
@@ -262,11 +315,9 @@ def _resolve_headcount_factor(data: dict) -> list[EmissionType] | None:
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
-    # no, it won't since we call the public API below!
-    # building resolver is for factor only
-    # it works because static as priority,
-    # so it will be used for emission rows but not for factor loading
-    DataEntryTypeEnum.building: _resolve_building,
+    DataEntryTypeEnum.building: _resolve_building_rooms,
+    DataEntryTypeEnum.energy_combustion: _resolve_combustion,
+    DataEntryTypeEnum.additional_purchases: _resolve_additional_purchases,
     DataEntryTypeEnum.external_ai: _resolve_ai,
     DataEntryTypeEnum.external_clouds: _resolve_clouds,
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,

@@ -55,9 +55,24 @@ const cloudFields: ModuleField[] = [
     editableInline: true,
     min: 0,
     step: 0.01,
-    ratio: '1/1',
+    ratio: '3/4',
     hideIn: { form: false },
     sortable: true,
+  },
+  {
+    id: 'currency',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.currency`,
+    hint: `${MODULES.ExternalCloudAndAI}.inputs.currency-hint`,
+    type: 'select',
+    ratio: '1/4',
+    editableInline: true,
+    hideIn: { form: false },
+    sortable: true,
+    options: [
+      { value: 'eur', label: 'EUR' },
+      { value: 'chf', label: 'CHF' },
+      { value: 'usd', label: 'USD' },
+    ],
   },
   {
     id: 'kg_co2eq',
@@ -114,6 +129,7 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    defaultFrom: 'total_fte',
   },
   {
     id: 'requests_per_user_per_day',

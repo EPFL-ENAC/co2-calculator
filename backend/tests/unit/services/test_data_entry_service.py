@@ -468,7 +468,7 @@ async def test_get_submodule_data(db_session: AsyncSession):
     module = CarbonReportModule(
         carbon_report_id=1,
         module_type_id=ModuleTypeEnum.professional_travel.value,
-        status="in_progress",
+        status=2,
     )
     db_session.add(module)
     await db_session.flush()
@@ -480,7 +480,7 @@ async def test_get_submodule_data(db_session: AsyncSession):
             data_entry_type_id=DataEntryTypeEnum.plane,
             status=DataEntryStatusEnum.PENDING,
             data={
-                "user_institutional_id": 100000 + i,
+                "user_institutional_id": str(100000 + i),
                 "origin_iata": "JFK",
                 "destination_iata": "ZRH",
                 "number_of_trips": 1,

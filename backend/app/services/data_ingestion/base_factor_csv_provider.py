@@ -9,7 +9,8 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     EntityType,
     IngestionMethod,
-    IngestionStatus,
+    IngestionResult,
+    IngestionState,
     TargetType,
 )
 from app.models.factor import Factor
@@ -17,6 +18,7 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.factor import BaseFactorHandler
+from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
     _validate_file_path,
@@ -33,6 +35,7 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
+    factors_deleted: int
 
 
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
@@ -138,19 +141,21 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         try:
             await self._update_job(
                 status_message="processing",
-                status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Starting CSV processing..."},
             )
             result = await self.process_csv_in_batches()
             return {
-                "status_code": IngestionStatus.COMPLETED,
+                "state": IngestionState.FINISHED,
                 "status_message": "Success",
                 "data": result,
             }
         except Exception as e:
             await self._update_job(
                 status_message=f"failed: {str(e)}",
-                status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             logger.error(f"CSV ingestion failed: {str(e)}")
@@ -167,8 +172,37 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 "batches_processed": 0,
                 "row_errors": [],
                 "row_errors_count": 0,
+                "factors_deleted": 0,
             }
             factor_service = FactorService(self.data_session)
+            listed_entry_types = setup_result.get("valid_entry_types", [])
+            # Delete existing factors for this data_entry_type and year
+            # This ensures idempotent uploads - no duplicates
+            data_entry_type_to_iterates = []
+            if self.data_entry_type_id is not None:
+                data_entry_type_to_iterates.append(
+                    DataEntryTypeEnum(int(self.data_entry_type_id))
+                )
+            else:
+                data_entry_type_to_iterates.extend(listed_entry_types)
+            stats["factors_deleted"] = 0
+            if len(data_entry_type_to_iterates) > 0 and self.year:
+                for data_entry_type in data_entry_type_to_iterates:
+                    existing_count = (
+                        await factor_service.count_by_data_entry_type_and_year(
+                            data_entry_type_id=int(data_entry_type.value),
+                            year=self.year,
+                        )
+                    )
+                    logger.info(
+                        f"Deleting {existing_count} existing factors for "
+                        f"data_entry_type_id={data_entry_type.value}, year={self.year}"
+                    )
+                    await factor_service.bulk_delete_by_data_entry_type(
+                        data_entry_type_id=data_entry_type,
+                        year=self.year,
+                    )
+                    stats["factors_deleted"] += existing_count
 
             batch: List[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
@@ -205,7 +239,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                             repo=self.repo,
                             job_id=self.job_id,
                             status_message=f"Processing: {stats['rows_processed']}",
-                            status_code=IngestionStatus.IN_PROGRESS,
+                            state=IngestionState.RUNNING,
+                            result=None,
                             metadata=dict(stats),
                         )
                         await self.data_session.flush()
@@ -221,7 +256,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     repo=self.repo,
                     job_id=self.job_id,
                     status_message=f"Processing failed: {str(e)}",
-                    status_code=IngestionStatus.FAILED,
+                    state=IngestionState.FINISHED,
+                    result=IngestionResult.ERROR,
                     metadata={"error": str(e)},
                 )
             raise
@@ -234,7 +270,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 repo=self.repo,
                 job_id=self.job_id,
                 status_message="Starting CSV processing",
-                status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 metadata={},
             )
         await self.data_session.flush()
@@ -330,42 +367,69 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         factor_service: FactorService,
     ) -> tuple[Factor | None, str | None]:
         try:
-            expected_columns = setup_result["expected_columns"]
-            valid_entry_types = setup_result["valid_entry_types"]
-
-            filtered_row = {
-                k: v
-                for k, v in row.items()
-                if k in expected_columns and v is not None and str(v).strip() != ""
-            }
-
+            # Resolve data_entry_type first
             data_entry_type = self._resolve_data_entry_type(
-                row, valid_entry_types, row_idx, stats, max_row_errors
+                row, setup_result, row_idx, stats, max_row_errors
             )
             if data_entry_type is None:
                 return None, "Missing data_entry_type"
 
             handler = BaseFactorHandler.get_by_type(data_entry_type)
-            payload: Dict[str, Any] = dict(filtered_row)
-            payload["data_entry_type_id"] = data_entry_type.value
+
+            # Build classification with explicit None for missing fields
+            # (like seed_generic_factors.py - don't rely on validated DTO)
+            classification: Dict[str, Any] = {}
+            for field_name in handler.classification_fields:
+                value = row.get(field_name)
+                classification[field_name] = (
+                    value.strip() if value and value.strip() else None
+                )
+
+            # Build values with type conversion, filtering empty values
+            values: Dict[str, Any] = {}
+            for field_name in handler.value_fields:
+                value = row.get(field_name)
+                if value and str(value).strip():
+                    converted = self._convert_value(value)
+                    values[field_name] = converted
+
+            # Resolve emission_type_id using external function
+            try:
+                emission_type_id = get_factor_emission_type_id(
+                    data_entry_type, classification
+                )
+            except Exception as e:
+                error_msg = f"Emission type resolution failed: {e}"
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg
+
+            # Validate the payload (ensures data types are correct)
+            # but use our manually built classification/values dicts
+            validation_payload: Dict[str, Any] = {
+                **classification,
+                **values,
+                "data_entry_type_id": data_entry_type.value,
+                "emission_type_id": emission_type_id,
+            }
 
             try:
-                validated = handler.validate_create(payload)
+                handler.validate_create(validation_payload)
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg
 
-            classification = dict(validated.classification)
+            # Add year to classification if specified
             if self.year is not None:
                 classification["year"] = self.year
 
+            # Create factor using prepare_create (like seed_generic_factors.py)
             factor = await factor_service.prepare_create(
-                emission_type_id=validated.emission_type_id,
-                is_conversion=validated.is_conversion,
-                data_entry_type_id=validated.data_entry_type_id,
+                emission_type_id=emission_type_id,
+                data_entry_type_id=data_entry_type.value,
                 classification=classification,
-                values=validated.values,
+                values=values,
+                year=self.year,
             )
             return factor, None
         except Exception as row_error:
@@ -377,38 +441,44 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
     def _resolve_data_entry_type(
         self,
         row: Dict[str, str],
-        valid_entry_types: list[DataEntryTypeEnum],
+        setup_result: Dict[str, Any],
         row_idx: int,
         stats: FactorStatsDict,
         max_row_errors: int,
     ) -> DataEntryTypeEnum | None:
+        """
+        Resolve data_entry_type with priority:
+        1. Configured data_entry_type_id
+        2. Handler's category_field (e.g., equipment_category)
+        """
         configured = self.data_entry_type_id
         if configured is not None:
             return DataEntryTypeEnum(int(configured))
 
-        raw_type_id = row.get("data_entry_type_id")
-        raw_type_name = row.get("data_entry_type")
+        # Try to resolve from handler's category_field
+        # Get handlers from setup_result
+        handlers = setup_result.get("handlers", [])
+        # because for purchases or other types we might have multiple handlers,
+        # we need to check each one for its category field and see if
+        # it matches the CSV row
 
-        if raw_type_id:
-            try:
-                return DataEntryTypeEnum(int(raw_type_id))
-            except (ValueError, KeyError):
-                error_msg = f"Invalid data_entry_type_id: {raw_type_id}"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None
-
-        if raw_type_name:
-            try:
-                return DataEntryTypeEnum[str(raw_type_name).strip().lower()]
-            except KeyError:
-                error_msg = f"Invalid data_entry_type: {raw_type_name}"
-                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None
-
-        if len(valid_entry_types) == 1:
-            return valid_entry_types[0]
-
-        error_msg = "Missing data_entry_type in CSV"
+        for handler in handlers:
+            if not hasattr(handler, "category_field"):
+                continue
+            category_field = getattr(handler, "category_field", None)
+            if category_field and category_field in row:
+                category_value = row.get(category_field, "").strip()
+                if category_value:
+                    try:
+                        return DataEntryTypeEnum[category_value.lower()]
+                    except KeyError:
+                        error_msg = f"Invalid {category_field}: {category_value}"
+                        self._record_row_error(
+                            stats, row_idx, error_msg, max_row_errors
+                        )
+                        return None
+        # If we can't resolve, record error
+        error_msg = "Missing data_entry_type_id in config or category field in CSV"
         self._record_row_error(stats, row_idx, error_msg, max_row_errors)
         return None
 
@@ -419,6 +489,32 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
     ) -> None:
         await factor_service.bulk_create(batch)
         logger.info(f"Created {len(batch)} factors in batch")
+
+    def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
+        """
+        Compute ingestion result based on success rate.
+
+        Rules:
+        - SUCCESS: rows_skipped == 0 (100% processed)
+        - WARNING: rows_skipped > 0 and rows_processed > 0 (partial success)
+        - ERROR: rows_processed == 0 (nothing processed)
+
+        Args:
+            stats: Statistics dict with rows_processed and rows_skipped
+
+        Returns:
+            IngestionResult enum value
+        """
+        rows_processed = stats["rows_processed"]
+        rows_skipped = stats["rows_skipped"]
+
+        if rows_processed == 0:
+            return IngestionResult.ERROR  # Nothing processed at all
+
+        if rows_skipped == 0:
+            return IngestionResult.SUCCESS  # 100% success
+
+        return IngestionResult.WARNING  # Partial success (some skipped)
 
     async def _finalize_and_commit(
         self,
@@ -441,14 +537,22 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         await self.data_session.flush()
 
         if self.job_id is not None:
+            # Compute result dynamically based on success rate
+            result = self._compute_ingestion_result(stats)
             await self._update_job_and_sync(
                 repo=self.repo,
                 job_id=self.job_id,
                 status_message="CSV processing completed",
-                status_code=IngestionStatus.COMPLETED,
+                state=IngestionState.FINISHED,
+                result=result,
                 metadata=dict(stats),
             )
 
+        logger.info(
+            f"CSV processing completed: {stats['rows_processed']} rows processed, "
+            f"{stats['rows_skipped']} rows skipped, {stats['row_errors_count']} errors"
+            f"{stats['factors_deleted']} existing factors deleted"
+        )
         return dict(stats)
 
     @abstractmethod
@@ -456,7 +560,19 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         pass
 
     @staticmethod
+    def _convert_value(value: str | None) -> float | int | str | None:
+        """Convert CSV value to appropriate type."""
+        if value is None or str(value).strip() == "":
+            return None
+        value = str(value).strip()
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        return value
+
     def _record_row_error(
+        self,
         stats: FactorStatsDict,
         row_idx: int,
         reason: str,
@@ -469,6 +585,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             stats["row_errors"].append({"row": row_idx, "reason": reason})
 
     def _resolve_valid_entry_types(self) -> list[DataEntryTypeEnum]:
+        """Resolve valid data entry types for this ingestion job."""
         module_type_id = self.module_type_id
         if not module_type_id and self.job and self.job.module_type_id:
             module_type_id = self.job.module_type_id

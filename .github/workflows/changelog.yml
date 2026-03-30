@@ -39,7 +39,7 @@ jobs:
 
       - name: Generate CHANGELOG.md
         run: |
-          conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+          conventional-changelog -p angular -i CHANGELOG.md -s
 
       - name: Commit and push updated CHANGELOG.md
         run: |

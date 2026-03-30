@@ -63,20 +63,43 @@ class UserService:
         roles: Optional[List[Role]] = None,
         provider: Optional[UserProvider] = None,
     ) -> User:
-        existing_user = await self.user_repo.get_by_id(id) if id else None
+        """Upsert user identity scoped by (institutional_id, provider).
+
+        User lookup is performed by institutional_id scoped to provider to prevent
+        cross-provider collisions. Email lookup is only used as fallback for updates
+        where the user already exists with matching provider.
+        """
+        if provider is None:
+            raise ValueError("Provider is required for user upsert")
+
+        # Primary lookup: scoped by (institutional_id, provider)
+        existing_user = await self.user_repo.get_by_institutional_id_and_provider(
+            institutional_id=institutional_id,
+            provider=provider,
+        )
+
+        # Fallback for updates: if ID not found and we have an ID, try by PK
+        if not existing_user and id:
+            existing_user = await self.user_repo.get_by_id(id)
+            # Validate provider match if found by PK
+            if existing_user and existing_user.provider != provider:
+                logger.warning(
+                    "User provider mismatch during upsert",
+                    extra={
+                        "user_id": existing_user.id,
+                        "existing_provider": existing_user.provider,
+                        "new_provider": provider,
+                    },
+                )
+                raise ValueError("User provider mismatch during upsert")
+
+        # Secondary fallback: email lookup (only for same provider)
         if not existing_user:
-            # fallback to email lookup
             existing_user = await self.user_repo.get_by_email(email)
-        if existing_user and existing_user.provider != provider:
-            logger.warning(
-                "User provider mismatch during upsert",
-                extra={
-                    "user_id": existing_user.id,
-                    "existing_provider": existing_user.provider,
-                    "new_provider": provider,
-                },
-            )
-            raise ValueError("User provider mismatch during upsert")
+            # Only use email match if provider aligns
+            if existing_user and existing_user.provider != provider:
+                existing_user = None
+
         if existing_user and existing_user.id is not None:
             user = await self.user_repo.update(
                 id=existing_user.id,
@@ -296,8 +319,22 @@ class UserService:
         return await self.user_repo.get_by_id(id)
 
     async def get_by_code(self, code: str) -> Optional[User]:
-        """Get user by code."""
+        """Get user by code (deprecated: use get_by_institutional_id_and_provider)."""
         return await self.user_repo.get_by_code(code)
+
+    async def get_by_institutional_id_and_provider(
+        self,
+        institutional_id: str,
+        provider: UserProvider,
+    ) -> Optional[User]:
+        """Get user by institutional_id scoped to provider.
+
+        This is the primary user resolution method for authentication.
+        """
+        return await self.user_repo.get_by_institutional_id_and_provider(
+            institutional_id=institutional_id,
+            provider=provider,
+        )
 
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email."""

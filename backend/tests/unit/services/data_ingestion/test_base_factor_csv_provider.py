@@ -36,10 +36,11 @@ def test_resolve_data_entry_type_configured():
         data_session=MagicMock(),
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -53,10 +54,11 @@ def test_resolve_data_entry_type_from_id_invalid():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type_id": "999"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -67,14 +69,20 @@ def test_resolve_data_entry_type_from_id_invalid():
 
 
 def test_resolve_data_entry_type_from_name_valid():
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
     provider = ConcreteFactorProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type": "member"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -88,10 +96,11 @@ def test_resolve_data_entry_type_from_name_invalid():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {"handlers": [], "valid_entry_types": [DataEntryTypeEnum.member]}
 
     data_entry_type = provider._resolve_data_entry_type(
         row={"data_entry_type": "not-valid"},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -102,14 +111,20 @@ def test_resolve_data_entry_type_from_name_invalid():
 
 
 def test_resolve_data_entry_type_single_valid():
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
     provider = ConcreteFactorProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
-        row={},
-        valid_entry_types=[DataEntryTypeEnum.member],
+        row={"data_entry_type": "member"},
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -123,10 +138,14 @@ def test_resolve_data_entry_type_missing_multi():
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()
     )
     stats = _build_stats()
+    setup_result = {
+        "handlers": [],
+        "valid_entry_types": [DataEntryTypeEnum.member, DataEntryTypeEnum.student],
+    }
 
     data_entry_type = provider._resolve_data_entry_type(
         row={},
-        valid_entry_types=[DataEntryTypeEnum.member, DataEntryTypeEnum.student],
+        setup_result=setup_result,
         row_idx=1,
         stats=stats,
         max_row_errors=5,
@@ -138,12 +157,14 @@ def test_resolve_data_entry_type_missing_multi():
 
 @pytest.mark.asyncio
 async def test_process_row_validation_error_records_error(monkeypatch):
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
     provider = ConcreteFactorProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
     )
     stats = _build_stats()
 
-    handler = MagicMock()
     handler.validate_create.side_effect = ValueError("bad payload")
 
     monkeypatch.setattr(
@@ -152,13 +173,21 @@ async def test_process_row_validation_error_records_error(monkeypatch):
         MagicMock(return_value=handler),
     )
 
+    # Mock emission type resolution
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
     setup_result = {
-        "expected_columns": {"data_entry_type_id"},
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "kind"},
         "valid_entry_types": [DataEntryTypeEnum.member],
     }
 
     factor, error_msg = await provider._process_row(
-        row={"data_entry_type_id": str(DataEntryTypeEnum.member.value)},
+        row={"data_entry_type": "member", "kind": "x"},
         row_idx=2,
         setup_result=setup_result,
         stats=stats,
@@ -173,8 +202,12 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_process_row_success(monkeypatch):
+    handler_mock = MagicMock()
+    handler_mock.category_field = "data_entry_type"
+    handler_mock.classification_fields = ["kind"]
+    handler_mock.value_fields = ["value"]
     provider = ConcreteFactorProvider(
-        {"file_path": "tmp/test.csv", "year": 2024},
+        {"file_path": "tmp/test.csv", "year": 2024, "handlers": [handler_mock]},
         data_session=MagicMock(),
     )
     stats = _build_stats()
@@ -194,16 +227,24 @@ async def test_process_row_success(monkeypatch):
         MagicMock(return_value=handler),
     )
 
+    # Mock emission type resolution
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
     factor_service = MagicMock()
     factor_service.prepare_create = AsyncMock(return_value=SimpleNamespace(id=1))
 
     setup_result = {
-        "expected_columns": {"data_entry_type_id"},
+        "handlers": [handler_mock],
+        "expected_columns": {"data_entry_type", "kind", "value"},
         "valid_entry_types": [DataEntryTypeEnum.member],
     }
 
     factor, error_msg = await provider._process_row(
-        row={"data_entry_type_id": str(DataEntryTypeEnum.member.value)},
+        row={"data_entry_type": "member", "kind": "x", "value": "1.0"},
         row_idx=3,
         setup_result=setup_result,
         stats=stats,

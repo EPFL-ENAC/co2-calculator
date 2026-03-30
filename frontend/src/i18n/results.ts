@@ -59,6 +59,34 @@ export default {
     en: 'Total {module} carbon footprint',
     fr: 'Empreinte carbone totale de {module}',
   },
+  results_total_module_carbon_footprint_purchase: {
+    en: 'Total purchases carbon footprint',
+    fr: 'Empreinte carbone totale des achats',
+  },
+  'results_total_module_carbon_footprint_equipment-electric-consumption': {
+    en: 'Total equipment use carbon footprint',
+    fr: "Empreinte carbone totale liée à l'utilisation des équipements",
+  },
+  'results_total_module_carbon_footprint_process-emissions': {
+    en: 'Total process emission carbon footprint',
+    fr: 'Empreinte carbone totale des émissions de procédés',
+  },
+  'results_total_module_carbon_footprint_professional-travel': {
+    en: 'Total professional travel carbon footprint',
+    fr: 'Empreinte carbone totale des voyages professionnels',
+  },
+  results_total_module_carbon_footprint_buildings: {
+    en: 'Buildings total carbon footprint',
+    fr: 'Empreinte carbone totale des bâtiments',
+  },
+  'results_total_module_carbon_footprint_external-cloud-and-ai': {
+    en: 'Total carbon footprint from the use of AI & external clouds',
+    fr: "Empreinte carbone totale liée à l'utilisation d'IA & des clouds externes",
+  },
+  'results_total_module_carbon_footprint_research-facilities': {
+    en: 'Total research facilities carbon footprint',
+    fr: 'Empreinte carbone totale des infrastructures de recherche',
+  },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE',
     fr: 'Empreinte carbone par ETP',
@@ -172,13 +200,94 @@ export default {
     en: 'Process emissions',
     fr: 'Emissions de procédés',
   },
+  'charts-buildings-room-category': {
+    en: 'Buildings room',
+    fr: 'Salles des bâtiments',
+  },
+  'charts-buildings-energy-combustion-category': {
+    en: 'Energy Combustion Emissions',
+    fr: 'Emissions de combustion d’énergie',
+  },
+  // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
-    en: 'Buildings energy combustion',
-    fr: "Combustion d'énergie des bâtiments",
+    en: 'Energy Combustion Emissions',
+    fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy combustion',
-    fr: "Combustion d'énergie",
+    en: 'Energy Combustion Emissions',
+    fr: "Émissions de combustion d'énergie",
+  },
+  'charts-lighting-subcategory': {
+    en: 'Lighting',
+    fr: 'Éclairage',
+  },
+  'charts-cooling-subcategory': {
+    en: 'Cooling',
+    fr: 'Climatisation',
+  },
+  'charts-ventilation-subcategory': {
+    en: 'Ventilation',
+    fr: 'Ventilation',
+  },
+  'charts-heating-elec-subcategory': {
+    en: 'Heating (electric)',
+    fr: 'Chauffage (électrique)',
+  },
+  'charts-heating-thermal-subcategory': {
+    en: 'Heating (thermal)',
+    fr: 'Chauffage (thermique)',
+  },
+  'charts-office-subcategory': {
+    en: 'Office',
+    fr: 'Bureau',
+  },
+  'charts-laboratories-subcategory': {
+    en: 'Laboratories',
+    fr: 'Laboratoires',
+  },
+  'charts-archives-subcategory': {
+    en: 'Archives',
+    fr: 'Archives',
+  },
+  'charts-libraries-subcategory': {
+    en: 'Libraries',
+    fr: 'Bibliothèques',
+  },
+  'charts-auditoriums-subcategory': {
+    en: 'Auditoriums',
+    fr: 'Auditoires',
+  },
+  'charts-miscellaneous-subcategory': {
+    en: 'Miscellaneous',
+    fr: 'Divers',
+  },
+  'charts-natural-gas-subcategory': {
+    en: 'Natural Gas',
+    fr: 'Gaz naturel',
+  },
+  'charts-heating-oil-subcategory': {
+    en: 'Heating Oil',
+    fr: 'Mazout',
+  },
+  'charts-biomethane-subcategory': {
+    en: 'Biomethane',
+    fr: 'Biométhane',
+  },
+  'charts-pellets-subcategory': {
+    en: 'Pellets',
+    fr: 'Pellets',
+  },
+  'charts-forest-chips-subcategory': {
+    en: 'Forest Chips',
+    fr: 'Plaquettes forestières',
+  },
+  'charts-wood-logs-subcategory': {
+    en: 'Wood Logs',
+    fr: 'Bûches',
+  },
+  'charts-ln2-subcategory': {
+    en: 'LN2',
+    fr: 'LN2',
   },
   'charts-research-facilities-category': {
     en: 'Research Facilities',
@@ -227,6 +336,26 @@ export default {
   'charts-external-cloud-category': {
     en: 'External Cloud',
     fr: 'Cloud externe',
+  },
+  'emission-type-breakdown-info-equipment': {
+    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  },
+  'emission-type-breakdown-info-buildings': {
+    en: 'The emissions considered here are those related to the energy used for heating, lighting, ventilation, and cooling in buildings.',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire pour le chauffage, l'éclairage, la ventilation et le froid dans les bâtiments.",
+  },
+  'emission-type-breakdown-info-external-cloud': {
+    en: 'Here, we visualize the emissions corresponding to the use of AI and external clouds. Other emissions related to IT services are present in other modules, such as IT equipment purchases in the Purchases module, electricity consumption in the Equipment module, and the use of internal clouds in the Research Facilities module.',
+    fr: "Ici, on visualise les émissions correspondantes à l'utilisation de l'IA et de clouds externes. D'autres émissions liées aux services informatiques sont présentes dans d'autres modules, comme les achats d'équipements informatiques dans le module Achats, la consommation d'électricité dans le module Équipement et l'utilisation de clouds internes dans le module Infrastructure de recherche.",
+  },
+  'emission-type-breakdown-info-research-facilities': {
+    en: 'If these research activities were performed independently by the unit, the emissions coming from them would be higher. Using shared research facilities helps to reduce overall EPFL emissions.',
+    fr: "Si ces activités de recherche étaient menées de manière indépendante par l'unité, les émissions qu'elles génèrent seraient plus élevées. L'utilisation mutualisée d'infrastructures de recherche contribue à réduire les émissions globales de l'EPFL.",
+  },
+  'emission-type-breakdown-info-aria': {
+    en: 'Additional information about this emission breakdown',
+    fr: 'Informations complémentaires sur cette répartition des émissions',
   },
   'charts-purchase-category': {
     en: 'Purchase',
@@ -296,18 +425,6 @@ export default {
     en: 'Heating',
     fr: 'Chauffage',
   },
-  'charts-cooling-subcategory': {
-    en: 'Cooling',
-    fr: 'Refroidissement',
-  },
-  'charts-ventilation-subcategory': {
-    en: 'Ventilation',
-    fr: 'Ventilation',
-  },
-  'charts-lighting-subcategory': {
-    en: 'Lighting',
-    fr: 'Éclairage',
-  },
   'charts-scientific-subcategory': {
     en: 'Scientific Equipment',
     fr: 'Équipement scientifique',
@@ -328,7 +445,42 @@ export default {
     en: 'AI Provider',
     fr: 'Fournisseur IA',
   },
-
+  'charts-ai-provider-google-subcategory': {
+    en: 'Google',
+    fr: 'Google',
+  },
+  'charts-ai-provider-openai-subcategory': {
+    en: 'OpenAI',
+    fr: 'OpenAI',
+  },
+  'charts-ai-provider-anthropic-subcategory': {
+    en: 'Anthropic',
+    fr: 'Anthropic',
+  },
+  'charts-ai-provider-mistral-ai-subcategory': {
+    en: 'Mistral AI',
+    fr: 'Mistral AI',
+  },
+  'charts-ai-provider-cohere-subcategory': {
+    en: 'Cohere',
+    fr: 'Cohere',
+  },
+  'charts-ai-provider-others-subcategory': {
+    en: 'Others',
+    fr: 'Autres',
+  },
+  'charts-research-facilities-subcategory': {
+    en: 'Research Facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  'charts-research-animal-subcategory': {
+    en: 'Animal Facilities',
+    fr: 'Infrastructures pour animaux',
+  },
+  'charts-rest-subcategory': {
+    en: 'Rest',
+    fr: 'Reste',
+  },
   'charts-equipment-it': {
     en: 'IT Equipment',
     fr: 'IT Équipement',
@@ -376,5 +528,13 @@ export default {
   'charts-objective-tick': {
     en: '2030 Objective',
     fr: 'Objectif 2030',
+  },
+  'charts-view-emission-breakdown': {
+    en: 'Emission Breakdown',
+    fr: 'Répartition des émissions',
+  },
+  'charts-view-emission-type': {
+    en: 'Emission Type',
+    fr: "Type d'émission",
   },
 } as const;

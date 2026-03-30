@@ -2,7 +2,7 @@
 
 Extracted from carbon_report_module_stats routes so they can be unit tested
 without DB or HTTP dependencies. Follows the same pattern as
-utils/emission_breakdown.py.
+utils/emission_category.py.
 """
 
 

@@ -30,6 +30,45 @@ class CarbonReportBase(SQLModel):
         index=True,
         description="FK to units.id (integer)",
     )
+    last_updated: Optional[int] = Field(
+        default=None,
+        description=(
+            "Timestamp of last update (epoch seconds)"
+            " - used for concurrency control and freshness checks"
+            " - updated automatically on data changes in any child module"
+            " - can be null if never updated since creation"
+        ),
+    )
+    completion_progress: Optional[str] = Field(
+        default=None,
+        description=(
+            "String representation of completion progress (e.g., '5/7')"
+            " - shows how many modules are completed vs total modules"
+            " - updated automatically when child module status changes"
+        ),
+    )
+    overall_status: int = Field(
+        default=ModuleStatus.NOT_STARTED,
+        description=(
+            "Overall status inferred from child modules:"
+            " NOT_STARTED (0) if no modules started,"
+            " IN_PROGRESS (1) if some but not all modules completed,"
+            " VALIDATED (2) if all modules are validated"
+        ),
+    )
+    stats: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+        description=(
+            "Optional JSON field to store pre-calculated statistics for the report"
+            " - aggregates stats from all child CarbonReportModule records"
+            " - includes scope totals, by_emission_type, computed_at, and entry_count"
+            " - helps optimize frontend performance by avoiding on-the-fly calculations"
+            ".e.g: { scope1: kg, scope2: kg, scope3: kg, total: kg, "
+            "by_emission_type: { emission_type_id: kg, ... }, "
+            "computed_at: iso_timestamp, entry_count: int }"
+        ),
+    )
 
 
 class CarbonReport(CarbonReportBase, table=True):

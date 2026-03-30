@@ -27,6 +27,7 @@ class FactorRepository:
         self,
         emission_type_id: EmissionType,
         data_entry_type_id: DataEntryTypeEnum,
+        year: int,
     ) -> Optional[Factor]:
         """
         Get the current (valid_to IS NULL) factor for given criteria.
@@ -34,11 +35,15 @@ class FactorRepository:
         Args:
             emission_type_id: Emission type filter
             data_entry_type_id: Data entry type filter
+            year: Year filter for year-scoped factors (mandatory)
         """
-        stmt = select(Factor).where(
+        conditions = [
             col(Factor.emission_type_id) == emission_type_id,
             col(Factor.data_entry_type_id) == data_entry_type_id,
-        )
+            col(Factor.year) == year,
+        ]
+
+        stmt = select(Factor).where(*conditions)
 
         result = await self.session.exec(stmt)
         return result.one_or_none()
@@ -95,32 +100,106 @@ class FactorRepository:
     async def list_id_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
+        year: Optional[int] = None,
     ) -> List[int]:
-        """List all factors for a family."""
-        stmt = select(Factor.id).where(
-            col(Factor.data_entry_type_id) == data_entry_type_id
-        )
+        """List all factors for a data entry type.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Optional year filter for year-scoped factors
+        """
+        conditions = [col(Factor.data_entry_type_id) == data_entry_type_id]
+
+        # Add year filter if provided
+        if year is not None:
+            conditions.append(col(Factor.year) == year)
+
+        stmt = select(Factor.id).where(*conditions)
 
         result = await self.session.exec(stmt)
         return [id for id in result.all() if id is not None]
 
+    async def list_id_by_data_entry_type_and_year(
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+    ) -> List[int]:
+        """List factor IDs for data entry type and specific year.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Year filter (mandatory)
+        """
+        conditions = [
+            col(Factor.data_entry_type_id) == data_entry_type_id.value,
+            col(Factor.year) == year,
+        ]
+
+        stmt = select(Factor.id).where(*conditions)
+
+        result = await self.session.exec(stmt)
+        return [id for id in result.all() if id is not None]
+
+    async def count_by_data_entry_type_and_year(
+        self,
+        data_entry_type_id: int,
+        year: int,
+    ) -> int:
+        """Count factors for data entry type and specific year.
+
+        Args:
+            data_entry_type_id: Data entry type ID (int value)
+            year: Year filter (mandatory)
+        """
+        conditions = [
+            col(Factor.data_entry_type_id) == data_entry_type_id,
+            col(Factor.year) == year,
+        ]
+
+        stmt = select(Factor.id).where(*conditions)
+
+        result = await self.session.exec(stmt)
+        return len(result.all())
+
     async def list_by_emission_type(
         self,
         emission_type: EmissionType,
+        year: Optional[int] = None,
     ) -> List[Factor]:
-        """List all factors for a given emission type."""
-        stmt = select(Factor).where(col(Factor.emission_type_id) == emission_type.value)
+        """List all factors for a given emission type.
+
+        Args:
+            emission_type: Emission type filter
+            year: Optional year filter for year-scoped factors
+        """
+        conditions = [col(Factor.emission_type_id) == emission_type.value]
+
+        # Add year filter if provided
+        if year is not None:
+            conditions.append(col(Factor.year) == year)
+
+        stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
         return list(result.all())
 
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,
+        year: Optional[int] = None,
     ) -> List[Factor]:
-        """List all factors for a family."""
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == data_entry_type_id
-        )
+        """List all factors for a data entry type.
+
+        Args:
+            data_entry_type_id: Data entry type filter
+            year: Optional year filter for year-scoped factors
+        """
+        conditions = [col(Factor.data_entry_type_id) == data_entry_type_id]
+
+        # Add year filter if provided
+        if year is not None:
+            conditions.append(col(Factor.year) == year)
+
+        stmt = select(Factor).where(*conditions)
 
         result = await self.session.exec(stmt)
         return list(result.all())
@@ -173,29 +252,44 @@ class FactorRepository:
         data_entry_type: DataEntryTypeEnum,
         kind: str,
         subkind: Optional[str] = None,
+        year: Optional[int] = None,
     ) -> Optional[Factor]:
+        """Get factor by classification with year filtering.
+
+        Args:
+            data_entry_type: Data entry type filter
+            kind: Primary classification key
+            subkind: Secondary classification key (optional)
+            year: Year filter for year-scoped factors (should be provided)
+        """
         # First try exact match with subkind
         handler = BaseModuleHandler.get_by_type(data_entry_type)
         kind_field = handler.kind_field or ""
         subkind_field = handler.subkind_field or ""
 
+        conditions_base = [col(Factor.data_entry_type_id) == data_entry_type.value]
+
+        # Add year filter if provided
+        if year is not None:
+            conditions_base.append(col(Factor.year) == year)
+
         if subkind:
-            stmt = select(Factor).where(
-                col(Factor.data_entry_type_id) == data_entry_type.value,
+            conditions = conditions_base + [
                 Factor.classification[kind_field].as_string() == kind,
                 Factor.classification[subkind_field].as_string() == subkind,
-            )
+            ]
+            stmt = select(Factor).where(*conditions)
             result = await self.session.exec(stmt)
             factor = result.one_or_none()
             if factor:
                 return factor
 
         # Fallback to kind-only match (no subkind)
-        stmt = select(Factor).where(
-            col(Factor.data_entry_type_id) == data_entry_type.value,
+        conditions = conditions_base + [
             Factor.classification[kind_field].as_string() == kind,
             Factor.classification[subkind_field].as_string().is_(None),
-        )
+        ]
+        stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
@@ -203,14 +297,16 @@ class FactorRepository:
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[dict[str, str]] = None,
+        year: Optional[int] = None,
         **classification: str,
     ) -> Optional[Factor]:
-        """Generic factor lookup with dynamic classification filters.
+        """Generic factor lookup with dynamic classification filters and year support.
 
         Args:
             data_entry_type: The data entry type to filter on
             fallbacks: Optional dict of fallback values for classification keys
                        e.g. {"country_code": "RoW"} to try RoW if exact match fails
+            year: Year filter for year-scoped factors (should be provided)
             **classification: Classification filters (kind, subkind, category,
                               country_code, etc.)
 
@@ -273,6 +369,11 @@ class FactorRepository:
         # Keys that are *already* concrete (e.g. "country_code") pass through
         # unchanged.
         conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
+
+        # Add year filter if provided
+        if year is not None:
+            conditions.append(col(Factor.year) == year)
+
         for key, value in classification.items():
             if value is None:
                 continue

@@ -11,8 +11,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
 
   replicas: {{ .Values.backend.replicaCount }}
   selector:
@@ -38,7 +38,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      
+
       initContainers:
         {{- if .Values.database.waitForPostgres.enabled }}
         - name: wait-for-postgres
@@ -191,6 +191,54 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.elasticsearchApiKeyKey | default "ELASTICSEARCH_API_KEY" }}
+
+            - name: TABLEAU_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_SERVER_URL
+            - name: TABLEAU_SITE_CONTENT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_SITE_CONTENT_URL
+            - name: TABLEAU_DS_FLIGHTS_LUID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_DS_FLIGHTS_LUID
+            - name: TABLEAU_CONNECTED_APP_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_CONNECTED_APP_CLIENT_ID
+            - name: TABLEAU_CONNECTED_APP_SECRET_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_CONNECTED_APP_SECRET_ID
+            - name: TABLEAU_CONNECTED_APP_SECRET_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_CONNECTED_APP_SECRET_VALUE
+            - name: TABLEAU_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_USERNAME
+            - name: TABLEAU_VERIFY_SSL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "co2-calculator.backendSecretName" . }}
+                  key: TABLEAU_VERIFY_SSL
+            - name: TABLEAU_REQUEST_TIMEOUT_SECONDS
+              value: {{ .Values.backend.tableau.requestTimeoutSeconds | default "" | quote }}
+            - name: TABLEAU_REST_MIN_API_VERSION
+              value: {{ .Values.backend.tableau.restMinApiVersion | default "" | quote }}
+            - name: TABLEAU_MAX_FIELDS
+              value: {{ .Values.backend.tableau.maxFields | default "" | quote }}
+
             - name: ELASTICSEARCH_CA_CERT
               value: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
             - name: POD_NAME
@@ -216,7 +264,7 @@ spec:
               mountPath: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
               subPath: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
               readOnly: true
-      
+
       volumes:
         - name: tmp
           emptyDir: {}
@@ -226,7 +274,7 @@ spec:
             items:
               - key: {{ .Values.backend.existingSecret.keys.elasticsearchCaCertFileKey | default "ELASTICSEARCH_CA_CERT_FILE" }}
                 path: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
-      
+
       {{- with .Values.backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

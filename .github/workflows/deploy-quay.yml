@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.10.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.8.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
       registry_token: ${{ secrets.QUAY_TOKEN }}
@@ -36,4 +36,3 @@ jobs:
       registry_username: svc1751+ghaction
       helm_chart_name: co2-calculator
       helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}
-      skip_vulnerability_scan: true

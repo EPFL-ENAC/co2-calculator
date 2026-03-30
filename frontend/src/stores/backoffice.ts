@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from 'src/api/http';
 import type { ModuleState } from 'src/constant/moduleStates';
+import type { EmissionBreakdownResponse } from 'src/stores/modules';
 
 // interface ModuleCompletion {
 //   status: ModuleState;
@@ -27,7 +28,10 @@ interface BackofficeUnitData {
   last_update: string;
   highest_result_category: string;
   total_carbon_footprint: number;
+  total_fte?: number | null;
   view_url: string;
+  completion?: number;
+  completion_progress?: string;
 }
 
 interface BackofficeUnitDataPagination {
@@ -38,13 +42,20 @@ interface BackofficeUnitDataPagination {
     total_pages: number;
     total: number;
   };
+  emission_breakdown?: EmissionBreakdownResponse | null;
+  validated_units_count?: number;
+  in_progress_units_count?: number;
+  not_started_units_count?: number;
+  total_units_count?: number;
+  module_status_counts?: Record<number, number> | null;
 }
 
 interface UnitFilters {
-  affiliation?: string[];
-  units?: number[];
+  path_lvl2?: Array<number | string>;
+  path_lvl3?: Array<number | string>;
+  path_lvl4?: Array<number | string>;
   years?: string[];
-  completion?: string;
+  completion_status?: number | string;
   outlier_values?: boolean | null;
   search?: string;
   modules?: Array<{ module: string; state: ModuleState }>;
@@ -114,24 +125,38 @@ export const useBackofficeStore = defineStore('backoffice', () => {
 
       const searchParams = new URLSearchParams();
 
-      // Add array filters (affiliation, units, years)
-      if (filters?.affiliation && filters.affiliation.length > 0) {
-        filters.affiliation.forEach((v) =>
-          searchParams.append('affiliation', String(v)),
+      // Add hierarchy filters
+      if (filters?.path_lvl2 && filters.path_lvl2.length > 0) {
+        filters.path_lvl2.forEach((v) =>
+          searchParams.append('path_lvl2', String(v)),
         );
       }
 
-      if (filters?.units && filters.units.length > 0) {
-        filters.units.forEach((v) => searchParams.append('units', String(v)));
+      if (filters?.path_lvl3 && filters.path_lvl3.length > 0) {
+        filters.path_lvl3.forEach((v) =>
+          searchParams.append('path_lvl3', String(v)),
+        );
+      }
+
+      if (filters?.path_lvl4 && filters.path_lvl4.length > 0) {
+        filters.path_lvl4.forEach((v) =>
+          searchParams.append('path_lvl4', String(v)),
+        );
       }
 
       if (filters?.years && filters.years.length > 0) {
         filters.years.forEach((v) => searchParams.append('years', String(v)));
       }
 
-      // Add string filters (completion, search)
-      if (filters?.completion?.trim()) {
-        searchParams.append('completion', filters.completion.trim());
+      // Add status/search filters
+      if (
+        filters?.completion_status !== undefined &&
+        filters?.completion_status !== ''
+      ) {
+        searchParams.append(
+          'completion_status',
+          String(filters.completion_status),
+        );
       }
 
       if (filters?.search?.trim()) {

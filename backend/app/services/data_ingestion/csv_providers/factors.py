@@ -28,10 +28,15 @@ class ModulePerYearFactorCSVProvider(BaseFactorCSVProvider):
             handler = BaseFactorHandler.get_by_type(configured_type)
             handlers = [handler]
         else:
-            handlers = [
-                BaseFactorHandler.get_by_type(entry_type)
-                for entry_type in valid_entry_types
-            ]
+            # Deduplicate handlers by class type to avoid multiple identical instances
+            # (e.g., EquipmentFactorHandler registered for it/scientific/other)
+            seen_handler_classes: set[type[Any]] = set()
+            for entry_type in valid_entry_types:
+                handler = BaseFactorHandler.get_by_type(entry_type)
+                handler_class: type[Any] = type(handler)
+                if handler_class not in seen_handler_classes:
+                    handlers.append(handler)
+                    seen_handler_classes.add(handler_class)
 
         expected_columns = _get_expected_columns_from_handlers(handlers)
         required_columns: set[str] = set()

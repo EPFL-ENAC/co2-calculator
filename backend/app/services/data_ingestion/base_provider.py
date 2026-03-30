@@ -1,21 +1,24 @@
 from abc import ABC, abstractmethod
-from asyncio.log import logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
     FactorType,
     IngestionMethod,
-    IngestionStatus,
+    IngestionResult,
+    IngestionState,
     TargetType,
 )
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
+
+logger = get_logger(__name__)
 
 
 class DataIngestionProvider(ABC):
@@ -87,17 +90,19 @@ class DataIngestionProvider(ABC):
             "factor_type_id": factor_type_id.value if factor_type_id else None,
             "config": job_config,  # Store entire config in meta for job
         }
-
+        if self.user is None or self.user.provider is None:
+            raise ValueError("User provider is required to create ingestion job")
         data = DataIngestionJob(
             module_type_id=module_type_id,
             ingestion_method=ingestion_method,
             data_entry_type_id=data_entry_type_id,
             entity_type=entity_type,
             target_type=target_type,
-            status=IngestionStatus.NOT_STARTED,
+            state=IngestionState.NOT_STARTED,
+            result=None,
             status_message="Job created",
             meta=meta,
-            provider=self.user.provider if self.user else None,
+            provider=self.user.provider,
             year=year,
         )
         job = await repo.create_ingestion_job(data)
@@ -141,38 +146,43 @@ class DataIngestionProvider(ABC):
         try:
             await self._update_job(
                 status_message="processing",
-                status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Starting sync..."},
             )
             raw_data = await self.fetch_data(filters or {})
             await self._update_job(
                 status_message="processing",
-                status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": f"Fetched {len(raw_data)} records"},
             )
             transformed_data = await self.transform_data(raw_data)
             await self._update_job(
                 status_message="processing",
-                status_code=IngestionStatus.IN_PROGRESS,
+                state=IngestionState.RUNNING,
+                result=None,
                 extra_metadata={"message": "Transforming data..."},
             )
             result = await self._load_data(transformed_data)
             await self._update_job(
                 status_message="completed",
-                status_code=IngestionStatus.COMPLETED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
                 extra_metadata={
                     "message": f"Successfully processed {result['inserted']} records"
                 },
             )
             return {
-                "status_code": IngestionStatus.COMPLETED,
+                "state": IngestionState.FINISHED,
                 "status_message": "Success",
                 "data": result,
             }
         except Exception as e:
             await self._update_job(
                 status_message=f"failed: {str(e)}",
-                status_code=IngestionStatus.FAILED,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
             )
             logger.error(f"Ingestion failed: {str(e)}")
@@ -181,10 +191,27 @@ class DataIngestionProvider(ABC):
     async def _update_job(
         self,
         status_message: str,
-        status_code: IngestionStatus,
         extra_metadata: dict | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ):
-        metadata = {"config": self.config}
+        # Only store essential config fields to avoid recursive nesting
+        # (self.config may contain snapshots of previous meta, causing
+        # meta.config.meta.config...)
+        essential_config = {
+            "module_type_id": self.config.get("module_type_id"),
+            "year": self.config.get("year"),
+            "target_type": self.config.get("target_type"),
+            "ingestion_method": self.config.get("ingestion_method"),
+            "data_entry_type_id": self.config.get("data_entry_type_id"),
+            "carbon_report_module_id": self.config.get("carbon_report_module_id"),
+            "entity_type": self.config.get("entity_type"),
+            "file_path": self.config.get("file_path"),
+        }
+        # Remove None values
+        essential_config = {k: v for k, v in essential_config.items() if v is not None}
+
+        metadata = {"config": essential_config}
         if extra_metadata:
             metadata.update(extra_metadata)
         if not self.job_id:
@@ -198,12 +225,20 @@ class DataIngestionProvider(ABC):
         await repo.update_ingestion_job(
             job_id=self.job_id,
             status_message=status_message,
-            status_code=status_code,
             metadata=metadata,
             completed_at=datetime.now(timezone.utc)
-            if status_code in [IngestionStatus.COMPLETED, IngestionStatus.FAILED]
+            if state in (IngestionState.FINISHED,)
             else None,
+            state=state,
+            result=result,
         )
+
+        # Mark as current if job is finished
+        if state in (IngestionState.FINISHED, IngestionState.RUNNING) and self.job_id:
+            job = await repo.get_job_by_id(self.job_id)
+            if job:
+                await repo.mark_job_as_current(job)
+
         # Commit immediately so SSE endpoints can see the update
         await self.job_session.commit()
 
@@ -212,9 +247,10 @@ class DataIngestionProvider(ABC):
         repo: DataIngestionRepository,
         job_id: int,
         status_message: str,
-        status_code: IngestionStatus,
         metadata: dict | None = None,
         completed_at: datetime | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
         """
         Update ingestion job and keep self.job in sync.
@@ -225,9 +261,10 @@ class DataIngestionProvider(ABC):
         updated_job = await repo.update_ingestion_job(
             job_id=job_id,
             status_message=status_message,
-            status_code=status_code,
             metadata=metadata or {},
             completed_at=completed_at,
+            state=state,
+            result=result,
         )
         if updated_job:
             self.job = updated_job
