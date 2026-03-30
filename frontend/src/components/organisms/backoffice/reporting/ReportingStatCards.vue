@@ -70,7 +70,7 @@ const cards = computed(() => [
 
 .stat-card {
   flex: 1;
-  margin-top: 24px;
+
   border-radius: 3px;
   padding: 24px;
   height: 131px;

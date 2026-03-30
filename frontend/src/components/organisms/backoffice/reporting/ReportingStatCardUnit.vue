@@ -36,8 +36,6 @@ defineProps<Props>();
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-
-  margin-top: 24px;
   gap: 12px;
 }
 </style>

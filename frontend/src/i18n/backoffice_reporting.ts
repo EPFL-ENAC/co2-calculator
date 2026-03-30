@@ -11,6 +11,10 @@ export default {
     en: 'Reporting Year',
     fr: 'Année du rapport',
   },
+  backoffice_reporting_usage_statistic: {
+    en: 'Usage statistics',
+    fr: 'Statistiques d’usage',
+  },
   backoffice_reporting_year_description: {
     en: 'Select the year to view module completion data for that reporting period.',
     fr: "Sélectionnez l'année pour afficher les données d'achèvement des modules pour cette période de rapport.",

@@ -293,6 +293,11 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         :breakdown-data="reportingEmissionBreakdown"
         class="q-mt-xl"
       />
+      <div class="flex justify-between items-center q-pt-xl q-pb-md">
+        <span class="text-body1 text-weight-medium">{{
+          $t('backoffice_reporting_usage_statistic')
+        }}</span>
+      </div>
       <ReportingStatCards
         v-if="tableRows.length > 1"
         :stats="usageStats"
