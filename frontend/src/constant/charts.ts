@@ -300,7 +300,7 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   commuting: colors.value.aqua.darker,
   food: colors.value.mint.darker,
   waste: colors.value.periwinkle.darker,
-  grey_energy: colors.value.skyBlue.dark,
+  embodied_energy: colors.value.skyBlue.dark,
 }));
 
 // Maps chart category name -> full color scale (shared across charts)
@@ -316,7 +316,7 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   commuting: colors.value.aqua,
   food: colors.value.mint,
   waste: colors.value.periwinkle,
-  grey_energy: colors.value.skyBlue,
+  embodied_energy: colors.value.skyBlue,
 }));
 
 // Maps category -> subcategory key -> exact shade, shared across charts.

@@ -81,7 +81,7 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   commuting: 'charts-commuting-category',
   food: 'charts-food-category',
   waste: 'charts-waste-category',
-  grey_energy: 'charts-grey-energy-category',
+  embodied_energy: 'charts-embodied-energy-category',
 };
 
 function translateCategory(
@@ -219,13 +219,13 @@ const additionalSeriesData = computed(() => {
       },
     },
     {
-      name: t('charts-grey-energy-category'),
+      name: t('charts-embodied-energy-category'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
       encode: {
         x: 'category',
-        y: 'grey_energy',
+        y: 'embodied_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -237,12 +237,24 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const ADDITIONAL_CATEGORIES = ['commuting', 'food', 'waste', 'grey_energy'];
+const ADDITIONAL_HEADCOUNT_CATEGORIES = ['commuting', 'food', 'waste'];
 
-const additionalLabels = computed(
+const additionalHeadcountLabels = computed(
   () =>
     new Set(
-      ADDITIONAL_CATEGORIES.map((cat) => {
+      ADDITIONAL_HEADCOUNT_CATEGORIES.map((cat) => {
+        const key = CATEGORY_LABEL_MAP[cat];
+        return key ? t(key) : cat;
+      }),
+    ),
+);
+
+const ADDITIONAL_BUILDINGS_CATEGORIES = ['embodied_energy'];
+
+const additionalBuildingsLabels = computed(
+  () =>
+    new Set(
+      ADDITIONAL_BUILDINGS_CATEGORIES.map((cat) => {
         const key = CATEGORY_LABEL_MAP[cat];
         return key ? t(key) : cat;
       }),
@@ -650,9 +662,11 @@ const chartOption = computed((): EChartsOption => {
         const isValidated = validatedLabels.value.has(name);
 
         if (!isValidated) {
-          const moduleName = additionalLabels.value.has(name)
+          const moduleName = additionalHeadcountLabels.value.has(name)
             ? t('headcount')
-            : name;
+            : additionalBuildingsLabels.value.has(name)
+              ? t('buildings')
+              : name;
           return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
         }
 
@@ -907,7 +921,7 @@ const chartOption = computed((): EChartsOption => {
         'commuting',
         'food',
         'waste',
-        'grey_energy',
+        'embodied_energy',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },

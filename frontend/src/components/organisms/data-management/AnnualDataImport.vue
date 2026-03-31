@@ -193,8 +193,8 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'grey_energy',
-    labelKey: 'grey_energy',
+    key: 'embodied_energy',
+    labelKey: 'embodied_energy',
     moduleTypeId: 12,
     hasFactors: false,
     hasApi: false,

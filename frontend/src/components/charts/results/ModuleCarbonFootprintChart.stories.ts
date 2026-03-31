@@ -11,7 +11,7 @@ import ModuleCarbonFootprintChart from './ModuleCarbonFootprintChart.vue';
  * ## Features
  * - Stacked bar chart with multiple series
  * - Scope 1, 2, 3 categorization
- * - Additional data toggle (commuting, food, waste, grey energy)
+ * - Additional data toggle (commuting, food, waste, embodied energy)
  * - Export functionality (PNG and CSV)
  */
 const meta = {

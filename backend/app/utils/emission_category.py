@@ -397,7 +397,12 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
 # Headcount categories are those whose emission types sit at level 0 in
 # EMISSION_SCOPE (food, waste, commuting — no "__" sub-path).
 _ADDITIONAL_CATEGORIES: frozenset[EmissionCategory] = frozenset(
-    meta["category"] for etype, meta in EMISSION_SCOPE.items() if etype.level == 0
+    [
+        EmissionCategory.commuting,
+        EmissionCategory.food,
+        EmissionCategory.waste,
+        EmissionCategory.embodied_energy,
+    ]
 )
 
 # Order follows the EmissionCategory enum declaration.

@@ -325,8 +325,8 @@ export default {
     en: 'Waste',
     fr: 'Déchets',
   },
-  'charts-grey-energy-category': {
-    en: 'Grey Energy',
+  'charts-embodied-energy-category': {
+    en: 'Embodied Energy',
     fr: 'Énergie grise',
   },
   'charts-equipment-electric-consumption-category': {
