@@ -14,6 +14,7 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.schemas.carbon_report import CarbonReportModuleCreate
 from app.utils.emission_category import build_chart_breakdown
 
 logger = get_logger(__name__)
@@ -43,6 +44,21 @@ class CarbonReportModuleRepository:
         return db_obj
 
     async def bulk_create(
+        self,
+        carbon_report_modules_to_create: list[CarbonReportModuleCreate],
+    ) -> List[CarbonReportModule]:
+        """Create multiple carbon report module records in one transaction."""
+        carbon_report_modules = [
+            CarbonReportModule(**carbon_report_module.model_dump())
+            for carbon_report_module in carbon_report_modules_to_create
+        ]
+        self.session.add_all(carbon_report_modules)
+        await self.session.flush()
+        for obj in carbon_report_modules:
+            await self.session.refresh(obj)
+        return carbon_report_modules
+
+    async def bulk_create_carbon_report_modules_of_carbon_report(
         self,
         carbon_report_id: int,
         module_type_ids: List[int],

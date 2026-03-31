@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,6 +27,17 @@ class CarbonReportRepository:
         await self.session.flush()
         await self.session.refresh(db_obj)
         return db_obj
+
+    async def bulk_upsert(self, data: list[CarbonReportCreate]) -> list[CarbonReport]:
+        """Bulk upsert carbon reports using INSERT ... ON CONFLICT DO NOTHING."""
+        stmt = (
+            insert(CarbonReport)
+            .values([{"year": d.year, "unit_id": d.unit_id} for d in data])
+            .on_conflict_do_nothing(index_elements=["unit_id", "year"])
+            .returning(CarbonReport)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def get(self, carbon_report_id: int) -> Optional[CarbonReport]:
         """Get a carbon report by ID."""

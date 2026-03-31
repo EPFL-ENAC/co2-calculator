@@ -23,6 +23,7 @@ from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks.ingestion_tasks import run_ingestion
+from app.tasks.unit_sync_tasks import SyncUnitRequest, sync_units_from_accred_task
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 router = APIRouter()
@@ -395,6 +396,7 @@ async def job_stream_by_id(
 
 @router.post("/units", response_model=SyncStatusResponse)
 async def sync_units_from_accred(
+    syncRequest: SyncUnitRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(
@@ -414,10 +416,9 @@ async def sync_units_from_accred(
         SyncStatusResponse with job status (note: job_id is 0 as this is a
         simple background task without persistent job tracking)
     """
-    from app.tasks.unit_sync_tasks import sync_units_from_accred_task
 
     # Schedule background task
-    background_tasks.add_task(sync_units_from_accred_task)
+    background_tasks.add_task(sync_units_from_accred_task, syncRequest)
 
     return SyncStatusResponse(
         job_id=0,  # No persistent job tracking for now
