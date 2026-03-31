@@ -47,6 +47,10 @@ class CarbonReportService:
             return None
         return CarbonReportRead.model_validate(carbon_report)
 
+    async def get_reporting_overview(self, args) -> list[CarbonReportRead]:
+        results = await self.repo.get_reporting_overview(*args)
+        return [CarbonReportRead.model_validate(cr) for cr in results]
+
     async def list_by_unit(self, unit_id: int) -> List[CarbonReportRead]:
         """List all carbon reports for a unit."""
         carbon_reports = await self.repo.list_by_unit(unit_id)

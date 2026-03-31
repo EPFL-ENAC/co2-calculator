@@ -26,6 +26,7 @@ from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
 )
+from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.unit_repo import UnitRepository
 from app.schemas.backoffice import (
     PaginatedUnitReportingData,
@@ -256,10 +257,22 @@ async def list_backoffice_units(
     """
     List units with their reporting completion status and outlier values,
     """
-    carbon_report_repo = CarbonReportModuleRepository(db)
+    carbon_report_module_repo = CarbonReportModuleRepository(db)
+    carbon_report_repo = CarbonReportRepository(db)
     if years is None or len(years) == 0:
         raise ValueError("At least one year must be specified for reporting overview")
-    result = await carbon_report_repo.get_reporting_overview(
+    data = await carbon_report_repo.get_reporting_overview(
+        path_lvl2=path_lvl2,
+        path_lvl3=path_lvl3,
+        path_lvl4=path_lvl4,
+        completion_status=completion_status,
+        search=search,
+        modules=modules,
+        years=years,
+        page=page,
+        page_size=page_size,
+    )
+    result = await carbon_report_module_repo.get_reporting_overview(
         path_lvl2=path_lvl2,
         path_lvl3=path_lvl3,
         path_lvl4=path_lvl4,
@@ -276,9 +289,33 @@ async def list_backoffice_units(
 
     # Convert the data to UnitReportingData instances
     unit_reporting_data = []
-    for item in result.get("data", []):
+    for item in data:
         if isinstance(item, dict):
-            unit_reporting_data.append(UnitReportingData(**item))
+            completion = item.get("completion_progress", "0/8")
+            completion_status = ModuleStatus.NOT_STARTED
+            left, right = completion.split("/")
+            if left == right and left != "0":
+                completion_status = ModuleStatus.VALIDATED
+            elif left != "0":
+                completion_status = ModuleStatus.IN_PROGRESS
+            unit_reporting_data.append(
+                UnitReportingData(
+                    id=item.get("id", -1),
+                    unit_name=item.get("unit_name", "Unknown Unit"),
+                    affiliation=item.get("affiliation", "Unknown Affiliation"),
+                    validation_status=item.get("validation_status", "unknown"),
+                    principal_user=item.get("principal_user", "Unknown User"),
+                    last_update=item.get("last_update"),
+                    highest_result_category=item.get("highest_result_category"),
+                    total_carbon_footprint=item.get("total_carbon_footprint", 0.0),
+                    total_fte=item.get("total_fte"),
+                    view_url=item.get("view_url"),
+                    completion=completion_status,
+                    completion_progress=item.get("completion_progress"),
+                )
+            )
+        elif isinstance(item, CarbonReport):
+            unit_reporting_data.append(UnitReportingData.model_validate(item))
         else:
             unit_reporting_data.append(item)
 
@@ -292,6 +329,59 @@ async def list_backoffice_units(
         total_units_count=result.get("total_units_count", 0),
         module_status_counts=result.get("module_status_counts"),
     )
+
+
+# usage !?
+# SELECT
+#     cr.id AS report_id,
+#     cr.year,
+#     cr.unit_id,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 1) AS headcount_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 2) AS
+#   professional_travel_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 3) AS buildings_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 4) AS
+#   equipment_electric_consumption_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 5) AS purchase_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 6) AS
+#   research_facilities_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 7) AS
+#   external_cloud_and_ai_status,
+#     MAX(crm.status) FILTER (WHERE crm.module_type_id = 8) AS process_emissions_status,
+#     cr.last_updated,
+#     cr.completion_progress,
+#     cr.overall_status
+# FROM carbon_reports cr
+# LEFT JOIN carbon_report_modules crm
+#     ON crm.carbon_report_id = cr.id
+# GROUP BY cr.id, cr.year, cr.unit_id, cr.last_updated, cr.completion_progress,
+#   cr.overall_status
+# ORDER BY cr.id;
+
+# or different usage
+# SELECT
+#     cr.id AS report_id,
+#     cr.year,
+#     cr.unit_id,
+#     CASE crm.module_type_id
+#         WHEN 1 THEN 'headcount'
+#         WHEN 2 THEN 'professional_travel'
+#         WHEN 3 THEN 'buildings'
+#         WHEN 4 THEN 'equipment_electric_consumption'
+#         WHEN 5 THEN 'purchase'
+#         WHEN 6 THEN 'research_facilities'
+#         WHEN 7 THEN 'external_cloud_and_ai'
+#         WHEN 8 THEN 'process_emissions'
+#     END AS module_name,
+#     crm.status AS module_status,
+#     cr.last_updated,
+#     cr.stats,
+#     cr.completion_progress,
+#     cr.overall_status
+# FROM carbon_reports cr
+# JOIN carbon_report_modules crm
+#     ON crm.carbon_report_id = cr.id
+# ORDER BY cr.id, crm.module_type_id;
 
 
 @router.get("/export-detailed")
@@ -309,10 +399,59 @@ async def export_detailed_reporting(
     current_user: User = Depends(require_permission("backoffice.users", "export")),
 ):
     """
-    Export detailed reporting data for all units, including module-level details.
-    Creates one CSV per unit/year/module combination using response
-      DTOs and packages them in a ZIP file.
-    File naming format: {AFFILIATION}_{UNIT_NAME}_{YEAR}_module_{MODULE_TYPE}.csv
+        Export detailed reporting data for all units, including module-level details.
+        Creates one CSV per unit/year/module combination using response
+          DTOs and packages them in a ZIP file.
+        File naming format: {AFFILIATION}_{UNIT_NAME}_{YEAR}_module_{MODULE_TYPE}.csv
+
+        We can do it faster if we skip the DTO validation and just dump the
+        raw data from the database,
+        like so
+
+    SELECT
+        cr.year,
+        de.data_entry_type_id,
+        u.institutional_id,
+        de.id,
+
+        j.name,
+        j.equipment_class,
+        j.sub_class,
+
+        SUM(dee.kg_co2eq) AS total_kg_co2eq
+
+    FROM data_entries de
+
+    JOIN carbon_report_modules crm ON crm.id = de.carbon_report_module_id
+    JOIN carbon_reports cr ON cr.id = crm.carbon_report_id
+    JOIN units u ON u.id = cr.unit_id
+
+    LEFT JOIN data_entry_emissions dee ON dee.data_entry_id = de.id
+
+    -- JSON → columns
+    LEFT JOIN LATERAL jsonb_to_record(de.data::jsonb) AS j(
+
+            name TEXT,
+            equipment_class TEXT,
+            sub_class TEXT,
+            active_usage_hours_per_week INT,
+            standby_usage_hours_per_week INT,
+            note TEXT
+    ) ON TRUE
+
+    WHERE de.data_entry_type_id = 10
+
+    GROUP BY
+        cr.year,
+        de.data_entry_type_id,
+        u.institutional_id,
+        de.id,
+        j.name,
+        j.equipment_class,
+        j.sub_class;
+
+
+
     """
     # Get units based on filters
     unit_repo = UnitRepository(db)
