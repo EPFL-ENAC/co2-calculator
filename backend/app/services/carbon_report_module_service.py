@@ -5,9 +5,9 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import ModuleStatus
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
