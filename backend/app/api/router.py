@@ -19,6 +19,7 @@ from app.api.v1 import (
     unit_results,
     units,
     users,
+    year_configuration,
 )
 
 api_router = APIRouter()
@@ -52,3 +53,8 @@ api_router.include_router(locations.router, prefix="/locations", tags=["location
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(data_sync.router, prefix="/sync", tags=["data-sync"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
+api_router.include_router(
+    year_configuration.router,
+    prefix="/year-configuration",
+    tags=["year-configuration"],
+)

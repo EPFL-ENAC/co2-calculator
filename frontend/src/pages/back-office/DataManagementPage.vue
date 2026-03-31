@@ -3,10 +3,12 @@ import { ref, onMounted } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import AnnualDataImport from 'src/components/organisms/data-management/AnnualDataImport.vue';
-import ModulesConfig from 'src/components/organisms/data-management/ModulesConfig.vue';
+import ModulesConfigNew from 'src/components/organisms/data-management/ModulesConfigNew.vue';
+import ReductionObjectives from 'src/components/organisms/data-management/ReductionObjectives.vue';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import { watch } from 'vue';
 
 // TODO: fix the available years dynamically
 const MIN_YEARS = 2024;
@@ -30,7 +32,6 @@ const fetchSyncJobs = async () => {
 };
 
 // Watch for year changes and fetch sync jobs
-import { watch } from 'vue';
 watch(selectedYear, fetchSyncJobs, { immediate: true });
 
 // Handle unit sync from Accred API
@@ -125,7 +126,8 @@ onMounted(() => {
         </div>
       </q-card>
       <annual-data-import :year="selectedYear" />
-      <modules-config :year="selectedYear" />
+      <modules-config-new :year="selectedYear" />
+      <reduction-objectives :year="selectedYear" />
     </div>
   </q-page>
 </template>
