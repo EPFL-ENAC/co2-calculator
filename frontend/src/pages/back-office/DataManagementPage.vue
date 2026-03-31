@@ -2,11 +2,23 @@
 import { ref, onMounted, watch } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import AnnualDataImport from 'src/components/organisms/data-management/AnnualDataImport.vue';
-import ModulesConfigNew from 'src/components/organisms/data-management/ModulesConfigNew.vue';
-import ReductionObjectives from 'src/components/organisms/data-management/ReductionObjectives.vue';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
+import TempFilesBanner from 'src/components/organisms/data-management/TempFilesBanner.vue';
+import { MODULES_LIST, MODULES } from 'src/constant/modules';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+
+import {
+  useBackofficeDataManagement,
+  IngestionResult,
+  IngestionState,
+  IngestionMethod,
+  TargetType,
+  type ImportRow,
+  type SyncJobResponse,
+  type DataIngestionJob,
+} from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -110,6 +122,366 @@ const handleUnitSync = async () => {
   }
 };
 
+const expandedModules = ref<Record<string, boolean>>({});
+const reductionObjectivesExpanded = ref(false);
+
+type SubmoduleConfig = {
+  key: string;
+  labelKey: string;
+  moduleTypeId: number;
+  dataEntryTypeId?: number;
+  noData?: true;
+  noFactors?: true;
+  hasApi?: true;
+  other?: string;
+  isDisabled?: true;
+};
+
+const MODULE_SUBMODULES: Partial<
+  Record<(typeof MODULES)[keyof typeof MODULES], SubmoduleConfig[]>
+> = {
+  [MODULES.Headcount]: [
+    {
+      key: 'member',
+      labelKey: `${MODULES.Headcount}-member`,
+      moduleTypeId: 1,
+      dataEntryTypeId: 1,
+    },
+    {
+      key: 'student',
+      labelKey: `${MODULES.Headcount}-student`,
+      moduleTypeId: 1,
+      dataEntryTypeId: 2,
+      noData: true,
+    },
+  ],
+  [MODULES.ProfessionalTravel]: [
+    {
+      key: 'train',
+      labelKey: `${MODULES.ProfessionalTravel}-train`,
+      moduleTypeId: 2,
+      dataEntryTypeId: 21,
+      other: 'data_management_other_train_stations',
+    },
+    {
+      key: 'plane',
+      labelKey: `${MODULES.ProfessionalTravel}-plane`,
+      moduleTypeId: 2,
+      dataEntryTypeId: 20,
+      hasApi: true,
+      other: 'data_management_other_airports',
+    },
+  ],
+  [MODULES.Buildings]: [
+    {
+      key: 'building',
+      labelKey: `${MODULES.Buildings}-rooms`,
+      moduleTypeId: 3,
+      dataEntryTypeId: 30,
+      other: 'data_management_other_institution_rooms',
+    },
+    {
+      key: 'energy_combustion',
+      labelKey: `${MODULES.Buildings}-combustion`,
+      moduleTypeId: 3,
+      dataEntryTypeId: 31,
+    },
+  ],
+  [MODULES.ProcessEmissions]: [
+    {
+      key: 'process_emissions',
+      labelKey: 'data_management_submodule_process_emissions',
+      moduleTypeId: 8,
+      dataEntryTypeId: 50,
+    },
+  ],
+  [MODULES.EquipmentElectricConsumption]: [
+    {
+      key: 'scientific',
+      labelKey: `${MODULES.EquipmentElectricConsumption}-scientific`,
+      moduleTypeId: 4,
+    },
+    {
+      key: 'it',
+      labelKey: `${MODULES.EquipmentElectricConsumption}-it`,
+      moduleTypeId: 4,
+    },
+    {
+      key: 'other',
+      labelKey: `${MODULES.EquipmentElectricConsumption}-other`,
+      moduleTypeId: 4,
+    },
+  ],
+  [MODULES.Purchase]: [
+    {
+      key: 'scientific_equipment',
+      labelKey: 'data_management_submodule_scientific_equipment',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'it_equipment',
+      labelKey: 'data_management_submodule_it_equipment',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'consumable_accessories',
+      labelKey: 'data_management_submodule_consumables_accessories',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'biological_chemical_gaseous_product',
+      labelKey: 'data_management_submodule_bio_chemical_gaseous',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'services',
+      labelKey: 'data_management_submodule_services',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'vehicles',
+      labelKey: 'data_management_submodule_vehicles',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'other_purchases',
+      labelKey: 'data_management_submodule_other_purchases',
+      moduleTypeId: 5,
+    },
+    {
+      key: 'additional_purchases',
+      labelKey: 'data_management_submodule_additional_purchases',
+      moduleTypeId: 5,
+      dataEntryTypeId: 67,
+    },
+  ],
+  [MODULES.ResearchFacilities]: [
+    {
+      key: 'research-facilities',
+      labelKey: 'data_management_submodule_research_facilities',
+      moduleTypeId: 6,
+      dataEntryTypeId: 70,
+    },
+    {
+      key: 'mice_and_fish_animal_facilities',
+      labelKey: 'data_management_submodule_animal_facilities',
+      moduleTypeId: 6,
+      dataEntryTypeId: 71,
+    },
+  ],
+  [MODULES.ExternalCloudAndAI]: [
+    {
+      key: 'external_clouds',
+      labelKey: `${MODULES.ExternalCloudAndAI}.cloud-services`,
+      moduleTypeId: 7,
+      dataEntryTypeId: 40,
+    },
+    {
+      key: 'external_ai',
+      labelKey: `${MODULES.ExternalCloudAndAI}.ai-services`,
+      moduleTypeId: 7,
+      dataEntryTypeId: 41,
+    },
+  ],
+};
+
+// ── Helpers mirroring AnnualDataImport ───────────────────────────────────────
+
+function findJob(
+  jobs: DataIngestionJob[],
+  moduleTypeId: number,
+  targetType: TargetType | null,
+  dataEntryTypeId?: number,
+  ingestionMethod?: IngestionMethod,
+): DataIngestionJob | undefined {
+  const candidates = jobs.filter(
+    (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
+  );
+  if (dataEntryTypeId !== undefined) {
+    return candidates.find(
+      (j) =>
+        (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
+          dataEntryTypeId && j.ingestion_method === ingestionMethod?.valueOf(),
+    );
+  }
+  return candidates[0];
+}
+
+function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
+  return {
+    job_id: job.job_id,
+    module_type_id: job.module_type_id,
+    year: job.year,
+    target_type: job.target_type as TargetType,
+    state: job.state as IngestionState,
+    result: job.result as IngestionResult,
+    status_message: job.status_message,
+    meta: job.meta,
+  };
+}
+
+function getImportRow(sub: SubmoduleConfig): ImportRow {
+  const jobs: DataIngestionJob[] = backofficeDataManagement.getLatestJobsByYear(
+    selectedYear.value,
+  );
+  const dataJob = findJob(
+    jobs,
+    sub.moduleTypeId,
+    0,
+    sub.dataEntryTypeId,
+    IngestionMethod.CSV,
+  );
+  const apiDataJob = sub.hasApi
+    ? findJob(
+        jobs,
+        sub.moduleTypeId,
+        0,
+        sub.dataEntryTypeId,
+        IngestionMethod.API,
+      )
+    : undefined;
+  const factorJob = findJob(
+    jobs,
+    sub.moduleTypeId,
+    1,
+    sub.dataEntryTypeId,
+    IngestionMethod.CSV,
+  );
+  return {
+    key: sub.key,
+    labelKey: sub.labelKey,
+    moduleTypeId: sub.moduleTypeId,
+    dataEntryTypeId: sub.dataEntryTypeId,
+    hasData: !sub.noData,
+    hasFactors: !sub.noFactors,
+    hasApi: sub.hasApi ?? false,
+    other: sub.other,
+    hasOtherUpload: !!sub.other,
+    isDisabled: sub.isDisabled ?? false,
+    lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
+    lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
+    lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
+  };
+}
+
+const QUASAR_COLOR_MAP: Record<string, string> = {
+  accent: 'var(--q-accent)',
+  positive: 'var(--q-positive)',
+  negative: 'var(--q-negative)',
+  warning: 'var(--q-warning)',
+  'grey-4': '#bdbdbd',
+};
+
+function cardStyle(color: string): string {
+  if (color === 'positive') {
+    const c = QUASAR_COLOR_MAP['positive'];
+    return `border: 1px solid ${c}; background-color: color-mix(in srgb, ${c} 10%, transparent)`;
+  }
+  return 'border: 1px solid rgba(0,0,0,0.12)';
+}
+
+function dataButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastDataJob) return 'accent';
+  if (row.lastDataJob.result === 2) return 'negative';
+  if (row.lastDataJob.result === 1) return 'warning';
+  return 'positive';
+}
+
+function factorButtonColor(row: ImportRow): string {
+  if (row.isDisabled) return 'grey-4';
+  if (!row.lastFactorJob) return 'accent';
+  if (row.lastFactorJob.result === 2) return 'negative';
+  if (row.lastFactorJob.result === 1) return 'warning';
+  return 'positive';
+}
+
+function dataButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastDataJob
+    ? $t('data_management_reupload_data')
+    : $t('data_management_add_data');
+}
+
+function factorButtonLabel(row: ImportRow): string {
+  if (row.isDisabled) return '';
+  return row.lastFactorJob
+    ? $t('data_management_reupload_factors')
+    : $t('data_management_add_factors');
+}
+
+const showDataEntryDialog = ref(false);
+const dialogCurrentRow = ref<ImportRow | null>(null);
+const dialogTargetType = ref<TargetType | null>(null);
+
+function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
+  dialogCurrentRow.value = row;
+  dialogTargetType.value = targetType;
+  showDataEntryDialog.value = true;
+}
+
+function downloadLastCsv(row: ImportRow, targetType: TargetType) {
+  const job =
+    targetType === TargetType.DATA_ENTRIES
+      ? row.lastDataJob
+      : row.lastFactorJob;
+  if (!job?.meta) return;
+  const filePath = (job.meta as Record<string, unknown>)
+    .processed_file_path as string;
+  if (!filePath) return;
+  const a = document.createElement('a');
+  a.href = `/api/v1/files/${filePath}`;
+  a.download = filePath.split('/').pop() || filePath;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
+ * Safely extract the filename from a job meta object that may be unknown.
+ * Returns undefined when not available.
+ */
+function safeFileName(meta: unknown): string | undefined {
+  const fp = (meta as Record<string, unknown>)?.file_path as string | undefined;
+  if (!fp) return undefined;
+  const parts = fp.split('/');
+  return parts.length ? parts[parts.length - 1] : fp;
+}
+
+const jobsRefreshKey = ref(0);
+
+async function handleJobCompleted() {
+  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
+  jobsRefreshKey.value += 1; // Force re-render of food/commuting/waste section
+}
+
+async function handleJobProgressing() {
+  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
+  jobsRefreshKey.value += 1; // Force re-render
+}
+
+function isModuleIncomplete(module: string): boolean {
+  const submodules =
+    MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
+  if (submodules.length === 0) return false;
+
+  return submodules.some((sub) => {
+    const row = getImportRow(sub);
+    // Check if ANY required component (data, factors, references) is missing or unsuccessful
+    const dataIncomplete =
+      row.hasData && (!row.lastDataJob || row.lastDataJob.result !== 0);
+    const factorsIncomplete =
+      row.hasFactors && (!row.lastFactorJob || row.lastFactorJob.result !== 0);
+    const referencesIncomplete =
+      row.hasOtherUpload && (!row.lastDataJob || row.lastDataJob.result !== 0); // References use same job as data
+    return dataIncomplete || factorsIncomplete || referencesIncomplete;
+  });
+}
+
+const toggleModule = ref(false);
+const submoduleThreshold = ref<string>('');
+const uncertainty = ref<'none' | 'low' | 'medium' | 'high'>('none');
+
 watch(
   () => backofficeDataManagement.loading,
   (newValue) => {
@@ -121,48 +493,62 @@ watch(
   },
 );
 
-onMounted(() => {});
+// Re-render when year changes to refresh all job states
+watch(
+  () => selectedYear.value,
+  async () => {
+    await backofficeDataManagement.fetchLatestSyncJobsByYear(
+      selectedYear.value,
+    );
+  },
+);
+
+onMounted(() => {
+  // Loading.show({
+  //   message: $t('data_management_loading'),
+  // });
+});
 </script>
 
 <template>
   <q-page>
     <navigation-header :item="BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT" />
-
     <div class="q-my-xl q-px-xl">
-      <!-- Year selector + sync button -->
       <q-card flat bordered class="q-pa-md q-mb-xl">
         <div class="row justify-between items-center">
-          <div>
+          <q-card-section class="row justify-between full-width q-pa-none">
             <div class="text-subtitle1">
               {{ $t('data_management_reporting_year') }}
             </div>
-            <q-select
-              v-model="selectedYear"
-              :options="availableYears"
-              outlined
-              dense
-              class="q-my-md"
+            <q-btn
+              color="accent"
+              :label="$t('data_management_sync_units_from_accred')"
+              icon="sync"
+              size="sm"
+              :loading="backofficeDataManagement.loading"
+              :disable="backofficeDataManagement.loading"
+              @click="handleUnitSync"
             >
-              <template #prepend>
-                <q-icon name="event" color="accent" size="xs" />
-              </template>
-            </q-select>
-            <div class="q-mt-sm text-body2 text-secondary">
-              {{ $t('data_management_reporting_year_hint') }}
-            </div>
-          </div>
+            </q-btn>
+          </q-card-section>
 
-          <q-btn
-            color="primary"
-            :label="$t('data_management_sync_units_from_accred')"
-            icon="sync"
-            :loading="backofficeDataManagement.loading"
-            :disable="backofficeDataManagement.loading"
-            @click="handleUnitSync"
-          />
+          <q-select
+            v-model="selectedYear"
+            :options="availableYears"
+            outlined
+            dense
+            class="full-width q-my-md"
+          >
+            <template #prepend>
+              <q-icon name="event" color="accent" size="xs" />
+            </template>
+          </q-select>
+
+          <div class="text-body2 text-secondary">
+            {{ $t('data_management_reporting_year_hint') }}
+          </div>
         </div>
       </q-card>
-
       <!-- Startup: no configuration exists yet -->
       <q-card
         v-if="yearConfigStore.notFound && !yearConfigStore.loading"
@@ -240,7 +626,6 @@ onMounted(() => {});
           </template>
         </q-banner>
 
-        <annual-data-import :year="selectedYear" />
         <modules-config-new :year="selectedYear" />
         <reduction-objectives :year="selectedYear" />
       </template>
@@ -250,6 +635,749 @@ onMounted(() => {});
         <q-skeleton type="rect" height="80px" class="q-mb-md" />
         <q-skeleton type="rect" height="200px" class="q-mb-md" />
       </template>
+      <temp-files-banner class="q-mb-xl" />
+      <template v-for="module in MODULES_LIST" :key="module">
+        <q-card flat bordered class="q-pa-none q-mb-lg">
+          <q-expansion-item v-model="expandedModules[module]" expand-separator>
+            <template #header>
+              <q-item-section avatar>
+                <ModuleIcon :name="module" size="md" color="accent" />
+              </q-item-section>
+              <q-item-section>
+                <div class="row items-center q-gutter-sm">
+                  <span class="text-h4 text-weight-medium">{{
+                    $t(module)
+                  }}</span>
+                  <q-badge
+                    v-if="isModuleIncomplete(module)"
+                    outline
+                    rounded
+                    color="accent"
+                    class="text-weight-medium"
+                    :label="$t('common_filter_incomplete')"
+                  />
+                </div>
+              </q-item-section>
+            </template>
+            <q-separator />
+            <q-card flat class="q-pa-none row">
+              <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
+                <div class="row items-center q-mb-xs">
+                  <q-icon
+                    name="power_settings_new"
+                    color="accent"
+                    size="xs"
+                    class="q-mr-sm"
+                  />
+                  <div class="text-body1 text-weight-medium">
+                    {{ $t('data_management_module_activation_title') }}
+                  </div>
+                </div>
+                <div class="text-body2 text-secondary q-mb-sm">
+                  {{ $t('data_management_module_activation_description') }}
+                </div>
+                <q-toggle
+                  v-model="toggleModule"
+                  color="accent"
+                  keep-color
+                  readonly
+                  size="lg"
+                />
+              </q-card>
+            </q-card>
+
+            <q-separator class="q-my-xs" />
+            <q-card flat class="q-pa-none row">
+              <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
+                <div class="row items-center q-mb-xs">
+                  <q-icon
+                    name="o_help_center"
+                    color="accent"
+                    size="xs"
+                    class="q-mr-sm"
+                  />
+                  <div class="text-body1 text-weight-medium">
+                    {{ $t('data_management_uncertainty_title') }}
+                  </div>
+                </div>
+                <div class="text-body2 text-secondary q-mb-sm">
+                  {{ $t('data_management_uncertainty_description') }}
+                </div>
+                <q-radio
+                  v-model="uncertainty"
+                  val="none"
+                  :label="$t('data_management_uncertainty_none')"
+                  color="accent"
+                />
+                <q-radio
+                  v-model="uncertainty"
+                  val="low"
+                  :label="$t('data_management_uncertainty_low')"
+                  color="accent"
+                />
+                <q-radio
+                  v-model="uncertainty"
+                  val="medium"
+                  :label="$t('data_management_uncertainty_medium')"
+                  color="accent"
+                />
+                <q-radio
+                  v-model="uncertainty"
+                  val="high"
+                  :label="$t('data_management_uncertainty_high')"
+                  color="accent"
+                />
+              </q-card>
+            </q-card>
+            <q-separator class="q-my-xs" />
+            <q-card flat class="q-pa-none row">
+              <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
+                <div class="row items-center q-mb-xs">
+                  <q-icon
+                    name="o_view_cozy"
+                    color="accent"
+                    size="xs"
+                    class="q-mr-sm"
+                  />
+                  <div class="text-body1 text-weight-medium">
+                    {{ $t('data_management_submodules_configuration_title') }}
+                  </div>
+                </div>
+                <div class="text-body2 text-secondary">
+                  {{
+                    $t('data_management_submodules_configuration_description')
+                  }}
+                </div>
+              </q-card>
+            </q-card>
+            <div class="q-mx-lg q-mt-md q-mb-lg">
+              <q-card
+                v-for="submodule in MODULE_SUBMODULES[module] ?? []"
+                :key="submodule.key"
+                flat
+                bordered
+                class="q-mb-md"
+              >
+                <q-expansion-item expand-separator>
+                  <template #header>
+                    <q-item-section class="text-body2 text-weight-medium">
+                      {{ $t(submodule.labelKey) }}
+                    </q-item-section>
+                  </template>
+                  <q-separator class="q-mb-xs" />
+                  <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+                    <div class="row items-center q-mb-xs">
+                      <q-icon
+                        name="power_settings_new"
+                        color="accent"
+                        size="xs"
+                        class="q-mr-sm"
+                      />
+                      <div class="text-body2 text-weight-medium">
+                        {{ $t('data_management_submodule_activation_title') }}
+                      </div>
+                    </div>
+                    <div class="text-caption text-secondary q-mb-sm">
+                      {{
+                        $t('data_management_submodule_activation_description')
+                      }}
+                    </div>
+                    <q-toggle
+                      v-model="toggleModule"
+                      color="accent"
+                      keep-color
+                      readonly
+                      size="md"
+                    />
+                  </q-card>
+                  <q-separator class="q-my-xs" />
+                  <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+                    <div class="row items-center q-mb-xs">
+                      <q-icon
+                        name="legend_toggle"
+                        color="accent"
+                        size="xs"
+                        class="q-mr-sm"
+                      />
+                      <div class="text-body2 text-weight-medium">
+                        {{ $t('data_management_threshold_title') }}
+                      </div>
+                    </div>
+                    <div class="text-caption text-secondary q-mb-sm">
+                      {{ $t('data_management_threshold_description') }}
+                    </div>
+                    <q-input
+                      v-model="submoduleThreshold"
+                      dense
+                      outlined
+                      size="md"
+                      :suffix="$t('tco2eq')"
+                      style="max-width: 500px"
+                    />
+                  </q-card>
+                  <q-separator class="q-my-xs" />
+                  <div class="row q-pa-md" style="gap: 1rem">
+                    <!-- Data -->
+                    <q-card
+                      v-if="getImportRow(submodule).hasData"
+                      flat
+                      class="col q-pa-lg"
+                      :style="
+                        cardStyle(dataButtonColor(getImportRow(submodule)))
+                      "
+                    >
+                      <div class="text-body2 text-weight-bold q-mb-xs">
+                        {{ $t('data_management_data') }}
+                      </div>
+                      <div class="text-caption text-secondary q-mb-md">
+                        {{ $t('data_management_data_description') }}
+                      </div>
+                      <div class="row items-center" style="gap: 0.5rem">
+                        <q-spinner-rings
+                          v-if="
+                            getImportRow(submodule).lastDataJob?.state ===
+                            IngestionState.RUNNING
+                          "
+                          color="grey"
+                        />
+                        <q-btn
+                          :color="dataButtonColor(getImportRow(submodule))"
+                          icon="add"
+                          size="sm"
+                          :label="dataButtonLabel(getImportRow(submodule))"
+                          class="text-weight-medium"
+                          :disable="getImportRow(submodule).isDisabled"
+                          @click="
+                            openDataEntryDialog(
+                              getImportRow(submodule),
+                              TargetType.DATA_ENTRIES,
+                            )
+                          "
+                        />
+                      </div>
+                    </q-card>
+
+                    <!-- Factors -->
+                    <q-card
+                      v-if="getImportRow(submodule).hasFactors"
+                      flat
+                      class="col q-pa-lg"
+                      :style="
+                        cardStyle(factorButtonColor(getImportRow(submodule)))
+                      "
+                    >
+                      <div class="row items-center q-mb-xs">
+                        <div class="text-body2 text-weight-bold">
+                          {{ $t('data_management_factor') }}
+                        </div>
+                        <q-space />
+                        <span class="text-caption text-grey-5"
+                          ><span class="text-negative">*</span
+                          >{{ $t('common_mandatory') }}</span
+                        >
+                      </div>
+                      <div class="text-caption text-secondary q-mb-md">
+                        {{ $t('data_management_factor_description') }}
+                      </div>
+                      <div class="row justify-between items-center full-width">
+                        <div class="row items-center" style="gap: 0.5rem">
+                          <q-spinner-rings
+                            v-if="
+                              getImportRow(submodule).lastFactorJob?.state ===
+                              IngestionState.RUNNING
+                            "
+                            color="grey"
+                          />
+                          <q-btn
+                            :color="factorButtonColor(getImportRow(submodule))"
+                            icon="add"
+                            size="sm"
+                            :label="factorButtonLabel(getImportRow(submodule))"
+                            class="text-weight-medium"
+                            :disable="getImportRow(submodule).isDisabled"
+                            @click="
+                              openDataEntryDialog(
+                                getImportRow(submodule),
+                                TargetType.FACTORS,
+                              )
+                            "
+                          />
+                        </div>
+                        <div
+                          v-if="getImportRow(submodule).lastFactorJob?.meta"
+                          class="row items-center no-wrap"
+                          style="gap: 0.75rem"
+                        >
+                          <div class="column items-end">
+                            <div
+                              class="row items-center text-body2 text-weight-medium"
+                            >
+                              <span class="text-positive q-mr-xs">✓</span>
+                              {{
+                                safeFileName(
+                                  getImportRow(submodule).lastFactorJob?.meta,
+                                )
+                              }}
+                            </div>
+                            <div class="text-caption text-grey-7">
+                              {{
+                                getImportRow(submodule).lastFactorJob?.meta
+                                  ?.rows_processed
+                              }}
+                              {{ $t('data_management_rows_imported') }}
+                              <span
+                                v-if="
+                                  getImportRow(submodule).lastFactorJob?.meta
+                                    ?.timestamp
+                                "
+                              >
+                                •
+                                {{
+                                  new Date(
+                                    getImportRow(submodule).lastFactorJob.meta
+                                      .timestamp as string,
+                                  ).toLocaleDateString()
+                                }}
+                              </span>
+                            </div>
+                          </div>
+                          <q-btn
+                            color="positive"
+                            icon="o_download"
+                            size="sm"
+                            unelevated
+                            dense
+                            @click="
+                              downloadLastCsv(
+                                getImportRow(submodule),
+                                TargetType.FACTORS,
+                              )
+                            "
+                          >
+                            <q-tooltip>{{
+                              $t('data_management_download_last_csv')
+                            }}</q-tooltip>
+                          </q-btn>
+                          <q-icon
+                            v-if="
+                              getImportRow(submodule).lastFactorJob?.result ===
+                                IngestionResult.WARNING ||
+                              getImportRow(submodule).lastFactorJob?.result ===
+                                IngestionResult.ERROR
+                            "
+                            name="info"
+                            size="sm"
+                            class="cursor-pointer"
+                          >
+                            <q-tooltip>
+                              <div class="text-left">
+                                {{
+                                  getImportRow(submodule).lastFactorJob
+                                    ?.status_message
+                                }}:
+                                <span
+                                  v-if="
+                                    getImportRow(submodule).lastFactorJob?.meta
+                                      ?.error !==
+                                    getImportRow(submodule).lastFactorJob
+                                      ?.status_message
+                                  "
+                                  class="text-negative"
+                                >
+                                  {{
+                                    getImportRow(submodule).lastFactorJob?.meta
+                                      ?.error || ''
+                                  }}
+                                </span>
+                                <hr />
+                                <div
+                                  v-for="(key, value, index) in getImportRow(
+                                    submodule,
+                                  ).lastFactorJob?.meta?.stats || []"
+                                  :key="index"
+                                >
+                                  {{ key }}: {{ value }}
+                                </div>
+                              </div>
+                            </q-tooltip>
+                          </q-icon>
+                        </div>
+                      </div>
+                      <div
+                        v-if="
+                          getImportRow(submodule).lastFactorJob?.result ===
+                            IngestionResult.WARNING ||
+                          getImportRow(submodule).lastFactorJob?.result ===
+                            IngestionResult.ERROR
+                        "
+                        class="q-mt-md q-pa-md bg-grey-2 rounded-borders"
+                      >
+                        <div
+                          class="text-body2 text-weight-bold q-mb-sm text-negative"
+                        >
+                          {{
+                            getImportRow(submodule).lastFactorJob
+                              ?.status_message
+                          }}
+                        </div>
+                        <div
+                          v-if="
+                            getImportRow(submodule).lastFactorJob?.meta
+                              ?.error !==
+                            getImportRow(submodule).lastFactorJob
+                              ?.status_message
+                          "
+                          class="text-body2 q-mb-md"
+                        >
+                          {{
+                            getImportRow(submodule).lastFactorJob?.meta?.error
+                          }}
+                        </div>
+                        <div
+                          v-for="(key, value, index) in getImportRow(submodule)
+                            .lastFactorJob?.meta?.stats || []"
+                          :key="index"
+                          class="text-caption text-grey-7"
+                        >
+                          {{ key }}: {{ value }}
+                        </div>
+                      </div>
+                    </q-card>
+
+                    <!-- References -->
+                    <q-card
+                      v-if="getImportRow(submodule).hasOtherUpload"
+                      flat
+                      class="col q-pa-lg"
+                    >
+                      <div class="row items-center q-mb-xs">
+                        <div class="text-body2 text-weight-bold">
+                          {{ $t('data_management_references') }}
+                        </div>
+                        <q-space />
+                        <span class="text-caption text-grey-5"
+                          ><span class="text-negative">*</span
+                          >{{ $t('common_mandatory') }}</span
+                        >
+                      </div>
+                      <div class="text-caption text-secondary q-mb-md">
+                        {{ $t('data_management_references_description') }}
+                      </div>
+                      <div class="q-mb-xs text-caption text-grey-7">
+                        {{ $t(getImportRow(submodule).other!) }}
+                      </div>
+                      <q-btn
+                        no-caps
+                        outline
+                        color="accent"
+                        icon="file_upload"
+                        size="sm"
+                        :label="$t('data_management_upload_reference')"
+                        class="text-weight-medium"
+                        disable
+                      >
+                        <q-tooltip>{{ $t('data_management_tbd') }}</q-tooltip>
+                      </q-btn>
+                    </q-card>
+                  </div>
+                </q-expansion-item>
+              </q-card>
+            </div>
+          </q-expansion-item>
+        </q-card>
+      </template>
+
+      <q-card flat bordered class="q-py-none q-mb-lg">
+        <q-expansion-item
+          v-model="reductionObjectivesExpanded"
+          expand-separator
+        >
+          <template #header>
+            <q-item-section avatar>
+              <ModuleIcon
+                name="reduction-objectives"
+                size="md"
+                color="accent"
+              />
+            </q-item-section>
+            <q-item-section>
+              <div class="row items-center q-gutter-sm">
+                <span class="text-h4 text-weight-medium">
+                  {{ $t('data_management_reduction_objectives') }}</span
+                >
+                <q-badge
+                  outline
+                  rounded
+                  color="accent"
+                  class="text-weight-medium"
+                  :label="$t('common_filter_incomplete')"
+                />
+              </div>
+            </q-item-section>
+            <q-item-section class="text-h4 text-weight-medium">
+            </q-item-section>
+          </template>
+          <q-separator />
+          <q-card flat class="q-pa-none row">
+            <q-card
+              flat
+              class="col q-px-lg q-py-xl"
+              style="border-right: 1px solid #d5d5d5"
+            >
+              <div class="row items-start align-center q-my-xs">
+                <q-icon
+                  name="barefoot"
+                  color="accent"
+                  size="xs"
+                  class="q-mr-sm"
+                />
+                <div class="text-body1 text-weight-medium">
+                  {{ $t('data_management_institution_carbon_footprint_title') }}
+                </div>
+              </div>
+              <div class="text-body2 text-secondary">
+                {{
+                  $t('data_management_institution_carbon_footprint_description')
+                }}
+              </div>
+              <div class="row q-gutter-md q-mt-lg">
+                <q-btn
+                  icon="o_upload"
+                  color="primary"
+                  outline
+                  size="sm"
+                  :label="$t('common_upload_csv')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+                <q-btn
+                  icon="o_table_view"
+                  color="accent"
+                  size="sm"
+                  :label="$t('common_download_csv_template')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+              </div>
+            </q-card>
+            <q-card
+              flat
+              class="col q-px-lg q-py-xl"
+              style="border-right: 1px solid #d5d5d5"
+            >
+              <div class="row items-start align-center q-mb-xs">
+                <q-icon
+                  name="o_groups_2"
+                  color="accent"
+                  size="xs"
+                  class="q-mr-sm"
+                />
+                <div class="text-body1 text-weight-medium">
+                  {{ $t('data_management_population_projections_title') }}
+                </div>
+              </div>
+              <div class="text-body2 text-secondary">
+                {{ $t('data_management_population_projections_description') }}
+              </div>
+              <div class="row q-gutter-md q-mt-lg">
+                <q-btn
+                  icon="o_upload"
+                  color="primary"
+                  outline
+                  size="sm"
+                  :label="$t('common_upload_csv')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+                <q-btn
+                  icon="o_table_view"
+                  color="accent"
+                  size="sm"
+                  :label="$t('common_download_csv_template')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+              </div>
+            </q-card>
+            <q-card flat class="col q-px-lg q-py-xl border-right">
+              <div class="row items-start align-center q-mb-xs">
+                <q-icon
+                  name="o_square_foot"
+                  color="accent"
+                  size="xs"
+                  class="q-mr-sm"
+                />
+                <div class="text-body1 text-weight-medium">
+                  {{ $t('data_management_unit_reduction_scenarios_title') }}
+                </div>
+              </div>
+              <div class="text-body2 text-secondary">
+                {{ $t('data_management_unit_reduction_scenarios_description') }}
+              </div>
+              <div class="row q-gutter-md q-mt-lg">
+                <q-btn
+                  icon="o_upload"
+                  color="primary"
+                  outline
+                  size="sm"
+                  :label="$t('common_upload_csv')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+                <q-btn
+                  icon="o_table_view"
+                  color="accent"
+                  size="sm"
+                  :label="$t('common_download_csv_template')"
+                  class="q-mt-md text-weight-medium text-capitalize"
+                />
+              </div>
+            </q-card>
+          </q-card>
+          <q-separator />
+          <q-item-section class="q-pt-xl q-pb-sm q-px-md">
+            <div class="row items-start align-center q-mb-xs">
+              <q-icon name="adjust" color="accent" size="xs" class="q-mr-sm" />
+              <div class="text-body1 text-weight-medium">
+                {{ $t('data_management_define_reduction_objectives_title') }}
+              </div>
+            </div>
+            <div class="text-body2 text-secondary">
+              {{
+                $t('data_management_define_reduction_objectives_description')
+              }}
+            </div>
+          </q-item-section>
+          <div class="row q-my-sm">
+            <q-card flat bordered class="q-pa-md q-ma-md col">
+              <div class="row justify-between items-center">
+                <div class="text-body2 text-weight-medium">
+                  {{ $t('data_management_first_reduction_objectives') }}
+                </div>
+                <div class="text-body2 text-secondary">
+                  <span class="text-negative">*</span
+                  >{{ $t('common_mandatory') }}
+                </div>
+              </div>
+              <div class="col full-width q-mt-lg q-gutter-md">
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_first_reduction_objectives_target_year')
+                  "
+                  :model-value="''"
+                  placeholder="2030"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reduction_goal')
+                  "
+                  :model-value="''"
+                  placeholder="30"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reference_year')
+                  "
+                  :model-value="''"
+                  placeholder="2019"
+                />
+              </div>
+            </q-card>
+            <q-card flat bordered class="q-pa-md q-ma-md col">
+              <div class="text-body2 text-weight-medium">
+                {{ $t('data_management_second_reduction_objectives') }}
+              </div>
+              <div class="col full-width q-mt-lg q-gutter-md">
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_first_reduction_objectives_target_year')
+                  "
+                  :model-value="''"
+                  placeholder="2030"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reduction_goal')
+                  "
+                  :model-value="''"
+                  placeholder="30"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reference_year')
+                  "
+                  :model-value="''"
+                  placeholder="2019"
+                />
+              </div>
+            </q-card>
+            <q-card flat bordered class="q-pa-md q-ma-md col">
+              <div class="text-body2 text-weight-medium">
+                {{ $t('data_management_third_reduction_objectives') }}
+              </div>
+              <div class="col full-width q-mt-lg q-gutter-md">
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_first_reduction_objectives_target_year')
+                  "
+                  :model-value="''"
+                  placeholder="2030"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reduction_goal')
+                  "
+                  :model-value="''"
+                  placeholder="30"
+                />
+                <q-input
+                  outlined
+                  dense
+                  class="full-width"
+                  :label="
+                    $t('data_management_reduction_objectives_reference_year')
+                  "
+                  :model-value="''"
+                  placeholder="2019"
+                />
+              </div>
+            </q-card>
+          </div>
+          <q-btn
+            color="accent"
+            size="md"
+            :label="$t('common_save')"
+            class="q-mb-md q-ml-md text-weight-medium text-capitalize"
+          />
+        </q-expansion-item>
+      </q-card>
     </div>
+    <data-entry-dialog
+      v-model="showDataEntryDialog"
+      :row="dialogCurrentRow || ({} as ImportRow)"
+      :year="selectedYear"
+      :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
+      @completed="handleJobCompleted"
+      @progressing="handleJobProgressing"
+    />
   </q-page>
 </template>
