@@ -18,7 +18,7 @@ import random
 import asyncpg
 
 from app.core.config import get_settings
-from app.models.carbon_report import ModuleStatus
+from app.core.constants import ModuleStatus
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 
 YEARS = [2023, 2024, 2025]

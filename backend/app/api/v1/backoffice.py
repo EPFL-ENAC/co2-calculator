@@ -14,13 +14,13 @@ from sqlmodel import desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.core.security import require_permission
 from app.models.carbon_report import (
     CarbonReport,
     CarbonReportModule,
     CarbonReportModuleRead,
-    ModuleStatus,
 )
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
