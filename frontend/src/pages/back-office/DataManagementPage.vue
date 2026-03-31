@@ -36,7 +36,7 @@ watch(selectedYear, fetchSyncJobs, { immediate: true });
 // Handle unit sync from Accred API
 const handleUnitSync = async () => {
   try {
-    await backofficeDataManagement.syncUnitsFromAccred();
+    await backofficeDataManagement.syncUnitsFromAccred(selectedYear.value);
 
     Notify.create({
       type: 'info',

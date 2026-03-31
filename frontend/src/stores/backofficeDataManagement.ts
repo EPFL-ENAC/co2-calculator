@@ -511,7 +511,7 @@ provider_type
      * Sync units from Accred API.
      * Triggers background task to fetch and upsert all units and principal users.
      */
-    async function syncUnitsFromAccred(): Promise<void> {
+    async function syncUnitsFromAccred(target_year: number): Promise<void> {
       if (loading.value) {
         throw new Error('Another operation is in progress');
       }
@@ -520,7 +520,11 @@ provider_type
       error.value = null;
 
       try {
-        await api.post('sync/units').json();
+        await api
+          .post('sync/units', {
+            json: { target_year },
+          })
+          .json();
       } catch (err: unknown) {
         if (err instanceof Error) {
           error.value = err.message ?? 'Failed to sync units from Accred API';

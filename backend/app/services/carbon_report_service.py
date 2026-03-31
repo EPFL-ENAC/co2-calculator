@@ -40,6 +40,13 @@ class CarbonReportService:
 
         return carbon_report_read
 
+    async def bulk_upsert(
+        self, data: list[CarbonReportCreate]
+    ) -> list[CarbonReportRead]:
+        """Bulk upsert carbon reports."""
+        carbon_reports = await self.repo.bulk_upsert(data)
+        return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
+
     async def get(self, carbon_report_id: int) -> Optional[CarbonReportRead]:
         """Get a carbon report by ID."""
         carbon_report = await self.repo.get(carbon_report_id)
@@ -82,6 +89,11 @@ class CarbonReportService:
         await self.module_service.delete_all_modules_for_report(carbon_report_id)
         # Then delete the report
         return await self.repo.delete(carbon_report_id)
+
+    async def ensure_modules_for_reports(
+        self, carbon_reports: list[CarbonReportRead]
+    ) -> None:
+        await self.module_service.ensure_modules_for_reports(carbon_reports)
 
     async def recompute_report_stats(self, carbon_report_id: int) -> None:
         """
