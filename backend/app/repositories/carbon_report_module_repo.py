@@ -698,6 +698,96 @@ class CarbonReportModuleRepository:
             "module_status_counts": module_status_counts,
         }
 
+    async def get_usage_report(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        Get a report of all carbon reports and their modules with status and
+        last updated timestamp.
+
+        Args:
+            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
+            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
+            completion_status: Optional filter for module completion status.
+            modules: Optional filter for specific module types and statuses
+              (e.g., ["energy:2", "transport:1"])
+            years: Optional filter for specific years (e.g., [2024, 2025])
+            limit: Maximum number of records to return (-1 for no limit)
+        Returns:
+            A list of dictionaries containing year, unit_id, module_name,
+              module_status, and last_updated.
+        """
+        columns: List[Any] = [
+            col(CarbonReport.year),
+            col(CarbonReport.unit_id),
+            col(CarbonReportModule.module_type_id),
+            col(CarbonReportModule.status),
+            col(CarbonReportModule.last_updated),
+        ]
+        statement = (
+            select(*columns)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.carbon_report_id == CarbonReport.id,
+            )
+            .order_by(CarbonReport.id, CarbonReportModule.module_type_id)
+        )
+        if limit >= 0:
+            statement = statement.limit(limit)
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
+        if completion_status:
+            statement = statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        if modules:
+            # Filter by module types and statuses
+            for mod in modules:
+                if ":" in mod:
+                    module_type_name, status = mod.split(":", 1)
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    statement = statement.where(
+                        (col(CarbonReportModule.module_type_id) == module_type)
+                        & (col(CarbonReportModule.status) == int(status))
+                    )
+                else:
+                    module_type = ModuleTypeEnum[mod].value
+                    statement = statement.where(
+                        col(CarbonReportModule.module_type_id) == module_type
+                    )
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+        if hierarchy_unit_ids is not None and len(hierarchy_unit_ids) > 0:
+            statement = statement.where(
+                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+            )
+
+        result = await self.session.exec(statement)
+        rows = result.fetchall()
+        report = []
+        for row in rows:
+            report.append(
+                {
+                    "year": row.year,
+                    "unit_id": row.unit_id,
+                    "module_name": ModuleTypeEnum(row.module_type_id).name,
+                    "module_status": row.status,
+                    "last_updated": row.last_updated,
+                }
+            )
+        return report
+
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:
         """Helper to map internal IDs to the display names used in UI."""
         if not module_type_id:

@@ -26,7 +26,6 @@ from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
 )
-from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.unit_repo import UnitRepository
 from app.schemas.backoffice import (
     PaginatedUnitReportingData,
@@ -258,20 +257,20 @@ async def list_backoffice_units(
     List units with their reporting completion status and outlier values,
     """
     carbon_report_module_repo = CarbonReportModuleRepository(db)
-    carbon_report_repo = CarbonReportRepository(db)
+    # carbon_report_repo = CarbonReportRepository(db)
     if years is None or len(years) == 0:
         raise ValueError("At least one year must be specified for reporting overview")
-    data = await carbon_report_repo.get_reporting_overview(
-        path_lvl2=path_lvl2,
-        path_lvl3=path_lvl3,
-        path_lvl4=path_lvl4,
-        completion_status=completion_status,
-        search=search,
-        modules=modules,
-        years=years,
-        page=page,
-        page_size=page_size,
-    )
+    # data = await carbon_report_repo.get_reporting_overview(
+    #    path_lvl2=path_lvl2,
+    #    path_lvl3=path_lvl3,
+    #    path_lvl4=path_lvl4,
+    #    completion_status=completion_status,
+    #    search=search,
+    #    modules=modules,
+    #    years=years,
+    #    page=page,
+    #    page_size=page_size,
+    # )
     result = await carbon_report_module_repo.get_reporting_overview(
         path_lvl2=path_lvl2,
         path_lvl3=path_lvl3,
@@ -283,13 +282,9 @@ async def list_backoffice_units(
         page=page,
         page_size=page_size,
     )
-    # data, total, page, page_size, total_pages = result
-
-    # return result.get("data", [])
-
     # Convert the data to UnitReportingData instances
     unit_reporting_data = []
-    for item in data:
+    for item in result.get("data", []):
         if isinstance(item, dict):
             completion = item.get("completion_progress", "0/8")
             completion_status = ModuleStatus.NOT_STARTED
@@ -755,3 +750,76 @@ async def get_available_years(
     if not years:
         return {"years": [], "latest": ""}
     return {"years": years, "latest": years[0]}
+
+
+@router.get("/report/usage")
+async def report_usage(
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
+    ),
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    completion_status: Optional[ModuleStatus] = Query(
+        None, description="Filter by completion status (complete, incomplete)"
+    ),
+    search: Optional[str] = Query(
+        None, description="Search in unit name, affiliation, or principal user"
+    ),
+    modules: Optional[List[str]] = Query(
+        None,
+        description="""Filter by module states, format: 'module_name:state'
+        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress, 
+        'headcount:2' for validated)""",
+    ),
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
+    ),
+    format: str = Query("csv", description="Export format: csv or json"),
+    limit: int = Query(
+        100, ge=-1, description="Limit number of records for export (-1 for no limit)"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
+) -> StreamingResponse:
+    data = await CarbonReportModuleRepository(db).get_usage_report(
+        path_lvl2=path_lvl2,
+        path_lvl3=path_lvl3,
+        path_lvl4=path_lvl4,
+        completion_status=completion_status,
+        modules=modules,
+        years=years,
+        limit=limit,
+    )
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if format == "json":
+        content = json.dumps(data, indent=2, default=str)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="usage_report_{today}.json"'
+                ),
+            },
+        )
+    else:
+        # CSV export
+        output = io.StringIO()
+        writer = csv.writer(output)
+        if data:
+            writer.writerow(data[0].keys())
+            for row in data:
+                writer.writerow(row.values())
+        content = output.getvalue()
+        return StreamingResponse(
+            iter([content]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="usage_report_{today}.csv"'
+                ),
+            },
+        )
