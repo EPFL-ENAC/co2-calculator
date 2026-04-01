@@ -2,7 +2,6 @@ import { useTimelineStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 async function validateUnit() {
-
   const workspaceStore = useWorkspaceStore();
   const routeUnit = String(workspaceStore.selectedParams?.unit || '');
   const unitIdFromRoute = routeUnit.split('-')[0];
