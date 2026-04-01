@@ -70,18 +70,18 @@ const scopeConfig = computed(() => {
 });
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
+  commuting: 'charts-commuting-category', // Headcount
+  food: 'charts-food-category',
+  waste: 'charts-waste-category',
   process_emissions: 'charts-process-emissions-category',
   buildings_room: 'charts-buildings-room-category',
   buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
+  embodied_energy: 'charts-embodied-energy-category',
   equipment: 'equipment-electric-consumption',
   external_cloud_and_ai: 'external-cloud-and-ai',
   purchases: 'purchase',
-  research_facilities: 'charts-research-facilities-category',
   professional_travel: 'professional-travel',
-  commuting: 'charts-commuting-category',
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  embodied_energy: 'charts-embodied-energy-category',
+  research_facilities: 'charts-research-facilities-category',
 };
 
 function translateCategory(
@@ -138,6 +138,24 @@ function collapseByCategory(
   return Array.from(merged.values());
 }
 
+const ADDITIONAL_CATEGORY_KEYS = [
+  t('charts-commuting-category'),
+  t('charts-food-category'),
+  t('charts-waste-category'),
+  t('charts-embodied-energy-category'),
+];
+
+const MAIN_CATEGORY_ORDER = [
+  t('charts-process-emissions-category'),
+  t('charts-buildings-room-category'),
+  t('charts-buildings-energy-combustion-category'),
+  t('equipment-electric-consumption'),
+  t('external-cloud-and-ai'),
+  t('purchase'),
+  t('professional-travel'),
+  t('charts-research-facilities-category'),
+];
+
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
 
@@ -150,6 +168,7 @@ const datasetSource = computed(() => {
       .map(translateCategory),
   );
 
+  let allData = baseData;
   if (toggleAdditionalData.value) {
     const additionalData = collapseByCategory(
       props.breakdownData.additional_breakdown
@@ -161,9 +180,39 @@ const datasetSource = computed(() => {
         })
         .map(translateCategory),
     );
-    return [...baseData, ...additionalData];
+    allData = [...baseData, ...additionalData];
   }
-  return baseData;
+
+  // Partition into additional and main categories
+  const additional = [];
+  const main = [];
+  for (const item of allData) {
+    if (ADDITIONAL_CATEGORY_KEYS.includes(String(item.category))) {
+      additional.push(item);
+    } else {
+      main.push(item);
+    }
+  }
+
+  // Sort main and additional separately
+  main.sort((a, b) => {
+    const aIdx = MAIN_CATEGORY_ORDER.indexOf(String(a.category));
+    const bIdx = MAIN_CATEGORY_ORDER.indexOf(String(b.category));
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+  additional.sort((a, b) => {
+    const aIdx = ADDITIONAL_CATEGORY_KEYS.indexOf(String(a.category));
+    const bIdx = ADDITIONAL_CATEGORY_KEYS.indexOf(String(b.category));
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+
+  return [...main, ...additional];
 });
 
 const additionalSeriesData = computed(() => {
@@ -573,37 +622,6 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    // Professional Travel — subcategories: plane, train
-    {
-      name: t('charts-plane-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'plane' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'professional_travel',
-          'plane',
-          colors.value.babyBlue.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-train-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'train' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'professional_travel',
-          'train',
-          colors.value.babyBlue.dark,
-        ),
-      },
-      label: { show: false },
-    },
     // External cloud & AI — YY subcategories
     {
       name: t('charts-clouds-subcategory'),
@@ -635,6 +653,38 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
+    // Professional Travel — subcategories: plane, train
+    {
+      name: t('charts-plane-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'plane' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'professional_travel',
+          'plane',
+          colors.value.babyBlue.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-train-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'train' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'professional_travel',
+          'train',
+          colors.value.babyBlue.dark,
+        ),
+      },
+      label: { show: false },
+    },
+
     ...additionalSeriesData.value,
   ];
 

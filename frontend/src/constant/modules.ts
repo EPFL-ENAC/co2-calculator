@@ -193,7 +193,16 @@ export type ConditionalSubmoduleProps =
 
 // Exclude the 4 modules that should be removed
 // TODO: refactor the codebase to remove these 4 modules and then remove this exclusion
-export const MODULES_LIST: Module[] = Object.values(MODULES).slice(0, -4);
+export const MODULES_LIST: Module[] = [
+  MODULES.Headcount,
+  MODULES.ProcessEmissions,
+  MODULES.Buildings,
+  MODULES.EquipmentElectricConsumption,
+  MODULES.ExternalCloudAndAI,
+  MODULES.Purchase,
+  MODULES.ProfessionalTravel,
+  MODULES.ResearchFacilities,
+];
 
 export const MODULES_PATTERN = MODULES_LIST.join('|');
 
