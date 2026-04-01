@@ -51,8 +51,13 @@ def get_files_storage_path() -> str:
 
 
 def generate_unique_filename(original_filename: str) -> str:
-    """Generate a unique filename preserving extension."""
-    name, ext = os.path.splitext(original_filename)
+    """Generate a unique filename preserving extension.
+
+    Uses os.path.basename to strip any directory components supplied by the
+    caller before appending a UUID, preventing path-traversal via filenames.
+    """
+    safe_name = os.path.basename(original_filename)
+    name, ext = os.path.splitext(safe_name)
     return f"{name}_{uuid4().hex}{ext}"
 
 
@@ -69,16 +74,30 @@ async def save_uploaded_file(
     Returns:
         FileMetadata with path, filename, and upload timestamp.
     """
-    storage_path = get_files_storage_path()
+    storage_path = os.path.realpath(get_files_storage_path())
     category_dir = f"reduction_objectives/{category}"
-    full_path = os.path.join(storage_path, category_dir)
+    full_path = os.path.normpath(os.path.join(storage_path, category_dir))
+
+    # Guard against path traversal: the resolved path must stay inside storage_path.
+    if not full_path.startswith(storage_path + os.sep):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file category path.",
+        )
 
     # Create directory if it doesn't exist
     os.makedirs(full_path, exist_ok=True)
 
-    # Generate unique filename
+    # Generate unique filename (basename-sanitised internally)
     unique_filename = generate_unique_filename(file.filename or "uploaded_file")
-    file_path = os.path.join(full_path, unique_filename)
+    file_path = os.path.normpath(os.path.join(full_path, unique_filename))
+
+    # Second guard: the final file path must also stay inside storage_path.
+    if not file_path.startswith(storage_path + os.sep):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename.",
+        )
 
     # Save file
     content = await file.read()
