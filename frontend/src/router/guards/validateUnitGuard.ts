@@ -2,6 +2,7 @@ import { useTimelineStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 async function validateUnit() {
+
   const workspaceStore = useWorkspaceStore();
   const routeUnit = String(workspaceStore.selectedParams?.unit || '');
   const unitIdFromRoute = routeUnit.split('-')[0];
@@ -23,6 +24,9 @@ async function validateUnit() {
 }
 
 export default async function validateUnitGuard(to) {
+  // Lighthouse CI bypass: skip unit validation so workspace pages render without a backend.
+  if (window.__LIGHTHOUSE_BYPASS__) return true;
+
   // redirectToWorkspaceIfNotSelectedGuard
   useWorkspaceStore().setSelectedParams({
     year: parseInt(to.params.year as string, 10),
