@@ -698,6 +698,125 @@ class CarbonReportModuleRepository:
             "module_status_counts": module_status_counts,
         }
 
+    async def get_usage_report(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
+    ) -> list[dict]:
+        """
+        Get a report of all carbon reports and their modules with status and
+        last updated timestamp.
+
+        Args:
+            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
+            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
+            completion_status: Optional filter for report-level completion status.
+            search: Optional search term to filter results.
+            modules: Optional filter for specific module types (ModuleTypeEnum names)
+              and statuses (e.g., ["headcount:2", "professional_travel:1"])
+            years: Optional filter for specific years (e.g., [2024, 2025])
+        Returns:
+            A list of dictionaries containing year, unit_id, module_name,
+              module_status, and last_updated.
+        """
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+        # If hierarchy filters were provided but matched no units, return no results.
+        if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
+            return []
+
+        report: list[dict] = []
+
+        columns: List[Any] = [
+            col(CarbonReport.year),
+            col(CarbonReport.unit_id),
+            col(CarbonReportModule.module_type_id),
+            col(CarbonReportModule.status),
+            col(CarbonReportModule.last_updated),
+        ]
+        statement = (
+            select(*columns)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.carbon_report_id == CarbonReport.id,
+            )
+            .order_by(CarbonReport.id, CarbonReportModule.module_type_id)
+        )
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
+        if completion_status:
+            statement = statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        if search:
+            search_term = f"%{search.strip().lower()}%"
+            statement = statement.join(Unit, Unit.id == CarbonReport.unit_id).where(
+                or_(
+                    func.lower(Unit.name).like(search_term),
+                    func.lower(Unit.institutional_code).like(search_term),
+                )
+            )
+        if modules:
+            module_conditions: List[Any] = []
+            for mod in modules:
+                if ":" in mod:
+                    module_type_name, status_str = mod.split(":", 1)
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    try:
+                        status_int = int(status_str)
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"Invalid status in modules filter (must be integer): "
+                            f"{status_str}"
+                        ) from exc
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        (col(CarbonReportModule.module_type_id) == module_type)
+                        & (col(CarbonReportModule.status) == status_int)
+                    )
+                else:
+                    module_type_name = mod
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        col(CarbonReportModule.module_type_id) == module_type
+                    )
+            statement = statement.where(or_(*module_conditions))
+
+        if hierarchy_unit_ids is not None:
+            statement = statement.where(
+                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+            )
+        cursor = await self.session.stream(statement)
+        async for partition in cursor.partitions(500):
+            for row in partition:
+                report.append(
+                    {
+                        "year": row.year,
+                        "unit_id": row.unit_id,
+                        "module_name": ModuleTypeEnum(row.module_type_id).name,
+                        "module_status": row.status,
+                        "last_updated": row.last_updated,
+                    }
+                )
+
+        return report
+
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:
         """Helper to map internal IDs to the display names used in UI."""
         if not module_type_id:

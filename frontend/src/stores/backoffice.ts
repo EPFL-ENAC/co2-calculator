@@ -50,7 +50,7 @@ interface BackofficeUnitDataPagination {
   module_status_counts?: Record<number, number> | null;
 }
 
-interface UnitFilters {
+export interface UnitFilters {
   path_lvl2?: Array<number | string>;
   path_lvl3?: Array<number | string>;
   path_lvl4?: Array<number | string>;
