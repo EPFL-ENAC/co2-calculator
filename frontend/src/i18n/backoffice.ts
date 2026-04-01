@@ -10,8 +10,8 @@ export default {
     fr: 'backoffice-user-management-description',
   },
   [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName]: {
-    en: 'Data Management',
-    fr: 'Gestion des données',
+    en: 'Configuration',
+    fr: 'Configuration',
   },
   [BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.description]: {
     en: 'backoffice-data-management-description',

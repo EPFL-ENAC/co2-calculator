@@ -17,6 +17,26 @@ const yearConfigStore = useYearConfigStore();
 const expandedModules = ref<Record<string, boolean>>({});
 const localConfig = ref<Record<string, ModuleConfig>>({});
 
+// Helper to get module type ID
+const getModuleTypeId = (module: Module): number => {
+  const moduleMap: Record<Module, number> = {
+    headcount: 1,
+    'professional-travel': 2,
+    buildings: 3,
+    'equipment-electric-consumption': 4,
+    purchase: 5,
+    'research-facilities': 6,
+    'external-cloud-and-ai': 7,
+    'process-emissions': 8,
+    // deprecated modules kept to satisfy the Record<Module, number> constraint
+    commuting: 0,
+    food: 0,
+    waste: 0,
+    'embodied-energy': 0,
+  };
+  return moduleMap[module] || 0;
+};
+
 // Sync local config from the already-fetched store state (no extra HTTP call).
 const loadConfig = () => {
   const response = yearConfigStore.config;
@@ -71,26 +91,6 @@ const saveConfig = async (module: Module, updates: ModuleConfig) => {
 
 // React to store config changes (fetched by the parent page).
 watch(() => yearConfigStore.config, loadConfig, { immediate: true });
-
-// Helper to get module type ID
-const getModuleTypeId = (module: Module): number => {
-  const moduleMap: Record<Module, number> = {
-    headcount: 1,
-    'professional-travel': 2,
-    buildings: 3,
-    'equipment-electric-consumption': 4,
-    purchase: 5,
-    'research-facilities': 6,
-    'external-cloud-and-ai': 7,
-    'process-emissions': 8,
-    // deprecated modules kept to satisfy the Record<Module, number> constraint
-    commuting: 0,
-    food: 0,
-    waste: 0,
-    'embodied-energy': 0,
-  };
-  return moduleMap[module] || 0;
-};
 </script>
 
 <template>

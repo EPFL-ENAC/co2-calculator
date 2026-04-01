@@ -252,6 +252,10 @@ export default {
     en: 'Validate Module',
     fr: 'Valider le module',
   },
+  common_or: {
+    en: 'or',
+    fr: 'ou',
+  },
   common_unvalidate: {
     en: 'Edit Module',
     fr: 'Éditer le module',
@@ -283,6 +287,10 @@ export default {
   common_view_only: {
     en: 'View Only',
     fr: 'Lecture seule',
+  },
+  common_mandatory: {
+    en: 'Mandatory',
+    fr: 'Obligatoire',
   },
   header_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
