@@ -1,11 +1,12 @@
 {
   "ci": {
     "collect": {
-      "staticDistDir": "./frontend/dist/spa",
+      "startServerCommand": "npx serve -s frontend/dist/spa -l 8080",
+      "startServerReadyPattern": "Accepting connections",
       "url": [
-        "/en/login",
-        "/en/login-test",
-        "/en/workspace-setup"
+        "http://localhost:8080/en/login",
+        "http://localhost:8080/en/login-test",
+        "http://localhost:8080/en/workspace-setup"
       ],
       "numberOfRuns": 3,
       "settings": {
