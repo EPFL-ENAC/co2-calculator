@@ -339,6 +339,11 @@ networkPolicy:
 # -----------------------------------------------------------------------------
 # Documentation deployment
 # Static documentation served via nginx, built from docs/ directory
+# Built automatically by CI/CD via deploy.yml and deploy-quay.yml
+# Image tag is set by ArgoCD based on branch:
+#   - dev branch → commit SHA
+#   - stage branch → commit SHA
+#   - tags (v*) → version tag (e.g., v1.2.3)
 # -----------------------------------------------------------------------------
 docs:
   enabled: true
@@ -346,7 +351,7 @@ docs:
 
   image:
     repository: ghcr.io/epfl-enac/epfl/co2-calculator/docs
-    tag: "latest"
+    tag: "latest" # Overridden by ArgoCD with actual tag from CI/CD
     pullPolicy: IfNotPresent
 
   service:

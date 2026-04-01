@@ -1,20 +1,22 @@
 name: deploy-mkdocs
 
 # =============================================================================
-# IMPORTANT: DEPRECATED - FOR MAIN BRANCH FALLBACK ONLY
+# IMPORTANT: DEPRECATED - FOR MAIN BRANCH FALLBACK ONLY (GITHUB PAGES)
 # =============================================================================
-# This workflow is ONLY for deploying docs to GitHub Pages on the main branch.
 # 
-# For development, staging, and release documentation:
-# - dev branch docs: Deployed via deploy.yml (GitHub Pages alternative)
-# - stage branch docs: Deployed via deploy.yml (GitHub Pages alternative)  
-# - release docs (tags): Deployed via deploy.yml (GitHub Pages alternative)
+# ⚠️  THIS WORKFLOW IS DEPRECATED AND ONLY USED FOR MAIN BRANCH FALLBACK
+# 
+# For ALL other branches (dev, stage, ci-test/*, tags):
+#   Documentation is deployed via deploy.yml and deploy-quay.yml
+#   Access docs at: https://co2-calculator-*.epfl.ch/docs
 #
-# All dev/stage/release documentation is served at:
-#   https://co2-calculator-*.epfl.ch/docs
+# Branch-to-URL mapping:
+#   - dev branch    → https://co2-calculator-dev.epfl.ch/docs
+#   - stage branch  → https://co2-calculator-stage.epfl.ch/docs
+#   - tags (v*)     → https://co2-calculator.epfl.ch/docs
 #
-# DO NOT use this workflow for testing branch-specific documentation.
-# Use the helm chart deployment instead for all non-main branches.
+# This workflow ONLY deploys to GitHub Pages for the main branch.
+# Consider removing this workflow once GitHub Pages is no longer needed.
 # =============================================================================
 
 on:

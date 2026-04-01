@@ -15,73 +15,9 @@ jobs:
     with:
       name: "co2-calculator"
       registry: "epfl-enac/co2-calculator"
-
-  build-docs:
-    name: Build and Push Docs Image
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Quay Registry
-        uses: docker/login-action@v3
-        with:
-          registry: quay-its.epfl.ch
-          username: svc1751+ghaction
-          password: ${{ secrets.QUAY_TOKEN }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-
-      - name: Install documentation dependencies
-        working-directory: ./docs
-        run: uv sync --locked --all-extras --dev
-
-      - name: Build documentation
-        working-directory: ./docs
-        run: uv run mkdocs build --strict --site-dir ../docs-site
-
-      - name: Determine docs image tag
-        id: tag
-        run: |
-          if [[ "${{github.ref}}" == refs/tags/v* ]]; then
-            # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
-            TAG=${{github.ref}}#refs/tags/
-            echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          elif [[ "${{github.ref}}" == refs/heads/dev ]]; then
-            echo "tag=dev" >> $GITHUB_OUTPUT
-          elif [[ "${{github.ref}}" == refs/heads/stage ]]; then
-            echo "tag=stage" >> $GITHUB_OUTPUT
-          elif [[ "${{github.ref}}" == refs/heads/ci-test/* ]]; then
-            echo "tag=dev" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push docs image to Quay
-        uses: docker/build-push-action@v5
-        with:
-          context: ./docs-site
-          file: ./docs/Dockerfile
-          push: true
-          tags: |
-            quay-its.epfl.ch/svc1751/co2-calculator/docs:${{ steps.tag.outputs.tag }}
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
     needs:
       - publish-chart
-      - build-docs
     permissions:
       contents: read
       packages: write
@@ -93,7 +29,7 @@ jobs:
       # Optional inputs can be passed here
       ORG: epfl
       REPO: co2-calculator
-      build_context: '[ "./frontend", "./backend" ]' # context paths to build
+      build_context: '[ "./frontend", "./backend", "./docs" ]' # context paths to build
       argo_repository: "['EPFL-ENAC/openshift-app-config']"
       registry: quay-its.epfl.ch
       registry_path: svc1751
