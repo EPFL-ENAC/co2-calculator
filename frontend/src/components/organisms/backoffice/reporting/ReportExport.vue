@@ -4,7 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { REPORT_TYPES } from 'src/constant/report';
 // import type { ModuleState } from 'src/constant/moduleStates';
 import { Notify } from 'quasar';
-import { exportReport, downloadUsageReportFile } from 'src/api/reporting';
+import {
+  exportReport,
+  downloadUsageReportFile,
+  downloadDetailedReportFile,
+} from 'src/api/reporting';
 import type { ReportFormat, ReportType } from 'src/api/reporting';
 import { type UnitFilters } from 'src/stores/backoffice';
 const { t } = useI18n();
@@ -36,6 +40,7 @@ const props = defineProps<{
 }>();
 
 const selectedReport = ref<ReportType>('combined');
+const downloading = ref(false);
 
 /**
  * Escapes a CSV field value by wrapping it in quotes if it contains
@@ -51,10 +56,10 @@ const selectedReport = ref<ReportType>('combined');
 // }
 
 async function downloadReport(format: 'csv' | 'json') {
+  downloading.value = true;
   if (!selectedReport.value) return;
   if (selectedReport.value === 'usage') {
     try {
-      // downloadUsageReportFile performs query which response has attached file, so we need to handle it differently
       const blob = await downloadUsageReportFile(
         props.unitFilters || {},
         format as ReportFormat,
@@ -79,6 +84,37 @@ async function downloadReport(format: 'csv' | 'json') {
         position: 'top',
         timeout: 3000,
       });
+    } finally {
+      downloading.value = false;
+    }
+  } else if (selectedReport.value === 'detailed') {
+    try {
+      const blob = await downloadDetailedReportFile(
+        props.unitFilters || {},
+        format as ReportFormat,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `detailed_report_${today}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Notify.create({
+        color: 'positive',
+        message: t('backoffice_reporting_detailed_downloaded'),
+        position: 'top',
+        timeout: 2000,
+      });
+    } catch {
+      Notify.create({
+        color: 'negative',
+        message: t('backoffice_reporting_detailed_download_failed'),
+        position: 'top',
+        timeout: 3000,
+      });
+    } finally {
+      downloading.value = false;
     }
   } else {
     try {
@@ -109,6 +145,8 @@ async function downloadReport(format: 'csv' | 'json') {
         position: 'top',
         timeout: 3000,
       });
+    } finally {
+      downloading.value = false;
     }
   }
 }
@@ -229,6 +267,7 @@ async function downloadReport(format: 'csv' | 'json') {
       icon="o_table"
       color="accent"
       :label="$t('common_export_as_csv')"
+      :loading="downloading"
       unelevated
       no-caps
       size="md"
