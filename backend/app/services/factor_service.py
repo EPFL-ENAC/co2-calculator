@@ -68,7 +68,7 @@ class FactorService:
     ) -> List[Factor]:
         """Flexible factor lookup with dynamic classification filters and fallbacks.
 
-        Forwards to ``FactorRepository.get_factor``.
+        Forwards to ``FactorRepository.get_factors``.
 
         Args:
             data_entry_type: Scopes the query to this data entry type.
