@@ -30,12 +30,12 @@ ENV GIT_PYTHON_REFRESH=quiet
 RUN uv run mkdocs build --strict --site-dir /dist
 
 # Stage 2: Serve with nginx
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:stable
 
 # Copy built documentation from builder stage
 COPY --from=builder /dist /usr/share/nginx/html
 
-# Expose nginx port
+# Expose nginx port (unprivileged nginx uses 8080 by default)
 EXPOSE 8080
 
 # Use nginx default startup command
