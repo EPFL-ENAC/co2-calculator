@@ -4,8 +4,9 @@ import { useI18n } from 'vue-i18n';
 import { REPORT_TYPES } from 'src/constant/report';
 // import type { ModuleState } from 'src/constant/moduleStates';
 import { Notify } from 'quasar';
-import { exportReport } from 'src/api/reporting';
+import { exportReport, downloadUsageReportFile } from 'src/api/reporting';
 import type { ReportFormat, ReportType } from 'src/api/reporting';
+import { type UnitFilters } from 'src/stores/backoffice';
 const { t } = useI18n();
 
 // interface ModuleCompletion {
@@ -30,9 +31,9 @@ const { t } = useI18n();
 //   outlier_values: number;
 // }
 
-// const props = defineProps<{
-//   units?: UnitData[];
-// }>();
+const props = defineProps<{
+  unitFilters?: UnitFilters;
+}>();
 
 const selectedReport = ref<ReportType>('combined');
 
@@ -49,35 +50,66 @@ const selectedReport = ref<ReportType>('combined');
 //   return stringValue;
 // }
 
-async function downloadCSV(format: 'csv' | 'json') {
-  try {
-    const blob = await exportReport(
-      {
-        type: selectedReport.value as ReportType,
-        years: [2025],
-      },
-      format as ReportFormat,
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const today = new Date().toISOString().slice(0, 10);
-    a.download = `audit_export_${today}.${format}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    Notify.create({
-      color: 'positive',
-      message: t('audit_msg_exported', { format: format.toUpperCase() }),
-      position: 'top',
-      timeout: 2000,
-    });
-  } catch {
-    Notify.create({
-      color: 'negative',
-      message: t('audit_msg_export_failed'),
-      position: 'top',
-      timeout: 3000,
-    });
+async function downloadReport(format: 'csv' | 'json') {
+  if (!selectedReport.value) return;
+  if (selectedReport.value === 'usage') {
+    try {
+      // downloadUsageReportFile performs query which response has attached file, so we need to handle it differently
+      const blob = await downloadUsageReportFile(
+        props.unitFilters || {},
+        format as ReportFormat,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `usage_report_${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Notify.create({
+        color: 'positive',
+        message: t('backoffice_reporting_usage_downloaded'),
+        position: 'top',
+        timeout: 2000,
+      });
+    } catch {
+      Notify.create({
+        color: 'negative',
+        message: t('backoffice_reporting_usage_download_failed'),
+        position: 'top',
+        timeout: 3000,
+      });
+    }
+  } else {
+    try {
+      const blob = await exportReport(
+        {
+          type: selectedReport.value as ReportType,
+          years: [2025],
+        },
+        format as ReportFormat,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `audit_export_${today}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Notify.create({
+        color: 'positive',
+        message: t('audit_msg_exported', { format: format.toUpperCase() }),
+        position: 'top',
+        timeout: 2000,
+      });
+    } catch {
+      Notify.create({
+        color: 'negative',
+        message: t('audit_msg_export_failed'),
+        position: 'top',
+        timeout: 3000,
+      });
+    }
   }
 }
 
@@ -201,7 +233,7 @@ async function downloadCSV(format: 'csv' | 'json') {
       no-caps
       size="md"
       class="text-weight-medium"
-      @click="() => downloadCSV('csv')"
+      @click="() => downloadReport('csv')"
     />
   </div>
 </template>

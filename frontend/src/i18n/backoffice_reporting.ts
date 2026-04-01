@@ -186,6 +186,14 @@ export default {
     en: 'Number of validated modules',
     fr: 'Nombre de modules validées',
   },
+  backoffice_reporting_usage_downloaded: {
+    en: 'Usage report downloaded',
+    fr: "Rapport d'utilisation téléchargé",
+  },
+  backoffice_reporting_usage_download_failed: {
+    en: 'Failed to download usage report',
+    fr: "Échec du téléchargement du rapport d'utilisation",
+  },
 
   backoffice_reporting_chart_unit_footprint_title: {
     en: 'Unit Carbon Footprint',

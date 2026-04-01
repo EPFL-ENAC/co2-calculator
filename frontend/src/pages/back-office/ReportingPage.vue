@@ -4,7 +4,7 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { Module } from 'src/constant/modules';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
-import { useBackofficeStore } from 'src/stores/backoffice';
+import { type UnitFilters, useBackofficeStore } from 'src/stores/backoffice';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import ModuleSelector, {
@@ -12,7 +12,7 @@ import ModuleSelector, {
 } from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
 import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
 import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
-import type { ReportingStats } from 'src/api/reporting';
+import { type ReportingStats } from 'src/api/reporting';
 import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
 import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
@@ -107,19 +107,15 @@ const totalModules = computed(() => {
   return Object.values(counts).reduce((a, b) => a + b, 0);
 });
 
-async function fetchUnits() {
-  if (selectedYears.value.length === 0) {
-    backofficeStore.units = null;
-    return;
-  }
-  const filtersToSend: {
-    path_lvl2?: Array<number | string>;
-    path_lvl3?: Array<number | string>;
-    path_lvl4?: Array<number | string>;
-    years?: string[];
-    completion_status?: number | string;
-    modules?: Array<{ module: string; state: ModuleState }>;
-  } = {
+const unitFilters = computed<UnitFilters>(() => {
+  const modules = [];
+  moduleStates.value.forEach((data) => {
+    data.states.forEach((state) => {
+      modules.push({ module: data.module, state });
+    });
+  });
+
+  return {
     path_lvl2:
       selectedPathLvl2.value.length > 0 ? selectedPathLvl2.value : undefined,
     path_lvl3:
@@ -131,13 +127,16 @@ async function fetchUnits() {
       selectedCompletionStatus.value !== ''
         ? selectedCompletionStatus.value
         : undefined,
-    modules: Array.from(moduleStates.value.values()).map((data) => ({
-      module: data.module,
-      state: data.states.length > 0 ? data.states[0] : 0,
-    })),
+    modules,
   };
+});
 
-  await backofficeStore.getUnits(filtersToSend);
+async function fetchUnits() {
+  if (selectedYears.value.length === 0) {
+    backofficeStore.units = null;
+    return;
+  }
+  await backofficeStore.getUnits(unitFilters.value);
 }
 
 onMounted(async () => {
@@ -320,7 +319,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
             $t('backoffice_reporting_generate_report_description')
           }}</span>
 
-          <ReportExport :units="[]" />
+          <ReportExport :unit-filters="unitFilters" />
         </div>
       </div>
       <UnitDialogue v-model:model-value="alert" :unit-id="selectedUnitId" />
