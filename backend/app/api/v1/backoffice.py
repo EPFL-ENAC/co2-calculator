@@ -22,6 +22,7 @@ from app.models.carbon_report import (
     CarbonReportModule,
     CarbonReportModuleRead,
 )
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
@@ -804,7 +805,7 @@ async def report_usage(
         # Invalid filter values or other issues in query parameters
         raise HTTPException(status_code=400, detail=str(exc))
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if format == "json":
         content = json.dumps(data, indent=2, default=str)
         return StreamingResponse(
@@ -812,12 +813,11 @@ async def report_usage(
             media_type="application/json",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="usage_report_{today}.json"'
+                    f'attachment; filename="usage_report_{timestamp}.json"'
                 ),
             },
         )
     else:
-        # CSV export
         output = io.StringIO()
         writer = csv.writer(output)
         if data:
@@ -830,7 +830,88 @@ async def report_usage(
             media_type="text/csv",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="usage_report_{today}.csv"'
+                    f'attachment; filename="usage_report_{timestamp}.csv"'
                 ),
             },
         )
+
+
+@router.get("/report/detailed")
+async def report_detailed(
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
+    ),
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    completion_status: Optional[ModuleStatus] = Query(
+        None,
+        description=(
+            "Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), "
+            "VALIDATED (2)"
+        ),
+    ),
+    search: Optional[str] = Query(
+        None, description="Search in unit name, affiliation, or principal user"
+    ),
+    modules: Optional[List[str]] = Query(
+        None,
+        description="""Filter by module states, format: 'module_name:state'
+        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress, 
+        'headcount:2' for validated)""",
+    ),
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
+    ),
+    format: str = Query("csv", description="Export format: csv or json"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
+) -> StreamingResponse:
+    if format not in {"csv", "json"}:
+        raise HTTPException(status_code=400, detail="Invalid format specified")
+
+    # Create ZIP file with all CSVs
+    zip_buffer = io.BytesIO()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for data_entry_type in DataEntryTypeEnum:
+            try:
+                data = await CarbonReportModuleRepository(db).get_detailed_report(
+                    data_entry_type=data_entry_type,
+                    path_lvl2=path_lvl2,
+                    path_lvl3=path_lvl3,
+                    path_lvl4=path_lvl4,
+                    completion_status=completion_status,
+                    search=search,
+                    modules=modules,
+                    years=years,
+                )
+            except ValueError as exc:
+                # Invalid filter values or other issues in query parameters
+                raise HTTPException(status_code=400, detail=str(exc))
+
+            if format == "json":
+                content = json.dumps(data, indent=2, default=str)
+            else:
+                output = io.StringIO()
+                writer = csv.writer(output)
+                if data:
+                    writer.writerow(data[0].keys())
+                    for row in data:
+                        writer.writerow(row.values())
+                content = output.getvalue()
+
+            zip_file.writestr(f"{data_entry_type.name}.{format}", content)
+
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; "
+            f'filename="detailed_report_{timestamp}.zip"'
+        },
+    )
