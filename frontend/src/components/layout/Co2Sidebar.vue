@@ -40,10 +40,7 @@ function isItemDisabled(item: NavItem): boolean {
 <template>
   <div class="co2-sidebar" :class="{ 'co2-sidebar--collapsed': collapsed }">
     <div class="co2-sidebar-toggle" @click="collapsed = !collapsed">
-      <q-icon
-        :name="collapsed ? 'chevron_right' : 'chevron_left'"
-        size="sm"
-      />
+      <q-icon :name="collapsed ? 'chevron_right' : 'chevron_left'" size="xs" />
     </div>
     <q-list class="co2-sidebar-items">
       <q-item

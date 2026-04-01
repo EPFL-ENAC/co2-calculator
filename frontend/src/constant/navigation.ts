@@ -18,12 +18,6 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     icon: 'o_people',
     limitedAccess: true,
   },
-  BACKOFFICE_DATA_MANAGEMENT: {
-    routeName: 'backoffice-data-management',
-    description: 'backoffice-data-management-description',
-    icon: 'data_object',
-    limitedAccess: true,
-  },
   BACKOFFICE_DOCUMENTATION_EDITING: {
     routeName: 'backoffice-documentation-editing',
     description: 'backoffice-documentation-editing-description',
@@ -34,28 +28,16 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     description: 'backoffice-ui-texts-editing-description',
     icon: 'o_edit_document',
   },
+  BACKOFFICE_DATA_MANAGEMENT: {
+    routeName: 'backoffice-data-management',
+    description: 'backoffice-data-management-description',
+    icon: 'data_object',
+    limitedAccess: true,
+  },
   BACKOFFICE_LOGS: {
     routeName: 'backoffice-logs',
     description: 'backoffice-logs-description',
     icon: 'o_list_alt',
     superAdminOnly: true,
-  },
-};
-
-export const SYSTEM_NAV: Record<string, NavItem> = {
-  SYSTEM_USER_MANAGEMENT: {
-    routeName: 'system-user-management',
-    description: 'system-user-management-description',
-    icon: 'o_people',
-  },
-  SYSTEM_MODULE_MANAGEMENT: {
-    routeName: 'system-module-management',
-    description: 'system-module-management-description',
-    icon: 'o_view_module',
-  },
-  SYSTEM_LOGS: {
-    routeName: 'system-logs',
-    description: 'system-logs-description',
-    icon: 'o_list_alt',
   },
 };

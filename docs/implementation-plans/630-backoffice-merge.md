@@ -228,11 +228,3 @@ Add i18n entries for the two new nav items:
 | `src/pages/back-office/UITextsEditingPage.vue`       | **New file** — extracted Texts section                                                                         |
 | `src/pages/back-office/DocumentationEditingPage.vue` | Remove Texts section (keep Documentation section only)                                                         |
 | `src/i18n/backoffice.ts`                             | Add 4 new i18n keys for new nav items                                                                          |
-
----
-
-## Out of Scope
-
-- System routes (`system/*`) are **not deleted** — they are left as dead routes accessible only by direct URL. Removing them is a separate cleanup task.
-- `SYSTEM_NAV` constant is kept in `navigation.ts` but no longer used in any UI component.
-- `pages/system/LogsPage.vue` is reused as-is; any system-specific content inside it (e.g. system-only environment links) is addressed in a follow-up.

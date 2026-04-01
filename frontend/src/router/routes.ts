@@ -1,7 +1,7 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { i18n } from 'src/boot/i18n';
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
+import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
 import {
@@ -33,10 +33,6 @@ export const ROUTES_WITHOUT_LANGUAGE = [
 
 export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
   return route.meta?.isBackOffice === true;
-}
-
-export function isSystemRoute(route: RouteLocationNormalized): boolean {
-  return route.meta?.isSystem === true;
 }
 
 const routes: RouteRecordRaw[] = [
@@ -243,8 +239,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'back-office/ui-texts-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
-            component: () =>
-              import('pages/back-office/UITextsEditingPage.vue'),
+            component: () => import('pages/back-office/UITextsEditingPage.vue'),
             beforeEnter: requirePermission('backoffice.users', 'view'),
             meta: {
               requiresAuth: true,
@@ -274,62 +269,6 @@ const routes: RouteRecordRaw[] = [
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',
               isBackOffice: true,
-            },
-          },
-          // System Admin routes
-          {
-            path: 'system',
-            redirect: {
-              name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
-            },
-            beforeEnter: requirePermission('system.users', 'edit'),
-          },
-          {
-            path: 'system/user-management',
-            name: SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName,
-            component: () => import('pages/system/UserManagementPage.vue'),
-            beforeEnter: requirePermission('system.users', 'edit'),
-            meta: {
-              requiresAuth: true,
-              note: 'System Admin - User and role administration',
-              breadcrumb: false,
-              isSystem: true,
-            },
-          },
-          {
-            path: 'system/module-management',
-            name: SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName,
-            component: () => import('pages/system/ModuleManagementPage.vue'),
-            beforeEnter: requirePermission('system.users', 'edit'),
-            meta: {
-              requiresAuth: true,
-              note: 'System Admin - Global module enable/disable',
-              breadcrumb: false,
-              isSystem: true,
-            },
-          },
-          {
-            path: 'system/logs',
-            name: SYSTEM_NAV.SYSTEM_LOGS.routeName,
-            component: () => import('pages/system/LogsPage.vue'),
-            beforeEnter: requirePermission('system.users', 'edit'),
-            meta: {
-              requiresAuth: true,
-              note: 'System Admin - System logs viewer',
-              breadcrumb: false,
-              isSystem: true,
-            },
-          },
-          {
-            path: 'system/documentation',
-            name: 'system-documentation',
-            component: () => import('pages/system/DocumentationPage.vue'),
-            beforeEnter: requirePermission('system.users', 'edit'),
-            meta: {
-              requiresAuth: true,
-              note: 'Documentation - System Admin documentation',
-              breadcrumb: true,
-              isSystem: true,
             },
           },
         ],

@@ -192,8 +192,12 @@ export default {
     fr: "Importez les données d'activité pour ce sous-module.",
   },
   data_management_factor_description: {
-    en: 'Import annual emission factors (kg CO₂-eq).',
+    en: 'Import annual emission factors (kg CO₂-eq). ',
     fr: "Importez les facteurs d'émission annuels (kg CO₂-éq).",
+  },
+  data_management_factor_headcount_description: {
+    en: 'Import annual emission factors. This data affects food, commuting, and waste calculations based on headcount.',
+    fr: "Importez les facteurs d'émission annuels. Ces données influencent les calculs d'alimentation, de mobilité et de déchets en fonction du nombre de personnel.",
   },
   data_management_references: {
     en: 'References',

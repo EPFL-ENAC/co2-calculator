@@ -43,7 +43,6 @@ const hasBackOfficeAccess = computed(() => {
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
-
 </script>
 
 <template>
@@ -140,11 +139,14 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
 
         <q-btn
           icon="o_autorenew"
+          color="grey-4"
+          text-color="primary"
           :label="$t('workspace_change_btn')"
           unelevated
           no-caps
+          outline
           size="sm"
-          class="text-weight-medium btn-secondary"
+          class="text-weight-medium q-ml-xl"
           :to="{
             name: 'workspace-setup',
             params: {
@@ -162,6 +164,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
         flat
         dense
         no-caps
+        outline
         color="accent"
         size="md"
         :label="authStore.displayName"

@@ -11,12 +11,10 @@
   flex-direction: column;
 
   .co2-sidebar-items {
-    flex: 1;
-    overflow-y: auto;
+    overflow-y: visible;
   }
 
   .co2-sidebar-toggle {
-    flex-shrink: 0;
     padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
     display: flex;
     align-items: center;
