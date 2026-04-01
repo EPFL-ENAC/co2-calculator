@@ -16,12 +16,12 @@ Monitored throughout the project using the [Green IT best practices](https://rwe
 Lighthouse runs on every PR that touches the frontend. It audits
 5 critical pages in CI (~2 min) and enforces minimum scores:
 
-| Category | Min score |
-|---|---|
-| Performance | 80% |
-| Accessibility | 70% |
-| Best Practices | 90% |
-| SEO | 90% |
+| Category       | Min score |
+| -------------- | --------- |
+| Performance    | 80%       |
+| Accessibility  | 70%       |
+| Best Practices | 90%       |
+| SEO            | 90%       |
 
 The ecoindex plugin ([cnumr/lighthouse-plugin-ecoindex][ecoindex])
 measures energy efficiency and carbon impact per page. Note: the
@@ -35,11 +35,10 @@ cd frontend
 make lighthouse
 ```
 
-See [implementation plan #264][impl264] for the bypass mechanism
+See implementation plan #264 for the bypass mechanism
 and known limitations.
 
 [ecoindex]: https://github.com/cnumr/lighthouse-plugin-ecoindex#readme
-[impl264]: ../../implementation-plans/264-lighthouse-route-in-frontend.md
 
 ### Back-End
 

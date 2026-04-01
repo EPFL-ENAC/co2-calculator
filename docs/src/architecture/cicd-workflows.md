@@ -143,17 +143,15 @@ this flag is set. The flag never enters the production build.
 
 **Two audit configs:**
 
-| Config | Routes | Purpose |
-|---|---|---|
-| `.lighthouserc.ci.json` | 5 critical | CI (login → workspace → results) |
-| `.lighthouserc.json` | 24 routes | Local full audit (`make lighthouse`) |
+| Config                  | Routes     | Purpose                              |
+| ----------------------- | ---------- | ------------------------------------ |
+| `.lighthouserc.ci.json` | 5 critical | CI (login → workspace → results)     |
+| `.lighthouserc.json`    | 24 routes  | Local full audit (`make lighthouse`) |
 
 > ℹ️ Auditing all 24 routes in CI would take ~36 minutes.
 > CI covers the critical path; full coverage runs locally.
 
-See [implementation plan #264][impl264] for full technical details.
-
-[impl264]: ../../implementation-plans/264-lighthouse-route-in-frontend.md
+See implementation plan #264 for full technical details.
 
 ### 6. Docker (`docker.yml`)
 
