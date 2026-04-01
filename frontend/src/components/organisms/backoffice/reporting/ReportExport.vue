@@ -63,7 +63,7 @@ async function downloadReport(format: 'csv' | 'json') {
       const a = document.createElement('a');
       a.href = url;
       const today = new Date().toISOString().slice(0, 10);
-      a.download = `usage_report_${today}.csv`;
+      a.download = `usage_report_${today}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
       Notify.create({
@@ -85,7 +85,7 @@ async function downloadReport(format: 'csv' | 'json') {
       const blob = await exportReport(
         {
           type: selectedReport.value as ReportType,
-          years: [2025],
+          years: props.unitFilters?.years.map(Number) || [],
         },
         format as ReportFormat,
       );

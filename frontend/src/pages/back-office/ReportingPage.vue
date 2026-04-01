@@ -128,7 +128,7 @@ const unitFilters = computed<UnitFilters>(() => {
         ? selectedCompletionStatus.value
         : undefined,
     modules,
-  };
+  } as UnitFilters;
 });
 
 async function fetchUnits() {

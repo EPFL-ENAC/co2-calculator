@@ -765,7 +765,11 @@ async def report_usage(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
     completion_status: Optional[ModuleStatus] = Query(
-        None, description="Filter by completion status (complete, incomplete)"
+        None,
+        description=(
+            "Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), "
+            "VALIDATED (2)"
+        ),
     ),
     search: Optional[str] = Query(
         None, description="Search in unit name, affiliation, or principal user"
@@ -783,15 +787,22 @@ async def report_usage(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "export")),
 ) -> StreamingResponse:
-    data = await CarbonReportModuleRepository(db).get_usage_report(
-        path_lvl2=path_lvl2,
-        path_lvl3=path_lvl3,
-        path_lvl4=path_lvl4,
-        completion_status=completion_status,
-        search=search,
-        modules=modules,
-        years=years,
-    )
+    if format not in {"csv", "json"}:
+        raise HTTPException(status_code=400, detail="Invalid format specified")
+
+    try:
+        data = await CarbonReportModuleRepository(db).get_usage_report(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+            completion_status=completion_status,
+            search=search,
+            modules=modules,
+            years=years,
+        )
+    except ValueError as exc:
+        # Invalid filter values or other issues in query parameters
+        raise HTTPException(status_code=400, detail=str(exc))
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if format == "json":

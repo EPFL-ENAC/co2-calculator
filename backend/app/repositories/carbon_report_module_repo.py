@@ -718,8 +718,8 @@ class CarbonReportModuleRepository:
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
-            modules: Optional filter for specific module types and statuses
-              (e.g., ["energy:2", "transport:1"])
+            modules: Optional filter for specific module types (ModuleTypeEnum names)
+              and statuses (e.g., ["headcount:2", "professional_travel:1"])
             years: Optional filter for specific years (e.g., [2024, 2025])
         Returns:
             A list of dictionaries containing year, unit_id, module_name,
@@ -766,7 +766,7 @@ class CarbonReportModuleRepository:
                 )
             )
         if modules:
-            # Filter by module types and statuses
+            module_conditions: List[Any] = []
             for mod in modules:
                 if ":" in mod:
                     module_type_name, status_str = mod.split(":", 1)
@@ -782,7 +782,7 @@ class CarbonReportModuleRepository:
                             f"{status_str}"
                         ) from exc
                     module_type = ModuleTypeEnum[module_type_name].value
-                    statement = statement.where(
+                    module_conditions.append(
                         (col(CarbonReportModule.module_type_id) == module_type)
                         & (col(CarbonReportModule.status) == status_int)
                     )
@@ -793,6 +793,10 @@ class CarbonReportModuleRepository:
                             f"Invalid module type in modules filter: {module_type_name}"
                         )
                     module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        col(CarbonReportModule.module_type_id) == module_type
+                    )
+            statement = statement.where(or_(*module_conditions))
 
         if hierarchy_unit_ids is not None:
             statement = statement.where(
