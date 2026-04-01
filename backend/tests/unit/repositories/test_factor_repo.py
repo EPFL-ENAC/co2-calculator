@@ -193,10 +193,10 @@ async def test_get_by_classification_fallback_to_kind_only(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_factor_with_fallback(repo):
+async def test_get_factors_with_fallback(repo):
     factor = SimpleNamespace(id=1)
     result_mock_none = MagicMock()
-    result_mock_none.all.return_value = None
+    result_mock_none.all.return_value = []
     result_mock_factor = MagicMock()
     result_mock_factor.all.return_value = [factor]
     repo.session.exec = AsyncMock(side_effect=[result_mock_none, result_mock_factor])

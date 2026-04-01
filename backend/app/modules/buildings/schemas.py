@@ -567,28 +567,22 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     sort_map = {
         "id": DataEntry.id,
         "building_name": Factor.classification["building_name"].as_string(),
-        "category": Factor.classification["category"].as_string(),
     }
 
     filter_map = {
         "building_name": Factor.classification["building_name"].as_string(),
-        "category": Factor.classification["category"].as_string(),
     }
 
     def to_response(
         self, data_entry: DataEntry
     ) -> BuildingEmbodiedEnergyHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "building_name": primary_factor.get("kind")
-                or data_entry.data.get("building_name"),
-                "category": primary_factor.get("subkind")
-                or data_entry.data.get("category"),
+                "building_name": data_entry.data.get("building_name"),
             }
         )
 
