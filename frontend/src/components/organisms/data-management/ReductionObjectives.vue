@@ -35,33 +35,29 @@ const populationFile = ref<File | null>(null);
 const scenariosFile = ref<File | null>(null);
 
 // Load configuration
-const loadConfig = async () => {
-  try {
-    const response = await yearConfigStore.fetchConfig(props.year);
-    if (!response) return;
-    const reductionObj = response.config.reduction_objectives;
-    if (reductionObj) {
-      // Load files
-      if (reductionObj.files.institutional_footprint) {
-        uploadedFiles.value.footprint =
-          reductionObj.files.institutional_footprint.filename;
-      }
-      if (reductionObj.files.population_projections) {
-        uploadedFiles.value.population =
-          reductionObj.files.population_projections.filename;
-      }
-      if (reductionObj.files.unit_scenarios) {
-        uploadedFiles.value.scenarios =
-          reductionObj.files.unit_scenarios.filename;
-      }
-
-      // Load goals
-      if (reductionObj.goals.length > 0) {
-        localGoals.value = [...reductionObj.goals];
-      }
+const loadConfig = () => {
+  const response = yearConfigStore.config;
+  if (!response) return;
+  const reductionObj = response.config.reduction_objectives;
+  if (reductionObj) {
+    // Load files
+    if (reductionObj.files.institutional_footprint) {
+      uploadedFiles.value.footprint =
+        reductionObj.files.institutional_footprint.filename;
     }
-  } catch (err) {
-    console.error('Failed to load reduction objectives:', err);
+    if (reductionObj.files.population_projections) {
+      uploadedFiles.value.population =
+        reductionObj.files.population_projections.filename;
+    }
+    if (reductionObj.files.unit_scenarios) {
+      uploadedFiles.value.scenarios =
+        reductionObj.files.unit_scenarios.filename;
+    }
+
+    // Load goals
+    if (reductionObj.goals.length > 0) {
+      localGoals.value = [...reductionObj.goals];
+    }
   }
 };
 
@@ -163,14 +159,8 @@ const removeGoal = (index: number) => {
   saveGoals();
 };
 
-// Watch for year changes
-watch(
-  () => props.year,
-  () => {
-    loadConfig();
-  },
-  { immediate: true },
-);
+// React to store config changes (fetched by the parent page).
+watch(() => yearConfigStore.config, loadConfig, { immediate: true });
 </script>
 
 <template>

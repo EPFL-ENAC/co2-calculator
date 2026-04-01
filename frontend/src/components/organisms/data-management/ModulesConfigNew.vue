@@ -17,37 +17,27 @@ const yearConfigStore = useYearConfigStore();
 const expandedModules = ref<Record<string, boolean>>({});
 const localConfig = ref<Record<string, ModuleConfig>>({});
 
-// Fetch configuration on mount and year change
-const loadConfig = async () => {
-  try {
-    const response = await yearConfigStore.fetchConfig(props.year);
-    if (!response) return;
-    // Initialize local config from API response
-    MODULES_LIST.forEach((module) => {
-      const moduleTypeId = getModuleTypeId(module);
-      const moduleConfig = response.config.modules[moduleTypeId.toString()];
-      if (moduleConfig) {
-        localConfig.value[module] = {
-          enabled: moduleConfig.enabled,
-          uncertainty_tag: moduleConfig.uncertainty_tag,
-          submodules: moduleConfig.submodules,
-        };
-      } else {
-        // Default config if not found
-        localConfig.value[module] = {
-          enabled: true,
-          uncertainty_tag: 'medium' as const,
-          submodules: {},
-        };
-      }
-    });
-  } catch (err) {
-    console.error('Failed to load year configuration:', err);
-    Notify.create({
-      type: 'negative',
-      message: $t('year_config_load_error'),
-    });
-  }
+// Sync local config from the already-fetched store state (no extra HTTP call).
+const loadConfig = () => {
+  const response = yearConfigStore.config;
+  if (!response) return;
+  MODULES_LIST.forEach((module) => {
+    const moduleTypeId = getModuleTypeId(module);
+    const moduleConfig = response.config.modules[moduleTypeId.toString()];
+    if (moduleConfig) {
+      localConfig.value[module] = {
+        enabled: moduleConfig.enabled,
+        uncertainty_tag: moduleConfig.uncertainty_tag,
+        submodules: moduleConfig.submodules,
+      };
+    } else {
+      localConfig.value[module] = {
+        enabled: true,
+        uncertainty_tag: 'medium' as const,
+        submodules: {},
+      };
+    }
+  });
 };
 
 // Save configuration
@@ -79,13 +69,8 @@ const saveConfig = async (module: Module, updates: ModuleConfig) => {
   }
 };
 
-watch(
-  () => props.year,
-  () => {
-    loadConfig();
-  },
-  { immediate: true },
-);
+// React to store config changes (fetched by the parent page).
+watch(() => yearConfigStore.config, loadConfig, { immediate: true });
 
 // Helper to get module type ID
 const getModuleTypeId = (module: Module): number => {
