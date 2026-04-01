@@ -29,7 +29,7 @@
         "http://localhost:8080/en/system/documentation",
         "http://localhost:8080/unauthorized"
       ],
-      "numberOfRuns": 3,
+      "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",
         "plugins": ["lighthouse-plugin-ecoindex-core"]

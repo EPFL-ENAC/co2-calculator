@@ -6,7 +6,7 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/lighthouse.yml"
-      - "frontend/.lighthouserc.json"
+      - "frontend/.lighthouserc.ci.json"
 
 jobs:
   lighthouse:
@@ -55,10 +55,9 @@ jobs:
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
-          configPath: "./frontend/.lighthouserc.json"
+          configPath: "./frontend/.lighthouserc.ci.json"
           uploadArtifacts: true
           temporaryPublicStorage: true
-          runs: 3
 
       - name: Comment PR with Lighthouse results
         if: github.event_name == 'pull_request'
