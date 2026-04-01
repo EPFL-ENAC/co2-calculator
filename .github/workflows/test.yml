@@ -48,6 +48,10 @@ jobs:
     # Keep the image tag in sync with the @playwright/* versions in frontend/package.json.
     container:
       image: mcr.microsoft.com/playwright:v1.58.2-jammy
+      # GitHub Actions sets HOME=/github/home (owned by uid 1001); the container
+      # runs as root, so Firefox refuses to launch. Override it to /root.
+      env:
+        HOME: /root
     defaults:
       run:
         working-directory: ./frontend
