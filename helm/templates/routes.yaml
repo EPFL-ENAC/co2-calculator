@@ -28,7 +28,7 @@ spec:
   {{- end }}
   port:
     targetPort: http
-{{- if .Values.docs.enabled }}
+{{- if and .Values.docs.enabled .Values.routes.docs.enabled }}
 ---
 apiVersion: route.openshift.io/v1
 kind: Route

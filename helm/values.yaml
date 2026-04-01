@@ -336,7 +336,9 @@ routes:
       termination: edge
 
   docs:
-    extraLabels: {}
+    enabled: true
+    extraLabels:
+      route: private
     annotations: {}
     weight: 100
     tls:
