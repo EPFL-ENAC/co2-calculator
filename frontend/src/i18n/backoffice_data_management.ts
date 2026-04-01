@@ -302,4 +302,44 @@ export default {
     en: 'The last uploaded data will be overwritten',
     fr: 'Les dernières données téléversées seront écrasées',
   },
+  data_management_year_not_configured: {
+    en: 'Year {year} is not configured yet',
+    fr: "L'année {year} n'est pas encore configurée",
+  },
+  data_management_year_not_configured_hint: {
+    en: 'Create the year configuration to start managing data for this reporting period.',
+    fr: 'Créez la configuration annuelle pour commencer à gérer les données de cette période.',
+  },
+  data_management_create_year: {
+    en: 'Create year {year}',
+    fr: "Créer l'année {year}",
+  },
+  data_management_year_created: {
+    en: 'Year {year} configuration created',
+    fr: "Configuration de l'année {year} créée",
+  },
+  data_management_year_status_enabled: {
+    en: 'Year {year} is enabled — users can access their modules',
+    fr: "L'année {year} est activée — les utilisateurs peuvent accéder à leurs modules",
+  },
+  data_management_year_status_disabled: {
+    en: 'Year {year} is disabled — only backoffice managers can access this page',
+    fr: "L'année {year} est désactivée — seuls les gestionnaires backoffice peuvent accéder à cette page",
+  },
+  data_management_year_enable: {
+    en: 'Enable',
+    fr: 'Activer',
+  },
+  data_management_year_disable: {
+    en: 'Disable',
+    fr: 'Désactiver',
+  },
+  data_management_year_enabled: {
+    en: 'Year {year} enabled',
+    fr: "Année {year} activée",
+  },
+  data_management_year_disabled: {
+    en: 'Year {year} disabled',
+    fr: "Année {year} désactivée",
+  },
 } as const;

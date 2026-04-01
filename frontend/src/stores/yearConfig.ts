@@ -47,10 +47,19 @@ export interface YearConfigurationResponse {
   updated_at: string;
 }
 
-export interface YearConfigurationUpdate {
+export interface YearConfigurationCreate {
   is_started?: boolean;
   is_reports_synced?: boolean;
   config?: Partial<YearConfig>;
+}
+
+export interface YearConfigurationUpdate {
+  is_started?: boolean;
+  is_reports_synced?: boolean;
+  config?: {
+    modules?: Record<string, ModuleConfig>;
+    reduction_objectives?: Partial<ReductionObjectives>;
+  };
 }
 
 export interface FileUploadResponse {
@@ -67,11 +76,14 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const currentYear = ref<number | null>(null);
+  /** True when the backend returned 404 — no configuration exists yet for this year. */
+  const notFound = ref(false);
 
   // Methods
-  async function fetchConfig(year: number): Promise<YearConfigurationResponse> {
+  async function fetchConfig(year: number): Promise<YearConfigurationResponse | null> {
     loading.value = true;
     error.value = null;
+    notFound.value = false;
     currentYear.value = year;
 
     try {
@@ -81,11 +93,41 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       config.value = response;
       return response;
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        error.value = err.message ?? 'Failed to fetch configuration';
-      } else {
-        error.value = 'Failed to fetch configuration';
+      if (err instanceof Error && 'response' in err) {
+        const httpErr = err as Error & { response: { status: number } };
+        if (httpErr.response?.status === 404) {
+          notFound.value = true;
+          config.value = null;
+          return null;
+        }
       }
+      error.value =
+        err instanceof Error ? err.message : 'Failed to fetch configuration';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function createConfig(
+    year: number,
+    payload?: YearConfigurationCreate,
+  ): Promise<YearConfigurationResponse> {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const response = (await api
+        .post(`year-configuration/${year}`, {
+          json: payload ?? {},
+        })
+        .json()) as YearConfigurationResponse;
+      config.value = response;
+      notFound.value = false;
+      return response;
+    } catch (err: unknown) {
+      error.value =
+        err instanceof Error ? err.message : 'Failed to create configuration';
       throw err;
     } finally {
       loading.value = false;
@@ -186,6 +228,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading.value = false;
     error.value = null;
     currentYear.value = null;
+    notFound.value = false;
   }
 
   return {
@@ -194,8 +237,10 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading,
     error,
     currentYear,
+    notFound,
     // Methods
     fetchConfig,
+    createConfig,
     updateConfig,
     uploadFile,
     checkThreshold,

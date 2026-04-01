@@ -1,7 +1,6 @@
 """Year configuration model for annual administrative settings."""
 
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Column
 from sqlmodel import JSON, Field, SQLModel
@@ -46,5 +45,3 @@ class YearConfiguration(YearConfigurationBase, table=True):
         sa_column_kwargs={"onupdate": datetime.utcnow},
         description="Last modification timestamp",
     )
-
-    id: Optional[int] = Field(default=None, primary_key=True)

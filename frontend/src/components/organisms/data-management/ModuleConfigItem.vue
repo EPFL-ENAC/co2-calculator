@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useI18n } from 'vue-i18n';
+import { type ModuleConfig } from 'src/stores/yearConfig';
 
 interface Props {
   module: string;
@@ -14,7 +15,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'update:expanded', value: boolean): void;
-  (e: 'save', value: Record<string, unknown>): void;
+  (e: 'save', value: ModuleConfig): void;
 }>();
 
 const { t: $t } = useI18n();
@@ -23,7 +24,7 @@ const card = computed(() =>
   MODULE_CARDS.find((c) => c.module === props.module),
 );
 
-const localConfig = defineModel<Record<string, unknown>>('config', {
+const localConfig = defineModel<ModuleConfig>('config', {
   default: {
     enabled: true,
     uncertainty_tag: 'medium',
@@ -112,7 +113,7 @@ const handleSave = () => {
                   label: $t('enabled'),
                   field: 'enabled',
                   align: 'center',
-                  width: '100px',
+                  headerStyle: 'width: 100px',
                 },
                 {
                   name: 'threshold',
@@ -126,7 +127,7 @@ const handleSave = () => {
               :pagination="{ rowsPerPage: 10 }"
               hide-bottom
             >
-              <template #row="rowProps">
+              <template #body="rowProps">
                 <q-tr :props="rowProps">
                   <q-td
                     key="enabled"

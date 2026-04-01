@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { MODULES_LIST, type Module } from 'src/constant/modules';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import { useYearConfigStore, type ModuleConfig } from 'src/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import ModuleConfigItem from './ModuleConfigItem.vue';
@@ -15,12 +15,13 @@ const { t: $t } = useI18n();
 const yearConfigStore = useYearConfigStore();
 
 const expandedModules = ref<Record<string, boolean>>({});
-const localConfig = ref<Record<string, Record<string, unknown>>>({});
+const localConfig = ref<Record<string, ModuleConfig>>({});
 
 // Fetch configuration on mount and year change
 const loadConfig = async () => {
   try {
     const response = await yearConfigStore.fetchConfig(props.year);
+    if (!response) return;
     // Initialize local config from API response
     MODULES_LIST.forEach((module) => {
       const moduleTypeId = getModuleTypeId(module);
@@ -50,7 +51,7 @@ const loadConfig = async () => {
 };
 
 // Save configuration
-const saveConfig = async (module: Module, updates: Record<string, unknown>) => {
+const saveConfig = async (module: Module, updates: ModuleConfig) => {
   const moduleTypeId = getModuleTypeId(module);
 
   try {
@@ -97,6 +98,11 @@ const getModuleTypeId = (module: Module): number => {
     'research-facilities': 6,
     'external-cloud-and-ai': 7,
     'process-emissions': 8,
+    // deprecated modules kept to satisfy the Record<Module, number> constraint
+    commuting: 0,
+    food: 0,
+    waste: 0,
+    'embodied-energy': 0,
   };
   return moduleMap[module] || 0;
 };

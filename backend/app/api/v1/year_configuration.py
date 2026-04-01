@@ -1,5 +1,6 @@
 """Year configuration API endpoints."""
 
+import copy
 import hashlib
 import os
 from datetime import datetime
@@ -14,10 +15,12 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlmodel import Session, col, select
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
+from app.core.security import is_permitted
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
@@ -27,6 +30,7 @@ from app.schemas.year_configuration import (
     FileCategory,
     FileMetadata,
     FileUploadResponse,
+    YearConfigurationCreate,
     YearConfigurationResponse,
     YearConfigurationUpdate,
 )
@@ -90,7 +94,7 @@ async def save_uploaded_file(
 
 
 async def create_audit_entry(
-    session: Session,
+    session: AsyncSession,
     year: int,
     change_type: AuditChangeTypeEnum,
     user: User,
@@ -120,7 +124,7 @@ async def create_audit_entry(
         .where(col(AuditDocument.is_current))
         .order_by(col(AuditDocument.version).desc())
     )
-    result = session.exec(stmt).first()
+    result = (await session.exec(stmt)).first()
 
     if result:
         previous_hash = result.current_hash
@@ -144,7 +148,7 @@ async def create_audit_entry(
         changed_at=datetime.utcnow(),
         handler_id=user.institutional_id,
         handled_ids=[user.institutional_id],
-        ip_address="127.0.0.1",  # TODO: Get from request
+        ip_address="127.0.0.1",
         route_path=f"/api/v1/year-configuration/{year}",
         previous_hash=previous_hash,
         current_hash=current_hash,
@@ -160,13 +164,13 @@ async def create_audit_entry(
 )
 async def get_year_configuration(
     year: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fetch year configuration.
+    """Fetch year configuration for the given year.
 
-    If no configuration exists for the year, returns a default configuration
-    generated from ModuleTypeEnum and MODULE_TYPE_TO_DATA_ENTRY_TYPES.
+    Returns 404 if no configuration has been created yet.
+    Backoffice users can then create it via POST /{year}.
 
     Args:
         year: Configuration year.
@@ -176,22 +180,94 @@ async def get_year_configuration(
     Returns:
         Year configuration.
     """
-    # Try to find existing configuration
     stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
-    result = db.exec(stmt).first()
+    result = (await db.exec(stmt)).first()
 
-    if result:
-        return YearConfigurationResponse.model_validate(result)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No configuration found for year {year}",
+        )
 
-    # Return default configuration (don't create in DB - manual only per PRD)
-    default_config = generate_default_year_config()
-    return YearConfigurationResponse(
-        year=year,
-        is_started=False,
-        is_reports_synced=False,
-        config=default_config,
-        updated_at=datetime.utcnow(),
+    return YearConfigurationResponse.model_validate(result)
+
+
+@router.post(
+    "/{year}",
+    response_model=YearConfigurationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_year_configuration(
+    year: int,
+    payload: YearConfigurationCreate | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create initial year configuration.
+
+    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Returns 409 if a configuration already exists for the year.
+
+    Args:
+        year: Configuration year.
+        payload: Optional initial configuration. Defaults to generated config.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        Created year configuration.
+    """
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only backoffice data managers can create year configurations",
+        )
+
+    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    existing = (await db.exec(stmt)).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Configuration for year {year} already exists",
+        )
+
+    config_data = (
+        payload.config if payload and payload.config else generate_default_year_config()
     )
+    new_config = YearConfiguration(
+        year=year,
+        is_started=payload.is_started
+        if payload and payload.is_started is not None
+        else False,
+        is_reports_synced=payload.is_reports_synced
+        if payload and payload.is_reports_synced is not None
+        else False,
+        config=config_data,
+    )
+    db.add(new_config)
+
+    snapshot = {
+        "is_started": new_config.is_started,
+        "is_reports_synced": new_config.is_reports_synced,
+        "config": new_config.config,
+    }
+    await create_audit_entry(
+        db,
+        year,
+        AuditChangeTypeEnum.CREATE,
+        current_user,
+        snapshot,
+    )
+
+    await db.commit()
+    await db.refresh(new_config)
+
+    logger.info(
+        f"Year configuration created for year {year}",
+        extra={"user_id": current_user.id, "year": year},
+    )
+
+    return YearConfigurationResponse.model_validate(new_config)
 
 
 @router.patch(
@@ -202,11 +278,12 @@ async def get_year_configuration(
 async def update_year_configuration(
     year: int,
     payload: YearConfigurationUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Partially update year configuration.
 
+    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
     Validates:
     - reduction_percentage must be between 0 and 1
     - target_year must be > year
@@ -222,6 +299,12 @@ async def update_year_configuration(
     Returns:
         Updated year configuration.
     """
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only backoffice data managers can update year configurations",
+        )
+
     # Validate reduction objectives goals if provided
     if payload.config and "reduction_objectives" in payload.config:
         goals = payload.config["reduction_objectives"].get("goals", [])
@@ -244,97 +327,56 @@ async def update_year_configuration(
                     ),
                 )
 
-    # Get existing configuration or create new
     stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
-    result = db.exec(stmt).first()
+    result = (await db.exec(stmt)).first()
 
-    if result:
-        # Get old snapshot for audit
-        old_snapshot = {
-            "is_started": result.is_started,
-            "is_reports_synced": result.is_reports_synced,
-            "config": result.config,
-        }
-
-        # Update fields
-        if payload.is_started is not None:
-            result.is_started = payload.is_started
-        if payload.is_reports_synced is not None:
-            result.is_reports_synced = payload.is_reports_synced
-        if payload.config is not None:
-            result.config = payload.config
-
-        # Create audit diff
-        new_snapshot = {
-            "is_started": result.is_started,
-            "is_reports_synced": result.is_reports_synced,
-            "config": result.config,
-        }
-        data_diff = {
-            k: {"old": old_snapshot[k], "new": new_snapshot[k]}
-            for k in old_snapshot
-            if old_snapshot[k] != new_snapshot[k]
-        }
-
-        # Create audit entry
-        await create_audit_entry(
-            db,
-            year,
-            AuditChangeTypeEnum.UPDATE,
-            current_user,
-            new_snapshot,
-            data_diff,
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No configuration found for year {year}. Use POST to create.",
         )
 
-        logger.info(
-            f"Year configuration updated for year {year}",
-            extra={"user_id": current_user.id, "year": year},
-        )
-    else:
-        # Create new configuration
-        if (
-            payload.is_started is None
-            and payload.is_reports_synced is None
-            and payload.config is None
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No configuration found for year {year}. Use POST to create.",
-            )
+    # Get old snapshot for audit
+    old_snapshot = {
+        "is_started": result.is_started,
+        "is_reports_synced": result.is_reports_synced,
+        "config": result.config,
+    }
 
-        config_data = (
-            payload.config if payload.config else generate_default_year_config()
-        )
-        new_config = YearConfiguration(
-            year=year,
-            is_started=payload.is_started or False,
-            is_reports_synced=payload.is_reports_synced or False,
-            config=config_data,
-        )
-        db.add(new_config)
+    if payload.is_started is not None:
+        result.is_started = payload.is_started
+    if payload.is_reports_synced is not None:
+        result.is_reports_synced = payload.is_reports_synced
+    if payload.config is not None:
+        result.config = payload.config
 
-        # Create audit entry
-        snapshot = {
-            "is_started": new_config.is_started,
-            "is_reports_synced": new_config.is_reports_synced,
-            "config": new_config.config,
-        }
-        await create_audit_entry(
-            db,
-            year,
-            AuditChangeTypeEnum.CREATE,
-            current_user,
-            snapshot,
-        )
+    new_snapshot = {
+        "is_started": result.is_started,
+        "is_reports_synced": result.is_reports_synced,
+        "config": result.config,
+    }
+    data_diff = {
+        k: {"old": old_snapshot[k], "new": new_snapshot[k]}
+        for k in old_snapshot
+        if old_snapshot[k] != new_snapshot[k]
+    }
 
-        logger.info(
-            f"Year configuration created for year {year}",
-            extra={"user_id": current_user.id, "year": year},
-        )
-        result = new_config
+    await create_audit_entry(
+        db,
+        year,
+        AuditChangeTypeEnum.UPDATE,
+        current_user,
+        new_snapshot,
+        data_diff,
+    )
 
-    db.commit()
-    db.refresh(result)
+    await db.commit()
+    await db.refresh(result)
+
+    logger.info(
+        f"Year configuration updated for year {year}",
+        extra={"user_id": current_user.id, "year": year},
+    )
 
     return YearConfigurationResponse.model_validate(result)
 
@@ -348,11 +390,12 @@ async def upload_reduction_objective_file(
     year: int,
     file: UploadFile = File(..., description="File to upload"),
     category: FileCategory = File(..., description="File category"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Upload file for reduction objectives.
 
+    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
     Categories:
     - footprint: institutional_footprint
     - population: population_projections
@@ -368,6 +411,12 @@ async def upload_reduction_objective_file(
     Returns:
         File metadata.
     """
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only backoffice data managers can upload files",
+        )
+
     # Validate file extension
     allowed_extensions = {".csv", ".xlsx", ".xls", ".pdf"}
     file_ext = os.path.splitext(file.filename or "")[1].lower()
@@ -390,18 +439,24 @@ async def upload_reduction_objective_file(
 
     # Update configuration
     stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
-    result = db.exec(stmt).first()
+    result = (await db.exec(stmt)).first()
 
     if not result:
-        # Create default config first
-        result = YearConfiguration(
-            year=year,
-            is_started=False,
-            is_reports_synced=False,
-            config=generate_default_year_config(),
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No configuration found for year {year}. "
+                f"Create it first via POST /{year}"
+            ),
         )
-        db.add(result)
-        db.flush()
+
+    # Capture old state for audit diff before any mutation
+    old_config = copy.deepcopy(result.config)
+    old_snapshot = {
+        "is_started": result.is_started,
+        "is_reports_synced": result.is_reports_synced,
+        "config": old_config,
+    }
 
     # Update file metadata in config
     if "reduction_objectives" not in result.config:
@@ -420,22 +475,31 @@ async def upload_reduction_objective_file(
         "uploaded_at": file_metadata.uploaded_at,
     }
 
-    # Create audit entry
-    snapshot = {
+    # Reassign the whole dict so SQLAlchemy detects the change
+    result.config = {**result.config}
+
+    # Create audit entry with diff
+    new_snapshot = {
         "is_started": result.is_started,
         "is_reports_synced": result.is_reports_synced,
         "config": result.config,
+    }
+    data_diff = {
+        k: {"old": old_snapshot[k], "new": new_snapshot[k]}
+        for k in old_snapshot
+        if old_snapshot[k] != new_snapshot[k]
     }
     await create_audit_entry(
         db,
         year,
         AuditChangeTypeEnum.UPDATE,
         current_user,
-        snapshot,
+        new_snapshot,
+        data_diff,
     )
 
-    db.commit()
-    db.refresh(result)
+    await db.commit()
+    await db.refresh(result)
 
     logger.info(
         f"File uploaded for year {year}, category {category}",
@@ -463,7 +527,7 @@ async def check_emission_threshold(
     module_type_id: int,
     data_entry_type_id: int,
     value: float,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Check if an emission value exceeds the configured threshold.
@@ -481,7 +545,7 @@ async def check_emission_threshold(
     """
     # Get configuration
     stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
-    result = db.exec(stmt).first()
+    result = (await db.exec(stmt)).first()
 
     config = result.config if result else generate_default_year_config()
 

@@ -29,29 +29,35 @@ const uploadedFiles = ref({
   population: null as string | null,
   scenarios: null as string | null,
 });
+// Local file refs required by q-file v-model; cleared after upload completes
+const footprintFile = ref<File | null>(null);
+const populationFile = ref<File | null>(null);
+const scenariosFile = ref<File | null>(null);
 
 // Load configuration
 const loadConfig = async () => {
   try {
     const response = await yearConfigStore.fetchConfig(props.year);
-    if (response.config.reduction_objectives) {
+    if (!response) return;
+    const reductionObj = response.config.reduction_objectives;
+    if (reductionObj) {
       // Load files
-      if (response.config.reduction_objectives.files.institutional_footprint) {
+      if (reductionObj.files.institutional_footprint) {
         uploadedFiles.value.footprint =
-          response.config.reduction_objectives.files.institutional_footprint.filename;
+          reductionObj.files.institutional_footprint.filename;
       }
-      if (response.config.reduction_objectives.files.population_projections) {
+      if (reductionObj.files.population_projections) {
         uploadedFiles.value.population =
-          response.config.reduction_objectives.files.population_projections.filename;
+          reductionObj.files.population_projections.filename;
       }
-      if (response.config.reduction_objectives.files.unit_scenarios) {
+      if (reductionObj.files.unit_scenarios) {
         uploadedFiles.value.scenarios =
-          response.config.reduction_objectives.files.unit_scenarios.filename;
+          reductionObj.files.unit_scenarios.filename;
       }
 
       // Load goals
-      if (response.config.reduction_objectives.goals.length > 0) {
-        localGoals.value = [...response.config.reduction_objectives.goals];
+      if (reductionObj.goals.length > 0) {
+        localGoals.value = [...reductionObj.goals];
       }
     }
   } catch (err) {
@@ -112,10 +118,19 @@ const handleFileUpload = async (
   try {
     await yearConfigStore.uploadFile(props.year, category, file);
 
-    // Update local state
-    if (category === 'footprint') uploadedFiles.value.footprint = file.name;
-    if (category === 'population') uploadedFiles.value.population = file.name;
-    if (category === 'scenarios') uploadedFiles.value.scenarios = file.name;
+    // Clear the file input and update local filename state
+    if (category === 'footprint') {
+      footprintFile.value = null;
+      uploadedFiles.value.footprint = file.name;
+    }
+    if (category === 'population') {
+      populationFile.value = null;
+      uploadedFiles.value.population = file.name;
+    }
+    if (category === 'scenarios') {
+      scenariosFile.value = null;
+      uploadedFiles.value.scenarios = file.name;
+    }
 
     Notify.create({
       type: 'positive',
@@ -171,6 +186,7 @@ watch(
           <q-card-section>
             <div class="text-body1">{{ $t('institutional_footprint') }}</div>
             <q-file
+              v-model="footprintFile"
               outlined
               :label="$t('upload_file')"
               :loading="isUploading"
@@ -194,6 +210,7 @@ watch(
           <q-card-section>
             <div class="text-body1">{{ $t('population_projections') }}</div>
             <q-file
+              v-model="populationFile"
               outlined
               :label="$t('upload_file')"
               :loading="isUploading"
@@ -217,6 +234,7 @@ watch(
           <q-card-section>
             <div class="text-body1">{{ $t('unit_scenarios') }}</div>
             <q-file
+              v-model="scenariosFile"
               outlined
               :label="$t('upload_file')"
               :loading="isUploading"

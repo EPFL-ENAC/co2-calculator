@@ -143,7 +143,6 @@ erDiagram
   }
   year_configuration {
     JSON config
-    INTEGER id PK
     BOOLEAN is_reports_synced
     BOOLEAN is_started
     DATETIME updated_at
