@@ -48,11 +48,10 @@ jobs:
     # Keep the image tag in sync with the @playwright/* versions in frontend/package.json.
     container:
       image: mcr.microsoft.com/playwright:v1.58.2-jammy
-    # GitHub Actions sets HOME=/github/home (owned by uid 1001) even inside containers;
-    # the container runs as root, so Firefox refuses to launch. Override HOME here at
-    # the job level — container.env is not reliable as the runner overrides it.
-    env:
-      HOME: /root
+      # Run as uid 1001 to match the owner of /github/home set by the GitHub Actions
+      # runner. Browsers (Firefox in particular) refuse to launch when $HOME is owned
+      # by a different user than the process running them.
+      options: --user 1001
     defaults:
       run:
         working-directory: ./frontend
