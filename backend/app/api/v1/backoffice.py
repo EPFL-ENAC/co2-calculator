@@ -7,7 +7,7 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import desc, select
@@ -259,7 +259,10 @@ async def list_backoffice_units(
     carbon_report_module_repo = CarbonReportModuleRepository(db)
     # carbon_report_repo = CarbonReportRepository(db)
     if years is None or len(years) == 0:
-        raise ValueError("At least one year must be specified for reporting overview")
+        raise HTTPException(
+            status_code=400,
+            detail="At least one year must be specified for reporting overview",
+        )
     # data = await carbon_report_repo.get_reporting_overview(
     #    path_lvl2=path_lvl2,
     #    path_lvl3=path_lvl3,
@@ -777,9 +780,6 @@ async def report_usage(
         None, description="Filter by years (e.g., [2024, 2025])"
     ),
     format: str = Query("csv", description="Export format: csv or json"),
-    limit: int = Query(
-        100, ge=-1, description="Limit number of records for export (-1 for no limit)"
-    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("backoffice.users", "export")),
 ) -> StreamingResponse:
@@ -788,9 +788,9 @@ async def report_usage(
         path_lvl3=path_lvl3,
         path_lvl4=path_lvl4,
         completion_status=completion_status,
+        search=search,
         modules=modules,
         years=years,
-        limit=limit,
     )
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
