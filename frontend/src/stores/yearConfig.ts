@@ -80,7 +80,9 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const notFound = ref(false);
 
   // Methods
-  async function fetchConfig(year: number): Promise<YearConfigurationResponse | null> {
+  async function fetchConfig(
+    year: number,
+  ): Promise<YearConfigurationResponse | null> {
     loading.value = true;
     error.value = null;
     notFound.value = false;

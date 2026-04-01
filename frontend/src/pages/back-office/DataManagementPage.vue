@@ -35,15 +35,20 @@ const fetchYearConfig = async () => {
   await yearConfigStore.fetchConfig(selectedYear.value);
 };
 
-watch(selectedYear, async () => {
-  try {
-    await fetchSyncJobs();
-    await fetchYearConfig();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Failed to load year data';
-    Notify.create({ type: 'negative', message: msg });
-  }
-}, { immediate: true });
+watch(
+  selectedYear,
+  async () => {
+    try {
+      await fetchSyncJobs();
+      await fetchYearConfig();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to load year data';
+      Notify.create({ type: 'negative', message: msg });
+    }
+  },
+  { immediate: true },
+);
 
 const handleCreateYear = async () => {
   try {
@@ -165,9 +170,16 @@ onMounted(() => {});
         bordered
         class="q-pa-xl q-mb-xl text-center"
       >
-        <q-icon name="calendar_today" size="64px" color="grey-5" class="q-mb-md" />
+        <q-icon
+          name="calendar_today"
+          size="64px"
+          color="grey-5"
+          class="q-mb-md"
+        />
         <div class="text-h6 q-mb-sm">
-          {{ $t('data_management_year_not_configured', { year: selectedYear }) }}
+          {{
+            $t('data_management_year_not_configured', { year: selectedYear })
+          }}
         </div>
         <div class="text-body2 text-secondary q-mb-lg">
           {{ $t('data_management_year_not_configured_hint') }}
@@ -185,29 +197,43 @@ onMounted(() => {});
       <template v-else-if="yearConfigStore.config && !yearConfigStore.loading">
         <!-- Status banner -->
         <q-banner
-          :class="yearConfigStore.config.is_started ? 'bg-positive text-white' : 'bg-warning text-dark'"
+          :class="
+            yearConfigStore.config.is_started
+              ? 'bg-positive text-white'
+              : 'bg-warning text-dark'
+          "
           rounded
           class="q-mb-lg"
         >
           <template #avatar>
             <q-icon
-              :name="yearConfigStore.config.is_started ? 'check_circle' : 'pause_circle'"
+              :name="
+                yearConfigStore.config.is_started
+                  ? 'check_circle'
+                  : 'pause_circle'
+              "
               size="sm"
             />
           </template>
           <span class="text-weight-medium">
             {{
               yearConfigStore.config.is_started
-                ? $t('data_management_year_status_enabled', { year: selectedYear })
-                : $t('data_management_year_status_disabled', { year: selectedYear })
+                ? $t('data_management_year_status_enabled', {
+                    year: selectedYear,
+                  })
+                : $t('data_management_year_status_disabled', {
+                    year: selectedYear,
+                  })
             }}
           </span>
           <template #action>
             <q-btn
               flat
-              :label="yearConfigStore.config.is_started
-                ? $t('data_management_year_disable')
-                : $t('data_management_year_enable')"
+              :label="
+                yearConfigStore.config.is_started
+                  ? $t('data_management_year_disable')
+                  : $t('data_management_year_enable')
+              "
               :loading="yearConfigStore.loading"
               @click="handleToggleStarted"
             />

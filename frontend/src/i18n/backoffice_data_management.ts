@@ -336,10 +336,10 @@ export default {
   },
   data_management_year_enabled: {
     en: 'Year {year} enabled',
-    fr: "Année {year} activée",
+    fr: 'Année {year} activée',
   },
   data_management_year_disabled: {
     en: 'Year {year} disabled',
-    fr: "Année {year} désactivée",
+    fr: 'Année {year} désactivée',
   },
 } as const;
