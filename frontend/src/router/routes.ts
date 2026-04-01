@@ -241,6 +241,31 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'back-office/ui-texts-editing',
+            name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
+            component: () =>
+              import('pages/back-office/UITextsEditingPage.vue'),
+            beforeEnter: requirePermission('backoffice.users', 'view'),
+            meta: {
+              requiresAuth: true,
+              note: 'Back Office - UI translation text management via GitHub',
+              breadcrumb: false,
+              isBackOffice: true,
+            },
+          },
+          {
+            path: 'back-office/logs',
+            name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
+            component: () => import('pages/system/LogsPage.vue'),
+            beforeEnter: requirePermission('system.users', 'edit'),
+            meta: {
+              requiresAuth: true,
+              note: 'Back Office - Audit logs (superadmin only)',
+              breadcrumb: false,
+              isBackOffice: true,
+            },
+          },
+          {
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),

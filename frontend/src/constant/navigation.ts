@@ -3,6 +3,7 @@ export interface NavItem {
   icon: string;
   description?: string;
   limitedAccess?: boolean;
+  superAdminOnly?: boolean;
 }
 
 export const BACKOFFICE_NAV: Record<string, NavItem> = {
@@ -27,6 +28,17 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     routeName: 'backoffice-documentation-editing',
     description: 'backoffice-documentation-editing-description',
     icon: 'o_edit_document',
+  },
+  BACKOFFICE_UI_TEXTS_EDITING: {
+    routeName: 'backoffice-ui-texts-editing',
+    description: 'backoffice-ui-texts-editing-description',
+    icon: 'o_edit_document',
+  },
+  BACKOFFICE_LOGS: {
+    routeName: 'backoffice-logs',
+    description: 'backoffice-logs-description',
+    icon: 'o_list_alt',
+    superAdminOnly: true,
   },
 };
 

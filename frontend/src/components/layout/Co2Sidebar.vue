@@ -4,6 +4,7 @@ import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { hasPermission } from 'src/utils/permission';
+import { ROLES } from 'src/constant/roles';
 
 interface Props {
   items: Record<string, NavItem>;
@@ -21,10 +22,17 @@ const hasBackOfficeEditPermission = computed(() => {
   return hasPermission(authStore.user?.permissions, 'backoffice.users', 'edit');
 });
 
+const hasSuperAdminRole = computed(() => {
+  return (
+    authStore.user?.roles_raw?.some((x) => x.role === ROLES.SuperAdmin) ?? false
+  );
+});
+
 function isItemDisabled(item: NavItem): boolean {
-  // Items with limitedAccess require edit permission
-  // If user doesn't have edit permission, disable limitedAccess items
-  return item.limitedAccess === true && !hasBackOfficeEditPermission.value;
+  if (item.superAdminOnly === true && !hasSuperAdminRole.value) return true;
+  if (item.limitedAccess === true && !hasBackOfficeEditPermission.value)
+    return true;
+  return false;
 }
 </script>
 
