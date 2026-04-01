@@ -876,7 +876,13 @@ onMounted(() => {
                           >{{ $t('common_mandatory') }}</span
                         >
                       </div>
-                      <div class="text-caption text-secondary q-mb-md">
+                      <div
+                        v-if="module === 'headcount'"
+                        class="text-caption text-secondary q-mb-md"
+                      >
+                        {{ $t('data_management_factor_headcount_description') }}
+                      </div>
+                      <div v-else class="text-caption text-secondary q-mb-md">
                         {{ $t('data_management_factor_description') }}
                       </div>
                       <div class="row justify-between items-center full-width">

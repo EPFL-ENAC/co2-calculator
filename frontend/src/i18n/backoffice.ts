@@ -33,6 +33,22 @@ export default {
     en: 'backoffice-reporting-description',
     fr: 'backoffice-reporting-description',
   },
+  [BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName]: {
+    en: 'UI Texts Editing',
+    fr: 'Édition des textes UI',
+  },
+  [BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.description]: {
+    en: 'Edit UI translation files for all modules.',
+    fr: 'Modifier les fichiers de traduction UI pour tous les modules.',
+  },
+  [BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName]: {
+    en: 'Logs',
+    fr: 'Journaux',
+  },
+  [BACKOFFICE_NAV.BACKOFFICE_LOGS.description]: {
+    en: 'View system audit logs. Superadmin access only.',
+    fr: "Consulter les journaux d'audit. Accès superadmin uniquement.",
+  },
   back_to_calculator_button: {
     en: 'Back to Calculator',
     fr: 'Retour au calculateur',
