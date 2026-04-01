@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-docs
+  labels:
+    {{- include "co2-calculator.componentLabels" (dict "ctx" . "component" "docs") | nindent 4 }}
+  {{- with .Values.docs.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.docs.service.type }}
+  selector:
+    {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "docs") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.docs.service.port }}
+      targetPort: {{ .Values.docs.service.targetPort }}
+      protocol: TCP

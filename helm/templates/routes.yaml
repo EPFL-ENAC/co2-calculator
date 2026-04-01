@@ -55,4 +55,33 @@ spec:
   {{- end }}
   port:
     targetPort: http
+{{- if .Values.docs.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-docs
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+    {{- with .Values.routes.docs.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.routes.docs.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  to:
+    name: {{ include "co2-calculator.fullname" $ }}-docs
+    weight: {{ .Values.routes.docs.weight }}
+    kind: Service
+  host: {{ .Values.routes.host | quote }}
+  path: '/docs'
+  {{- with .Values.routes.docs.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  port:
+    targetPort: http
+{{- end }}
 {{- end }}

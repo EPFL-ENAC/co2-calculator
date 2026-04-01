@@ -311,6 +311,13 @@ routes:
     tls:
       termination: edge
 
+  docs:
+    extraLabels: {}
+    annotations: {}
+    weight: 100
+    tls:
+      termination: edge
+
 serviceAccount:
   create: true
   annotations: {}
@@ -328,3 +335,72 @@ podDisruptionBudget:
 networkPolicy:
   enabled: false
   ingress: []
+
+# -----------------------------------------------------------------------------
+# Documentation deployment
+# Static documentation served via nginx, built from docs/ directory
+# -----------------------------------------------------------------------------
+docs:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/epfl-enac/epfl/co2-calculator/docs
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    # runAsNonRoot: true
+    # runAsUser: 101
+    # fsGroup: 101
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
