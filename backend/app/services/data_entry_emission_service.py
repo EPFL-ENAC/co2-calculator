@@ -196,13 +196,11 @@ class DataEntryEmissionService:
                             meta={
                                 "factors_used": [
                                     {
-                                        "id": emission_chosen_factor.id
-                                        if emission_chosen_factor is not None
-                                        else None,
-                                        "values": emission_chosen_factor.values
-                                        if emission_chosen_factor is not None
-                                        else None,
+                                        "id": factor.id,
+                                        "values": factor.values,
                                     }
+                                    for factor in factors
+                                    if factor is not None
                                 ],
                                 **ctx,
                             },
@@ -271,14 +269,15 @@ class DataEntryEmissionService:
             #     e.g. plane(kind="plane", subkind="business", category="long_haul")
             #     with fallback {"country_code": "RoW"}
             if classification or q.fallbacks:
-                factor = await factor_service.get_factor(
+                factors = await factor_service.get_factors(
                     data_entry_type=q.data_entry_type,
                     fallbacks=q.fallbacks if q.fallbacks else None,
                     kind=q.kind,
                     year=year,
                     **classification,
                 )
-                result.append(factor) if factor else None
+                if factors:
+                    result.extend(factors)
 
             # B2: Kind only — no subkind/context
             #     e.g. headcount(kind="food", subkind=None)

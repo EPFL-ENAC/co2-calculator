@@ -559,9 +559,10 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     update_dto = BuildingEmbodiedEnergyHandlerUpdate
     response_dto = BuildingEmbodiedEnergyHandlerResponse
 
-    kind_field: str = "building_name"
+    kind_field: Optional[str] = None
     subkind_field: Optional[str] = None
     require_subkind_for_factor = False
+    require_factor_to_match = False
 
     sort_map = {
         "id": DataEntry.id,
@@ -575,15 +576,13 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     def to_response(
         self, data_entry: DataEntry
     ) -> BuildingEmbodiedEnergyHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "building_name": primary_factor.get("kind")
-                or data_entry.data.get("building_name"),
+                "building_name": data_entry.data.get("building_name"),
             }
         )
 
@@ -601,21 +600,11 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
             ctx: dict, factor_values: dict
         ) -> float | None:
             surface = ctx.get("room_surface_square_meter")
-            new_tech_per_m2 = factor_values.get("new_tech_kgco2eq_per_m2") or 0.0
-            new_env_per_m2 = factor_values.get("new_env_kgco2eq_per_m2") or 0.0
-            ren_tech_per_m2 = factor_values.get("ren_tech_kgco2eq_per_m2") or 0.0
-            ren_env_per_m2 = factor_values.get("ren_env_kgco2eq_per_m2") or 0.0
-            demolition_per_m2 = factor_values.get("demolition_kgco2eq_per_m2") or 0.0
+            ef_kgco2eq_per_m2 = factor_values.get("ef_kgco2eq_per_m2") or 0.0
             # If any of the required values are missing, we cannot compute the emissions
             if surface is None:
                 return None
-            return float(surface) * (
-                new_env_per_m2
-                + new_tech_per_m2
-                + ren_env_per_m2
-                + ren_tech_per_m2
-                + demolition_per_m2
-            )
+            return float(surface) * float(ef_kgco2eq_per_m2)
 
         return [
             EmissionComputation(
@@ -634,29 +623,20 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
 
 class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
     building_name: str
-    new_tech_kgco2eq_per_m2: float
-    new_env_kgco2eq_per_m2: float
-    ren_tech_kgco2eq_per_m2: float
-    ren_env_kgco2eq_per_m2: float
-    demolition_kgco2eq_per_m2: float
+    category: str
+    ef_kgco2eq_per_m2: float
 
 
 class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
     building_name: Optional[str] = None
-    new_tech_kgco2eq_per_m2: Optional[float] = None
-    new_env_kgco2eq_per_m2: Optional[float] = None
-    ren_tech_kgco2eq_per_m2: Optional[float] = None
-    ren_env_kgco2eq_per_m2: Optional[float] = None
-    demolition_kgco2eq_per_m2: Optional[float] = None
+    category: Optional[str] = None
+    ef_kgco2eq_per_m2: Optional[float] = None
 
 
 class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
     building_name: str
-    new_tech_kgco2eq_per_m2: float
-    new_env_kgco2eq_per_m2: float
-    ren_tech_kgco2eq_per_m2: float
-    ren_env_kgco2eq_per_m2: float
-    demolition_kgco2eq_per_m2: float
+    category: str
+    ef_kgco2eq_per_m2: float
 
 
 class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
@@ -670,14 +650,8 @@ class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
     update_dto = BuildingEmbodiedEnergyFactorUpdate
     response_dto = BuildingEmbodiedEnergyFactorResponse
 
-    classification_fields: list[str] = ["building_name"]
-    value_fields: list[str] = [
-        "new_tech_kgco2eq_per_m2",
-        "new_env_kgco2eq_per_m2",
-        "ren_tech_kgco2eq_per_m2",
-        "ren_env_kgco2eq_per_m2",
-        "demolition_kgco2eq_per_m2",
-    ]
+    classification_fields: list[str] = ["building_name", "category"]
+    value_fields: list[str] = ["ef_kgco2eq_per_m2"]
 
     def to_response(self, factor: Factor) -> FactorResponseGen:
         return self.response_dto.model_validate(factor.model_dump)
