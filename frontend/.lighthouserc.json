@@ -2,6 +2,11 @@
   "ci": {
     "collect": {
       "staticDistDir": "./frontend/dist/spa",
+      "url": [
+        "/en/login",
+        "/en/login-test",
+        "/en/workspace-setup"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop",
