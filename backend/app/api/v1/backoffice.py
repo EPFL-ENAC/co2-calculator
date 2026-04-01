@@ -892,6 +892,9 @@ async def report_detailed(
                 # Invalid filter values or other issues in query parameters
                 raise HTTPException(status_code=400, detail=str(exc))
 
+            if data is None or len(data) == 0:
+                continue
+
             if format == "json":
                 content = json.dumps(data, indent=2, default=str)
             else:
