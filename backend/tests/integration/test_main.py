@@ -18,7 +18,17 @@ def test_root_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_health_db_ok(monkeypatch):
+async def test_healthz():
+    """Test lightweight liveness check endpoint."""
+    resp = await main.healthz()
+    assert resp.status_code == 200
+    assert resp.body
+    data = resp.body
+    assert b'"status": "ok"' in data or b'"status":"ok"' in data
+
+
+@pytest.mark.asyncio
+async def test_ready_db_ok(monkeypatch):
     # Mock get_db_session to simulate DB OK
     class DummySession:
         async def __aenter__(self):
@@ -32,36 +42,36 @@ async def test_health_db_ok(monkeypatch):
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
     monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
-    resp = await main.health()
+    resp = await main.ready()
     assert resp.status_code == 200
     assert resp.body
     assert b"healthy" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_health_db_error(monkeypatch):
+async def test_ready_db_error(monkeypatch):
     # Mock get_db_session to raise error
     async def raise_exc():
         raise Exception("db fail")
 
     monkeypatch.setattr("app.db.get_db_session", raise_exc)
     monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
-    resp = await main.health()
+    resp = await main.ready()
     assert resp.status_code == 503
     assert b"unhealthy" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_health_role_provider_skipped(monkeypatch):
+async def test_ready_role_provider_skipped(monkeypatch):
     # PROVIDER_PLUGIN != "accred"
     monkeypatch.setattr("app.db.get_db_session", AsyncMock())
     monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
-    resp = await main.health()
+    resp = await main.ready()
     assert b"skipped" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_health_role_provider_ok(monkeypatch):
+async def test_ready_role_provider_ok(monkeypatch):
     # PROVIDER_PLUGIN == "accred" and health returns 200
     class DummySession:
         async def __aenter__(self):
@@ -85,12 +95,12 @@ async def test_health_role_provider_ok(monkeypatch):
     mock_client.get.return_value = mock_resp
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        resp = await main.health()
+        resp = await main.ready()
         assert b"ok" in resp.body
 
 
 @pytest.mark.asyncio
-async def test_health_role_provider_error(monkeypatch):
+async def test_ready_role_provider_error(monkeypatch):
     # PROVIDER_PLUGIN == "accred" and health raises error
     class DummySession:
         async def __aenter__(self):
@@ -113,7 +123,7 @@ async def test_health_role_provider_error(monkeypatch):
     mock_client.get.side_effect = Exception("fail")
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        resp = await main.health()
+        resp = await main.ready()
         assert b"error" in resp.body
 
 
