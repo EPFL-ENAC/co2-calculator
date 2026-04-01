@@ -59,13 +59,13 @@ class FactorService:
             year=year,
         )
 
-    async def get_factor(
+    async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[Dict[str, Any]] = None,
         year: Optional[int] = None,
         **classification: Any,
-    ) -> Optional[Factor]:
+    ) -> List[Factor]:
         """Flexible factor lookup with dynamic classification filters and fallbacks.
 
         Forwards to ``FactorRepository.get_factor``.
@@ -79,9 +79,9 @@ class FactorService:
                               (e.g. ``kind="plane"``, ``category="short_haul"``).
 
         Returns:
-            Matching factor or ``None``.
+            List of matching factors.
         """
-        return await self.repo.get_factor(
+        return await self.repo.get_factors(
             data_entry_type=data_entry_type,
             fallbacks=fallbacks,
             year=year,

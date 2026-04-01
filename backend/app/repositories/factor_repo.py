@@ -293,13 +293,13 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
-    async def get_factor(
+    async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[dict[str, str]] = None,
         year: Optional[int] = None,
         **classification: str,
-    ) -> Optional[Factor]:
+    ) -> List[Factor]:
         """Generic factor lookup with dynamic classification filters and year support.
 
         Args:
@@ -385,10 +385,10 @@ class FactorRepository:
 
         stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
-        factor = result.one_or_none()
+        factors = result.all()
 
-        if factor or not fallbacks:
-            return factor
+        if factors or not fallbacks:
+            return [factor for factor in factors]
 
         # Try with remaining fallback values (for keys that had a non-None
         # original value that didn't match).
@@ -409,4 +409,4 @@ class FactorRepository:
 
         stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
-        return result.one_or_none()
+        return [factor for factor in result.all()]
