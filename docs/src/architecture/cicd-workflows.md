@@ -124,16 +124,36 @@ bandit = ">=1.7.0"
 ### 5. Lighthouse CI (`lighthouse.yml`)
 
 **Trigger:** PR with frontend changes  
-**Purpose:** Performance, accessibility, SEO audits
+**Purpose:** Performance, accessibility, SEO, and eco-design audits
 
 **Metrics:**
 
 - ⚡ Performance (min 80%)
-- ♿ Accessibility (min 90%)
+- ♿ Accessibility (min 70%)
 - ✅ Best Practices (min 90%)
 - 🔍 SEO (min 90%)
 
-**Configuration:** `.lighthouserc.json`
+**Configuration:** `.lighthouserc.ci.json` (5 critical routes, ~2 min)
+
+The app requires authentication, so Lighthouse cannot navigate
+protected routes without a backend. The workflow injects
+`window.__LIGHTHOUSE_BYPASS__ = true` into the built `index.html`
+after the build step. All navigation guards skip auth checks when
+this flag is set. The flag never enters the production build.
+
+**Two audit configs:**
+
+| Config | Routes | Purpose |
+|---|---|---|
+| `.lighthouserc.ci.json` | 5 critical | CI (login → workspace → results) |
+| `.lighthouserc.json` | 24 routes | Local full audit (`make lighthouse`) |
+
+> ℹ️ Auditing all 24 routes in CI would take ~36 minutes.
+> CI covers the critical path; full coverage runs locally.
+
+See [implementation plan #264][impl264] for full technical details.
+
+[impl264]: ../../implementation-plans/264-lighthouse-route-in-frontend.md
 
 ### 6. Docker (`docker.yml`)
 

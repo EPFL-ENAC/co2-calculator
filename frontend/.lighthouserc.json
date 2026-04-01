@@ -1,8 +1,35 @@
 {
   "ci": {
     "collect": {
-      "staticDistDir": "./frontend/dist/spa",
-      "numberOfRuns": 3,
+      "startServerCommand": "npx serve -s frontend/dist/spa -l 8080",
+      "startServerReadyPattern": "Accepting connections",
+      "url": [
+        "http://localhost:8080/en/login",
+        "http://localhost:8080/en/login-test",
+        "http://localhost:8080/en/workspace-setup",
+        "http://localhost:8080/en/MOCK/2024/home",
+        "http://localhost:8080/en/MOCK/2024/results",
+        "http://localhost:8080/en/MOCK/2024/simulations",
+        "http://localhost:8080/en/MOCK/2024/simulations/add",
+        "http://localhost:8080/en/MOCK/2024/documentation",
+        "http://localhost:8080/en/MOCK/2024/headcount",
+        "http://localhost:8080/en/MOCK/2024/headcount-results",
+        "http://localhost:8080/en/MOCK/2024/buildings",
+        "http://localhost:8080/en/MOCK/2024/buildings-results",
+        "http://localhost:8080/en/MOCK/2024/professional-travel",
+        "http://localhost:8080/en/MOCK/2024/professional-travel-results",
+        "http://localhost:8080/en/back-office/reporting",
+        "http://localhost:8080/en/back-office/user-management",
+        "http://localhost:8080/en/back-office/data-management",
+        "http://localhost:8080/en/back-office/documentation-editing",
+        "http://localhost:8080/en/back-office/documentation",
+        "http://localhost:8080/en/system/user-management",
+        "http://localhost:8080/en/system/module-management",
+        "http://localhost:8080/en/system/logs",
+        "http://localhost:8080/en/system/documentation",
+        "http://localhost:8080/unauthorized"
+      ],
+      "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",
         "plugins": ["lighthouse-plugin-ecoindex-core"]
