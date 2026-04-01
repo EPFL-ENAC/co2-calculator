@@ -1,3 +1,4 @@
+{{- if .Values.docs.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,3 +18,4 @@ spec:
       port: {{ .Values.docs.service.port }}
       targetPort: {{ .Values.docs.service.targetPort }}
       protocol: TCP
+{{- end }}

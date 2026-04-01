@@ -66,10 +66,13 @@ metadata:
     {{- with .Values.routes.docs.extraLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.routes.docs.annotations }}
   annotations:
+    {{- with .Values.routes.docs.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
+    {{- if not (hasKey .Values.routes.docs.annotations "haproxy.router.openshift.io/rewrite-target") }}
+    haproxy.router.openshift.io/rewrite-target: /
+    {{- end }}
 spec:
   to:
     name: {{ include "co2-calculator.fullname" $ }}-docs
