@@ -8,6 +8,7 @@ import {
   exportReport,
   downloadUsageReportFile,
   downloadDetailedReportFile,
+  downloadResultsReportFile,
 } from 'src/api/reporting';
 import type { ReportFormat, ReportType } from 'src/api/reporting';
 import { type UnitFilters } from 'src/stores/backoffice';
@@ -55,6 +56,15 @@ const downloading = ref(false);
 //   return stringValue;
 // }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function downloadReport(format: 'csv' | 'json') {
   if (!selectedReport.value) return;
   downloading.value = true;
@@ -64,13 +74,10 @@ async function downloadReport(format: 'csv' | 'json') {
         props.unitFilters || {},
         format as ReportFormat,
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const today = new Date().toISOString().slice(0, 10);
-      a.download = `usage_report_${today}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(
+        blob,
+        `usage_report_${new Date().toISOString().slice(0, 10)}.${format}`,
+      );
       Notify.create({
         color: 'positive',
         message: t('backoffice_reporting_usage_downloaded'),
@@ -93,13 +100,10 @@ async function downloadReport(format: 'csv' | 'json') {
         props.unitFilters || {},
         format as ReportFormat,
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const today = new Date().toISOString().slice(0, 10);
-      a.download = `detailed_report_${today}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(
+        blob,
+        `detailed_report_${new Date().toISOString().slice(0, 10)}.zip`,
+      );
       Notify.create({
         color: 'positive',
         message: t('backoffice_reporting_detailed_downloaded'),
@@ -110,6 +114,32 @@ async function downloadReport(format: 'csv' | 'json') {
       Notify.create({
         color: 'negative',
         message: t('backoffice_reporting_detailed_download_failed'),
+        position: 'top',
+        timeout: 3000,
+      });
+    } finally {
+      downloading.value = false;
+    }
+  } else if (selectedReport.value === 'results') {
+    try {
+      const blob = await downloadResultsReportFile(
+        props.unitFilters || {},
+        format as ReportFormat,
+      );
+      downloadBlob(
+        blob,
+        `results_report_${new Date().toISOString().slice(0, 10)}.${format}`,
+      );
+      Notify.create({
+        color: 'positive',
+        message: t('backoffice_reporting_results_downloaded'),
+        position: 'top',
+        timeout: 2000,
+      });
+    } catch {
+      Notify.create({
+        color: 'negative',
+        message: t('backoffice_reporting_results_download_failed'),
         position: 'top',
         timeout: 3000,
       });
