@@ -1,7 +1,8 @@
 """Unit tests for CSV upload validation and error handling."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.models.data_entry import DataEntrySourceEnum
 from app.services.data_ingestion.csv_providers.module_per_year import (
@@ -13,16 +14,50 @@ class TestCSVValidationErrors:
     """Test CSV validation error message standardization."""
 
     @pytest.mark.asyncio
-    async def test_error_message_format(self):
-        """Test that validation errors use standardized format."""
-        # This is a simple test to verify the error message format
-        # The actual validation happens in _validate_csv_headers
+    async def test_empty_csv_raises_error(self):
+        """Test that empty CSV raises ValueError with correct message."""
+        config = {
+            "file_path": "tmp/test.csv",
+            "year": 2025,
+            "module_type_id": 1,
+        }
 
-        error_message = "CSV file is empty"
-        standardized = f"Wrong CSV format or encoding: {error_message}"
+        mock_session = AsyncMock()
+        provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
-        assert "Wrong CSV format or encoding" in standardized
-        assert error_message in standardized
+        # Empty CSV (headers only)
+        csv_text = "unit_institutional_id,name,position_category\n"
+
+        # Should fail with specific error message
+        with pytest.raises(ValueError, match="CSV file is empty"):
+            await provider._validate_csv_headers(
+                csv_text,
+                expected_columns={"unit_institutional_id", "name", "position_category"},
+                required_columns={"unit_institutional_id", "name", "position_category"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_missing_columns_raises_error(self):
+        """Test that missing columns raises ValueError with correct message."""
+        config = {
+            "file_path": "tmp/test.csv",
+            "year": 2025,
+            "module_type_id": 1,
+        }
+
+        mock_session = AsyncMock()
+        provider = ModulePerYearCSVProvider(config, data_session=mock_session)
+
+        # CSV missing required column (position_category)
+        csv_text = "unit_institutional_id,name\nUNIT001,John Doe\n"
+
+        # Should fail with specific error message
+        with pytest.raises(ValueError, match="missing required columns"):
+            await provider._validate_csv_headers(
+                csv_text,
+                expected_columns={"unit_institutional_id", "name", "position_category"},
+                required_columns={"unit_institutional_id", "name", "position_category"},
+            )
 
 
 class TestModulePerYearBehavior:
