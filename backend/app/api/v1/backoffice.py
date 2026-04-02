@@ -952,3 +952,82 @@ async def report_detailed(
             f'filename="detailed_report_{timestamp}.zip"'
         },
     )
+
+
+@router.get("/report/results")
+async def report_results(
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
+    ),
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    completion_status: Optional[ModuleStatus] = Query(
+        None,
+        description=(
+            "Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), "
+            "VALIDATED (2)"
+        ),
+    ),
+    search: Optional[str] = Query(
+        None, description="Search in unit name or institutional code"
+    ),
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
+    ),
+    format: str = Query("csv", description="Export format: csv or json"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
+) -> StreamingResponse:
+    if format not in {"csv", "json"}:
+        raise HTTPException(status_code=400, detail="Invalid format specified")
+
+    try:
+        data = await CarbonReportModuleRepository(db).get_results_report(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+            completion_status=completion_status,
+            search=search,
+            years=years,
+        )
+    except ValueError as exc:
+        # Invalid filter values or other issues in query parameters
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if format == "json":
+        content = json.dumps(data, indent=2, default=str)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="results_report_{timestamp}.json"'
+                ),
+            },
+        )
+    else:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        if data:
+            # Build a stable header list across all rows to avoid misalignment
+            headers: list[str] = []
+            for row in data:
+                for key in row.keys():
+                    if key not in headers:
+                        headers.append(key)
+            writer.writerow(headers)
+            for row in data:
+                writer.writerow([row.get(h, "") for h in headers])
+        content = output.getvalue()
+        return StreamingResponse(
+            iter([content]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="results_report_{timestamp}.csv"'
+                ),
+            },
+        )

@@ -35,6 +35,7 @@ export async function exportReport(
 function _applyReportFilters(
   searchParams: URLSearchParams,
   unitFilters: UnitFilters,
+  withModules: boolean = true,
 ): void {
   if (unitFilters.path_lvl2) {
     unitFilters.path_lvl2.forEach((v) =>
@@ -63,7 +64,7 @@ function _applyReportFilters(
   if (unitFilters.search) {
     searchParams.append('search', unitFilters.search);
   }
-  if (unitFilters.modules && unitFilters.modules.length > 0) {
+  if (withModules && unitFilters.modules && unitFilters.modules.length > 0) {
     unitFilters.modules.forEach((v) =>
       searchParams.append(
         'modules',
@@ -106,4 +107,19 @@ export async function downloadDetailedReportFile(
   _applyReportFilters(searchParams, unitFilters);
 
   return api.get('backoffice/report/detailed', { searchParams }).blob();
+}
+
+export async function downloadResultsReportFile(
+  unitFilters: UnitFilters,
+  format: ReportFormat,
+): Promise<Blob> {
+  if (format === 'pdf') {
+    throw new Error('PDF format is not supported for results report');
+  }
+  const searchParams = new URLSearchParams({
+    format,
+  });
+  _applyReportFilters(searchParams, unitFilters, false);
+
+  return api.get('backoffice/report/results', { searchParams }).blob();
 }
