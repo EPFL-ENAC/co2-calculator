@@ -532,4 +532,36 @@ export default {
     en: 'Mice and Fish Animal Facilities',
     fr: 'Animaleries rongeurs et poissons',
   },
+  year_config_saved: {
+    en: 'Configuration saved',
+    fr: 'Configuration enregistrée',
+  },
+  year_config_save_error: {
+    en: 'Failed to save configuration',
+    fr: "Échec de l'enregistrement de la configuration",
+  },
+  year_config_target_year_error: {
+    en: 'Target year must be after the configuration year',
+    fr: "L'année cible doit être postérieure à l'année de configuration",
+  },
+  year_config_percentage_error: {
+    en: 'Reduction percentage must be between 0 and 100',
+    fr: 'Le pourcentage de réduction doit être compris entre 0 et 100',
+  },
+  year_config_reference_year_error: {
+    en: 'Reference year must be a valid year',
+    fr: "L'année de référence doit être une année valide",
+  },
+  uploading_file: {
+    en: 'Uploading file…',
+    fr: 'Téléversement du fichier…',
+  },
+  file_upload_success: {
+    en: 'File uploaded successfully',
+    fr: 'Fichier téléversé avec succès',
+  },
+  file_upload_error: {
+    en: 'File upload failed',
+    fr: 'Échec du téléversement du fichier',
+  },
 } as const;

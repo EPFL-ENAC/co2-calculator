@@ -152,6 +152,10 @@ export default {
     en: 'Incomplete',
     fr: 'Incomplet',
   },
+  common_disabled: {
+    en: 'Disabled',
+    fr: 'Désactivé',
+  },
   common_filters_search_label: {
     en: 'Search',
     fr: 'Rechercher',

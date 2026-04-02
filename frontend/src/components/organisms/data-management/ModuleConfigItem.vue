@@ -146,6 +146,7 @@ const handleSave = () => {
                       type="number"
                       dense
                       outlined
+                      :debounce="600"
                       :placeholder="$t('no_threshold')"
                       @update:model-value="handleSave"
                     >
