@@ -24,15 +24,6 @@ export const MODULE_CARDS: ModuleCard[] = [
     },
   },
   {
-    module: MODULES.ProfessionalTravel,
-    active: true,
-    badge: {
-      label: 'New',
-      color: 'primary',
-      textColor: 'white',
-    },
-  },
-  {
     module: MODULES.ProcessEmissions,
     active: true,
   },
@@ -45,15 +36,24 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: true,
   },
   {
+    module: MODULES.ExternalCloudAndAI,
+    active: true,
+  },
+  {
     module: MODULES.Purchase,
     active: true,
   },
   {
-    module: MODULES.ResearchFacilities,
+    module: MODULES.ProfessionalTravel,
     active: true,
+    badge: {
+      label: 'New',
+      color: 'primary',
+      textColor: 'white',
+    },
   },
   {
-    module: MODULES.ExternalCloudAndAI,
+    module: MODULES.ResearchFacilities,
     active: true,
   },
 ];
