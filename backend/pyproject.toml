@@ -92,7 +92,6 @@ dev = [
     "locust>=2.42.2",
     "pytest-env>=1.6.0",
     "faker>=40.11.1",
-    "types-requests>=2.32.4.20260107",
     "docker>=7.1.0",
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20250915",
