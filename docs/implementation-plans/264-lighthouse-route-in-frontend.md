@@ -33,12 +33,12 @@ it only exists in the local copy used by the Lighthouse static server.
 
 ### Guards extended
 
-| Guard | File |
-|---|---|
-| `authGuard` | `src/router/guards/authGuard.ts` |
-| `validateUnitGuard` | `src/router/guards/validateUnitGuard.ts` |
-| `requirePermission` | `src/router/guards/permissionGuard.ts` |
-| `requireModuleEditPermission` | `src/router/guards/permissionGuard.ts` |
+| Guard                         | File                                     |
+| ----------------------------- | ---------------------------------------- |
+| `authGuard`                   | `src/router/guards/authGuard.ts`         |
+| `validateUnitGuard`           | `src/router/guards/validateUnitGuard.ts` |
+| `requirePermission`           | `src/router/guards/permissionGuard.ts`   |
+| `requireModuleEditPermission` | `src/router/guards/permissionGuard.ts`   |
 
 Pages render their intended component structure but make no real API
 calls (no backend). This is intentional: Lighthouse audits static
@@ -49,10 +49,10 @@ structure, not live data.
 Running Lighthouse on all routes in CI would take ~36 minutes. The
 approach splits audit scope into two configs:
 
-| Config | Used by | Routes | Runs | Est. time |
-|---|---|---|---|---|
-| `.lighthouserc.json` | `make lighthouse` | 24 | 1 | ~12 min |
-| `.lighthouserc.ci.json` | CI workflow | 5 | 1 | ~2 min |
+| Config                  | Used by           | Routes | Runs | Est. time |
+| ----------------------- | ----------------- | ------ | ---- | --------- |
+| `.lighthouserc.json`    | `make lighthouse` | 24     | 1    | ~12 min   |
+| `.lighthouserc.ci.json` | CI workflow       | 5      | 1    | ~2 min    |
 
 ### CI routes (`.lighthouserc.ci.json`)
 
