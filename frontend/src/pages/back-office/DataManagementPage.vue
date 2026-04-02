@@ -162,6 +162,20 @@ const hasReductionGoals = computed(() =>
   ),
 );
 
+/** True when all filled-in goals pass validation. */
+const goalsAreValid = computed(() =>
+  localGoals.value.every((g) => {
+    const isEmpty = !g.target_year && !g.reference_year && !g.reduction_percentage;
+    if (isEmpty) return true;
+    return (
+      g.target_year > selectedYear.value &&
+      g.reduction_percentage >= 0 &&
+      g.reduction_percentage <= 1 &&
+      g.reference_year > 0
+    );
+  }),
+);
+
 /** Persist all non-empty goals to the store. */
 async function saveReductionGoals(): Promise<void> {
   const goalsToSave = localGoals.value.filter(
@@ -1605,6 +1619,12 @@ onMounted(() => {
                     $t('data_management_first_reduction_objectives_target_year')
                   "
                   placeholder="2030"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > selectedYear ||
+                      $t('year_config_target_year_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[0].reduction_percentage"
@@ -1615,7 +1635,14 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="30"
+                  placeholder="0.4"
+                  hint="0 – 1"
+                  :rules="[
+                    (v: number) =>
+                      (!v && v !== undefined) ||
+                      (v >= 0 && v <= 1) ||
+                      $t('year_config_percentage_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[0].reference_year"
@@ -1627,6 +1654,12 @@ onMounted(() => {
                     $t('data_management_reduction_objectives_reference_year')
                   "
                   placeholder="2019"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > 0 ||
+                      $t('year_config_reference_year_error'),
+                  ]"
                 />
               </div>
             </q-card>
@@ -1646,6 +1679,12 @@ onMounted(() => {
                     $t('data_management_first_reduction_objectives_target_year')
                   "
                   placeholder="2030"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > selectedYear ||
+                      $t('year_config_target_year_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[1].reduction_percentage"
@@ -1656,7 +1695,14 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="30"
+                  placeholder="0.4"
+                  hint="0 – 1"
+                  :rules="[
+                    (v: number) =>
+                      (!v && v !== undefined) ||
+                      (v >= 0 && v <= 1) ||
+                      $t('year_config_percentage_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[1].reference_year"
@@ -1668,6 +1714,12 @@ onMounted(() => {
                     $t('data_management_reduction_objectives_reference_year')
                   "
                   placeholder="2019"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > 0 ||
+                      $t('year_config_reference_year_error'),
+                  ]"
                 />
               </div>
             </q-card>
@@ -1687,6 +1739,12 @@ onMounted(() => {
                     $t('data_management_first_reduction_objectives_target_year')
                   "
                   placeholder="2030"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > selectedYear ||
+                      $t('year_config_target_year_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[2].reduction_percentage"
@@ -1697,7 +1755,14 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="30"
+                  placeholder="0.4"
+                  hint="0 – 1"
+                  :rules="[
+                    (v: number) =>
+                      (!v && v !== undefined) ||
+                      (v >= 0 && v <= 1) ||
+                      $t('year_config_percentage_error'),
+                  ]"
                 />
                 <q-input
                   v-model.number="localGoals[2].reference_year"
@@ -1709,6 +1774,12 @@ onMounted(() => {
                     $t('data_management_reduction_objectives_reference_year')
                   "
                   placeholder="2019"
+                  :rules="[
+                    (v: number) =>
+                      !v ||
+                      v > 0 ||
+                      $t('year_config_reference_year_error'),
+                  ]"
                 />
               </div>
             </q-card>
@@ -1718,6 +1789,7 @@ onMounted(() => {
             size="md"
             :label="$t('common_save')"
             :loading="isSavingGoals"
+            :disable="!goalsAreValid"
             class="q-mb-md q-ml-md text-weight-medium text-capitalize"
             @click="saveReductionGoals"
           />

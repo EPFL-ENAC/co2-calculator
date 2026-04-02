@@ -548,6 +548,10 @@ export default {
     en: 'Reduction percentage must be between 0 and 1',
     fr: 'Le pourcentage de réduction doit être compris entre 0 et 1',
   },
+  year_config_reference_year_error: {
+    en: 'Reference year must be a valid year',
+    fr: "L'année de référence doit être une année valide",
+  },
   uploading_file: {
     en: 'Uploading file…',
     fr: 'Téléversement du fichier…',
