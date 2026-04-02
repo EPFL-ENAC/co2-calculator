@@ -3,9 +3,12 @@
 import csv
 import io
 import json
+import os
+import tempfile
 import zipfile
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any, Generator, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -22,6 +25,7 @@ from app.models.carbon_report import (
     CarbonReportModule,
     CarbonReportModuleRead,
 )
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
@@ -469,7 +473,7 @@ async def export_detailed_reporting(
             zip_file.writestr("README.txt", "No data found for the specified filters.")
         zip_buffer.seek(0)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         return StreamingResponse(
             iter([zip_buffer.getvalue()]),
             media_type="application/zip",
@@ -581,7 +585,7 @@ async def export_detailed_reporting(
 
     # Create ZIP file with all CSVs
     zip_buffer = io.BytesIO()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         # Add each CSV file to the ZIP
@@ -804,7 +808,7 @@ async def report_usage(
         # Invalid filter values or other issues in query parameters
         raise HTTPException(status_code=400, detail=str(exc))
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if format == "json":
         content = json.dumps(data, indent=2, default=str)
         return StreamingResponse(
@@ -812,25 +816,139 @@ async def report_usage(
             media_type="application/json",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="usage_report_{today}.json"'
+                    f'attachment; filename="usage_report_{timestamp}.json"'
                 ),
             },
         )
     else:
-        # CSV export
         output = io.StringIO()
         writer = csv.writer(output)
         if data:
-            writer.writerow(data[0].keys())
+            # Build a stable header list across all rows to avoid misalignment
+            headers: list[str] = []
             for row in data:
-                writer.writerow(row.values())
+                for key in row.keys():
+                    if key not in headers:
+                        headers.append(key)
+            writer.writerow(headers)
+            for row in data:
+                writer.writerow([row.get(h, "") for h in headers])
         content = output.getvalue()
         return StreamingResponse(
             iter([content]),
             media_type="text/csv",
             headers={
                 "Content-Disposition": (
-                    f'attachment; filename="usage_report_{today}.csv"'
+                    f'attachment; filename="usage_report_{timestamp}.csv"'
                 ),
             },
         )
+
+
+@router.get("/report/detailed")
+async def report_detailed(
+    path_lvl2: Optional[List[str]] = Query(
+        None, description="Filter by VP and Faculties"
+    ),
+    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
+    path_lvl4: Optional[List[str]] = Query(
+        None, description="Filter by unit name(s) - can specify multiple"
+    ),
+    completion_status: Optional[ModuleStatus] = Query(
+        None,
+        description=(
+            "Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), "
+            "VALIDATED (2)"
+        ),
+    ),
+    search: Optional[str] = Query(
+        None, description="Search in unit name or institutional code"
+    ),
+    modules: Optional[List[str]] = Query(
+        None,
+        description="""Filter by module states, format: 'module_name:state'
+        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress, 
+        'headcount:2' for validated)""",
+    ),
+    years: Optional[List[int]] = Query(
+        None, description="Filter by years (e.g., [2024, 2025])"
+    ),
+    format: str = Query("csv", description="Export format: csv or json"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "export")),
+) -> StreamingResponse:
+    if format not in {"csv", "json"}:
+        raise HTTPException(status_code=400, detail="Invalid format specified")
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
+            for data_entry_type in data_entry_types:
+                try:
+                    data = await CarbonReportModuleRepository(db).get_detailed_report(
+                        data_entry_type=data_entry_type,
+                        path_lvl2=path_lvl2,
+                        path_lvl3=path_lvl3,
+                        path_lvl4=path_lvl4,
+                        completion_status=completion_status,
+                        search=search,
+                        modules=modules,
+                        years=years,
+                    )
+                except ValueError as exc:
+                    # Invalid filter values or other issues in query parameters
+                    raise HTTPException(status_code=400, detail=str(exc))
+
+                if data is None or len(data) == 0:
+                    continue
+
+                file_path = (
+                    tmp_path / f"{module_type.name}_{data_entry_type.name}.{format}"
+                )
+                if format == "json":
+                    file_path.write_text(
+                        json.dumps(data, indent=2, default=str), encoding="utf-8"
+                    )
+                else:
+                    with open(file_path, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        # Build a stable header list across all rows to avoid
+                        # misalignment
+                        headers: list[str] = []
+                        for row in data:
+                            for key in row.keys():
+                                if key not in headers:
+                                    headers.append(key)
+                        writer.writerow(headers)
+                        for row in data:
+                            writer.writerow([row.get(h, "") for h in headers])
+
+        zip_fd, zip_path = tempfile.mkstemp(suffix=".zip")
+        os.close(zip_fd)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for file_path in sorted(tmp_path.iterdir()):
+                    zip_file.write(file_path, file_path.name)
+        except Exception:
+            os.unlink(zip_path)
+            raise
+
+    def _stream_and_cleanup() -> Generator[bytes, None, None]:
+        try:
+            with open(zip_path, "rb") as f:
+                while chunk := f.read(65536):
+                    yield chunk
+        finally:
+            os.unlink(zip_path)
+
+    return StreamingResponse(
+        _stream_and_cleanup(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; "
+            f'filename="detailed_report_{timestamp}.zip"'
+        },
+    )

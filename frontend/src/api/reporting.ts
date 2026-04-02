@@ -32,16 +32,10 @@ export async function exportReport(
   return api.get('backoffice/export', { searchParams }).blob();
 }
 
-export async function downloadUsageReportFile(
+function _applyReportFilters(
+  searchParams: URLSearchParams,
   unitFilters: UnitFilters,
-  format: ReportFormat,
-): Promise<Blob> {
-  if (format === 'pdf') {
-    throw new Error('PDF format is not supported for usage report');
-  }
-  const searchParams = new URLSearchParams({
-    format,
-  });
+): void {
   if (unitFilters.path_lvl2) {
     unitFilters.path_lvl2.forEach((v) =>
       searchParams.append('path_lvl2', String(v)),
@@ -82,6 +76,34 @@ export async function downloadUsageReportFile(
       searchParams.append('years', String(year)),
     );
   }
+}
+
+export async function downloadUsageReportFile(
+  unitFilters: UnitFilters,
+  format: ReportFormat,
+): Promise<Blob> {
+  if (format === 'pdf') {
+    throw new Error('PDF format is not supported for usage report');
+  }
+  const searchParams = new URLSearchParams({
+    format,
+  });
+  _applyReportFilters(searchParams, unitFilters);
 
   return api.get('backoffice/report/usage', { searchParams }).blob();
+}
+
+export async function downloadDetailedReportFile(
+  unitFilters: UnitFilters,
+  format: ReportFormat,
+): Promise<Blob> {
+  if (format === 'pdf') {
+    throw new Error('PDF format is not supported for detailed report');
+  }
+  const searchParams = new URLSearchParams({
+    format,
+  });
+  _applyReportFilters(searchParams, unitFilters);
+
+  return api.get('backoffice/report/detailed', { searchParams }).blob();
 }

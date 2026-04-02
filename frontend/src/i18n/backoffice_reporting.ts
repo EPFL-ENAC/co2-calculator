@@ -194,6 +194,14 @@ export default {
     en: 'Failed to download usage report',
     fr: "Échec du téléchargement du rapport d'utilisation",
   },
+  backoffice_reporting_detailed_downloaded: {
+    en: 'Detailed report downloaded',
+    fr: 'Rapport détaillé téléchargé',
+  },
+  backoffice_reporting_detailed_download_failed: {
+    en: 'Failed to download detailed report',
+    fr: 'Échec du téléchargement du rapport détaillé',
+  },
 
   backoffice_reporting_chart_unit_footprint_title: {
     en: 'Unit Carbon Footprint',
