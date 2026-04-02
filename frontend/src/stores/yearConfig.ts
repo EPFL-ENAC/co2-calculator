@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 
 export interface FileMetadata {
@@ -26,6 +26,20 @@ export interface ReductionObjectives {
 export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
+  latest_job?: SyncJobSummary | null;
+}
+
+export interface SyncJobSummary {
+  job_id: number;
+  module_type_id?: number;
+  data_entry_type_id?: number;
+  year?: number;
+  ingestion_method: number;
+  target_type?: number;
+  state?: number;
+  result?: number;
+  status_message?: string;
+  meta?: Record<string, unknown>;
 }
 
 export interface ModuleConfig {
@@ -44,6 +58,7 @@ export interface YearConfigurationResponse {
   is_started: boolean;
   is_reports_synced: boolean;
   config: YearConfig;
+  latest_jobs: SyncJobSummary[];
   updated_at: string;
 }
 
@@ -53,11 +68,18 @@ export interface YearConfigurationCreate {
   config?: Partial<YearConfig>;
 }
 
+/** Partial module config allowing nested partial submodule updates. */
+export interface ModuleConfigUpdate {
+  enabled?: boolean;
+  uncertainty_tag?: ModuleConfig['uncertainty_tag'];
+  submodules?: Record<string, Partial<SubmoduleConfig>>;
+}
+
 export interface YearConfigurationUpdate {
   is_started?: boolean;
   is_reports_synced?: boolean;
   config?: {
-    modules?: Record<string, ModuleConfig>;
+    modules?: Record<string, ModuleConfigUpdate>;
     reduction_objectives?: Partial<ReductionObjectives>;
   };
 }
@@ -233,6 +255,11 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound.value = false;
   }
 
+  /** All current ingestion jobs for the loaded year. */
+  const latestJobs = computed<SyncJobSummary[]>(
+    () => config.value?.latest_jobs ?? [],
+  );
+
   return {
     // State
     config,
@@ -240,6 +267,8 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     error,
     currentYear,
     notFound,
+    // Computed
+    latestJobs,
     // Methods
     fetchConfig,
     createConfig,

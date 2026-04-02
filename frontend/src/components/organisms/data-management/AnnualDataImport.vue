@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useFilesStore } from 'src/stores/files';
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import type {
   SyncJobResponse,
-  DataIngestionJob,
   ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
@@ -14,11 +12,15 @@ import {
   IngestionMethod,
   TargetType,
 } from 'src/stores/backofficeDataManagement';
+import {
+  useYearConfigStore,
+  type SyncJobSummary,
+} from 'src/stores/yearConfig';
 import { useI18n } from 'vue-i18n';
 import DataEntryDialog from './DataEntryDialog.vue';
 
 const filesStore = useFilesStore();
-const dataManagementStore = useBackofficeDataManagement();
+const yearConfigStore = useYearConfigStore();
 const { t: $t } = useI18n();
 
 interface Props {
@@ -206,12 +208,12 @@ const BASE_IMPORT_ROWS: Omit<
 // ── Pure helpers (no reactive side-effects) ───────────────────────────────────
 
 function findJob(
-  jobs: DataIngestionJob[],
+  jobs: SyncJobSummary[],
   moduleTypeId: number,
   targetType: TargetType | null,
   dataEntryTypeId?: number,
   ingestionMethod?: IngestionMethod,
-): DataIngestionJob | undefined {
+): SyncJobSummary | undefined {
   const candidates = jobs.filter(
     (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
   );
@@ -219,17 +221,18 @@ function findJob(
   if (dataEntryTypeId !== undefined) {
     return candidates.find(
       (j) =>
-        (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
-          dataEntryTypeId && j.ingestion_method === ingestionMethod?.valueOf(),
+        j.data_entry_type_id === dataEntryTypeId &&
+        j.ingestion_method === ingestionMethod?.valueOf(),
     );
   }
   return candidates[0];
 }
 
-function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
+function toSyncJobResponse(job: SyncJobSummary): SyncJobResponse {
   return {
     job_id: job.job_id,
     module_type_id: job.module_type_id,
+    data_entry_type_id: job.data_entry_type_id,
     year: job.year,
     target_type: job.target_type as TargetType,
     state: job.state as IngestionState,
@@ -252,9 +255,7 @@ function importInfo(job: SyncJobResponse | undefined) {
 // ── Computed: reads from store cache, parent owns the fetch ───────────────────
 
 const importRows = computed<ImportRow[]>(() => {
-  const jobs: DataIngestionJob[] = dataManagementStore.getLatestJobsByYear(
-    props.year,
-  );
+  const jobs = yearConfigStore.latestJobs;
   return BASE_IMPORT_ROWS.map((row) => {
     const dataJob = findJob(
       jobs,
@@ -356,13 +357,13 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
 
 // Re-fetch after upload so the store cache (and this view) updates
 async function handleJobCompleted() {
-  await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
+  await yearConfigStore.fetchConfig(props.year);
 }
 
 async function handleJobProgressing(job: SyncJobResponse) {
   console.log('Job progressing:', job);
 
-  await dataManagementStore.fetchLatestSyncJobsByYear(props.year);
+  await yearConfigStore.fetchConfig(props.year);
 }
 </script>
 

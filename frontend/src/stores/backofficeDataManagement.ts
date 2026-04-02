@@ -7,6 +7,7 @@ import { getModuleTypeId } from 'src/constant/moduleStates';
 export interface DataIngestionJob {
   job_id: number;
   module_type_id: number;
+  data_entry_type_id?: number;
   year: number;
   provider_type: string;
   target_type: number;
@@ -70,6 +71,7 @@ export interface SyncJobStatus {
 export interface SyncJobResponse {
   job_id: number;
   module_type_id?: number;
+  data_entry_type_id?: number;
   year?: number;
   ingestion_method?: IngestionMethod;
   target_type?: TargetType;

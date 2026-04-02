@@ -26,10 +26,12 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
+from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.year_configuration import (
     FileCategory,
     FileMetadata,
     FileUploadResponse,
+    SyncJobSummary,
     YearConfigurationCreate,
     YearConfigurationResponse,
     YearConfigurationUpdate,
@@ -45,9 +47,129 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _build_job_lookup(
+    jobs: list,
+) -> dict[tuple[int | None, int | None], "SyncJobSummary"]:
+    """Build a lookup dict from latest jobs keyed by (module, data_entry) IDs.
+
+    Args:
+        jobs: List of DataIngestionJob objects.
+
+    Returns:
+        Dict mapping (module_type_id, data_entry_type_id) to SyncJobSummary.
+    """
+    lookup: dict[tuple[int | None, int | None], SyncJobSummary] = {}
+    for job in jobs:
+        if job.id is None:
+            continue
+        key = (job.module_type_id, job.data_entry_type_id)
+        lookup[key] = SyncJobSummary(
+            job_id=job.id,
+            module_type_id=job.module_type_id,
+            data_entry_type_id=job.data_entry_type_id,
+            year=job.year,
+            ingestion_method=job.ingestion_method.value
+            if job.ingestion_method is not None
+            else 0,
+            target_type=job.target_type.value if job.target_type is not None else None,
+            state=job.state.value if job.state is not None else None,
+            result=job.result.value if job.result is not None else None,
+            status_message=job.status_message,
+            meta=job.meta,
+        )
+    return lookup
+
+
+def _build_jobs_list(jobs: list) -> list["SyncJobSummary"]:
+    """Build a flat list of SyncJobSummary from DataIngestionJob objects.
+
+    Args:
+        jobs: List of DataIngestionJob objects.
+
+    Returns:
+        List of SyncJobSummary (all current jobs for the year).
+    """
+    result: list[SyncJobSummary] = []
+    for job in jobs:
+        if job.id is None:
+            continue
+        result.append(
+            SyncJobSummary(
+                job_id=job.id,
+                module_type_id=job.module_type_id,
+                data_entry_type_id=job.data_entry_type_id,
+                year=job.year,
+                ingestion_method=job.ingestion_method.value
+                if job.ingestion_method is not None
+                else 0,
+                target_type=job.target_type.value
+                if job.target_type is not None
+                else None,
+                state=job.state.value if job.state is not None else None,
+                result=job.result.value if job.result is not None else None,
+                status_message=job.status_message,
+                meta=job.meta,
+            )
+        )
+    return result
+
+
+def _enrich_config_with_jobs(
+    config: dict, job_lookup: dict[tuple[int | None, int | None], SyncJobSummary]
+) -> dict:
+    """Inject latest_job into each submodule of the config dict.
+
+    Args:
+        config: Year configuration dict (modules → submodules).
+        job_lookup: Mapping from (module_type_id, data_entry_type_id) to job summary.
+
+    Returns:
+        Enriched config dict (mutated in-place for efficiency).
+    """
+    modules = config.get("modules", {})
+    for module_key, module_val in modules.items():
+        if not isinstance(module_val, dict):
+            continue
+        submodules = module_val.get("submodules", {})
+        for sub_key, sub_val in submodules.items():
+            if not isinstance(sub_val, dict):
+                continue
+            try:
+                m_id = int(module_key)
+                s_id = int(sub_key)
+            except (ValueError, TypeError):
+                continue
+            job = job_lookup.get((m_id, s_id))
+            sub_val["latest_job"] = job.model_dump() if job else None
+    return config
+
+
 def get_files_storage_path() -> str:
     """Get the files storage path from environment or default."""
     return os.environ.get("FILES_STORAGE_PATH", "./files_storage")
+
+
+def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively merge patch into base (returns a new dict).
+
+    For each key in patch:
+    - If both base[key] and patch[key] are dicts, recurse.
+    - Otherwise, patch[key] overwrites base[key].
+
+    Args:
+        base: Original dict.
+        patch: Partial dict to merge in.
+
+    Returns:
+        New merged dict (base is not mutated).
+    """
+    merged = base.copy()
+    for key, value in patch.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 def generate_unique_filename(original_filename: str) -> str:
@@ -186,7 +308,11 @@ async def get_year_configuration(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fetch year configuration for the given year.
+    """Fetch year configuration for the given year, enriched with latest sync jobs.
+
+    Each submodule in the response includes a `latest_job` field with the most
+    recent ingestion job summary. This eliminates the need for a separate
+    call to `/sync/jobs/year/{year}/latest`.
 
     Returns 404 if no configuration has been created yet.
     Backoffice users can then create it via POST /{year}.
@@ -197,7 +323,7 @@ async def get_year_configuration(
         current_user: Current authenticated user.
 
     Returns:
-        Year configuration.
+        Year configuration enriched with latest sync job per submodule.
     """
     stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
     result = (await db.exec(stmt)).first()
@@ -208,7 +334,23 @@ async def get_year_configuration(
             detail=f"No configuration found for year {year}",
         )
 
-    return YearConfigurationResponse.model_validate(result)
+    # Fetch latest jobs and enrich config
+    repo = DataIngestionRepository(db)
+    latest_jobs = await repo.get_latest_jobs_by_year(year)
+    job_lookup = _build_job_lookup(latest_jobs)
+    jobs_list = _build_jobs_list(latest_jobs)
+
+    enriched_config = copy.deepcopy(result.config)
+    _enrich_config_with_jobs(enriched_config, job_lookup)
+
+    return YearConfigurationResponse(
+        year=result.year,
+        is_started=result.is_started,
+        is_reports_synced=result.is_reports_synced,
+        config=enriched_config,
+        latest_jobs=jobs_list,
+        updated_at=result.updated_at,
+    )
 
 
 @router.post(
@@ -367,7 +509,7 @@ async def update_year_configuration(
     if payload.is_reports_synced is not None:
         result.is_reports_synced = payload.is_reports_synced
     if payload.config is not None:
-        result.config = payload.config
+        result.config = _deep_merge(result.config, payload.config)
 
     new_snapshot = {
         "is_started": result.is_started,
@@ -397,7 +539,23 @@ async def update_year_configuration(
         extra={"user_id": current_user.id, "year": year},
     )
 
-    return YearConfigurationResponse.model_validate(result)
+    # Fetch latest jobs so the response includes them
+    repo = DataIngestionRepository(db)
+    latest_jobs = await repo.get_latest_jobs_by_year(year)
+    jobs_list = _build_jobs_list(latest_jobs)
+    job_lookup = _build_job_lookup(latest_jobs)
+
+    enriched_config = copy.deepcopy(result.config)
+    _enrich_config_with_jobs(enriched_config, job_lookup)
+
+    return YearConfigurationResponse(
+        year=result.year,
+        is_started=result.is_started,
+        is_reports_synced=result.is_reports_synced,
+        config=enriched_config,
+        latest_jobs=jobs_list,
+        updated_at=result.updated_at,
+    )
 
 
 @router.post(

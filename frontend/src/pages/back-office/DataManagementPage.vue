@@ -15,9 +15,11 @@ import {
   TargetType,
   type ImportRow,
   type SyncJobResponse,
-  type DataIngestionJob,
 } from 'src/stores/backofficeDataManagement';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import {
+  useYearConfigStore,
+  type SyncJobSummary,
+} from 'src/stores/yearConfig';
 
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -39,10 +41,6 @@ const backofficeDataManagement = useBackofficeDataManagement();
 const yearConfigStore = useYearConfigStore();
 const { t: $t } = useI18n();
 
-const fetchSyncJobs = async () => {
-  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
-};
-
 const fetchYearConfig = async () => {
   await yearConfigStore.fetchConfig(selectedYear.value);
 };
@@ -51,7 +49,6 @@ watch(
   selectedYear,
   async () => {
     try {
-      await fetchSyncJobs();
       await fetchYearConfig();
     } catch (err: unknown) {
       const msg =
@@ -288,29 +285,30 @@ const MODULE_SUBMODULES: Partial<
 // ── Helpers mirroring AnnualDataImport ───────────────────────────────────────
 
 function findJob(
-  jobs: DataIngestionJob[],
+  jobs: SyncJobSummary[],
   moduleTypeId: number,
   targetType: TargetType | null,
   dataEntryTypeId?: number,
   ingestionMethod?: IngestionMethod,
-): DataIngestionJob | undefined {
+): SyncJobSummary | undefined {
   const candidates = jobs.filter(
     (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
   );
   if (dataEntryTypeId !== undefined) {
     return candidates.find(
       (j) =>
-        (j.meta?.config as Record<string, unknown>)?.data_entry_type_id ===
-          dataEntryTypeId && j.ingestion_method === ingestionMethod?.valueOf(),
+        j.data_entry_type_id === dataEntryTypeId &&
+        j.ingestion_method === ingestionMethod?.valueOf(),
     );
   }
   return candidates[0];
 }
 
-function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
+function toSyncJobResponse(job: SyncJobSummary): SyncJobResponse {
   return {
     job_id: job.job_id,
     module_type_id: job.module_type_id,
+    data_entry_type_id: job.data_entry_type_id,
     year: job.year,
     target_type: job.target_type as TargetType,
     state: job.state as IngestionState,
@@ -321,9 +319,7 @@ function toSyncJobResponse(job: DataIngestionJob): SyncJobResponse {
 }
 
 function getImportRow(sub: SubmoduleConfig): ImportRow {
-  const jobs: DataIngestionJob[] = backofficeDataManagement.getLatestJobsByYear(
-    selectedYear.value,
-  );
+  const jobs = yearConfigStore.latestJobs;
   const dataJob = findJob(
     jobs,
     sub.moduleTypeId,
@@ -451,55 +447,234 @@ function safeFileName(meta: unknown): string | undefined {
 const jobsRefreshKey = ref(0);
 
 async function handleJobCompleted() {
-  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
-  jobsRefreshKey.value += 1; // Force re-render of food/commuting/waste section
+  await yearConfigStore.fetchConfig(selectedYear.value);
+  jobsRefreshKey.value += 1;
 }
 
 async function handleJobProgressing() {
-  await backofficeDataManagement.fetchLatestSyncJobsByYear(selectedYear.value);
-  jobsRefreshKey.value += 1; // Force re-render
+  await yearConfigStore.fetchConfig(selectedYear.value);
+  jobsRefreshKey.value += 1;
 }
 
 function isModuleIncomplete(module: string): boolean {
+  if (!isModuleEnabled(module)) return false;
+
   const submodules =
     MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
   if (submodules.length === 0) return false;
 
   return submodules.some((sub) => {
+    if (!isSubmoduleEnabled(sub)) return false;
     const row = getImportRow(sub);
-    // Check if ANY required component (data, factors, references) is missing or unsuccessful
     const dataIncomplete =
       row.hasData && (!row.lastDataJob || row.lastDataJob.result !== 0);
     const factorsIncomplete =
       row.hasFactors && (!row.lastFactorJob || row.lastFactorJob.result !== 0);
     const referencesIncomplete =
-      row.hasOtherUpload && (!row.lastDataJob || row.lastDataJob.result !== 0); // References use same job as data
+      row.hasOtherUpload && (!row.lastDataJob || row.lastDataJob.result !== 0);
     return dataIncomplete || factorsIncomplete || referencesIncomplete;
   });
 }
 
-const toggleModule = ref(false);
-const submoduleThreshold = ref<string>('');
-const uncertainty = ref<'none' | 'low' | 'medium' | 'high'>('none');
+/**
+ * Get the module-level enabled flag from the year config store.
+ */
+function isModuleEnabled(module: string): boolean {
+  const moduleTypeId = getModuleTypeIdFromName(module);
+  if (!moduleTypeId) return true;
+  const moduleConfig =
+    yearConfigStore.config?.config?.modules?.[String(moduleTypeId)];
+  return moduleConfig?.enabled ?? true;
+}
+
+/**
+ * Toggle module enabled state and persist via PATCH.
+ */
+async function updateModuleEnabled(
+  module: string,
+  value: boolean,
+): Promise<void> {
+  const moduleTypeId = getModuleTypeIdFromName(module);
+  if (!moduleTypeId) return;
+  const moduleKey = String(moduleTypeId);
+
+  try {
+    await yearConfigStore.updateConfig(selectedYear.value, {
+      config: { modules: { [moduleKey]: { enabled: value } } },
+    });
+    Notify.create({ type: 'positive', message: $t('year_config_saved') });
+  } catch {
+    Notify.create({
+      type: 'negative',
+      message: $t('year_config_save_error'),
+    });
+  }
+}
+
+/**
+ * Get the submodule-level enabled flag from the year config store.
+ */
+function isSubmoduleEnabled(sub: SubmoduleConfig): boolean {
+  const moduleKey = String(sub.moduleTypeId);
+  const subKey =
+    sub.dataEntryTypeId !== undefined
+      ? String(sub.dataEntryTypeId)
+      : undefined;
+  if (!subKey) return true;
+  const moduleConfig =
+    yearConfigStore.config?.config?.modules?.[moduleKey];
+  return moduleConfig?.submodules?.[subKey]?.enabled ?? true;
+}
+
+/**
+ * Toggle submodule enabled state and persist via PATCH.
+ */
+async function updateSubmoduleEnabled(
+  sub: SubmoduleConfig,
+  value: boolean,
+): Promise<void> {
+  const moduleKey = String(sub.moduleTypeId);
+  const subKey =
+    sub.dataEntryTypeId !== undefined
+      ? String(sub.dataEntryTypeId)
+      : undefined;
+  if (!subKey) return;
+
+  try {
+    await yearConfigStore.updateConfig(selectedYear.value, {
+      config: {
+        modules: {
+          [moduleKey]: {
+            submodules: { [subKey]: { enabled: value } },
+          },
+        },
+      },
+    });
+    Notify.create({ type: 'positive', message: $t('year_config_saved') });
+  } catch {
+    Notify.create({
+      type: 'negative',
+      message: $t('year_config_save_error'),
+    });
+  }
+}
+
+type UncertaintyTag = 'none' | 'low' | 'medium' | 'high';
+
+/**
+ * Resolve the module type ID from its name via MODULE_SUBMODULES.
+ */
+function getModuleTypeIdFromName(module: string): number {
+  const subs =
+    MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
+  return subs.length > 0 ? subs[0].moduleTypeId : 0;
+}
+
+/**
+ * Get the current uncertainty tag for a module from the year config store.
+ */
+function getModuleUncertainty(module: string): UncertaintyTag {
+  const moduleTypeId = getModuleTypeIdFromName(module);
+  if (!moduleTypeId) return 'medium';
+  const moduleConfig =
+    yearConfigStore.config?.config?.modules?.[String(moduleTypeId)];
+  return moduleConfig?.uncertainty_tag ?? 'medium';
+}
+
+/**
+ * Update uncertainty tag for a module and persist via PATCH.
+ */
+async function updateModuleUncertainty(
+  module: string,
+  value: UncertaintyTag,
+): Promise<void> {
+  const moduleTypeId = getModuleTypeIdFromName(module);
+  if (!moduleTypeId) return;
+  const moduleKey = String(moduleTypeId);
+
+  try {
+    await yearConfigStore.updateConfig(selectedYear.value, {
+      config: {
+        modules: {
+          [moduleKey]: {
+            uncertainty_tag: value,
+          },
+        },
+      },
+    });
+    Notify.create({ type: 'positive', message: $t('year_config_saved') });
+  } catch {
+    Notify.create({
+      type: 'negative',
+      message: $t('year_config_save_error'),
+    });
+  }
+}
+
+/**
+ * Get the current threshold value for a submodule from the year config store.
+ */
+function getSubmoduleThreshold(sub: SubmoduleConfig): number | null {
+  const moduleKey = String(sub.moduleTypeId);
+  const subKey = sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
+  if (!subKey) return null;
+  const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
+  if (!moduleConfig) return null;
+  return moduleConfig.submodules?.[subKey]?.threshold ?? null;
+}
+
+/**
+ * Update threshold for a submodule and persist via PATCH.
+ */
+async function updateSubmoduleThreshold(
+  sub: SubmoduleConfig,
+  value: number | null,
+): Promise<void> {
+  const moduleKey = String(sub.moduleTypeId);
+  const subKey = sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
+  if (!subKey) return;
+  const existingModule = yearConfigStore.config?.config?.modules?.[moduleKey];
+  if (!existingModule) return;
+  const existingSub = existingModule.submodules?.[subKey];
+  if (!existingSub) return;
+
+  try {
+    await yearConfigStore.updateConfig(selectedYear.value, {
+      config: {
+        modules: {
+          [moduleKey]: {
+            ...existingModule,
+            submodules: {
+              ...existingModule.submodules,
+              [subKey]: {
+                ...existingSub,
+                threshold: value,
+              },
+            },
+          },
+        },
+      },
+    });
+    Notify.create({
+      type: 'positive',
+      message: $t('year_config_saved'),
+    });
+  } catch {
+    Notify.create({
+      type: 'negative',
+      message: $t('year_config_save_error'),
+    });
+  }
+}
 
 watch(
-  () => backofficeDataManagement.loading,
+  () => yearConfigStore.loading,
   (newValue) => {
     if (newValue) {
       Loading.show({ message: $t('data_management_loading') });
     } else {
       Loading.hide();
     }
-  },
-);
-
-// Re-render when year changes to refresh all job states
-watch(
-  () => selectedYear.value,
-  async () => {
-    await backofficeDataManagement.fetchLatestSyncJobsByYear(
-      selectedYear.value,
-    );
   },
 );
 
@@ -649,7 +824,15 @@ onMounted(() => {
                     $t(module)
                   }}</span>
                   <q-badge
-                    v-if="isModuleIncomplete(module)"
+                    v-if="!isModuleEnabled(module)"
+                    outline
+                    rounded
+                    color="grey"
+                    class="text-weight-medium"
+                    :label="$t('common_disabled')"
+                  />
+                  <q-badge
+                    v-else-if="isModuleIncomplete(module)"
                     outline
                     rounded
                     color="accent"
@@ -677,11 +860,13 @@ onMounted(() => {
                   {{ $t('data_management_module_activation_description') }}
                 </div>
                 <q-toggle
-                  v-model="toggleModule"
+                  :model-value="isModuleEnabled(module)"
                   color="accent"
                   keep-color
-                  readonly
                   size="lg"
+                  @update:model-value="
+                    (val: boolean) => updateModuleEnabled(module, val)
+                  "
                 />
               </q-card>
             </q-card>
@@ -704,28 +889,40 @@ onMounted(() => {
                   {{ $t('data_management_uncertainty_description') }}
                 </div>
                 <q-radio
-                  v-model="uncertainty"
+                  :model-value="getModuleUncertainty(module)"
                   val="none"
                   :label="$t('data_management_uncertainty_none')"
                   color="accent"
+                  @update:model-value="
+                    updateModuleUncertainty(module, 'none')
+                  "
                 />
                 <q-radio
-                  v-model="uncertainty"
+                  :model-value="getModuleUncertainty(module)"
                   val="low"
                   :label="$t('data_management_uncertainty_low')"
                   color="accent"
+                  @update:model-value="
+                    updateModuleUncertainty(module, 'low')
+                  "
                 />
                 <q-radio
-                  v-model="uncertainty"
+                  :model-value="getModuleUncertainty(module)"
                   val="medium"
                   :label="$t('data_management_uncertainty_medium')"
                   color="accent"
+                  @update:model-value="
+                    updateModuleUncertainty(module, 'medium')
+                  "
                 />
                 <q-radio
-                  v-model="uncertainty"
+                  :model-value="getModuleUncertainty(module)"
                   val="high"
                   :label="$t('data_management_uncertainty_high')"
                   color="accent"
+                  @update:model-value="
+                    updateModuleUncertainty(module, 'high')
+                  "
                 />
               </q-card>
             </q-card>
@@ -783,11 +980,14 @@ onMounted(() => {
                       }}
                     </div>
                     <q-toggle
-                      v-model="toggleModule"
+                      :model-value="isSubmoduleEnabled(submodule)"
                       color="accent"
                       keep-color
-                      readonly
                       size="md"
+                      @update:model-value="
+                        (val: boolean) =>
+                          updateSubmoduleEnabled(submodule, val)
+                      "
                     />
                   </q-card>
                   <q-separator class="q-my-xs" />
@@ -807,12 +1007,24 @@ onMounted(() => {
                       {{ $t('data_management_threshold_description') }}
                     </div>
                     <q-input
-                      v-model="submoduleThreshold"
+                      :model-value="getSubmoduleThreshold(submodule)"
+                      type="number"
                       dense
                       outlined
                       size="md"
+                      :debounce="600"
                       :suffix="$t('tco2eq')"
+                      :placeholder="$t('no_threshold')"
                       style="max-width: 500px"
+                      @update:model-value="
+                        (val: string | number | null) =>
+                          updateSubmoduleThreshold(
+                            submodule,
+                            val === '' || val === null
+                              ? null
+                              : Number(val),
+                          )
+                      "
                     />
                   </q-card>
                   <q-separator class="q-my-xs" />
