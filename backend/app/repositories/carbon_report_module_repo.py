@@ -829,8 +829,8 @@ class CarbonReportModuleRepository:
         years: Optional[List[int]] = None,
     ) -> list[dict]:
         """
-        Get a report of all carbon reports for a given data entry type, with their
-        modules, status, and last updated timestamp.
+        Get a detailed report of carbon report data entries for a given data entry
+        type, including associated units, years, raw data payloads, and emissions.
 
         Args:
             data_entry_type: The type of data entry to filter by
@@ -870,7 +870,10 @@ class CarbonReportModuleRepository:
             col(Unit.institutional_id).label("unit_institutional_id"),
             col(DataEntry.id).label("data_entry_id"),
             col(DataEntry.data),
-            func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            func.coalesce(
+                func.sum(col(DataEntryEmission.kg_co2eq)),
+                0,
+            ).label("kg_co2eq"),
         ]
         statement = (
             select(*columns)
