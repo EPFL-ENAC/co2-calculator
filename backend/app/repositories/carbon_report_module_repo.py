@@ -849,9 +849,10 @@ class CarbonReportModuleRepository:
             - ``year``: The reporting year.
             - ``unit_institutional_id``: The institutional identifier of the unit.
             - ``data_entry_id``: The ID of the data entry record.
-            - ``data``: The raw data-entry payload flattened.
             - ``kg_co2eq``: The summed emissions in kilograms of CO2 equivalent
               associated with the data entry.
+            - All fields from the underlying data-entry payload, flattened into
+              the top-level dictionary.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_lvl2=path_lvl2,

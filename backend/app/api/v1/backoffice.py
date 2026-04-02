@@ -3,9 +3,12 @@
 import csv
 import io
 import json
+import os
+import tempfile
 import zipfile
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any, Generator, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -470,7 +473,7 @@ async def export_detailed_reporting(
             zip_file.writestr("README.txt", "No data found for the specified filters.")
         zip_buffer.seek(0)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         return StreamingResponse(
             iter([zip_buffer.getvalue()]),
             media_type="application/zip",
@@ -582,7 +585,7 @@ async def export_detailed_reporting(
 
     # Create ZIP file with all CSVs
     zip_buffer = io.BytesIO()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         # Add each CSV file to the ZIP
@@ -805,7 +808,7 @@ async def report_usage(
         # Invalid filter values or other issues in query parameters
         raise HTTPException(status_code=400, detail=str(exc))
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if format == "json":
         content = json.dumps(data, indent=2, default=str)
         return StreamingResponse(
@@ -859,7 +862,7 @@ async def report_detailed(
         ),
     ),
     search: Optional[str] = Query(
-        None, description="Search in unit name, affiliation, or principal user"
+        None, description="Search in unit name or institutional code"
     ),
     modules: Optional[List[str]] = Query(
         None,
@@ -877,11 +880,11 @@ async def report_detailed(
     if format not in {"csv", "json"}:
         raise HTTPException(status_code=400, detail="Invalid format specified")
 
-    # Create ZIP file with all CSVs
-    zip_buffer = io.BytesIO()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
         for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
             for data_entry_type in data_entry_types:
                 try:
@@ -902,30 +905,47 @@ async def report_detailed(
                 if data is None or len(data) == 0:
                     continue
 
-                if format == "json":
-                    content = json.dumps(data, indent=2, default=str)
-                else:
-                    output = io.StringIO()
-                    writer = csv.writer(output)
-                    # Build a stable header list across all rows to avoid misalignment
-                    headers: list[str] = []
-                    for row in data:
-                        for key in row.keys():
-                            if key not in headers:
-                                headers.append(key)
-                    writer.writerow(headers)
-                    for row in data:
-                        writer.writerow([row.get(h, "") for h in headers])
-                    content = output.getvalue()
-
-                zip_file.writestr(
-                    f"{module_type.name}_{data_entry_type.name}.{format}", content
+                file_path = (
+                    tmp_path / f"{module_type.name}_{data_entry_type.name}.{format}"
                 )
+                if format == "json":
+                    file_path.write_text(
+                        json.dumps(data, indent=2, default=str), encoding="utf-8"
+                    )
+                else:
+                    with open(file_path, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        # Build a stable header list across all rows to avoid
+                        # misalignment
+                        headers: list[str] = []
+                        for row in data:
+                            for key in row.keys():
+                                if key not in headers:
+                                    headers.append(key)
+                        writer.writerow(headers)
+                        for row in data:
+                            writer.writerow([row.get(h, "") for h in headers])
 
-    zip_buffer.seek(0)
+        zip_fd, zip_path = tempfile.mkstemp(suffix=".zip")
+        os.close(zip_fd)
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for file_path in sorted(tmp_path.iterdir()):
+                    zip_file.write(file_path, file_path.name)
+        except Exception:
+            os.unlink(zip_path)
+            raise
+
+    def _stream_and_cleanup() -> Generator[bytes, None, None]:
+        try:
+            with open(zip_path, "rb") as f:
+                while chunk := f.read(65536):
+                    yield chunk
+        finally:
+            os.unlink(zip_path)
 
     return StreamingResponse(
-        iter([zip_buffer.getvalue()]),
+        _stream_and_cleanup(),
         media_type="application/zip",
         headers={
             "Content-Disposition": f"attachment; "
