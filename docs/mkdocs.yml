@@ -80,6 +80,7 @@ nav:
 
   - Frontend:
       - Overview: frontend/01-overview.md
+      - Design Tokens: frontend/02-design-tokens.md
 
   - Backend:
       - Overview: backend/01-overview.md
