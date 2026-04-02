@@ -545,8 +545,8 @@ export default {
     fr: "L'année cible doit être postérieure à l'année de configuration",
   },
   year_config_percentage_error: {
-    en: 'Reduction percentage must be between 0 and 1',
-    fr: 'Le pourcentage de réduction doit être compris entre 0 et 1',
+    en: 'Reduction percentage must be between 0 and 100',
+    fr: 'Le pourcentage de réduction doit être compris entre 0 et 100',
   },
   year_config_reference_year_error: {
     en: 'Reference year must be a valid year',

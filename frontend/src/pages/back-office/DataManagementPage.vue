@@ -141,15 +141,20 @@ const localGoals = ref<ReductionObjectiveGoal[]>([
 
 const isSavingGoals = ref(false);
 
-/** Sync store → local when config is fetched. */
+/** Sync store → local when config is fetched. Percentage is converted to 0–100 for display. */
 watch(
   () => yearConfigStore.config?.config?.reduction_objectives?.goals,
   (storeGoals) => {
     if (!storeGoals) return;
     for (let i = 0; i < 3; i++) {
-      localGoals.value[i] = storeGoals[i]
-        ? { ...storeGoals[i] }
-        : emptyGoal();
+      if (storeGoals[i]) {
+        localGoals.value[i] = {
+          ...storeGoals[i],
+          reduction_percentage: storeGoals[i].reduction_percentage * 100,
+        };
+      } else {
+        localGoals.value[i] = emptyGoal();
+      }
     }
   },
   { immediate: true },
@@ -162,7 +167,7 @@ const hasReductionGoals = computed(() =>
   ),
 );
 
-/** True when all filled-in goals pass validation. */
+/** True when all filled-in goals pass validation (percentage displayed as 0–100). */
 const goalsAreValid = computed(() =>
   localGoals.value.every((g) => {
     const isEmpty = !g.target_year && !g.reference_year && !g.reduction_percentage;
@@ -170,17 +175,20 @@ const goalsAreValid = computed(() =>
     return (
       g.target_year > selectedYear.value &&
       g.reduction_percentage >= 0 &&
-      g.reduction_percentage <= 1 &&
+      g.reduction_percentage <= 100 &&
       g.reference_year > 0
     );
   }),
 );
 
-/** Persist all non-empty goals to the store. */
+/** Persist all non-empty goals to the store. Converts percentage from 0–100 display to 0–1 storage. */
 async function saveReductionGoals(): Promise<void> {
-  const goalsToSave = localGoals.value.filter(
-    (g) => g.target_year > 0 && g.reference_year > 0,
-  );
+  const goalsToSave = localGoals.value
+    .filter((g) => g.target_year > 0 && g.reference_year > 0)
+    .map((g) => ({
+      ...g,
+      reduction_percentage: g.reduction_percentage / 100,
+    }));
 
   isSavingGoals.value = true;
   try {
@@ -1635,12 +1643,12 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="0.4"
-                  hint="0 – 1"
+                  placeholder="40"
+                  hint="0 – 100"
                   :rules="[
                     (v: number) =>
                       (!v && v !== undefined) ||
-                      (v >= 0 && v <= 1) ||
+                      (v >= 0 && v <= 100) ||
                       $t('year_config_percentage_error'),
                   ]"
                 />
@@ -1695,12 +1703,12 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="0.4"
-                  hint="0 – 1"
+                  placeholder="40"
+                  hint="0 – 100"
                   :rules="[
                     (v: number) =>
                       (!v && v !== undefined) ||
-                      (v >= 0 && v <= 1) ||
+                      (v >= 0 && v <= 100) ||
                       $t('year_config_percentage_error'),
                   ]"
                 />
@@ -1755,12 +1763,12 @@ onMounted(() => {
                   :label="
                     $t('data_management_reduction_objectives_reduction_goal')
                   "
-                  placeholder="0.4"
-                  hint="0 – 1"
+                  placeholder="40"
+                  hint="0 – 100"
                   :rules="[
                     (v: number) =>
                       (!v && v !== undefined) ||
-                      (v >= 0 && v <= 1) ||
+                      (v >= 0 && v <= 100) ||
                       $t('year_config_percentage_error'),
                   ]"
                 />
