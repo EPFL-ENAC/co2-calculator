@@ -1,8 +1,8 @@
 import io
 from datetime import date
 
+import httpx
 import pandas as pd
-import requests
 
 ECB_TIMEOUT_SECONDS = 10
 ECB_EXR_URL = "https://data-api.ecb.europa.eu/service/data/EXR/"
@@ -138,9 +138,9 @@ class ExchangeRatesService:
 
         # Set a timeout for the request to avoid hanging indefinitely
         try:
-            response = requests.get(url, params=params, timeout=ECB_TIMEOUT_SECONDS)
+            response = httpx.get(url, params=params, timeout=ECB_TIMEOUT_SECONDS)
             response.raise_for_status()
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             raise ValueError(
                 f"Error fetching exchange rates for year {year}: {e}"
             ) from e
