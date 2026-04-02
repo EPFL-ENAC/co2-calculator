@@ -1046,14 +1046,16 @@ class CarbonReportModuleRepository:
                 stats = row.stats if isinstance(row.stats, dict) else {}
                 by_emission_type = stats.get("by_emission_type") or {}
                 # Convert emission type keys to names if possible
-                by_emission_type = {
-                    (
-                        EmissionType(int(k)).name.replace("__", "_")
-                        if k.isdigit() and int(k) in EmissionType._value2member_map_
-                        else k
-                    ): v
-                    for k, v in by_emission_type.items()
-                }
+                converted_by_emission_type: dict[str, Any] = {}
+                for k, v in by_emission_type.items():
+                    k_str = str(k)
+                    try:
+                        emission_type = EmissionType(int(k_str))
+                        key = emission_type.name.replace("__", "_")
+                    except (ValueError, TypeError):
+                        key = k_str
+                    converted_by_emission_type[key] = v
+                by_emission_type = converted_by_emission_type
                 report.append(
                     {
                         "year": row.year,
