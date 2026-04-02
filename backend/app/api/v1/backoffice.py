@@ -22,7 +22,7 @@ from app.models.carbon_report import (
     CarbonReportModule,
     CarbonReportModuleRead,
 )
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
@@ -882,42 +882,45 @@ async def report_detailed(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for data_entry_type in list(DataEntryTypeEnum):
-            try:
-                data = await CarbonReportModuleRepository(db).get_detailed_report(
-                    data_entry_type=data_entry_type,
-                    path_lvl2=path_lvl2,
-                    path_lvl3=path_lvl3,
-                    path_lvl4=path_lvl4,
-                    completion_status=completion_status,
-                    search=search,
-                    modules=modules,
-                    years=years,
+        for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
+            for data_entry_type in data_entry_types:
+                try:
+                    data = await CarbonReportModuleRepository(db).get_detailed_report(
+                        data_entry_type=data_entry_type,
+                        path_lvl2=path_lvl2,
+                        path_lvl3=path_lvl3,
+                        path_lvl4=path_lvl4,
+                        completion_status=completion_status,
+                        search=search,
+                        modules=modules,
+                        years=years,
+                    )
+                except ValueError as exc:
+                    # Invalid filter values or other issues in query parameters
+                    raise HTTPException(status_code=400, detail=str(exc))
+
+                if data is None or len(data) == 0:
+                    continue
+
+                if format == "json":
+                    content = json.dumps(data, indent=2, default=str)
+                else:
+                    output = io.StringIO()
+                    writer = csv.writer(output)
+                    # Build a stable header list across all rows to avoid misalignment
+                    headers: list[str] = []
+                    for row in data:
+                        for key in row.keys():
+                            if key not in headers:
+                                headers.append(key)
+                    writer.writerow(headers)
+                    for row in data:
+                        writer.writerow([row.get(h, "") for h in headers])
+                    content = output.getvalue()
+
+                zip_file.writestr(
+                    f"{module_type.name}_{data_entry_type.name}.{format}", content
                 )
-            except ValueError as exc:
-                # Invalid filter values or other issues in query parameters
-                raise HTTPException(status_code=400, detail=str(exc))
-
-            if data is None or len(data) == 0:
-                continue
-
-            if format == "json":
-                content = json.dumps(data, indent=2, default=str)
-            else:
-                output = io.StringIO()
-                writer = csv.writer(output)
-                # Build a stable header list across all rows to avoid misalignment
-                headers: list[str] = []
-                for row in data:
-                    for key in row.keys():
-                        if key not in headers:
-                            headers.append(key)
-                writer.writerow(headers)
-                for row in data:
-                    writer.writerow([row.get(h, "") for h in headers])
-                content = output.getvalue()
-
-            zip_file.writestr(f"{data_entry_type.name}.{format}", content)
 
     zip_buffer.seek(0)
 
