@@ -488,6 +488,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         that was uploaded through the same mechanism, preserving manual
         entries and unit-specific uploads.
 
+        Note: MODULE_UNIT_SPECIFIC uses append-only strategy (no deletion).
+
         Args:
             unit_to_module_map: Mapping of unit ID to module ID
             stats: Statistics dict to update
@@ -730,7 +732,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             error_message = str(validation_error)
             logger.error(f"CSV validation failed: {error_message}")
             await self._update_job(
-                status_message=f"Column validation failed: {error_message}",
+                status_message=f"Wrong CSV format or encoding: {error_message}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"validation_error": error_message},
