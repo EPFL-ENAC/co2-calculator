@@ -46,12 +46,13 @@ async def test_user(db_session: AsyncSession):
 
 
 @pytest.fixture
-def get_test_client(test_user, monkeypatch):
+def get_test_client(test_user, db_session, monkeypatch):
     """Create test client with mocked authentication and permissions."""
 
     def _get_client():
         from app.api import deps
         from app.api.v1 import data_sync, files
+        from app.db import get_db
 
         # Override get_current_user to return test user
         async def mock_get_current_user():
@@ -61,11 +62,16 @@ def get_test_client(test_user, monkeypatch):
         async def mock_is_permitted(user, path, action):
             return True
 
+        # Override get_db to use the test session (tables already created)
+        async def mock_get_db():
+            yield db_session
+
         app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+        app.dependency_overrides[get_db] = mock_get_db
         monkeypatch.setattr(files, "is_permitted", mock_is_permitted)
         monkeypatch.setattr(data_sync, "is_permitted", mock_is_permitted)
 
-        client = TestClient(app, raise_server_exceptions=True)
+        client = TestClient(app, raise_server_exceptions=False)
         return client
 
     yield _get_client

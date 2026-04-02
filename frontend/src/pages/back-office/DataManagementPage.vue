@@ -162,15 +162,14 @@ watch(
 
 /** True when at least one goal has meaningful data filled. */
 const hasReductionGoals = computed(() =>
-  localGoals.value.some(
-    (g) => g.target_year > 0 && g.reference_year > 0,
-  ),
+  localGoals.value.some((g) => g.target_year > 0 && g.reference_year > 0),
 );
 
 /** True when all filled-in goals pass validation (percentage displayed as 0–100). */
 const goalsAreValid = computed(() =>
   localGoals.value.every((g) => {
-    const isEmpty = !g.target_year && !g.reference_year && !g.reduction_percentage;
+    const isEmpty =
+      !g.target_year && !g.reference_year && !g.reduction_percentage;
     if (isEmpty) return true;
     return (
       g.target_year > selectedYear.value &&
@@ -215,8 +214,7 @@ const scenariosFile = ref<File | null>(null);
 
 /** Uploaded file names derived from the store. */
 const uploadedFileNames = computed(() => {
-  const files =
-    yearConfigStore.config?.config?.reduction_objectives?.files;
+  const files = yearConfigStore.config?.config?.reduction_objectives?.files;
   return {
     footprint: files?.institutional_footprint?.filename ?? null,
     population: files?.population_projections?.filename ?? null,
@@ -639,12 +637,9 @@ async function updateModuleEnabled(
 function isSubmoduleEnabled(sub: SubmoduleConfig): boolean {
   const moduleKey = String(sub.moduleTypeId);
   const subKey =
-    sub.dataEntryTypeId !== undefined
-      ? String(sub.dataEntryTypeId)
-      : undefined;
+    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
   if (!subKey) return true;
-  const moduleConfig =
-    yearConfigStore.config?.config?.modules?.[moduleKey];
+  const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
   return moduleConfig?.submodules?.[subKey]?.enabled ?? true;
 }
 
@@ -657,9 +652,7 @@ async function updateSubmoduleEnabled(
 ): Promise<void> {
   const moduleKey = String(sub.moduleTypeId);
   const subKey =
-    sub.dataEntryTypeId !== undefined
-      ? String(sub.dataEntryTypeId)
-      : undefined;
+    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
   if (!subKey) return;
 
   try {
@@ -738,7 +731,8 @@ async function updateModuleUncertainty(
  */
 function getSubmoduleThreshold(sub: SubmoduleConfig): number | null {
   const moduleKey = String(sub.moduleTypeId);
-  const subKey = sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
+  const subKey =
+    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
   if (!subKey) return null;
   const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
   if (!moduleConfig) return null;
@@ -753,7 +747,8 @@ async function updateSubmoduleThreshold(
   value: number | null,
 ): Promise<void> {
   const moduleKey = String(sub.moduleTypeId);
-  const subKey = sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
+  const subKey =
+    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
   if (!subKey) return;
   const existingModule = yearConfigStore.config?.config?.modules?.[moduleKey];
   if (!existingModule) return;
@@ -1015,18 +1010,14 @@ onMounted(() => {
                   val="none"
                   :label="$t('data_management_uncertainty_none')"
                   color="accent"
-                  @update:model-value="
-                    updateModuleUncertainty(module, 'none')
-                  "
+                  @update:model-value="updateModuleUncertainty(module, 'none')"
                 />
                 <q-radio
                   :model-value="getModuleUncertainty(module)"
                   val="low"
                   :label="$t('data_management_uncertainty_low')"
                   color="accent"
-                  @update:model-value="
-                    updateModuleUncertainty(module, 'low')
-                  "
+                  @update:model-value="updateModuleUncertainty(module, 'low')"
                 />
                 <q-radio
                   :model-value="getModuleUncertainty(module)"
@@ -1042,9 +1033,7 @@ onMounted(() => {
                   val="high"
                   :label="$t('data_management_uncertainty_high')"
                   color="accent"
-                  @update:model-value="
-                    updateModuleUncertainty(module, 'high')
-                  "
+                  @update:model-value="updateModuleUncertainty(module, 'high')"
                 />
               </q-card>
             </q-card>
@@ -1107,8 +1096,7 @@ onMounted(() => {
                       keep-color
                       size="md"
                       @update:model-value="
-                        (val: boolean) =>
-                          updateSubmoduleEnabled(submodule, val)
+                        (val: boolean) => updateSubmoduleEnabled(submodule, val)
                       "
                     />
                   </q-card>
@@ -1142,9 +1130,7 @@ onMounted(() => {
                         (val: string | number | null) =>
                           updateSubmoduleThreshold(
                             submodule,
-                            val === '' || val === null
-                              ? null
-                              : Number(val),
+                            val === '' || val === null ? null : Number(val),
                           )
                       "
                     />
@@ -1664,9 +1650,7 @@ onMounted(() => {
                   placeholder="2019"
                   :rules="[
                     (v: number) =>
-                      !v ||
-                      v > 0 ||
-                      $t('year_config_reference_year_error'),
+                      !v || v > 0 || $t('year_config_reference_year_error'),
                   ]"
                 />
               </div>
@@ -1724,9 +1708,7 @@ onMounted(() => {
                   placeholder="2019"
                   :rules="[
                     (v: number) =>
-                      !v ||
-                      v > 0 ||
-                      $t('year_config_reference_year_error'),
+                      !v || v > 0 || $t('year_config_reference_year_error'),
                   ]"
                 />
               </div>
@@ -1784,9 +1766,7 @@ onMounted(() => {
                   placeholder="2019"
                   :rules="[
                     (v: number) =>
-                      !v ||
-                      v > 0 ||
-                      $t('year_config_reference_year_error'),
+                      !v || v > 0 || $t('year_config_reference_year_error'),
                   ]"
                 />
               </div>

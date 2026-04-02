@@ -12,10 +12,7 @@ import {
   IngestionMethod,
   TargetType,
 } from 'src/stores/backofficeDataManagement';
-import {
-  useYearConfigStore,
-  type SyncJobSummary,
-} from 'src/stores/yearConfig';
+import { useYearConfigStore, type SyncJobSummary } from 'src/stores/yearConfig';
 import { useI18n } from 'vue-i18n';
 import DataEntryDialog from './DataEntryDialog.vue';
 
