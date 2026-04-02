@@ -843,8 +843,15 @@ class CarbonReportModuleRepository:
               and statuses (e.g., ["headcount:2", "professional_travel:1"])
             years: Optional filter for specific years (e.g., [2024, 2025])
         Returns:
-            A list of dictionaries containing year, unit_id, module_name,
-              module_status, and last_updated.
+            A list of dictionaries where each item represents a data entry and
+            contains:
+            - ``data_entry_type``: The name of the data entry type.
+            - ``year``: The reporting year.
+            - ``unit_institutional_id``: The institutional identifier of the unit.
+            - ``data_entry_id``: The ID of the data entry record.
+            - ``data``: The raw data-entry payload flattened.
+            - ``kg_co2eq``: The summed emissions in kilograms of CO2 equivalent
+              associated with the data entry.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_lvl2=path_lvl2,

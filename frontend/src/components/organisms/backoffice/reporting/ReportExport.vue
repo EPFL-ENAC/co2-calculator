@@ -56,8 +56,8 @@ const downloading = ref(false);
 // }
 
 async function downloadReport(format: 'csv' | 'json') {
-  downloading.value = true;
   if (!selectedReport.value) return;
+  downloading.value = true;
   if (selectedReport.value === 'usage') {
     try {
       const blob = await downloadUsageReportFile(

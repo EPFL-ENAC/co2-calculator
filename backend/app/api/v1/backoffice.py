@@ -821,9 +821,15 @@ async def report_usage(
         output = io.StringIO()
         writer = csv.writer(output)
         if data:
-            writer.writerow(data[0].keys())
+            # Build a stable header list across all rows to avoid misalignment
+            headers: list[str] = []
             for row in data:
-                writer.writerow(row.values())
+                for key in row.keys():
+                    if key not in headers:
+                        headers.append(key)
+            writer.writerow(headers)
+            for row in data:
+                writer.writerow([row.get(h, "") for h in headers])
         content = output.getvalue()
         return StreamingResponse(
             iter([content]),
@@ -876,7 +882,7 @@ async def report_detailed(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for data_entry_type in DataEntryTypeEnum:
+        for data_entry_type in list(DataEntryTypeEnum):
             try:
                 data = await CarbonReportModuleRepository(db).get_detailed_report(
                     data_entry_type=data_entry_type,
@@ -900,10 +906,15 @@ async def report_detailed(
             else:
                 output = io.StringIO()
                 writer = csv.writer(output)
-                if data:
-                    writer.writerow(data[0].keys())
-                    for row in data:
-                        writer.writerow(row.values())
+                # Build a stable header list across all rows to avoid misalignment
+                headers: list[str] = []
+                for row in data:
+                    for key in row.keys():
+                        if key not in headers:
+                            headers.append(key)
+                writer.writerow(headers)
+                for row in data:
+                    writer.writerow([row.get(h, "") for h in headers])
                 content = output.getvalue()
 
             zip_file.writestr(f"{data_entry_type.name}.{format}", content)
