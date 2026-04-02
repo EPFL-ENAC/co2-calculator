@@ -12,7 +12,7 @@ jobs:
   lighthouse:
     name: Lighthouse Performance Audit
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +35,12 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: install ligthouse
+        working-directory: ./frontend
+        run: npm install lighthouse --no-save
+
       - name: Install ecoindex plugin
+        working-directory: ./frontend
         run: npm install lighthouse-plugin-ecoindex-core --no-save
 
       - name: Build frontend
@@ -67,11 +72,11 @@ jobs:
             const fs = require('fs');
             const results = JSON.parse(fs.readFileSync('.lighthouseci/manifest.json'));
             const comment = `## ⚡ Lighthouse CI Results
-            
+
             📊 [View full report](${results[0].url})
-            
+
             Performance scores will be available in the artifacts.`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

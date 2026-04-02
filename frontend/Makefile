@@ -98,14 +98,19 @@ dev: ## Start development server
 build: ## Build Docker image
 	docker build -t co2-calculator-frontend .
 
-.PHONY: lighthouse
-lighthouse: ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 3 routes)
+
+.PHONY: localbuild
+localbuild: ## Run
 	@set -e; \
-	npm run build; \
+	npm run build;
+
+.PHONY: lighthouse
+lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 3 routes)
+	@set -e; \
 	node -e "const fs=require('fs'),p='dist/spa/index.html',h=fs.readFileSync(p,'utf8');fs.writeFileSync(p,h.replace('</head>','<script>window.__LIGHTHOUSE_BYPASS__=true;<\/script></head>'))"; \
 	npm install lighthouse-plugin-ecoindex-core --no-save; \
-	node_modules/.bin/lhci collect \
-		--config=.lighthouserc.json \
+	npx --yes lhci collect \
+		--config=.lighthouserc.ci.json \
 		--startServerCommand="npx serve -s dist/spa -l 8080" \
 		--numberOfRuns=1; \
 	echo ""; \

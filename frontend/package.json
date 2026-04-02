@@ -40,7 +40,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@intlify/unplugin-vue-i18n": "=11.1.1",
-    "@lhci/cli": "^0.15.1",
     "@playwright/experimental-ct-vue": "1.58.2",
     "@playwright/test": "1.58.2",
     "@quasar/app-vite": "=2.5.4",
