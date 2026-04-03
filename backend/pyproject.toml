@@ -7,7 +7,7 @@ dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
     "fastapi[standard]==0.135.2",
-    "starlette==0.49.3",
+    "starlette==0.52.1",
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.22",
     "sqlalchemy[asyncio,mypy]==2.0.44",
