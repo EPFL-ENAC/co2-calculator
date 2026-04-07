@@ -18,16 +18,25 @@ import type { ItBreakdownResponse } from 'src/stores/modules';
 
 use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
 
+const FORMAT_INTEGER = {
+  options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
+};
+const FORMAT_CO2_PER_KM = {
+  options: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+};
 const props = withDefaults(
   defineProps<{
     data: ItBreakdownResponse | null;
     loading?: boolean;
     /** From results summary; used for equivalent car km (kg CO₂-eq / km). */
     co2PerKmKg?: number;
+    /** Carbon report year (Results page selected year). */
+    year?: number;
   }>(),
   {
     loading: false,
     co2PerKmKg: 0,
+    year: undefined,
   },
 );
 
@@ -56,10 +65,8 @@ const IT_FOCUS_CATEGORY_ORDER = [
 ] as const;
 
 const CLOUD_AI_LABEL_MAP: Record<string, string> = {
-  stockage: 'it-focus-cloud-stockage',
-  virtualisation: 'it-focus-cloud-virtualisation',
-  calcul: 'it-focus-cloud-calcul',
-  ai: 'it-focus-cloud-ai-providers',
+  cloud: 'it-focus-cloud',
+  ai: 'it-focus-ai',
 };
 
 /** Map category_key → single color (dark shade) */
@@ -140,16 +147,45 @@ const categoryBars = computed<CategoryBar[]>(() => {
     if (items.length === 0) {
       segments.push({ name: label, value: cat.tonnes_co2eq, color });
     } else {
-      items.forEach((item) => {
-        if (item.value <= 0) return;
-        let name = item.name;
-        if (categoryKey === 'external_cloud_and_ai') {
-          name = t(CLOUD_AI_LABEL_MAP[item.name] ?? item.name);
-        } else if (item.name === 'rest') {
-          name = t('it-focus-rest');
+      if (cat.category_key === 'external_cloud_and_ai') {
+        let cloud = 0;
+        let ai = 0;
+
+        for (const item of items) {
+          if (item.value <= 0) continue;
+          const key = item.name.toLowerCase();
+          const isAi = key === 'ai' || key.includes('ai');
+          if (isAi) {
+            ai += item.value;
+          } else if (key !== 'rest') {
+            cloud += item.value;
+          }
         }
-        segments.push({ name, value: item.value, color });
-      });
+
+        if (cloud > 0) {
+          segments.push({
+            name: t(CLOUD_AI_LABEL_MAP.cloud),
+            value: cloud,
+            color,
+          });
+        }
+        if (ai > 0) {
+          segments.push({
+            name: t(CLOUD_AI_LABEL_MAP.ai),
+            value: ai,
+            color,
+          });
+        }
+      } else {
+        items.forEach((item) => {
+          if (item.value <= 0) return;
+          let name = item.name;
+          if (item.name === 'rest') {
+            name = t('it-focus-rest');
+          }
+          segments.push({ name, value: item.value, color });
+        });
+      }
     }
 
     bars.push({
@@ -221,7 +257,7 @@ const segmentLabelMap = computed(() => {
 
 const chartHeight = computed(() => {
   // Always 4 rows (IT_FOCUS_CATEGORY_ORDER), validated or not
-  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 60 + 120);
+  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 50 + 160);
 });
 
 const barChartOption = computed<EChartsOption>(() => {
@@ -245,9 +281,9 @@ const barChartOption = computed<EChartsOption>(() => {
     itemStyle: {
       color: segmentColorMap.value[segKey] ?? '#999',
       borderColor: '#fff',
-      borderWidth: 1,
+      borderWidth: 0.5,
     },
-    barWidth: 48,
+    barWidth: 60,
     label: { show: false },
     emphasis: {
       focus: 'series' as const,
@@ -327,19 +363,39 @@ const barChartOption = computed<EChartsOption>(() => {
       <h2 class="text-h2 text-weight-medium">
         {{ $t('it-title') }}
       </h2>
-      <span class="text-body1 text-secondary">{{ $t('it-subtitle') }}</span>
+      <span class="text-body1 text-secondary">{{
+        $t('it-subtitle', { year: year ?? '' })
+      }}</span>
     </div>
 
     <q-separator class="q-mt-xl" />
 
     <!-- Summary numbers -->
-    <div v-if="data" class="grid-2-col q-mt-lg q-mb-lg q-px-lg">
+    <q-card v-if="data" flat class="row grid-1-col q-mt-lg q-mb-lg q-px-lg">
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
-        comparison="TBD"
+        :comparison="
+          itEquivalentCarKm != null
+            ? $t('results_equivalent_to_car', {
+                km: $nOrDash(itEquivalentCarKm, FORMAT_INTEGER),
+                value: `${$nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM)}`,
+              })
+            : undefined
+        "
+        "
+        :comparison="$t('it-focus-share-of-total-hint')"
+        hide-unit
         color="accent"
-      />
+        tooltip-placement="comparison"
+      >
+        <template v-if="co2PerKmKg > 0" #tooltip>{{
+          $t('results_total_unit_carbon_footprint_tooltip', {
+            value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
+            unit: $t('results_kg_co2eq_per_km'),
+          })
+        }}</template>
+      </BigNumber>
       <BigNumber
         :title="$t('it-focus-share-of-total')"
         :number="
@@ -347,16 +403,14 @@ const barChartOption = computed<EChartsOption>(() => {
             ? `${Math.round(data.percentage_of_source_modules)}%`
             : '-'
         "
-        :comparison="$t('it-focus-share-of-total-hint')"
-        hide-unit
-        color="accent"
       />
-    </div>
+    </q-card>
 
     <template v-if="!loading && data">
+      <q-separator class="q-mt-xl" />
       <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->
 
-      <q-card v-if="hasData" flat bordered class="q-mb-lg q-pa-lg q-mx-lg">
+      <q-card v-if="hasData" flat class="q-mb-lg q-pa-lg q-mx-lg">
         <div
           class="flex items-center no-wrap text-h5 text-weight-medium q-my-xl"
         >

@@ -7,14 +7,11 @@ from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
-from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
-
-logger = get_logger(__name__)
 
 
 class DataEntryEmissionRepository:
@@ -244,6 +241,227 @@ class DataEntryEmissionRepository:
             )
             for row in rows
         ]
+
+    async def get_emission_breakdown_with_quantity(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[int, int, float, float | None]]:
+        """Aggregate emissions and quantity by module_type_id and emission_type_id.
+
+        Returns:
+            [(module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity), ...]
+            where sum_quantity is summed from meta->>'quantity' (NULL when absent).
+        """
+        query = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+                func.sum(col(DataEntryEmission.meta)["quantity"].as_float()).label(
+                    "sum_quantity"
+                ),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+            )
+            .group_by(
+                col(CarbonReportModule.module_type_id),
+                col(DataEntryEmission.emission_type_id),
+            )
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            (
+                int(row.module_type_id),
+                int(row.emission_type_id),
+                float(row.total) if row.total is not None else 0.0,
+                float(row.sum_quantity) if row.sum_quantity is not None else None,
+            )
+            for row in rows
+        ]
+
+    async def get_embodied_energy_by_building(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[str, float]]:
+        """Aggregate embodied-energy emissions per building_name.
+
+        Returns:
+            [(building_name, sum_kg_co2eq), ...] sorted by building name.
+        """
+
+        building_name_expr = DataEntry.data["building_name"].as_string()
+        query: Select[Any] = (
+            select(
+                building_name_expr.label("building_name"),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(DataEntry.data_entry_type_id)
+                == DataEntryTypeEnum.building_embodied_energy.value,
+                col(DataEntryEmission.emission_type_id)
+                == EmissionType.buildings__embodied_energy.value,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                building_name_expr.isnot(None),
+                building_name_expr != "",
+            )
+            .group_by(building_name_expr)
+            .order_by(building_name_expr)
+        )
+        result = await self.session.execute(query)
+        return [
+            (str(row.building_name), float(row.total or 0.0)) for row in result.all()
+        ]
+
+    async def get_embodied_energy_by_category(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[str, float]]:
+        """Aggregate embodied-energy emissions per factor category.
+
+        Aggregates from persisted ``DataEntryEmission`` rows and apportions each
+        entry total across factor categories using the factor values that were
+        used at compute time (stored in ``meta.factors_used``).
+
+        This keeps the breakdown consistent with:
+        - CSV ``kg_co2eq`` overrides (stored emissions may not equal surface × EF)
+        - Factor updates after emissions were computed (stored emissions remain
+          the source of truth)
+
+        Returns:
+            [(category, sum_kg_co2eq), ...] sorted by category.
+        """
+        query: Select[Any] = (
+            select(
+                col(DataEntryEmission.kg_co2eq).label("kg_co2eq"),
+                col(DataEntryEmission.meta).label("meta"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(DataEntry.data_entry_type_id)
+                == DataEntryTypeEnum.building_embodied_energy.value,
+                col(DataEntryEmission.emission_type_id)
+                == EmissionType.buildings__embodied_energy.value,
+                col(DataEntryEmission.kg_co2eq).isnot(None),
+                col(DataEntryEmission.kg_co2eq) > 0,
+            )
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+        if not rows:
+            return []
+
+        def _factor_ids(meta: dict) -> list[int]:
+            factors_used = meta.get("factors_used")
+            if not isinstance(factors_used, list):
+                return []
+            ids: list[int] = []
+            for f in factors_used:
+                if not isinstance(f, dict):
+                    continue
+                fid = f.get("id")
+                if isinstance(fid, int):
+                    ids.append(fid)
+            return ids
+
+        factor_ids: set[int] = set()
+        for row in rows:
+            meta = row.meta if isinstance(row.meta, dict) else {}
+            factor_ids.update(_factor_ids(meta))
+
+        factor_category_map: dict[int, str] = {}
+        factor_ef_map: dict[int, float] = {}
+        if factor_ids:
+            factor_query: Select[Any] = select(
+                col(Factor.id).label("id"),
+                Factor.classification["category"].as_string().label("category"),
+                Factor.values["ef_kgco2eq_per_m2"].as_float().label("ef"),
+            ).where(col(Factor.id).in_(factor_ids))
+            factor_result = await self.session.execute(factor_query)
+            for f in factor_result.all():
+                fid = int(f.id)
+                factor_category_map[fid] = str(f.category or "unknown")
+                factor_ef_map[fid] = float(f.ef) if f.ef is not None else 0.0
+
+        category_totals: dict[str, float] = {}
+        for row in rows:
+            kg_total = float(row.kg_co2eq or 0.0)
+            if kg_total <= 0:
+                continue
+
+            meta = row.meta if isinstance(row.meta, dict) else {}
+            surface = meta.get("room_surface_square_meter")
+            if surface is None:
+                continue
+            try:
+                surface_f = float(surface)
+            except (TypeError, ValueError):
+                continue
+            if surface_f <= 0:
+                continue
+
+            ids = _factor_ids(meta)
+            if not ids:
+                category_totals["unknown"] = (
+                    category_totals.get("unknown", 0.0) + kg_total
+                )
+                continue
+
+            raw_by_cat: dict[str, float] = {}
+            raw_total = 0.0
+            for fid in ids:
+                ef = factor_ef_map.get(fid, 0.0)
+                if ef <= 0:
+                    continue
+                cat = factor_category_map.get(fid, "unknown")
+                raw = surface_f * ef
+                raw_by_cat[cat] = raw_by_cat.get(cat, 0.0) + raw
+                raw_total += raw
+
+            if raw_total <= 0:
+                category_totals["unknown"] = (
+                    category_totals.get("unknown", 0.0) + kg_total
+                )
+                continue
+
+            scale = kg_total / raw_total
+            for cat, raw in raw_by_cat.items():
+                category_totals[cat] = category_totals.get(cat, 0.0) + (raw * scale)
+
+        return sorted(
+            [(cat, total) for cat, total in category_totals.items() if total > 0],
+            key=lambda x: x[0],
+        )
 
     async def get_travel_stats_by_class(
         self,

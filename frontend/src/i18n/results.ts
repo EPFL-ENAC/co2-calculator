@@ -203,6 +203,38 @@ export default {
     en: 'Please validate this module to view detailed charts and statistics.',
     fr: 'Veuillez valider ce module pour afficher les graphiques et statistiques détaillés.',
   },
+  results_additional_validate_headcount_title: {
+    en: 'Validate Headcount to see results',
+    fr: "Validez l'effectif pour voir les résultats",
+  },
+  results_additional_validate_headcount_message: {
+    en: 'Please validate the headcount module to view commuting, food, and waste breakdowns.',
+    fr: "Veuillez valider le module d'effectif pour afficher les répartitions des déplacements, de l'alimentation et des déchets.",
+  },
+  results_additional_headcount_no_data_title: {
+    en: 'No data available',
+    fr: 'Aucune donnée disponible',
+  },
+  results_additional_headcount_no_data_message: {
+    en: 'There is no commuting, food, or waste data for this report. Please fill in headcount data to see breakdowns.',
+    fr: "Aucune donnée de déplacements, d'alimentation ou de déchets pour ce rapport. Veuillez renseigner les données d'effectif pour voir les répartitions.",
+  },
+  results_additional_validate_buildings_title: {
+    en: 'Validate Buildings to see results',
+    fr: 'Validez les bâtiments pour voir les résultats',
+  },
+  results_additional_validate_buildings_message: {
+    en: 'Please validate the buildings module to view construction and renovation breakdowns.',
+    fr: 'Veuillez valider le module bâtiments pour afficher les répartitions des constructions et rénovations.',
+  },
+  results_additional_buildings_no_data_title: {
+    en: 'No data available',
+    fr: 'Aucune donnée disponible',
+  },
+  results_additional_buildings_no_data_message: {
+    en: 'There is no construction or renovation data for this report. Please fill in buildings data to see breakdowns.',
+    fr: 'Aucune donnée de construction ou rénovation pour ce rapport. Veuillez renseigner les données de bâtiments pour voir les répartitions.',
+  },
   results_objectives_2040_title: {
     en: 'Reduction objective 2040',
     fr: 'Objectif de réduction 2040',
@@ -366,8 +398,8 @@ export default {
     fr: 'Déchets',
   },
   'charts-embodied-energy-category': {
-    en: 'Embodied Energy',
-    fr: 'Énergie grise',
+    en: 'Construction and renovation',
+    fr: 'Constructions et rénovations',
   },
   'charts-equipment-electric-consumption-category': {
     en: 'Equipment',
@@ -578,12 +610,28 @@ export default {
     fr: "Type d'émission",
   },
   results_additional_title: {
-    en: 'Additional categories',
+    en: 'Additional Categories',
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
     en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.",
+    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+  },
+  results_additional_headcount_card_title: {
+    en: 'Commuting, food and waste',
+    fr: 'Pendularité, alimentation et déchets',
+  },
+  results_additional_headcount_card_subtitle: {
+    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
+    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+  },
+  results_additional_buildings_card_title: {
+    en: 'Construction and renovation',
+    fr: 'Construction et rénovation',
+  },
+  results_additional_buildings_card_subtitle: {
+    en: 'These emissions are calculated based on building surface data and construction/renovation emission factors.',
+    fr: "Ces émissions sont calculées à partir des données de surface des bâtiments et des facteurs d'émission de construction/rénovation.",
   },
   results_additional_commuting_total: {
     en: 'Total commuting carbon footprint',
@@ -621,9 +669,25 @@ export default {
     en: 'Emissions CO₂-eq',
     fr: 'Émissions CO₂-éq',
   },
+  results_additional_co2_chart_title_percent: {
+    en: 'Emissions CO₂-eq (%)',
+    fr: 'Émissions CO₂-éq (%)',
+  },
   results_additional_physical_chart_title: {
     en: 'Physical quantity',
     fr: 'Quantité physique',
+  },
+  results_additional_commuting_physical_chart_title_percent: {
+    en: 'Distance in km (%)',
+    fr: 'Distance en km (%)',
+  },
+  results_additional_food_physical_chart_title_percent: {
+    en: 'Weight in kg (%)',
+    fr: 'Poids en kg (%)',
+  },
+  results_additional_waste_physical_chart_title_percent: {
+    en: 'Weight in kg (%)',
+    fr: 'Poids en kg (%)',
   },
   results_grey_energy_title: {
     en: 'Grey energy (embodied energy)',
@@ -642,12 +706,32 @@ export default {
     fr: "Cette analyse ne concerne que les constructions, rénovations et démolitions en cours; elle n'inclut pas les bâtiments construits, rénovés ou démolis dans le passé. L'empreinte carbone réelle des bâtiments de l'EPFL est plus élevée.",
   },
   results_additional_embodied_energy_breakdown_title: {
-    en: 'Breakdown of construction and renovation carbon footprint by building',
-    fr: "Répartition de l'empreinte carbone des constructions et rénovations par bâtiment",
+    en: 'Breakdown of construction and renovation carbon footprint by category',
+    fr: "Répartition de l'empreinte carbone des constructions et rénovations par catégorie",
   },
   'charts-embodied-energy-subcategory': {
     en: 'Embodied energy',
     fr: 'Énergie grise',
+  },
+  'charts-new-env-subcategory': {
+    en: 'New construction – thermal envelope',
+    fr: 'Construction neuve – enveloppe thermique',
+  },
+  'charts-new-tech-subcategory': {
+    en: 'New construction – technical installations',
+    fr: 'Construction neuve – installations techniques',
+  },
+  'charts-ren-env-subcategory': {
+    en: 'Renovation – thermal envelope',
+    fr: 'Rénovation – enveloppe thermique',
+  },
+  'charts-ren-tech-subcategory': {
+    en: 'Renovation – technical installations',
+    fr: 'Rénovation – installations techniques',
+  },
+  'charts-demolition-subcategory': {
+    en: 'Demolition',
+    fr: 'Démolition',
   },
   // Commuting sub-type labels
   'charts-walking-subcategory': {
@@ -802,6 +886,10 @@ export default {
     en: 'Based on validated categories only',
     fr: 'Basé uniquement sur les catégories validées',
   },
+  'it-focus-validated-modules-share': {
+    en: 'IT share',
+    fr: 'Part IT',
+  },
   'it-focus-equipment-it': {
     en: 'IT equipment - energy use',
     fr: 'Équipements IT - consommation énergétique',
@@ -826,6 +914,14 @@ export default {
   'it-focus-cloud-ai-detail-title': {
     en: 'Cloud & AI detail',
     fr: 'Détail Cloud & IA',
+  },
+  'it-focus-cloud': {
+    en: 'Cloud',
+    fr: 'Cloud',
+  },
+  'it-focus-ai': {
+    en: 'AI',
+    fr: 'IA',
   },
   'it-focus-cloud-stockage': {
     en: 'Storage',
@@ -852,8 +948,8 @@ export default {
     fr: 'Scope 3',
   },
   'it-focus-rest': {
-    en: 'Rest ',
-    fr: 'Rest',
+    en: 'Rest',
+    fr: 'Reste',
   },
   'it-focus-research-facilities': {
     en: 'IT research facilities',
@@ -864,7 +960,7 @@ export default {
     fr: 'Focus numérique',
   },
   'it-subtitle': {
-    en: 'Carbon footprint 2025',
-    fr: 'Empreinte carbone 2025',
+    en: 'Carbon footprint {year}',
+    fr: 'Empreinte carbone {year}',
   },
 } as const;

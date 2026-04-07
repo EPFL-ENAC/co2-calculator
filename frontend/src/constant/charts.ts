@@ -111,6 +111,23 @@ const colorDefinitions = {
       lighter: '#EDF3FA',
     },
   },
+  // 5.5 — midpoints between periwinkle steps, giving 9 shades total for waste
+  cobalt: {
+    default: {
+      darker: '#B0B7DE',
+      dark: '#C5CAE9',
+      default: '#D4D9EC',
+      light: '#DEE3EF',
+      lighter: '#EBEFF9',
+    },
+    colorblind: {
+      darker: '#5A89C2',
+      dark: '#7AA4D6',
+      default: '#9DC1E7',
+      light: '#C2DBF2',
+      lighter: '#E4F1FB',
+    },
+  },
   // 6
   periwinkle: {
     default: {
@@ -275,6 +292,7 @@ export const colors = computed(() => {
     lavender: colorDefinitions.lavender[mode],
     mauve: colorDefinitions.mauve[mode],
     lilac: colorDefinitions.lilac[mode],
+    cobalt: colorDefinitions.cobalt[mode],
     periwinkle: colorDefinitions.periwinkle[mode],
     skyBlue: colorDefinitions.skyBlue[mode],
     babyBlue: colorDefinitions.babyBlue[mode],
@@ -385,6 +403,52 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       other: colors.value.lightGreen.dark,
       additional: colors.value.lightGreen.light,
       ln2: colors.value.lightGreen.darker,
+    },
+    commuting: {
+      walking: colors.value.aqua.darker,
+      cycling: colors.value.aqua.dark,
+      powered_two_wheeler: colors.value.aqua.default,
+      public_transport: colors.value.aqua.light,
+      car: colors.value.aqua.lighter,
+    },
+    food: {
+      vegetarian: colors.value.mint.darker,
+      non_vegetarian: colors.value.mint.dark,
+    },
+    embodied_energy: {
+      embodied_energy: colors.value.skyBlue.dark,
+      'new-env': colors.value.skyBlue.darker,
+      'new-tech': colors.value.skyBlue.dark,
+      'ren-env': colors.value.skyBlue.default,
+      'ren-tech': colors.value.skyBlue.light,
+      demolition: colors.value.skyBlue.lighter,
+    },
+    waste: {
+      incineration: colors.value.periwinkle.darker,
+      composting: colors.value.periwinkle.dark,
+      biogas: colors.value.periwinkle.default,
+      recycling: colors.value.periwinkle.light,
+      cardboard: colors.value.skyBlue.dark,
+      plastics: colors.value.skyBlue.default,
+      ferrous_metals: colors.value.babyBlue.darker,
+      non_ferrous_metals: colors.value.babyBlue.dark,
+      pet: colors.value.babyBlue.lighter,
+      aluminum: colors.value.aqua.darker,
+      textile: colors.value.aqua.dark,
+      toner_and_ink_cartridges: colors.value.aqua.default,
+      inert_waste: colors.value.aqua.light,
+      organic_waste_food_leftovers: colors.value.mint.darker,
+      cooking_vegetable_oil: colors.value.mint.dark,
+      // Display category keys — 9 shades: periwinkle steps interleaved with cobalt midpoints
+      domestic: colors.value.periwinkle.darker, // #A5ADD8 — step 1
+      organic: colors.value.cobalt.darker, // #B0B7DE — step 2
+      paper: colors.value.periwinkle.dark, // #BAC0E4 — step 3
+      plastic: colors.value.cobalt.dark, // #C5CAE9 — step 4
+      glass: colors.value.periwinkle.default, // #CFD4EE — step 5
+      metals: colors.value.cobalt.default, // #D4D9EC — step 6
+      electronics: colors.value.periwinkle.light, // #D9DEE9 — step 7
+      wood: colors.value.cobalt.light, // #DEE3EF — step 8
+      other: colors.value.periwinkle.lighter, // #E3E8F4 — step 9
     },
   }),
 );

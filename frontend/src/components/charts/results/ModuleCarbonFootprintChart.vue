@@ -32,10 +32,14 @@ import { formatTonnesForChart } from 'src/utils/number';
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 
 function getSubcategoryColor(
   category: string,
@@ -122,7 +126,7 @@ function recalculateScopeRects() {
   const dividerX = groups['additional'].length
     ? getX(groups['additional'][0]) - halfStep
     : null;
-  const showAdditional = toggleAdditionalData.value && dividerX !== null;
+  const showAdditional = effectiveToggle.value && dividerX !== null;
 
   // Check if state has changed
   const newState = {
@@ -396,6 +400,35 @@ function collapseByCategory(
   return Array.from(merged.values());
 }
 
+function withAdditionalCategoryTotals(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const categoryKey = String(entry.category_key ?? '');
+  if (
+    !ADDITIONAL_HEADCOUNT_CATEGORIES.includes(categoryKey) &&
+    !ADDITIONAL_BUILDINGS_CATEGORIES.includes(categoryKey)
+  ) {
+    return entry;
+  }
+
+  const validated = Boolean(entry.__validated);
+  if (!validated) {
+    // `zeroNumericValues()` doesn't touch nested emissions; force deterministic zero
+    // totals for non-validated additional categories.
+    return { ...entry, [categoryKey]: 0 };
+  }
+
+  const emissions = Array.isArray(entry.emissions) ? entry.emissions : [];
+  const total = emissions.reduce((s, e) => {
+    const v = Number((e as { value?: unknown }).value);
+    return Number.isFinite(v) ? s + v : s;
+  }, 0);
+
+  // Force a deterministic total under the same key the series encodes (e.g. "waste").
+  // Backend flat parent sums can be partial depending on parent_key structure.
+  return { ...entry, [categoryKey]: total };
+}
+
 // Keys not translated here — moved to computed properties below
 const ADDITIONAL_CATEGORY_KEY_IDS = [
   'charts-commuting-category',
@@ -448,15 +481,22 @@ const datasetSource = computed(() => {
   );
 
   let allData = baseData;
-  if (toggleAdditionalData.value) {
+  if (effectiveToggle.value) {
     const additionalData = collapseByCategory(
       props.breakdownData.additional_breakdown
         .map((entry) => {
           const category = String(entry.category ?? '');
-          return isCategoryValidated(category)
-            ? entry
-            : zeroNumericValues(entry);
+          const validated = isCategoryValidated(category);
+          if (!validated) {
+            return {
+              ...zeroNumericValues(entry),
+              emissions: [],
+              __validated: false,
+            };
+          }
+          return { ...entry, __validated: true };
         })
+        .map(withAdditionalCategoryTotals)
         .map(translateCategory),
     );
     allData = [...baseData, ...additionalData];
@@ -492,7 +532,7 @@ const datasetSource = computed(() => {
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -1271,12 +1311,37 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <q-checkbox
-        v-model="toggleAdditionalData"
-        :label="$t('results_module_carbon_toggle_additional_data')"
-        size="xs"
-        color="accent"
-      />
+      <div class="flex items-center no-wrap q-gutter-sm">
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadCSV"
+        />
+        <q-checkbox
+          v-if="props.viewAdditionalData === undefined"
+          v-model="toggleAdditionalData"
+          :label="$t('results_module_carbon_toggle_additional_data')"
+          size="xs"
+          color="accent"
+        />
+      </div>
     </q-card-section>
 
     <q-card-section
@@ -1290,29 +1355,6 @@ const downloadCSV = () => {
         @rendered="recalculateScopeRects"
       />
     </q-card-section>
-
-    <q-card-actions align="center" class="q-px-md q-pb-md q-pt-none">
-      <q-btn
-        unelevated
-        no-caps
-        outline
-        icon="o_download"
-        :label="$t('common_download_as_png')"
-        size="sm"
-        class="text-weight-medium q-mr-xs"
-        @click="downloadPNG"
-      />
-      <q-btn
-        unelevated
-        no-caps
-        outline
-        icon="o_download"
-        :label="$t('common_download_as_csv')"
-        size="sm"
-        class="text-weight-medium"
-        @click="downloadCSV"
-      />
-    </q-card-actions>
   </q-card>
 </template>
 

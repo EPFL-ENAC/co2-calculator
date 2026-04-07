@@ -2,7 +2,6 @@
 import {
   computed,
   defineAsyncComponent,
-  defineComponent,
   h,
   onMounted,
   reactive,
@@ -16,14 +15,12 @@ import { MODULES_CONFIG } from 'src/constant/module-config';
 import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
 import {
   getResultsSummary,
   type ResultsSummary,
   type ModuleResult,
 } from 'src/api/modules';
 
-import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
@@ -31,17 +28,12 @@ import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 
 /** Keeps ECharts-heavy bundles out of the initial Results route chunk (Lighthouse / TTI). */
-const ChartChunkSkeleton = defineComponent({
-  name: 'ChartChunkSkeleton',
-  setup() {
-    return () =>
-      h(QSkeleton, {
-        type: 'rect',
-        height: '360px',
-        class: 'full-width q-ma-sm',
-      });
-  },
-});
+const ChartChunkSkeleton = () =>
+  h(QSkeleton, {
+    type: 'rect',
+    height: '360px',
+    class: 'full-width q-ma-sm',
+  });
 
 const ModuleCarbonFootprintChart = defineAsyncComponent({
   loader: () =>
@@ -63,6 +55,39 @@ const ModuleCharts = defineAsyncComponent({
   delay: 0,
 });
 
+const AdditionalSectionSkeleton = () =>
+  h(QSkeleton, {
+    type: 'rect',
+    height: '560px',
+    class: 'full-width q-ma-md',
+  });
+
+const AdditionalCategoriesSection = defineAsyncComponent({
+  loader: () =>
+    import('src/components/organisms/AdditionalCategoriesSection.vue'),
+  loadingComponent: AdditionalSectionSkeleton,
+  delay: 0,
+});
+
+const TimelineSkeleton = () =>
+  h(QSkeleton, {
+    type: 'rect',
+    height: '88px',
+    class: 'full-width q-mb-sm',
+  });
+
+const Co2Timeline = defineAsyncComponent({
+  loader: () => import('src/components/organisms/layout/Co2Timeline.vue'),
+  loadingComponent: TimelineSkeleton,
+  delay: 0,
+});
+
+const ItFocusSection = defineAsyncComponent({
+  loader: () => import('src/components/organisms/ItFocusSection.vue'),
+  loadingComponent: AdditionalSectionSkeleton,
+  delay: 0,
+});
+
 /** Per-row expansion; body mounts only when opened (avoids N× chart bundles on load). */
 const resultsCategoryExpanded = reactive(
   Object.fromEntries(MODULES_LIST.map((m) => [m, false])) as Record<
@@ -74,14 +99,30 @@ const resultsCategoryExpanded = reactive(
 const FORMAT_INTEGER = {
   options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
 };
+const FORMAT_CO2_PER_KM = {
+  options: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+};
 
 const co2PerKmKg = computed(() => resultsSummary.value?.co2_per_km_kg ?? 0);
+const hasCo2PerKmKg = computed(() => co2PerKmKg.value > 0);
 
 const percentChangeFormatter = new Intl.NumberFormat('en-US', {
   style: 'percent',
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
   signDisplay: 'always',
+});
+
+const perPersonBreakdown = computed(
+  () => moduleStore.state.emissionBreakdown?.per_person_breakdown ?? null,
+);
+
+const validatedCategories = computed(
+  () => moduleStore.state.emissionBreakdown?.validated_categories ?? null,
+);
+
+const headcountValidatedForPerPerson = computed(() => {
+  return validatedCategories.value?.includes('commuting') ?? false;
 });
 
 function formatPercentChange(value: number | null | undefined): string {
@@ -98,17 +139,10 @@ const currentYear = computed(() => {
 
 const resultsSummary = ref<ResultsSummary | null>(null);
 const resultsSummaryLoading = ref(false);
-const chartsReady = ref(false);
-
-const adjustedTotalTonnes = computed<number | null>(() => {
-  return resultsSummary.value?.unit_totals.total_tonnes_co2eq ?? null;
-});
-
-const adjustedTonnesPerFte = computed<number | null>(() => {
-  return resultsSummary.value?.unit_totals.tonnes_co2eq_per_fte ?? null;
-});
 
 const hideResearchFacilities = ref(false);
+
+const mountPrimaryCharts = ref(false);
 
 const excludedModules = computed(() => {
   const ids: number[] = [];
@@ -149,15 +183,21 @@ async function fetchItBreakdown() {
 }
 
 onMounted(() => {
-  fetchResultsSummary();
-  fetchEmissionBreakdown();
-  fetchItBreakdown();
-
-  const schedule =
+  void fetchResultsSummary();
+  // Defer heavy breakdown fetches: charts mount on idle, avoid blocking initial paint.
+  const scheduleIdle =
     window.requestIdleCallback ??
-    ((cb: () => void) => window.setTimeout(cb, 0));
-  schedule(() => {
-    chartsReady.value = true;
+    ((cb: () => void) => window.setTimeout(cb, 200));
+  scheduleIdle(() => {
+    void fetchEmissionBreakdown();
+  });
+  scheduleIdle(() => {
+    void fetchItBreakdown();
+  });
+
+  // Defer ECharts mounting to reduce main-thread blocking during initial paint.
+  scheduleIdle(() => {
+    mountPrimaryCharts.value = true;
   });
 });
 
@@ -171,8 +211,15 @@ watch(
   () => {
     moduleStore.invalidateEmissionBreakdown();
     void fetchResultsSummary();
-    void fetchEmissionBreakdown();
-    void fetchItBreakdown();
+    const scheduleIdle =
+      window.requestIdleCallback ??
+      ((cb: () => void) => window.setTimeout(cb, 200));
+    scheduleIdle(() => {
+      void fetchEmissionBreakdown();
+    });
+    scheduleIdle(() => {
+      void fetchItBreakdown();
+    });
   },
 );
 
@@ -206,7 +253,65 @@ function getTotalModuleCarbonFootprintTitle(module: Module): string {
 }
 
 const viewUncertainties = ref(false);
+const hideAdditionalData = ref(false);
+const viewAdditionalData = computed(() => !hideAdditionalData.value);
 const compareYears = ref(false);
+
+const additionalBreakdown = computed(
+  () => moduleStore.state.emissionBreakdown?.additional_breakdown ?? [],
+);
+const commutingRow = computed(
+  () =>
+    additionalBreakdown.value.find((r) => r.category_key === 'commuting') ??
+    null,
+);
+const foodRow = computed(
+  () =>
+    additionalBreakdown.value.find((r) => r.category_key === 'food') ?? null,
+);
+const wasteRow = computed(
+  () =>
+    additionalBreakdown.value.find((r) => r.category_key === 'waste') ?? null,
+);
+const embodiedEnergyRow = computed(
+  () =>
+    additionalBreakdown.value.find(
+      (r) => r.category_key === 'embodied_energy',
+    ) ?? null,
+);
+const embodiedEnergyByCategory = computed(
+  () => moduleStore.state.emissionBreakdown?.embodied_energy_by_category ?? [],
+);
+
+// When additional data is hidden, subtract only the validated additional
+// category totals from the results summary.  Unvalidated categories are
+// not included in the results summary total, so must not be subtracted.
+const validatedAdditionalTonnes = computed(() => {
+  const validated = new Set(
+    moduleStore.state.emissionBreakdown?.validated_categories ?? [],
+  );
+  return additionalBreakdown.value.reduce((sum, row) => {
+    if (!validated.has(row.category_key)) return sum;
+    const catTotal = row.emissions.reduce((categorySum, emission) => {
+      return (
+        categorySum + (typeof emission.value === 'number' ? emission.value : 0)
+      );
+    }, 0);
+    return sum + catTotal;
+  }, 0);
+});
+
+const adjustedTotalTonnes = computed(() => {
+  const raw = resultsSummary.value?.unit_totals.total_tonnes_co2eq;
+  if (raw == null) return null;
+  return viewAdditionalData.value ? raw : raw - validatedAdditionalTonnes.value;
+});
+
+const adjustedTonnesPerFte = computed(() => {
+  const fte = resultsSummary.value?.unit_totals.total_fte;
+  if (adjustedTotalTonnes.value == null || !fte || fte <= 0) return null;
+  return adjustedTotalTonnes.value / fte;
+});
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
 
@@ -280,6 +385,13 @@ const getUncertainty = (
                 class="text-weight-medium"
                 size="xs"
               />
+              <q-checkbox
+                v-model="hideAdditionalData"
+                :label="$t('results_hide_additional_data')"
+                color="accent"
+                class="text-weight-medium"
+                size="xs"
+              />
               <q-separator class="q-my-sm" />
               <q-checkbox
                 v-model="compareYears"
@@ -292,32 +404,40 @@ const getUncertainty = (
           </div>
         </div>
       </q-card>
-      <template v-if="resultsSummary">
-        <q-card flat class="grid-3-col">
-          <BigNumber
-            :title="$t('results_total_unit_carbon_footprint')"
-            :number="
-              $nOrDash(adjustedTotalTonnes, {
-                options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-              })
-            "
-            tooltip-placement="comparison"
-            :comparison="
-              $t('results_equivalent_to_car', {
-                km: $n(resultsSummary.unit_totals.equivalent_car_km),
-                value: `${$nOrDash(co2PerKmKg)}`,
-              })
-            "
-            :comparison-highlight="`${$n(resultsSummary.unit_totals.equivalent_car_km)}km`"
-            color="negative"
-          >
-            <template #tooltip>{{
-              $t('results_total_unit_carbon_footprint_tooltip', {
-                value: $nOrDash(co2PerKmKg),
-                unit: $t('results_kg_co2eq_per_km'),
-              })
-            }}</template>
-          </BigNumber>
+      <q-card v-if="resultsSummary" flat class="grid-3-col">
+        <BigNumber
+          :title="$t('results_total_unit_carbon_footprint')"
+          :number="
+            $nOrDash(adjustedTotalTonnes, {
+              options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+            })
+          "
+          tooltip-placement="comparison"
+          :comparison="
+            hasCo2PerKmKg
+              ? $t('results_equivalent_to_car', {
+                  km: $n(resultsSummary.unit_totals.equivalent_car_km),
+                  value: `${$nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM)}`,
+                })
+              : undefined
+          "
+          :comparison-highlight="`${$n(resultsSummary.unit_totals.equivalent_car_km)}km`"
+          color="negative"
+        >
+          <template v-if="hasCo2PerKmKg" #tooltip>{{
+            $t('results_total_unit_carbon_footprint_tooltip', {
+              value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
+              unit: $t('results_kg_co2eq_per_km'),
+            })
+          }}</template>
+        </BigNumber>
+
+        <div
+          :class="{
+            'no-data-styling':
+              resultsSummary.unit_totals.year_comparison_percentage == null,
+          }"
+        >
           <BigNumber
             :title="$t('results_unit_carbon_footprint')"
             :number="
@@ -370,30 +490,31 @@ const getUncertainty = (
             "
           >
           </BigNumber>
-          <BigNumber
-            :title="
-              resultsSummary.unit_totals.total_fte == null
-                ? $t('results_carbon_footprint_per_FTE_no_headcount')
-                : $t('results_carbon_footprint_per_fte', {
-                    FTE: resultsSummary.unit_totals.total_fte,
-                  })
-            "
-            :number="
-              $nOrDash(adjustedTonnesPerFte, {
-                options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-              })
-            "
-            :comparison="
-              $t('results_paris_agreement_value', {
-                value: `${$nOrDash(2)}${$t('results_units_tonnes')}`,
-              })
-            "
-            :comparison-highlight="`${$nOrDash(2)}${$t('results_units_tonnes')}`"
-            color="negative"
-          >
-          </BigNumber>
-        </q-card>
-      </template>
+        </div>
+
+        <BigNumber
+          :title="
+            resultsSummary.unit_totals.total_fte == null
+              ? $t('results_carbon_footprint_per_FTE_no_headcount')
+              : $t('results_carbon_footprint_per_fte', {
+                  FTE: resultsSummary.unit_totals.total_fte,
+                })
+          "
+          :number="
+            $nOrDash(adjustedTonnesPerFte, {
+              options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+            })
+          "
+          :comparison="
+            $t('results_paris_agreement_value', {
+              value: `${$nOrDash(2)}${$t('results_units_tonnes')}`,
+            })
+          "
+          :comparison-highlight="`${$nOrDash(2)}${$t('results_units_tonnes')}`"
+          color="negative"
+        >
+        </BigNumber>
+      </q-card>
       <q-card
         v-else-if="resultsSummaryLoading"
         flat
@@ -404,40 +525,55 @@ const getUncertainty = (
           :key="n"
           type="rect"
           height="160px"
-          class="full-width"
+          class="full-width bg-white"
         />
       </q-card>
       <q-card flat class="results-charts-grid">
-        <template v-if="chartsReady">
-          <div class="results-charts-grid__main">
+        <div class="results-charts-grid__main">
+          <template v-if="mountPrimaryCharts">
             <ModuleCarbonFootprintChart
               :breakdown-data="moduleStore.state.emissionBreakdown"
+              :view-additional-data="viewAdditionalData"
             />
-          </div>
-          <div class="results-charts-grid__side">
-            <CarbonFootPrintPerPersonChart
-              :per-person-breakdown="
-                moduleStore.state.emissionBreakdown?.per_person_breakdown
-              "
-              :validated-categories="
-                moduleStore.state.emissionBreakdown?.validated_categories
-              "
-              :headcount-validated="
-                moduleStore.state.emissionBreakdown?.validated_categories?.includes(
-                  'commuting',
-                ) ?? false
-              "
-            />
-          </div>
-        </template>
-        <template v-else>
-          <div class="results-charts-grid__main">
-            <q-skeleton type="rect" height="360px" class="full-width q-ma-sm" />
-          </div>
-          <div class="results-charts-grid__side">
-            <q-skeleton type="rect" height="360px" class="full-width q-ma-sm" />
-          </div>
-        </template>
+          </template>
+          <q-skeleton v-else type="rect" height="360px" class="full-width" />
+        </div>
+
+        <div class="results-charts-grid__side">
+          <template v-if="!isModuleValidated(MODULES.Headcount)">
+            <q-card flat bordered class="validation-required-card">
+              <q-card-section class="validation-required-card__content">
+                <q-icon
+                  name="o_info"
+                  size="md"
+                  color="accent"
+                  class="q-mb-md"
+                />
+                <div class="text-h6 text-weight-medium text-center q-mb-sm">
+                  {{
+                    $t('results_validate_module_title', {
+                      module: $t('headcount'),
+                    })
+                  }}
+                </div>
+                <div class="text-body2 text-secondary text-center">
+                  {{ $t('results_validate_module_message') }}
+                </div>
+              </q-card-section>
+            </q-card>
+          </template>
+          <template v-else>
+            <template v-if="mountPrimaryCharts">
+              <CarbonFootPrintPerPersonChart
+                :per-person-breakdown="perPersonBreakdown"
+                :validated-categories="validatedCategories"
+                :headcount-validated="headcountValidatedForPerPerson"
+                :view-additional-data="viewAdditionalData"
+              />
+            </template>
+            <q-skeleton v-else type="rect" height="360px" class="full-width" />
+          </template>
+        </div>
       </q-card>
 
       <q-card flat bordered class="q-pa-lg">
@@ -481,6 +617,7 @@ const getUncertainty = (
             </div>
           </div>
         </q-card>
+        <!-- Module Collapse Items -->
         <template v-for="module in MODULES_LIST" :key="module">
           <q-card
             v-if="
@@ -546,13 +683,15 @@ const getUncertainty = (
                           )
                         "
                         :comparison="
-                          $t('results_equivalent_to_car', {
-                            km: $nOrDash(
-                              getModuleResult(module)!.equivalent_car_km,
-                              FORMAT_INTEGER,
-                            ),
-                            value: `${$nOrDash(co2PerKmKg)}`,
-                          })
+                          hasCo2PerKmKg
+                            ? $t('results_equivalent_to_car', {
+                                km: $nOrDash(
+                                  getModuleResult(module)!.equivalent_car_km,
+                                  FORMAT_INTEGER,
+                                ),
+                                value: `${$nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM)}`,
+                              })
+                            : undefined
                         "
                         :comparison-highlight="`${$nOrDash(
                           getModuleResult(module)!.equivalent_car_km,
@@ -560,9 +699,9 @@ const getUncertainty = (
                         )}km`"
                         color="negative"
                       >
-                        <template #tooltip>{{
+                        <template v-if="hasCo2PerKmKg" #tooltip>{{
                           $t('results_total_unit_carbon_footprint_tooltip', {
-                            value: $nOrDash(co2PerKmKg),
+                            value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
                             unit: $t('results_kg_co2eq_per_km'),
                           })
                         }}</template>
@@ -668,14 +807,53 @@ const getUncertainty = (
             </q-expansion-item>
           </q-card>
         </template>
+        <q-card
+          v-if="showItFocusSection"
+          flat
+          bordered
+          class="q-pa-none q-mt-xl"
+        >
+          <ItFocusSection
+            :data="moduleStore.state.itBreakdown"
+            :loading="moduleStore.state.loadingItBreakdown"
+            :co2-per-km-kg="co2PerKmKg"
+            :year="currentYear"
+          />
+        </q-card>
+
+        <!-- Additional Data -->
+        <q-card v-if="viewAdditionalData" flat bordered class="q-mt-xl">
+          <div class="q-pa-xl flex justify-between items-center">
+            <div>
+              <div class="flex items-center no-wrap q-gutter-sm">
+                <h2 class="text-h2 text-weight-medium q-mb-none">
+                  {{ $t('results_additional_title') }}
+                </h2>
+                <q-icon name="o_info" size="sm" class="text-primary">
+                  <q-tooltip class="text-body2 text-black" max-width="320px">
+                    {{ $t('results_additional_waste_tooltip') }}
+                  </q-tooltip>
+                </q-icon>
+              </div>
+              <span class="text-body1 text-secondary">{{
+                $t('results_additional_subtitle')
+              }}</span>
+            </div>
+          </div>
+          <q-separator />
+          <q-card-section class="q-px-none q-pb-none q-pt-none">
+            <AdditionalCategoriesSection
+              :commuting-row="commutingRow"
+              :food-row="foodRow"
+              :waste-row="wasteRow"
+              :embodied-energy-row="embodiedEnergyRow"
+              :embodied-energy-by-category="embodiedEnergyByCategory"
+              :headcount-validated="isModuleValidated(MODULES.Headcount)"
+              :buildings-validated="isModuleValidated(MODULES.Buildings)"
+            />
+          </q-card-section>
+        </q-card>
       </div>
-      <q-card v-if="showItFocusSection" flat bordered class="q-pa-none">
-        <ItFocusSection
-          :data="moduleStore.state.itBreakdown"
-          :loading="moduleStore.state.loadingItBreakdown"
-          :co2-per-km-kg="co2PerKmKg"
-        />
-      </q-card>
     </div>
   </q-page>
 </template>
@@ -708,17 +886,19 @@ const getUncertainty = (
 
 .validation-required-card {
   min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   background-color: rgba(0, 0, 0, 0.02);
   border: 1px dashed rgba(0, 0, 0, 0.12);
-  margin: 1rem 0;
 
   &__content {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 3rem;
-    min-height: 200px;
   }
 }
 
