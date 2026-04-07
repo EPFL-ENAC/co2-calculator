@@ -295,7 +295,7 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   equipment: colors.value.mauve.darker,
   external_cloud_and_ai: colors.value.paleYellowGreen.darker,
   purchases: colors.value.lavender.darker,
-  research_facilities: colors.value.peach.darker,
+  research_facilities: colors.value.paleYellowGreen.darker,
   professional_travel: colors.value.babyBlue.darker,
   commuting: colors.value.aqua.darker,
   food: colors.value.mint.darker,
@@ -311,7 +311,7 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   equipment: colors.value.lilac,
   external_cloud_and_ai: colors.value.paleYellowGreen,
   purchases: colors.value.lightGreen,
-  research_facilities: colors.value.peach,
+  research_facilities: colors.value.paleYellowGreen,
   professional_travel: colors.value.babyBlue,
   commuting: colors.value.aqua,
   food: colors.value.mint,
@@ -370,6 +370,10 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       // (from emission type `external__ai__provider_*`).
       provider: colors.value.paleYellowGreen.light,
       ai_provider: colors.value.paleYellowGreen.light,
+    },
+    research_facilities: {
+      facilities: colors.value.paleYellowGreen.darker,
+      animal: colors.value.paleYellowGreen.dark,
     },
     purchases: {
       scientific_equipment: colors.value.lightGreen.darker,

@@ -228,7 +228,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'research_facilities',
       },
       itemStyle: {
-        color: colors.value.lavender.darker,
+        color: colors.value.paleYellowGreen.darker,
       },
       label: {
         show: false,

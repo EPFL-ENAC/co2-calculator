@@ -495,6 +495,7 @@ def build_chart_breakdown(
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
+    exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
 ) -> dict:
     """Build chart payload sections from raw aggregated emission rows.
 
@@ -536,6 +537,8 @@ def build_chart_breakdown(
 
     for row in rows:
         module_type_id, emission_type_id, kg_co2eq = row
+        if module_type_id in exclude_module_type_ids:
+            continue
         emission_type = _resolve_emission_type(emission_type_id)
         if emission_type is None:
             continue
@@ -555,6 +558,7 @@ def build_chart_breakdown(
     module_breakdown = [
         _build_category_row(category, category_data.get(category, {}))
         for category in MODULE_BREAKDOWN_ORDER
+        if CATEGORY_TO_MODULE_PER_UNIT.get(category) not in exclude_module_type_ids
     ]
 
     headcount_data: dict[EmissionType, float] = (

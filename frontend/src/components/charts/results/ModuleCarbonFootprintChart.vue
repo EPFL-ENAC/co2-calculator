@@ -45,29 +45,272 @@ function getSubcategoryColor(
   return getChartSubcategoryColor(category, key, fallback);
 }
 
-const scopeConfig = computed(() => {
-  if (toggleAdditionalData.value) {
-    return {
-      scope1RectWidth: 72,
-      scope2RectLeft: 118,
-      scope2RectWidth: 72,
-      scope3RectLeft: 190,
-      scope3RectWidth: 144,
-      estimatedRectLeft: 334,
-      estimatedText: t('charts-additional-category'),
-    };
+// Static map: raw category key → GHG scope
+const CATEGORY_SCOPE: Record<string, 1 | 2 | 3 | 'additional'> = {
+  process_emissions: 1,
+  buildings_room: 1,
+  buildings_energy_combustion: 2,
+  equipment: 2,
+  external_cloud_and_ai: 3,
+  purchases: 3,
+  professional_travel: 3,
+  research_facilities: 3,
+  commuting: 'additional',
+  food: 'additional',
+  waste: 'additional',
+  embodied_energy: 'additional',
+};
+
+// Reverse map: translated label → raw category key (rebuilt when locale changes)
+const labelToKey = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {};
+  for (const [key, i18nKey] of Object.entries(CATEGORY_LABEL_MAP)) {
+    map[t(i18nKey)] = key;
+  }
+  return map;
+});
+
+// Key of the last graphic option pushed to ECharts — used to break the
+// finished → setOption → finished loop.
+let lastGraphicKey = '';
+
+function recalculateScopeRects() {
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+
+  const items = datasetSource.value;
+  if (items.length < 2) return;
+
+  const getX = (label: string): number =>
+    chart.convertToPixel({ xAxisIndex: 0 }, label) as number;
+
+  const step =
+    getX(String(items[1].category)) - getX(String(items[0].category));
+  if (!step) return;
+  const halfStep = step / 2;
+
+  const groups: Record<string, string[]> = {
+    '1': [],
+    '2': [],
+    '3': [],
+    additional: [],
+  };
+  for (const item of items) {
+    const label = String(item.category);
+    const key = labelToKey.value[label] ?? '';
+    const scope = String(CATEGORY_SCOPE[key] ?? 'additional');
+    groups[scope].push(label);
   }
 
-  return {
-    scope1RectWidth: 108,
-    scope2RectLeft: 154,
-    scope2RectWidth: 108,
-    scope3RectLeft: 262,
-    scope3RectWidth: 330,
-    estimatedRectLeft: 0,
-    estimatedText: '',
+  const toRect = (labels: string[]) => {
+    if (!labels.length) return null;
+    const left = getX(labels[0]) - halfStep;
+    const right = getX(labels[labels.length - 1]) + halfStep;
+    return { left, width: right - left };
   };
-});
+
+  const s1 = toRect(groups['1']);
+  const s2 = toRect(groups['2']);
+  const s3 = toRect(groups['3']);
+  const additionalRect = toRect(groups['additional']);
+  const dividerX = groups['additional'].length
+    ? getX(groups['additional'][0]) - halfStep
+    : null;
+
+  const key = JSON.stringify({
+    s1,
+    s2,
+    s3,
+    dividerX,
+    aw: additionalRect?.width,
+  });
+  if (key === lastGraphicKey) return; // nothing changed — stop the loop
+  lastGraphicKey = key;
+
+  const showAdditional = toggleAdditionalData.value && dividerX !== null;
+  const elements: object[] = [
+    ...(s1
+      ? [
+          {
+            type: 'rect',
+            id: 'sr1',
+            left: s1.left,
+            top: '15px',
+            shape: { width: s1.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(248,248,248,0.9)' },
+                { offset: 1, color: 'rgba(248,248,248,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st1',
+            left: s1.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 1',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    ...(s2
+      ? [
+          {
+            type: 'rect',
+            id: 'sr2',
+            left: s2.left,
+            top: '15px',
+            shape: { width: s2.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(240,240,240,0.9)' },
+                { offset: 1, color: 'rgba(240,240,240,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st2',
+            left: s2.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 2',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    ...(s3
+      ? [
+          {
+            type: 'rect',
+            id: 'sr3',
+            left: s3.left,
+            top: '15px',
+            shape: { width: s3.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(229,229,229,0.9)' },
+                { offset: 1, color: 'rgba(229,229,229,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st3',
+            left: s3.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 3',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    {
+      type: 'text',
+      id: 'smain',
+      left: s1 ? s1.left + 10 : 56,
+      top: '0px',
+      style: {
+        fill: '#000000',
+        text: t('charts-main-category'),
+        font: '11px SuisseIntl',
+      },
+      silent: true,
+    },
+    ...(showAdditional
+      ? [
+          {
+            type: 'rect',
+            id: 'sadd',
+            left: dividerX,
+            top: '15px',
+            shape: { width: additionalRect?.width ?? 200, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(215,215,215,0.9)' },
+                { offset: 1, color: 'rgba(215,215,215,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'stadd',
+            left: dividerX + 10,
+            top: '0px',
+            style: {
+              fill: '#000000',
+              text: t('charts-additional-category'),
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+          {
+            type: 'rect',
+            id: 'sdiv',
+            left: dividerX,
+            top: '0px',
+            shape: { width: 1, height: 420 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(0,0,0,1)' },
+                { offset: 1, color: 'rgba(240,240,240,0.1)' },
+              ]),
+            },
+            z: 100,
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'rect',
+            id: 'sadd',
+            left: 0,
+            top: 0,
+            shape: { width: 0, height: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'stadd',
+            left: 0,
+            top: 0,
+            style: { opacity: 0, text: '' },
+            silent: true,
+          },
+          {
+            type: 'rect',
+            id: 'sdiv',
+            left: 0,
+            top: 0,
+            shape: { width: 0, height: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+  ];
+
+  requestAnimationFrame(() => {
+    chart.setOption({ graphic: elements }, {
+      replaceMerge: ['graphic'],
+    } as Parameters<typeof chart.setOption>[1]);
+  });
+}
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
   commuting: 'charts-commuting-category', // Headcount
@@ -684,6 +927,37 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
+    // Research Facilities — subcategories: facilities, animal
+    {
+      name: t('charts-research-facilities-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'facilities' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'research_facilities',
+          'facilities',
+          colors.value.paleYellowGreen.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-research-animal-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'animal' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'research_facilities',
+          'animal',
+          colors.value.paleYellowGreen.dark,
+        ),
+      },
+      label: { show: false },
+    },
 
     ...additionalSeriesData.value,
   ];
@@ -796,146 +1070,7 @@ const chartOption = computed((): EChartsOption => {
         formatter: '{value}',
       },
     },
-    graphic: [
-      // Scope 1 overlay (Processes, Buildings energy consumption)
-      {
-        type: 'rect',
-        left: '46px',
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope1RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(248,248,248,0.9)' },
-            { offset: 1, color: 'rgba(248,248,248,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: '56px',
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 1',
-          font: '11px SuisseIntl',
-        },
-      },
-      // Scope 2 overlay (Energy combustion, Equipment)
-      {
-        type: 'rect',
-        left: scopeConfig.value.scope2RectLeft,
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope2RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(240,240,240,0.9)' },
-            { offset: 1, color: 'rgba(240,240,240,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: scopeConfig.value.scope2RectLeft + 10,
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 2',
-          font: '11px SuisseIntl',
-        },
-      },
-      // Scope 3 overlay (External cloud & AI, Purchases, Research facilities, Professional travel)
-      {
-        type: 'rect',
-        left: scopeConfig.value.scope3RectLeft,
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope3RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(229,229,229,0.9)' },
-            { offset: 1, color: 'rgba(229,229,229,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: scopeConfig.value.scope3RectLeft + 10,
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 3',
-          font: '11px SuisseIntl',
-        },
-      },
-      {
-        type: 'text',
-        left: '56px',
-        top: '00px',
-        style: {
-          fill: '#000000',
-          text: t('charts-main-category'),
-          font: '11px SuisseIntl',
-        },
-      },
-      ...(() => {
-        if (toggleAdditionalData.value) {
-          return [
-            // Additional categories background (darker grey)
-            {
-              type: 'rect',
-              left: scopeConfig.value.estimatedRectLeft,
-              top: '15px',
-              shape: {
-                width: 200,
-                height: 300,
-              },
-              style: {
-                fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: 'rgba(215,215,215,0.9)' },
-                  { offset: 1, color: 'rgba(215,215,215,0.1)' },
-                ]),
-              },
-            },
-            {
-              type: 'text',
-              left: scopeConfig.value.estimatedRectLeft + 10,
-              top: '0px',
-              style: {
-                fill: '#000000',
-                text: scopeConfig.value.estimatedText,
-                font: '11px SuisseIntl',
-              },
-            },
-            // Divider line
-            {
-              type: 'rect',
-              left: scopeConfig.value.estimatedRectLeft,
-              top: '0px',
-              shape: {
-                width: 1,
-                height: 420,
-              },
-              style: {
-                fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: 'rgba(0,0,0)' },
-                  { offset: 1, color: 'rgba(240,240,240,0.1)' },
-                ]),
-              },
-              z: 100,
-            },
-          ];
-        }
-        return [];
-      })(),
-    ],
+    graphic: [],
     dataset: {
       dimensions: [
         'category',
@@ -968,6 +1103,8 @@ const chartOption = computed((): EChartsOption => {
         'virtualisation',
         'calcul',
         'ai_provider',
+        'facilities',
+        'animal',
         'commuting',
         'food',
         'waste',
@@ -1082,7 +1219,13 @@ const downloadCSV = () => {
       />
     </q-card-section>
     <q-card-section class="chart-container flex justify-center items-center">
-      <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
+      <v-chart
+        ref="chartRef"
+        class="chart"
+        autoresize
+        :option="chartOption"
+        @rendered="recalculateScopeRects"
+      />
     </q-card-section>
   </q-card>
 </template>

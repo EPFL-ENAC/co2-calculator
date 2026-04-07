@@ -761,7 +761,10 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdownCarbonReportId.value = null;
   }
 
-  async function getEmissionBreakdown(carbonReportId: number) {
+  async function getEmissionBreakdown(
+    carbonReportId: number,
+    excludeModules: number[] = [],
+  ) {
     if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
     if (
       emissionBreakdownInFlight &&
@@ -782,7 +785,12 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightReportId.value === carbonReportId;
 
       try {
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
+        const params = new URLSearchParams();
+        excludeModules.forEach((id) =>
+          params.append('exclude_modules', String(id)),
+        );
+        const qs = params.toString() ? `?${params.toString()}` : '';
+        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown${qs}`;
         const data = await api.get(path).json<EmissionBreakdownResponse>();
         if (!isLatestRequest()) {
           return;
