@@ -17,13 +17,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.policy import check_module_permission as _check_module_permission
+from app.core.policy import (
+    check_module_permission as _check_module_permission,
+)
+from app.core.policy import (
+    get_module_permission_decision,
+)
+from app.core.role_priority import pick_role_for_institutional_id
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
     ModuleTypeEnum,
 )
-from app.models.user import User
+from app.models.unit import Unit
+from app.models.user import GlobalScope, RoleName, User
 from app.modules.headcount.schemas import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
@@ -324,8 +331,46 @@ async def list_headcount_members(
 
     Returns:
         Members ordered by name, each with ``institutional_id`` and ``name``.
+        Users with headcount access for this unit receive the full list;
+        users with only professional_travel access receive only their own record.
     """
-    await _check_module_permission(current_user, "headcount", "view")
+    # Gate: must have headcount.view OR professional_travel.view to call this endpoint
+    travel_decision = await get_module_permission_decision(
+        current_user, "professional-travel", "view"
+    )
+    headcount_decision = await get_module_permission_decision(
+        current_user, "headcount", "view"
+    )
+    # Allow global-scope users (superadmin/backoffice) regardless of module permissions.
+    # This prevents global roles from being blocked by the module-level gate while
+    # still enforcing module permissions for non-global users.
+    is_global = any(isinstance(r.on, GlobalScope) for r in current_user.roles)
+    if not (
+        is_global or headcount_decision.get("allow") or travel_decision.get("allow")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: headcount.view or professional_travel.view "
+            "required",
+        )
+
+    # Data-level scope: determine the user's effective role FOR THIS SPECIFIC UNIT.
+    # `get_module_permission_decision` uses calculate_user_permissions which is
+    # scope-blind (a principal for unit A would appear to have headcount.view for
+    # unit B too).  We instead check the unit's own institutional_id directly.
+    unit = await db.get(Unit, unit_id)
+    unit_iid = unit.institutional_id if unit else None
+
+    has_full_access = (
+        # Global roles (superadmin, backoffice metier) always see everything
+        any(isinstance(r.on, GlobalScope) for r in current_user.roles)
+        # Principal for THIS specific unit
+        or (
+            unit_iid is not None
+            and pick_role_for_institutional_id(current_user.roles, unit_iid)
+            == RoleName.CO2_USER_PRINCIPAL
+        )
+    )
 
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
@@ -336,7 +381,17 @@ async def list_headcount_members(
     rows = await DataEntryService(db).get_headcount_members(
         carbon_report_module_id=carbon_report_module_id,
     )
-    return [HeadcountMemberDropdownItem(**row) for row in rows]
+    all_members = [HeadcountMemberDropdownItem(**row) for row in rows]
+
+    if not has_full_access:
+        # Standard users (or principals of other units) see only their own record
+        return [
+            m
+            for m in all_members
+            if m.institutional_id == current_user.institutional_id
+        ]
+
+    return all_members
 
 
 @router.get(
