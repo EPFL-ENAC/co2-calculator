@@ -34,10 +34,14 @@ const props = defineProps<{
   headcountValidated?: boolean;
   showValidationPlaceholder?: boolean;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 const SHOW_EPFL_REFERENCE_ROW = false;
 const SHOW_OBJECTIVE_ROW = false;
 const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
@@ -106,7 +110,7 @@ const datasetSource = computed(() => {
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -497,7 +501,7 @@ const downloadCSV = () => {
         />
       </div>
       <q-checkbox
-        v-if="headcountValidated"
+        v-if="headcountValidated && props.viewAdditionalData === undefined"
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
         size="xs"

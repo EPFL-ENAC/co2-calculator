@@ -108,6 +108,7 @@ function getTotalModuleCarbonFootprintTitle(module: Module): string {
 }
 
 const viewUncertainties = ref(false);
+const viewAdditionalData = ref(false);
 const compareYears = ref(false);
 
 const getModuleConfig = (module: string) => MODULES_CONFIG[module];
@@ -171,6 +172,13 @@ const getUncertainty = (
               <q-checkbox
                 v-model="viewUncertainties"
                 :label="$t('results_view_uncertainties')"
+                color="accent"
+                class="text-weight-medium"
+                size="xs"
+              />
+              <q-checkbox
+                v-model="viewAdditionalData"
+                :label="$t('results_view_additional_data')"
                 color="accent"
                 class="text-weight-medium"
                 size="xs"
@@ -268,6 +276,7 @@ const getUncertainty = (
       <q-card flat class="grid-2-col">
         <ModuleCarbonFootprintChart
           :breakdown-data="moduleStore.state.emissionBreakdown"
+          :view-additional-data="viewAdditionalData"
         />
         <CarbonFootPrintPerPersonChart
           :per-person-breakdown="
@@ -281,6 +290,7 @@ const getUncertainty = (
               'commuting',
             ) ?? false
           "
+          :view-additional-data="viewAdditionalData"
         />
       </q-card>
 
@@ -319,6 +329,7 @@ const getUncertainty = (
             </div>
           </div>
         </q-card>
+        <!-- Module Collapse Items -->
         <template v-for="module in MODULES_LIST" :key="module">
           <q-card
             v-if="module !== MODULES.Headcount"
@@ -498,6 +509,31 @@ const getUncertainty = (
             </q-expansion-item>
           </q-card>
         </template>
+        <!--Additional Data Collapsible -->
+        <q-card
+          v-if="viewAdditionalData"
+          flat
+          bordered
+          class="q-pa-none q-mt-xl"
+        >
+          <q-expansion-item expand-separator>
+            <template #header>
+              <div class="flex justify-between items-center">
+                <module-icon
+                  :name="'addition-datas'"
+                  size="md"
+                  color="accent"
+                  class="q-mr-sm"
+                />
+                <div class="text-h5 text-weight-medium">
+                  {{ $t('results_additional_data') }}
+                </div>
+              </div>
+            </template>
+            <q-separator />
+            <div></div>
+          </q-expansion-item>
+        </q-card>
       </div>
     </div>
   </q-page>

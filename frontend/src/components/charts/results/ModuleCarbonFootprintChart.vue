@@ -32,10 +32,14 @@ import { formatTonnesForChart } from 'src/utils/number';
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 
 function getSubcategoryColor(
   category: string,
@@ -46,7 +50,7 @@ function getSubcategoryColor(
 }
 
 const scopeConfig = computed(() => {
-  if (toggleAdditionalData.value) {
+  if (effectiveToggle.value) {
     return {
       scope1RectWidth: 72,
       scope2RectLeft: 118,
@@ -169,7 +173,7 @@ const datasetSource = computed(() => {
   );
 
   let allData = baseData;
-  if (toggleAdditionalData.value) {
+  if (effectiveToggle.value) {
     const additionalData = collapseByCategory(
       props.breakdownData.additional_breakdown
         .map((entry) => {
@@ -216,7 +220,7 @@ const datasetSource = computed(() => {
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -886,7 +890,7 @@ const chartOption = computed((): EChartsOption => {
         },
       },
       ...(() => {
-        if (toggleAdditionalData.value) {
+        if (effectiveToggle.value) {
           return [
             // Additional categories background (darker grey)
             {
@@ -1075,6 +1079,7 @@ const downloadCSV = () => {
         />
       </div>
       <q-checkbox
+        v-if="props.viewAdditionalData === undefined"
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
         size="xs"

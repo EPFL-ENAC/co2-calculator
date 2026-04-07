@@ -15,6 +15,10 @@ export default {
     en: 'View Uncertainties',
     fr: 'Voir les incertitudes',
   },
+  results_view_additional_data: {
+    en: 'View Additional Data',
+    fr: 'Voir les données additionnelles',
+  },
   results_compare_years: {
     en: 'Compare years',
     fr: 'Comparer les années',
@@ -174,6 +178,10 @@ export default {
   results_objectives_2040_subtitle: {
     en: 'Comparison with intermediate long-term objectives',
     fr: 'Comparaison avec les objectifs intermédiaires à long terme',
+  },
+  results_additional_data: {
+    en: 'Additional Data',
+    fr: 'Données additionnelles',
   },
   uncertainty_low: {
     en: 'Low Uncertainty',
