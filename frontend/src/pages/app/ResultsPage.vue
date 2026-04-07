@@ -278,20 +278,39 @@ const getUncertainty = (
           :breakdown-data="moduleStore.state.emissionBreakdown"
           :view-additional-data="viewAdditionalData"
         />
-        <CarbonFootPrintPerPersonChart
-          :per-person-breakdown="
-            moduleStore.state.emissionBreakdown?.per_person_breakdown
-          "
-          :validated-categories="
-            moduleStore.state.emissionBreakdown?.validated_categories
-          "
-          :headcount-validated="
-            moduleStore.state.emissionBreakdown?.validated_categories?.includes(
-              'commuting',
-            ) ?? false
-          "
-          :view-additional-data="viewAdditionalData"
-        />
+        <template v-if="isModuleValidated(MODULES.Headcount)">
+          <CarbonFootPrintPerPersonChart
+            :per-person-breakdown="
+              moduleStore.state.emissionBreakdown?.per_person_breakdown
+            "
+            :validated-categories="
+              moduleStore.state.emissionBreakdown?.validated_categories
+            "
+            :headcount-validated="
+              moduleStore.state.emissionBreakdown?.validated_categories?.includes(
+                'commuting',
+              ) ?? false
+            "
+            :view-additional-data="viewAdditionalData"
+          />
+        </template>
+        <template v-else>
+          <q-card flat bordered class="validation-required-card">
+            <q-card-section class="validation-required-card__content">
+              <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
+              <div class="text-h6 text-weight-medium text-center q-mb-sm">
+                {{
+                  $t('results_validate_module_title', {
+                    module: $t('headcount'),
+                  })
+                }}
+              </div>
+              <div class="text-body2 text-secondary text-center">
+                {{ $t('results_validate_module_message') }}
+              </div>
+            </q-card-section>
+          </q-card>
+        </template>
       </q-card>
 
       <q-card flat bordered class="q-pa-xl">
@@ -482,7 +501,11 @@ const getUncertainty = (
 
                 <!-- Module not in results: show validation placeholder -->
                 <template v-else>
-                  <q-card flat bordered class="validation-required-card">
+                  <q-card
+                    flat
+                    bordered
+                    class="validation-required-card q-py-lg"
+                  >
                     <q-card-section class="validation-required-card__content">
                       <q-icon
                         name="o_info"
@@ -531,7 +554,29 @@ const getUncertainty = (
               </div>
             </template>
             <q-separator />
-            <div></div>
+            <div v-if="isModuleValidated(MODULES.Headcount)"></div>
+            <template v-else>
+              <q-card flat bordered class="validation-required-card q-ma-xl">
+                <q-card-section class="validation-required-card__content">
+                  <q-icon
+                    name="o_info"
+                    size="md"
+                    color="accent"
+                    class="q-mb-md"
+                  />
+                  <div class="text-h6 text-weight-medium text-center q-mb-sm">
+                    {{
+                      $t('results_validate_module_title', {
+                        module: $t('headcount'),
+                      })
+                    }}
+                  </div>
+                  <div class="text-body2 text-secondary text-center">
+                    {{ $t('results_validate_module_message') }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </template>
           </q-expansion-item>
         </q-card>
       </div>
@@ -542,17 +587,19 @@ const getUncertainty = (
 <style scoped lang="scss">
 .validation-required-card {
   min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   background-color: rgba(0, 0, 0, 0.02);
   border: 1px dashed rgba(0, 0, 0, 0.12);
-  margin: 1rem 0;
 
   &__content {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 3rem;
-    min-height: 200px;
   }
 }
 
