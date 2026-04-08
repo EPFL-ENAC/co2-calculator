@@ -284,6 +284,10 @@ export default {
     en: 'Cancel',
     fr: 'Annuler',
   },
+  common_confirm: {
+    en: 'Confirm',
+    fr: 'Confirmer',
+  },
   common_save: {
     en: 'Save',
     fr: 'Enregistrer',
