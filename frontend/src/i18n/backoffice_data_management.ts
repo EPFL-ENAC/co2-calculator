@@ -580,6 +580,10 @@ export default {
     en: 'Factors computed successfully',
     fr: 'Facteurs calculés avec succès',
   },
+  data_management_compute_factors_warning: {
+    en: 'Factors computed with warnings',
+    fr: 'Facteurs calculés avec avertissements',
+  },
   data_management_compute_factors_error: {
     en: 'Factor computation failed',
     fr: 'Le calcul des facteurs a échoué',

@@ -542,6 +542,9 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
 const showComputedFactorConfirm = ref(false);
 const pendingComputedFactorSub = ref<SubmoduleConfig | null>(null);
 const computedFactorRunning = ref<Record<string, boolean>>({});
+const anyComputedFactorRunning = computed(() =>
+  Object.values(computedFactorRunning.value).some(Boolean),
+);
 
 function openComputedFactorConfirm(sub: SubmoduleConfig): void {
   pendingComputedFactorSub.value = sub;
@@ -565,24 +568,30 @@ async function confirmComputedFactorSync(): Promise<void> {
       jobId,
       (payload?: JobUpdatePayload) => {
         const result = payload?.result;
-        let color: string;
-        let message: string;
         if (result === IngestionResult.WARNING) {
-          color = 'warning';
-          message = $t('data_management_compute_factors_success');
+          Notify.create({
+            type: 'warning',
+            message: $t('data_management_compute_factors_warning'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
         } else if (result === IngestionResult.SUCCESS) {
-          color = 'positive';
-          message = $t('data_management_compute_factors_success');
+          Notify.create({
+            type: 'positive',
+            message: $t('data_management_compute_factors_success'),
+            position: 'top',
+            timeout: 5000,
+          });
         } else {
-          color = 'negative';
-          message = $t('data_management_compute_factors_error');
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_compute_factors_error'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
         }
-        Notify.create({
-          type: color as 'positive' | 'negative' | 'warning',
-          message,
-          position: 'top',
-          timeout: 5000,
-        });
         computedFactorRunning.value[sub.key] = false;
         void handleJobCompleted();
       },
@@ -1323,7 +1332,10 @@ onMounted(() => {
                               size="sm"
                               :label="$t('data_management_compute_factors')"
                               class="text-weight-medium"
-                              :disable="getImportRow(submodule).isDisabled"
+                              :disable="
+                                getImportRow(submodule).isDisabled ||
+                                anyComputedFactorRunning
+                              "
                               @click="openComputedFactorConfirm(submodule)"
                             />
                           </template>

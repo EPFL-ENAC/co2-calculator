@@ -471,11 +471,16 @@ provider_type
             const isSuccess =
               state === IngestionState.FINISHED &&
               result === IngestionResult.SUCCESS;
+            // WARNING is a terminal state: job finished but with partial issues.
+            // Treat it as completed so callers can reset spinners and display the warning.
+            const isWarning =
+              state === IngestionState.FINISHED &&
+              result === IngestionResult.WARNING;
             const isFailure =
               state === IngestionState.FINISHED &&
               result === IngestionResult.ERROR;
 
-            if (isSuccess) {
+            if (isSuccess || isWarning) {
               onCompleted?.(update);
             }
 

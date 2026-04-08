@@ -74,9 +74,10 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
             session: Database session (read-only; writes batched by caller).
 
         Returns:
-            Dict of ``{"kg_co2eq_sum_<source>": <float>}`` for every source
-            that has non-zero totals, or ``None`` if
-            ``researchfacility_id`` is absent (factor is skipped, not errored).
+            Dict of ``{"kg_co2eq_sum_<source>": <float>}`` for every configured
+            source, including ``0.0`` totals when no emissions match, or
+            ``None`` if ``researchfacility_id`` is absent (factor is skipped,
+            not errored).
 
         Raises:
             ValueError: When the Unit or CarbonReport cannot be found — these
