@@ -70,9 +70,14 @@ const labelToKey = computed<Record<string, string>>(() => {
   return map;
 });
 
-// Key of the last graphic option pushed to ECharts — used to break the
-// finished → setOption → finished loop.
-let lastGraphicKey = '';
+// Memoize the last scope rects to avoid redundant updates
+let lastScopeState: {
+  s1Left?: number;
+  s2Left?: number;
+  s3Left?: number;
+  dividerX?: number | null;
+  showAdditional: boolean;
+} | null = null;
 
 function recalculateScopeRects() {
   const chart = chartRef.value?.chart;
@@ -116,18 +121,27 @@ function recalculateScopeRects() {
   const dividerX = groups['additional'].length
     ? getX(groups['additional'][0]) - halfStep
     : null;
-
-  const key = JSON.stringify({
-    s1,
-    s2,
-    s3,
-    dividerX,
-    aw: additionalRect?.width,
-  });
-  if (key === lastGraphicKey) return; // nothing changed — stop the loop
-  lastGraphicKey = key;
-
   const showAdditional = toggleAdditionalData.value && dividerX !== null;
+
+  // Check if state has changed
+  const newState = {
+    s1Left: s1?.left,
+    s2Left: s2?.left,
+    s3Left: s3?.left,
+    dividerX,
+    showAdditional,
+  };
+  if (
+    lastScopeState?.s1Left === newState.s1Left &&
+    lastScopeState?.s2Left === newState.s2Left &&
+    lastScopeState?.s3Left === newState.s3Left &&
+    lastScopeState?.dividerX === newState.dividerX &&
+    lastScopeState?.showAdditional === newState.showAdditional
+  ) {
+    return; // nothing changed — stop the loop
+  }
+  lastScopeState = newState;
+
   const elements: object[] = [
     ...(s1
       ? [
@@ -381,23 +395,44 @@ function collapseByCategory(
   return Array.from(merged.values());
 }
 
-const ADDITIONAL_CATEGORY_KEYS = [
-  t('charts-commuting-category'),
-  t('charts-food-category'),
-  t('charts-waste-category'),
-  t('charts-embodied-energy-category'),
+// Keys not translated here — moved to computed properties below
+const ADDITIONAL_CATEGORY_KEY_IDS = [
+  'charts-commuting-category',
+  'charts-food-category',
+  'charts-waste-category',
+  'charts-embodied-energy-category',
 ];
 
-const MAIN_CATEGORY_ORDER = [
-  t('charts-process-emissions-category'),
-  t('charts-buildings-room-category'),
-  t('charts-buildings-energy-combustion-category'),
-  t('equipment-electric-consumption'),
-  t('external-cloud-and-ai'),
-  t('purchase'),
-  t('professional-travel'),
-  t('charts-research-facilities-category'),
+const MAIN_CATEGORY_ORDER_IDS = [
+  'charts-process-emissions-category',
+  'charts-buildings-room-category',
+  'charts-buildings-energy-combustion-category',
+  'equipment-electric-consumption',
+  'external-cloud-and-ai',
+  'purchase',
+  'professional-travel',
+  'charts-research-facilities-category',
 ];
+
+const additionalCategoryKeysSet = computed(
+  () => new Set(ADDITIONAL_CATEGORY_KEY_IDS.map((id) => t(id))),
+);
+
+const mainCategoryOrderMap = computed(() => {
+  const map = new Map<string, number>();
+  MAIN_CATEGORY_ORDER_IDS.forEach((id, idx) => {
+    map.set(t(id), idx);
+  });
+  return map;
+});
+
+const additionalCategoryOrderMap = computed(() => {
+  const map = new Map<string, number>();
+  ADDITIONAL_CATEGORY_KEY_IDS.forEach((id, idx) => {
+    map.set(t(id), idx);
+  });
+  return map;
+});
 
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
@@ -429,8 +464,9 @@ const datasetSource = computed(() => {
   // Partition into additional and main categories
   const additional = [];
   const main = [];
+  const addSet = additionalCategoryKeysSet.value;
   for (const item of allData) {
-    if (ADDITIONAL_CATEGORY_KEYS.includes(String(item.category))) {
+    if (addSet.has(String(item.category))) {
       additional.push(item);
     } else {
       main.push(item);
@@ -438,20 +474,16 @@ const datasetSource = computed(() => {
   }
 
   // Sort main and additional separately
+  const mainMap = mainCategoryOrderMap.value;
   main.sort((a, b) => {
-    const aIdx = MAIN_CATEGORY_ORDER.indexOf(String(a.category));
-    const bIdx = MAIN_CATEGORY_ORDER.indexOf(String(b.category));
-    if (aIdx === -1 && bIdx === -1) return 0;
-    if (aIdx === -1) return 1;
-    if (bIdx === -1) return -1;
+    const aIdx = mainMap.get(String(a.category)) ?? 999;
+    const bIdx = mainMap.get(String(b.category)) ?? 999;
     return aIdx - bIdx;
   });
+  const addMap = additionalCategoryOrderMap.value;
   additional.sort((a, b) => {
-    const aIdx = ADDITIONAL_CATEGORY_KEYS.indexOf(String(a.category));
-    const bIdx = ADDITIONAL_CATEGORY_KEYS.indexOf(String(b.category));
-    if (aIdx === -1 && bIdx === -1) return 0;
-    if (aIdx === -1) return 1;
-    if (bIdx === -1) return -1;
+    const aIdx = addMap.get(String(a.category)) ?? 999;
+    const bIdx = addMap.get(String(b.category)) ?? 999;
     return aIdx - bIdx;
   });
 
