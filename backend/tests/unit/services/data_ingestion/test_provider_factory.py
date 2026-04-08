@@ -4,11 +4,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
+)
+from app.services.data_ingestion.computed_providers.research_facilities_animal import (
+    ResearchFacilitiesAnimalFactorUpdateProvider,
+)
+from app.services.data_ingestion.computed_providers.research_facilities_common import (
+    ResearchFacilitiesCommonFactorUpdateProvider,
 )
 from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
@@ -108,3 +115,43 @@ async def test_create_provider_no_matching_provider():
     )
 
     assert provider is None
+
+
+def test_get_provider_by_keys_animal_computed_5tuple():
+    """5-tuple lookup for mice_and_fish → AnimalFactorUpdateProvider."""
+    provider_class = ProviderFactory.get_provider_by_keys(
+        ModuleTypeEnum.research_facilities,
+        IngestionMethod.computed,
+        TargetType.FACTORS,
+        EntityType.MODULE_PER_YEAR,
+        data_entry_type_id=DataEntryTypeEnum.mice_and_fish_animal_facilities,
+    )
+    assert provider_class is ResearchFacilitiesAnimalFactorUpdateProvider
+
+
+def test_get_provider_by_keys_common_computed_5tuple():
+    """5-tuple lookup for research_facilities (DE=70) → CommonFactorUpdateProvider."""
+    provider_class = ProviderFactory.get_provider_by_keys(
+        ModuleTypeEnum.research_facilities,
+        IngestionMethod.computed,
+        TargetType.FACTORS,
+        EntityType.MODULE_PER_YEAR,
+        data_entry_type_id=DataEntryTypeEnum.research_facilities,
+    )
+    assert provider_class is ResearchFacilitiesCommonFactorUpdateProvider
+
+
+def test_providers_by_class_name_includes_computed_providers():
+    """PROVIDERS_BY_CLASS_NAME dict exposes both computed provider classes."""
+    assert (
+        ProviderFactory.PROVIDERS_BY_CLASS_NAME.get(
+            "ResearchFacilitiesAnimalFactorUpdateProvider"
+        )
+        is ResearchFacilitiesAnimalFactorUpdateProvider
+    )
+    assert (
+        ProviderFactory.PROVIDERS_BY_CLASS_NAME.get(
+            "ResearchFacilitiesCommonFactorUpdateProvider"
+        )
+        is ResearchFacilitiesCommonFactorUpdateProvider
+    )
