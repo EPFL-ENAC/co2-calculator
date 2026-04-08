@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, watch } from 'vue';
 import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
+
 import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
@@ -49,13 +50,27 @@ const currentYear = computed(() => {
 const resultsSummary = ref<ResultsSummary | null>(null);
 const resultsSummaryLoading = ref(false);
 
+const hideResearchFacilities = ref(false);
+
+const excludedModules = computed(() => {
+  const ids: number[] = [];
+  if (hideResearchFacilities.value) {
+    const id = getModuleTypeId(MODULES.ResearchFacilities);
+    if (id !== undefined) ids.push(id);
+  }
+  return ids;
+});
+
 async function fetchResultsSummary() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
   if (!carbonReportId) return;
 
   try {
     resultsSummaryLoading.value = true;
-    resultsSummary.value = await getResultsSummary(carbonReportId);
+    resultsSummary.value = await getResultsSummary(
+      carbonReportId,
+      excludedModules.value,
+    );
   } catch (error) {
     console.error('Error fetching results summary:', error);
     resultsSummary.value = null;
@@ -67,7 +82,7 @@ async function fetchResultsSummary() {
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
   if (!carbonReportId) return;
-  await moduleStore.getEmissionBreakdown(carbonReportId);
+  await moduleStore.getEmissionBreakdown(carbonReportId, excludedModules.value);
 }
 
 onMounted(() => {
@@ -83,6 +98,11 @@ watch(
     fetchEmissionBreakdown();
   },
 );
+
+async function onHideResearchFacilitiesChange() {
+  moduleStore.invalidateEmissionBreakdown();
+  await Promise.all([fetchResultsSummary(), fetchEmissionBreakdown()]);
+}
 
 const isModuleValidated = (module: string) => {
   return timelineStore.itemStates[module as Module] === MODULE_STATES.Validated;
@@ -174,6 +194,14 @@ const getUncertainty = (
                 color="accent"
                 class="text-weight-medium"
                 size="xs"
+              />
+              <q-checkbox
+                v-model="hideResearchFacilities"
+                :label="$t('results_hide_research_facilities')"
+                color="accent"
+                class="text-weight-medium"
+                size="xs"
+                @update:model-value="onHideResearchFacilitiesChange"
               />
               <q-separator class="q-my-sm" />
               <q-checkbox
@@ -321,7 +349,10 @@ const getUncertainty = (
         </q-card>
         <template v-for="module in MODULES_LIST" :key="module">
           <q-card
-            v-if="module !== MODULES.Headcount"
+            v-if="
+              module !== MODULES.Headcount &&
+              !(hideResearchFacilities && module === MODULES.ResearchFacilities)
+            "
             flat
             bordered
             class="q-pa-none q-mt-xl"

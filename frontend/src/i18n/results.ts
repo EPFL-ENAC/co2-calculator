@@ -143,6 +143,10 @@ export default {
     en: 'Show additional estimated categories',
     fr: 'Afficher les catégories supplémentaires',
   },
+  results_hide_research_facilities: {
+    en: 'Hide Research Facilities',
+    fr: 'Masquer les infrastructures de recherche',
+  },
   results_carbon_footprint_per_person: {
     en: 'Carbon Footprint Per Person',
     fr: 'Empreinte carbone par personne',

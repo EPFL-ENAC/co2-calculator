@@ -89,11 +89,18 @@ export async function getHeadcountMembers(
  * Fetch the results summary for a carbon report.
  *
  * @param carbonReportId - Carbon report ID
+ * @param excludeModules - Optional list of module_type_ids to exclude from totals
  * @returns Unit-wide totals and per-module breakdowns
  */
 export async function getResultsSummary(
   carbonReportId: number,
+  excludeModules: number[] = [],
 ): Promise<ResultsSummary> {
   const path = `modules-stats/${encodeURIComponent(carbonReportId)}/results-summary`;
-  return api.get(path).json<ResultsSummary>();
+  const searchParams = new URLSearchParams();
+  for (const id of excludeModules) {
+    searchParams.append('exclude_modules', String(id));
+  }
+  const query = searchParams.toString();
+  return api.get(query ? `${path}?${query}` : path).json<ResultsSummary>();
 }

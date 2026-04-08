@@ -1,6 +1,6 @@
 """Module stats API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -116,6 +116,7 @@ async def get_module_stats(
 @router.get("/{carbon_report_id}/results-summary", response_model=dict)
 async def get_results_summary(
     carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -142,12 +143,14 @@ async def get_results_summary(
         raw["prev_emissions"],
         get_settings().CO2_PER_KM_KG,
         str(ModuleTypeEnum.headcount.value),
+        exclude_module_type_ids=set(exclude_modules),
     )
 
 
 @router.get("/{carbon_report_id}/emission-breakdown")
 async def get_emission_breakdown(
     carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -194,4 +197,5 @@ async def get_emission_breakdown(
         total_fte=total_fte,
         headcount_validated=headcount_validated,
         validated_module_type_ids=validated_module_type_ids,
+        exclude_module_type_ids=set(exclude_modules),
     )
