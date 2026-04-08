@@ -80,7 +80,14 @@ def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID
     async def mock_get_members(carbon_report_module_id):
         return list(ALL_MEMBERS)
 
+    async def mock_get_member_by_iid(carbon_report_module_id, institutional_id):
+        return next(
+            (m for m in ALL_MEMBERS if m["institutional_id"] == institutional_id),
+            None,
+        )
+
     mock_service.get_headcount_members = mock_get_members
+    mock_service.get_member_by_institutional_id = mock_get_member_by_iid
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.DataEntryService", lambda db: mock_service
     )

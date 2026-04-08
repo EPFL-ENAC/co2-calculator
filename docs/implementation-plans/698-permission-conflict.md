@@ -21,13 +21,12 @@ User Standard does not have `headcount.view`, so the backend returned 403.
 **Layer 2 — Frontend 403 interceptor too aggressive**:
 The global HTTP interceptor (`frontend/src/api/http.ts`) catches **every** 403
 and does `location.replace('/unauthorized')`. This fires before the component's
-try-catch (`ModuleTable.vue:1503`) can handle the error — even a non-critical
-background dropdown fetch blows the user off the page.
+try-catch can handle the error.
 
 ### Call Chain
 
 ```
-ModuleTable.vue onMounted (line 1490)
+ModuleTable.vue onMounted
   -> getHeadcountMembers(unitId, year)
   -> GET /modules/{unit}/{year}/headcount/members
   -> _check_module_permission(user, "headcount", "view")  -- FAILS (403)
@@ -42,11 +41,15 @@ ModuleTable.vue onMounted (line 1490)
 ### Design: protect the data, not just the endpoint
 
 The fix applies data-level access control scoped to the specific unit being
-accessed, as recommended by `@charlottegiseleweil` and `@ymarcon`:
+accessed. No route-guard hacks, no `skipForbiddenRedirect`.
 
-- Principal for THIS unit / global role → full member list
-- `CO2_USER_STD` for this unit (or principal of a different unit) → own record only
-- Neither permission → 403
+| User type                                | Result                         |
+| ---------------------------------------- | ------------------------------ |
+| Principal for THIS unit / global role    | 200, full member list          |
+| `CO2_USER_STD` for this unit             | 200, own record only           |
+| Principal of a **different** unit        | 200, own record only           |
+| Neither `headcount.view` nor travel perm | 403                            |
+| Standard user not found in headcount     | 200, empty list + hint message |
 
 The critical detail: `get_module_permission_decision` calls
 `calculate_user_permissions`, which is **scope-blind** — a principal for unit A
@@ -61,7 +64,7 @@ specific unit_id in the request**, not globally.
 
 **File**: `backend/app/api/v1/carbon_report_module.py`
 
-New imports:
+Imports added:
 
 ```python
 from app.core.role_priority import pick_role_for_institutional_id
@@ -69,24 +72,23 @@ from app.models.unit import Unit
 from app.models.user import GlobalScope, RoleName
 ```
 
-Replacement logic in `list_headcount_members`:
+Logic in `list_headcount_members`:
 
 ```python
-# Gate: allow if user has professional_travel.view OR headcount.view
+# Gate: allow if user has professional_travel.view OR headcount.view OR is global
 travel_decision = await get_module_permission_decision(current_user, "professional-travel", "view")
 headcount_decision = await get_module_permission_decision(current_user, "headcount", "view")
-if not (headcount_decision.get("allow") or travel_decision.get("allow")):
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Permission denied: headcount.view or professional_travel.view required",
-    )
+is_global = any(isinstance(r.on, GlobalScope) for r in current_user.roles)
+if not (is_global or headcount_decision.get("allow") or travel_decision.get("allow")):
+    raise HTTPException(status_code=403, detail="...")
 
 # Data scope: resolve user's effective role for THIS unit specifically
 unit = await db.get(Unit, unit_id)
 unit_iid = unit.institutional_id if unit else None
 
 has_full_access = (
-    any(isinstance(r.on, GlobalScope) for r in current_user.roles)
+    headcount_decision.get("allow", False)
+    or any(isinstance(r.on, GlobalScope) for r in current_user.roles)
     or (
         unit_iid is not None
         and pick_role_for_institutional_id(current_user.roles, unit_iid)
@@ -94,39 +96,43 @@ has_full_access = (
     )
 )
 
-rows = await DataEntryService(db).get_headcount_members(carbon_report_module_id=...)
-all_members = [HeadcountMemberDropdownItem(**row) for row in rows]
-
+# Single fetch; filter in Python — get_headcount_members returns list[dict]
+rows = await DataEntryService(db).get_headcount_members(
+    carbon_report_module_id=carbon_report_module_id,
+)
 if not has_full_access:
-    return [m for m in all_members if m.institutional_id == current_user.institutional_id]
-return all_members
+    user_iid = current_user.institutional_id
+    rows = [r for r in rows if r.get("institutional_id") == user_iid]
+return [HeadcountMemberDropdownItem(**row) for row in rows]
 ```
 
 ---
 
-### Part 2 — Frontend: allow non-critical fetches to skip the 403 redirect
+### Part 2 — Frontend: HeadcountMemberSelect component
 
-Use ky's built-in `context` property (`Record<string, unknown>`) — no type cast
-needed.
+**File**: `frontend/src/components/organisms/module/HeadcountMemberSelect.vue`
 
-**File**: `frontend/src/api/http.ts`
+The component is the sole owner of the traveler dropdown UX. It handles three
+states after the API call resolves:
 
-```typescript
-if (res.status === 403) {
-  if (options.context?.skipForbiddenRedirect === true) return;
-  // ... existing redirect logic unchanged ...
-}
-```
+| State                     | Condition                                                    | UX                                         |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------ |
+| Standard user, found      | `members.length === 1 && user.iid === members[0].iid`        | Readonly `q-input`, value auto-emitted     |
+| Standard user, not found  | `members.length === 0 && !hasPermission(perms, 'headcount')` | Disabled `q-select` + "not validated" hint |
+| Full access, empty list   | `members.length === 0 && hasPermission(perms, 'headcount')`  | Disabled `q-select` + "add members" hint   |
+| Full access, list present | `members.length > 0`                                         | Normal `q-select` dropdown                 |
 
-**File**: `frontend/src/api/modules.ts`
+Key implementation details:
 
-```typescript
-return api
-  .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {
-    context: { skipForbiddenRedirect: true },
-  })
-  .json<HeadcountMemberDropdownItem[]>();
-```
+- `modelValue` prop and emit type are `string | null` (institutional_id is a string, not a number)
+- Quasar Vue 3 readonly display: use `:model-value` (not `:value`) on `q-input`
+- Auto-emit on mount when `isStandardUser`: `emit('update:modelValue', options[0].value)` — ensures the parent form receives the value and validation passes
+- `isNotValidated` uses `hasPermission(authStore.user?.permissions, 'headcount', 'view')` from `src/utils/permission`
+
+i18n keys (in `frontend/src/i18n/professional_travel.ts`):
+
+- `${MODULES.ProfessionalTravel}-field-traveler-empty-headcount` — shown to managers with no headcount data
+- `${MODULES.ProfessionalTravel}-field-traveler-not-validated` — shown to standard users not found in headcount
 
 ---
 
@@ -134,45 +140,51 @@ return api
 
 **File**: `backend/tests/integration/v1/test_headcount_members_permission.py`
 
-| Scenario                                     | Expected                                 |
-| -------------------------------------------- | ---------------------------------------- |
-| No relevant permission                       | 403                                      |
-| Principal for THIS unit                      | 200, all members                         |
-| STD for this unit                            | 200, own record only                     |
-| Principal for OTHER unit + STD for this unit | 200, own record only (role priority fix) |
-| Global role (superadmin)                     | 200, all members                         |
-| Travel user not in headcount data            | 200, empty list                          |
+| Scenario                                     | Expected             |
+| -------------------------------------------- | -------------------- |
+| No relevant permission                       | 403                  |
+| Principal for THIS unit                      | 200, all members     |
+| STD for this unit                            | 200, own record only |
+| Principal for OTHER unit + STD for this unit | 200, own record only |
+| Global role (superadmin)                     | 200, all members     |
+| Travel user not in headcount data            | 200, empty list      |
 
 ---
 
-## Alternatives Considered
+## Alternatives Considered and Rejected
 
-### A. Simple OR-check only (no data filtering)
+### A. `skipForbiddenRedirect` flag on the API call
 
-Allow any user with `headcount.view` OR `professional_travel.view` to see all members.
+Pass a flag through ky's `context` so the 403 interceptor skips the redirect for
+this specific call, then handle the empty state gracefully in the component.
 
-**Rejected**: User Standard would gain read access to other people's headcount records.
+**Rejected**: Degrades the UX — User Standard would see an empty, unusable
+dropdown. The user must see themselves as the traveler to submit a valid entry.
+Route-guard hacks also mask the real problem (backend was too narrow).
 
-### B. New dedicated endpoint under professional-travel
+### B. Simple OR-check only (no data filtering)
 
-Create `GET /{unit_id}/{year}/professional-travel/travelers` with travel-only permissions.
+Allow any user with `headcount.view` OR `professional_travel.view` to see all
+members.
 
-**Rejected**: Duplicates logic. The existing endpoint was designed for this purpose.
+**Rejected**: User Standard would gain read access to other people's headcount
+records — data leakage.
 
-### C. Frontend graceful degradation only
+### C. New dedicated endpoint under professional-travel
 
-Skip the 403 redirect, leave the dropdown empty.
+Create `GET /{unit_id}/{year}/professional-travel/travelers` with travel-only
+permissions.
 
-**Rejected**: User Standard needs to see themselves in the dropdown to correctly
-fill in their own travel entries.
+**Rejected**: Duplicates logic. The existing endpoint was designed for this
+purpose and already supports the scoping we need.
 
 ---
 
 ## Files Changed
 
-| File                                                                | Change                                                                                         |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `backend/app/api/v1/carbon_report_module.py`                        | Unit-scoped permission gate + data-level filter using `pick_role_for_institutional_id`         |
-| `frontend/src/api/http.ts`                                          | Check `options.context.skipForbiddenRedirect` before 403 redirect (type-safe via ky `context`) |
-| `frontend/src/api/modules.ts`                                       | Pass `context: { skipForbiddenRedirect: true }` on headcount members call                      |
-| `backend/tests/integration/v1/test_headcount_members_permission.py` | 6 scenarios covering access gate, data scoping, and role priority conflict                     |
+| File                                                                 | Change                                                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `backend/app/api/v1/carbon_report_module.py`                         | Unit-scoped gate (OR travel/headcount/global) + single-fetch Python filter                            |
+| `frontend/src/components/organisms/module/HeadcountMemberSelect.vue` | `isStandardUser` readonly + auto-emit; `isNotValidated` hint; type fix `string\|null`; `:model-value` |
+| `frontend/src/i18n/professional_travel.ts`                           | New key `field-traveler-not-validated` (EN + FR)                                                      |
+| `backend/tests/integration/v1/test_headcount_members_permission.py`  | 6 scenarios covering gate, data scoping, and role priority conflict                                   |

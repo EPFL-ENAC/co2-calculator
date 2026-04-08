@@ -361,15 +361,16 @@ async def list_headcount_members(
     unit = await db.get(Unit, unit_id)
     unit_iid = unit.institutional_id if unit else None
 
-    has_full_access = (
-        # Global roles (superadmin, backoffice metier) always see everything
-        any(isinstance(r.on, GlobalScope) for r in current_user.roles)
-        # Principal for THIS specific unit
-        or (
-            unit_iid is not None
-            and pick_role_for_institutional_id(current_user.roles, unit_iid)
-            == RoleName.CO2_USER_PRINCIPAL
-        )
+    # Full access: global roles or principal of this specific unit.
+    # NOTE: having headcount.view permission alone does NOT grant full access —
+    # that permission is scope-blind (a principal for unit A also appears to have
+    # headcount.view for unit B). The role check below is the authoritative guard.
+    has_full_access = any(
+        isinstance(r.on, GlobalScope) for r in current_user.roles
+    ) or (
+        unit_iid is not None
+        and pick_role_for_institutional_id(current_user.roles, unit_iid)
+        == RoleName.CO2_USER_PRINCIPAL
     )
 
     carbon_report_module_id = await get_carbon_report_id(
@@ -378,20 +379,24 @@ async def list_headcount_members(
         module_type_id=ModuleTypeEnum.headcount,
         db=db,
     )
-    rows = await DataEntryService(db).get_headcount_members(
+    data_entry_service = DataEntryService(db)
+    if has_full_access:
+        rows = await data_entry_service.get_headcount_members(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+        return [HeadcountMemberDropdownItem(**row) for row in rows]
+
+    # Standard / travel-only user: fetch only their own record
+    user_iid = current_user.institutional_id
+    if not user_iid:
+        return []
+    row = await data_entry_service.get_member_by_institutional_id(
         carbon_report_module_id=carbon_report_module_id,
+        institutional_id=user_iid,
     )
-    all_members = [HeadcountMemberDropdownItem(**row) for row in rows]
-
-    if not has_full_access:
-        # Standard users (or principals of other units) see only their own record
-        return [
-            m
-            for m in all_members
-            if m.institutional_id == current_user.institutional_id
-        ]
-
-    return all_members
+    if row is None:
+        return []
+    return [HeadcountMemberDropdownItem(**row)]
 
 
 @router.get(

@@ -697,7 +697,7 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[DataEntry]:
+    ) -> Optional[dict]:
         """Look up a headcount member by their institutional ID.
 
         Args:
@@ -705,7 +705,7 @@ class DataEntryService:
             institutional_id: The institutional ID to look up.
 
         Returns:
-            The matching ``DataEntry``, or ``None`` if not found.
+            Dict with ``institutional_id`` and ``name`` keys, or ``None`` if not found.
         """
         return await self.repo.get_member_by_institutional_id(
             carbon_report_module_id=carbon_report_module_id,

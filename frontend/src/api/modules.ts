@@ -81,9 +81,7 @@ export async function getHeadcountMembers(
   const unitEncoded = encodeURIComponent(unitId);
   const yearEncoded = encodeURIComponent(String(year));
   return api
-    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {
-      context: { skipForbiddenRedirect: true },
-    })
+    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {})
     .json<HeadcountMemberDropdownItem[]>();
 }
 

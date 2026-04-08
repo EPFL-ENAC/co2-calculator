@@ -202,6 +202,9 @@ async def test_list_headcount_members_std_user_sees_only_own():
 
     svc = MagicMock()
     svc.get_headcount_members = AsyncMock(return_value=members)
+    svc.get_member_by_institutional_id = AsyncMock(
+        return_value={"institutional_id": "11111", "name": "A"}
+    )
 
     with (
         patch.object(crm, "get_module_permission_decision", side_effect=allow_travel),
@@ -230,6 +233,9 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
 
     svc = MagicMock()
     svc.get_headcount_members = AsyncMock(return_value=members)
+    svc.get_member_by_institutional_id = AsyncMock(
+        return_value={"institutional_id": "11111", "name": "A"}
+    )
 
     with (
         patch.object(
@@ -259,6 +265,9 @@ async def test_list_headcount_members_unit_not_found_restricts_access():
 
     svc = MagicMock()
     svc.get_headcount_members = AsyncMock(return_value=members)
+    svc.get_member_by_institutional_id = AsyncMock(
+        return_value={"institutional_id": "11111", "name": "A"}
+    )
 
     with (
         patch.object(

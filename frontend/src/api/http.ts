@@ -53,9 +53,6 @@ export const api = ky.create({
           }
         }
         if (res.status === 403) {
-          // Allow callers to handle 403 themselves (e.g. non-critical background fetches)
-          if (options.context?.skipForbiddenRedirect === true) return;
-
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;
