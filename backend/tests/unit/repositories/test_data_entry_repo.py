@@ -873,8 +873,8 @@ async def test_get_member_by_institutional_id_found(db_session: AsyncSession):
     result = await repo.get_member_by_institutional_id(module.id, "100001")
 
     assert result is not None
-    assert result.id == entry.id
-    assert result.data["user_institutional_id"] == "100001"
+    assert result["institutional_id"] == "100001"
+    assert result["name"] == "Alice Dupont"
 
 
 @pytest.mark.asyncio

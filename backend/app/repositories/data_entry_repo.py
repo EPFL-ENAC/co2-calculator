@@ -660,18 +660,18 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[DataEntry]:
-        """Fetch the first member entry whose user_institutional_id matches.
+    ) -> Optional[dict]:
+        """Fetch the member entry whose user_institutional_id matches.
 
         Args:
             carbon_report_module_id: The headcount module to scope the search.
             institutional_id: The institutional ID (digits only) to look up.
 
         Returns:
-            The matching ``DataEntry``, or ``None`` if not found.
+            Dict with ``institutional_id`` and ``name`` keys, or ``None`` if not found.
         """
         statement = (
-            select(DataEntry)
+            select(DataEntry.data)
             .where(
                 col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
                 col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
@@ -680,4 +680,10 @@ class DataEntryRepository:
             .limit(1)
         )
         result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
+        data = result.scalar_one_or_none()
+        if data is None:
+            return None
+        uid = data.get("user_institutional_id")
+        if not uid:
+            return None
+        return {"institutional_id": uid, "name": data.get("name", "")}

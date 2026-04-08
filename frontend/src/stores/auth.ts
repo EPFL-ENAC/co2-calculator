@@ -14,6 +14,7 @@ interface User {
   email: string;
   display_name?: string;
   is_user_test?: boolean;
+  institutional_id?: string;
   roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
