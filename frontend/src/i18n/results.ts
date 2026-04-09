@@ -100,8 +100,8 @@ export default {
     fr: 'Empreinte carbone de {module}',
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'Calculated with the value of {value} {unit}',
-    fr: 'Calculé avec la valeur de {value} {unit}',
+    en: '1 km driven by car emits {value} {unit}',
+    fr: '1 km parcouru en voiture émet {value} {unit}',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -110,6 +110,22 @@ export default {
   results_unit_carbon_footprint_tooltip: {
     en: 'Unit carbon footprint compared to previous year',
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
+  },
+  results_carbon_footprint_per_person_title: {
+    en: 'Carbon footprint per person',
+    fr: 'Empreinte carbone par personne',
+  },
+  results_scopes_tooltip_scope_1_desc: {
+    en: 'Direct emissions / émissions directes',
+    fr: 'Direct emissions / émissions directes',
+  },
+  results_scopes_tooltip_scope_2_desc: {
+    en: 'Indirect emissions from electricity / émissions indirectes liées à l’achat d’électricité',
+    fr: 'Indirect emissions from electricity / émissions indirectes liées à l’achat d’électricité',
+  },
+  results_scopes_tooltip_scope_3_desc: {
+    en: 'Other indirect emissions / Autres émissions indirectes',
+    fr: 'Other indirect emissions / Autres émissions indirectes',
   },
   results_equivalent_to_car: {
     en: 'is equivalent to {km}km driven by car.',

@@ -1215,7 +1215,31 @@ const downloadCSV = () => {
 <template>
   <q-card flat class="container container--pa-none">
     <q-card-section class="flex justify-between items-center">
-      <div>
+      <div class="module-carbon-chart__title">
+        <q-icon
+          name="o_info"
+          size="18px"
+          color="black"
+          class="module-carbon-chart__info q-ml-sm"
+        >
+          <q-tooltip
+            class="bg-white text-black shadow-4 module-carbon-chart__tooltip"
+            max-width="800px"
+          >
+            <div class="text-body2 module-carbon-chart__tooltip-line">
+              <strong>Scope 1:</strong>
+              {{ $t('results_scopes_tooltip_scope_1_desc') }}
+            </div>
+            <div class="text-body2 q-mt-xs module-carbon-chart__tooltip-line">
+              <strong>Scope 2:</strong>
+              {{ $t('results_scopes_tooltip_scope_2_desc') }}
+            </div>
+            <div class="text-body2 q-mt-xs module-carbon-chart__tooltip-line">
+              <strong>Scope 3:</strong>
+              {{ $t('results_scopes_tooltip_scope_3_desc') }}
+            </div>
+          </q-tooltip>
+        </q-icon>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ props.title ?? $t('unit_carbon_footprint_title') }}
         </span>
@@ -1263,8 +1287,35 @@ const downloadCSV = () => {
 </template>
 
 <style scoped>
+.module-carbon-chart {
+  display: flex;
+  flex-direction: column;
+}
+
+.module-carbon-chart__title {
+  display: flex;
+  align-items: center;
+}
+
+.module-carbon-chart__info {
+  cursor: help;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.module-carbon-chart__tooltip-line {
+  white-space: nowrap;
+}
+
+.module-carbon-chart__body {
+  flex: 1;
+}
+
 .chart {
   width: 500px;
   min-height: 500px;
+  @media (max-width: 1320px) {
+    width: 90%;
+  }
 }
 </style>

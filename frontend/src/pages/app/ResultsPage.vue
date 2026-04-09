@@ -535,6 +535,31 @@ const getUncertainty = (
 </template>
 
 <style scoped lang="scss">
+.results-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 1320px) {
+  .results-charts-grid {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: start;
+  }
+
+  .results-charts-grid > :first-child {
+    grid-column: span 2;
+  }
+}
+
+.additional-expand-arrow {
+  transition: transform 150ms ease;
+}
+
+.additional-expand-arrow--open {
+  transform: rotate(180deg);
+}
+
 .validation-required-card {
   min-height: 200px;
   background-color: rgba(0, 0, 0, 0.02);
