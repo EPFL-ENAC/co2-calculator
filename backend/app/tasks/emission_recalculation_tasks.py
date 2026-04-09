@@ -70,20 +70,6 @@ async def run_recalculation_task(
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             svc = EmissionRecalculationWorkflow(data_session)
 
-            # Announce how many entries were found
-            from app.repositories.data_entry_repo import DataEntryRepository
-
-            entries = await DataEntryRepository(
-                data_session
-            ).list_by_data_entry_type_and_year(data_entry_type, year)
-            await job_repo.update_ingestion_job(
-                job_id=job_id,
-                status_message=f"Found {len(entries)} data entries to recalculate",
-                metadata={},
-                state=IngestionState.RUNNING,
-            )
-            await job_session.commit()
-
             await job_repo.update_ingestion_job(
                 job_id=job_id,
                 status_message="Recalculating emissions...",

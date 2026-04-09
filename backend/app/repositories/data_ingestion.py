@@ -281,6 +281,7 @@ class DataIngestionRepository:
                 col(DataIngestionJob.state) == IngestionState.FINISHED,
                 col(DataIngestionJob.target_type) == TargetType.FACTORS,
                 col(DataIngestionJob.result) != IngestionResult.ERROR,
+                col(DataIngestionJob.data_entry_type_id).isnot(None),
             )
             .group_by(
                 col(DataIngestionJob.module_type_id),

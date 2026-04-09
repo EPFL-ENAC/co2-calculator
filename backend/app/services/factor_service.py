@@ -5,11 +5,12 @@ Manages factor lifecycle with full audit trail.
 
 from typing import Any, Dict, List, Optional
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -261,11 +262,6 @@ class FactorService:
         Returns:
             List of distinct carbon_report_module_id values that reference this factor.
         """
-        from sqlmodel import col, select
-
-        from app.models.data_entry import DataEntry
-        from app.models.data_entry_emission import DataEntryEmission
-
         stmt = (
             select(col(DataEntry.carbon_report_module_id))
             .join(
@@ -275,5 +271,5 @@ class FactorService:
             .where(col(DataEntryEmission.primary_factor_id) == factor_id)
             .distinct()
         )
-        result = await self.session.execute(stmt)
-        return [row[0] for row in result.all() if row[0] is not None]
+        result = await self.session.exec(stmt)
+        return [row for row in result.all() if row is not None]
