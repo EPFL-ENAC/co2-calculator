@@ -1213,30 +1213,54 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card
+    flat
+    class="container container--pa-none full-width module-carbon-chart"
+  >
     <q-card-section class="flex justify-between items-center">
-      <div class="module-carbon-chart__title">
+      <div class="flex items-center no-wrap">
         <q-icon
           name="o_info"
-          size="18px"
-          color="black"
-          class="module-carbon-chart__info q-ml-sm"
+          size="xs"
+          color="primary"
+          class="cursor-pointer"
+          :aria-label="$t('unit_carbon_footprint_scope_tooltip_aria')"
         >
           <q-tooltip
-            class="bg-white text-black shadow-4 module-carbon-chart__tooltip"
-            max-width="800px"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip text-body2"
+            max-width="min(92vw, 48rem)"
+            :offset="[8, 8]"
           >
-            <div class="text-body2 module-carbon-chart__tooltip-line">
-              <strong>Scope 1:</strong>
-              {{ $t('results_scopes_tooltip_scope_1_desc') }}
-            </div>
-            <div class="text-body2 q-mt-xs module-carbon-chart__tooltip-line">
-              <strong>Scope 2:</strong>
-              {{ $t('results_scopes_tooltip_scope_2_desc') }}
-            </div>
-            <div class="text-body2 q-mt-xs module-carbon-chart__tooltip-line">
-              <strong>Scope 3:</strong>
-              {{ $t('results_scopes_tooltip_scope_3_desc') }}
+            <div class="module-carbon-scope-tooltip">
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 1,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_1_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 2,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_2_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 3,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_3_desc') }}
+              </p>
             </div>
           </q-tooltip>
         </q-icon>
@@ -1245,28 +1269,6 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div>
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
-          @click="downloadCSV"
-        />
-      </div>
       <q-checkbox
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
@@ -1274,7 +1276,10 @@ const downloadCSV = () => {
         color="accent"
       />
     </q-card-section>
-    <q-card-section class="chart-container flex justify-center items-center">
+
+    <q-card-section
+      class="chart-container flex justify-center items-center module-carbon-chart__body"
+    >
       <v-chart
         ref="chartRef"
         class="chart"
@@ -1283,6 +1288,29 @@ const downloadCSV = () => {
         @rendered="recalculateScopeRects"
       />
     </q-card-section>
+
+    <q-card-actions align="center" class="q-px-md q-pb-md q-pt-none">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="sm"
+        class="text-weight-medium q-mr-xs"
+        @click="downloadPNG"
+      />
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_csv')"
+        size="sm"
+        class="text-weight-medium"
+        @click="downloadCSV"
+      />
+    </q-card-actions>
   </q-card>
 </template>
 
@@ -1290,21 +1318,7 @@ const downloadCSV = () => {
 .module-carbon-chart {
   display: flex;
   flex-direction: column;
-}
-
-.module-carbon-chart__title {
-  display: flex;
-  align-items: center;
-}
-
-.module-carbon-chart__info {
-  cursor: help;
-  padding: 4px;
-  border-radius: 4px;
-}
-
-.module-carbon-chart__tooltip-line {
-  white-space: nowrap;
+  height: 100%;
 }
 
 .module-carbon-chart__body {
@@ -1312,10 +1326,30 @@ const downloadCSV = () => {
 }
 
 .chart {
-  width: 500px;
+  width: 100%;
   min-height: 500px;
-  @media (max-width: 1320px) {
-    width: 90%;
+}
+
+@media (max-width: 1320px) {
+  .chart {
+    width: 95%;
   }
+}
+</style>
+
+<!-- Tooltip content is rendered in a portal; i18n supplies .module-carbon-scope-tooltip -->
+<style lang="scss">
+.module-carbon-scope-tooltip {
+  min-width: 36rem;
+}
+
+.module-carbon-scope-tooltip p {
+  margin: 0 0 0.5rem;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.module-carbon-scope-tooltip p:last-child {
+  margin-bottom: 0;
 }
 </style>

@@ -8,7 +8,10 @@ const props = defineProps<{
   comparison?: string;
   comparisonHighlight?: string;
   color?: string;
+  tooltipPlacement?: 'title' | 'comparison';
 }>();
+
+const tooltipPlacement = computed(() => props.tooltipPlacement ?? 'title');
 
 const comparisonParts = computed(() => {
   if (!props.comparison) {
@@ -37,25 +40,30 @@ const comparisonParts = computed(() => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card flat class="container container--pa-none full-width big-number">
     <q-card-section class="flex items-center q-mb-xs">
-      <q-icon v-if="$slots.tooltip" name="o_info" size="xs" color="primary">
-        <q-tooltip
-          v-if="$slots.tooltip"
-          anchor="center right"
-          self="top right"
-          class="u-tooltip"
-        >
+      <q-icon
+        v-if="$slots.tooltip && tooltipPlacement === 'title'"
+        name="o_info"
+        size="xs"
+        color="primary"
+      >
+        <q-tooltip anchor="center right" self="top right" class="u-tooltip">
           <slot name="tooltip"></slot>
         </q-tooltip>
       </q-icon>
-      <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
+      <span
+        class="text-body1 text-weight-medium q-mb-none"
+        :class="{
+          'q-ml-sm': $slots.tooltip && tooltipPlacement === 'title',
+        }"
+      >
         {{ title }}
       </span>
     </q-card-section>
 
-    <q-card-section class="flex no-wrap justify-between items-end">
-      <div>
+    <q-card-section class="flex no-wrap justify-between big-number__content">
+      <div class="big-number__value">
         <div
           class="text-h1 text-weight-medium q-mb-none"
           :class="color ? `text-${color}` : ''"
@@ -69,9 +77,20 @@ const comparisonParts = computed(() => {
 
       <div
         v-if="comparisonParts.length > 0"
-        class="text-caption q-mb-none text-right"
+        class="text-caption q-mb-none text-right big-number__comparison"
         style="width: 50%"
       >
+        <q-icon
+          v-if="$slots.tooltip && tooltipPlacement === 'comparison'"
+          name="o_info"
+          size="xs"
+          color="primary"
+          class="q-mr-xs"
+        >
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            <slot name="tooltip"></slot>
+          </q-tooltip>
+        </q-icon>
         <span
           v-for="(part, index) in comparisonParts"
           :key="index"
@@ -83,3 +102,26 @@ const comparisonParts = computed(() => {
     </q-card-section>
   </q-card>
 </template>
+
+<style scoped lang="scss">
+.big-number {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.big-number__content {
+  margin-top: auto;
+  align-items: flex-end;
+}
+
+.big-number__value {
+  align-self: flex-end;
+}
+
+.big-number__comparison {
+  align-self: flex-start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+</style>

@@ -466,36 +466,16 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card flat class="container container--pa-none full-width">
     <q-card-section class="flex justify-between items-center">
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ props.title ?? $t('results_carbon_footprint_per_person_title') }}
+          {{
+            props.title ?? $t('results_carbon_footprint_per_FTE_no_headcount')
+          }}
         </span>
       </div>
 
-      <div v-if="headcountValidated">
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
-          @click="downloadCSV"
-        />
-      </div>
       <q-checkbox
         v-if="headcountValidated"
         v-model="toggleAdditionalData"
@@ -514,6 +494,33 @@ const downloadCSV = () => {
           :option="chartOption"
         />
       </q-card-section>
+
+      <q-card-actions
+        v-if="headcountValidated"
+        align="center"
+        class="q-px-md q-pb-md q-pt-none"
+      >
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="sm"
+          class="text-weight-medium q-mr-xs"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="sm"
+          class="text-weight-medium"
+          @click="downloadCSV"
+        />
+      </q-card-actions>
     </template>
 
     <template v-else>
@@ -543,7 +550,7 @@ const downloadCSV = () => {
 }
 
 .chart {
-  width: 500px;
+  width: 200px;
   min-height: 500px;
 }
 

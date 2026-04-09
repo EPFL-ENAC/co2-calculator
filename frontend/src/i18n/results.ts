@@ -1,6 +1,6 @@
 export default {
   results_btn: {
-    en: 'View Results',
+    en: 'View results',
     fr: 'Voir les résultats',
   },
   results_download_pdf: {
@@ -12,8 +12,20 @@ export default {
     fr: 'Mode daltonien',
   },
   results_view_uncertainties: {
-    en: 'View Uncertainties',
-    fr: 'Voir les incertitudes',
+    en: 'View confidence level',
+    fr: 'Afficher le niveau de confiance',
+  },
+  results_view_additional_data: {
+    en: 'Show additional categories',
+    fr: 'Afficher les catégories supplémentaires',
+  },
+  results_show_additional_data: {
+    en: 'Show additional data',
+    fr: 'Afficher les données additionnelles',
+  },
+  results_hide_additional_data: {
+    en: 'Hide additional data',
+    fr: 'Masquer les données additionnelles',
   },
   results_compare_years: {
     en: 'Compare years',
@@ -48,12 +60,8 @@ export default {
     fr: 'Empreinte carbone annuelle {year}',
   },
   results_total_unit_carbon_footprint: {
-    en: 'Total unit carbon footprint',
-    fr: "Empreinte carbone totale de l'unité",
-  },
-  results_carbon_footprint_per_person_title: {
-    en: 'Carbon Footprint per FTE',
-    fr: 'Empreinte carbone par ETP',
+    en: 'Total carbon footprint of the unit',
+    fr: 'Empreinte carbone totale de l’unité',
   },
   results_total_module_carbon_footprint: {
     en: 'Total {module} carbon footprint',
@@ -88,20 +96,24 @@ export default {
     fr: 'Empreinte carbone totale des infrastructures de recherche',
   },
   results_carbon_footprint_per_fte: {
+    en: 'Carbon footprint per FTE (total of {FTE})',
+    fr: 'Empreinte carbone par ETP (total de {FTE})',
+  },
+  results_carbon_footprint_per_FTE_no_headcount: {
     en: 'Carbon footprint per FTE',
     fr: 'Empreinte carbone par ETP',
   },
   results_unit_carbon_footprint: {
-    en: 'Unit carbon footprint',
-    fr: "Empreinte carbone de l'unité",
+    en: 'Comparison to previous year',
+    fr: 'Comparaison à l’année précédente',
   },
   results_module_carbon_footprint: {
     en: '{module} carbon footprint',
     fr: 'Empreinte carbone de {module}',
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: '1 km driven by car emits {value} {unit}',
-    fr: '1 km parcouru en voiture émet {value} {unit}',
+    en: 'A km driven by car is equivalent to {value} {unit}',
+    fr: 'Un km parcouru en voiture est équivalent à {value} {unit}',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -111,25 +123,9 @@ export default {
     en: 'Unit carbon footprint compared to previous year',
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
-  results_carbon_footprint_per_person_title: {
-    en: 'Carbon footprint per person',
-    fr: 'Empreinte carbone par personne',
-  },
-  results_scopes_tooltip_scope_1_desc: {
-    en: 'Direct emissions / émissions directes',
-    fr: 'Direct emissions / émissions directes',
-  },
-  results_scopes_tooltip_scope_2_desc: {
-    en: 'Indirect emissions from electricity / émissions indirectes liées à l’achat d’électricité',
-    fr: 'Indirect emissions from electricity / émissions indirectes liées à l’achat d’électricité',
-  },
-  results_scopes_tooltip_scope_3_desc: {
-    en: 'Other indirect emissions / Autres émissions indirectes',
-    fr: 'Other indirect emissions / Autres émissions indirectes',
-  },
   results_equivalent_to_car: {
-    en: 'is equivalent to {km}km driven by car.',
-    fr: 'équivaut à {km}km parcouru en voiture.',
+    en: 'The value of the equivalence by car is {km}km',
+    fr: 'La valeur de l’équivalence par voiture est de {km}km',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
@@ -148,8 +144,8 @@ export default {
     fr: 'Par rapport à la valeur de {value}',
   },
   results_no_comparison_year_available: {
-    en: 'No comparison year available',
-    fr: 'Aucune année de comparaison disponible',
+    en: 'No comparison value is computed in this iteration',
+    fr: "Aucune valeur de comparaison n'est calculée dans cette itération",
   },
   results_value_of: {
     en: 'value of {value} t CO₂-eq',
@@ -159,24 +155,44 @@ export default {
     en: 'Show additional estimated categories',
     fr: 'Afficher les catégories supplémentaires',
   },
+  unit_carbon_footprint_scope_tooltip_aria: {
+    en: 'Definitions of GHG scopes 1, 2 and 3 in this chart',
+    fr: 'Définitions des scopes 1, 2 et 3 des GES dans ce graphique',
+  },
+  unit_carbon_footprint_scope_prefix: {
+    en: '{scope} {n}:',
+    fr: '{scope} {n} :',
+  },
+  unit_carbon_footprint_scope_1_desc: {
+    en: 'Direct emissions',
+    fr: 'Émissions directes',
+  },
+  unit_carbon_footprint_scope_2_desc: {
+    en: 'Indirect emissions from purchased electricity',
+    fr: "Émissions indirectes liées à l'achat d'électricité",
+  },
+  unit_carbon_footprint_scope_3_desc: {
+    en: 'Other indirect emissions',
+    fr: 'Autres émissions indirectes',
+  },
   results_hide_research_facilities: {
-    en: 'Hide Research Facilities',
+    en: 'Hide research facilities',
     fr: 'Masquer les infrastructures de recherche',
   },
   results_carbon_footprint_per_person: {
-    en: 'Carbon Footprint Per Person',
+    en: 'Carbon footprint per person',
     fr: 'Empreinte carbone par personne',
   },
   results_by_category_title: {
-    en: 'Results by Category',
+    en: 'Results by category',
     fr: 'Résultats par catégorie',
   },
   results_by_category_subtitle: {
-    en: 'Annual Carbon Footprint {year}',
-    fr: 'Bilan CO₂ Annuel {year}',
+    en: 'Annual carbon footprint {year}',
+    fr: 'Bilan CO₂ annuel {year}',
   },
   results_equipment_distribution_title: {
-    en: 'Equipment Distribution',
+    en: 'Equipment distribution',
     fr: 'Distribution des équipements',
   },
   results_validate_module_title: {
@@ -195,16 +211,20 @@ export default {
     en: 'Comparison with intermediate long-term objectives',
     fr: 'Comparaison avec les objectifs intermédiaires à long terme',
   },
+  results_additional_data: {
+    en: 'Additional data',
+    fr: 'Données additionnelles',
+  },
   uncertainty_low: {
-    en: 'Low Uncertainty',
+    en: 'Low uncertainty',
     fr: 'Faible incertitude',
   },
   uncertainty_medium: {
-    en: 'Moderate Uncertainty',
+    en: 'Moderate uncertainty',
     fr: 'Incertitude modérée',
   },
   uncertainty_high: {
-    en: 'High Uncertainty',
+    en: 'High uncertainty',
     fr: 'Forte incertitude',
   },
   'charts-unit-gas-category': {
@@ -225,16 +245,16 @@ export default {
     fr: 'Salles des bâtiments',
   },
   'charts-buildings-energy-combustion-category': {
-    en: 'Energy Combustion Emissions',
+    en: 'Energy combustion emissions',
     fr: 'Emissions de combustion d’énergie',
   },
   // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
-    en: 'Energy Combustion Emissions',
+    en: 'Energy combustion emissions',
     fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy Combustion Emissions',
+    en: 'Energy combustion emissions',
     fr: "Émissions de combustion d'énergie",
   },
   'charts-lighting-subcategory': {
@@ -326,7 +346,7 @@ export default {
     fr: 'Alimentation',
   },
   'charts-professional-travel-category': {
-    en: 'Professional Travel',
+    en: 'Professional travel',
     fr: 'Voyages professionnels',
   },
   'charts-it-category': {
@@ -334,7 +354,7 @@ export default {
     fr: 'Informatique',
   },
   'charts-research-core-facilities-category': {
-    en: 'Research Core Facilities',
+    en: 'Research core facilities',
     fr: 'Infrastructures de recherche',
   },
   'charts-purchases-category': {
@@ -354,7 +374,7 @@ export default {
     fr: 'Équipement',
   },
   'charts-external-cloud-category': {
-    en: 'External Cloud',
+    en: 'External cloud',
     fr: 'Cloud externe',
   },
   'emission-type-breakdown-info-equipment': {
@@ -446,23 +466,23 @@ export default {
     fr: 'Chauffage',
   },
   'charts-scientific-subcategory': {
-    en: 'Scientific Equipment',
+    en: 'Scientific equipment',
     fr: 'Équipement scientifique',
   },
   'charts-stockage-subcategory': {
-    en: 'Cloud Storage',
+    en: 'Cloud storage',
     fr: 'Stockage cloud',
   },
   'charts-virtualisation-subcategory': {
-    en: 'Cloud Virtualisation',
+    en: 'Cloud virtualisation',
     fr: 'Virtualisation cloud',
   },
   'charts-calcul-subcategory': {
-    en: 'Cloud Compute',
+    en: 'Cloud compute',
     fr: 'Calcul cloud',
   },
   'charts-ai-provider-subcategory': {
-    en: 'AI Provider',
+    en: 'AI provider',
     fr: 'Fournisseur IA',
   },
   'charts-ai-provider-google-subcategory': {
@@ -490,11 +510,11 @@ export default {
     fr: 'Autres',
   },
   'charts-research-facilities-subcategory': {
-    en: 'Research Facilities',
+    en: 'Research facilities',
     fr: 'Infrastructures de recherche',
   },
   'charts-research-animal-subcategory': {
-    en: 'Animal Facilities',
+    en: 'Animal facilities',
     fr: 'Infrastructures pour animaux',
   },
   'charts-rest-subcategory': {
@@ -518,15 +538,15 @@ export default {
     fr: 'RCP',
   },
   'charts-main-category': {
-    en: 'Main Categories',
+    en: 'Main categories',
     fr: 'Catégories principales',
   },
   'charts-additional-category': {
-    en: 'Additional Categories',
+    en: 'Additional categories',
     fr: 'Catégories supplémentaires',
   },
   results_treemap_title: {
-    en: 'Emissions Breakdown',
+    en: 'Emissions breakdown',
     fr: 'Répartition des émissions',
   },
   'no-chart-data': {
@@ -546,15 +566,215 @@ export default {
     fr: 'EPFL',
   },
   'charts-objective-tick': {
-    en: '2030 Objective',
+    en: '2030 objective',
     fr: 'Objectif 2030',
   },
   'charts-view-emission-breakdown': {
-    en: 'Emission Breakdown',
+    en: 'Emission breakdown',
     fr: 'Répartition des émissions',
   },
   'charts-view-emission-type': {
-    en: 'Emission Type',
+    en: 'Emission type',
     fr: "Type d'émission",
+  },
+  results_additional_title: {
+    en: 'Additional categories',
+    fr: 'Catégories additionnelles',
+  },
+  results_additional_subtitle: {
+    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
+    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.",
+  },
+  results_additional_commuting_total: {
+    en: 'Total commuting carbon footprint',
+    fr: 'Empreinte carbone totale de la pendularité',
+  },
+  results_additional_food_total: {
+    en: 'Total food carbon footprint',
+    fr: "Empreinte carbone totale de l'alimentation",
+  },
+  results_additional_waste_total: {
+    en: 'Total waste carbon footprint',
+    fr: 'Empreinte carbone totale des déchets',
+  },
+  results_additional_waste_tooltip: {
+    en: 'All waste is recycled, apart from domestic waste which is incinerated.',
+    fr: 'Tous les déchets sont recyclés à l’exception de déchets municipaux qui sont incinérés.',
+  },
+  results_waste_tooltip: {
+    en: 'All waste is recycled, apart from domestic waste which is incinerated.',
+    fr: "Tous les déchets sont recyclés à l'exception de déchets municipaux qui sont incinérés.",
+  },
+  results_additional_commuting_breakdown_title: {
+    en: 'Breakdown of commuting carbon footprint by category',
+    fr: "Contribution des différentes catégories à l'empreinte carbone de la pendularité",
+  },
+  results_additional_food_breakdown_title: {
+    en: 'Breakdown of food carbon footprint by category',
+    fr: "Contribution des différentes catégories à l'empreinte carbone de l'alimentation",
+  },
+  results_additional_waste_breakdown_title: {
+    en: 'Breakdown of waste carbon footprint by category',
+    fr: "Contribution des différentes catégories à l'empreinte carbone des déchets",
+  },
+  results_additional_co2_chart_title: {
+    en: 'Emissions CO₂-eq',
+    fr: 'Émissions CO₂-éq',
+  },
+  results_additional_physical_chart_title: {
+    en: 'Physical quantity',
+    fr: 'Quantité physique',
+  },
+  results_grey_energy_title: {
+    en: 'Grey energy (embodied energy)',
+    fr: 'Énergie grise (énergie intrinsèque)',
+  },
+  results_grey_energy_placeholder: {
+    en: 'Grey energy data coming soon',
+    fr: "Données sur l'énergie grise bientôt disponibles",
+  },
+  results_additional_embodied_energy_tooltip: {
+    en: 'This corresponds to embedded energy emissions in buildings.',
+    fr: "Ces émissions correspondent à l'énergie grise des bâtiments.",
+  },
+  results_additional_embodied_energy_chart_tooltip: {
+    en: 'This analysis only covers current constructions, renovations and demolitions; it does not include buildings constructed, renovated or demolished in other years. The actual footprint of EPFL buildings is higher.',
+    fr: "Cette analyse ne concerne que les constructions, rénovations et démolitions en cours; elle n'inclut pas les bâtiments construits, rénovés ou démolis dans le passé. L'empreinte carbone réelle des bâtiments de l'EPFL est plus élevée.",
+  },
+  results_additional_embodied_energy_breakdown_title: {
+    en: 'Breakdown of construction and renovation carbon footprint by building',
+    fr: "Répartition de l'empreinte carbone des constructions et rénovations par bâtiment",
+  },
+  'charts-embodied-energy-subcategory': {
+    en: 'Embodied energy',
+    fr: 'Énergie grise',
+  },
+  // Commuting sub-type labels
+  'charts-walking-subcategory': {
+    en: 'Walking',
+    fr: 'Marche',
+  },
+  'charts-cycling-subcategory': {
+    en: 'Cycling',
+    fr: 'Vélo',
+  },
+  'charts-powered-two-wheeler-subcategory': {
+    en: 'Powered two-wheeler',
+    fr: 'Deux-roues motorisé',
+  },
+  'charts-public-transport-subcategory': {
+    en: 'Public transport',
+    fr: 'Transports en commun',
+  },
+  'charts-car-subcategory': {
+    en: 'Car',
+    fr: 'Voiture',
+  },
+  // Food sub-type labels
+  'charts-vegetarian-subcategory': {
+    en: 'Vegetarian',
+    fr: 'Végétarien',
+  },
+  'charts-non-vegetarian-subcategory': {
+    en: 'Non-vegetarian',
+    fr: 'Non-végétarien',
+  },
+  // Waste sub-type labels
+  'charts-incineration-subcategory': {
+    en: 'Incineration',
+    fr: 'Incinération',
+  },
+  'charts-composting-subcategory': {
+    en: 'Composting',
+    fr: 'Compostage',
+  },
+  'charts-biogas-subcategory': {
+    en: 'Biogas',
+    fr: 'Biogaz',
+  },
+  'charts-recycling-subcategory': {
+    en: 'Recycling',
+    fr: 'Recyclage',
+  },
+  'charts-organic-waste-food-leftovers-subcategory': {
+    en: 'Organic waste / food leftovers',
+    fr: 'Déchets organiques / restes alimentaires',
+  },
+  'charts-cooking-vegetable-oil-subcategory': {
+    en: 'Cooking vegetable oil',
+    fr: 'Huile végétale de cuisson',
+  },
+  'charts-cardboard-subcategory': {
+    en: 'Cardboard',
+    fr: 'Carton',
+  },
+  'charts-plastics-subcategory': {
+    en: 'Plastics',
+    fr: 'Plastiques',
+  },
+  'charts-glass-subcategory': {
+    en: 'Glass',
+    fr: 'Verre',
+  },
+  'charts-ferrous-metals-subcategory': {
+    en: 'Ferrous metals',
+    fr: 'Métaux ferreux',
+  },
+  'charts-non-ferrous-metals-subcategory': {
+    en: 'Non-ferrous metals',
+    fr: 'Métaux non ferreux',
+  },
+  'charts-electronics-subcategory': {
+    en: 'Electronics',
+    fr: 'Électronique',
+  },
+  'charts-pet-subcategory': {
+    en: 'PET',
+    fr: 'PET',
+  },
+  'charts-aluminum-subcategory': {
+    en: 'Aluminum',
+    fr: 'Aluminium',
+  },
+  'charts-textile-subcategory': {
+    en: 'Textile',
+    fr: 'Textile',
+  },
+  'charts-toner-and-ink-cartridges-subcategory': {
+    en: 'Toner & ink cartridges',
+    fr: 'Cartouches toner & encre',
+  },
+  'charts-inert-waste-subcategory': {
+    en: 'Inert waste',
+    fr: 'Déchets inertes',
+  },
+  // Waste display category labels (grouped)
+  'charts-domestic-subcategory': {
+    en: 'Domestic (incinerated)',
+    fr: 'Déchets municipaux (incinérés)',
+  },
+  'charts-organic-subcategory': {
+    en: 'Organic',
+    fr: 'Organique',
+  },
+  'charts-paper-subcategory': {
+    en: 'Paper',
+    fr: 'Papier',
+  },
+  'charts-plastic-subcategory': {
+    en: 'Plastic',
+    fr: 'Plastique',
+  },
+  'charts-metals-subcategory': {
+    en: 'Metals',
+    fr: 'Métaux',
+  },
+  'charts-wood-subcategory': {
+    en: 'Wood',
+    fr: 'Bois',
+  },
+  'charts-other-subcategory': {
+    en: 'Other',
+    fr: 'Autre',
   },
 } as const;

@@ -49,6 +49,15 @@ const currentYear = computed(() => {
 
 const resultsSummary = ref<ResultsSummary | null>(null);
 const resultsSummaryLoading = ref(false);
+const chartsReady = ref(false);
+
+const adjustedTotalTonnes = computed<number | null>(() => {
+  return resultsSummary.value?.unit_totals.total_tonnes_co2eq ?? null;
+});
+
+const adjustedTonnesPerFte = computed<number | null>(() => {
+  return resultsSummary.value?.unit_totals.tonnes_co2eq_per_fte ?? null;
+});
 
 const hideResearchFacilities = ref(false);
 
@@ -88,6 +97,13 @@ async function fetchEmissionBreakdown() {
 onMounted(() => {
   fetchResultsSummary();
   fetchEmissionBreakdown();
+
+  const schedule =
+    window.requestIdleCallback ??
+    ((cb: () => void) => window.setTimeout(cb, 0));
+  schedule(() => {
+    chartsReady.value = true;
+  });
 });
 
 // Watch for year/unit changes
@@ -219,8 +235,11 @@ const getUncertainty = (
         <BigNumber
           :title="$t('results_total_unit_carbon_footprint')"
           :number="
-            $formatTonnesCO2(resultsSummary.unit_totals.total_tonnes_co2eq)
+            $nOrDash(adjustedTotalTonnes, {
+              options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+            })
           "
+          tooltip-placement="comparison"
           :comparison="
             $t('results_equivalent_to_car', {
               km: $n(resultsSummary.unit_totals.equivalent_car_km),
@@ -238,9 +257,68 @@ const getUncertainty = (
           }}</template>
         </BigNumber>
         <BigNumber
-          :title="$t('results_carbon_footprint_per_fte')"
+          :title="$t('results_unit_carbon_footprint')"
           :number="
-            $formatTonnesCO2(resultsSummary.unit_totals.tonnes_co2eq_per_fte)
+            formatPercentChange(
+              resultsSummary.unit_totals.year_comparison_percentage,
+            )
+          "
+          :unit="
+            resultsSummary.unit_totals.year_comparison_percentage == null
+              ? $t('results_no_comparison_year_available')
+              : $t('results_compared_to', {
+                  year: (currentYear - 1).toString(),
+                })
+          "
+          :color="
+            resultsSummary.unit_totals.year_comparison_percentage == null
+              ? undefined
+              : resultsSummary.unit_totals.year_comparison_percentage < 0
+                ? 'positive'
+                : 'negative'
+          "
+          :comparison="
+            resultsSummary.unit_totals.year_comparison_percentage == null
+              ? undefined
+              : $t('results_compared_to_value_of', {
+                  value: `${$nOrDash(
+                    resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
+                    {
+                      options: {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      },
+                    },
+                  )}${$t('results_units_tonnes')}`,
+                })
+          "
+          :comparison-highlight="
+            resultsSummary.unit_totals.year_comparison_percentage == null
+              ? undefined
+              : `${$nOrDash(
+                  resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
+                  {
+                    options: {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    },
+                  },
+                )}${$t('results_units_tonnes')}`
+          "
+        >
+        </BigNumber>
+        <BigNumber
+          :title="
+            resultsSummary.unit_totals.total_fte == null
+              ? $t('results_carbon_footprint_per_FTE_no_headcount')
+              : $t('results_carbon_footprint_per_fte', {
+                  FTE: resultsSummary.unit_totals.total_fte,
+                })
+          "
+          :number="
+            $nOrDash(adjustedTonnesPerFte, {
+              options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+            })
           "
           :comparison="
             $t('results_paris_agreement_value', {
@@ -250,66 +328,29 @@ const getUncertainty = (
           :comparison-highlight="`${$nOrDash(2)}${$t('results_units_tonnes')}`"
           color="negative"
         >
-          <template #tooltip>{{
-            $t('results_paris_agreement_tooltip')
-          }}</template>
         </BigNumber>
-        <div
-          :class="{
-            'no-data-styling':
-              resultsSummary.unit_totals.year_comparison_percentage == null,
-          }"
-        >
-          <BigNumber
-            :title="$t('results_unit_carbon_footprint')"
-            :number="
-              formatPercentChange(
-                resultsSummary.unit_totals.year_comparison_percentage,
-              )
-            "
-            :unit="
-              $t('results_compared_to', {
-                year: (currentYear - 1).toString(),
-              })
-            "
-            :color="
-              resultsSummary.unit_totals.year_comparison_percentage == null
-                ? undefined
-                : resultsSummary.unit_totals.year_comparison_percentage < 0
-                  ? 'positive'
-                  : 'negative'
-            "
-            :comparison="
-              $t('results_compared_to_value_of', {
-                value: `${$formatTonnesCO2(
-                  resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
-                )}${$t('results_units_tonnes')}`,
-              })
-            "
-            :comparison-highlight="`${$formatTonnesCO2(
-              resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
-            )}${$t('results_units_tonnes')}`"
-          >
-          </BigNumber>
-        </div>
       </q-card>
-      <q-card flat class="grid-2-col">
-        <ModuleCarbonFootprintChart
-          :breakdown-data="moduleStore.state.emissionBreakdown"
-        />
-        <CarbonFootPrintPerPersonChart
-          :per-person-breakdown="
-            moduleStore.state.emissionBreakdown?.per_person_breakdown
-          "
-          :validated-categories="
-            moduleStore.state.emissionBreakdown?.validated_categories
-          "
-          :headcount-validated="
-            moduleStore.state.emissionBreakdown?.validated_categories?.includes(
-              'commuting',
-            ) ?? false
-          "
-        />
+      <q-card v-if="chartsReady" flat class="results-charts-grid">
+        <div class="results-charts-grid__main">
+          <ModuleCarbonFootprintChart
+            :breakdown-data="moduleStore.state.emissionBreakdown"
+          />
+        </div>
+        <div class="results-charts-grid__side">
+          <CarbonFootPrintPerPersonChart
+            :per-person-breakdown="
+              moduleStore.state.emissionBreakdown?.per_person_breakdown
+            "
+            :validated-categories="
+              moduleStore.state.emissionBreakdown?.validated_categories
+            "
+            :headcount-validated="
+              moduleStore.state.emissionBreakdown?.validated_categories?.includes(
+                'commuting',
+              ) ?? false
+            "
+          />
+        </div>
       </q-card>
 
       <q-card flat bordered class="q-pa-xl">
@@ -430,7 +471,54 @@ const getUncertainty = (
                       }}</template>
                     </BigNumber>
                     <BigNumber
-                      :title="$t('results_carbon_footprint_per_fte')"
+                      :title="
+                        $t('results_module_carbon_footprint', {
+                          module: $t(module),
+                        })
+                      "
+                      :number="
+                        formatPercentChange(
+                          getModuleResult(module)!.year_comparison_percentage,
+                        )
+                      "
+                      :unit="
+                        $t('results_compared_to', {
+                          year: (currentYear - 1).toString(),
+                        })
+                      "
+                      :color="
+                        getModuleResult(module)!.year_comparison_percentage ==
+                        null
+                          ? undefined
+                          : getModuleResult(module)!
+                                .year_comparison_percentage! < 0
+                            ? 'positive'
+                            : 'negative'
+                      "
+                      :comparison="
+                        $t('results_compared_to_value_of', {
+                          value: `${getModuleConfig(module).totalFormatter(
+                            getModuleResult(module)!
+                              .previous_year_total_tonnes_co2eq,
+                          )}${$t('results_units_tonnes')}`,
+                        })
+                      "
+                      :comparison-highlight="`${getModuleConfig(
+                        module,
+                      ).totalFormatter(
+                        getModuleResult(module)!
+                          .previous_year_total_tonnes_co2eq,
+                      )}${$t('results_units_tonnes')}`"
+                    >
+                    </BigNumber>
+                    <BigNumber
+                      :title="
+                        resultsSummary.unit_totals.total_fte == null
+                          ? $t('results_carbon_footprint_per_FTE_no_headcount')
+                          : $t('results_carbon_footprint_per_fte', {
+                              FTE: resultsSummary.unit_totals.total_fte,
+                            })
+                      "
                       :number="
                         getModuleConfig(module).totalFormatter(
                           getModuleResult(module)!.tonnes_co2eq_per_fte,
@@ -448,55 +536,6 @@ const getUncertainty = (
                         $t('results_paris_agreement_tooltip')
                       }}</template>
                     </BigNumber>
-                    <div
-                      :class="{
-                        'no-data-styling':
-                          getModuleResult(module)!.year_comparison_percentage ==
-                          null,
-                      }"
-                    >
-                      <BigNumber
-                        :title="
-                          $t('results_module_carbon_footprint', {
-                            module: $t(module),
-                          })
-                        "
-                        :number="
-                          formatPercentChange(
-                            getModuleResult(module)!.year_comparison_percentage,
-                          )
-                        "
-                        :unit="
-                          $t('results_compared_to', {
-                            year: (currentYear - 1).toString(),
-                          })
-                        "
-                        :color="
-                          getModuleResult(module)!.year_comparison_percentage ==
-                          null
-                            ? undefined
-                            : getModuleResult(module)!
-                                  .year_comparison_percentage! < 0
-                              ? 'positive'
-                              : 'negative'
-                        "
-                        :comparison="
-                          $t('results_compared_to_value_of', {
-                            value: `${getModuleConfig(module).totalFormatter(
-                              getModuleResult(module)!
-                                .previous_year_total_tonnes_co2eq,
-                            )}${$t('results_units_tonnes')}`,
-                          })
-                        "
-                        :comparison-highlight="`${getModuleConfig(
-                          module,
-                        ).totalFormatter(
-                          getModuleResult(module)!
-                            .previous_year_total_tonnes_co2eq,
-                        )}${$t('results_units_tonnes')}`"
-                      >
-                      </BigNumber>
-                    </div>
                   </q-card>
                 </template>
 
@@ -541,13 +580,13 @@ const getUncertainty = (
   gap: 16px;
 }
 
-@media (min-width: 1320px) {
+@media (min-width: 1024px) {
   .results-charts-grid {
     grid-template-columns: repeat(3, 1fr);
-    align-items: start;
+    align-items: stretch;
   }
 
-  .results-charts-grid > :first-child {
+  .results-charts-grid__main {
     grid-column: span 2;
   }
 }

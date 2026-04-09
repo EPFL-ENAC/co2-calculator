@@ -5,7 +5,7 @@ import {
 
 export default {
   [MODULES.ResearchFacilities]: {
-    en: 'EPFL Research Facilities',
+    en: 'EPFL research facilities',
     fr: 'Infrastructures de recherche EPFL',
   },
   [`${MODULES.ResearchFacilities}-description`]: {

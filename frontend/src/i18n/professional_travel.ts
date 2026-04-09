@@ -110,7 +110,7 @@ export default {
   },
   // Legacy keys (keeping for backward compatibility)
   [MODULES.ProfessionalTravel]: {
-    en: 'Professional Travel',
+    en: 'Professional travel',
     fr: 'Voyages professionnels ',
   },
   [`${MODULES.ProfessionalTravel}-description`]: {
