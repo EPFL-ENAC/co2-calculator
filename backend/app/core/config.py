@@ -110,6 +110,56 @@ class Settings(BaseSettings):
         description="Secret key for JWT encoding/decoding (REQUIRED)",
     )
 
+    # CSRF protection configuration
+    CSRF_ENABLED: bool = Field(
+        default=False,
+        description="Enable CSRF protection on protected HTTP methods",
+    )
+    CSRF_HEADER_NAME: str = Field(
+        default="X-CSRF",
+        description=(
+            "Header name expected by CSRF validation. Canonical value is X-CSRF."
+        ),
+    )
+    CSRF_PROTECTED_METHODS: str = Field(
+        default="POST,PUT,DELETE",
+        description=(
+            "Comma-separated HTTP methods that require CSRF validation "
+            "(e.g., POST,PUT,DELETE)."
+        ),
+    )
+    CSRF_COOKIE_KEY: str = Field(
+        default="fastapi-csrf-token",
+        description="Cookie key used to store signed CSRF token",
+    )
+    CSRF_COOKIE_PATH: str = Field(
+        default="/",
+        description="Cookie path for CSRF token cookie",
+    )
+    CSRF_COOKIE_MAX_AGE: int = Field(
+        default=3600,
+        description="CSRF token cookie max-age in seconds",
+    )
+    CSRF_COOKIE_SAMESITE: str = Field(
+        default="lax",
+        description="CSRF cookie SameSite policy: lax, none, or strict",
+    )
+    CSRF_COOKIE_SECURE: bool = Field(
+        default=False,
+        description="Set True in HTTPS environments",
+    )
+    CSRF_COOKIE_HTTPONLY: bool = Field(
+        default=True,
+        description="Whether CSRF cookie is HttpOnly",
+    )
+    CSRF_SECRET_KEY: Optional[str] = Field(
+        default=None,
+        description=(
+            "Dedicated CSRF signing key. If empty, SECRET_KEY is reused "
+            "for CSRF token signing."
+        ),
+    )
+
     ALGORITHM: str = "HS256"
 
     # OPA Configuration
@@ -254,6 +304,17 @@ class Settings(BaseSettings):
         default="",
         description="SHA256 short hash of formula (e.g., git commit)",
     )
+
+    @computed_field
+    def csrf_effective_secret_key(self) -> str:
+        """Return CSRF signing key, preferring dedicated key when configured."""
+        return self.CSRF_SECRET_KEY or self.SECRET_KEY
+
+    @computed_field
+    def csrf_protected_methods_set(self) -> tuple[str, ...]:
+        """Return normalized CSRF-protected methods from CSV config."""
+        methods = [m.strip().upper() for m in self.CSRF_PROTECTED_METHODS.split(",")]
+        return tuple(method for method in methods if method)
 
     @computed_field
     def oauth_metadata_url(self) -> str:
