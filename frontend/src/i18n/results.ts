@@ -777,4 +777,90 @@ export default {
     en: 'Other',
     fr: 'Autre',
   },
+  // --- IT Focus Section ---
+  'it-focus-title': {
+    en: 'IT carbon footprint',
+    fr: 'Empreinte carbone IT',
+  },
+  'it-focus-subtitle': {
+    en: 'Aggregated IT-related emissions across equipment, purchases, and cloud services.',
+    fr: 'Émissions IT agrégées : équipements, achats et services cloud.',
+  },
+  'it-focus-total': {
+    en: 'Total IT carbon footprint',
+    fr: 'Empreinte carbone IT totale',
+  },
+  'it-focus-per-fte': {
+    en: 'IT carbon footprint per FTE',
+    fr: 'Empreinte carbone IT par ETP',
+  },
+  'it-focus-share-of-total': {
+    en: 'IT share of total emissions',
+    fr: 'Part IT des émissions totales',
+  },
+  'it-focus-equipment-it': {
+    en: 'IT equipment - energy use',
+    fr: 'Équipements IT - consommation énergétique',
+  },
+  'it-focus-purchases-it': {
+    en: 'IT purchases',
+    fr: 'Achats IT',
+  },
+  'it-focus-cloud-ai': {
+    en: 'IA & external clouds',
+    fr: 'IA & clouds externes',
+  },
+  'it-focus-breakdown-bar-title': {
+    en: 'IT emissions breakdown',
+    fr: 'Répartition des émissions IT',
+  },
+  'it-focus-breakdown-bar-title-tooltip': {
+    en: 'The emissions considered here are those related to the purchase of IT equipment, the energy required for its use, and the use of services (internal or external) such as AI and cloud services.',
+    fr: "Les émissions considérées ici sont celles liées à l'achat d'équipement informatique, à l'énergie nécessaire pour l'utiliser, et à l'usage des services (internes ou externes) tels que l'IA et les clouds externes.",
+  },
+
+  'it-focus-cloud-ai-detail-title': {
+    en: 'Cloud & AI detail',
+    fr: 'Détail Cloud & IA',
+  },
+  'it-focus-cloud-stockage': {
+    en: 'Storage',
+    fr: 'Stockage',
+  },
+  'it-focus-cloud-virtualisation': {
+    en: 'Virtualisation',
+    fr: 'Virtualisation',
+  },
+  'it-focus-cloud-calcul': {
+    en: 'Computing',
+    fr: 'Calcul',
+  },
+  'it-focus-cloud-ai-providers': {
+    en: 'AI providers',
+    fr: 'Fournisseurs IA',
+  },
+  'it-focus-scope-2': {
+    en: 'Scope 2',
+    fr: 'Scope 2',
+  },
+  'it-focus-scope-3': {
+    en: 'Scope 3',
+    fr: 'Scope 3',
+  },
+  'it-focus-rest': {
+    en: 'Other',
+    fr: 'Autres',
+  },
+  'it-focus-research-facilities': {
+    en: 'IT research facilities',
+    fr: 'Infrastructures de recherche IT',
+  },
+  'it-title': {
+    en: 'IT focus',
+    fr: 'Focus numérique',
+  },
+  'it-subtitle': {
+    en: 'Carbon footprint 2025',
+    fr: 'Empreinte carbone 2025',
+  },
 } as const;
