@@ -564,4 +564,28 @@ export default {
     en: 'File upload failed',
     fr: 'Échec du téléversement du fichier',
   },
+  data_management_compute_factors: {
+    en: 'Compute Factors',
+    fr: 'Calculer les facteurs',
+  },
+  data_management_compute_factors_confirm_title: {
+    en: 'Recompute Factors',
+    fr: 'Recalculer les facteurs',
+  },
+  data_management_compute_factors_confirm_message: {
+    en: 'This will recompute the emission factors from the existing data entries for this submodule. Any previously computed factors will be overwritten. Do you want to proceed?',
+    fr: "Ceci recalculera les facteurs d'émission à partir des données existantes pour ce sous-module. Les facteurs précédemment calculés seront écrasés. Souhaitez-vous continuer ?",
+  },
+  data_management_compute_factors_success: {
+    en: 'Factors computed successfully',
+    fr: 'Facteurs calculés avec succès',
+  },
+  data_management_compute_factors_warning: {
+    en: 'Factors computed with warnings',
+    fr: 'Facteurs calculés avec avertissements',
+  },
+  data_management_compute_factors_error: {
+    en: 'Factor computation failed',
+    fr: 'Le calcul des facteurs a échoué',
+  },
 } as const;

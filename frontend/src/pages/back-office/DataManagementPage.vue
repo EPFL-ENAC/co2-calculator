@@ -15,6 +15,7 @@ import {
   TargetType,
   type ImportRow,
   type SyncJobResponse,
+  type JobUpdatePayload,
 } from 'src/stores/backofficeDataManagement';
 import {
   useYearConfigStore,
@@ -534,6 +535,94 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
   showDataEntryDialog.value = true;
+}
+
+// ── Computed Factor Sync (Research Facilities only) ───────────────────────────
+
+const showComputedFactorConfirm = ref(false);
+const pendingComputedFactorSub = ref<SubmoduleConfig | null>(null);
+const computedFactorRunning = ref<Record<string, boolean>>({});
+const anyComputedFactorRunning = computed(() =>
+  Object.values(computedFactorRunning.value).some(Boolean),
+);
+
+function openComputedFactorConfirm(sub: SubmoduleConfig): void {
+  pendingComputedFactorSub.value = sub;
+  showComputedFactorConfirm.value = true;
+}
+
+async function confirmComputedFactorSync(): Promise<void> {
+  const sub = pendingComputedFactorSub.value;
+  if (!sub || sub.dataEntryTypeId === undefined) return;
+  showComputedFactorConfirm.value = false;
+
+  computedFactorRunning.value[sub.key] = true;
+  try {
+    const jobId = await backofficeDataManagement.initiateComputedFactorSync(
+      sub.moduleTypeId,
+      sub.dataEntryTypeId,
+      selectedYear.value,
+    );
+
+    backofficeDataManagement.subscribeToJobUpdates(
+      jobId,
+      (payload?: JobUpdatePayload) => {
+        const result = payload?.result;
+        if (result === IngestionResult.WARNING) {
+          Notify.create({
+            type: 'warning',
+            message: $t('data_management_compute_factors_warning'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        } else if (result === IngestionResult.SUCCESS) {
+          Notify.create({
+            type: 'positive',
+            message: $t('data_management_compute_factors_success'),
+            position: 'top',
+            timeout: 5000,
+          });
+        } else {
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_compute_factors_error'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        }
+        computedFactorRunning.value[sub.key] = false;
+        void handleJobCompleted();
+      },
+      (payload?: JobUpdatePayload) => {
+        Notify.create({
+          type: 'negative',
+          message: $t('data_management_compute_factors_error'),
+          caption: payload?.status_message ?? '',
+          position: 'top',
+          timeout: 5000,
+        });
+        computedFactorRunning.value[sub.key] = false;
+        void handleJobCompleted();
+      },
+      () => {
+        computedFactorRunning.value[sub.key] = false;
+      },
+      () => {
+        void handleJobProgressing();
+      },
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '';
+    Notify.create({
+      type: 'negative',
+      message: $t('data_management_compute_factors_error'),
+      caption: msg,
+      position: 'top',
+    });
+    computedFactorRunning.value[sub.key] = false;
+  }
 }
 
 function downloadLastCsv(row: ImportRow, targetType: TargetType) {
@@ -1228,6 +1317,28 @@ onMounted(() => {
                               )
                             "
                           />
+                          <template
+                            v-if="module === MODULES.ResearchFacilities"
+                          >
+                            <q-spinner-rings
+                              v-if="computedFactorRunning[submodule.key]"
+                              color="grey"
+                            />
+                            <q-btn
+                              v-else
+                              color="accent"
+                              outline
+                              icon="calculate"
+                              size="sm"
+                              :label="$t('data_management_compute_factors')"
+                              class="text-weight-medium"
+                              :disable="
+                                getImportRow(submodule).isDisabled ||
+                                anyComputedFactorRunning
+                              "
+                              @click="openComputedFactorConfirm(submodule)"
+                            />
+                          </template>
                         </div>
                         <div
                           v-if="getImportRow(submodule).lastFactorJob?.meta"
@@ -1792,5 +1903,33 @@ onMounted(() => {
       @completed="handleJobCompleted"
       @progressing="handleJobProgressing"
     />
+
+    <!-- Computed factor sync confirmation dialog (Research Facilities) -->
+    <q-dialog v-model="showComputedFactorConfirm" persistent>
+      <q-card style="min-width: 420px">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="calculate" color="accent" size="sm" class="q-mr-sm" />
+          <div class="text-h6">
+            {{ $t('data_management_compute_factors_confirm_title') }}
+          </div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          {{ $t('data_management_compute_factors_confirm_message') }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            :label="$t('common_cancel')"
+            @click="showComputedFactorConfirm = false"
+          />
+          <q-btn
+            color="accent"
+            unelevated
+            :label="$t('common_confirm')"
+            @click="confirmComputedFactorSync()"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>

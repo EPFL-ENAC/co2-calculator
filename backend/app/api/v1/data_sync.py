@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.security import is_permitted, require_permission
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -196,25 +197,102 @@ async def sync_module_data_entries(
     }
 
 
-@router.post("/factors/{module_id}/{factor_type_id}", response_model=SyncStatusResponse)
+@router.post(
+    "/factors/{module_type_id}/{data_entry_type_id}", response_model=SyncStatusResponse
+)
 async def sync_module_factors(
-    module_id: int,
-    factor_type_id: int,
+    module_type_id: ModuleTypeEnum,
+    data_entry_type_id: DataEntryTypeEnum,
     syncRequest: SyncRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("backoffice.data_management", "sync")
     ),
 ):
     """
-    Sync factors for a specific module.
+    Sync (recompute) factors for a specific module and data-entry type.
 
     **Required Permission**: `backoffice.data_management.sync`
 
-    Implementation similar to sync_module_data_entries,
-    but tailored for factor synchronization.
+    ``year`` is **mandatory** for this endpoint — factor updates are always
+    year-scoped.
+
+    Example request body for computed factor update:
+    {
+        "ingestion_method": 3,
+        "target_type": 1,
+        "year": 2025
+    }
     """
-    pass
+    if syncRequest.year is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="year is required for factor sync",
+        )
+
+    config: dict = {
+        "entity_type": EntityType.MODULE_PER_YEAR.value,
+        "year": syncRequest.year,
+        "data_entry_type_id": data_entry_type_id.value,
+    }
+
+    provider = await ProviderFactory.create_provider(
+        module_type_id=ModuleTypeEnum(module_type_id),
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
+        config=config,
+        user=current_user,
+        job_session=db,
+        data_session=db,
+    )
+
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Provider '{syncRequest.ingestion_method}' not supported for "
+                f"module '{module_type_id}' / data-entry type '{data_entry_type_id}'"
+            ),
+        )
+
+    if not await provider.validate_connection():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {syncRequest.ingestion_method}",
+        )
+
+    job_id = await provider.create_job(
+        module_type_id=ModuleTypeEnum(module_type_id),
+        data_entry_type_id=data_entry_type_id.value,
+        entity_type=EntityType.MODULE_PER_YEAR,
+        year=syncRequest.year,
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
+        config=config,
+        db=db,
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
+    )
+    await db.commit()
+
+    background_tasks.add_task(
+        run_ingestion,
+        provider_name=provider.__class__.__name__,
+        job_id=job_id,
+        filters=syncRequest.filters or {},
+    )
+
+    return {
+        "job_id": job_id,
+        "state": IngestionState.NOT_STARTED,
+        "message": f"Sync initiated using {syncRequest.ingestion_method}",
+        "progress": None,
+    }
 
 
 @router.get("/jobs/by-status", response_model=list[DataIngestionJob])

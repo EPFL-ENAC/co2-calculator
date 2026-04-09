@@ -85,6 +85,7 @@ export enum IngestionMethod {
   API = 0,
   CSV = 1,
   MANUAL = 2,
+  COMPUTED = 3,
 }
 
 export enum TargetType {
@@ -470,11 +471,16 @@ provider_type
             const isSuccess =
               state === IngestionState.FINISHED &&
               result === IngestionResult.SUCCESS;
+            // WARNING is a terminal state: job finished but with partial issues.
+            // Treat it as completed so callers can reset spinners and display the warning.
+            const isWarning =
+              state === IngestionState.FINISHED &&
+              result === IngestionResult.WARNING;
             const isFailure =
               state === IngestionState.FINISHED &&
               result === IngestionResult.ERROR;
 
-            if (isSuccess) {
+            if (isSuccess || isWarning) {
               onCompleted?.(update);
             }
 
@@ -567,6 +573,47 @@ provider_type
       }
     }
 
+    /**
+     * Trigger a computed factor recomputation for a given module / data-entry type.
+     * Uses the dedicated /sync/factors endpoint with ingestion_method=COMPUTED.
+     *
+     * Returns the created job_id.
+     */
+    async function initiateComputedFactorSync(
+      moduleTypeId: number,
+      dataEntryTypeId: number,
+      year: number,
+    ): Promise<number> {
+      if (loading.value) throw new Error('Another operation is in progress');
+
+      loading.value = true;
+      error.value = null;
+
+      try {
+        const response = (await api
+          .post(`sync/factors/${moduleTypeId}/${dataEntryTypeId}`, {
+            json: {
+              ingestion_method: IngestionMethod.COMPUTED,
+              target_type: TargetType.FACTORS,
+              year,
+            },
+          })
+          .json()) as { job_id: number };
+
+        return response.job_id;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value =
+            err.message ?? 'Failed to initiate computed factor sync';
+        } else {
+          error.value = 'Failed to initiate computed factor sync';
+        }
+        throw err;
+      } finally {
+        loading.value = false;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -594,6 +641,7 @@ provider_type
       fetchLatestSyncJobsByYear,
       getPreviousYearSuccessfulJobs,
       initiateSync,
+      initiateComputedFactorSync,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       reset,
