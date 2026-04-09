@@ -330,24 +330,26 @@ class DataIngestionRepository:
         exec_result = await self.session.execute(stmt)
         rows = exec_result.all()
 
-        # Fetch the actual DataIngestionJob for the factor side to get its result
+        # Fetch only id + result for factor jobs — avoids loading the meta JSON field.
         factor_job_ids = [r.max_factor_job_id for r in rows]
-        factor_jobs_by_id: dict[int, DataIngestionJob] = {}
+        factor_job_result_by_id: dict[int, Optional[IngestionResult]] = {}
         if factor_job_ids:
-            fj_stmt = select(DataIngestionJob).where(
-                col(DataIngestionJob.id).in_(factor_job_ids)
-            )
+            fj_stmt = select(
+                col(DataIngestionJob.id),
+                col(DataIngestionJob.result),
+            ).where(col(DataIngestionJob.id).in_(factor_job_ids))
             fj_result = await self.session.execute(fj_stmt)
-            for job in fj_result.scalars().all():
-                if job.id is not None:
-                    factor_jobs_by_id[job.id] = job
+            for fj_row in fj_result.all():
+                if fj_row.id is not None:
+                    factor_job_result_by_id[fj_row.id] = fj_row.result
 
         status_rows: list[RecalculationStatusRow] = []
         for row in rows:
             needs_recalculation = (
-                row.recalc_job_id is None or row.max_factor_job_id > row.recalc_job_id
+                row.recalc_job_id is None
+                or row.max_factor_job_id > row.recalc_job_id
+                or row.recalc_job_result == IngestionResult.ERROR
             )
-            factor_job = factor_jobs_by_id.get(row.max_factor_job_id)
             status_rows.append(
                 RecalculationStatusRow(
                     module_type_id=row.module_type_id,
@@ -355,7 +357,9 @@ class DataIngestionRepository:
                     year=year,
                     needs_recalculation=needs_recalculation,
                     last_factor_job_id=row.max_factor_job_id,
-                    last_factor_job_result=(factor_job.result if factor_job else None),
+                    last_factor_job_result=factor_job_result_by_id.get(
+                        row.max_factor_job_id
+                    ),
                     last_recalculation_job_id=row.recalc_job_id,
                     last_recalculation_job_result=row.recalc_job_result,
                 )

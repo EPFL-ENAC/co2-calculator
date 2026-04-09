@@ -149,8 +149,7 @@ async def run_module_recalculation_task(
 
     Iterates over all requested data_entry_type_ids in sequence.  A single
     failing type never aborts the others — errors are accumulated in per-type
-    stats.  data_session is committed once after all types are done
-    (all-or-nothing for the whole module).
+    stats.
 
     Final job result:
     - SUCCESS if no errors across all types

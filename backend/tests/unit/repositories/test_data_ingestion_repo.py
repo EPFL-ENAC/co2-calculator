@@ -176,6 +176,59 @@ async def test_get_recalculation_status_factor_newer_than_recalc(
 
 
 @pytest.mark.asyncio
+async def test_get_recalculation_status_recalc_job_error_needs_recalculation(
+    db_session: AsyncSession,
+):
+    """Recalculation job has higher id than factor job but
+    result=ERROR → needs_recalculation=True.
+
+    Even though the recalc job is newer (higher id), the failed result must not
+    hide the recalculation-needed badge.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    factor_job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    db_session.add(factor_job)
+    await db_session.flush()
+
+    # Insert recalc job AFTER so it gets a higher id
+    # (simulates "ran after the factor sync")
+    recalc_job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.computed,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=True,
+    )
+    db_session.add(recalc_job)
+    await db_session.flush()
+
+    assert recalc_job.id is not None
+    assert factor_job.id is not None
+    assert recalc_job.id > factor_job.id
+
+    rows = await repo.get_recalculation_status_by_year(2025)
+
+    assert len(rows) == 1
+    assert rows[0]["needs_recalculation"] is True
+    assert rows[0]["last_factor_job_id"] == factor_job.id
+    assert rows[0]["last_recalculation_job_id"] == recalc_job.id
+    assert rows[0]["last_recalculation_job_result"] == IngestionResult.ERROR
+
+
+@pytest.mark.asyncio
 async def test_get_recalculation_status_error_factor_job_excluded(
     db_session: AsyncSession,
 ):

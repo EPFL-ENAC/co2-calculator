@@ -84,6 +84,14 @@ class EmissionRecalculationWorkflow:
                 await module_svc.recompute_stats(module_id)
                 modules_refreshed += 1
             except Exception as exc:
+                errors += 1
+                error_details.append(
+                    {
+                        "carbon_report_module_id": module_id,
+                        "error": str(exc),
+                        "stage": "recompute_module_stats",
+                    }
+                )
                 logger.error(
                     f"Error recomputing stats for carbon_report_module_id="
                     f"{module_id}: {exc}"
