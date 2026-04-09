@@ -955,3 +955,138 @@ async def test_get_member_by_institutional_id_ignores_non_member_types(
 
     result = await repo.get_member_by_institutional_id(module.id, "100001")
     assert result is None
+
+
+# ======================================================================
+# list_by_data_entry_type_and_year Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_list_by_data_entry_type_and_year_matching_year(
+    db_session: AsyncSession,
+):
+    """Entries from a CarbonReport with the matching year are returned."""
+    from app.models.carbon_report import CarbonReport
+
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Trip A"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    results = await repo.list_by_data_entry_type_and_year(DataEntryTypeEnum.plane, 2025)
+
+    assert len(results) == 1
+    assert results[0].id == entry.id
+    assert results[0].data_entry_type_id == DataEntryTypeEnum.plane
+
+
+@pytest.mark.asyncio
+async def test_list_by_data_entry_type_and_year_non_matching_year(
+    db_session: AsyncSession,
+):
+    """Entries from a CarbonReport with a different year are not returned."""
+    from app.models.carbon_report import CarbonReport
+
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": "Trip A"},
+        )
+    )
+    await db_session.flush()
+
+    results = await repo.list_by_data_entry_type_and_year(DataEntryTypeEnum.plane, 2024)
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_list_by_data_entry_type_and_year_empty_result(
+    db_session: AsyncSession,
+):
+    """Returns empty list when no data entries exist for the type/year."""
+    repo = DataEntryRepository(db_session)
+
+    results = await repo.list_by_data_entry_type_and_year(DataEntryTypeEnum.plane, 2025)
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_list_by_data_entry_type_and_year_filters_by_type(
+    db_session: AsyncSession,
+):
+    """Only entries of the requested data_entry_type are returned."""
+    from app.models.carbon_report import CarbonReport
+
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": "Plane Trip"},
+        )
+    )
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.train,
+            status=DataEntryStatusEnum.PENDING,
+            data={"name": "Train Trip"},
+        )
+    )
+    await db_session.flush()
+
+    results = await repo.list_by_data_entry_type_and_year(DataEntryTypeEnum.plane, 2025)
+
+    assert len(results) == 1
+    assert results[0].data_entry_type_id == DataEntryTypeEnum.plane

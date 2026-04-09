@@ -1,13 +1,19 @@
 import enum
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_ingestion import DataIngestionJob, IngestionResult, IngestionState
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    IngestionMethod,
+    IngestionResult,
+    IngestionState,
+    TargetType,
+)
 
 logger = get_logger(__name__)
 
@@ -33,7 +39,10 @@ class DataIngestionRepository:
             return {
                 k: self.sanitize_for_json(v)
                 for k, v in obj.items()
-                if not k.startswith("_") and k != "_sa_instance_state"
+                if not (
+                    isinstance(k, str)
+                    and (k.startswith("_") or k == "_sa_instance_state")
+                )
             }
         elif isinstance(obj, list):
             return [self.sanitize_for_json(i) for i in obj]
@@ -172,6 +181,12 @@ class DataIngestionRepository:
                     where_clause,
                     col(DataIngestionJob.data_entry_type_id) == job.data_entry_type_id,
                 )
+            else:
+                # NULL != NULL in SQL — must use IS NULL explicitly
+                where_clause = and_(
+                    where_clause,
+                    col(DataIngestionJob.data_entry_type_id).is_(None),
+                )
 
             logger.info(f"Unsetting is_current for: {where_clause}")
 
@@ -231,3 +246,130 @@ class DataIngestionRepository:
         Used for SSE streaming of job updates.
         """
         return await self._get_jobs_by_state([IngestionState.FINISHED], negate=True)
+
+    async def get_recalculation_status_by_year(
+        self, year: int
+    ) -> list["RecalculationStatusRow"]:
+        """Derive per-(module_type_id, data_entry_type_id) recalculation status.
+
+        For each combination, compares the latest is_current FACTORS job ID
+        against the is_current DATA_ENTRIES/computed job ID.
+        ``needs_recalculation`` is True when no recalculation job exists yet, or
+        the last factor sync is more recent (higher serial PK) than the last
+        recalculation.
+
+        Args:
+            year: The report year to scope the query.
+
+        Returns:
+            List of RecalculationStatusRow dicts, one per
+            (module_type_id, data_entry_type_id) that has at least one
+            qualifying FACTORS job.
+        """
+        # Sub-query: latest is_current FACTORS job per
+        # (module_type_id, data_entry_type_id)
+        # Excludes ERROR results so a failed factor sync never triggers recalculation.
+        factor_jobs_sub = (
+            select(
+                col(DataIngestionJob.module_type_id).label("module_type_id"),
+                col(DataIngestionJob.data_entry_type_id).label("data_entry_type_id"),
+                func.max(col(DataIngestionJob.id)).label("max_factor_job_id"),
+            )
+            .where(
+                col(DataIngestionJob.is_current).is_(True),
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.state) == IngestionState.FINISHED,
+                col(DataIngestionJob.target_type) == TargetType.FACTORS,
+                col(DataIngestionJob.result) != IngestionResult.ERROR,
+            )
+            .group_by(
+                col(DataIngestionJob.module_type_id),
+                col(DataIngestionJob.data_entry_type_id),
+            )
+            .subquery()
+        )
+
+        # Sub-query: is_current DATA_ENTRIES/computed job per
+        # (module_type_id, data_entry_type_id)
+        recalc_jobs_sub = (
+            select(
+                col(DataIngestionJob.module_type_id).label("module_type_id"),
+                col(DataIngestionJob.data_entry_type_id).label("data_entry_type_id"),
+                col(DataIngestionJob.id).label("recalc_job_id"),
+                col(DataIngestionJob.result).label("recalc_job_result"),
+            )
+            .where(
+                col(DataIngestionJob.is_current).is_(True),
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.target_type) == TargetType.DATA_ENTRIES,
+                col(DataIngestionJob.ingestion_method) == IngestionMethod.computed,
+                col(DataIngestionJob.data_entry_type_id).isnot(None),
+            )
+            .subquery()
+        )
+
+        # LEFT JOIN: factor combos left-join recalculation combos
+        # SQLAlchemy stubs only define up to 4 positional args for select()
+        stmt = select(  # type: ignore[call-overload]
+            factor_jobs_sub.c.module_type_id,
+            factor_jobs_sub.c.data_entry_type_id,
+            factor_jobs_sub.c.max_factor_job_id,
+            recalc_jobs_sub.c.recalc_job_id,
+            recalc_jobs_sub.c.recalc_job_result,
+        ).join(
+            recalc_jobs_sub,
+            and_(
+                factor_jobs_sub.c.module_type_id == recalc_jobs_sub.c.module_type_id,
+                factor_jobs_sub.c.data_entry_type_id
+                == recalc_jobs_sub.c.data_entry_type_id,
+            ),
+            isouter=True,
+        )
+
+        exec_result = await self.session.execute(stmt)
+        rows = exec_result.all()
+
+        # Fetch the actual DataIngestionJob for the factor side to get its result
+        factor_job_ids = [r.max_factor_job_id for r in rows]
+        factor_jobs_by_id: dict[int, DataIngestionJob] = {}
+        if factor_job_ids:
+            fj_stmt = select(DataIngestionJob).where(
+                col(DataIngestionJob.id).in_(factor_job_ids)
+            )
+            fj_result = await self.session.execute(fj_stmt)
+            for job in fj_result.scalars().all():
+                if job.id is not None:
+                    factor_jobs_by_id[job.id] = job
+
+        status_rows: list[RecalculationStatusRow] = []
+        for row in rows:
+            needs_recalculation = (
+                row.recalc_job_id is None or row.max_factor_job_id > row.recalc_job_id
+            )
+            factor_job = factor_jobs_by_id.get(row.max_factor_job_id)
+            status_rows.append(
+                RecalculationStatusRow(
+                    module_type_id=row.module_type_id,
+                    data_entry_type_id=row.data_entry_type_id,
+                    year=year,
+                    needs_recalculation=needs_recalculation,
+                    last_factor_job_id=row.max_factor_job_id,
+                    last_factor_job_result=(factor_job.result if factor_job else None),
+                    last_recalculation_job_id=row.recalc_job_id,
+                    last_recalculation_job_result=row.recalc_job_result,
+                )
+            )
+        return status_rows
+
+
+class RecalculationStatusRow(TypedDict):
+    """Lightweight status row returned by get_recalculation_status_by_year."""
+
+    module_type_id: int
+    data_entry_type_id: int
+    year: int
+    needs_recalculation: bool
+    last_factor_job_id: Optional[int]
+    last_factor_job_result: Optional[IngestionResult]
+    last_recalculation_job_id: Optional[int]
+    last_recalculation_job_result: Optional[IngestionResult]

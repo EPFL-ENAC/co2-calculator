@@ -128,6 +128,24 @@ export type InitiateSyncParams = {
   carbon_report_module_id?: number;
 };
 
+export interface RecalculationStatus {
+  module_type_id: number;
+  data_entry_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  last_factor_job_id: number | null;
+  last_factor_job_result: IngestionResult | null;
+  last_recalculation_job_id: number | null;
+  last_recalculation_job_result: IngestionResult | null;
+}
+
+export interface ModuleRecalculationStatus {
+  module_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  data_entry_types: RecalculationStatus[];
+}
+
 export const useBackofficeDataManagement = defineStore(
   'backofficeDataManagement',
   () => {
@@ -614,6 +632,56 @@ provider_type
       }
     }
 
+    /**
+     * Fetch recalculation status for all modules in a given year.
+     */
+    async function fetchRecalculationStatus(
+      year: number,
+    ): Promise<ModuleRecalculationStatus[]> {
+      try {
+        return (await api
+          .get(`sync/recalculation-status`, { searchParams: { year } })
+          .json()) as ModuleRecalculationStatus[];
+      } catch (err: unknown) {
+        console.error('Failed to fetch recalculation status:', err);
+        return [];
+      }
+    }
+
+    /**
+     * Trigger emission recalculation for a single data entry type.
+     * Returns the created job_id.
+     */
+    async function initiateEmissionRecalculation(
+      moduleTypeId: number,
+      dataEntryTypeId: number,
+      year: number,
+    ): Promise<number> {
+      const response = (await api
+        .post(`sync/recalculate-emissions/${moduleTypeId}/${dataEntryTypeId}`, {
+          searchParams: { year },
+        })
+        .json()) as { job_id: number };
+      return response.job_id;
+    }
+
+    /**
+     * Trigger bulk emission recalculation for a module.
+     * Returns the created job_id.
+     */
+    async function initiateModuleEmissionRecalculation(
+      moduleTypeId: number,
+      year: number,
+      onlyStale: boolean,
+    ): Promise<number> {
+      const response = (await api
+        .post(`sync/recalculate-emissions/${moduleTypeId}`, {
+          searchParams: { year, only_stale: onlyStale },
+        })
+        .json()) as { job_id: number };
+      return response.job_id;
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -642,6 +710,9 @@ provider_type
       getPreviousYearSuccessfulJobs,
       initiateSync,
       initiateComputedFactorSync,
+      fetchRecalculationStatus,
+      initiateEmissionRecalculation,
+      initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       reset,

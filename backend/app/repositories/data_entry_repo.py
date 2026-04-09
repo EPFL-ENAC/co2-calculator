@@ -187,6 +187,42 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_by_data_entry_type_and_year(
+        self, data_entry_type_id: DataEntryTypeEnum, year: int
+    ) -> list[DataEntry]:
+        """Fetch all DataEntries for a given data_entry_type and report year.
+
+        JOINs DataEntry → CarbonReportModule → CarbonReport to filter by year.
+
+        Args:
+            data_entry_type_id: The data entry type to filter on.
+            year: The carbon report year to filter on.
+
+        Returns:
+            List of matching DataEntry rows (may be empty).
+        """
+        from app.models.carbon_report import (
+            CarbonReport,
+        )  # avoid circular at module level
+
+        statement = (
+            select(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+                col(CarbonReport.year) == year,
+            )
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
     ) -> Optional[int]:
