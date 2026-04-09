@@ -1387,8 +1387,23 @@ onMounted(() => {
               >
                 <q-expansion-item expand-separator>
                   <template #header>
-                    <q-item-section class="text-body2 text-weight-medium">
-                      {{ $t(submodule.labelKey) }}
+                    <q-item-section>
+                      <div class="row items-center q-gutter-sm">
+                        <span class="text-body2 text-weight-medium">{{
+                          $t(submodule.labelKey)
+                        }}</span>
+                        <q-badge
+                          v-if="
+                            submodule.dataEntryTypeId !== undefined &&
+                            getRecalcStatus(submodule)?.needs_recalculation
+                          "
+                          outline
+                          rounded
+                          color="warning"
+                          class="text-weight-medium"
+                          :label="$t('data_management_recalculation_needed')"
+                        />
+                      </div>
                     </q-item-section>
                   </template>
                   <q-separator class="q-mb-xs" />
