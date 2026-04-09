@@ -5,17 +5,91 @@ export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
 export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 export const API_ME_URL = 'auth/me';
+export const API_CSRF_URL = 'auth/csrf';
 export const API_REFRESH_URL = 'auth/refresh';
 export const API_LOGOUT_URL = 'auth/logout';
 export const loginPageName = '/en/login';
+export const CSRF_HEADER_NAME = 'X-CSRF';
+
+type CsrfBootstrapResponse = {
+  csrf_enabled: boolean;
+  csrf_token: string | null;
+};
 
 const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
+const isCsrfBootstrap = (u: string) => u.endsWith(API_CSRF_URL);
+const CSRF_METHODS = new Set(['POST', 'PUT', 'DELETE']);
+
+let csrfToken: string | null = null;
+let csrfBootstrapPromise: Promise<string | null> | null = null;
+
+const apiNoHooks = ky.create({
+  prefixUrl: API_BASE_URL,
+  credentials: 'include',
+  retry: { limit: 0 },
+});
+
+async function fetchAndStoreCsrfToken(): Promise<string | null> {
+  if (csrfBootstrapPromise) {
+    return csrfBootstrapPromise;
+  }
+
+  csrfBootstrapPromise = (async () => {
+    const response = await apiNoHooks
+      .get(API_CSRF_URL)
+      .json<CsrfBootstrapResponse>();
+    csrfToken = response.csrf_enabled ? response.csrf_token : null;
+    return csrfToken;
+  })();
+
+  try {
+    return await csrfBootstrapPromise;
+  } finally {
+    csrfBootstrapPromise = null;
+  }
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (csrfToken) {
+    return csrfToken;
+  }
+
+  try {
+    return await fetchAndStoreCsrfToken();
+  } catch {
+    return null;
+  }
+}
+
+export async function bootstrapCsrfToken(): Promise<string | null> {
+  return fetchAndStoreCsrfToken();
+}
+
+export function clearCsrfToken(): void {
+  csrfToken = null;
+}
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
   retry: { limit: 1, statusCodes: [401] },
   hooks: {
+    beforeRequest: [
+      async (request) => {
+        if (isCsrfBootstrap(request.url)) {
+          return;
+        }
+
+        if (!CSRF_METHODS.has(request.method.toUpperCase())) {
+          return;
+        }
+
+        const token = await ensureCsrfToken();
+        if (token) {
+          request.headers.set(CSRF_HEADER_NAME, token);
+        }
+      },
+    ],
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying
       async ({ request }) => {
