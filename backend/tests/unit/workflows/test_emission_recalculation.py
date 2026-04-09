@@ -73,10 +73,6 @@ async def test_recalculate_partial_error():
         _make_mock_entry(2, 11),  # will fail
     ]
 
-    def _upsert_side_effect(entry_response):
-        if entry_response.id == 2:
-            raise ValueError("factor not found")
-
     with (
         patch(
             "app.workflows.emission_recalculation.DataEntryRepository"
