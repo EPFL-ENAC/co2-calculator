@@ -10,10 +10,10 @@ import {
 } from 'vue';
 import { QSkeleton } from 'quasar';
 import { MODULES_LIST, MODULES, type Module } from 'src/constant/modules';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-
-import { colorblindMode } from 'src/constant/charts';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import { useColorblindStore } from 'src/stores/colorblind';
+const ModuleIcon = defineAsyncComponent(
+  () => import('src/components/atoms/ModuleIcon.vue'),
+);
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import {
   getResultsSummary,
@@ -133,16 +133,22 @@ function formatPercentChange(value: number | null | undefined): string {
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
+const colorblindStore = useColorblindStore();
+const colorblindMode = computed({
+  get: () => colorblindStore.enabled,
+  set: (v: boolean) => colorblindStore.setEnabled(v),
+});
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
 
 const resultsSummary = ref<ResultsSummary | null>(null);
-const resultsSummaryLoading = ref(false);
+const resultsSummaryLoading = ref(true);
 
 const hideResearchFacilities = ref(false);
 
 const mountPrimaryCharts = ref(false);
+const mountBelowFold = ref(false);
 
 const excludedModules = computed(() => {
   const ids: number[] = [];
@@ -182,22 +188,33 @@ async function fetchItBreakdown() {
   await moduleStore.getItBreakdown(carbonReportId, excludedModules.value);
 }
 
+/** Schedule a callback after the next paint frame, then wait for idle. */
+function afterPaint(cb: () => void) {
+  requestAnimationFrame(() => {
+    // Double rAF ensures one full frame has painted before scheduling idle work.
+    requestAnimationFrame(() => {
+      const idle =
+        window.requestIdleCallback ??
+        ((fn: () => void) => window.setTimeout(fn, 80));
+      idle(cb);
+    });
+  });
+}
+
 onMounted(() => {
   void fetchResultsSummary();
-  // Defer heavy breakdown fetches: charts mount on idle, avoid blocking initial paint.
-  const scheduleIdle =
-    window.requestIdleCallback ??
-    ((cb: () => void) => window.setTimeout(cb, 200));
-  scheduleIdle(() => {
+
+  // Phase 1: after first paint, mount charts + start data fetches.
+  afterPaint(() => {
+    mountPrimaryCharts.value = true;
     void fetchEmissionBreakdown();
-  });
-  scheduleIdle(() => {
     void fetchItBreakdown();
   });
 
-  // Defer ECharts mounting to reduce main-thread blocking during initial paint.
-  scheduleIdle(() => {
-    mountPrimaryCharts.value = true;
+  // Phase 2: below-fold sections after charts have started.
+  afterPaint(() => {
+    mountBelowFold.value = true;
+    void loadModulesConfig();
   });
 });
 
@@ -211,13 +228,8 @@ watch(
   () => {
     moduleStore.invalidateEmissionBreakdown();
     void fetchResultsSummary();
-    const scheduleIdle =
-      window.requestIdleCallback ??
-      ((cb: () => void) => window.setTimeout(cb, 200));
-    scheduleIdle(() => {
+    afterPaint(() => {
       void fetchEmissionBreakdown();
-    });
-    scheduleIdle(() => {
       void fetchItBreakdown();
     });
   },
@@ -313,7 +325,18 @@ const adjustedTonnesPerFte = computed(() => {
   return adjustedTotalTonnes.value / fte;
 });
 
-const getModuleConfig = (module: string) => MODULES_CONFIG[module];
+// Lazy-loaded: only used in below-fold expansion items
+const modulesConfig = ref<Record<
+  string,
+  import('src/constant/moduleConfig').ModuleConfig
+> | null>(null);
+const loadModulesConfig = async () => {
+  if (!modulesConfig.value) {
+    const { MODULES_CONFIG } = await import('src/constant/module-config');
+    modulesConfig.value = MODULES_CONFIG;
+  }
+};
+const getModuleConfig = (module: string) => modulesConfig.value?.[module];
 
 const downloadPDF = () => {
   // Open browser print dialog where user can save as PDF
@@ -576,7 +599,7 @@ const getUncertainty = (
         </div>
       </q-card>
 
-      <q-card flat bordered class="q-pa-lg">
+      <q-card v-if="mountBelowFold" flat bordered class="q-pa-lg defer-render">
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-h2 text-weight-medium">
@@ -594,6 +617,7 @@ const getUncertainty = (
               alt=""
               width="1380"
               height="500"
+              loading="lazy"
               decoding="async"
               fetchpriority="low"
               class="objectives-placeholder-image"
@@ -602,7 +626,7 @@ const getUncertainty = (
         </q-card-section>
       </q-card>
 
-      <div>
+      <div v-if="mountBelowFold" class="defer-render">
         <q-card bordered flat class="q-pa-xl">
           <div class="flex justify-between items-center">
             <div>
@@ -678,7 +702,7 @@ const getUncertainty = (
                           getTotalModuleCarbonFootprintTitle(module as Module)
                         "
                         :number="
-                          getModuleConfig(module).totalFormatter(
+                          getModuleConfig(module)?.totalFormatter(
                             getModuleResult(module)!.total_tonnes_co2eq,
                           )
                         "
@@ -733,7 +757,7 @@ const getUncertainty = (
                         "
                         :comparison="
                           $t('results_compared_to_value_of', {
-                            value: `${getModuleConfig(module).totalFormatter(
+                            value: `${getModuleConfig(module)?.totalFormatter(
                               getModuleResult(module)!
                                 .previous_year_total_tonnes_co2eq,
                             )}${$t('results_units_tonnes')}`,
@@ -758,7 +782,7 @@ const getUncertainty = (
                               })
                         "
                         :number="
-                          getModuleConfig(module).totalFormatter(
+                          getModuleConfig(module)?.totalFormatter(
                             getModuleResult(module)!.tonnes_co2eq_per_fte,
                           )
                         "
@@ -859,10 +883,16 @@ const getUncertainty = (
 </template>
 
 <style scoped lang="scss">
+.defer-render {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1200px;
+}
+
 .results-charts-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+  contain: layout style;
 }
 
 @media (min-width: 1024px) {

@@ -18,12 +18,6 @@ import type { ItBreakdownResponse } from 'src/stores/modules';
 
 use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
 
-const FORMAT_INTEGER = {
-  options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
-};
-const FORMAT_CO2_PER_KM = {
-  options: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-};
 const props = withDefaults(
   defineProps<{
     data: ItBreakdownResponse | null;
@@ -371,30 +365,13 @@ const barChartOption = computed<EChartsOption>(() => {
     <q-separator class="q-mt-xl" />
 
     <!-- Summary numbers -->
-    <q-card v-if="data" flat class="row grid-1-col q-mt-lg q-mb-lg q-px-lg">
+    <q-card v-if="data" flat class="grid-2-col q-mt-lg q-mb-lg q-px-lg">
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
-        :comparison="
-          itEquivalentCarKm != null
-            ? $t('results_equivalent_to_car', {
-                km: $nOrDash(itEquivalentCarKm, FORMAT_INTEGER),
-                value: `${$nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM)}`,
-              })
-            : undefined
-        "
-        "
-        :comparison="$t('it-focus-share-of-total-hint')"
-        hide-unit
+        comparison=""
         color="accent"
-        tooltip-placement="comparison"
       >
-        <template v-if="co2PerKmKg > 0" #tooltip>{{
-          $t('results_total_unit_carbon_footprint_tooltip', {
-            value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
-            unit: $t('results_kg_co2eq_per_km'),
-          })
-        }}</template>
       </BigNumber>
       <BigNumber
         :title="$t('it-focus-share-of-total')"
@@ -403,6 +380,9 @@ const barChartOption = computed<EChartsOption>(() => {
             ? `${Math.round(data.percentage_of_source_modules)}%`
             : '-'
         "
+        :comparison="$t('it-focus-share-of-total-hint')"
+        hide-unit
+        color="accent"
       />
     </q-card>
 

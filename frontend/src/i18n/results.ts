@@ -205,11 +205,11 @@ export default {
   },
   results_additional_validate_headcount_title: {
     en: 'Validate Headcount to see results',
-    fr: "Validez l'effectif pour voir les résultats",
+    fr: 'Validez Personnel pour voir les résultats',
   },
   results_additional_validate_headcount_message: {
     en: 'Please validate the headcount module to view commuting, food, and waste breakdowns.',
-    fr: "Veuillez valider le module d'effectif pour afficher les répartitions des déplacements, de l'alimentation et des déchets.",
+    fr: "Veuillez valider le module Personnel pour afficher les répartitions des déplacements, de l'alimentation et des déchets.",
   },
   results_additional_headcount_no_data_title: {
     en: 'No data available',
@@ -221,7 +221,7 @@ export default {
   },
   results_additional_validate_buildings_title: {
     en: 'Validate Buildings to see results',
-    fr: 'Validez les bâtiments pour voir les résultats',
+    fr: 'Validez Bâtiments pour voir les résultats',
   },
   results_additional_validate_buildings_message: {
     en: 'Please validate the buildings module to view construction and renovation breakdowns.',
@@ -879,8 +879,8 @@ export default {
     fr: 'Empreinte carbone IT par ETP',
   },
   'it-focus-share-of-total': {
-    en: 'IT share of  footprint',
-    fr: "Part IT de l'empreinte ",
+    en: 'IT share of total emissions',
+    fr: 'Part IT des émissions totales',
   },
   'it-focus-share-of-total-hint': {
     en: 'Based on validated categories only',
