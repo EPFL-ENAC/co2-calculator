@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -25,6 +26,7 @@ logger = get_logger(__name__)
 
 # Get settings
 settings = get_settings()
+csrf_protected_methods = cast(tuple[str, ...], settings.csrf_protected_methods_set)
 
 
 def _load_csrf_config() -> list[tuple[str, object]]:
@@ -32,7 +34,7 @@ def _load_csrf_config() -> list[tuple[str, object]]:
     return [
         ("secret_key", settings.csrf_effective_secret_key),
         ("header_name", settings.CSRF_HEADER_NAME),
-        ("methods", set(settings.csrf_protected_methods_set)),
+        ("methods", set(csrf_protected_methods)),
         ("cookie_key", settings.CSRF_COOKIE_KEY),
         ("cookie_path", settings.CSRF_COOKIE_PATH),
         ("cookie_samesite", settings.CSRF_COOKIE_SAMESITE),
@@ -46,7 +48,13 @@ def _load_csrf_config() -> list[tuple[str, object]]:
 def _is_api_version_path(path: str) -> bool:
     """Check whether request path is under the versioned API prefix."""
     api_prefix = settings.API_VERSION.rstrip("/")
-    return path == api_prefix or path.startswith(f"{api_prefix}/")
+    proxied_api_prefix = f"{settings.API_DOCS_PREFIX.rstrip('/')}{api_prefix}"
+    return (
+        path == api_prefix
+        or path.startswith(f"{api_prefix}/")
+        or path == proxied_api_prefix
+        or path.startswith(f"{proxied_api_prefix}/")
+    )
 
 
 @asynccontextmanager
@@ -59,7 +67,7 @@ async def lifespan(app: FastAPI):
             "CSRF protection enabled",
             extra={
                 "csrf_header_name": settings.CSRF_HEADER_NAME,
-                "csrf_methods": list(settings.csrf_protected_methods_set),
+                "csrf_methods": list(csrf_protected_methods),
                 "csrf_cookie_key": settings.CSRF_COOKIE_KEY,
             },
         )
@@ -270,14 +278,17 @@ async def csrf_guard_middleware(request: Request, call_next):
     if not settings.CSRF_ENABLED:
         return await call_next(request)
 
-    if request.method not in settings.csrf_protected_methods_set:
+    if request.method not in csrf_protected_methods:
         return await call_next(request)
 
     if not _is_api_version_path(request.url.path):
         return await call_next(request)
 
     csrf_protect: CsrfProtect = request.app.state.csrf_protect
-    await csrf_protect.validate_csrf(request)
+    try:
+        await csrf_protect.validate_csrf(request)
+    except CsrfProtectError as exc:
+        return await csrf_error_handler(request, exc)
     return await call_next(request)
 
 

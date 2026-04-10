@@ -131,3 +131,17 @@ def test_main_block(monkeypatch):
     with patch("uvicorn.run") as mock_run:
         main.run_main()
         mock_run.assert_called()
+
+
+def test_csrf_regression_get_unaffected_post_protected(csrf_enabled_settings):
+    """Regression: GET routes work without CSRF while POST is CSRF-protected."""
+    with TestClient(main.app, raise_server_exceptions=False) as client:
+        get_response = client.get("/")
+        assert get_response.status_code == 200
+        assert get_response.json()["status"] == "running"
+
+        post_response = client.post(
+            "/api/v1/auth/logout", cookies={"auth_token": "token"}
+        )
+        assert post_response.status_code == 403
+        assert post_response.json()["error"] == "csrf_validation_failed"

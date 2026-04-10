@@ -40,6 +40,24 @@ async def db_session():
 
 
 @pytest.fixture
+def csrf_enabled_settings(monkeypatch):
+    """Enable CSRF settings for integration tests."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "CSRF_ENABLED", True)
+    monkeypatch.setattr(settings, "CSRF_HEADER_NAME", "X-CSRF")
+    monkeypatch.setattr(settings, "CSRF_PROTECTED_METHODS", "POST,PUT,DELETE")
+    monkeypatch.setattr(settings, "CSRF_COOKIE_KEY", "fastapi-csrf-token")
+    monkeypatch.setattr(settings, "CSRF_COOKIE_PATH", "/")
+    monkeypatch.setattr(settings, "CSRF_COOKIE_MAX_AGE", 3600)
+    monkeypatch.setattr(settings, "CSRF_COOKIE_SAMESITE", "lax")
+    monkeypatch.setattr(settings, "CSRF_COOKIE_SECURE", False)
+    monkeypatch.setattr(settings, "CSRF_COOKIE_HTTPONLY", True)
+    return settings
+
+
+@pytest.fixture
 def mock_policy_allow(monkeypatch):
     """Mock OPA to always allow with no filters."""
 
