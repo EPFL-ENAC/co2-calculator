@@ -19,6 +19,7 @@ from typing import Any, NotRequired, TypedDict
 
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
+from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 
 class Scope(IntEnum):
@@ -600,6 +601,18 @@ def build_chart_breakdown(
     if headcount_validated:
         validated_categories.extend(c.value for c in ADDITIONAL_BREAKDOWN_ORDER)
 
+    # IT summary: sum IT-relevant emission types from already-processed data
+    it_kg = sum(
+        kg
+        for cat_vals in category_data.values()
+        for et, kg in cat_vals.items()
+        if et in IT_EMISSION_TYPES
+    )
+    it_summary = {
+        "total_tonnes_co2eq": it_kg / 1000.0,
+        "percentage_of_total": (it_kg / real_kg * 100.0) if real_kg > 0 else 0.0,
+    }
+
     return {
         "module_breakdown": module_breakdown,
         "additional_breakdown": additional_breakdown,
@@ -608,6 +621,7 @@ def build_chart_breakdown(
         "headcount_validated": headcount_validated,
         "total_tonnes_co2eq": total_tonnes,
         "total_fte": total_fte,
+        "it_summary": it_summary,
     }
 
 
