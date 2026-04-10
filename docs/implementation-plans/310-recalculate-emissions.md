@@ -1,6 +1,6 @@
 # Plan: Manual emission recalculation endpoint with "needs recalculation" status
 
-**TL;DR**: Three additions. (1) Expose `GET /data-sync/recalculation-status?year=YYYY` returning per-module status (with per-data-entry-type detail nested inside), derived from existing `DataIngestionJob` rows. (2) Expose `POST /data-sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=YYYY` for single-type recalculation. (3) Expose `POST /data-sync/recalculate-emissions/{module_type_id}?year=YYYY` for module-level bulk recalculation with an `only_stale` flag (selectable via a frontend dialog). No auto-trigger on factor ingestion. No new DB table — status is derived from `DataIngestionJob.id` ordering.
+**TL;DR**: Three additions. (1) Expose `GET /sync/recalculation-status?year=YYYY` returning per-module status (with per-data-entry-type detail nested inside), derived from existing `DataIngestionJob` rows. (2) Expose `POST /sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=YYYY` for single-type recalculation. (3) Expose `POST /sync/recalculate-emissions/{module_type_id}?year=YYYY` for module-level bulk recalculation with an `only_stale` flag (selectable via a frontend dialog). No auto-trigger on factor ingestion. No new DB table — status is derived from `DataIngestionJob.id` ordering.
 
 ---
 
