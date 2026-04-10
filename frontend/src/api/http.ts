@@ -18,7 +18,7 @@ type CsrfBootstrapResponse = {
 
 const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
 const isCsrfBootstrap = (u: string) => u.endsWith(API_CSRF_URL);
-const CSRF_METHODS = new Set(['POST', 'PUT', 'DELETE']);
+const CSRF_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 
 let csrfToken: string | null = null;
 let csrfBootstrapPromise: Promise<string | null> | null = null;
