@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -184,6 +184,38 @@ class DataEntryRepository:
         else:
             statement = statement.order_by(getattr(DataEntry, sort_by).desc())
         statement = statement.offset(offset).limit(limit)
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def list_by_data_entry_type_and_year(
+        self, data_entry_type_id: DataEntryTypeEnum, year: int
+    ) -> list[DataEntry]:
+        """Fetch all DataEntries for a given data_entry_type and report year.
+
+        JOINs DataEntry → CarbonReportModule → CarbonReport to filter by year.
+
+        Args:
+            data_entry_type_id: The data entry type to filter on.
+            year: The carbon report year to filter on.
+
+        Returns:
+            List of matching DataEntry rows (may be empty).
+        """
+        statement = (
+            select(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+                col(CarbonReport.year) == year,
+            )
+        )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 

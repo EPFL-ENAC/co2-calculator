@@ -16,6 +16,8 @@ import {
   type ImportRow,
   type SyncJobResponse,
   type JobUpdatePayload,
+  type ModuleRecalculationStatus,
+  type RecalculationStatus,
 } from 'src/stores/backofficeDataManagement';
 import {
   useYearConfigStore,
@@ -52,6 +54,7 @@ watch(
   async () => {
     try {
       await fetchYearConfig();
+      await refreshRecalculationStatus();
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : 'Failed to load year data';
@@ -655,8 +658,200 @@ function safeFileName(meta: unknown): string | undefined {
 
 const jobsRefreshKey = ref(0);
 
+// ── Recalculation status ─────────────────────────────────────────────────────
+
+/** Map from module_type_id to its full recalculation status. */
+const recalculationStatus = ref<Record<number, ModuleRecalculationStatus>>({});
+
+/** Fetch (or refresh) recalculation status for the selected year. */
+async function refreshRecalculationStatus(): Promise<void> {
+  const statuses = await backofficeDataManagement.fetchRecalculationStatus(
+    selectedYear.value,
+  );
+  const map: Record<number, ModuleRecalculationStatus> = {};
+  for (const s of statuses) {
+    map[s.module_type_id] = s;
+  }
+  recalculationStatus.value = map;
+}
+
+/** Return the per-type recalculation row for a submodule, if any. */
+function getRecalcStatus(
+  sub: SubmoduleConfig,
+): RecalculationStatus | undefined {
+  if (sub.dataEntryTypeId === undefined) return undefined;
+  const moduleStatus = recalculationStatus.value[sub.moduleTypeId];
+  return moduleStatus?.data_entry_types.find(
+    (d) => d.data_entry_type_id === sub.dataEntryTypeId,
+  );
+}
+
+// ── Module-level recalculation dialog ────────────────────────────────────────
+
+const showRecalcDialog = ref(false);
+const recalcDialogModuleTypeId = ref<number | null>(null);
+const recalcOnlyStale = ref(true);
+const recalcRunning = ref<Record<number, boolean>>({});
+const recalcTypeRunning = ref<Record<string, boolean>>({});
+
+function openRecalcDialog(moduleTypeId: number): void {
+  recalcDialogModuleTypeId.value = moduleTypeId;
+  recalcOnlyStale.value = true;
+  showRecalcDialog.value = true;
+}
+
+function staleTypesForModule(moduleTypeId: number): RecalculationStatus[] {
+  return (
+    recalculationStatus.value[moduleTypeId]?.data_entry_types.filter(
+      (d) => d.needs_recalculation,
+    ) ?? []
+  );
+}
+
+async function confirmModuleRecalculation(): Promise<void> {
+  const moduleTypeId = recalcDialogModuleTypeId.value;
+  if (moduleTypeId === null) return;
+  showRecalcDialog.value = false;
+
+  recalcRunning.value[moduleTypeId] = true;
+  try {
+    const jobId =
+      await backofficeDataManagement.initiateModuleEmissionRecalculation(
+        moduleTypeId,
+        selectedYear.value,
+        recalcOnlyStale.value,
+      );
+
+    backofficeDataManagement.subscribeToJobUpdates(
+      jobId,
+      (payload?: JobUpdatePayload) => {
+        const result = payload?.result;
+        if (result === IngestionResult.WARNING) {
+          Notify.create({
+            type: 'warning',
+            message: $t('data_management_recalculation_warning'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        } else if (result === IngestionResult.SUCCESS) {
+          Notify.create({
+            type: 'positive',
+            message: $t('data_management_recalculation_success'),
+            position: 'top',
+            timeout: 5000,
+          });
+        } else {
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_recalculation_error'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        }
+        recalcRunning.value[moduleTypeId] = false;
+        void refreshRecalculationStatus();
+      },
+      (payload?: JobUpdatePayload) => {
+        Notify.create({
+          type: 'negative',
+          message: $t('data_management_recalculation_error'),
+          caption: payload?.status_message ?? '',
+          position: 'top',
+          timeout: 5000,
+        });
+        recalcRunning.value[moduleTypeId] = false;
+        void refreshRecalculationStatus();
+      },
+      () => {
+        recalcRunning.value[moduleTypeId] = false;
+      },
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '';
+    Notify.create({
+      type: 'negative',
+      message: $t('data_management_recalculation_error'),
+      caption: msg,
+      position: 'top',
+    });
+    recalcRunning.value[moduleTypeId] = false;
+  }
+}
+
+async function triggerTypeRecalculation(sub: SubmoduleConfig): Promise<void> {
+  if (sub.dataEntryTypeId === undefined) return;
+  const key = `${sub.moduleTypeId}-${sub.dataEntryTypeId}`;
+  recalcTypeRunning.value[key] = true;
+  try {
+    const jobId = await backofficeDataManagement.initiateEmissionRecalculation(
+      sub.moduleTypeId,
+      sub.dataEntryTypeId,
+      selectedYear.value,
+    );
+
+    backofficeDataManagement.subscribeToJobUpdates(
+      jobId,
+      (payload?: JobUpdatePayload) => {
+        const result = payload?.result;
+        if (result === IngestionResult.WARNING) {
+          Notify.create({
+            type: 'warning',
+            message: $t('data_management_recalculation_warning'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        } else if (result === IngestionResult.SUCCESS) {
+          Notify.create({
+            type: 'positive',
+            message: $t('data_management_recalculation_success'),
+            position: 'top',
+            timeout: 5000,
+          });
+        } else {
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_recalculation_error'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+        }
+        recalcTypeRunning.value[key] = false;
+        void refreshRecalculationStatus();
+      },
+      (payload?: JobUpdatePayload) => {
+        Notify.create({
+          type: 'negative',
+          message: $t('data_management_recalculation_error'),
+          caption: payload?.status_message ?? '',
+          position: 'top',
+          timeout: 5000,
+        });
+        recalcTypeRunning.value[key] = false;
+        void refreshRecalculationStatus();
+      },
+      () => {
+        recalcTypeRunning.value[key] = false;
+      },
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '';
+    Notify.create({
+      type: 'negative',
+      message: $t('data_management_recalculation_error'),
+      caption: msg,
+      position: 'top',
+    });
+    recalcTypeRunning.value[key] = false;
+  }
+}
+
 async function handleJobCompleted() {
   await yearConfigStore.fetchConfig(selectedYear.value);
+  await refreshRecalculationStatus();
   jobsRefreshKey.value += 1;
 }
 
@@ -1045,6 +1240,41 @@ onMounted(() => {
                     class="text-weight-medium"
                     :label="$t('common_filter_incomplete')"
                   />
+                  <q-badge
+                    v-if="
+                      recalculationStatus[getModuleTypeIdFromName(module)]
+                        ?.needs_recalculation
+                    "
+                    outline
+                    rounded
+                    color="warning"
+                    class="text-weight-medium"
+                    :label="$t('data_management_recalculation_needed')"
+                  />
+                </div>
+              </q-item-section>
+              <q-item-section side>
+                <div class="row items-center q-gutter-sm">
+                  <q-spinner-rings
+                    v-if="recalcRunning[getModuleTypeIdFromName(module)]"
+                    color="grey"
+                    size="sm"
+                  />
+                  <q-btn
+                    v-if="
+                      recalculationStatus[getModuleTypeIdFromName(module)]
+                        ?.needs_recalculation
+                    "
+                    flat
+                    dense
+                    size="sm"
+                    icon="refresh"
+                    color="accent"
+                    :label="$t('data_management_recalculate_emissions')"
+                    @click.stop="
+                      openRecalcDialog(getModuleTypeIdFromName(module))
+                    "
+                  />
                 </div>
               </q-item-section>
             </template>
@@ -1157,8 +1387,23 @@ onMounted(() => {
               >
                 <q-expansion-item expand-separator>
                   <template #header>
-                    <q-item-section class="text-body2 text-weight-medium">
-                      {{ $t(submodule.labelKey) }}
+                    <q-item-section>
+                      <div class="row items-center q-gutter-sm">
+                        <span class="text-body2 text-weight-medium">{{
+                          $t(submodule.labelKey)
+                        }}</span>
+                        <q-badge
+                          v-if="
+                            submodule.dataEntryTypeId !== undefined &&
+                            getRecalcStatus(submodule)?.needs_recalculation
+                          "
+                          outline
+                          rounded
+                          color="warning"
+                          class="text-weight-medium"
+                          :label="$t('data_management_recalculation_needed')"
+                        />
+                      </div>
                     </q-item-section>
                   </template>
                   <q-separator class="q-mb-xs" />
@@ -1263,6 +1508,46 @@ onMounted(() => {
                             )
                           "
                         />
+                        <!-- Per-type emission recalculation button -->
+                        <template
+                          v-if="
+                            submodule.dataEntryTypeId !== undefined &&
+                            getImportRow(submodule).hasFactors
+                          "
+                        >
+                          <q-spinner-rings
+                            v-if="
+                              recalcTypeRunning[
+                                `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
+                              ]
+                            "
+                            color="grey"
+                          />
+                          <template v-else>
+                            <q-btn
+                              color="accent"
+                              outline
+                              icon="refresh"
+                              :icon-right="
+                                getRecalcStatus(submodule)?.needs_recalculation
+                                  ? 'warning'
+                                  : undefined
+                              "
+                              size="sm"
+                              :label="
+                                $t('data_management_recalculate_emissions')
+                              "
+                              :title="
+                                getRecalcStatus(submodule)?.needs_recalculation
+                                  ? $t('data_management_recalculation_needed')
+                                  : ''
+                              "
+                              class="text-weight-medium"
+                              :disable="getImportRow(submodule).isDisabled"
+                              @click="triggerTypeRecalculation(submodule)"
+                            />
+                          </template>
+                        </template>
                       </div>
                     </q-card>
 
@@ -1903,6 +2188,56 @@ onMounted(() => {
       @completed="handleJobCompleted"
       @progressing="handleJobProgressing"
     />
+
+    <!-- Emission recalculation dialog -->
+    <q-dialog v-model="showRecalcDialog" persistent>
+      <q-card style="min-width: 480px">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="refresh" color="accent" size="sm" class="q-mr-sm" />
+          <div class="text-h6">
+            {{ $t('data_management_recalculate_emissions_title') }}
+          </div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          {{ $t('data_management_recalculate_emissions_description') }}
+        </q-card-section>
+        <q-card-section v-if="recalcDialogModuleTypeId !== null">
+          <q-radio
+            v-model="recalcOnlyStale"
+            :val="true"
+            :label="$t('data_management_recalculate_only_stale')"
+            color="accent"
+          />
+          <div class="text-caption text-grey-7 q-ml-md q-mt-xs">
+            {{
+              $t('data_management_stale_types', {
+                count: staleTypesForModule(recalcDialogModuleTypeId).length,
+              })
+            }}
+          </div>
+          <q-radio
+            v-model="recalcOnlyStale"
+            :val="false"
+            :label="$t('data_management_recalculate_all')"
+            color="accent"
+            class="q-mt-sm"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            :label="$t('common_cancel')"
+            @click="showRecalcDialog = false"
+          />
+          <q-btn
+            color="accent"
+            unelevated
+            :label="$t('common_confirm')"
+            @click="confirmModuleRecalculation()"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Computed factor sync confirmation dialog (Research Facilities) -->
     <q-dialog v-model="showComputedFactorConfirm" persistent>

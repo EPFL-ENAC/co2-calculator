@@ -588,4 +588,44 @@ export default {
     en: 'Factor computation failed',
     fr: 'Le calcul des facteurs a échoué',
   },
+  data_management_recalculation_needed: {
+    en: 'Recalculation Needed',
+    fr: 'Recalcul nécessaire',
+  },
+  data_management_recalculate_emissions: {
+    en: 'Recalculate Emissions',
+    fr: 'Recalculer les émissions',
+  },
+  data_management_recalculate_emissions_title: {
+    en: 'Recalculate Emissions',
+    fr: 'Recalculer les émissions',
+  },
+  data_management_recalculate_emissions_description: {
+    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage.',
+    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
+  },
+  data_management_recalculation_success: {
+    en: 'Emissions recalculation successful',
+    fr: 'Le recalcul des émissions a réussi',
+  },
+  data_management_recalculation_error: {
+    en: 'Failed to recalculate emissions',
+    fr: 'Échec du recalcul des émissions',
+  },
+  data_management_recalculation_warning: {
+    en: 'Emissions recalculated with warnings',
+    fr: 'Le recalcul des émissions a été effectué avec des avertissements',
+  },
+  data_management_recalculate_only_stale: {
+    en: 'Recalculate only stale emissions',
+    fr: 'Recalculer uniquement les émissions obsolètes',
+  },
+  data_management_recalculate_all: {
+    en: 'Recalculate all emissions',
+    fr: 'Recalculer toutes les émissions',
+  },
+  data_management_stale_types: {
+    en: 'No stale submodule | One stale submodule | {count} stale submodules',
+    fr: 'Aucun sous-module obsolète | Un sous-module obsolète | {count} sous-modules obsolètes',
+  },
 } as const;
