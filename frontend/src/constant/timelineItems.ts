@@ -23,14 +23,15 @@ export const timelineItems = [
     link: MODULES.ExternalCloudAndAI,
   },
   {
+    icon: 'o_flight',
+    link: MODULES.ProfessionalTravel,
+  },
+
+  {
     icon: 'o_sell',
     link: MODULES.Purchase,
   },
 
-  {
-    icon: 'o_flight',
-    link: MODULES.ProfessionalTravel,
-  },
   {
     icon: 'o_apps',
     link: MODULES.ResearchFacilities,
