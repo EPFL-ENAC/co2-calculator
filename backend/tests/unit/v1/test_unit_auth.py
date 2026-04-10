@@ -257,7 +257,23 @@ def test_logout(client):
 
     app.dependency_overrides[auth_module.get_db] = override_get_db
     try:
-        response = client.post("/api/v1/auth/logout")
+        csrf_response = client.get("/api/v1/auth/csrf")
+        csrf_payload = csrf_response.json()
+
+        if csrf_payload.get("csrf_enabled"):
+            csrf_cookie_key = auth_module.settings.CSRF_COOKIE_KEY
+            csrf_signed_token = csrf_response.cookies.get(csrf_cookie_key)
+            response = client.post(
+                "/api/v1/auth/logout",
+                headers={
+                    auth_module.settings.CSRF_HEADER_NAME: csrf_payload["csrf_token"]
+                },
+                cookies=(
+                    {csrf_cookie_key: csrf_signed_token} if csrf_signed_token else None
+                ),
+            )
+        else:
+            response = client.post("/api/v1/auth/logout")
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 200
