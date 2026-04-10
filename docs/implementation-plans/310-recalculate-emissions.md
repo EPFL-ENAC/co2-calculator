@@ -131,14 +131,14 @@ _new file — mirrors `run_sync_task` session pattern_
 
 ---
 
-### Phase 4 — Endpoint: `POST /data-sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}`
+### Phase 4 — Endpoint: `POST /sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}`
 
 _add to `backend/app/api/v1/data_sync.py`_
 
 5. New endpoint with path params `module_type_id: ModuleTypeEnum`, `data_entry_type_id: DataEntryTypeEnum`, and **required** query param `year: int`:
 
    ```
-   POST /data-sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=2025
+   POST /sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=2025
    ```
 
    - **Permission**: `require_permission("backoffice.data_management", "sync")`
@@ -154,18 +154,18 @@ _add to `backend/app/api/v1/data_sync.py`_
      - `meta = {"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}}`
    - Commits job creation, then schedules `run_recalculation` via `background_tasks.add_task`
    - Returns `SyncStatusResponse(job_id=job_id, state=NOT_STARTED, message="Emission recalculation scheduled")`
-   - Client streams progress via existing **`GET /data-sync/jobs/{job_id}/stream`** — no new SSE endpoint needed
+   - Client streams progress via existing **`GET /sync/jobs/{job_id}/stream`** — no new SSE endpoint needed
 
 ---
 
-### Phase 4.5 — Endpoint: `POST /data-sync/recalculate-emissions/{module_type_id}` (module-level bulk trigger)
+### Phase 4.5 — Endpoint: `POST /sync/recalculate-emissions/{module_type_id}` (module-level bulk trigger)
 
 _add to `backend/app/api/v1/data_sync.py`_
 
 6. New module-level endpoint:
 
    ```
-   POST /data-sync/recalculate-emissions/{module_type_id}?year=2025&only_stale=true
+   POST /sync/recalculate-emissions/{module_type_id}?year=2025&only_stale=true
    ```
 
    - **Permission**: `require_permission("backoffice.data_management", "sync")`
@@ -184,18 +184,18 @@ _add to `backend/app/api/v1/data_sync.py`_
      - `meta = {"config": {"year": year, "data_entry_type_ids": [...], "only_stale": only_stale}}`
    - Commits job creation, schedules `run_module_recalculation` via `background_tasks.add_task`
    - Returns `SyncStatusResponse(job_id=job_id, state=NOT_STARTED, message="Module emission recalculation scheduled for {N} data entry types")`
-   - Client streams progress via existing `GET /data-sync/jobs/{job_id}/stream`
+   - Client streams progress via existing `GET /sync/jobs/{job_id}/stream`
 
 ---
 
-### Phase 4.6 — Endpoint: `GET /data-sync/recalculation-status`
+### Phase 4.6 — Endpoint: `GET /sync/recalculation-status`
 
 _add to `backend/app/api/v1/data_sync.py`_
 
 7. New read endpoint:
 
    ```
-   GET /data-sync/recalculation-status?year=2025
+   GET /sync/recalculation-status?year=2025
    ```
 
    - **Permission**: `require_permission("backoffice.data_management", "view")`
@@ -210,7 +210,7 @@ _add to `backend/app/api/v1/data_sync.py`_
 
 _`frontend/src/pages/back-office/DataManagementPage.vue`_
 
-8. On page load (and after any factor sync or recalculation job completes), call `GET /data-sync/recalculation-status?year=YYYY`:
+8. On page load (and after any factor sync or recalculation job completes), call `GET /sync/recalculation-status?year=YYYY`:
    - Store results as `list[ModuleRecalculationStatus]` in reactive state, keyed by `module_type_id`
    - **Module-level row/card**: show **"Recalculation needed"** warning badge when `module.needs_recalculation=true`; show success/warning chip when `false` (using `last_recalculation_job_result` of the most recently recalculated data_entry_type)
    - **Per-data-entry-type sub-row**: show individual `needs_recalculation` badge + `last_recalculation_job_result` chip using `module.data_entry_types`
@@ -220,13 +220,13 @@ _`frontend/src/pages/back-office/DataManagementPage.vue`_
      - `"Recalculate only data entry types that need it"` (default, maps to `only_stale=true`)
      - `"Recalculate all data entry types"` (maps to `only_stale=false`)
    - The dialog shows which data_entry_types are stale (from reactive status) to help the operator decide
-   - On confirm: `POST /data-sync/recalculate-emissions/{module_type_id}?year=YYYY&only_stale={bool}` → receive `job_id`
-   - Subscribe to SSE on `GET /data-sync/jobs/{job_id}/stream`; show inline module-level progress spinner + `status_message`
+   - On confirm: `POST /sync/recalculate-emissions/{module_type_id}?year=YYYY&only_stale={bool}` → receive `job_id`
+   - Subscribe to SSE on `GET /sync/jobs/{job_id}/stream`; show inline module-level progress spinner + `status_message`
    - On `stream_closed`: refresh recalculation-status → all badges update reactively
    - On `FINISHED`: show module-level result badge and per-type stats from `meta.recalculation`
 
 10. **Per-data-entry-type "Recalculate Emissions" button** (existing, unchanged from previous design):
-    - On click: `POST /data-sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=YYYY` → receive `job_id`
+    - On click: `POST /sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}?year=YYYY` → receive `job_id`
     - Subscribe to SSE; show inline progress; on `stream_closed` refresh status
 
 ---
@@ -264,10 +264,10 @@ _parallel with implementation phases_
 
 ### Verification
 
-1. After a successful FACTORS job for `(module X, data_entry_type Y, year 2025)`, call `GET /data-sync/recalculation-status?year=2025` → module X appears with `needs_recalculation=true`; its `data_entry_types` array contains Y with `needs_recalculation=true`
+1. After a successful FACTORS job for `(module X, data_entry_type Y, year 2025)`, call `GET /sync/recalculation-status?year=2025` → module X appears with `needs_recalculation=true`; its `data_entry_types` array contains Y with `needs_recalculation=true`
 2. Module-level dialog opens; select "only stale" → `POST /recalculate-emissions/{module_type_id}?year=2025&only_stale=true` → single `job_id` returned
-3. SSE on `GET /data-sync/jobs/{job_id}/stream` shows `"Recalculating {data_entry_type} (1/N)..."` per type, then final stats in `meta.recalculation`
-4. After completion, `GET /data-sync/recalculation-status?year=2025` → module X `needs_recalculation=false`, all data_entry_types `needs_recalculation=false`
+3. SSE on `GET /sync/jobs/{job_id}/stream` shows `"Recalculating {data_entry_type} (1/N)..."` per type, then final stats in `meta.recalculation`
+4. After completion, `GET /sync/recalculation-status?year=2025` → module X `needs_recalculation=false`, all data_entry_types `needs_recalculation=false`
 5. Run a new FACTORS job → status flips back to `needs_recalculation=true` for that type/module automatically
 6. Select "all data entry types" in dialog with `only_stale=false` → all types recalculated even if not stale
 7. `only_stale=true` when no types are stale → 400 with clear error message

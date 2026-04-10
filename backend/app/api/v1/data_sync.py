@@ -566,7 +566,7 @@ async def recalculate_emissions_for_type(
     **Required Permission**: `backoffice.data_management.sync`
 
     Creates a background job and streams progress via
-    ``GET /data-sync/jobs/{job_id}/stream``.
+    ``GET /sync/jobs/{job_id}/stream``.
 
     Args:
         module_type_id: The module type to recalculate.
