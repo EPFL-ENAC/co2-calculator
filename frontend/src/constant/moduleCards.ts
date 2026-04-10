@@ -40,10 +40,6 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: true,
   },
   {
-    module: MODULES.Purchase,
-    active: true,
-  },
-  {
     module: MODULES.ProfessionalTravel,
     active: true,
     badge: {
@@ -51,6 +47,10 @@ export const MODULE_CARDS: ModuleCard[] = [
       color: 'primary',
       textColor: 'white',
     },
+  },
+  {
+    module: MODULES.Purchase,
+    active: true,
   },
   {
     module: MODULES.ResearchFacilities,
