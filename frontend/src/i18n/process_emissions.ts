@@ -2,7 +2,7 @@ import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.ProcessEmissions]: {
-    en: 'Process Emissions',
+    en: 'Process emissions',
     fr: 'Emissions de procédés',
   },
   [`${MODULES.ProcessEmissions}-description`]: {
@@ -22,7 +22,7 @@ export default {
     fr: 'Ajouter un gaz émis',
   },
   [`${MODULES.ProcessEmissions}-charts-title`]: {
-    en: 'Process Emissions Charts',
+    en: 'Process emissions charts',
     fr: 'Graphiques des émissions de procédés',
   },
   [`${MODULES.ProcessEmissions}-charts-no-data-message`]: {

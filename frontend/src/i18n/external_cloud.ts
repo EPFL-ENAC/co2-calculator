@@ -2,7 +2,7 @@ import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.ExternalCloudAndAI]: {
-    en: 'External Clouds & AI',
+    en: 'External clouds & AI',
     fr: 'Clouds Externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
