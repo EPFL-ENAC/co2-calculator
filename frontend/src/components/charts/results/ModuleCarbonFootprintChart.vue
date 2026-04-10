@@ -48,8 +48,9 @@ function getSubcategoryColor(
 // Static map: raw category key → GHG scope
 const CATEGORY_SCOPE: Record<string, 1 | 2 | 3 | 'additional'> = {
   process_emissions: 1,
-  buildings_room: 1,
-  buildings_energy_combustion: 2,
+  buildings_energy_combustion: 1,
+  buildings_room: 2,
+
   equipment: 2,
   external_cloud_and_ai: 3,
   purchases: 3,
@@ -405,12 +406,12 @@ const ADDITIONAL_CATEGORY_KEY_IDS = [
 
 const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
-  'charts-buildings-room-category',
   'charts-buildings-energy-combustion-category',
+  'charts-buildings-room-category',
   'equipment-electric-consumption',
   'external-cloud-and-ai',
-  'purchase',
   'professional-travel',
+  'purchase',
   'charts-research-facilities-category',
 ];
 
@@ -659,6 +660,37 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
+
+    {
+      name: t('charts-energy-combustion-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'combustion' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_energy_combustion',
+          'combustion',
+          colors.value.lilac.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-heating-thermal-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'heating_thermal' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_energy_combustion',
+          'heating_thermal',
+          colors.value.lilac.dark,
+        ),
+      },
+      label: { show: false },
+    },
     {
       name: t('charts-lighting-subcategory'),
       type: 'bar' as const,
@@ -715,36 +747,6 @@ const chartOption = computed((): EChartsOption => {
           'buildings_room',
           'heating_elec',
           colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-energy-combustion-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'combustion' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'combustion',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-heating-thermal-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_thermal' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'heating_thermal',
-          colors.value.lilac.dark,
         ),
       },
       label: { show: false },
