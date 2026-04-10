@@ -170,13 +170,35 @@ report generation, and email notifications.
 
 ## Authentication & Authorization
 
-### Authentication Flow (OIDC + JWT)
+### Authentication Flow (OIDC + JWT Cookies)
 
 1. Frontend redirects user to Microsoft Entra ID
 2. User authenticates with EPFL credentials
 3. Backend validates OIDC token and extracts claims
-4. Backend issues JWT for subsequent requests
-5. Frontend includes JWT in `Authorization: Bearer <token>`
+4. Backend issues access/refresh JWT tokens in HTTP-only cookies
+5. Frontend calls session endpoints using cookie-based authentication
+
+### CSRF Model (Double Submit Cookie)
+
+The API uses cookie-based auth, so CSRF protection is required for
+mutating requests.
+
+- CSRF pattern: Double Submit Cookie via `fastapi-csrf-protect`
+- Bootstrap endpoint: `GET /api/v1/auth/csrf`
+- Frontend must send header: `X-CSRF`
+- Protected methods: `POST`, `PUT`, `DELETE`
+- CSRF scope: all mutating routes under API version prefix (`/api/v1/...`)
+- GET routes remain unprotected by CSRF
+
+Expected CSRF error response (`403`):
+
+```json
+{
+  "error": "csrf_validation_failed",
+  "detail": "CSRF validation failed",
+  "reason": "<library validation reason>"
+}
+```
 
 ### Authorization (RBAC)
 
@@ -197,7 +219,42 @@ Policy Agent.
 - **Authentication Required**: All endpoints except `/health`
   and `/docs`
 
-CSRF protection is not needed (stateless JWT, no cookies).
+## CSRF Runbook
+
+### Common Causes of CSRF Failure
+
+- Missing `X-CSRF` header on `POST`/`PUT`/`DELETE`
+- CSRF cookie missing or expired (stale session/bootstrap token)
+- Header token does not match signed CSRF cookie
+- Proxy/cookie policy mismatch (`Secure`, `SameSite`, path/domain)
+- Frontend request bypasses shared HTTP client hook
+
+### Staging Verification Checklist
+
+1. `GET /api/v1/auth/csrf` returns plain token and sets signed CSRF cookie.
+2. `POST` without `X-CSRF` returns `403` with `csrf_validation_failed` payload.
+3. `POST` with valid `X-CSRF` + signed cookie succeeds.
+4. `PUT` and `DELETE` follow the same success/failure behavior.
+5. `GET` endpoints still work without CSRF header.
+6. `auth/refresh` and `auth/logout` succeed when frontend sends `X-CSRF`.
+
+## Definition of Done
+
+- All `POST`/`PUT`/`DELETE` endpoints under API version reject missing/invalid
+  CSRF with `403`.
+- `GET` endpoints continue working without CSRF header.
+- Frontend automatically sends CSRF header for all mutating requests.
+- Refresh and logout continue to function with CSRF enabled.
+- Integration tests pass for CSRF success and failure paths.
+- Documentation reflects cookie-based auth + Double Submit CSRF model.
+
+## Recommended Rollout Order
+
+1. Deploy backend CSRF engine and bootstrap endpoint behind feature flag.
+2. Deploy frontend CSRF bootstrap + automatic mutating header injection.
+3. Enable CSRF in staging and run verification checklist.
+4. Validate auth refresh/logout and module mutation flows.
+5. Enable CSRF in production progressively and monitor `403` rates.
 
 ## Troubleshooting
 
