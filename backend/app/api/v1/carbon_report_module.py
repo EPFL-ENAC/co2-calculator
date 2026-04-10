@@ -243,6 +243,11 @@ async def get_stats_by_class(
 # Maps module type → JSON data field to group by.
 _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
+    ModuleTypeEnum.purchase: "purchase_institutional_code",
+}
+
+# Optional: display a different field's value instead of the group key.
+_MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.purchase: "purchase_institutional_description",
 }
 
@@ -284,10 +289,14 @@ async def get_top_class_breakdown(
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
+    label_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
+
     stats = await DataEntryEmissionService(db).get_top_class_breakdown(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_types=data_entry_types,
         group_by_field=group_field,
+        label_field=label_field,
+        report_year=int(year),
     )
     return stats
 

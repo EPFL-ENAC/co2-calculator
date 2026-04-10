@@ -908,7 +908,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'external_cloud_and_ai',
           'clouds',
-          colors.value.paleYellowGreen.darker,
+          colors.value.lavender.darker,
         ),
       },
       label: { show: false },
@@ -923,7 +923,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'external_cloud_and_ai',
           'ai',
-          colors.value.paleYellowGreen.dark,
+          colors.value.lavender.dark,
         ),
       },
       label: { show: false },
@@ -1213,36 +1213,62 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card
+    flat
+    class="container container--pa-none full-width module-carbon-chart"
+  >
     <q-card-section class="flex justify-between items-center">
-      <div>
+      <div class="flex items-center no-wrap">
+        <q-icon
+          name="o_info"
+          size="xs"
+          color="primary"
+          class="cursor-pointer"
+          :aria-label="$t('unit_carbon_footprint_scope_tooltip_aria')"
+        >
+          <q-tooltip
+            anchor="center right"
+            self="top right"
+            class="u-tooltip text-body2"
+            max-width="min(92vw, 48rem)"
+            :offset="[8, 8]"
+          >
+            <div class="module-carbon-scope-tooltip">
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 1,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_1_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 2,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_2_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 3,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_3_desc') }}
+              </p>
+            </div>
+          </q-tooltip>
+        </q-icon>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ props.title ?? $t('unit_carbon_footprint_title') }}
         </span>
       </div>
 
-      <div>
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
-          @click="downloadCSV"
-        />
-      </div>
       <q-checkbox
         v-model="toggleAdditionalData"
         :label="$t('results_module_carbon_toggle_additional_data')"
@@ -1250,7 +1276,10 @@ const downloadCSV = () => {
         color="accent"
       />
     </q-card-section>
-    <q-card-section class="chart-container flex justify-center items-center">
+
+    <q-card-section
+      class="chart-container flex justify-center items-center module-carbon-chart__body"
+    >
       <v-chart
         ref="chartRef"
         class="chart"
@@ -1259,12 +1288,68 @@ const downloadCSV = () => {
         @rendered="recalculateScopeRects"
       />
     </q-card-section>
+
+    <q-card-actions align="center" class="q-px-md q-pb-md q-pt-none">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="sm"
+        class="text-weight-medium q-mr-xs"
+        @click="downloadPNG"
+      />
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_csv')"
+        size="sm"
+        class="text-weight-medium"
+        @click="downloadCSV"
+      />
+    </q-card-actions>
   </q-card>
 </template>
 
 <style scoped>
+.module-carbon-chart {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.module-carbon-chart__body {
+  flex: 1;
+}
+
 .chart {
-  width: 500px;
+  width: 100%;
   min-height: 500px;
+}
+
+@media (max-width: 1320px) {
+  .chart {
+    width: 95%;
+  }
+}
+</style>
+
+<!-- Tooltip content is rendered in a portal; i18n supplies .module-carbon-scope-tooltip -->
+<style lang="scss">
+.module-carbon-scope-tooltip {
+  min-width: 36rem;
+}
+
+.module-carbon-scope-tooltip p {
+  margin: 0 0 0.5rem;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.module-carbon-scope-tooltip p:last-child {
+  margin-bottom: 0;
 }
 </style>

@@ -87,8 +87,8 @@ export default {
     fr: 'Contact',
   },
   unit_carbon_footprint_title: {
-    en: 'My Unit Carbon Footprint',
-    fr: "Mon Empreinte Carbone de l'unité",
+    en: 'Unit carbon footprint',
+    fr: "Empreinte carbone de l'unité",
   },
   common_this_item: {
     en: 'this item',

@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Select, case, literal
+from sqlalchemy import Select, case, literal, or_
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -11,6 +11,7 @@ from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 logger = get_logger(__name__)
@@ -336,12 +337,51 @@ class DataEntryEmissionRepository:
 
         return result_list
 
+    @staticmethod
+    def _looks_like_purchase_institutional_code(name: str) -> bool:
+        """Return True if ``name`` looks like an institutional code candidate."""
+        normalized_name = name.strip()
+        if not normalized_name:
+            return False
+        return normalized_name.lower() not in ("rest", "unknown")
+
+    async def _purchase_code_label_lookup(
+        self,
+        report_year: int,
+        codes_by_det: Dict[int, set[str]],
+    ) -> Dict[tuple[int, str], str]:
+        """Map (data_entry_type_id, institutional code) → description from factors."""
+        result: Dict[tuple[int, str], str] = {}
+        code_json = Factor.classification["purchase_institutional_code"].as_string()
+        desc_json = Factor.classification[
+            "purchase_institutional_description"
+        ].as_string()
+        for det_id, codes in codes_by_det.items():
+            if not codes:
+                continue
+            stmt = (
+                select(code_json, func.max(desc_json))
+                .where(
+                    col(Factor.data_entry_type_id) == det_id,
+                    code_json.in_(sorted(codes)),
+                    or_(col(Factor.year) == report_year, col(Factor.year).is_(None)),
+                )
+                .group_by(code_json)
+            )
+            exec_result = await self.session.execute(stmt)
+            for code, desc in exec_result.all():
+                if code and desc:
+                    result[(det_id, str(code))] = str(desc)
+        return result
+
     async def get_top_class_breakdown(
         self,
         carbon_report_module_id: int,
         data_entry_types: List[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
+        label_field: str | None = None,
+        report_year: int | None = None,
     ) -> List[Dict[str, Any]]:
         """Aggregate emissions by data entry type and a grouping field.
 
@@ -352,27 +392,46 @@ class DataEntryEmissionRepository:
         Args:
             carbon_report_module_id: The carbon report module to query.
             data_entry_types: Which data entry types to include.
-             group_by_field: The DataEntry.data JSON field to group by
-                 (e.g. ``"equipment_class"`` or
-                 ``"purchase_institutional_description"``).
+            group_by_field: The DataEntry.data JSON field to group by
+                (e.g. ``"equipment_class"`` or
+                ``"purchase_institutional_code"``).
             top_n: Number of top items to show per subcategory (default 3).
+            label_field: Optional DataEntry.data JSON field to use as the
+                display label instead of ``group_by_field`` values
+                (e.g. ``"purchase_institutional_description"``).
+            report_year: Carbon report year; used to resolve purchase labels from
+                ``factors`` when entry rows omit ``purchase_institutional_description``.
         """
         det_name_map = {det.value: det.name for det in data_entry_types}
         category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data[group_by_field].as_string()
 
-        ranked = (
-            select(
-                category_expr.label("category"),
-                func.coalesce(class_expr, literal("unknown")).label("class_key"),
-                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
-                func.row_number()
-                .over(
-                    partition_by=category_expr,
-                    order_by=func.sum(col(DataEntryEmission.kg_co2eq)).desc(),
-                )
-                .label("rn"),
+        # When a label_field is provided, pick one label per group (MAX)
+        has_label = label_field is not None
+        label_expr = (
+            DataEntry.data[label_field].as_string() if has_label else class_expr
+        )
+
+        ranked_columns = [
+            category_expr.label("category"),
+            func.coalesce(class_expr, literal("unknown")).label("class_key"),
+            func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
+            func.row_number()
+            .over(
+                partition_by=category_expr,
+                order_by=func.sum(col(DataEntryEmission.kg_co2eq)).desc(),
             )
+            .label("rn"),
+        ]
+        group_by_columns = [category_expr, class_expr]
+
+        if has_label:
+            ranked_columns.append(
+                func.max(func.coalesce(label_expr, class_expr)).label("class_label")
+            )
+
+        ranked = (
+            select(*ranked_columns)
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
@@ -382,7 +441,7 @@ class DataEntryEmissionRepository:
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 col(DataEntryEmission.kg_co2eq) > 0,
             )
-            .group_by(category_expr, class_expr)
+            .group_by(*group_by_columns)
             .cte("ranked")
         )
 
@@ -391,11 +450,26 @@ class DataEntryEmissionRepository:
             else_=literal("rest"),
         ).label("class_key")
 
-        query: Select[Any] = select(
+        outer_columns = [
             ranked.c.category.label("category"),
             bucketed_class,
             func.sum(ranked.c.kg_co2eq).label("kg_co2eq"),
-        ).group_by(ranked.c.category, bucketed_class)
+        ]
+        group_by_outer = [ranked.c.category, bucketed_class]
+
+        if has_label:
+            # For top-N rows: pick the label from the CTE.
+            # For "rest" rows: aggregate label doesn't matter, use "rest".
+            outer_columns.append(
+                func.max(
+                    case(
+                        (ranked.c.rn <= top_n, ranked.c.class_label),
+                        else_=literal("rest"),
+                    )
+                ).label("class_label")
+            )
+
+        query: Select[Any] = select(*outer_columns).group_by(*group_by_outer)
 
         rows = (await self.session.execute(query)).all()
 
@@ -403,13 +477,53 @@ class DataEntryEmissionRepository:
         for row in rows:
             entry = data_dict.setdefault(
                 row.category,
-                {"name": det_name_map[row.category], "value": 0.0, "children": []},
+                {
+                    "name": det_name_map[row.category],
+                    "data_entry_type_id": row.category,
+                    "value": 0.0,
+                    "children": [],
+                },
             )
             kg = float(row.kg_co2eq)
-            entry["children"].append({"name": row.class_key, "value": kg})
+            display_name = row.class_label if has_label else row.class_key
+            entry["children"].append({"name": display_name, "value": kg})
             entry["value"] += kg
 
-        return list(data_dict.values())
+        result_list = list(data_dict.values())
+        if (
+            has_label
+            and label_field == "purchase_institutional_description"
+            and report_year is not None
+        ):
+            codes_by_det: Dict[int, set[str]] = {}
+            for group in result_list:
+                det_id = group["data_entry_type_id"]
+                for child in group["children"]:
+                    nm = child["name"]
+                    if not isinstance(nm, str):
+                        continue
+                    if not self._looks_like_purchase_institutional_code(nm):
+                        continue
+                    codes_by_det.setdefault(det_id, set()).add(nm)
+            label_map = await self._purchase_code_label_lookup(
+                report_year, codes_by_det
+            )
+            for group in result_list:
+                det_id = group["data_entry_type_id"]
+                for child in group["children"]:
+                    nm = child["name"]
+                    if not isinstance(nm, str):
+                        continue
+                    if not self._looks_like_purchase_institutional_code(nm):
+                        continue
+                    resolved = label_map.get((det_id, nm))
+                    if resolved:
+                        child["name"] = resolved
+
+        for group in result_list:
+            group.pop("data_entry_type_id", None)
+
+        return result_list
 
     async def get_travel_evolution_over_time(
         self,

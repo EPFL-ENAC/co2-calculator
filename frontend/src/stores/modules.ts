@@ -42,6 +42,42 @@ export interface EmissionBreakdownResponse {
   headcount_validated: boolean;
   total_tonnes_co2eq: number;
   total_fte: number;
+  it_summary?: {
+    total_tonnes_co2eq: number;
+    percentage_of_total: number;
+  };
+}
+
+export interface ItBreakdownEmission {
+  key: string;
+  value: number;
+}
+
+export interface ItBreakdownTopItem {
+  name: string;
+  value: number;
+}
+
+export interface ItBreakdownCategory {
+  category_key: string;
+  tonnes_co2eq: number;
+  percentage: number;
+  emissions?: ItBreakdownEmission[];
+  top_items?: ItBreakdownTopItem[];
+}
+
+export interface ItBreakdownResponse {
+  total_it_tonnes_co2eq: number;
+  total_it_per_fte: number;
+  percentage_of_total: number;
+  categories: ItBreakdownCategory[];
+  scope_breakdown: {
+    scope_2: number;
+    scope_3: number;
+  };
+  validated: boolean;
+  partially_validated: boolean;
+  validated_sources: string[];
 }
 
 export interface EmissionBreakdownValue {
@@ -240,6 +276,9 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdown: EmissionBreakdownResponse | null;
     loadingEmissionBreakdown: boolean;
     errorEmissionBreakdown: string | null;
+    itBreakdown: ItBreakdownResponse | null;
+    loadingItBreakdown: boolean;
+    errorItBreakdown: string | null;
   }>({
     loading: false,
     error: null,
@@ -271,6 +310,9 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdown: null,
     loadingEmissionBreakdown: false,
     errorEmissionBreakdown: null,
+    itBreakdown: null,
+    loadingItBreakdown: false,
+    errorItBreakdown: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -873,6 +915,30 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getItBreakdown(
+    carbonReportId: number,
+    excludeModules: number[] = [],
+  ) {
+    state.loadingItBreakdown = true;
+    state.errorItBreakdown = null;
+    try {
+      const params = new URLSearchParams();
+      excludeModules.forEach((id) =>
+        params.append('exclude_modules', String(id)),
+      );
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/it-breakdown${qs}`;
+      const data = await api.get(path).json<ItBreakdownResponse>();
+      state.itBreakdown = data;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      state.errorItBreakdown = message;
+      state.itBreakdown = null;
+    } finally {
+      state.loadingItBreakdown = false;
+    }
+  }
+
   return {
     initializeSubmoduleState,
     getModuleData,
@@ -894,6 +960,7 @@ export const useModuleStore = defineStore('modules', () => {
     requestEmissionBreakdownRefresh,
     consumeEmissionBreakdownRefreshRequest,
     emissionBreakdownRefreshSequence,
+    getItBreakdown,
     validatedTotalsCarbonReportId,
     state,
   };
