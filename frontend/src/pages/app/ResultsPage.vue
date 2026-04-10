@@ -16,6 +16,7 @@ import { MODULES_CONFIG } from 'src/constant/module-config';
 import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
+import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
 import {
   getResultsSummary,
   type ResultsSummary,
@@ -25,6 +26,7 @@ import {
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 
@@ -140,9 +142,16 @@ async function fetchEmissionBreakdown() {
   await moduleStore.getEmissionBreakdown(carbonReportId, excludedModules.value);
 }
 
+async function fetchItBreakdown() {
+  const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+  if (!carbonReportId) return;
+  await moduleStore.getItBreakdown(carbonReportId, excludedModules.value);
+}
+
 onMounted(() => {
   fetchResultsSummary();
   fetchEmissionBreakdown();
+  fetchItBreakdown();
 
   const schedule =
     window.requestIdleCallback ??
@@ -154,21 +163,28 @@ onMounted(() => {
 
 // Watch for year/unit changes
 watch(
-  () => [workspaceStore.selectedCarbonReport?.id, currentYear.value],
+  () => [
+    workspaceStore.selectedCarbonReport?.id,
+    currentYear.value,
+    hideResearchFacilities.value,
+  ],
   () => {
-    fetchResultsSummary();
-    fetchEmissionBreakdown();
+    moduleStore.invalidateEmissionBreakdown();
+    void fetchResultsSummary();
+    void fetchEmissionBreakdown();
+    void fetchItBreakdown();
   },
 );
-
-async function onHideResearchFacilitiesChange() {
-  moduleStore.invalidateEmissionBreakdown();
-  await Promise.all([fetchResultsSummary(), fetchEmissionBreakdown()]);
-}
 
 const isModuleValidated = (module: string) => {
   return timelineStore.itemStates[module as Module] === MODULE_STATES.Validated;
 };
+
+const showItFocusSection = computed(() =>
+  IT_FOCUS_SOURCE_MODULES.some(
+    (m) => timelineStore.itemStates[m] === MODULE_STATES.Validated,
+  ),
+);
 
 /**
  * Get the module result for a given frontend module key.
@@ -263,7 +279,6 @@ const getUncertainty = (
                 color="accent"
                 class="text-weight-medium"
                 size="xs"
-                @update:model-value="onHideResearchFacilitiesChange"
               />
               <q-separator class="q-my-sm" />
               <q-checkbox
@@ -425,7 +440,7 @@ const getUncertainty = (
         </template>
       </q-card>
 
-      <q-card flat bordered class="q-pa-xl">
+      <q-card flat bordered class="q-pa-lg">
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-h2 text-weight-medium">
@@ -654,6 +669,13 @@ const getUncertainty = (
           </q-card>
         </template>
       </div>
+      <q-card v-if="showItFocusSection" flat bordered class="q-pa-none">
+        <ItFocusSection
+          :data="moduleStore.state.itBreakdown"
+          :loading="moduleStore.state.loadingItBreakdown"
+          :co2-per-km-kg="co2PerKmKg"
+        />
+      </q-card>
     </div>
   </q-page>
 </template>

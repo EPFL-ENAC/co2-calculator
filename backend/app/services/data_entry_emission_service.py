@@ -458,6 +458,8 @@ class DataEntryEmissionService:
         data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
+        label_field: str | None = None,
+        report_year: int | None = None,
     ) -> list[dict]:
         """Get emissions aggregated by subcategory and a grouping field.
 
@@ -468,6 +470,8 @@ class DataEntryEmissionService:
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             top_n=top_n,
+            label_field=label_field,
+            report_year=report_year,
         )
 
     async def get_travel_evolution_over_time(

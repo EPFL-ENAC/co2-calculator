@@ -908,7 +908,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'external_cloud_and_ai',
           'clouds',
-          colors.value.paleYellowGreen.darker,
+          colors.value.lavender.darker,
         ),
       },
       label: { show: false },
@@ -923,7 +923,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'external_cloud_and_ai',
           'ai',
-          colors.value.paleYellowGreen.dark,
+          colors.value.lavender.dark,
         ),
       },
       label: { show: false },

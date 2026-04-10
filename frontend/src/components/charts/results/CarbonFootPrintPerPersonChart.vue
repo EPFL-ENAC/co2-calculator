@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors } from 'src/constant/charts';
+import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -273,7 +273,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'external_cloud_and_ai',
       },
       itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
       },
       label: {
         show: false,
