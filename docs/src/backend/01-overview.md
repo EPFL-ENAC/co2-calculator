@@ -186,7 +186,7 @@ mutating requests.
 - CSRF pattern: Double Submit Cookie via `fastapi-csrf-protect`
 - Bootstrap endpoint: `GET /api/v1/auth/csrf`
 - Frontend must send header: `X-CSRF`
-- Protected methods: `POST`, `PUT`, `DELETE`
+- Protected methods: `POST`, `PUT`, `DELETE`, `PATCH`
 - CSRF scope: all mutating routes under API version prefix (`/api/v1/...`)
 - GET routes remain unprotected by CSRF
 

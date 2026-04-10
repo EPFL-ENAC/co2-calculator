@@ -31,7 +31,6 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.39.1",
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
-    "pandas>=3.0.1",
     "fastapi-csrf-protect>=1.0.7",
 ]
 

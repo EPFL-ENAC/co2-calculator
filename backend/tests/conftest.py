@@ -47,7 +47,7 @@ def csrf_enabled_settings(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "CSRF_ENABLED", True)
     monkeypatch.setattr(settings, "CSRF_HEADER_NAME", "X-CSRF")
-    monkeypatch.setattr(settings, "CSRF_PROTECTED_METHODS", "POST,PUT,DELETE")
+    monkeypatch.setattr(settings, "CSRF_PROTECTED_METHODS", "POST,PUT,DELETE,PATCH")
     monkeypatch.setattr(settings, "CSRF_COOKIE_KEY", "fastapi-csrf-token")
     monkeypatch.setattr(settings, "CSRF_COOKIE_PATH", "/")
     monkeypatch.setattr(settings, "CSRF_COOKIE_MAX_AGE", 3600)
