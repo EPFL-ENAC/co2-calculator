@@ -147,7 +147,7 @@ async def run_module_recalculation_task(
 ) -> None:
     """Async implementation of module-level bulk recalculation.
 
-    Iterates over all requested data_entry_type_ids in sequence.  A single
+    Iterates over all requested data_entry_type_ids in sequence. A single
     failing type never aborts the others — errors are accumulated in per-type
     stats.
 
@@ -201,9 +201,10 @@ async def run_module_recalculation_task(
                 await job_session.commit()
 
                 try:
-                    stats = await svc.recalculate_for_data_entry_type(
-                        data_entry_type, year
-                    )
+                    async with data_session.begin_nested():
+                        stats = await svc.recalculate_for_data_entry_type(
+                            data_entry_type, year
+                        )
                     per_type_stats[det_id] = stats
                     total_errors += stats["errors"]
                     total_recalculated += stats["recalculated"]
@@ -213,7 +214,7 @@ async def run_module_recalculation_task(
                         f"failed entirely: {exc}",
                         exc_info=True,
                     )
-                    # Count the entire type as failed
+                    # Savepoint was rolled back automatically; session is clean.
                     per_type_stats[det_id] = {
                         "recalculated": 0,
                         "modules_refreshed": 0,
@@ -222,7 +223,8 @@ async def run_module_recalculation_task(
                     }
                     total_errors += 1
 
-            # Commit data session once (all-or-nothing for the whole module)
+            # Commit data session once after all types have been processed, so
+            # that partial failures don't leave the database in a half-upserted state.
             await data_session.commit()
 
             # Determine overall result

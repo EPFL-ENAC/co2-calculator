@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
@@ -967,8 +967,6 @@ async def test_list_by_data_entry_type_and_year_matching_year(
     db_session: AsyncSession,
 ):
     """Entries from a CarbonReport with the matching year are returned."""
-    from app.models.carbon_report import CarbonReport
-
     repo = DataEntryRepository(db_session)
 
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
@@ -1004,8 +1002,6 @@ async def test_list_by_data_entry_type_and_year_non_matching_year(
     db_session: AsyncSession,
 ):
     """Entries from a CarbonReport with a different year are not returned."""
-    from app.models.carbon_report import CarbonReport
-
     repo = DataEntryRepository(db_session)
 
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
@@ -1052,8 +1048,6 @@ async def test_list_by_data_entry_type_and_year_filters_by_type(
     db_session: AsyncSession,
 ):
     """Only entries of the requested data_entry_type are returned."""
-    from app.models.carbon_report import CarbonReport
-
     repo = DataEntryRepository(db_session)
 
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)

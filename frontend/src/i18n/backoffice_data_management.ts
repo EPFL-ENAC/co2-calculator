@@ -605,7 +605,7 @@ export default {
     fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
   },
   data_management_recalculation_success: {
-    en: 'Emission recalculation successful',
+    en: 'Emissions recalculation successful',
     fr: 'Le recalcul des émissions a réussi',
   },
   data_management_recalculation_error: {
@@ -613,7 +613,7 @@ export default {
     fr: 'Échec du recalcul des émissions',
   },
   data_management_recalculation_warning: {
-    en: 'Emission recalculated with warnings',
+    en: 'Emissions recalculated with warnings',
     fr: 'Le recalcul des émissions a été effectué avec des avertissements',
   },
   data_management_recalculate_only_stale: {
