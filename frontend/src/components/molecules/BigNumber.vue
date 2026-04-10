@@ -10,6 +10,7 @@ const props = withDefaults(
     comparison?: string;
     comparisonHighlight?: string;
     color?: string;
+    tooltipPlacement?: 'title' | 'comparison';
   }>(),
   {
     bordered: true,
@@ -17,10 +18,11 @@ const props = withDefaults(
     comparison: undefined,
     comparisonHighlight: undefined,
     color: undefined,
+    tooltipPlacement: 'title',
   },
 );
 
-const tooltipPlacement = computed(() => props.tooltipPlacement ?? 'title');
+const tooltipPlacement = computed(() => props.tooltipPlacement);
 
 const comparisonParts = computed(() => {
   if (!props.comparison) {
@@ -49,7 +51,11 @@ const comparisonParts = computed(() => {
 </script>
 
 <template>
-  <q-card flat :bordered="bordered" :class="['container', 'container--pa-none']">
+  <q-card
+    flat
+    :bordered="bordered"
+    :class="['container', 'container--pa-none']"
+  >
     <q-card-section class="flex items-center q-mb-xs">
       <q-icon
         v-if="$slots.tooltip && tooltipPlacement === 'title'"

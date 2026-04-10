@@ -16,8 +16,6 @@ import { MODULES_CONFIG } from 'src/constant/module-config';
 import { colorblindMode } from 'src/constant/charts';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
-import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
 import {
   getResultsSummary,
@@ -28,6 +26,7 @@ import {
 import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 
@@ -152,6 +151,7 @@ async function fetchItBreakdown() {
 onMounted(() => {
   fetchResultsSummary();
   fetchEmissionBreakdown();
+  fetchItBreakdown();
 
   const schedule =
     window.requestIdleCallback ??
@@ -179,6 +179,12 @@ watch(
 const isModuleValidated = (module: string) => {
   return timelineStore.itemStates[module as Module] === MODULE_STATES.Validated;
 };
+
+const showItFocusSection = computed(() =>
+  IT_FOCUS_SOURCE_MODULES.some(
+    (m) => timelineStore.itemStates[m] === MODULE_STATES.Validated,
+  ),
+);
 
 /**
  * Get the module result for a given frontend module key.
@@ -663,7 +669,7 @@ const getUncertainty = (
           </q-card>
         </template>
       </div>
-      <q-card flat bordered class="q-pa-none">
+      <q-card v-if="showItFocusSection" flat bordered class="q-pa-none">
         <ItFocusSection
           :data="moduleStore.state.itBreakdown"
           :loading="moduleStore.state.loadingItBreakdown"

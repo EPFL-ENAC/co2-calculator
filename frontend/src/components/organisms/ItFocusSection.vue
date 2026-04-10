@@ -9,7 +9,10 @@ import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import { colors } from 'src/constant/charts';
+import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
+import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
+import { MODULE_STATES } from 'src/constant/moduleStates';
+import { useTimelineStore } from 'src/stores/modules';
 import { formatTonnesCO2, formatTonnesForChart } from 'src/utils/number';
 import type { ItBreakdownResponse } from 'src/stores/modules';
 
@@ -33,13 +36,13 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
+const timelineStore = useTimelineStore();
 
-/** Same rule as module totals: equivalent_car_km = kg_co2eq / co2_per_km_kg */
-const itEquivalentCarKm = computed(() => {
-  if (!props.data || props.co2PerKmKg <= 0) return null;
-  const kg = props.data.total_it_tonnes_co2eq * 1000;
-  return kg / props.co2PerKmKg;
-});
+function isItCategoryModuleValidated(categoryKey: string): boolean {
+  const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
+  if (!mod) return false;
+  return timelineStore.itemStates[mod] === MODULE_STATES.Validated;
+}
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
   equipment_it: 'it-focus-equipment-it',
@@ -47,6 +50,14 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   external_cloud_and_ai: 'it-focus-cloud-ai',
   research_facilities_it: 'it-focus-research-facilities',
 };
+
+/** Y-axis top → bottom after chart `.reverse()` (first here = top of chart). */
+const IT_FOCUS_CATEGORY_ORDER = [
+  'equipment_it',
+  'external_cloud_and_ai',
+  'purchases_it',
+  'research_facilities_it',
+] as const;
 
 const CLOUD_AI_LABEL_MAP: Record<string, string> = {
   stockage: 'it-focus-cloud-stockage',
@@ -59,14 +70,12 @@ const CLOUD_AI_LABEL_MAP: Record<string, string> = {
 const categoryColor = computed(() => ({
   equipment_it: colors.value.periwinkle.dark,
   purchases_it: colors.value.lightGreen.dark,
-  external_cloud_and_ai: colors.value.paleYellowGreen.dark,
-  research_facilities_it: colors.value.skyBlue.dark,
+  external_cloud_and_ai:
+    CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
+  /** Same as `research_facilities` in module / results charts (CHART_CATEGORY_COLOR_SCHEMES). */
+  research_facilities_it:
+    CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
 }));
-
-const hasData = computed(() => {
-  if (!props.data) return false;
-  return props.data.total_it_tonnes_co2eq > 0;
-});
 
 interface BarSegment {
   name: string;
@@ -87,12 +96,13 @@ interface CategoryBar {
  * sub-breakdown for cloud & AI).
  */
 const categoryBars = computed<CategoryBar[]>(() => {
-  if (!props.data || !hasData.value) return [];
+  if (!props.data) return [];
 
   const bars: CategoryBar[] = [];
 
   for (const cat of props.data.categories) {
     if (cat.tonnes_co2eq <= 0) continue;
+    if (!isItCategoryModuleValidated(cat.category_key)) continue;
 
     const label = t(CATEGORY_LABEL_MAP[cat.category_key] ?? cat.category_key);
     const color =
@@ -131,7 +141,35 @@ const categoryBars = computed<CategoryBar[]>(() => {
     });
   }
 
+  const orderRank = (key: string): number => {
+    const i = IT_FOCUS_CATEGORY_ORDER.indexOf(
+      key as (typeof IT_FOCUS_CATEGORY_ORDER)[number],
+    );
+    return i === -1 ? IT_FOCUS_CATEGORY_ORDER.length : i;
+  };
+
+  bars.sort((a, b) => {
+    const d = orderRank(a.categoryKey) - orderRank(b.categoryKey);
+    return d !== 0 ? d : a.categoryKey.localeCompare(b.categoryKey);
+  });
+
   return bars;
+});
+
+const hasData = computed(() => categoryBars.value.length > 0);
+
+/** Tonnes from categories whose parent module is validated (aligned with visible bars). */
+const displayTotalItTonnes = computed(() =>
+  categoryBars.value.reduce((sum, bar) => sum + bar.total, 0),
+);
+
+/** Same rule as module totals: equivalent_car_km = kg_co2eq / co2_per_km_kg */
+const itEquivalentCarKm = computed(() => {
+  if (props.co2PerKmKg <= 0) return null;
+  const total = displayTotalItTonnes.value;
+  if (total <= 0) return null;
+  const kg = total * 1000;
+  return kg / props.co2PerKmKg;
 });
 
 /** Collect all unique segment names across all bars (union for stacking) */
@@ -174,7 +212,7 @@ const segmentLabelMap = computed(() => {
 });
 
 const chartHeight = computed(() => {
-  return Math.max(160, categoryBars.value.length * 60 + 60);
+  return Math.max(200, categoryBars.value.length * 60 + 120);
 });
 
 const barChartOption = computed<EChartsOption>(() => {
@@ -200,7 +238,7 @@ const barChartOption = computed<EChartsOption>(() => {
       borderColor: '#fff',
       borderWidth: 1,
     },
-    barWidth: 32,
+    barWidth: 48,
     label: { show: false },
     emphasis: {
       focus: 'series' as const,
@@ -270,7 +308,7 @@ const barChartOption = computed<EChartsOption>(() => {
     <q-card v-if="data" flat class="grid-1-col q-mt-lg q-mb-lg q-px-lg">
       <BigNumber
         :title="$t('it-focus-total')"
-        :number="`${formatTonnesCO2(data.total_it_tonnes_co2eq)}`"
+        :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
         :comparison="
           itEquivalentCarKm != null
             ? $t('results_equivalent_to_car', {
@@ -285,6 +323,7 @@ const barChartOption = computed<EChartsOption>(() => {
             : undefined
         "
         color="accent"
+        tooltip-placement="comparison"
       >
         <template v-if="co2PerKmKg > 0" #tooltip>{{
           $t('results_total_unit_carbon_footprint_tooltip', {
