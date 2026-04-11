@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import ColumnElement, Select, and_, case, literal, or_
+from sqlalchemy import ColumnElement, Select, and_, case, literal
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -731,43 +731,6 @@ class DataEntryEmissionRepository:
 
         return result_list
 
-    @staticmethod
-    def _looks_like_purchase_institutional_code(name: str) -> bool:
-        """Return True if ``name`` looks like an institutional code candidate."""
-        normalized_name = name.strip()
-        if not normalized_name:
-            return False
-        return normalized_name.lower() not in ("rest", "unknown")
-
-    async def _purchase_code_label_lookup(
-        self,
-        report_year: int,
-        codes_by_det: Dict[int, set[str]],
-    ) -> Dict[tuple[int, str], str]:
-        """Map (data_entry_type_id, institutional code) → description from factors."""
-        result: Dict[tuple[int, str], str] = {}
-        code_json = Factor.classification["purchase_institutional_code"].as_string()
-        desc_json = Factor.classification[
-            "purchase_institutional_description"
-        ].as_string()
-        for det_id, codes in codes_by_det.items():
-            if not codes:
-                continue
-            stmt = (
-                select(code_json, func.max(desc_json))
-                .where(
-                    col(Factor.data_entry_type_id) == det_id,
-                    code_json.in_(sorted(codes)),
-                    or_(col(Factor.year) == report_year, col(Factor.year).is_(None)),
-                )
-                .group_by(code_json)
-            )
-            exec_result = await self.session.execute(stmt)
-            for code, desc in exec_result.all():
-                if code and desc:
-                    result[(det_id, str(code))] = str(desc)
-        return result
-
     async def get_top_class_breakdown(
         self,
         carbon_report_module_id: int,
@@ -791,10 +754,8 @@ class DataEntryEmissionRepository:
                 ``"purchase_institutional_code"``).
             top_n: Number of top items to show per subcategory (default 3).
             label_field: Optional DataEntry.data JSON field to use as the
-                display label instead of ``group_by_field`` values
-                (e.g. ``"purchase_institutional_description"``).
-            report_year: Carbon report year; used to resolve purchase labels from
-                ``factors`` when entry rows omit ``purchase_institutional_description``.
+                display label instead of ``group_by_field`` values.
+            report_year: Carbon report year.
         """
         det_name_map = {det.value: det.name for det in data_entry_types}
         category_expr = col(DataEntry.data_entry_type_id)
@@ -884,35 +845,6 @@ class DataEntryEmissionRepository:
             entry["value"] += kg
 
         result_list = list(data_dict.values())
-        if (
-            has_label
-            and label_field == "purchase_institutional_description"
-            and report_year is not None
-        ):
-            codes_by_det: Dict[int, set[str]] = {}
-            for group in result_list:
-                det_id = group["data_entry_type_id"]
-                for child in group["children"]:
-                    nm = child["name"]
-                    if not isinstance(nm, str):
-                        continue
-                    if not self._looks_like_purchase_institutional_code(nm):
-                        continue
-                    codes_by_det.setdefault(det_id, set()).add(nm)
-            label_map = await self._purchase_code_label_lookup(
-                report_year, codes_by_det
-            )
-            for group in result_list:
-                det_id = group["data_entry_type_id"]
-                for child in group["children"]:
-                    nm = child["name"]
-                    if not isinstance(nm, str):
-                        continue
-                    if not self._looks_like_purchase_institutional_code(nm):
-                        continue
-                    resolved = label_map.get((det_id, nm))
-                    if resolved:
-                        child["name"] = resolved
 
         for group in result_list:
             group.pop("data_entry_type_id", None)

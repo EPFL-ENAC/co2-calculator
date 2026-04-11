@@ -355,6 +355,7 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useFactorsStore } from 'src/stores/factors';
 import { useAuthStore } from 'src/stores/auth';
 import {
   useBackofficeDataManagement,
@@ -685,6 +686,7 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const factorsStore = useFactorsStore();
 
 const hasModuleUpload = computed(() => {
   return (
@@ -749,6 +751,7 @@ type TableViewColumn = {
   readOnlyWhen?: ModuleField['readOnlyWhen'];
   readOnlyDisplayField?: string;
   optionLabelsAreKeys?: boolean;
+  optionLabelPrefix?: string;
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -801,6 +804,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             readOnlyWhen: f.readOnlyWhen,
             readOnlyDisplayField: f.readOnlyDisplayField,
             optionLabelsAreKeys: f.optionLabelsAreKeys,
+            optionLabelPrefix: f.optionLabelPrefix,
           });
         });
       } else {
@@ -835,6 +839,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           readOnlyWhen: f.readOnlyWhen,
           readOnlyDisplayField: f.readOnlyDisplayField,
           optionLabelsAreKeys: f.optionLabelsAreKeys,
+          optionLabelPrefix: f.optionLabelPrefix,
         });
       }
     });
@@ -860,6 +865,26 @@ const qCols = computed<TableViewColumn[]>(() => {
     });
   }
   return baseCols;
+});
+
+// Map from kind value → label (taxonomy first, factor store label map as fallback)
+const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
+  const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
+  const map: Record<string, string> = {};
+  // Factor store kind-label map (populated by fetchClassOptions)
+  const factorMap = factorsStore.kindLabelMapBySubmodule[props.submoduleType] ?? {};
+  Object.assign(map, factorMap);
+  // Taxonomy overrides (more authoritative, locale-aware)
+  taxo?.children?.forEach((node) => {
+    if (node.name && node.label) {
+      if (node.translation_key && $te(node.translation_key)) {
+        map[node.name] = $t(node.translation_key);
+      } else {
+        map[node.name] = node.label;
+      }
+    }
+  });
+  return map;
 });
 
 const inlineOptionsMap = computed<
@@ -903,6 +928,8 @@ function renderCell(
     name: string;
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
+    optionLabelPrefix?: string;
+    optionsId?: string;
   },
 ) {
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
@@ -932,6 +959,14 @@ function renderCell(
     if (option) {
       return option.label;
     }
+  }
+  // Factor-sourced options: translate using optionLabelPrefix
+  if (col.optionLabelPrefix && typeof val === 'string') {
+    return $t(`${col.optionLabelPrefix}${val.toLowerCase()}`);
+  }
+  // Factor-sourced kind/subkind: look up label from taxonomy
+  if (col.optionsId === 'kind' && typeof val === 'string') {
+    return taxonomyKindLabelMap.value[val] ?? val;
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {

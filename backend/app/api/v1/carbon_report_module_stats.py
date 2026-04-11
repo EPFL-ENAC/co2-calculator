@@ -368,7 +368,6 @@ async def get_it_breakdown(
             carbon_report_module_id=purchase_crm_id,
             data_entry_types=[DataEntryTypeEnum.it_equipment],
             group_by_field="purchase_institutional_code",
-            label_field="purchase_institutional_description",
             report_year=report_year,
         )
 

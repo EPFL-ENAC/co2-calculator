@@ -189,6 +189,32 @@ export default {
     fr: 'Quantité',
   },
 
+  // Combustion type options (stored as i18n keys in DB)
+  buildings_combustion_type_natural_gas: {
+    en: 'Natural gas',
+    fr: 'Gaz naturel',
+  },
+  buildings_combustion_type_heating_oil: {
+    en: 'Heating oil',
+    fr: 'Mazout',
+  },
+  buildings_combustion_type_biomethane: {
+    en: 'Biomethane',
+    fr: 'Biométhane',
+  },
+  buildings_combustion_type_pellets: {
+    en: 'Pellets',
+    fr: 'Pellets',
+  },
+  buildings_combustion_type_forest_chips: {
+    en: 'Forest chips',
+    fr: 'Copeaux de forêt',
+  },
+  buildings_combustion_type_wood_logs: {
+    en: 'Wood logs',
+    fr: 'Bûches de bois',
+  },
+
   // Charts
   [`${MODULES.Buildings}-charts-title`]: {
     en: 'Buildings Charts',
@@ -213,5 +239,29 @@ export default {
   [`${MODULES.Buildings}-title-tooltip-subtext`]: {
     en: 'Buildings Title Tooltip',
     fr: 'Buildings Title Tooltip',
+  },
+  'buildings-room-type-office': {
+    en: 'Office',
+    fr: 'Bureau',
+  },
+  'buildings-room-type-miscellaneous': {
+    en: 'Miscellaneous',
+    fr: 'Divers',
+  },
+  'buildings-room-type-laboratories': {
+    en: 'Laboratories',
+    fr: 'Laboratoires',
+  },
+  'buildings-room-type-archives': {
+    en: 'Archives',
+    fr: 'Archives',
+  },
+  'buildings-room-type-libraries': {
+    en: 'Libraries',
+    fr: 'Bibliothèques',
+  },
+  'buildings-room-type-auditoriums': {
+    en: 'Auditoriums',
+    fr: 'Auditoires',
   },
 } as const;
