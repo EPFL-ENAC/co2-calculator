@@ -70,6 +70,7 @@ export interface ItBreakdownResponse {
   total_it_tonnes_co2eq: number;
   total_it_per_fte: number;
   percentage_of_total: number;
+  percentage_of_source_modules: number;
   categories: ItBreakdownCategory[];
   scope_breakdown: {
     scope_2: number;
