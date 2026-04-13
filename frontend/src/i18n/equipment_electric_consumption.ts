@@ -5,6 +5,10 @@ export default {
     en: 'Equipment',
     fr: 'Équipements',
   },
+  [`${MODULES.EquipmentElectricConsumption}-common`]: {
+    en: 'Common data and factors | Common data and factors',
+    fr: 'Données et facteurs communs | Données et facteurs communs',
+  },
   [`${MODULES.EquipmentElectricConsumption}-description`]: {
     en: 'Estimate the electrical consumption of all equipment in your unit',
     fr: 'Estimez la consommation électrique de tous les équipements dans votre unité',

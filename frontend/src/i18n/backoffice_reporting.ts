@@ -261,4 +261,8 @@ export default {
     en: 'PDF: Formatted report with charts and visualizations, ideal for presentations and sharing.\nCSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
     fr: 'PDF : Rapport mis en forme avec graphiques, idéal pour les présentations et le partage.\nCSV : Données brutes au format tableur pour analyse dans Excel ou d’autres outils.',
   },
+  open_year_for_users: {
+    en: 'Open year for users',
+    fr: 'Ouvrir l’année pour les utilisateurs',
+  },
 } as const;

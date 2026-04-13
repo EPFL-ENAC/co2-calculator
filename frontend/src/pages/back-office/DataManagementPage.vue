@@ -237,6 +237,11 @@ type SubmoduleConfig = {
   hasApi?: true;
   other?: string;
   isDisabled?: true;
+  /** Optional section header (module-level common uploads). */
+  headerIcon?: string;
+  descriptionKey?: string;
+  /** Only factor import UI (no submodule toggle / threshold). */
+  factorsOnly?: true;
 };
 
 const MODULE_SUBMODULES: Partial<
@@ -288,6 +293,14 @@ const MODULE_SUBMODULES: Partial<
       moduleTypeId: 3,
       dataEntryTypeId: 31,
     },
+    {
+      key: 'building_embodied_energy',
+      labelKey: 'data_management_submodule_buildings_construction_renovation',
+      moduleTypeId: 3,
+      dataEntryTypeId: 32,
+      noData: true,
+      factorsOnly: true,
+    },
   ],
   [MODULES.ProcessEmissions]: [
     {
@@ -302,16 +315,25 @@ const MODULE_SUBMODULES: Partial<
       key: 'scientific',
       labelKey: `${MODULES.EquipmentElectricConsumption}-scientific`,
       moduleTypeId: 4,
+      dataEntryTypeId: 10,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'it',
       labelKey: `${MODULES.EquipmentElectricConsumption}-it`,
       moduleTypeId: 4,
+      dataEntryTypeId: 11,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'other',
       labelKey: `${MODULES.EquipmentElectricConsumption}-other`,
       moduleTypeId: 4,
+      dataEntryTypeId: 12,
+      noData: true,
+      noFactors: true,
     },
   ],
   [MODULES.Purchase]: [
@@ -319,36 +341,57 @@ const MODULE_SUBMODULES: Partial<
       key: 'scientific_equipment',
       labelKey: 'data_management_submodule_scientific_equipment',
       moduleTypeId: 5,
+      dataEntryTypeId: 60,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'it_equipment',
       labelKey: 'data_management_submodule_it_equipment',
       moduleTypeId: 5,
+      dataEntryTypeId: 61,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'consumable_accessories',
       labelKey: 'data_management_submodule_consumables_accessories',
       moduleTypeId: 5,
+      dataEntryTypeId: 62,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'biological_chemical_gaseous_product',
       labelKey: 'data_management_submodule_bio_chemical_gaseous',
       moduleTypeId: 5,
+      dataEntryTypeId: 63,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'services',
       labelKey: 'data_management_submodule_services',
       moduleTypeId: 5,
+      dataEntryTypeId: 64,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'vehicles',
       labelKey: 'data_management_submodule_vehicles',
       moduleTypeId: 5,
+      dataEntryTypeId: 65,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'other_purchases',
       labelKey: 'data_management_submodule_other_purchases',
       moduleTypeId: 5,
+      dataEntryTypeId: 66,
+      noData: true,
+      noFactors: true,
     },
     {
       key: 'additional_purchases',
@@ -383,6 +426,30 @@ const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.ExternalCloudAndAI}.ai-services`,
       moduleTypeId: 7,
       dataEntryTypeId: 41,
+    },
+  ],
+};
+
+// Module-level common uploads (shared across all submodules, not per-subtype)
+const MODULE_COMMON_UPLOADS: Partial<
+  Record<(typeof MODULES)[keyof typeof MODULES], SubmoduleConfig[]>
+> = {
+  [MODULES.EquipmentElectricConsumption]: [
+    {
+      key: 'equipment',
+      labelKey: `${MODULES.EquipmentElectricConsumption}-common`,
+      moduleTypeId: 4,
+      headerIcon: 'o_folder_shared',
+      descriptionKey: 'data_management_equipment_common_description',
+    },
+  ],
+  [MODULES.Purchase]: [
+    {
+      key: 'purchases_common',
+      labelKey: `${MODULES.Purchase}-common`,
+      moduleTypeId: 5,
+      headerIcon: 'o_folder_shared',
+      descriptionKey: 'data_management_purchase_common_description',
     },
   ],
 };
@@ -463,6 +530,12 @@ function getImportRow(sub: SubmoduleConfig): ImportRow {
     lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
     lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
   };
+}
+
+/** True when the submodule should render Data / Factor / References cards. */
+function submoduleShowsImportRow(sub: SubmoduleConfig): boolean {
+  const row = getImportRow(sub);
+  return row.hasData || row.hasFactors || row.hasOtherUpload;
 }
 
 const QUASAR_COLOR_MAP: Record<string, string> = {
@@ -1293,9 +1366,267 @@ onMounted(() => {
                   />
                 </q-card>
               </q-card>
-              <q-separator class="q-my-xs" />
-              <q-card flat class="q-pa-none row">
-                <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
+              <q-separator
+                v-if="
+                  (MODULE_COMMON_UPLOADS[module]?.length ?? 0) > 0 ||
+                  (MODULE_SUBMODULES[module] ?? []).length > 0
+                "
+                class="q-my-xs"
+              />
+              <!-- Common module-level uploads (equipment, purchase, external cloud) -->
+              <template v-if="MODULE_COMMON_UPLOADS[module]?.length">
+                <div
+                  v-for="common in MODULE_COMMON_UPLOADS[module]"
+                  :key="common.key"
+                  class="q-mx-lg q-pt-md"
+                >
+                  <div
+                    v-if="common.headerIcon || common.descriptionKey"
+                    class="q-px-xs"
+                  >
+                    <div class="row items-center q-mb-xs">
+                      <q-icon
+                        v-if="common.headerIcon"
+                        :name="common.headerIcon"
+                        color="accent"
+                        size="xs"
+                        class="q-mr-sm"
+                      />
+                      <div class="text-body1 text-weight-medium">
+                        {{ $t(common.labelKey) }}
+                      </div>
+                    </div>
+                    <div
+                      v-if="common.descriptionKey"
+                      class="text-body2 text-secondary q-mb-sm"
+                    >
+                      {{ $t(common.descriptionKey) }}
+                    </div>
+                  </div>
+                  <div
+                    v-else
+                    class="text-body2 text-weight-medium q-mb-sm q-px-xs"
+                  >
+                    {{ $t(common.labelKey) }}
+                  </div>
+                  <div class="row q-pb-md" style="gap: 1rem">
+                    <!-- Data -->
+                    <q-card
+                      v-if="getImportRow(common).hasData"
+                      flat
+                      class="col q-pa-lg"
+                      :style="cardStyle(dataButtonColor(getImportRow(common)))"
+                    >
+                      <div class="text-body2 text-weight-bold q-mb-xs">
+                        {{ $t('data_management_data') }}
+                      </div>
+                      <div class="text-caption text-secondary q-mb-md">
+                        {{ $t('data_management_data_description') }}
+                      </div>
+                      <div class="row items-center" style="gap: 0.5rem">
+                        <q-spinner-rings
+                          v-if="
+                            getImportRow(common).lastDataJob?.state ===
+                            IngestionState.RUNNING
+                          "
+                          color="grey"
+                        />
+                        <q-btn
+                          :color="dataButtonColor(getImportRow(common))"
+                          icon="add"
+                          size="sm"
+                          :label="dataButtonLabel(getImportRow(common))"
+                          class="text-weight-medium"
+                          :disable="getImportRow(common).isDisabled"
+                          @click="
+                            openDataEntryDialog(
+                              getImportRow(common),
+                              TargetType.DATA_ENTRIES,
+                            )
+                          "
+                        />
+                        <!-- Per-type emission recalculation button -->
+                        <template
+                          v-if="
+                            common.dataEntryTypeId !== undefined &&
+                            getImportRow(common).hasFactors
+                          "
+                        >
+                          <q-spinner-rings
+                            v-if="
+                              recalcTypeRunning[
+                                `${common.moduleTypeId}-${common.dataEntryTypeId}`
+                              ]
+                            "
+                            color="grey"
+                          />
+                          <template v-else>
+                            <q-btn
+                              color="accent"
+                              outline
+                              icon="refresh"
+                              :icon-right="
+                                getRecalcStatus(common)?.needs_recalculation
+                                  ? 'warning'
+                                  : undefined
+                              "
+                              size="sm"
+                              :label="
+                                $t('data_management_recalculate_emissions')
+                              "
+                              :title="
+                                getRecalcStatus(common)?.needs_recalculation
+                                  ? $t('data_management_recalculation_needed')
+                                  : ''
+                              "
+                              class="text-weight-medium"
+                              :disable="getImportRow(common).isDisabled"
+                              @click="triggerTypeRecalculation(common)"
+                            />
+                          </template>
+                        </template>
+                      </div>
+                    </q-card>
+
+                    <!-- Factors -->
+                    <q-card
+                      v-if="getImportRow(common).hasFactors"
+                      flat
+                      class="col q-pa-lg"
+                      :style="
+                        cardStyle(factorButtonColor(getImportRow(common)))
+                      "
+                    >
+                      <div class="row items-center q-mb-xs">
+                        <div class="text-body2 text-weight-bold">
+                          {{ $t('data_management_factor') }}
+                        </div>
+                        <q-space />
+                        <span class="text-caption text-grey-5"
+                          ><span class="text-negative">*</span
+                          >{{ $t('common_mandatory') }}</span
+                        >
+                      </div>
+                      <div class="text-caption text-secondary q-mb-md">
+                        {{ $t('data_management_factor_description') }}
+                      </div>
+                      <div class="row justify-between items-center full-width">
+                        <div class="row items-center" style="gap: 0.5rem">
+                          <q-spinner-rings
+                            v-if="
+                              getImportRow(common).lastFactorJob?.state ===
+                              IngestionState.RUNNING
+                            "
+                            color="grey"
+                          />
+                          <q-btn
+                            :color="factorButtonColor(getImportRow(common))"
+                            icon="add"
+                            size="sm"
+                            :label="factorButtonLabel(getImportRow(common))"
+                            class="text-weight-medium"
+                            :disable="getImportRow(common).isDisabled"
+                            @click="
+                              openDataEntryDialog(
+                                getImportRow(common),
+                                TargetType.FACTORS,
+                              )
+                            "
+                          />
+                        </div>
+                        <div
+                          v-if="getImportRow(common).lastFactorJob?.meta"
+                          class="row items-center no-wrap"
+                          style="gap: 0.75rem"
+                        >
+                          <div class="column items-end">
+                            <div
+                              class="row items-center text-body2 text-weight-medium"
+                            >
+                              <span class="text-positive q-mr-xs">✓</span>
+                              {{
+                                safeFileName(
+                                  getImportRow(common).lastFactorJob?.meta,
+                                )
+                              }}
+                            </div>
+                            <div class="text-caption text-grey-7">
+                              {{
+                                getImportRow(common).lastFactorJob?.meta
+                                  ?.rows_processed
+                              }}
+                              {{ $t('data_management_rows_imported') }}
+                              <span
+                                v-if="
+                                  getImportRow(common).lastFactorJob?.meta
+                                    ?.timestamp
+                                "
+                              >
+                                •
+                                {{
+                                  new Date(
+                                    getImportRow(common).lastFactorJob.meta
+                                      .timestamp as string,
+                                  ).toLocaleDateString()
+                                }}
+                              </span>
+                            </div>
+                          </div>
+                          <q-btn
+                            color="positive"
+                            icon="o_download"
+                            size="sm"
+                            unelevated
+                            dense
+                            @click="
+                              downloadLastCsv(
+                                getImportRow(common),
+                                TargetType.FACTORS,
+                              )
+                            "
+                          >
+                            <q-tooltip>{{
+                              $t('data_management_download_last_csv')
+                            }}</q-tooltip>
+                          </q-btn>
+                        </div>
+                      </div>
+                      <div
+                        v-if="
+                          getImportRow(common).lastFactorJob?.result ===
+                            IngestionResult.WARNING ||
+                          getImportRow(common).lastFactorJob?.result ===
+                            IngestionResult.ERROR
+                        "
+                        class="q-mt-md q-pa-md bg-grey-2 rounded-borders"
+                      >
+                        <div
+                          class="text-body2 text-weight-bold q-mb-sm text-negative"
+                        >
+                          {{
+                            getImportRow(common).lastFactorJob?.status_message
+                          }}
+                        </div>
+                        <div
+                          v-if="
+                            getImportRow(common).lastFactorJob?.meta?.error !==
+                            getImportRow(common).lastFactorJob?.status_message
+                          "
+                          class="text-body2 q-mb-md"
+                        >
+                          {{ getImportRow(common).lastFactorJob?.meta?.error }}
+                        </div>
+                      </div>
+                    </q-card>
+                  </div>
+                </div>
+                <q-separator
+                  v-if="(MODULE_SUBMODULES[module] ?? []).length > 0"
+                  class="q-my-xs"
+                />
+              </template>
+              <template v-if="(MODULE_SUBMODULES[module] ?? []).length > 0">
+                <div class="q-px-lg q-pt-md q-pb-sm">
                   <div class="row items-center q-mb-xs">
                     <q-icon
                       name="o_view_cozy"
@@ -1312,17 +1643,15 @@ onMounted(() => {
                       $t('data_management_submodules_configuration_description')
                     }}
                   </div>
-                </q-card>
-              </q-card>
-              <div class="q-mx-lg q-mt-md q-mb-lg">
-                <q-card
-                  v-for="submodule in MODULE_SUBMODULES[module] ?? []"
-                  :key="submodule.key"
-                  flat
-                  bordered
-                  class="q-mb-md"
-                >
-                  <q-expansion-item expand-separator>
+                </div>
+                <div class="q-mx-lg q-mb-lg column q-gutter-y-sm">
+                  <q-expansion-item
+                    v-for="submodule in MODULE_SUBMODULES[module] ?? []"
+                    :key="submodule.key"
+                    expand-separator
+                    class="bg-white rounded-borders"
+                    style="border: 1px solid rgba(0, 0, 0, 0.12)"
+                  >
                     <template #header>
                       <q-item-section>
                         <div class="row items-center q-gutter-sm">
@@ -1344,71 +1673,84 @@ onMounted(() => {
                       </q-item-section>
                     </template>
                     <q-separator class="q-mb-xs" />
-                    <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
-                      <div class="row items-center q-mb-xs">
-                        <q-icon
-                          name="power_settings_new"
-                          color="accent"
-                          size="xs"
-                          class="q-mr-sm"
-                        />
-                        <div class="text-body2 text-weight-medium">
-                          {{ $t('data_management_submodule_activation_title') }}
+                    <template v-if="!submodule.factorsOnly">
+                      <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+                        <div class="row items-center q-mb-xs">
+                          <q-icon
+                            name="power_settings_new"
+                            color="accent"
+                            size="xs"
+                            class="q-mr-sm"
+                          />
+                          <div class="text-body2 text-weight-medium">
+                            {{
+                              $t('data_management_submodule_activation_title')
+                            }}
+                          </div>
                         </div>
-                      </div>
-                      <div class="text-caption text-secondary q-mb-sm">
-                        {{
-                          $t('data_management_submodule_activation_description')
-                        }}
-                      </div>
-                      <q-toggle
-                        :model-value="isSubmoduleEnabled(submodule)"
-                        color="accent"
-                        keep-color
-                        size="md"
-                        @update:model-value="
-                          (val: boolean) =>
-                            updateSubmoduleEnabled(submodule, val)
-                        "
-                      />
-                    </q-card>
-                    <q-separator class="q-my-xs" />
-                    <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
-                      <div class="row items-center q-mb-xs">
-                        <q-icon
-                          name="legend_toggle"
-                          color="accent"
-                          size="xs"
-                          class="q-mr-sm"
-                        />
-                        <div class="text-body2 text-weight-medium">
-                          {{ $t('data_management_threshold_title') }}
-                        </div>
-                      </div>
-                      <div class="text-caption text-secondary q-mb-sm">
-                        {{ $t('data_management_threshold_description') }}
-                      </div>
-                      <q-input
-                        :model-value="getSubmoduleThreshold(submodule)"
-                        type="number"
-                        dense
-                        outlined
-                        size="md"
-                        :debounce="600"
-                        :suffix="$t('tco2eq')"
-                        :placeholder="$t('no_threshold')"
-                        style="max-width: 500px"
-                        @update:model-value="
-                          (val: string | number | null) =>
-                            updateSubmoduleThreshold(
-                              submodule,
-                              val === '' || val === null ? null : Number(val),
+                        <div class="text-caption text-secondary q-mb-sm">
+                          {{
+                            $t(
+                              'data_management_submodule_activation_description',
                             )
-                        "
+                          }}
+                        </div>
+                        <q-toggle
+                          :model-value="isSubmoduleEnabled(submodule)"
+                          color="accent"
+                          keep-color
+                          size="md"
+                          @update:model-value="
+                            (val: boolean) =>
+                              updateSubmoduleEnabled(submodule, val)
+                          "
+                        />
+                      </q-card>
+                      <q-separator class="q-my-xs" />
+                      <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+                        <div class="row items-center q-mb-xs">
+                          <q-icon
+                            name="legend_toggle"
+                            color="accent"
+                            size="xs"
+                            class="q-mr-sm"
+                          />
+                          <div class="text-body2 text-weight-medium">
+                            {{ $t('data_management_threshold_title') }}
+                          </div>
+                        </div>
+                        <div class="text-caption text-secondary q-mb-sm">
+                          {{ $t('data_management_threshold_description') }}
+                        </div>
+                        <q-input
+                          :model-value="getSubmoduleThreshold(submodule)"
+                          type="number"
+                          dense
+                          outlined
+                          size="md"
+                          :debounce="600"
+                          :suffix="$t('tco2eq')"
+                          :placeholder="$t('no_threshold')"
+                          style="max-width: 500px"
+                          @update:model-value="
+                            (val: string | number | null) =>
+                              updateSubmoduleThreshold(
+                                submodule,
+                                val === '' || val === null ? null : Number(val),
+                              )
+                          "
+                        />
+                      </q-card>
+                      <q-separator
+                        v-if="submoduleShowsImportRow(submodule)"
+                        class="q-my-xs"
                       />
-                    </q-card>
-                    <q-separator class="q-my-xs" />
-                    <div class="row q-pa-md" style="gap: 1rem">
+                    </template>
+                    <div
+                      v-if="submoduleShowsImportRow(submodule)"
+                      class="row q-pa-md"
+                      style="gap: 1rem"
+                    >
                       <!-- Data -->
                       <q-card
                         v-if="getImportRow(submodule).hasData"
@@ -1752,8 +2094,8 @@ onMounted(() => {
                       </q-card>
                     </div>
                   </q-expansion-item>
-                </q-card>
-              </div>
+                </div>
+              </template>
             </q-expansion-item>
           </q-card>
         </template>
@@ -2146,6 +2488,12 @@ onMounted(() => {
           </q-expansion-item>
         </q-card>
       </template>
+      <q-btn
+        icon="calendar_month"
+        color="accent"
+        :label="$t('open_year_for_users')"
+        class="text-weight-medium text-capitalize q-mt-md"
+      />
     </div>
     <data-entry-dialog
       v-model="showDataEntryDialog"

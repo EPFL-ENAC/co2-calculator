@@ -407,6 +407,14 @@ export default {
     en: 'High',
     fr: 'Élevée',
   },
+  data_management_equipment_common_description: {
+    en: 'Upload shared equipment activity data and emission factors used across all equipment submodules.',
+    fr: 'Téléversez les données d’activité d’équipements partagées et les facteurs d’émission utilisés pour tous les sous-modules Équipements.',
+  },
+  data_management_purchase_common_description: {
+    en: 'Upload shared purchase activity data and emission factors used across all purchase submodules.',
+    fr: 'Téléversez les données d’activité d’achats partagées et les facteurs d’émission utilisés pour tous les sous-modules Achats.',
+  },
   data_management_submodules_configuration_title: {
     en: 'Submodules Configuration',
     fr: 'Configuration des sous-modules',
@@ -515,6 +523,10 @@ export default {
   data_management_submodule_animal_facilities: {
     en: 'Mice and Fish Animal Facilities',
     fr: 'Animaleries rongeurs et poissons',
+  },
+  data_management_submodule_buildings_construction_renovation: {
+    en: 'Constructions and Renovation',
+    fr: 'Constructions et rénovation',
   },
   year_config_saved: {
     en: 'Configuration saved',
