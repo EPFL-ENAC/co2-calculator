@@ -188,19 +188,51 @@ async def get_emission_breakdown(
     headcount_validated = (
         module_statuses.get(ModuleTypeEnum.headcount.value) == ModuleStatus.VALIDATED
     )
+    buildings_validated = (
+        module_statuses.get(ModuleTypeEnum.buildings.value) == ModuleStatus.VALIDATED
+    )
     validated_module_type_ids = {
         mid
         for mid, status in module_statuses.items()
         if status == ModuleStatus.VALIDATED
     }
 
-    return build_chart_breakdown(
+    breakdown = build_chart_breakdown(
         rows=emission_rows,
         total_fte=total_fte,
         headcount_validated=headcount_validated,
+        buildings_validated=buildings_validated,
         validated_module_type_ids=validated_module_type_ids,
         exclude_module_type_ids=set(exclude_modules),
     )
+
+    breakdown["embodied_energy_by_building"] = []
+    breakdown["embodied_energy_by_category"] = []
+
+    if buildings_validated:
+        emission_svc = DataEntryEmissionService(db)
+
+        # Per-building embodied energy breakdown for the doughnut chart.
+        building_rows = await emission_svc.get_embodied_energy_by_building(
+            carbon_report_id=carbon_report_id,
+        )
+        breakdown["embodied_energy_by_building"] = [
+            {"building_name": name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            for name, kg in building_rows
+            if kg > 0
+        ]
+
+        # Per-category embodied energy breakdown (new_env, new_tech, ren_env, ren_tech,
+        # demolition).
+        category_rows = await emission_svc.get_embodied_energy_by_category(
+            carbon_report_id=carbon_report_id,
+        )
+        breakdown["embodied_energy_by_category"] = [
+            {"category": cat, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            for cat, kg in category_rows
+            if kg > 0
+        ]
+    return breakdown
 
 
 @router.get("/{carbon_report_id}/it-breakdown")
@@ -234,7 +266,7 @@ async def get_it_breakdown(
     total_fte = sum(fte_stats.values())
 
     # Compute total emissions for percentage calculation
-    total_emissions_kg = sum(kg for _, _, kg in emission_rows)
+    total_emissions_kg = sum(row[2] for row in emission_rows)
 
     result = await db.execute(
         select(
@@ -283,8 +315,13 @@ async def get_it_breakdown(
             report_year=report_year,
         )
 
+    emission_rows_no_qty: list[tuple[int, int, float]] = [
+        (module_type_id, emission_type_id, kg_co2eq)
+        for module_type_id, emission_type_id, kg_co2eq, _qty in emission_rows
+    ]
+
     return build_it_breakdown(
-        rows=emission_rows,
+        rows=emission_rows_no_qty,
         total_fte=total_fte,
         total_emissions_kg=total_emissions_kg,
         validated_module_type_ids=validated_module_type_ids,

@@ -34,18 +34,26 @@ interface YearlyValidatedEmission {
   total_tonnes_co2eq: number;
 }
 
+export interface EmbodiedEnergyCategoryEntry {
+  category: string;
+  kg_co2eq: number;
+  tonnes_co2eq: number;
+}
+
 export interface EmissionBreakdownResponse {
   module_breakdown: EmissionBreakdownCategoryRow[];
   additional_breakdown: EmissionBreakdownCategoryRow[];
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
   headcount_validated: boolean;
+  buildings_validated: boolean;
   total_tonnes_co2eq: number;
   total_fte: number;
   it_summary?: {
     total_tonnes_co2eq: number;
     percentage_of_total: number;
   };
+  embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
 }
 
 export interface ItBreakdownEmission {
@@ -86,6 +94,8 @@ export interface EmissionBreakdownValue {
   key: string;
   value: number;
   parent_key?: string;
+  quantity?: number;
+  quantity_unit?: string;
 }
 
 export interface EmissionBreakdownCategoryRow {

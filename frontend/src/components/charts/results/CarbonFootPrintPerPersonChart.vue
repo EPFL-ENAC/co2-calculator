@@ -34,10 +34,14 @@ const props = defineProps<{
   headcountValidated?: boolean;
   showValidationPlaceholder?: boolean;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 const SHOW_EPFL_REFERENCE_ROW = false;
 const SHOW_OBJECTIVE_ROW = false;
 const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
@@ -106,7 +110,7 @@ const datasetSource = computed(() => {
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -476,13 +480,42 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <q-checkbox
-        v-if="headcountValidated"
-        v-model="toggleAdditionalData"
-        :label="$t('results_module_carbon_toggle_additional_data')"
-        size="xs"
-        color="accent"
-      />
+      <div class="flex items-center no-wrap q-gutter-sm">
+        <q-btn
+          v-if="headcountValidated"
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          v-if="headcountValidated"
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadCSV"
+        />
+        <q-checkbox
+          v-if="
+            props.viewAdditionalData === undefined &&
+            (headcountValidated || props.showValidationPlaceholder === false)
+          "
+          v-model="toggleAdditionalData"
+          :label="$t('results_module_carbon_toggle_additional_data')"
+          size="xs"
+          color="accent"
+        />
+      </div>
     </q-card-section>
 
     <template v-if="headcountValidated || showValidationPlaceholder === false">
@@ -494,33 +527,6 @@ const downloadCSV = () => {
           :option="chartOption"
         />
       </q-card-section>
-
-      <q-card-actions
-        v-if="headcountValidated"
-        align="center"
-        class="q-px-md q-pb-md q-pt-none"
-      >
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-xs"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
-          @click="downloadCSV"
-        />
-      </q-card-actions>
     </template>
 
     <template v-else>

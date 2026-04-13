@@ -90,6 +90,11 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   facilities: 'charts-research-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
   rest: 'charts-rest-subcategory',
+  'new-env': 'charts-new-env-subcategory',
+  'new-tech': 'charts-new-tech-subcategory',
+  'ren-env': 'charts-ren-env-subcategory',
+  'ren-tech': 'charts-ren-tech-subcategory',
+  demolition: 'charts-demolition-subcategory',
 };
 
 export interface TopClassBreakdownItem {
