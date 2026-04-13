@@ -12,7 +12,7 @@ export default {
     fr: 'Mode daltonien',
   },
   results_view_uncertainties: {
-    en: 'View confidence level',
+    en: 'View confidence levels',
     fr: 'Afficher le niveau de confiance',
   },
   results_view_additional_data: {
@@ -736,7 +736,7 @@ export default {
   // Commuting sub-type labels
   'charts-walking-subcategory': {
     en: 'Walking',
-    fr: 'Marche',
+    fr: 'Marche à pied',
   },
   'charts-cycling-subcategory': {
     en: 'Cycling',
@@ -744,11 +744,11 @@ export default {
   },
   'charts-powered-two-wheeler-subcategory': {
     en: 'Powered two-wheeler',
-    fr: 'Deux-roues motorisé',
+    fr: '2RM',
   },
   'charts-public-transport-subcategory': {
     en: 'Public transport',
-    fr: 'Transports en commun',
+    fr: 'Transport publics',
   },
   'charts-car-subcategory': {
     en: 'Car',
