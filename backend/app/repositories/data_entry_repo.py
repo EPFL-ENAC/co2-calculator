@@ -227,7 +227,9 @@ class DataEntryRepository:
         )
 
     async def get_total_count_by_submodule(
-        self, carbon_report_module_id: int
+        self,
+        carbon_report_module_id: int,
+        travel_institutional_id_filter: Optional[str] = None,
     ) -> Dict[int, int]:
         """
         Docstring for get_total_count_by_submodule
@@ -266,6 +268,18 @@ class DataEntryRepository:
             .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
             .group_by(col(DataEntry.data_entry_type_id))
         )
+        if travel_institutional_id_filter is not None:
+            travel_type_ids = (
+                DataEntryTypeEnum.plane.value,
+                DataEntryTypeEnum.train.value,
+            )
+            query = query.where(
+                or_(
+                    col(DataEntry.data_entry_type_id).not_in(travel_type_ids),
+                    DataEntry.data["user_institutional_id"].as_string()
+                    == travel_institutional_id_filter,
+                )
+            )
         result = await self.session.execute(query)
         rows = list(result.all())
         aggregation: Dict[int, int] = {
@@ -327,6 +341,7 @@ class DataEntryRepository:
         sort_by: str,
         sort_order: str,
         filter: Optional[str] = None,
+        institutional_id_filter: Optional[str] = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -382,6 +397,10 @@ class DataEntryRepository:
                     == DataEntry.data["user_institutional_id"].as_string()
                 )
                 & (
+                    col(MemberEntry.carbon_report_module_id)
+                    == col(DataEntry.carbon_report_module_id)
+                )
+                & (
                     col(MemberEntry.data_entry_type_id)
                     == DataEntryTypeEnum.member.value
                 ),
@@ -404,6 +423,12 @@ class DataEntryRepository:
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
 
+        if institutional_id_filter is not None and is_travel_entry:
+            statement = statement.where(
+                MemberEntry.data["user_institutional_id"].as_string()
+                == institutional_id_filter
+            )
+
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
@@ -424,6 +449,11 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
+        if institutional_id_filter is not None and is_travel_entry:
+            count_stmt = count_stmt.where(
+                DataEntry.data["user_institutional_id"].as_string()
+                == institutional_id_filter
+            )
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":

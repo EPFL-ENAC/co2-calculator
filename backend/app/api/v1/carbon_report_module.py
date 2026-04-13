@@ -84,6 +84,56 @@ async def get_carbon_report(
     return carbon_report_module
 
 
+async def _get_professional_travel_institutional_id_filter(
+    *,
+    db: AsyncSession,
+    unit_id: int,
+    current_user: User,
+    data_entry_type_id: DataEntryTypeEnum,
+) -> Optional[str]:
+    """Return the institutional scope for professional-travel data access."""
+    is_travel_type = data_entry_type_id in (
+        DataEntryTypeEnum.plane,
+        DataEntryTypeEnum.train,
+    )
+    if not is_travel_type:
+        return None
+
+    unit = await db.get(Unit, unit_id)
+    has_full_access = _has_global_or_principal_access_for_unit(
+        current_user=current_user,
+        unit=unit,
+    )
+    if has_full_access:
+        return None
+
+    if current_user.institutional_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Professional travel data is only available to principal/global "
+                "users or users with an institutional scope."
+            ),
+        )
+
+    return current_user.institutional_id
+
+
+def _has_global_or_principal_access_for_unit(
+    current_user: User,
+    unit: Optional[Unit],
+) -> bool:
+    """Return whether the user has global or principal access for the unit."""
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if unit is None or unit.institutional_id is None:
+        return False
+    return (
+        pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
+
+
 async def get_request_context(request: Request) -> dict:
     """Helper to extract request context for logging and auditing."""
     # This function can be expanded to include more contextual information as needed
@@ -158,8 +208,18 @@ async def get_module(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
+    travel_institutional_id_filter: Optional[str] = None
+    if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
+        unit = await db.get(Unit, unit_id)
+        if not _has_global_or_principal_access_for_unit(
+            current_user=current_user,
+            unit=unit,
+        ):
+            travel_institutional_id_filter = current_user.institutional_id
+
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
+        travel_institutional_id_filter=travel_institutional_id_filter,
     )
 
     # if headcount compute FTE here
@@ -481,6 +541,13 @@ async def get_submodule(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        unit_id=unit_id,
+        current_user=current_user,
+        data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
+    )
+
     submodule_data = await DataEntryService(db).get_submodule_data(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_type_id=data_entry_type_id,
@@ -489,6 +556,7 @@ async def get_submodule(
         sort_by=sort_by,
         sort_order=sort_order,
         filter=filter,
+        institutional_id_filter=institutional_id_filter,
         current_user=UserRead.model_validate(current_user),
         request_context=await get_request_context(request),
         background_tasks=background_tasks,
