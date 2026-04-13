@@ -439,17 +439,40 @@ const getUncertainty = (
           :comparison="
             hasCo2PerKmKg
               ? $t('results_equivalent_to_car', {
-                  km: $n(resultsSummary.unit_totals.equivalent_car_km),
-                  value: `${$nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM)}`,
+                  km: $nOrDash(resultsSummary.unit_totals.equivalent_car_km, {
+                    options: {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    },
+                  }),
+                  value: `${$nOrDash(co2PerKmKg, {
+                    options: {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    },
+                  })}`,
                 })
               : undefined
           "
-          :comparison-highlight="`${$n(resultsSummary.unit_totals.equivalent_car_km)}km`"
+          :comparison-highlight="`${$nOrDash(
+            resultsSummary.unit_totals.equivalent_car_km,
+            {
+              options: {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              },
+            },
+          )}km`"
           color="negative"
         >
           <template v-if="hasCo2PerKmKg" #tooltip>{{
             $t('results_total_unit_carbon_footprint_tooltip', {
-              value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
+              value: $nOrDash(co2PerKmKg, {
+                options: {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                },
+              }),
               unit: $t('results_kg_co2eq_per_km'),
             })
           }}</template>
