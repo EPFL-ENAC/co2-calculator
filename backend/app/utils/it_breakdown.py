@@ -157,6 +157,25 @@ def build_it_breakdown(
         (total_it_kg / total_emissions_kg * 100.0) if total_emissions_kg > 0 else 0.0
     )
 
+    # IT share within validated IT source modules only
+    validated_source_module_ids: set[int] = set()
+    for mod_ids in _IT_CATEGORY_MODULE_IDS.values():
+        if mod_ids.issubset(validated_ids):
+            validated_source_module_ids |= mod_ids
+    validated_it_kg = sum(
+        category_kg[cat]
+        for cat, mod_ids in _IT_CATEGORY_MODULE_IDS.items()
+        if mod_ids.issubset(validated_ids)
+    )
+    total_validated_source_kg = sum(
+        kg for mid, _, kg in filtered_rows if mid in validated_source_module_ids
+    )
+    percentage_of_source_modules = (
+        (validated_it_kg / total_validated_source_kg * 100.0)
+        if total_validated_source_kg > 0
+        else 0.0
+    )
+
     # Build scope breakdown
     scope_2_kg = category_kg[IT_CATEGORY_EQUIPMENT]
     scope_3_kg = (
@@ -224,6 +243,7 @@ def build_it_breakdown(
         "total_it_tonnes_co2eq": total_it_tonnes,
         "total_it_per_fte": total_it_per_fte,
         "percentage_of_total": percentage_of_total,
+        "percentage_of_source_modules": percentage_of_source_modules,
         "categories": categories,
         "scope_breakdown": {
             "scope_2": scope_2_kg / 1000.0,

@@ -7,8 +7,7 @@
         "http://localhost:8080/en/login",
         "http://localhost:8080/en/login-test",
         "http://localhost:8080/en/workspace-setup",
-        "http://localhost:8080/en/MOCK/2024/home",
-        "http://localhost:8080/en/MOCK/2024/results"
+        "http://localhost:8080/en/MOCK/2024/home"
       ],
       "numberOfRuns": 1,
       "settings": {

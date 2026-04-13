@@ -6,6 +6,7 @@ const props = withDefaults(
     title: string;
     number: string;
     unit?: string;
+    hideUnit?: boolean;
     bordered?: boolean;
     comparison?: string;
     comparisonHighlight?: string;
@@ -15,6 +16,7 @@ const props = withDefaults(
   {
     bordered: true,
     unit: undefined,
+    hideUnit: false,
     comparison: undefined,
     comparisonHighlight: undefined,
     color: undefined,
@@ -54,7 +56,7 @@ const comparisonParts = computed(() => {
   <q-card
     flat
     :bordered="bordered"
-    :class="['container', 'container--pa-none']"
+    :class="['container', 'container--pa-none', 'big-number']"
   >
     <q-card-section class="flex items-center q-mb-xs">
       <q-icon
@@ -85,7 +87,7 @@ const comparisonParts = computed(() => {
         >
           {{ number }}
         </div>
-        <div class="text-secondary text-body2 q-mb-none">
+        <div v-if="!hideUnit" class="text-secondary text-body2 q-mb-none">
           {{ unit ? unit : $t('results_units_tonnes') }}
         </div>
       </div>
@@ -135,7 +137,7 @@ const comparisonParts = computed(() => {
 }
 
 .big-number__comparison {
-  align-self: flex-start;
+  align-self: flex-end;
   white-space: normal;
   overflow-wrap: anywhere;
 }

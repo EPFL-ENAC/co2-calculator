@@ -18,10 +18,6 @@ import type { ItBreakdownResponse } from 'src/stores/modules';
 
 use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
 
-const FORMAT_INTEGER = {
-  options: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
-};
-
 const props = withDefaults(
   defineProps<{
     data: ItBreakdownResponse | null;
@@ -88,6 +84,7 @@ interface CategoryBar {
   categoryKey: string;
   segments: BarSegment[];
   total: number;
+  validated: boolean;
 }
 
 /**
@@ -100,31 +97,53 @@ const categoryBars = computed<CategoryBar[]>(() => {
 
   const bars: CategoryBar[] = [];
 
-  for (const cat of props.data.categories) {
-    if (cat.tonnes_co2eq <= 0) continue;
-    if (!isItCategoryModuleValidated(cat.category_key)) continue;
+  // Index API data by key — non-validated categories may be absent from the response
+  const dataByKey = Object.fromEntries(
+    props.data.categories.map((c) => [c.category_key, c]),
+  );
 
-    const label = t(CATEGORY_LABEL_MAP[cat.category_key] ?? cat.category_key);
+  // Iterate the fixed order so all 4 rows are always present (validated or not)
+  for (const categoryKey of IT_FOCUS_CATEGORY_ORDER) {
+    const validated = isItCategoryModuleValidated(categoryKey);
+    const label = t(CATEGORY_LABEL_MAP[categoryKey] ?? categoryKey);
     const color =
-      categoryColor.value[
-        cat.category_key as keyof typeof categoryColor.value
-      ] ?? '#999';
-    const items = cat.top_items ?? [];
+      categoryColor.value[categoryKey as keyof typeof categoryColor.value] ??
+      '#999';
 
+    if (!validated) {
+      bars.push({
+        label,
+        categoryKey,
+        segments: [],
+        total: 0,
+        validated: false,
+      });
+      continue;
+    }
+
+    const cat = dataByKey[categoryKey];
+    if (!cat || cat.tonnes_co2eq <= 0) {
+      // Validated but no data: still show the row (empty bar, black label)
+      bars.push({
+        label,
+        categoryKey,
+        segments: [],
+        total: 0,
+        validated: true,
+      });
+      continue;
+    }
+
+    const items = cat.top_items ?? [];
     const segments: BarSegment[] = [];
 
     if (items.length === 0) {
-      // No detail: single segment for the whole category
-      segments.push({
-        name: label,
-        value: cat.tonnes_co2eq,
-        color,
-      });
+      segments.push({ name: label, value: cat.tonnes_co2eq, color });
     } else {
       items.forEach((item) => {
         if (item.value <= 0) return;
         let name = item.name;
-        if (cat.category_key === 'external_cloud_and_ai') {
+        if (categoryKey === 'external_cloud_and_ai') {
           name = t(CLOUD_AI_LABEL_MAP[item.name] ?? item.name);
         } else if (item.name === 'rest') {
           name = t('it-focus-rest');
@@ -135,42 +154,31 @@ const categoryBars = computed<CategoryBar[]>(() => {
 
     bars.push({
       label,
-      categoryKey: cat.category_key,
+      categoryKey,
       segments,
       total: cat.tonnes_co2eq,
+      validated: true,
     });
   }
-
-  const orderRank = (key: string): number => {
-    const i = IT_FOCUS_CATEGORY_ORDER.indexOf(
-      key as (typeof IT_FOCUS_CATEGORY_ORDER)[number],
-    );
-    return i === -1 ? IT_FOCUS_CATEGORY_ORDER.length : i;
-  };
-
-  bars.sort((a, b) => {
-    const d = orderRank(a.categoryKey) - orderRank(b.categoryKey);
-    return d !== 0 ? d : a.categoryKey.localeCompare(b.categoryKey);
-  });
 
   return bars;
 });
 
+// Show chart as long as there's at least one bar (validated or grayed-out)
 const hasData = computed(() => categoryBars.value.length > 0);
+
+/** Set of translated labels for validated categories (used for axis styling). */
+const validatedLabels = computed(
+  () =>
+    new Set(categoryBars.value.filter((b) => b.validated).map((b) => b.label)),
+);
 
 /** Tonnes from categories whose parent module is validated (aligned with visible bars). */
 const displayTotalItTonnes = computed(() =>
-  categoryBars.value.reduce((sum, bar) => sum + bar.total, 0),
+  categoryBars.value
+    .filter((b) => b.validated)
+    .reduce((sum, bar) => sum + bar.total, 0),
 );
-
-/** Same rule as module totals: equivalent_car_km = kg_co2eq / co2_per_km_kg */
-const itEquivalentCarKm = computed(() => {
-  if (props.co2PerKmKg <= 0) return null;
-  const total = displayTotalItTonnes.value;
-  if (total <= 0) return null;
-  const kg = total * 1000;
-  return kg / props.co2PerKmKg;
-});
 
 /** Collect all unique segment names across all bars (union for stacking) */
 const allSegmentKeys = computed(() => {
@@ -212,7 +220,8 @@ const segmentLabelMap = computed(() => {
 });
 
 const chartHeight = computed(() => {
-  return Math.max(200, categoryBars.value.length * 60 + 120);
+  // Always 4 rows (IT_FOCUS_CATEGORY_ORDER), validated or not
+  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 60 + 120);
 });
 
 const barChartOption = computed<EChartsOption>(() => {
@@ -258,6 +267,10 @@ const barChartOption = computed<EChartsOption>(() => {
           value?: number;
           name?: string;
         };
+        const name = p.name || '';
+        if (!validatedLabels.value.has(name)) {
+          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: name })}</span>`;
+        }
         const val = Number(p.value) || 0;
         if (val <= 0) return '';
         return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
@@ -283,9 +296,24 @@ const barChartOption = computed<EChartsOption>(() => {
       type: 'category',
       data: yLabels,
       axisLabel: {
-        fontSize: 10,
         width: 150,
         overflow: 'truncate',
+        formatter: (value: string) => {
+          if (validatedLabels.value.has(value)) {
+            return `{validated|${value}}`;
+          }
+          return `{unvalidated|${value}}`;
+        },
+        rich: {
+          validated: {
+            color: '#000000',
+            fontSize: 10,
+          },
+          unvalidated: {
+            color: '#aaaaaa',
+            fontSize: 10,
+          },
+        },
       },
     },
     series: series as echarts.SeriesOption[],
@@ -305,34 +333,25 @@ const barChartOption = computed<EChartsOption>(() => {
     <q-separator class="q-mt-xl" />
 
     <!-- Summary numbers -->
-    <q-card v-if="data" flat class="grid-1-col q-mt-lg q-mb-lg q-px-lg">
+    <div v-if="data" class="grid-2-col q-mt-lg q-mb-lg q-px-lg">
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
-        :comparison="
-          itEquivalentCarKm != null
-            ? $t('results_equivalent_to_car', {
-                km: $nOrDash(itEquivalentCarKm, FORMAT_INTEGER),
-                value: `${$nOrDash(co2PerKmKg)}`,
-              })
-            : undefined
-        "
-        :comparison-highlight="
-          itEquivalentCarKm != null
-            ? `${$nOrDash(itEquivalentCarKm, FORMAT_INTEGER)}km`
-            : undefined
-        "
+        comparison="TBD"
         color="accent"
-        tooltip-placement="comparison"
-      >
-        <template v-if="co2PerKmKg > 0" #tooltip>{{
-          $t('results_total_unit_carbon_footprint_tooltip', {
-            value: $nOrDash(co2PerKmKg),
-            unit: $t('results_kg_co2eq_per_km'),
-          })
-        }}</template>
-      </BigNumber>
-    </q-card>
+      />
+      <BigNumber
+        :title="$t('it-focus-share-of-total')"
+        :number="
+          data.percentage_of_source_modules != null
+            ? `${Math.round(data.percentage_of_source_modules)}%`
+            : '-'
+        "
+        :comparison="$t('it-focus-share-of-total-hint')"
+        hide-unit
+        color="accent"
+      />
+    </div>
 
     <template v-if="!loading && data">
       <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->

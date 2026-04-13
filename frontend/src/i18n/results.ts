@@ -795,8 +795,12 @@ export default {
     fr: 'Empreinte carbone IT par ETP',
   },
   'it-focus-share-of-total': {
-    en: 'IT share of total emissions',
-    fr: 'Part IT des émissions totales',
+    en: 'IT share of  footprint',
+    fr: "Part IT de l'empreinte ",
+  },
+  'it-focus-share-of-total-hint': {
+    en: 'Based on validated categories only',
+    fr: 'Basé uniquement sur les catégories validées',
   },
   'it-focus-equipment-it': {
     en: 'IT equipment - energy use',
@@ -848,8 +852,8 @@ export default {
     fr: 'Scope 3',
   },
   'it-focus-rest': {
-    en: 'Other',
-    fr: 'Autres',
+    en: 'Rest ',
+    fr: 'Rest',
   },
   'it-focus-research-facilities': {
     en: 'IT research facilities',
