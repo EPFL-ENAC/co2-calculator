@@ -351,22 +351,6 @@ export default {
     en: 'Year {year} configuration created',
     fr: "Configuration de l'année {year} créée",
   },
-  data_management_year_status_enabled: {
-    en: 'Year {year} is enabled — users can access their modules',
-    fr: "L'année {year} est activée — les utilisateurs peuvent accéder à leurs modules",
-  },
-  data_management_year_status_disabled: {
-    en: 'Year {year} is disabled — only backoffice managers can access this page',
-    fr: "L'année {year} est désactivée — seuls les gestionnaires backoffice peuvent accéder à cette page",
-  },
-  data_management_year_enable: {
-    en: 'Enable',
-    fr: 'Activer',
-  },
-  data_management_year_disable: {
-    en: 'Disable',
-    fr: 'Désactiver',
-  },
   data_management_year_enabled: {
     en: 'Year {year} enabled',
     fr: 'Année {year} activée',
