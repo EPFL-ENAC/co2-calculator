@@ -1,6 +1,6 @@
-# EPFL Project Technical Documentation
+# Calculator CO2
 
-Welcome to the technical documentation for the project nº200. This documentation is organized into five main sections, each covering a specific aspect of the system.
+Welcome to the technical documentation for the Calculator CO2. This documentation is organized into five main sections, each covering a specific aspect of the system.
 
 ## Documentation Sections
 
