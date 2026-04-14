@@ -192,13 +192,13 @@ const BASE_IMPORT_ROWS: Omit<
     hasData: true,
   },
   {
-    key: 'embodied_energy',
-    labelKey: 'embodied_energy',
-    moduleTypeId: 12,
-    hasFactors: false,
+    key: 'building-embodied-grey-energy',
+    labelKey: 'data_management_submodule_buildings_construction_renovation',
+    moduleTypeId: 3,
+    dataEntryTypeId: 32,
+    hasFactors: true,
     hasApi: false,
-    isDisabled: true,
-    hasData: true,
+    hasData: false,
   },
 ];
 
@@ -333,7 +333,6 @@ function downloadLastCsv(row: ImportRow, targetType: TargetType) {
   const a = document.createElement('a');
   //  add /api/v1/files to prefix?
   a.href = `/api/v1/files/${filePath}`;
-  console.log(a.href);
   a.download = filePath.split('/').pop() || filePath;
   document.body.appendChild(a);
   a.click();
@@ -357,9 +356,7 @@ async function handleJobCompleted() {
   await yearConfigStore.fetchConfig(props.year);
 }
 
-async function handleJobProgressing(job: SyncJobResponse) {
-  console.log('Job progressing:', job);
-
+async function handleJobProgressing() {
   await yearConfigStore.fetchConfig(props.year);
 }
 </script>
@@ -427,7 +424,10 @@ async function handleJobProgressing(job: SyncJobResponse) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in importRows" :key="row.key">
+        <tr
+          v-for="row in importRows"
+          :key="`${row.key}-${row.moduleTypeId}-${row.dataEntryTypeId ?? 'x'}-${row.labelDataEntryKey ?? ''}`"
+        >
           <!-- Category -->
           <td class="text-weight-medium" align="left">
             {{ $t(row.labelKey) }}
