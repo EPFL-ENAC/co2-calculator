@@ -1,4 +1,119 @@
-# Changelog
+# [0.7.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.6.1...v0.7.0) (2026-03-30)
+
+## Key Changes
+
+| Area               | What changed                                                                                                   | Consequences / Reason                                                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Reporting          | Aggregated reporting view, improved breakdowns, usage statistics, Centre-level reporting                       | Enables more granular analysis and supports higher-level organizational reporting needs  |
+| Emissions coverage | Added research facilities (incl. animals, commons), improved travel and purchases, more granular building data | Expands scope to cover missing emission sources and improves accuracy of calculations    |
+| Data management    | New data management interface with permissions, status tracking, source tracking                               | Introduces governance and traceability to better control data lifecycle                  |
+| CSV workflows      | Delete-before-insert logic, factor override via CSV, improved upload handling                                  | Prevents duplication issues and allows controlled manual corrections of emission factors |
+| Currency           | CHF/EUR support, exchange rate integration                                                                     | Aligns calculations with financial data across different currencies                      |
+| Charts & UI        | More emission subcategories, improved charts, tooltips, labeling fixes                                         | Improves readability and interpretation of emissions data                                |
+| Performance        | Caching for report year, backend optimizations, improved logging                                               | Reduces latency and helps diagnose issues more effectively                               |
+| CI/CD & security   | Dependency updates, pipeline adjustments, security fixes                                                       | Maintains system security and ensures more reliable deployments                          |
+
+---
+
+## Bug Fixes
+
+| Category           | Fixes                                                                                                | Consequences / Reason                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Calculations       | Fixed incorrect emission factors (travel, purchases, buildings), corrected CO₂ overrides             | Ensures consistency and correctness of reported emissions       |
+| Data handling      | Fixed API inconsistencies, data retrieval issues, factor updates                                     | Prevents data mismatches and improves reliability of data flows |
+| Permissions & auth | Fixed upload permissions, Entra authentication issues, applied correct access controls               | Restores proper access control and avoids user blocking issues  |
+| UX & workflows     | Fixed CSV upload flow (submit, edge cases), resolved stuck “running jobs”, improved labels and forms | Removes friction and avoids invalid or blocked user actions     |
+| Frontend           | Fixed state handling, audit issues, dependency errors                                                | Reduces UI instability and unexpected behavior                  |
+
+---
+
+## Technical Improvements (Non-functional)
+
+| Area     | Change                                                | Consequences / Reason                               |
+| -------- | ----------------------------------------------------- | --------------------------------------------------- |
+| Backend  | Refactoring, logging improvements, docker base update | Improves maintainability and debugging capabilities |
+| Frontend | Audit fixes, component updates, chart improvements    | Ensures consistency and reduces technical debt      |
+| Testing  | Fixed failing tests (institutional ID, data entry)    | Increases confidence in system stability            |
+
+
+
+### Bug Fixes
+
+* **175:** handle researchfacility_id as a string ([a4e1039](https://github.com/EPFL-ENAC/co2-calculator/commit/a4e1039a75a4c09b87b89d46119e07ce1478c10c))
+* **175:** labels of column tables ([847ef84](https://github.com/EPFL-ENAC/co2-calculator/commit/847ef842302d09611cddd6185bbeaf3ddb5d3091))
+* **243:** add submit for upload csv dialog ([26f2d25](https://github.com/EPFL-ENAC/co2-calculator/commit/26f2d25a61f69f88b470b35be7d8086e3192b65d))
+* **243:** allow weird state of 'running jobs' staled ([d6b48f1](https://github.com/EPFL-ENAC/co2-calculator/commit/d6b48f1c34eff89ecd655b04e05e20bc19da461e))
+* **243:** correct bad code for api-travel ([da8355f](https://github.com/EPFL-ENAC/co2-calculator/commit/da8355fbb29ad3c7b73f37b96ce2d1df775abbd1))
+* **243:** correct permission for upload data in module specific ([bd1a65b](https://github.com/EPFL-ENAC/co2-calculator/commit/bd1a65b78f00c1bc0ba12a6e1a0ed6b25952c513))
+* **243:** correct the way we retrieve data-management ([aef66bf](https://github.com/EPFL-ENAC/co2-calculator/commit/aef66bfd198635f92b852b1f9bee5dcc8f377504))
+* **243:** correct travel api bad factor ([1c33117](https://github.com/EPFL-ENAC/co2-calculator/commit/1c33117fd044b9b2bf67a3e3306ce09fbb5eb56b))
+* **243:** corret name for modules ([f9d1d97](https://github.com/EPFL-ENAC/co2-calculator/commit/f9d1d97d85f67ace61f885028e797604344b91ab))
+* **243:** fix purchase factors update ([a510f6f](https://github.com/EPFL-ENAC/co2-calculator/commit/a510f6f63e2633a0105f4a37a0774d31cf890a1b))
+* **243:** no more elec for building_rooms factors ([688f740](https://github.com/EPFL-ENAC/co2-calculator/commit/688f7407cf4ada35442f2c1eaaf7c769866757cf))
+* **243:** reinstated code in taxonomies endpoint ([92ce47a](https://github.com/EPFL-ENAC/co2-calculator/commit/92ce47a451e7541606a342cd6891d270c9f8f532))
+* **243:** use ref instead of reactive for events ([ae82a48](https://github.com/EPFL-ENAC/co2-calculator/commit/ae82a48f3c59e991a610e9424e9efea657868136))
+* **518:** make test_data_entry pass for user_institu ([548edff](https://github.com/EPFL-ENAC/co2-calculator/commit/548edff7a7a172bced049840abf5cbc899918541))
+* **518:** user_institutional_id is a str ([e2adcd1](https://github.com/EPFL-ENAC/co2-calculator/commit/e2adcd149813682c154a091816d77b207cc60996))
+* added purchase categories to factors ([f3105bb](https://github.com/EPFL-ENAC/co2-calculator/commit/f3105bbe3e3e649ae837fc77eab1ae5bc70a32d1))
+* **auth:** no more problem with entra ([59a53a7](https://github.com/EPFL-ENAC/co2-calculator/commit/59a53a74ef2f28daad38810831259260d615b86d))
+* changed backend docker image base ([297a55b](https://github.com/EPFL-ENAC/co2-calculator/commit/297a55bb5b2f00f62095abceb87b258829db1b7b))
+* changed trivy scan exit code ([eeb978e](https://github.com/EPFL-ENAC/co2-calculator/commit/eeb978e9e8cd7857d3dc0e0efed1d1f895d31353))
+* **ci-cd:** remove skip flag ([ab39433](https://github.com/EPFL-ENAC/co2-calculator/commit/ab39433d99277726ca0f90a5dffd50d2d11e6b6e))
+* code cleaning after review ([c7cc5d6](https://github.com/EPFL-ENAC/co2-calculator/commit/c7cc5d663cbae8c7ac105e4a26f27ba54c5bf4a2))
+* **data-management:** add logs to travel-api ([c5a76a4](https://github.com/EPFL-ENAC/co2-calculator/commit/c5a76a49820d6c2f6c1e576645b17a1648c853b2))
+* **deployment:** disable trivy scan ([92a087a](https://github.com/EPFL-ENAC/co2-calculator/commit/92a087a9289131e90f5453e1b920c74595071cc1))
+* **deploy:** roll back ci/cd to 2.8.0 ([8742895](https://github.com/EPFL-ENAC/co2-calculator/commit/874289584edaf00dddc4ea018fd256c5b98cb7f1))
+* frontend audit ([69ccfa9](https://github.com/EPFL-ENAC/co2-calculator/commit/69ccfa95086490cbcbdcb8af5febd49e54e35a65))
+* **frontend-audit:** correct dependabot errors ([754b4b8](https://github.com/EPFL-ENAC/co2-calculator/commit/754b4b89ab8d8563223fb3ff9e12a40c8985eec3))
+* **frontend:** audit pico ([8b7b0f6](https://github.com/EPFL-ENAC/co2-calculator/commit/8b7b0f622e231e94198bbf39c4c003824aebf92b))
+* handle undefined validatedTotals in formDefaults computation ([839ddba](https://github.com/EPFL-ENAC/co2-calculator/commit/839ddbaaef00f02d9505d746c506e051f029c0d3))
+* **lightouse:** run lighthouse on the frontend folder instead of root ([97ad736](https://github.com/EPFL-ENAC/co2-calculator/commit/97ad73663a4b77fc49f6c3efb843ae4a8e347879))
+* **npm:** bump flatted for security reason ([5df1ca8](https://github.com/EPFL-ENAC/co2-calculator/commit/5df1ca81a96c96b24fcb6867d893332177eb77ff))
+* **travel-api:** sync kg_co2eq properly (overide compute) ([f957600](https://github.com/EPFL-ENAC/co2-calculator/commit/f9576005b1ce3459cdc088ea25cc1a7983b35f7f))
+
+
+### Features
+
+* **175:** added cache for getting carbon report year ([ab249b8](https://github.com/EPFL-ENAC/co2-calculator/commit/ab249b85be4b5086990e025d5d7a754654a146ea))
+* **175:** added carbon report year lookup ([b1d2e35](https://github.com/EPFL-ENAC/co2-calculator/commit/b1d2e356fc1c1609922eb1ae03c9a0bf19ba55da))
+* **175:** added emissions formulas for research facilities commons and animals ([96d2d8c](https://github.com/EPFL-ENAC/co2-calculator/commit/96d2d8c2321612b4f253de8e604de1a94587d31e))
+* **175:** updated formulas to use factor's year ([4e7af78](https://github.com/EPFL-ENAC/co2-calculator/commit/4e7af78f7f5cb7d4817d4572bebe1bce9686a1be))
+* **175:** updated module tables according to seeded data ([f119498](https://github.com/EPFL-ENAC/co2-calculator/commit/f119498091eb0cba07f0f07dcd3224730aec4478))
+* **243-data_ingestion:** add data primary_Factor_id ([411abe4](https://github.com/EPFL-ENAC/co2-calculator/commit/411abe453c85a2b8b14e0afd63aa3a3831edcd17))
+* **243:** add a source to keep track of who created the darta ([e6977b5](https://github.com/EPFL-ENAC/co2-calculator/commit/e6977b5f0f59dee2e401d7380fe652928d7d5592))
+* **243:** add override of factors on datamanagement ([0dd7ba4](https://github.com/EPFL-ENAC/co2-calculator/commit/0dd7ba4e56494a6cf2208e5a13c750842c8beb53))
+* **243:** add stats for carbon_reports ([63a07cc](https://github.com/EPFL-ENAC/co2-calculator/commit/63a07cc561ec5513f53e18aff6444a3005a976f9))
+* **243:** add travel load with emissions ([bcac014](https://github.com/EPFL-ENAC/co2-calculator/commit/bcac0146939a87ea6026a4da064ba79e01268b64))
+* **243:** correct data/factor upload ([61103b5](https://github.com/EPFL-ENAC/co2-calculator/commit/61103b5338d6bf4af350e7774f104c95a5e9bdad))
+* **243:** delete on insert ([a27be35](https://github.com/EPFL-ENAC/co2-calculator/commit/a27be35d6d074f3d24676dee54556329e86d9b40))
+* **243:** display status of datamanagrement tab ([b55f0ca](https://github.com/EPFL-ENAC/co2-calculator/commit/b55f0caa096443366e11b763cc10243adfac4f3b))
+* **243:** implement delete-before-insert pattern for CSV factor uploads ([776ad58](https://github.com/EPFL-ENAC/co2-calculator/commit/776ad580457846a5649e6eeeb5b6b81fd5a3b373))
+* **402:** added currency selection for purchases (chf) and external cloud (eur) ([910b441](https://github.com/EPFL-ENAC/co2-calculator/commit/910b44129e8b8b7c16bf5290ed1b22493c6c0528))
+* **700:** added workflows for carbon report module and embodied energy ([a559026](https://github.com/EPFL-ENAC/co2-calculator/commit/a5590261e71c24034ea04551e6d6b9d611f79270))
+* **700:** cascade embodied data entry management ([49a1cf2](https://github.com/EPFL-ENAC/co2-calculator/commit/49a1cf297ce3c369ed8a175ea608251b0a0d6f7c))
+* add CSV override for kg_co2eq in emission calculations ([704979c](https://github.com/EPFL-ENAC/co2-calculator/commit/704979c07656bd071aaefbae25368a09eb499ce7))
+* add emission type breakdown info tooltips and update chart components ([9a06338](https://github.com/EPFL-ENAC/co2-calculator/commit/9a063388fc59ff45b0a9a23d6cc82b41303fb02a))
+* add formDefaults support and defaultFrom field for total_fte in module configuration ([7c8f9e5](https://github.com/EPFL-ENAC/co2-calculator/commit/7c8f9e555bca051488f05fe8d8fcb7e2fe813558))
+* add institutional ID uniqueness check and remove student FTE calculator ([e64023c](https://github.com/EPFL-ENAC/co2-calculator/commit/e64023cdd3e977ce1de6e437eb2be5babe45a330))
+* add new subcategories in emission breakdown chart ([6cc45f1](https://github.com/EPFL-ENAC/co2-calculator/commit/6cc45f1268fff060d17460c729c88d80191a48cd))
+* add usage statistics title to reporting page and update styles ([6ea780f](https://github.com/EPFL-ENAC/co2-calculator/commit/6ea780f4f296674313d4afd04b03ff757624051e))
+* added direct way to get exchange rate to eur ([84cd32d](https://github.com/EPFL-ENAC/co2-calculator/commit/84cd32d9888261f8d50a7f9b3196949fd2835de1))
+* added formula func for currencies ([0c2fec2](https://github.com/EPFL-ENAC/co2-calculator/commit/0c2fec24b98b308fbe204ad0d625bee9f2c583fd))
+* applied research facilities permissions ([fa0da1b](https://github.com/EPFL-ENAC/co2-calculator/commit/fa0da1b3dea80f8d0732c801847afed2c8bfa364))
+* **backoffice:** implement data management and granular permissions ([2114bb2](https://github.com/EPFL-ENAC/co2-calculator/commit/2114bb2f79f61c0c228d79641e7166d9dd742892)), closes [#243](https://github.com/EPFL-ENAC/co2-calculator/issues/243)
+* enhance emission types and granularity for buildings and additional purchases ([1ee4dd3](https://github.com/EPFL-ENAC/co2-calculator/commit/1ee4dd35c58bbd231b77e96e602785215fcb8ee9))
+* enhance reporting with additional unit status counts and module breakdown ([f7fff90](https://github.com/EPFL-ENAC/co2-calculator/commit/f7fff90c48b68d9d590ca303114ff96721666786))
+* enhance reporting with aggregated results and improved data handling ([ea08c25](https://github.com/EPFL-ENAC/co2-calculator/commit/ea08c252c7bcd2733eef1034361f968a5847465e))
+* implement Aggregated box section in backend's reporting tab ([14e80d4](https://github.com/EPFL-ENAC/co2-calculator/commit/14e80d4d6f76255033509ff50b1b00532253f486))
+* implementation plan ([3cf80ae](https://github.com/EPFL-ENAC/co2-calculator/commit/3cf80aed253cc1210c0aaefe37ff785e27f46710))
+* implementation-plan ([2ec5743](https://github.com/EPFL-ENAC/co2-calculator/commit/2ec5743e5d379fc5334252e6b6cfcfb5c11a7615))
+* refactor emission breakdown interfaces and update import paths ([0b85b9b](https://github.com/EPFL-ENAC/co2-calculator/commit/0b85b9b07ddd9c24a495c529b58bee501fbed959))
+* remove scope from data entry emission ([99ba01c](https://github.com/EPFL-ENAC/co2-calculator/commit/99ba01c21999beba233e819cd58cd00138ebf10d))
+* **reporting:** add Centre for level 4 units ([4fd09ee](https://github.com/EPFL-ENAC/co2-calculator/commit/4fd09ee91a60bde29af151c4a144e08fae9dcc2a))
+* update chart categories and keys for buildings emissions ([61841fe](https://github.com/EPFL-ENAC/co2-calculator/commit/61841fe8e0cc5bbdf78e8060db4e4e9146a7872b))
+* update emission type charts with new subcategory color schemes and enhance chart options ([d097622](https://github.com/EPFL-ENAC/co2-calculator/commit/d097622dc52d93524ac173317fa363a7be31deb4))
+* update GitHub button styling for better alignment ([61596b0](https://github.com/EPFL-ENAC/co2-calculator/commit/61596b04baad7ed1bf8751cd840bf8ccfaa0e5e4))
+
 
 ## [0.6.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.6.0...v0.6.1) (2026-03-13)
 
