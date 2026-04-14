@@ -195,9 +195,15 @@ class EquipmentModuleHandler(BaseModuleHandler):
         def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
             active_hours = ctx.get("active_usage_hours_per_week")
             standby_hours = ctx.get("standby_usage_hours_per_week")
+            # default active_hours and standby_hours should be retrieved from the factor
+            #  if not provided by the user
+            # in fine it should never happened
+            if active_hours is None:
+                active_hours = factor_values.get("active_usage_hours_per_week")
+            if standby_hours is None:
+                standby_hours = factor_values.get("standby_usage_hours_per_week")
             if active_hours is None or standby_hours is None:
                 return None
-
             active_power_w = factor_values.get("active_power_w")
             standby_power_w = factor_values.get("standby_power_w")
             ef = factor_values.get("ef_kg_co2eq_per_kwh")
