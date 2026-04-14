@@ -425,7 +425,7 @@ class DataEntryRepository:
 
         if institutional_id_filter is not None and is_travel_entry:
             statement = statement.where(
-                MemberEntry.data["user_institutional_id"].as_string()
+                DataEntry.data["user_institutional_id"].as_string()
                 == institutional_id_filter
             )
 
