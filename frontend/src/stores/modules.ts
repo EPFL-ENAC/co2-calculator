@@ -102,6 +102,7 @@ export interface EmissionBreakdownCategoryRow {
   category: string;
   category_key: string;
   emissions: EmissionBreakdownValue[];
+  parent_keys_order: string[];
   [key: string]: unknown;
 }
 

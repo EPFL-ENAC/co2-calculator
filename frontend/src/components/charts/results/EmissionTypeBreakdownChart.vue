@@ -27,6 +27,7 @@ use([
 ]);
 
 import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
+import { CATEGORY_CHART_KEYS } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
@@ -124,6 +125,27 @@ const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 // Maps compound segment keys → display labels (used in top-class mode)
 const segmentLabelOverrides = new Map<string, string>();
 
+/**
+ * Sort bars within each category by the CATEGORY_CHART_KEYS display order.
+ * Shared by the default and top-class breakdown branches so both produce
+ * a deterministic, visually intended order rather than backend/DB iteration order.
+ */
+function sortBarsByDisplayOrder(
+  bars: Record<string, unknown>[],
+  barCategoryMap: Map<string, string>,
+  barLabelMap: Map<string, string>,
+): void {
+  bars.sort((a, b) => {
+    const aCat = barCategoryMap.get(a.xx_category as string) ?? '';
+    const bCat = barCategoryMap.get(b.xx_category as string) ?? '';
+    if (aCat !== bCat) return 0; // preserve cross-category order
+    const keys = CATEGORY_CHART_KEYS[aCat] ?? [];
+    const aIdx = keys.indexOf(barLabelMap.get(a.xx_category as string) ?? '');
+    const bIdx = keys.indexOf(barLabelMap.get(b.xx_category as string) ?? '');
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+}
+
 const chartData = computed(() => {
   const emptyResult = {
     bars: [] as Record<string, unknown>[],
@@ -159,6 +181,8 @@ const chartData = computed(() => {
       }
       bars.push(barData);
     }
+
+    sortBarsByDisplayOrder(bars, barCategoryMap, barLabelMap);
 
     return {
       bars,
@@ -213,6 +237,8 @@ const chartData = computed(() => {
     }
     bars.push(barData);
   }
+
+  sortBarsByDisplayOrder(bars, barCategoryMap, barLabelMap);
 
   return {
     bars,

@@ -201,10 +201,7 @@ const moduleTreemapData = computed(() => {
   const filteredKeys = Object.fromEntries(
     Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
   ) as Record<string, string[]>;
-  return buildModuleTreemapData(
-    breakdown as Array<{ category: string; [key: string]: string | number }>,
-    filteredKeys,
-  );
+  return buildModuleTreemapData(breakdown, filteredKeys);
 });
 
 const moduleCategoryRows = computed(() => {

@@ -7,15 +7,20 @@ import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTy
 import {
   MODULE_TO_CATEGORIES,
   CHART_CATEGORY_COLOR_SCALES,
+  CHART_CATEGORY_COLOR_SCHEMES,
+  CHART_SUBCATEGORY_COLOR_SCHEMES,
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 import { MODULES } from 'src/constant/modules';
 import {
-  buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
   type EmissionTreemapCategory,
+  type EmissionTreemapChild,
 } from 'src/composables/useEmissionTreemap';
-import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
+import type {
+  EmissionBreakdownCategoryRow,
+  EmissionBreakdownValue,
+} from 'src/stores/modules';
 
 interface BreakdownData {
   module_breakdown: Array<Record<string, unknown>>;
@@ -82,17 +87,6 @@ function selectTab(tab: TabKey) {
   selectedTab.value = tab;
 }
 
-type BreakdownRow = { category: string; [key: string]: number | string };
-
-function toRow(r: Record<string, unknown>): BreakdownRow {
-  const row: BreakdownRow = { category: String(r.category ?? '') };
-  for (const [k, v] of Object.entries(r)) {
-    if (k === 'category') continue;
-    if (typeof v === 'number' || typeof v === 'string') row[k] = v;
-  }
-  return row;
-}
-
 const categoryRows = computed<EmissionBreakdownCategoryRow[]>(() => {
   if (!props.breakdownData || !activeTab.value) return [];
   const categories = MODULE_TO_CATEGORIES.value[activeTab.value] ?? [];
@@ -120,12 +114,86 @@ const categoryRows = computed<EmissionBreakdownCategoryRow[]>(() => {
 const treemapData = computed<EmissionTreemapCategory[]>(() => {
   if (!props.breakdownData || !activeTab.value) return [];
 
+  const catColorSchemes = CHART_CATEGORY_COLOR_SCHEMES.value as Record<
+    string,
+    string
+  >;
+  const subColorSchemes = CHART_SUBCATEGORY_COLOR_SCHEMES.value as Record<
+    string,
+    Record<string, string>
+  >;
+
   const categories = MODULE_TO_CATEGORIES.value[activeTab.value] ?? [];
-  const filteredKeys = Object.fromEntries(
-    Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
-  );
-  const rows = props.breakdownData.module_breakdown.map(toRow);
-  return buildModuleTreemapData(rows, filteredKeys);
+  // Read directly from raw module_breakdown to get every leaf emission
+  // without the categoryRows allowedBarNames filter stripping them out.
+  const moduleRows = props.breakdownData
+    .module_breakdown as EmissionBreakdownCategoryRow[];
+
+  const result: EmissionTreemapCategory[] = [];
+
+  for (const rawRow of moduleRows) {
+    const cat = String(rawRow.category_key || rawRow.category || '');
+    if (!categories.includes(cat) || !(cat in CATEGORY_CHART_KEYS)) continue;
+
+    const catColor = catColorSchemes[cat] ?? '#999999';
+    const subColors = subColorSchemes[cat] ?? {};
+    const catKeys = CATEGORY_CHART_KEYS[cat] ?? [];
+    const rawEmissions = (rawRow.emissions as EmissionBreakdownValue[]) ?? [];
+
+    // Group leaf emissions by their parent subcategory key.
+    // Use explicit parent_key when present so that leaf items like
+    // {key:'eco', parent_key:'plane'} are grouped under 'plane', not 'eco'.
+    const byParent = new Map<string, EmissionBreakdownValue[]>();
+    for (const emission of rawEmissions) {
+      const parentKey = emission.parent_key
+        ? String(emission.parent_key)
+        : String(emission.key);
+      if (!catKeys.includes(parentKey)) continue;
+      if (!byParent.has(parentKey)) byParent.set(parentKey, []);
+      byParent.get(parentKey)!.push(emission);
+    }
+
+    const children: EmissionTreemapChild[] = [];
+    let catTotal = 0;
+
+    // Emit leaves in CATEGORY_CHART_KEYS parent order
+    for (const parentKey of catKeys) {
+      const emissions = byParent.get(parentKey) ?? [];
+      const parentColor = subColors[parentKey] ?? catColor;
+      for (const emission of emissions) {
+        const val = Number(emission.value) || 0;
+        if (val <= 0) continue;
+        children.push({
+          name: emission.key,
+          value: val,
+          percentage: 0,
+          color: parentColor,
+        });
+        catTotal += val;
+      }
+    }
+
+    if (catTotal <= 0 || children.length === 0) continue;
+
+    children.forEach((c) => {
+      c.percentage = (c.value / catTotal) * 100;
+    });
+
+    result.push({
+      name: cat,
+      value: catTotal,
+      percentage: 0,
+      color: catColor,
+      children,
+    });
+  }
+
+  const grandTotal = result.reduce((s, c) => s + c.value, 0);
+  result.forEach((cat) => {
+    cat.percentage = grandTotal > 0 ? (cat.value / grandTotal) * 100 : 0;
+  });
+
+  return result;
 });
 
 const emissionTypeInfoKey = computed(() =>

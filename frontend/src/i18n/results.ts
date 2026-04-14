@@ -469,6 +469,26 @@ export default {
     en: 'Plane',
     fr: 'Avion',
   },
+  'charts-class-1-subcategory': {
+    en: 'Class 1',
+    fr: 'Classe 1',
+  },
+  'charts-class-2-subcategory': {
+    en: 'Class 2',
+    fr: 'Classe 2',
+  },
+  'charts-first-class-subcategory': {
+    en: 'First',
+    fr: 'Première',
+  },
+  'charts-business-class-subcategory': {
+    en: 'Business',
+    fr: 'Affaires',
+  },
+  'charts-eco-class-subcategory': {
+    en: 'Eco',
+    fr: 'Éco',
+  },
   'charts-clouds-subcategory': {
     en: 'Clouds',
     fr: 'Clouds',
@@ -514,8 +534,8 @@ export default {
     fr: 'Calcul cloud',
   },
   'charts-ai-provider-subcategory': {
-    en: 'AI provider',
-    fr: 'Fournisseur IA',
+    en: 'AI',
+    fr: 'IA',
   },
   'charts-ai-provider-google-subcategory': {
     en: 'Google',
