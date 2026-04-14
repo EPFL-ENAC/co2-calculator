@@ -87,8 +87,8 @@ export default {
     fr: 'Contact',
   },
   unit_carbon_footprint_title: {
-    en: 'My Unit Carbon Footprint',
-    fr: "Mon Empreinte Carbone de l'unité",
+    en: 'Unit carbon footprint',
+    fr: "Empreinte carbone de l'unité",
   },
   common_this_item: {
     en: 'this item',
@@ -151,6 +151,10 @@ export default {
   common_filter_incomplete: {
     en: 'Incomplete',
     fr: 'Incomplet',
+  },
+  common_disabled: {
+    en: 'Disabled',
+    fr: 'Désactivé',
   },
   common_filters_search_label: {
     en: 'Search',
@@ -252,6 +256,10 @@ export default {
     en: 'Validate Module',
     fr: 'Valider le module',
   },
+  common_or: {
+    en: 'or',
+    fr: 'ou',
+  },
   common_unvalidate: {
     en: 'Edit Module',
     fr: 'Éditer le module',
@@ -276,6 +284,10 @@ export default {
     en: 'Cancel',
     fr: 'Annuler',
   },
+  common_confirm: {
+    en: 'Confirm',
+    fr: 'Confirmer',
+  },
   common_save: {
     en: 'Save',
     fr: 'Enregistrer',
@@ -283,6 +295,10 @@ export default {
   common_view_only: {
     en: 'View Only',
     fr: 'Lecture seule',
+  },
+  common_mandatory: {
+    en: 'Mandatory',
+    fr: 'Obligatoire',
   },
   header_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',

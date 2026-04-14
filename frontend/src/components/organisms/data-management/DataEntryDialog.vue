@@ -44,7 +44,7 @@ const apiServerUrl = ref<string>('');
 const apiClientId = ref<string>('');
 const apiSecretId = ref<string>('');
 const apiSecretValue = ref<string>('');
-const apiConnectionTesting = ref<boolean>(false);
+//const apiConnectionTesting = ref<boolean>(false);
 const apiConnectionResult = ref<'success' | 'error' | null>(null);
 
 // Previous year jobs
@@ -130,42 +130,42 @@ const uploadFiles = async () => {
 };
 
 // API Connection
-const testApiConnection = async () => {
-  apiConnectionTesting.value = true;
-  apiConnectionResult.value = null;
+// const testApiConnection = async () => {
+//   apiConnectionTesting.value = true;
+//   apiConnectionResult.value = null;
 
-  try {
-    // For now, we'll just validate that fields are filled
-    // In a real implementation, this would call the backend to test the connection
-    if (
-      !apiServerUrl.value ||
-      !apiClientId.value ||
-      !apiSecretId.value ||
-      !apiSecretValue.value
-    ) {
-      throw new Error('All fields are required');
-    }
+//   try {
+//     // For now, we'll just validate that fields are filled
+//     // In a real implementation, this would call the backend to test the connection
+//     if (
+//       !apiServerUrl.value ||
+//       !apiClientId.value ||
+//       !apiSecretId.value ||
+//       !apiSecretValue.value
+//     ) {
+//       throw new Error('All fields are required');
+//     }
 
-    // Simulate connection test (replace with actual API call)
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+//     // Simulate connection test (replace with actual API call)
+//     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    apiConnectionResult.value = 'success';
-    $q.notify({
-      color: 'positive',
-      message: $t('data_management_connection_success'),
-      position: 'top',
-    });
-  } catch {
-    apiConnectionResult.value = 'error';
-    $q.notify({
-      color: 'negative',
-      message: $t('data_management_connection_failed'),
-      position: 'top',
-    });
-  } finally {
-    apiConnectionTesting.value = false;
-  }
-};
+//     apiConnectionResult.value = 'success';
+//     $q.notify({
+//       color: 'positive',
+//       message: $t('data_management_connection_success'),
+//       position: 'top',
+//     });
+//   } catch {
+//     apiConnectionResult.value = 'error';
+//     $q.notify({
+//       color: 'negative',
+//       message: $t('data_management_connection_failed'),
+//       position: 'top',
+//     });
+//   } finally {
+//     apiConnectionTesting.value = false;
+//   }
+// };
 
 const connectAndSync = async () => {
   // if (
@@ -199,6 +199,15 @@ const connectAndSync = async () => {
     isConnecting.value = false;
   }
 };
+
+const allApiFieldsFilled = computed(
+  () =>
+    props.row.hasApi &&
+    !!apiServerUrl.value &&
+    !!apiClientId.value &&
+    !!apiSecretId.value &&
+    !!apiSecretValue.value,
+);
 
 const showOverwriteWarning = computed(() => {
   const lastJob =
@@ -416,105 +425,71 @@ async function initiateSync(
       </q-card-section>
       <q-separator />
 
-      <!-- Tabs -->
-      <q-tabs
-        v-model="activeTab"
-        :align="'justify'"
-        class="text-grey"
-        :shrink="true"
-      >
-        <q-tab
-          name="upload"
-          :label="$t('data_management_tab_upload_csv')"
-          icon="file_upload"
+      <q-card-section class="q-gutter-md">
+        <!-- Upload CSV -->
+        <div class="text-subtitle1 text-weight-medium">
+          {{ $t('data_management_tab_upload_csv') }}
+        </div>
+        <q-banner
+          v-if="showOverwriteWarning"
+          color="warning"
+          class="q-mb-sm"
+          inline-action
+        >
+          <q-icon name="warning" size="sm" class="q-mr-sm" />
+          {{ $t('data_management_last_upload_overwrite') }}
+        </q-banner>
+        <q-file
+          v-model="selectedFiles"
+          dense
+          outlined
+          multiple
+          :hint="$t('data_management_supported_file_types')"
+          counter
+          accept=".csv, text/csv"
         />
-        <q-tab
-          :disable="!row.hasApi"
-          name="api"
-          :label="$t('data_management_tab_connect_api')"
-          icon="link"
-        />
-        <q-tab
-          name="copy"
-          :label="$t('data_management_tab_copy_previous')"
-          icon="file_copy"
-        />
-      </q-tabs>
-      <q-separator />
 
-      <q-card-section>
-        <q-tab-panels v-model="activeTab" animated>
-          <!-- Upload CSV Tab -->
-          <q-tab-panel name="upload" class="q-pa-none">
-            <q-banner
-              v-if="showOverwriteWarning"
-              color="warning"
-              class="q-mb-md"
-              inline-action
-            >
-              <q-icon name="warning" size="sm" class="q-mr-sm" />
-              {{ $t('data_management_last_upload_overwrite') }}
-            </q-banner>
-            <q-form class="q-gutter-md" @submit.prevent="uploadFiles">
-              <q-file
-                v-model="selectedFiles"
-                dense
-                outlined
-                multiple
-                :hint="$t('data_management_supported_file_types')"
-                counter
-                accept=".csv, text/csv"
-                @keyup.enter="uploadFiles"
-              />
-              <q-btn
-                :label="$t('data_management_upload')"
-                size="sm"
-                color="accent"
-                type="submit"
-                :disabled="
-                  !selectedFiles || selectedFiles.length === 0 || isUploading
-                "
-              />
-              <q-linear-progress
-                v-if="isUploading"
-                indeterminate
-                color="accent"
-              />
-            </q-form>
-          </q-tab-panel>
+        <!-- OR divider + Connect API (only when API is available) -->
+        <template v-if="row.hasApi">
+          <div class="row items-center q-my-sm">
+            <q-separator class="col" />
+            <span class="q-px-md text-grey-6 text-caption">{{
+              $t('common_or')
+            }}</span>
+            <q-separator class="col" />
+          </div>
 
-          <!-- Connect API Tab -->
-          <q-tab-panel v-if="row.hasApi" name="api" class="q-pa-none">
+          <div>
+            <div class="text-subtitle1 text-weight-medium q-mb-sm">
+              {{ $t('data_management_tab_connect_api') }}
+            </div>
             <q-banner
               v-if="showOverwriteWarningAPI"
               color="warning"
-              class="q-mb-md"
+              class="q-mb-sm"
               inline-action
             >
               <q-icon name="warning" size="sm" class="q-mr-sm" />
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
-            <q-form class="q-gutter-md" @submit.prevent="connectAndSync">
+            <div class="q-gutter-sm q-mt-sm">
               <q-input
                 v-model="apiServerUrl"
                 dense
                 outlined
-                :label="$t('data_management_api_server_url')"
-                placeholder="https://api.example.com"
+                :placeholder="$t('data_management_api_server_url')"
               />
               <q-input
                 v-model="apiClientId"
                 dense
                 outlined
-                :label="$t('data_management_api_client_id')"
-                placeholder="client-id"
+                :placeholder="$t('data_management_api_client_id')"
               />
               <q-input
                 v-model="apiSecretId"
                 dense
                 outlined
-                :label="$t('data_management_api_secret_id')"
-                placeholder="secret-id"
+                :placeholder="$t('data_management_api_secret_id')"
               />
               <q-input
                 v-model="apiSecretValue"
@@ -522,84 +497,101 @@ async function initiateSync(
                 outlined
                 type="password"
                 auto-complete="current-password"
-                :label="$t('data_management_api_secret_value')"
-                placeholder="secret-value"
-              />
-
-              <div class="row q-gutter-sm">
-                <q-btn
-                  :label="$t('data_management_api_test_connection')"
-                  outline
-                  color="primary"
-                  size="sm"
-                  :disable="apiConnectionTesting"
-                  @click="testApiConnection"
-                />
-                <q-btn
-                  :label="$t('data_management_api_connect_and_sync')"
-                  color="accent"
-                  type="submit"
-                  size="sm"
-                  :disable="isConnecting"
-                />
-              </div>
-
-              <q-linear-progress
-                v-if="apiConnectionTesting || isConnecting"
-                indeterminate
-                color="accent"
-              />
-            </q-form>
-          </q-tab-panel>
-
-          <!-- Copy from Previous Year Tab -->
-          <q-tab-panel name="copy" class="q-pa-none">
-            <!-- <div class="text-h6 q-mb-md">
-              {{ $t('data_management_tab_copy_previous') }}
-            </div> -->
-            <div
-              v-if="previousYearJobs.length === 0"
-              class="text-grey-7 q-pa-md"
-            >
-              {{ $t('data_management_no_previous_jobs') }}
-            </div>
-            <div v-else class="q-gutter-md">
-              <q-select
-                v-model="selectedPreviousJob"
-                :options="
-                  previousYearJobs.map((job) => ({
-                    value: job.job_id,
-                    label: `${$t('data_management_copy_from_year', { year: job.year })} - ${job.status_message || ''}`,
-                  }))
-                "
-                emit-value
-                map-options
-                dense
-                outlined
-                :label="$t('data_management_select_import')"
-              />
-              <q-btn
-                :label="$t('data_management_copy_start')"
-                color="accent"
-                size="sm"
-                :disable="!selectedPreviousJob || isCopying"
-                @click="copyFromPreviousYear"
-              />
-              <q-linear-progress
-                v-if="isCopying"
-                indeterminate
-                color="accent"
+                :placeholder="$t('data_management_api_secret_value')"
               />
             </div>
-          </q-tab-panel>
-        </q-tab-panels>
+          </div>
+        </template>
+
+        <!-- OR divider -->
+        <div class="row items-center q-my-sm">
+          <q-separator class="col" />
+          <span class="q-px-md text-grey-6 text-caption">{{
+            $t('common_or')
+          }}</span>
+          <q-separator class="col" />
+        </div>
+
+        <!-- Copy from last year -->
+        <div class="text-subtitle1 text-weight-medium">
+          {{ $t('data_management_tab_copy_previous') }}
+        </div>
+        <div v-if="previousYearJobs.length === 0">
+          <q-btn
+            :label="$t('data_management_copy_start')"
+            unelevated
+            dense
+            outline
+            color="black"
+            icon="calendar_today"
+            class="full-width text-weight-medium text-capitalize"
+            disabled
+          />
+          <div class="text-caption text-grey-6 q-mt-xs">
+            {{ $t('data_management_no_previous_jobs') }}
+          </div>
+        </div>
+        <div v-else class="q-gutter-sm">
+          <q-select
+            v-model="selectedPreviousJob"
+            :options="
+              previousYearJobs.map((job) => ({
+                value: job.job_id,
+                label: `${$t('data_management_copy_from_year', { year: job.year })} - ${job.status_message || ''}`,
+              }))
+            "
+            emit-value
+            map-options
+            dense
+            outlined
+            :label="$t('data_management_select_import')"
+          />
+          <q-btn
+            :label="$t('data_management_copy_start')"
+            unelevated
+            color="grey-3"
+            text-color="dark"
+            icon="calendar_today"
+            class="full-width"
+            :loading="isCopying"
+            :disable="!selectedPreviousJob || isCopying"
+            @click="copyFromPreviousYear"
+          />
+        </div>
+
+        <!-- Warning text -->
+        <div class="text-caption text-grey-7 q-mt-sm">
+          {{ $t('data_management_overwrite_warning') }}
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section class="q-pt-sm">
+        <q-btn
+          :label="
+            selectedFiles && selectedFiles.length > 0
+              ? $t('data_management_upload')
+              : allApiFieldsFilled
+                ? $t('data_management_api_connect_and_sync')
+                : $t('common_save')
+          "
+          color="accent"
+          unelevated
+          class="q-px-xl text-weight-medium"
+          :loading="isUploading || isConnecting"
+          :disable="isUploading || isConnecting || isCopying"
+          @click="
+            selectedFiles && selectedFiles.length > 0
+              ? uploadFiles()
+              : allApiFieldsFilled
+                ? connectAndSync()
+                : (showDialog = false)
+          "
+        />
       </q-card-section>
     </q-card>
   </q-dialog>
 </template>
 
-<style scoped>
-:deep(.q-tabs__arrow) {
-  display: none !important;
-}
-</style>
+<style scoped></style>

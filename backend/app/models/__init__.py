@@ -13,6 +13,7 @@ from .location import Location
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User
+from .year_configuration import YearConfiguration
 
 # IMPORTANT: Call model_rebuild() BEFORE adding relationships
 AuditDocument.model_rebuild()
@@ -57,4 +58,5 @@ __all__ = [
     "Location",
     "DataEntry",
     "DataEntryEmission",
+    "YearConfiguration",
 ]

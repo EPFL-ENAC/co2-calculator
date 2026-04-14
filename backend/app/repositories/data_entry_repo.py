@@ -8,9 +8,10 @@ from sqlalchemy import select as sa_select
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
-from app.models.carbon_report import CarbonReportModule, ModuleStatus
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -186,6 +187,38 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_by_data_entry_type_and_year(
+        self, data_entry_type_id: DataEntryTypeEnum, year: int
+    ) -> list[DataEntry]:
+        """Fetch all DataEntries for a given data_entry_type and report year.
+
+        JOINs DataEntry → CarbonReportModule → CarbonReport to filter by year.
+
+        Args:
+            data_entry_type_id: The data entry type to filter on.
+            year: The carbon report year to filter on.
+
+        Returns:
+            List of matching DataEntry rows (may be empty).
+        """
+        statement = (
+            select(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                col(DataEntry.data_entry_type_id) == data_entry_type_id,
+                col(CarbonReport.year) == year,
+            )
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def get_module_type_id_for_carbon_report_module(
         self, carbon_report_module_id: int
     ) -> Optional[int]:
@@ -194,7 +227,9 @@ class DataEntryRepository:
         )
 
     async def get_total_count_by_submodule(
-        self, carbon_report_module_id: int
+        self,
+        carbon_report_module_id: int,
+        travel_institutional_id_filter: Optional[str] = None,
     ) -> Dict[int, int]:
         """
         Docstring for get_total_count_by_submodule
@@ -233,6 +268,18 @@ class DataEntryRepository:
             .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
             .group_by(col(DataEntry.data_entry_type_id))
         )
+        if travel_institutional_id_filter is not None:
+            travel_type_ids = (
+                DataEntryTypeEnum.plane.value,
+                DataEntryTypeEnum.train.value,
+            )
+            query = query.where(
+                or_(
+                    col(DataEntry.data_entry_type_id).not_in(travel_type_ids),
+                    DataEntry.data["user_institutional_id"].as_string()
+                    == travel_institutional_id_filter,
+                )
+            )
         result = await self.session.execute(query)
         rows = list(result.all())
         aggregation: Dict[int, int] = {
@@ -294,6 +341,7 @@ class DataEntryRepository:
         sort_by: str,
         sort_order: str,
         filter: Optional[str] = None,
+        institutional_id_filter: Optional[str] = None,
     ) -> SubmoduleResponse:
         is_travel_entry = data_entry_type_id in (
             DataEntryTypeEnum.plane.value,
@@ -349,6 +397,10 @@ class DataEntryRepository:
                     == DataEntry.data["user_institutional_id"].as_string()
                 )
                 & (
+                    col(MemberEntry.carbon_report_module_id)
+                    == col(DataEntry.carbon_report_module_id)
+                )
+                & (
                     col(MemberEntry.data_entry_type_id)
                     == DataEntryTypeEnum.member.value
                 ),
@@ -371,6 +423,12 @@ class DataEntryRepository:
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
 
+        if institutional_id_filter is not None and is_travel_entry:
+            statement = statement.where(
+                MemberEntry.data["user_institutional_id"].as_string()
+                == institutional_id_filter
+            )
+
         handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
@@ -391,6 +449,11 @@ class DataEntryRepository:
             DataEntry.carbon_report_module_id == carbon_report_module_id,
             DataEntry.data_entry_type_id == data_entry_type_id,
         )
+        if institutional_id_filter is not None and is_travel_entry:
+            count_stmt = count_stmt.where(
+                DataEntry.data["user_institutional_id"].as_string()
+                == institutional_id_filter
+            )
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
@@ -659,18 +722,18 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[DataEntry]:
-        """Fetch the first member entry whose user_institutional_id matches.
+    ) -> Optional[dict]:
+        """Fetch the member entry whose user_institutional_id matches.
 
         Args:
             carbon_report_module_id: The headcount module to scope the search.
             institutional_id: The institutional ID (digits only) to look up.
 
         Returns:
-            The matching ``DataEntry``, or ``None`` if not found.
+            Dict with ``institutional_id`` and ``name`` keys, or ``None`` if not found.
         """
         statement = (
-            select(DataEntry)
+            select(DataEntry.data)
             .where(
                 col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
                 col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
@@ -679,4 +742,10 @@ class DataEntryRepository:
             .limit(1)
         )
         result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
+        data = result.scalar_one_or_none()
+        if data is None:
+            return None
+        uid = data.get("user_institutional_id")
+        if not uid:
+            return None
+        return {"institutional_id": uid, "name": data.get("name", "")}

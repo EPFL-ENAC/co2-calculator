@@ -5,10 +5,7 @@ export const timelineItems = [
     icon: 'o_diversity_2',
     link: MODULES.Headcount,
   },
-  {
-    icon: 'o_flight',
-    link: MODULES.ProfessionalTravel,
-  },
+
   {
     icon: 'o_science',
     link: MODULES.ProcessEmissions,
@@ -22,16 +19,22 @@ export const timelineItems = [
     link: MODULES.EquipmentElectricConsumption,
   },
   {
+    icon: 'o_filter_drama',
+    link: MODULES.ExternalCloudAndAI,
+  },
+  {
+    icon: 'o_flight',
+    link: MODULES.ProfessionalTravel,
+  },
+
+  {
     icon: 'o_sell',
     link: MODULES.Purchase,
   },
+
   {
     icon: 'o_apps',
     link: MODULES.ResearchFacilities,
-  },
-  {
-    icon: 'o_filter_drama',
-    link: MODULES.ExternalCloudAndAI,
   },
 ];
 

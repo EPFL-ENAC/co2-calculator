@@ -21,7 +21,7 @@ import { useRoute } from 'vue-router';
 /**
  * API response for validated totals endpoint.
  * `modules` maps module_type_id to its display value
- * (FTE for headcount, tonnes CO2eq for others).
+ * (FTE for headcount, tonnes CO₂eq for others).
  */
 interface ValidatedTotalsResponse {
   modules: Record<number, number>;
@@ -34,14 +34,59 @@ interface YearlyValidatedEmission {
   total_tonnes_co2eq: number;
 }
 
+export interface EmbodiedEnergyCategoryEntry {
+  category: string;
+  kg_co2eq: number;
+  tonnes_co2eq: number;
+}
+
 export interface EmissionBreakdownResponse {
   module_breakdown: EmissionBreakdownCategoryRow[];
   additional_breakdown: EmissionBreakdownCategoryRow[];
   per_person_breakdown: Record<string, number>;
   validated_categories: string[];
   headcount_validated: boolean;
+  buildings_validated: boolean;
   total_tonnes_co2eq: number;
   total_fte: number;
+  it_summary?: {
+    total_tonnes_co2eq: number;
+    percentage_of_total: number;
+  };
+  embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
+}
+
+export interface ItBreakdownEmission {
+  key: string;
+  value: number;
+}
+
+export interface ItBreakdownTopItem {
+  name: string;
+  value: number;
+}
+
+export interface ItBreakdownCategory {
+  category_key: string;
+  tonnes_co2eq: number;
+  percentage: number;
+  emissions?: ItBreakdownEmission[];
+  top_items?: ItBreakdownTopItem[];
+}
+
+export interface ItBreakdownResponse {
+  total_it_tonnes_co2eq: number;
+  total_it_per_fte: number;
+  percentage_of_total: number;
+  percentage_of_source_modules: number;
+  categories: ItBreakdownCategory[];
+  scope_breakdown: {
+    scope_2: number;
+    scope_3: number;
+  };
+  validated: boolean;
+  partially_validated: boolean;
+  validated_sources: string[];
 }
 
 export interface EmissionBreakdownValue {
@@ -49,6 +94,8 @@ export interface EmissionBreakdownValue {
   key: string;
   value: number;
   parent_key?: string;
+  quantity?: number;
+  quantity_unit?: string;
 }
 
 export interface EmissionBreakdownCategoryRow {
@@ -82,7 +129,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Commuting]: MODULE_STATES.Default,
     [MODULES.Food]: MODULE_STATES.Default,
     [MODULES.Waste]: MODULE_STATES.Default,
-    [MODULES.GreyEnergy]: MODULE_STATES.Default,
+    [MODULES.EmbodiedEnergy]: MODULE_STATES.Default,
   });
 
   const loading = ref(false);
@@ -240,6 +287,9 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdown: EmissionBreakdownResponse | null;
     loadingEmissionBreakdown: boolean;
     errorEmissionBreakdown: string | null;
+    itBreakdown: ItBreakdownResponse | null;
+    loadingItBreakdown: boolean;
+    errorItBreakdown: string | null;
   }>({
     loading: false,
     error: null,
@@ -271,6 +321,9 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdown: null,
     loadingEmissionBreakdown: false,
     errorEmissionBreakdown: null,
+    itBreakdown: null,
+    loadingItBreakdown: false,
+    errorItBreakdown: null,
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -761,7 +814,10 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdownCarbonReportId.value = null;
   }
 
-  async function getEmissionBreakdown(carbonReportId: number) {
+  async function getEmissionBreakdown(
+    carbonReportId: number,
+    excludeModules: number[] = [],
+  ) {
     if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
     if (
       emissionBreakdownInFlight &&
@@ -782,7 +838,12 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightReportId.value === carbonReportId;
 
       try {
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown`;
+        const params = new URLSearchParams();
+        excludeModules.forEach((id) =>
+          params.append('exclude_modules', String(id)),
+        );
+        const qs = params.toString() ? `?${params.toString()}` : '';
+        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown${qs}`;
         const data = await api.get(path).json<EmissionBreakdownResponse>();
         if (!isLatestRequest()) {
           return;
@@ -865,6 +926,30 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  async function getItBreakdown(
+    carbonReportId: number,
+    excludeModules: number[] = [],
+  ) {
+    state.loadingItBreakdown = true;
+    state.errorItBreakdown = null;
+    try {
+      const params = new URLSearchParams();
+      excludeModules.forEach((id) =>
+        params.append('exclude_modules', String(id)),
+      );
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/it-breakdown${qs}`;
+      const data = await api.get(path).json<ItBreakdownResponse>();
+      state.itBreakdown = data;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      state.errorItBreakdown = message;
+      state.itBreakdown = null;
+    } finally {
+      state.loadingItBreakdown = false;
+    }
+  }
+
   return {
     initializeSubmoduleState,
     getModuleData,
@@ -886,6 +971,7 @@ export const useModuleStore = defineStore('modules', () => {
     requestEmissionBreakdownRefresh,
     consumeEmissionBreakdownRefreshRequest,
     emissionBreakdownRefreshSequence,
+    getItBreakdown,
     validatedTotalsCarbonReportId,
     state,
   };

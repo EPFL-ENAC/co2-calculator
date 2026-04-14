@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.security import is_permitted, require_permission
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -18,11 +19,16 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.module_type import ModuleTypeEnum
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks.emission_recalculation_tasks import (
+    run_module_recalculation,
+    run_recalculation,
+)
 from app.tasks.ingestion_tasks import run_ingestion
+from app.tasks.unit_sync_tasks import SyncUnitRequest, sync_units_from_accred_task
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 router = APIRouter()
@@ -60,6 +66,28 @@ class SyncJobResponse(BaseModel):
     meta: Optional[dict] = None
     state: Optional[IngestionState] = None
     result: Optional[IngestionResult] = None
+
+
+class RecalculationStatus(BaseModel):
+    """Per-(module_type_id, data_entry_type_id) recalculation status."""
+
+    module_type_id: int
+    data_entry_type_id: int
+    year: int
+    needs_recalculation: bool
+    last_factor_job_id: Optional[int] = None
+    last_factor_job_result: Optional[IngestionResult] = None
+    last_recalculation_job_id: Optional[int] = None
+    last_recalculation_job_result: Optional[IngestionResult] = None
+
+
+class ModuleRecalculationStatus(BaseModel):
+    """Per-module rollup — true if any data_entry_type needs recalculation."""
+
+    module_type_id: int
+    year: int
+    needs_recalculation: bool
+    data_entry_types: list[RecalculationStatus]
 
 
 @router.post("/data-entries/{module_type_id}", response_model=SyncStatusResponse)
@@ -195,25 +223,102 @@ async def sync_module_data_entries(
     }
 
 
-@router.post("/factors/{module_id}/{factor_type_id}", response_model=SyncStatusResponse)
+@router.post(
+    "/factors/{module_type_id}/{data_entry_type_id}", response_model=SyncStatusResponse
+)
 async def sync_module_factors(
-    module_id: int,
-    factor_type_id: int,
+    module_type_id: ModuleTypeEnum,
+    data_entry_type_id: DataEntryTypeEnum,
     syncRequest: SyncRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("backoffice.data_management", "sync")
     ),
 ):
     """
-    Sync factors for a specific module.
+    Sync (recompute) factors for a specific module and data-entry type.
 
     **Required Permission**: `backoffice.data_management.sync`
 
-    Implementation similar to sync_module_data_entries,
-    but tailored for factor synchronization.
+    ``year`` is **mandatory** for this endpoint — factor updates are always
+    year-scoped.
+
+    Example request body for computed factor update:
+    {
+        "ingestion_method": 3,
+        "target_type": 1,
+        "year": 2025
+    }
     """
-    pass
+    if syncRequest.year is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="year is required for factor sync",
+        )
+
+    config: dict = {
+        "entity_type": EntityType.MODULE_PER_YEAR.value,
+        "year": syncRequest.year,
+        "data_entry_type_id": data_entry_type_id.value,
+    }
+
+    provider = await ProviderFactory.create_provider(
+        module_type_id=ModuleTypeEnum(module_type_id),
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
+        config=config,
+        user=current_user,
+        job_session=db,
+        data_session=db,
+    )
+
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Provider '{syncRequest.ingestion_method}' not supported for "
+                f"module '{module_type_id}' / data-entry type '{data_entry_type_id}'"
+            ),
+        )
+
+    if not await provider.validate_connection():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {syncRequest.ingestion_method}",
+        )
+
+    job_id = await provider.create_job(
+        module_type_id=ModuleTypeEnum(module_type_id),
+        data_entry_type_id=data_entry_type_id.value,
+        entity_type=EntityType.MODULE_PER_YEAR,
+        year=syncRequest.year,
+        ingestion_method=syncRequest.ingestion_method,
+        target_type=syncRequest.target_type,
+        config=config,
+        db=db,
+        request_context={
+            "ip_address": extract_ip_address(request),
+            "route_path": request.url.path,
+            "route_payload": await extract_route_payload(request),
+        },
+    )
+    await db.commit()
+
+    background_tasks.add_task(
+        run_ingestion,
+        provider_name=provider.__class__.__name__,
+        job_id=job_id,
+        filters=syncRequest.filters or {},
+    )
+
+    return {
+        "job_id": job_id,
+        "state": IngestionState.NOT_STARTED,
+        "message": f"Sync initiated using {syncRequest.ingestion_method}",
+        "progress": None,
+    }
 
 
 @router.get("/jobs/by-status", response_model=list[DataIngestionJob])
@@ -393,8 +498,207 @@ async def job_stream_by_id(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+@router.get("/recalculation-status", response_model=list[ModuleRecalculationStatus])
+async def get_recalculation_status(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list[ModuleRecalculationStatus]:
+    """Return per-module recalculation status for the given year.
+
+    **Required Permission**: `backoffice.data_management.view`
+
+    Derived from existing DataIngestionJob rows — no new DB table.
+    Returns an empty list when no completed FACTORS jobs exist for the year.
+
+    Args:
+        year: The report year to scope the status query.
+    """
+    rows = await DataIngestionRepository(db).get_recalculation_status_by_year(year)
+
+    modules: dict[int, list[RecalculationStatus]] = {}
+    for row in rows:
+        module_id = row["module_type_id"]
+        if module_id not in modules:
+            modules[module_id] = []
+        modules[module_id].append(
+            RecalculationStatus(
+                module_type_id=row["module_type_id"],
+                data_entry_type_id=row["data_entry_type_id"],
+                year=row["year"],
+                needs_recalculation=row["needs_recalculation"],
+                last_factor_job_id=row["last_factor_job_id"],
+                last_factor_job_result=row["last_factor_job_result"],
+                last_recalculation_job_id=row["last_recalculation_job_id"],
+                last_recalculation_job_result=row["last_recalculation_job_result"],
+            )
+        )
+
+    return [
+        ModuleRecalculationStatus(
+            module_type_id=module_id,
+            year=year,
+            needs_recalculation=any(det.needs_recalculation for det in dets),
+            data_entry_types=dets,
+        )
+        for module_id, dets in modules.items()
+    ]
+
+
+@router.post(
+    "/recalculate-emissions/{module_type_id}/{data_entry_type_id}",
+    response_model=SyncStatusResponse,
+)
+async def recalculate_emissions_for_type(
+    module_type_id: ModuleTypeEnum,
+    data_entry_type_id: DataEntryTypeEnum,
+    year: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+) -> SyncStatusResponse:
+    """Trigger emission recalculation for a single data entry type.
+
+    **Required Permission**: `backoffice.data_management.sync`
+
+    Creates a background job and streams progress via
+    ``GET /sync/jobs/{job_id}/stream``.
+
+    Args:
+        module_type_id: The module type to recalculate.
+        data_entry_type_id: The data entry type to recalculate.
+        year: The report year (required).
+    """
+    job = DataIngestionJob(
+        module_type_id=module_type_id.value,
+        data_entry_type_id=data_entry_type_id.value,
+        year=year,
+        ingestion_method=IngestionMethod.computed,
+        target_type=TargetType.DATA_ENTRIES,
+        entity_type=EntityType.MODULE_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
+    )
+    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    await db.commit()
+    if created_job.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create recalculation job",
+        )
+
+    background_tasks.add_task(
+        run_recalculation,
+        module_type_id=module_type_id.value,
+        data_entry_type_id=data_entry_type_id.value,
+        year=year,
+        job_id=created_job.id,
+    )
+    return SyncStatusResponse(
+        job_id=created_job.id,
+        state=IngestionState.NOT_STARTED,
+        message="Emission recalculation scheduled",
+    )
+
+
+@router.post(
+    "/recalculate-emissions/{module_type_id}",
+    response_model=SyncStatusResponse,
+)
+async def recalculate_emissions_for_module(
+    module_type_id: ModuleTypeEnum,
+    year: int,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    only_stale: bool = True,
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+) -> SyncStatusResponse:
+    """Trigger bulk emission recalculation for all (or only stale) data entry types.
+
+    Bulk recalculation for a module.
+
+    **Required Permission**: `backoffice.data_management.sync`
+
+    When ``only_stale=True`` (default), only data entry types where
+    ``needs_recalculation=True`` are included.  Returns 400 if no types qualify.
+    When ``only_stale=False``, all data entry types for the module are recalculated.
+
+    Args:
+        module_type_id: The module type to recalculate.
+        year: The report year (required).
+        only_stale: If True, skip types that are already up to date.
+    """
+    all_det_ids = [
+        det.value for det in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type_id, [])
+    ]
+
+    if only_stale:
+        status_rows = await DataIngestionRepository(
+            db
+        ).get_recalculation_status_by_year(year)
+        stale_ids = {
+            row["data_entry_type_id"]
+            for row in status_rows
+            if row["module_type_id"] == module_type_id.value
+            and row["needs_recalculation"]
+        }
+        det_ids = [det_id for det_id in all_det_ids if det_id in stale_ids]
+        if not det_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No data entry types require recalculation for this module",
+            )
+    else:
+        det_ids = all_det_ids
+
+    job = DataIngestionJob(
+        module_type_id=module_type_id.value,
+        data_entry_type_id=None,
+        year=year,
+        ingestion_method=IngestionMethod.computed,
+        target_type=TargetType.DATA_ENTRIES,
+        entity_type=EntityType.MODULE_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        meta={
+            "config": {
+                "year": year,
+                "data_entry_type_ids": det_ids,
+                "only_stale": only_stale,
+            }
+        },
+    )
+    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    await db.commit()
+    if created_job.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create recalculation job",
+        )
+
+    background_tasks.add_task(
+        run_module_recalculation,
+        module_type_id=module_type_id.value,
+        data_entry_type_ids=det_ids,
+        year=year,
+        job_id=created_job.id,
+    )
+    n = len(det_ids)
+    return SyncStatusResponse(
+        job_id=created_job.id,
+        state=IngestionState.NOT_STARTED,
+        message=f"Module emission recalculation scheduled for {n} data entry types",
+    )
+
+
 @router.post("/units", response_model=SyncStatusResponse)
 async def sync_units_from_accred(
+    syncRequest: SyncUnitRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(
@@ -414,10 +718,9 @@ async def sync_units_from_accred(
         SyncStatusResponse with job status (note: job_id is 0 as this is a
         simple background task without persistent job tracking)
     """
-    from app.tasks.unit_sync_tasks import sync_units_from_accred_task
 
     # Schedule background task
-    background_tasks.add_task(sync_units_from_accred_task)
+    background_tasks.add_task(sync_units_from_accred_task, syncRequest)
 
     return SyncStatusResponse(
         job_id=0,  # No persistent job tracking for now

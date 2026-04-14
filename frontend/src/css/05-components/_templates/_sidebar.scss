@@ -5,20 +5,58 @@
   width: fit-content;
   background-color: tokens.$sidebar-bg;
   border-right: tokens.$sidebar-border-width solid tokens.$sidebar-border-color;
+  transition: width 0.2s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  .co2-sidebar-items {
+    overflow-y: visible;
+  }
+
+  .co2-sidebar-toggle {
+    padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    cursor: pointer;
+    background-color: white;
+    border-bottom: tokens.$sidebar-border-width solid
+      tokens.$sidebar-border-color;
+
+    &:hover {
+      background-color: tokens.$sidebar-bg-selected;
+    }
+  }
 
   .co2-sidebar-item {
     gap: tokens.$sidebar-item-gap;
-    padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-right
-      tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
     display: flex;
     flex-direction: row;
     align-items: center;
     cursor: pointer;
     min-width: 0;
+    overflow: hidden;
 
     &:hover,
     &--selected {
       background-color: tokens.$sidebar-bg-selected;
+    }
+  }
+
+  // Collapsed overrides — must come after base item rules to win on equal specificity
+  &--collapsed {
+    width: tokens.$sidebar-collapsed-width;
+
+    .co2-sidebar-item {
+      justify-content: center;
+      padding: tokens.$sidebar-padding-y 0;
+      gap: 0;
+    }
+
+    .co2-sidebar-toggle {
+      justify-content: center;
+      padding: tokens.$sidebar-padding-y 0;
     }
   }
 }

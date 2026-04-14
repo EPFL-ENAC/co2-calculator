@@ -80,17 +80,29 @@ backend:
 
   livenessProbe:
     httpGet:
-      path: /health
+      path: /healthz
       port: 8000
     initialDelaySeconds: 30
-    periodSeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 5
 
   readinessProbe:
     httpGet:
-      path: /health
+      path: /ready
       port: 8000
     initialDelaySeconds: 10
-    periodSeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    failureThreshold: 30
 
   autoscaling:
     enabled: false
@@ -210,17 +222,29 @@ frontend:
 
   livenessProbe:
     httpGet:
-      path: /health
-      port: 8080 # ✅ Match the targetPort
+      path: /healthz
+      port: 8080 # Match the targetPort
     initialDelaySeconds: 10
-    periodSeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 5
 
   readinessProbe:
     httpGet:
-      path: /health
-      port: 8080 # ✅ Match the targetPort
+      path: /ready
+      port: 8080 # Match the targetPort
     initialDelaySeconds: 5
-    periodSeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    failureThreshold: 30
 
   autoscaling:
     enabled: false
@@ -311,6 +335,15 @@ routes:
     tls:
       termination: edge
 
+  docs:
+    enabled: true
+    extraLabels:
+      route: private
+    annotations: {}
+    weight: 100
+    tls:
+      termination: edge
+
 serviceAccount:
   create: true
   annotations: {}
@@ -328,3 +361,77 @@ podDisruptionBudget:
 networkPolicy:
   enabled: false
   ingress: []
+
+# -----------------------------------------------------------------------------
+# Documentation deployment
+# Static documentation served via nginx, built from docs/ directory
+# Built automatically by CI/CD via deploy.yml and deploy-quay.yml
+# Image tag is set by ArgoCD based on branch:
+#   - dev branch → commit SHA
+#   - stage branch → commit SHA
+#   - tags (v*) → version tag (e.g., v1.2.3)
+# -----------------------------------------------------------------------------
+docs:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/epfl-enac/epfl/co2-calculator/docs
+    tag: "latest" # Overridden by ArgoCD with actual tag from CI/CD
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+
+  podAnnotations: {}
+
+  podSecurityContext:
+    # runAsNonRoot: true
+    # runAsUser: 101
+    # fsGroup: 101
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

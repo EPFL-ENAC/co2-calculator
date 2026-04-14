@@ -43,6 +43,15 @@ spec:
                 name: {{ include "co2-calculator.fullname" $ }}-backend
                 port:
                   number: {{ $.Values.backend.service.port }}
+          {{- if $.Values.docs.enabled }}
+          - path: /docs(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "co2-calculator.fullname" $ }}-docs
+                port:
+                  number: {{ $.Values.docs.service.port }}
+          {{- end }}
           - path: /()(.*)
             pathType: ImplementationSpecific
             backend:

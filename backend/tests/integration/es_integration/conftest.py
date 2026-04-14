@@ -3,6 +3,7 @@
 import time
 
 import docker
+import httpx
 import pytest
 from elasticsearch import Elasticsearch
 
@@ -62,9 +63,7 @@ def elasticsearch_container(docker_client):
                 container.reload()
                 if container.status == "running":
                     # Check if Elasticsearch is responding
-                    import requests
-
-                    response = requests.get(f"http://localhost:{port}", timeout=1)
+                    response = httpx.get(f"http://localhost:{port}", timeout=1)
                     if response.status_code == 200:
                         print("Elasticsearch container is ready!")
                         break

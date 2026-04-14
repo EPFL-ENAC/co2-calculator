@@ -41,6 +41,24 @@ lint: lint-helm ## Run all lint checks (format + helm)
 
 
 ## -------------------------------
+## 🧪 Testing
+## -------------------------------
+.PHONY: template
+template: ## Render Helm templates with default values
+	@echo "🧪 Rendering Helm templates..."
+	@helm template . --values values.yaml
+
+.PHONY: template-docs-disabled
+template-docs-disabled: ## Render Helm templates with docs disabled
+	@echo "🧪 Rendering Helm templates with docs.enabled=false..."
+	@helm template . --values values.yaml --set docs.enabled=false | grep -i "kind:.*\(Deployment\|Service\)" || echo "No docs resources rendered"
+
+.PHONY: template-frontend-disabled
+template-frontend-disabled: ## Render Helm templates with frontend disabled
+	@echo "🧪 Rendering Helm templates with frontend.enabled=false..."
+	@helm template . --values values.yaml --set frontend.enabled=false | grep -i "kind:.*\(Deployment\|Service\)" || echo "No frontend resources rendered"
+
+## -------------------------------
 ## Skaffold
 ## -------------------------------
 .PHONY: skaffold-dev

@@ -132,7 +132,7 @@ class Settings(BaseSettings):
 
     # CO2 Calculation Constants
     CO2_PER_KM_KG: float = Field(
-        default=0.34,
+        default=0.2996,
         gt=0,
         description="CO2 per km in kg",
     )

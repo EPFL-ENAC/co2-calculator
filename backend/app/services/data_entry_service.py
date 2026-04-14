@@ -573,9 +573,11 @@ class DataEntryService:
     async def get_module_data(
         self,
         carbon_report_module_id: int,
+        travel_institutional_id_filter: Optional[str] = None,
     ) -> ModuleResponse:
         data_entry_types_total_items = await self.repo.get_total_count_by_submodule(
-            carbon_report_module_id=carbon_report_module_id
+            carbon_report_module_id=carbon_report_module_id,
+            travel_institutional_id_filter=travel_institutional_id_filter,
         )
         # more info in routes carbon_report_module (cf DataEntryEmissionService)
         # we just return empty stats and totals, it's computed in routes
@@ -605,6 +607,7 @@ class DataEntryService:
         sort_by: str = "date",
         sort_order: str = "asc",
         filter: Optional[str] = None,
+        institutional_id_filter: Optional[str] = None,
         current_user: Optional[UserRead] = None,
         request_context: Optional[dict] = None,
         background_tasks: Optional[BackgroundTasks] = None,
@@ -618,6 +621,7 @@ class DataEntryService:
             sort_by=sort_by,
             sort_order=sort_order,
             filter=filter,
+            institutional_id_filter=institutional_id_filter,
         )
 
         if (
@@ -697,7 +701,7 @@ class DataEntryService:
         self,
         carbon_report_module_id: int,
         institutional_id: str,
-    ) -> Optional[DataEntry]:
+    ) -> Optional[dict]:
         """Look up a headcount member by their institutional ID.
 
         Args:
@@ -705,7 +709,7 @@ class DataEntryService:
             institutional_id: The institutional ID to look up.
 
         Returns:
-            The matching ``DataEntry``, or ``None`` if not found.
+            Dict with ``institutional_id`` and ``name`` keys, or ``None`` if not found.
         """
         return await self.repo.get_member_by_institutional_id(
             carbon_report_module_id=carbon_report_module_id,

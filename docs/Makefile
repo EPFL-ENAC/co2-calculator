@@ -22,12 +22,16 @@ install: ## Install documentation dependencies
 	@echo "Installing documentation dependencies..."
 	UV_NO_ISOLATION=1 uv sync --locked --all-extras --dev
 	@echo "Documentation dependencies installed!"
-	
+
 
 .PHONY: pdf
 pdf: ## Build documentation with PDF export enabled
 	cd docs && $(MAKE) pdf
 	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
+
+.PHONY: docker-build-run
+docker-build-run: ## Build and run documentation in Docker (convenience target)
+	docker build -t docs:test . && docker run --rm -p 8080:8080 docs:test
 
 .PHONY: build-docs
 build-docs: ## Build documentation
@@ -40,3 +44,7 @@ serve-docs: ## Serve documentation with live reload
 .PHONY: clean-docs
 clean-docs: ## Clean built documentation
 	rm -rf site/
+
+.PHONY: clean-docker
+clean-docker: ## Remove Docker images
+	docker rmi -f co2-docs docs:test 2>/dev/null || true

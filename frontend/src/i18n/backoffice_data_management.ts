@@ -1,11 +1,11 @@
 export default {
   backoffice_data_management_title: {
-    en: 'Data Management',
-    fr: 'Gestion des données',
+    en: 'Configuration',
+    fr: 'Configuration',
   },
   'backoffice-data-management-description': {
-    en: 'Manage and configure data imports, emission factors, and module settings for CO₂ calculations.',
-    fr: "Gérer et configurer les importations de données, les facteurs d'émission et les paramètres des modules pour les calculs de CO₂.",
+    en: 'Enable or disable calculation modules system-wide, controlling which data collection features are available to all laboratories.',
+    fr: "Activer ou désactiver les modules de calcul à l'échelle du système, contrôlant les fonctionnalités de collecte de données disponibles pour tous les laboratoires.",
   },
   DATA_ENTRIES: {
     en: 'Data Entries',
@@ -14,6 +14,14 @@ export default {
   FACTORS: {
     en: 'Factors',
     fr: 'Facteurs',
+  },
+  data_management_threshold_title: {
+    en: 'Threshold',
+    fr: 'Seuil',
+  },
+  data_management_threshold_description: {
+    en: 'Set a threshold to flag high CO₂-eq emissions per line item or article.',
+    fr: 'Définissez un seuil pour signaler les émissions élevées de CO₂-éq par ligne ou article.',
   },
   threshold_fixed_title: {
     en: 'Fixed Threshold',
@@ -66,13 +74,14 @@ export default {
     fr: 'Seuil Top-N utilisé : {value}',
   },
   data_management_reporting_year: {
-    en: 'Reporting Year',
-    fr: 'Année de rapport',
+    en: 'Year Configuration',
+    fr: "Configuration de l'année",
   },
   data_management_reporting_year_hint: {
-    en: 'Select the year to view module completion data for that reporting period.',
-    fr: "Sélectionnez l'année pour afficher les données d'achèvement du module pour cette période de rapport.",
+    en: 'Select the year to configure',
+    fr: "Sélectionnez l'année à configurer",
   },
+
   data_management_annual_data_import: {
     en: 'Annual Data Import',
     fr: 'Importation annuelle des données',
@@ -177,6 +186,26 @@ export default {
   data_management_add_data: {
     en: 'Add Data',
     fr: 'Ajouter des données',
+  },
+  data_management_data_description: {
+    en: 'Import activity data for this submodule.',
+    fr: "Importez les données d'activité pour ce sous-module.",
+  },
+  data_management_factor_description: {
+    en: 'Import annual emission factors (kg CO₂-eq). ',
+    fr: "Importez les facteurs d'émission annuels (kg CO₂-éq).",
+  },
+  data_management_factor_headcount_description: {
+    en: 'Import annual emission factors. This data affects food, commuting, and waste calculations based on headcount.',
+    fr: "Importez les facteurs d'émission annuels. Ces données influencent les calculs d'alimentation, de mobilité et de déchets en fonction du nombre de personnel.",
+  },
+  data_management_references: {
+    en: 'References',
+    fr: 'Références',
+  },
+  data_management_references_description: {
+    en: 'Import reference datasets for this submodule.',
+    fr: 'Importez les jeux de données de référence pour ce sous-module.',
   },
   data_management_reupload_data: {
     en: 'ReUpload Data',
@@ -301,5 +330,298 @@ export default {
   data_management_last_upload_overwrite: {
     en: 'The last uploaded data will be overwritten',
     fr: 'Les dernières données téléversées seront écrasées',
+  },
+  data_management_overwrite_warning: {
+    en: 'If you proceed with the recalculation, all previous carbon reports will be overwritten. This action cannot be undone and may take some time. Do update user via the Calculator Update section in homepage',
+    fr: "Si vous procédez au recalcul, tous les rapports carbone précédents seront écrasés. Cette action est irréversible et peut prendre du temps. Pensez à informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil",
+  },
+  data_management_year_not_configured: {
+    en: 'Year {year} is not configured yet',
+    fr: "L'année {year} n'est pas encore configurée",
+  },
+  data_management_year_not_configured_hint: {
+    en: 'Create the year configuration to start managing data for this reporting period.',
+    fr: 'Créez la configuration annuelle pour commencer à gérer les données de cette période.',
+  },
+  data_management_create_year: {
+    en: 'Create year {year}',
+    fr: "Créer l'année {year}",
+  },
+  data_management_year_created: {
+    en: 'Year {year} configuration created',
+    fr: "Configuration de l'année {year} créée",
+  },
+  data_management_year_enabled: {
+    en: 'Year {year} enabled',
+    fr: 'Année {year} activée',
+  },
+  data_management_year_disabled: {
+    en: 'Year {year} disabled',
+    fr: 'Année {year} désactivée',
+  },
+  data_management_reduction_objectives: {
+    en: 'Reduction Objectives',
+    fr: 'Objectifs de réduction',
+  },
+  data_management_institution_carbon_footprint_title: {
+    en: "Upload Institution's Carbon Footprint Data",
+    fr: "Téléverser les données d'empreinte carbone de l'institution",
+  },
+  data_management_module_activation_title: {
+    en: 'Module Activation',
+    fr: 'Activation du module',
+  },
+  data_management_module_activation_description: {
+    en: 'Enable this module to make Professional Travel data visible to your institute. When disabled, no lab can access this module and it will not appear in results.',
+    fr: "Activez ce module pour rendre les données de voyage professionnel visibles pour votre institut. Lorsqu'il est désactivé, aucun laboratoire ne peut accéder à ce module et il n'apparaîtra pas dans les résultats.",
+  },
+  data_management_submodule_activation_title: {
+    en: 'Activate Submodule',
+    fr: 'Activation du sous-module',
+  },
+  data_management_submodule_activation_description: {
+    en: 'Enable this submodule to make it visible to your institute.',
+    fr: 'Activez ce sous-module pour le rendre visible pour votre institut.',
+  },
+  data_management_uncertainty_title: {
+    en: 'Uncertainty',
+    fr: 'Incertitude',
+  },
+  data_management_uncertainty_description: {
+    en: 'Indicate the uncertainty level associated with the data entered in this module.',
+    fr: "Indiquez le niveau d'incertitude associé aux données saisies dans ce module.",
+  },
+  data_management_uncertainty_none: {
+    en: 'None',
+    fr: 'Aucune',
+  },
+  data_management_uncertainty_low: {
+    en: 'Low',
+    fr: 'Faible',
+  },
+  data_management_uncertainty_medium: {
+    en: 'Medium',
+    fr: 'Moyenne',
+  },
+  data_management_uncertainty_high: {
+    en: 'High',
+    fr: 'Élevée',
+  },
+  data_management_equipment_common_description: {
+    en: 'Upload shared equipment activity data and emission factors used across all equipment submodules.',
+    fr: 'Téléversez les données d’activité d’équipements partagées et les facteurs d’émission utilisés pour tous les sous-modules Équipements.',
+  },
+  data_management_purchase_common_description: {
+    en: 'Upload shared purchase activity data and emission factors used across all purchase submodules.',
+    fr: 'Téléversez les données d’activité d’achats partagées et les facteurs d’émission utilisés pour tous les sous-modules Achats.',
+  },
+  data_management_submodules_configuration_title: {
+    en: 'Submodules Configuration',
+    fr: 'Configuration des sous-modules',
+  },
+  data_management_submodules_configuration_description: {
+    en: 'Enable this submodule to make it visible to your institute.',
+    fr: 'Activez ce sous-module pour le rendre visible pour votre institut.',
+  },
+  data_management_institution_carbon_footprint_description: {
+    en: "Your institution's global carbon footprint dataset used as reference for reduction goals and reporting.",
+    fr: "Le jeu de données global de l'empreinte carbone de votre institution utilisé comme référence pour les objectifs de réduction et les rapports.",
+  },
+  data_management_population_projections_title: {
+    en: 'Upload Population Projections',
+    fr: 'Téléverser les projections de population',
+  },
+  data_management_population_projections_description: {
+    en: 'Projected headcount for your institution — used to normalise per-capita emissions over time.',
+    fr: 'Effectif projeté de votre institution — utilisé pour normaliser les émissions par habitant au fil du temps.',
+  },
+  data_management_unit_reduction_scenarios_title: {
+    en: 'Upload Unit Reduction Scenarios',
+    fr: 'Téléverser les scénarios de réduction unitaires',
+  },
+  data_management_unit_reduction_scenarios_description: {
+    en: 'Per-unit emission reduction pathways used in activity-level projections. ',
+    fr: 'Trajectoires de réduction des émissions par unité utilisées dans les projections au niveau de l’activité.',
+  },
+  data_management_define_reduction_objectives_title: {
+    en: 'Define Reduction Goals',
+    fr: 'Définir les objectifs de réduction',
+  },
+  data_management_define_reduction_objectives_description: {
+    en: 'Set up reduction targets. Each goal requires a target year, a percentage reduction, and a reference year from your carbon footprint data.',
+    fr: "Configurez les objectifs de réduction. Chaque objectif nécessite une année cible, un pourcentage de réduction et une année de référence issue de vos données d'empreinte carbone.",
+  },
+  data_management_first_reduction_objectives: {
+    en: 'First Reduction Goal',
+    fr: 'Premier objectif de réduction',
+  },
+  data_management_second_reduction_objectives: {
+    en: 'Second Reduction Goal',
+    fr: 'Deuxième objectif de réduction',
+  },
+  data_management_third_reduction_objectives: {
+    en: 'Third Reduction Goal',
+    fr: 'Troisième objectif de réduction',
+  },
+  data_management_first_reduction_objectives_target_year: {
+    en: 'Target Year',
+    fr: 'Année cible',
+  },
+  data_management_reduction_objectives_reduction_goal: {
+    en: 'Reduction Goal (%)',
+    fr: 'Objectif de réduction (%)',
+  },
+  data_management_reduction_objectives_reference_year: {
+    en: 'Reference Year',
+    fr: 'Année de référence',
+  },
+  data_management_food_commuting_waste: {
+    en: 'Food, Commuting & Waste',
+    fr: 'Alimentation, Mobilité & Déchets',
+  },
+  // Submodule display labels (without count)
+  data_management_submodule_process_emissions: {
+    en: 'Process Emissions',
+    fr: 'Émissions de procédés',
+  },
+  data_management_submodule_scientific_equipment: {
+    en: 'Scientific Equipment',
+    fr: 'Équipements scientifiques',
+  },
+  data_management_submodule_it_equipment: {
+    en: 'IT Equipment',
+    fr: 'Équipements informatiques',
+  },
+  data_management_submodule_consumables_accessories: {
+    en: 'Consumables & Accessories',
+    fr: 'Consommables et accessoires',
+  },
+  data_management_submodule_bio_chemical_gaseous: {
+    en: 'Biological, Chemical & Gaseous Products',
+    fr: 'Produits biologiques, chimiques et gazeux',
+  },
+  data_management_submodule_services: {
+    en: 'Services',
+    fr: 'Services',
+  },
+  data_management_submodule_vehicles: {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  data_management_submodule_other_purchases: {
+    en: 'Other Purchases',
+    fr: 'Autres achats',
+  },
+  data_management_submodule_additional_purchases: {
+    en: 'Additional Purchases',
+    fr: 'Achats supplémentaires',
+  },
+  data_management_submodule_research_facilities: {
+    en: 'Research Facilities',
+    fr: 'Infrastructures de recherche',
+  },
+  data_management_submodule_animal_facilities: {
+    en: 'Mice and Fish Animal Facilities',
+    fr: 'Animaleries rongeurs et poissons',
+  },
+  data_management_submodule_buildings_construction_renovation: {
+    en: 'Constructions and Renovation',
+    fr: 'Constructions et rénovation',
+  },
+  year_config_saved: {
+    en: 'Configuration saved',
+    fr: 'Configuration enregistrée',
+  },
+  year_config_save_error: {
+    en: 'Failed to save configuration',
+    fr: "Échec de l'enregistrement de la configuration",
+  },
+  year_config_target_year_error: {
+    en: 'Target year must be after the configuration year',
+    fr: "L'année cible doit être postérieure à l'année de configuration",
+  },
+  year_config_percentage_error: {
+    en: 'Reduction percentage must be between 0 and 100',
+    fr: 'Le pourcentage de réduction doit être compris entre 0 et 100',
+  },
+  year_config_reference_year_error: {
+    en: 'Reference year must be a valid year',
+    fr: "L'année de référence doit être une année valide",
+  },
+  uploading_file: {
+    en: 'Uploading file…',
+    fr: 'Téléversement du fichier…',
+  },
+  file_upload_success: {
+    en: 'File uploaded successfully',
+    fr: 'Fichier téléversé avec succès',
+  },
+  file_upload_error: {
+    en: 'File upload failed',
+    fr: 'Échec du téléversement du fichier',
+  },
+  data_management_compute_factors: {
+    en: 'Compute Factors',
+    fr: 'Calculer les facteurs',
+  },
+  data_management_compute_factors_confirm_title: {
+    en: 'Recompute Factors',
+    fr: 'Recalculer les facteurs',
+  },
+  data_management_compute_factors_confirm_message: {
+    en: 'This will recompute the emission factors from the existing data entries for this submodule. Any previously computed factors will be overwritten. Do you want to proceed?',
+    fr: "Ceci recalculera les facteurs d'émission à partir des données existantes pour ce sous-module. Les facteurs précédemment calculés seront écrasés. Souhaitez-vous continuer ?",
+  },
+  data_management_compute_factors_success: {
+    en: 'Factors computed successfully',
+    fr: 'Facteurs calculés avec succès',
+  },
+  data_management_compute_factors_warning: {
+    en: 'Factors computed with warnings',
+    fr: 'Facteurs calculés avec avertissements',
+  },
+  data_management_compute_factors_error: {
+    en: 'Factor computation failed',
+    fr: 'Le calcul des facteurs a échoué',
+  },
+  data_management_recalculation_needed: {
+    en: 'Recalculation Needed',
+    fr: 'Recalcul nécessaire',
+  },
+  data_management_recalculate_emissions: {
+    en: 'Recalculate Emissions',
+    fr: 'Recalculer les émissions',
+  },
+  data_management_recalculate_emissions_title: {
+    en: 'Recalculate Emissions',
+    fr: 'Recalculer les émissions',
+  },
+  data_management_recalculate_emissions_description: {
+    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage.',
+    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
+  },
+  data_management_recalculation_success: {
+    en: 'Emissions recalculation successful',
+    fr: 'Le recalcul des émissions a réussi',
+  },
+  data_management_recalculation_error: {
+    en: 'Failed to recalculate emissions',
+    fr: 'Échec du recalcul des émissions',
+  },
+  data_management_recalculation_warning: {
+    en: 'Emissions recalculated with warnings',
+    fr: 'Le recalcul des émissions a été effectué avec des avertissements',
+  },
+  data_management_recalculate_only_stale: {
+    en: 'Recalculate only stale emissions',
+    fr: 'Recalculer uniquement les émissions obsolètes',
+  },
+  data_management_recalculate_all: {
+    en: 'Recalculate all emissions',
+    fr: 'Recalculer toutes les émissions',
+  },
+  data_management_stale_types: {
+    en: 'No stale submodule | One stale submodule | {count} stale submodules',
+    fr: 'Aucun sous-module obsolète | Un sous-module obsolète | {count} sous-modules obsolètes',
   },
 } as const;

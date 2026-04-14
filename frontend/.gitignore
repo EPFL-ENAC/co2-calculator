@@ -48,3 +48,4 @@ yarn-error.log*
 
 # Storybook related directories and files
 /storybook-static/
+.lighthouseci/

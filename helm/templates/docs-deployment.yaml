@@ -1,0 +1,87 @@
+{{- if .Values.docs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-docs
+  labels:
+    {{- include "co2-calculator.componentLabels" (dict "ctx" . "component" "docs") | nindent 4 }}
+spec:
+  revisionHistoryLimit: 2
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
+  {{- if not .Values.docs.autoscaling.enabled }}
+  replicas: {{ .Values.docs.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "docs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "co2-calculator.componentSelectorLabels" (dict "ctx" . "component" "docs") | nindent 8 }}
+      annotations:
+        {{- with .Values.docs.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.docs.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: docs
+          image: {{ include "co2-calculator.docs.image" . }}
+          imagePullPolicy: {{ .Values.docs.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.docs.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.docs.service.targetPort }}
+              protocol: TCP
+          {{- with .Values.docs.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.docs.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.docs.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.docs.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.docs.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.docs.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

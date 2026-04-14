@@ -150,6 +150,52 @@ class DataEntryEmissionService:
                     )
                     kg_co2eq = float(csv_kg_co2eq)
                 else:
+                    if comp.emit_per_factor:
+                        # Emit one row per factor with the factor's own
+                        # emission_type_id.
+                        # Skip the aggregate computation entirely to avoid double
+                        # formula evaluation (and duplicated warnings).
+                        for factor in factors:
+                            per_factor_kg = self._apply_formula(
+                                ctx, factor.values or {}, comp
+                            )
+                            if per_factor_kg is None:
+                                continue
+                            quantity: float | None = None
+                            if (
+                                comp.quantity_key
+                                and ctx.get(comp.quantity_key) is not None
+                            ):
+                                base_qty = float(ctx[comp.quantity_key])
+                                multiplier = float(
+                                    (factor.values or {}).get(
+                                        comp.multiplier_key, comp.multiplier_default
+                                    )
+                                    if comp.multiplier_key
+                                    else comp.multiplier_default
+                                )
+                                quantity = base_qty * multiplier
+                            quantity_unit: str | None = (factor.values or {}).get(
+                                "unit"
+                            )
+                            results.append(
+                                DataEntryEmission(
+                                    data_entry_id=data_entry.id,
+                                    emission_type_id=factor.emission_type_id,
+                                    primary_factor_id=factor.id,
+                                    kg_co2eq=per_factor_kg,
+                                    meta={
+                                        "factors_used": [
+                                            {"id": factor.id, "values": factor.values}
+                                        ],
+                                        "quantity": quantity,
+                                        "quantity_unit": quantity_unit,
+                                        **ctx,
+                                    },
+                                )
+                            )
+                        continue
+
                     # Compute kg_co2eq using factors and formulas
                     for factor in factors:
                         # If there are multiple factors for this computation,
@@ -196,13 +242,11 @@ class DataEntryEmissionService:
                             meta={
                                 "factors_used": [
                                     {
-                                        "id": emission_chosen_factor.id
-                                        if emission_chosen_factor is not None
-                                        else None,
-                                        "values": emission_chosen_factor.values
-                                        if emission_chosen_factor is not None
-                                        else None,
+                                        "id": factor.id,
+                                        "values": factor.values,
                                     }
+                                    for factor in factors
+                                    if factor is not None
                                 ],
                                 **ctx,
                             },
@@ -271,14 +315,15 @@ class DataEntryEmissionService:
             #     e.g. plane(kind="plane", subkind="business", category="long_haul")
             #     with fallback {"country_code": "RoW"}
             if classification or q.fallbacks:
-                factor = await factor_service.get_factor(
+                factors = await factor_service.get_factors(
                     data_entry_type=q.data_entry_type,
                     fallbacks=q.fallbacks if q.fallbacks else None,
                     kind=q.kind,
                     year=year,
                     **classification,
                 )
-                result.append(factor) if factor else None
+                if factors:
+                    result.extend(factors)
 
             # B2: Kind only — no subkind/context
             #     e.g. headcount(kind="food", subkind=None)
@@ -435,12 +480,30 @@ class DataEntryEmissionService:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, float]]:
+    ) -> list[tuple[int, int, float, float | None]]:
         """Get emission breakdown by module and emission type.
 
-        Returns list of (module_type_id, emission_type_id, sum_kg_co2eq).
+        Returns list of (module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity).
         """
-        return await self.repo.get_emission_breakdown(
+        return await self.repo.get_emission_breakdown_with_quantity(
+            carbon_report_id=carbon_report_id,
+        )
+
+    async def get_embodied_energy_by_building(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[str, float]]:
+        """Get embodied-energy emissions grouped by building name."""
+        return await self.repo.get_embodied_energy_by_building(
+            carbon_report_id=carbon_report_id,
+        )
+
+    async def get_embodied_energy_by_category(
+        self,
+        carbon_report_id: int,
+    ) -> list[tuple[str, float]]:
+        """Get embodied-energy emissions grouped by factor category."""
+        return await self.repo.get_embodied_energy_by_category(
             carbon_report_id=carbon_report_id,
         )
 
@@ -459,6 +522,8 @@ class DataEntryEmissionService:
         data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
+        label_field: str | None = None,
+        report_year: int | None = None,
     ) -> list[dict]:
         """Get emissions aggregated by subcategory and a grouping field.
 
@@ -469,6 +534,8 @@ class DataEntryEmissionService:
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             top_n=top_n,
+            label_field=label_field,
+            report_year=report_year,
         )
 
     async def get_travel_evolution_over_time(

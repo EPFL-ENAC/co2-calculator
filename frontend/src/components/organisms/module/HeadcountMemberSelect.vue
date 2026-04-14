@@ -1,5 +1,16 @@
 <template>
+  <q-input
+    v-if="isStandardUser"
+    :model-value="options[0].label"
+    readonly
+    dense
+    outlined
+    :label="label"
+    :error="error"
+    :error-message="errorMessage"
+  />
   <q-select
+    v-else
     :model-value="modelValue"
     :label="label"
     :options="options"
@@ -12,21 +23,27 @@
     :error-message="errorMessage"
     :hint="
       !loading && members.length === 0
-        ? $t(`${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`)
+        ? $t(
+            isNotValidated
+              ? `${MODULES.ProfessionalTravel}-field-traveler-not-validated`
+              : `${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`,
+          )
         : undefined
     "
     :disable="!loading && members.length === 0"
     dense
     outlined
     clearable
-    @update:model-value="$emit('update:modelValue', $event as number | null)"
+    @update:model-value="$emit('update:modelValue', $event as string | null)"
   />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
+import { useAuthStore } from 'src/stores/auth';
+import { hasPermission } from 'src/utils/permission';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
@@ -35,7 +52,7 @@ import {
 const { t: $t } = useI18n();
 
 const props = defineProps<{
-  modelValue: number | null;
+  modelValue: string | null;
   unitId?: number;
   year?: number | string;
   label?: string;
@@ -43,8 +60,8 @@ const props = defineProps<{
   errorMessage?: string;
 }>();
 
-defineEmits<{
-  (e: 'update:modelValue', value: number | null): void;
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string | null): void;
 }>();
 
 interface SelectOption {
@@ -54,6 +71,19 @@ interface SelectOption {
 
 const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
+const authStore = useAuthStore();
+const isStandardUser = computed(() => {
+  return (
+    members.value.length === 1 &&
+    authStore.user?.institutional_id === members.value[0].institutional_id
+  );
+});
+const isNotValidated = computed(() => {
+  return (
+    members.value.length === 0 &&
+    !hasPermission(authStore.user?.permissions, 'modules.headcount', 'view')
+  );
+});
 const options = ref<SelectOption[]>([]);
 
 function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {
@@ -69,6 +99,9 @@ onMounted(async () => {
   try {
     members.value = await getHeadcountMembers(props.unitId, props.year);
     options.value = buildOptions(members.value);
+    if (isStandardUser.value && options.value.length > 0) {
+      emit('update:modelValue', options.value[0].value);
+    }
   } catch {
     members.value = [];
     options.value = [];

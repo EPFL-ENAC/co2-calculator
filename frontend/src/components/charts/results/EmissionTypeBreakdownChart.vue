@@ -41,7 +41,7 @@ const CATEGORY_LABEL_MAP: Record<string, string> = {
   commuting: 'charts-commuting-category',
   food: 'charts-food-category',
   waste: 'charts-waste-category',
-  grey_energy: 'charts-grey-energy-category',
+  embodied_energy: 'charts-embodied-energy-category',
 };
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
@@ -90,6 +90,11 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   facilities: 'charts-research-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
   rest: 'charts-rest-subcategory',
+  'new-env': 'charts-new-env-subcategory',
+  'new-tech': 'charts-new-tech-subcategory',
+  'ren-env': 'charts-ren-env-subcategory',
+  'ren-tech': 'charts-ren-tech-subcategory',
+  demolition: 'charts-demolition-subcategory',
 };
 
 export interface TopClassBreakdownItem {
@@ -309,7 +314,11 @@ const chartOption = computed((): EChartsOption => {
     },
     itemStyle: {
       color: getSegmentColor(key),
+      borderColor: '#fff',
+      borderWidth: 1,
     },
+    // Between IT Focus (32px) and default auto width (often very thick)
+    barWidth: 60,
     label: { show: false },
     emphasis: {
       focus: 'series' as const,
@@ -321,34 +330,19 @@ const chartOption = computed((): EChartsOption => {
   return {
     animation: false,
     tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      trigger: 'item',
       formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-        const first = arr[0] as { axisValue?: string; name?: string };
-        const name = first.axisValue || first.name || '';
-
-        let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
-
-        // Reverse to  show top segment first
-        [...arr].reverse().forEach((param: unknown) => {
-          const p = param as {
-            seriesName?: string;
-            marker?: string;
-            value?: Record<string, unknown>;
-            seriesIndex?: number;
-          };
-          const key = segmentKeys[p.seriesIndex ?? 0];
-          const dataValue = key && p.value ? Number(p.value[key]) || 0 : 0;
-          if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)}</strong><br/>`;
-            total += dataValue;
-          }
-        });
-
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${formatTonnesForChart(total)}</strong>`;
+        const p = params as {
+          seriesName?: string;
+          marker?: string;
+          seriesIndex?: number;
+          data?: Record<string, unknown>;
+        };
+        const dimKey = segmentKeys[p.seriesIndex ?? 0];
+        const row = p.data;
+        const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
+        if (val <= 0) return '';
+        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
       },
     },
     legend: { show: false },
@@ -371,7 +365,7 @@ const chartOption = computed((): EChartsOption => {
       type: 'category',
       axisLabel: {
         fontSize: 10,
-        width: 120,
+        width: 150,
         overflow: 'truncate',
       },
     },

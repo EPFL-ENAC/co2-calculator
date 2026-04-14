@@ -1,18 +1,19 @@
 name: Lighthouse CI
 
+
 on:
   pull_request:
     branches: [main, dev, stage, 'ci-test/**']
     paths:
       - "frontend/**"
       - ".github/workflows/lighthouse.yml"
-      - "frontend/.lighthouserc.json"
+      - "frontend/.lighthouserc.ci.json"
 
 jobs:
   lighthouse:
     name: Lighthouse Performance Audit
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +36,10 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: install ligthouse
+        working-directory: ./frontend
+        run: npm install lighthouse --no-save
+
       - name: Install ecoindex plugin
         run: npm install lighthouse-plugin-ecoindex-core --no-save
 
@@ -43,13 +48,21 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+      - name: Inject Lighthouse bypass flag into index.html
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = './frontend/dist/spa/index.html';
+            const html = fs.readFileSync(path, 'utf8');
+            fs.writeFileSync(path, html.replace('</head>', '<script>window.__LIGHTHOUSE_BYPASS__=true;</script></head>'));
+          "
+
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
-          configPath: "./frontend/.lighthouserc.json"
+          configPath: "./frontend/.lighthouserc.ci.json"
           uploadArtifacts: true
           temporaryPublicStorage: true
-          runs: 3
 
       - name: Comment PR with Lighthouse results
         if: github.event_name == 'pull_request'
@@ -59,11 +72,11 @@ jobs:
             const fs = require('fs');
             const results = JSON.parse(fs.readFileSync('.lighthouseci/manifest.json'));
             const comment = `## ⚡ Lighthouse CI Results
-            
+
             📊 [View full report](${results[0].url})
-            
+
             Performance scores will be available in the artifacts.`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

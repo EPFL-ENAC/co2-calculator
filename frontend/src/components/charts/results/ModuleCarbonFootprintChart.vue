@@ -32,10 +32,14 @@ import { formatTonnesForChart } from 'src/utils/number';
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 
 function getSubcategoryColor(
   category: string,
@@ -45,43 +49,301 @@ function getSubcategoryColor(
   return getChartSubcategoryColor(category, key, fallback);
 }
 
-const scopeConfig = computed(() => {
-  if (toggleAdditionalData.value) {
-    return {
-      scope1RectWidth: 72,
-      scope2RectLeft: 118,
-      scope2RectWidth: 72,
-      scope3RectLeft: 190,
-      scope3RectWidth: 144,
-      estimatedRectLeft: 334,
-      estimatedText: t('charts-additional-category'),
-    };
-  }
+// Static map: raw category key → GHG scope
+const CATEGORY_SCOPE: Record<string, 1 | 2 | 3 | 'additional'> = {
+  process_emissions: 1,
+  buildings_energy_combustion: 1,
+  buildings_room: 2,
 
-  return {
-    scope1RectWidth: 108,
-    scope2RectLeft: 154,
-    scope2RectWidth: 108,
-    scope3RectLeft: 262,
-    scope3RectWidth: 330,
-    estimatedRectLeft: 0,
-    estimatedText: '',
-  };
+  equipment: 2,
+  external_cloud_and_ai: 3,
+  purchases: 3,
+  professional_travel: 3,
+  research_facilities: 3,
+  commuting: 'additional',
+  food: 'additional',
+  waste: 'additional',
+  embodied_energy: 'additional',
+};
+
+// Reverse map: translated label → raw category key (rebuilt when locale changes)
+const labelToKey = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {};
+  for (const [key, i18nKey] of Object.entries(CATEGORY_LABEL_MAP)) {
+    map[t(i18nKey)] = key;
+  }
+  return map;
 });
 
+// Memoize the last scope rects to avoid redundant updates
+let lastScopeState: {
+  s1Left?: number;
+  s2Left?: number;
+  s3Left?: number;
+  dividerX?: number | null;
+  showAdditional: boolean;
+} | null = null;
+
+function recalculateScopeRects() {
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+
+  const items = datasetSource.value;
+  if (items.length < 2) return;
+
+  const getX = (label: string): number =>
+    chart.convertToPixel({ xAxisIndex: 0 }, label) as number;
+
+  const step =
+    getX(String(items[1].category)) - getX(String(items[0].category));
+  if (!step) return;
+  const halfStep = step / 2;
+
+  const groups: Record<string, string[]> = {
+    '1': [],
+    '2': [],
+    '3': [],
+    additional: [],
+  };
+  for (const item of items) {
+    const label = String(item.category);
+    const key = labelToKey.value[label] ?? '';
+    const scope = String(CATEGORY_SCOPE[key] ?? 'additional');
+    groups[scope].push(label);
+  }
+
+  const toRect = (labels: string[]) => {
+    if (!labels.length) return null;
+    const left = getX(labels[0]) - halfStep;
+    const right = getX(labels[labels.length - 1]) + halfStep;
+    return { left, width: right - left };
+  };
+
+  const s1 = toRect(groups['1']);
+  const s2 = toRect(groups['2']);
+  const s3 = toRect(groups['3']);
+  const additionalRect = toRect(groups['additional']);
+  const dividerX = groups['additional'].length
+    ? getX(groups['additional'][0]) - halfStep
+    : null;
+  const showAdditional = effectiveToggle.value && dividerX !== null;
+
+  // Check if state has changed
+  const newState = {
+    s1Left: s1?.left,
+    s2Left: s2?.left,
+    s3Left: s3?.left,
+    dividerX,
+    showAdditional,
+  };
+  if (
+    lastScopeState?.s1Left === newState.s1Left &&
+    lastScopeState?.s2Left === newState.s2Left &&
+    lastScopeState?.s3Left === newState.s3Left &&
+    lastScopeState?.dividerX === newState.dividerX &&
+    lastScopeState?.showAdditional === newState.showAdditional
+  ) {
+    return; // nothing changed — stop the loop
+  }
+  lastScopeState = newState;
+
+  const elements: object[] = [
+    ...(s1
+      ? [
+          {
+            type: 'rect',
+            id: 'sr1',
+            left: s1.left,
+            top: '15px',
+            shape: { width: s1.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(248,248,248,0.9)' },
+                { offset: 1, color: 'rgba(248,248,248,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st1',
+            left: s1.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 1',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    ...(s2
+      ? [
+          {
+            type: 'rect',
+            id: 'sr2',
+            left: s2.left,
+            top: '15px',
+            shape: { width: s2.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(240,240,240,0.9)' },
+                { offset: 1, color: 'rgba(240,240,240,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st2',
+            left: s2.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 2',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    ...(s3
+      ? [
+          {
+            type: 'rect',
+            id: 'sr3',
+            left: s3.left,
+            top: '15px',
+            shape: { width: s3.width, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(229,229,229,0.9)' },
+                { offset: 1, color: 'rgba(229,229,229,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'st3',
+            left: s3.left + 10,
+            top: '30px',
+            style: {
+              fill: '#000000',
+              text: t('charts-scope') + ' 3',
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+        ]
+      : []),
+    {
+      type: 'text',
+      id: 'smain',
+      left: s1 ? s1.left + 10 : 56,
+      top: '0px',
+      style: {
+        fill: '#000000',
+        text: t('charts-main-category'),
+        font: '11px SuisseIntl',
+      },
+      silent: true,
+    },
+    ...(showAdditional
+      ? [
+          {
+            type: 'rect',
+            id: 'sadd',
+            left: dividerX,
+            top: '15px',
+            shape: { width: additionalRect?.width ?? 200, height: 300 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(215,215,215,0.9)' },
+                { offset: 1, color: 'rgba(215,215,215,0.1)' },
+              ]),
+            },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'stadd',
+            left: dividerX + 10,
+            top: '0px',
+            style: {
+              fill: '#000000',
+              text: t('charts-additional-category'),
+              font: '11px SuisseIntl',
+            },
+            silent: true,
+          },
+          {
+            type: 'rect',
+            id: 'sdiv',
+            left: dividerX,
+            top: '0px',
+            shape: { width: 1, height: 420 },
+            style: {
+              fill: new graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(0,0,0,1)' },
+                { offset: 1, color: 'rgba(240,240,240,0.1)' },
+              ]),
+            },
+            z: 100,
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'rect',
+            id: 'sadd',
+            left: 0,
+            top: 0,
+            shape: { width: 0, height: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+          {
+            type: 'text',
+            id: 'stadd',
+            left: 0,
+            top: 0,
+            style: { opacity: 0, text: '' },
+            silent: true,
+          },
+          {
+            type: 'rect',
+            id: 'sdiv',
+            left: 0,
+            top: 0,
+            shape: { width: 0, height: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+  ];
+
+  requestAnimationFrame(() => {
+    chart.setOption({ graphic: elements }, {
+      replaceMerge: ['graphic'],
+    } as Parameters<typeof chart.setOption>[1]);
+  });
+}
+
 const CATEGORY_LABEL_MAP: Record<string, string> = {
+  commuting: 'charts-commuting-category', // Headcount
+  food: 'charts-food-category',
+  waste: 'charts-waste-category',
   process_emissions: 'charts-process-emissions-category',
   buildings_room: 'charts-buildings-room-category',
   buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
+  embodied_energy: 'charts-embodied-energy-category',
   equipment: 'equipment-electric-consumption',
   external_cloud_and_ai: 'external-cloud-and-ai',
   purchases: 'purchase',
-  research_facilities: 'charts-research-facilities-category',
   professional_travel: 'professional-travel',
-  commuting: 'charts-commuting-category',
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  grey_energy: 'charts-grey-energy-category',
+  research_facilities: 'charts-research-facilities-category',
 };
 
 function translateCategory(
@@ -138,6 +400,74 @@ function collapseByCategory(
   return Array.from(merged.values());
 }
 
+function withAdditionalCategoryTotals(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const categoryKey = String(entry.category_key ?? '');
+  if (
+    !ADDITIONAL_HEADCOUNT_CATEGORIES.includes(categoryKey) &&
+    !ADDITIONAL_BUILDINGS_CATEGORIES.includes(categoryKey)
+  ) {
+    return entry;
+  }
+
+  const validated = Boolean(entry.__validated);
+  if (!validated) {
+    // `zeroNumericValues()` doesn't touch nested emissions; force deterministic zero
+    // totals for non-validated additional categories.
+    return { ...entry, [categoryKey]: 0 };
+  }
+
+  const emissions = Array.isArray(entry.emissions) ? entry.emissions : [];
+  const total = emissions.reduce((s, e) => {
+    const v = Number((e as { value?: unknown }).value);
+    return Number.isFinite(v) ? s + v : s;
+  }, 0);
+
+  // Force a deterministic total under the same key the series encodes (e.g. "waste").
+  // Backend flat parent sums can be partial depending on parent_key structure.
+  return { ...entry, [categoryKey]: total };
+}
+
+// Keys not translated here — moved to computed properties below
+const ADDITIONAL_CATEGORY_KEY_IDS = [
+  'charts-commuting-category',
+  'charts-food-category',
+  'charts-waste-category',
+  'charts-embodied-energy-category',
+];
+
+const MAIN_CATEGORY_ORDER_IDS = [
+  'charts-process-emissions-category',
+  'charts-buildings-energy-combustion-category',
+  'charts-buildings-room-category',
+  'equipment-electric-consumption',
+  'external-cloud-and-ai',
+  'professional-travel',
+  'purchase',
+  'charts-research-facilities-category',
+];
+
+const additionalCategoryKeysSet = computed(
+  () => new Set(ADDITIONAL_CATEGORY_KEY_IDS.map((id) => t(id))),
+);
+
+const mainCategoryOrderMap = computed(() => {
+  const map = new Map<string, number>();
+  MAIN_CATEGORY_ORDER_IDS.forEach((id, idx) => {
+    map.set(t(id), idx);
+  });
+  return map;
+});
+
+const additionalCategoryOrderMap = computed(() => {
+  const map = new Map<string, number>();
+  ADDITIONAL_CATEGORY_KEY_IDS.forEach((id, idx) => {
+    map.set(t(id), idx);
+  });
+  return map;
+});
+
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
 
@@ -150,24 +480,59 @@ const datasetSource = computed(() => {
       .map(translateCategory),
   );
 
-  if (toggleAdditionalData.value) {
+  let allData = baseData;
+  if (effectiveToggle.value) {
     const additionalData = collapseByCategory(
       props.breakdownData.additional_breakdown
         .map((entry) => {
           const category = String(entry.category ?? '');
-          return isCategoryValidated(category)
-            ? entry
-            : zeroNumericValues(entry);
+          const validated = isCategoryValidated(category);
+          if (!validated) {
+            return {
+              ...zeroNumericValues(entry),
+              emissions: [],
+              __validated: false,
+            };
+          }
+          return { ...entry, __validated: true };
         })
+        .map(withAdditionalCategoryTotals)
         .map(translateCategory),
     );
-    return [...baseData, ...additionalData];
+    allData = [...baseData, ...additionalData];
   }
-  return baseData;
+
+  // Partition into additional and main categories
+  const additional = [];
+  const main = [];
+  const addSet = additionalCategoryKeysSet.value;
+  for (const item of allData) {
+    if (addSet.has(String(item.category))) {
+      additional.push(item);
+    } else {
+      main.push(item);
+    }
+  }
+
+  // Sort main and additional separately
+  const mainMap = mainCategoryOrderMap.value;
+  main.sort((a, b) => {
+    const aIdx = mainMap.get(String(a.category)) ?? 999;
+    const bIdx = mainMap.get(String(b.category)) ?? 999;
+    return aIdx - bIdx;
+  });
+  const addMap = additionalCategoryOrderMap.value;
+  additional.sort((a, b) => {
+    const aIdx = addMap.get(String(a.category)) ?? 999;
+    const bIdx = addMap.get(String(b.category)) ?? 999;
+    return aIdx - bIdx;
+  });
+
+  return [...main, ...additional];
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -219,13 +584,13 @@ const additionalSeriesData = computed(() => {
       },
     },
     {
-      name: t('charts-grey-energy-category'),
+      name: t('charts-embodied-energy-category'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
       encode: {
         x: 'category',
-        y: 'grey_energy',
+        y: 'embodied_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -237,12 +602,24 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const ADDITIONAL_CATEGORIES = ['commuting', 'food', 'waste', 'grey_energy'];
+const ADDITIONAL_HEADCOUNT_CATEGORIES = ['commuting', 'food', 'waste'];
 
-const additionalLabels = computed(
+const additionalHeadcountLabels = computed(
   () =>
     new Set(
-      ADDITIONAL_CATEGORIES.map((cat) => {
+      ADDITIONAL_HEADCOUNT_CATEGORIES.map((cat) => {
+        const key = CATEGORY_LABEL_MAP[cat];
+        return key ? t(key) : cat;
+      }),
+    ),
+);
+
+const ADDITIONAL_BUILDINGS_CATEGORIES = ['embodied_energy'];
+
+const additionalBuildingsLabels = computed(
+  () =>
+    new Set(
+      ADDITIONAL_BUILDINGS_CATEGORIES.map((cat) => {
         const key = CATEGORY_LABEL_MAP[cat];
         return key ? t(key) : cat;
       }),
@@ -264,7 +641,7 @@ const chartOption = computed((): EChartsOption => {
   const seriesArray = [
     // Process Emissions — YY subcategories
     {
-      name: 'CO2',
+      name: 'CO₂',
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -319,6 +696,37 @@ const chartOption = computed((): EChartsOption => {
           'process_emissions',
           'refrigerants',
           colors.value.apricot.light,
+        ),
+      },
+      label: { show: false },
+    },
+
+    {
+      name: t('charts-energy-combustion-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'combustion' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_energy_combustion',
+          'combustion',
+          colors.value.lilac.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-heating-thermal-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'heating_thermal' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_energy_combustion',
+          'heating_thermal',
+          colors.value.lilac.dark,
         ),
       },
       label: { show: false },
@@ -379,36 +787,6 @@ const chartOption = computed((): EChartsOption => {
           'buildings_room',
           'heating_elec',
           colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-energy-combustion-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'combustion' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'combustion',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-heating-thermal-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_thermal' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'heating_thermal',
-          colors.value.lilac.dark,
         ),
       },
       label: { show: false },
@@ -561,6 +939,37 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
+    // External cloud & AI — YY subcategories
+    {
+      name: t('charts-clouds-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'clouds' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'external_cloud_and_ai',
+          'clouds',
+          colors.value.lavender.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-ai-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'ai' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'external_cloud_and_ai',
+          'ai',
+          colors.value.lavender.dark,
+        ),
+      },
+      label: { show: false },
+    },
     // Professional Travel — subcategories: plane, train
     {
       name: t('charts-plane-subcategory'),
@@ -592,37 +1001,38 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    // External cloud & AI — YY subcategories
+    // Research Facilities — subcategories: facilities, animal
     {
-      name: t('charts-clouds-subcategory'),
+      name: t('charts-research-facilities-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'clouds' },
+      encode: { x: 'category', y: 'facilities' },
       itemStyle: {
         color: getSubcategoryColor(
-          'external_cloud_and_ai',
-          'clouds',
+          'research_facilities',
+          'facilities',
           colors.value.paleYellowGreen.darker,
         ),
       },
       label: { show: false },
     },
     {
-      name: t('charts-ai-subcategory'),
+      name: t('charts-research-animal-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'ai' },
+      encode: { x: 'category', y: 'animal' },
       itemStyle: {
         color: getSubcategoryColor(
-          'external_cloud_and_ai',
-          'ai',
+          'research_facilities',
+          'animal',
           colors.value.paleYellowGreen.dark,
         ),
       },
       label: { show: false },
     },
+
     ...additionalSeriesData.value,
   ];
 
@@ -650,9 +1060,11 @@ const chartOption = computed((): EChartsOption => {
         const isValidated = validatedLabels.value.has(name);
 
         if (!isValidated) {
-          const moduleName = additionalLabels.value.has(name)
+          const moduleName = additionalHeadcountLabels.value.has(name)
             ? t('headcount')
-            : name;
+            : additionalBuildingsLabels.value.has(name)
+              ? t('buildings')
+              : name;
           return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
         }
 
@@ -732,146 +1144,7 @@ const chartOption = computed((): EChartsOption => {
         formatter: '{value}',
       },
     },
-    graphic: [
-      // Scope 1 overlay (Processes, Buildings energy consumption)
-      {
-        type: 'rect',
-        left: '46px',
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope1RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(248,248,248,0.9)' },
-            { offset: 1, color: 'rgba(248,248,248,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: '56px',
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 1',
-          font: '11px SuisseIntl',
-        },
-      },
-      // Scope 2 overlay (Energy combustion, Equipment)
-      {
-        type: 'rect',
-        left: scopeConfig.value.scope2RectLeft,
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope2RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(240,240,240,0.9)' },
-            { offset: 1, color: 'rgba(240,240,240,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: scopeConfig.value.scope2RectLeft + 10,
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 2',
-          font: '11px SuisseIntl',
-        },
-      },
-      // Scope 3 overlay (External cloud & AI, Purchases, Research facilities, Professional travel)
-      {
-        type: 'rect',
-        left: scopeConfig.value.scope3RectLeft,
-        top: '15px',
-        shape: {
-          width: scopeConfig.value.scope3RectWidth,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(229,229,229,0.9)' },
-            { offset: 1, color: 'rgba(229,229,229,0.1)' },
-          ]),
-        },
-      },
-      {
-        type: 'text',
-        left: scopeConfig.value.scope3RectLeft + 10,
-        top: '30px',
-        style: {
-          fill: '#000000',
-          text: t('charts-scope') + ' 3',
-          font: '11px SuisseIntl',
-        },
-      },
-      {
-        type: 'text',
-        left: '56px',
-        top: '00px',
-        style: {
-          fill: '#000000',
-          text: t('charts-main-category'),
-          font: '11px SuisseIntl',
-        },
-      },
-      ...(() => {
-        if (toggleAdditionalData.value) {
-          return [
-            // Additional categories background (darker grey)
-            {
-              type: 'rect',
-              left: scopeConfig.value.estimatedRectLeft,
-              top: '15px',
-              shape: {
-                width: 200,
-                height: 300,
-              },
-              style: {
-                fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: 'rgba(215,215,215,0.9)' },
-                  { offset: 1, color: 'rgba(215,215,215,0.1)' },
-                ]),
-              },
-            },
-            {
-              type: 'text',
-              left: scopeConfig.value.estimatedRectLeft + 10,
-              top: '0px',
-              style: {
-                fill: '#000000',
-                text: scopeConfig.value.estimatedText,
-                font: '11px SuisseIntl',
-              },
-            },
-            // Divider line
-            {
-              type: 'rect',
-              left: scopeConfig.value.estimatedRectLeft,
-              top: '0px',
-              shape: {
-                width: 1,
-                height: 420,
-              },
-              style: {
-                fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: 'rgba(0,0,0)' },
-                  { offset: 1, color: 'rgba(240,240,240,0.1)' },
-                ]),
-              },
-              z: 100,
-            },
-          ];
-        }
-        return [];
-      })(),
-    ],
+    graphic: [],
     dataset: {
       dimensions: [
         'category',
@@ -904,10 +1177,12 @@ const chartOption = computed((): EChartsOption => {
         'virtualisation',
         'calcul',
         'ai_provider',
+        'facilities',
+        'animal',
         'commuting',
         'food',
         'waste',
-        'grey_energy',
+        'embodied_energy',
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
@@ -980,23 +1255,72 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card
+    flat
+    class="container container--pa-none full-width module-carbon-chart"
+  >
     <q-card-section class="flex justify-between items-center">
-      <div>
+      <div class="flex items-center no-wrap">
+        <q-icon
+          name="o_info"
+          size="xs"
+          color="primary"
+          class="cursor-pointer"
+          :aria-label="$t('unit_carbon_footprint_scope_tooltip_aria')"
+        >
+          <q-tooltip
+            anchor="center right"
+            self="top right"
+            class="u-tooltip text-body2"
+            max-width="min(92vw, 48rem)"
+            :offset="[8, 8]"
+          >
+            <div class="module-carbon-scope-tooltip">
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 1,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_1_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 2,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_2_desc') }}
+              </p>
+              <p>
+                <strong>{{
+                  $t('unit_carbon_footprint_scope_prefix', {
+                    scope: $t('charts-scope'),
+                    n: 3,
+                  })
+                }}</strong>
+                {{ $t('unit_carbon_footprint_scope_3_desc') }}
+              </p>
+            </div>
+          </q-tooltip>
+        </q-icon>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ props.title ?? $t('unit_carbon_footprint_title') }}
         </span>
       </div>
 
-      <div>
+      <div class="flex items-center no-wrap q-gutter-sm">
         <q-btn
           unelevated
           no-caps
           outline
           icon="o_download"
           :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-sm"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
           @click="downloadPNG"
         />
         <q-btn
@@ -1005,27 +1329,71 @@ const downloadCSV = () => {
           outline
           icon="o_download"
           :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
           @click="downloadCSV"
         />
+        <q-checkbox
+          v-if="props.viewAdditionalData === undefined"
+          v-model="toggleAdditionalData"
+          :label="$t('results_module_carbon_toggle_additional_data')"
+          size="xs"
+          color="accent"
+        />
       </div>
-      <q-checkbox
-        v-model="toggleAdditionalData"
-        :label="$t('results_module_carbon_toggle_additional_data')"
-        size="xs"
-        color="accent"
-      />
     </q-card-section>
-    <q-card-section class="chart-container flex justify-center items-center">
-      <v-chart ref="chartRef" class="chart" autoresize :option="chartOption" />
+
+    <q-card-section
+      class="chart-container flex justify-center items-center module-carbon-chart__body"
+    >
+      <v-chart
+        ref="chartRef"
+        class="chart"
+        autoresize
+        :option="chartOption"
+        @rendered="recalculateScopeRects"
+      />
     </q-card-section>
   </q-card>
 </template>
 
 <style scoped>
+.module-carbon-chart {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.module-carbon-chart__body {
+  flex: 1;
+}
+
 .chart {
-  width: 500px;
+  width: 100%;
   min-height: 500px;
+}
+
+@media (max-width: 1320px) {
+  .chart {
+    width: 95%;
+  }
+}
+</style>
+
+<!-- Tooltip content is rendered in a portal; i18n supplies .module-carbon-scope-tooltip -->
+<style lang="scss">
+.module-carbon-scope-tooltip {
+  min-width: 36rem;
+}
+
+.module-carbon-scope-tooltip p {
+  margin: 0 0 0.5rem;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.module-carbon-scope-tooltip p:last-child {
+  margin-bottom: 0;
 }
 </style>

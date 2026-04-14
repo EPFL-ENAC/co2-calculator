@@ -6,8 +6,8 @@ export default {
     fr: 'Achats',
   },
   [`${MODULES.Purchase}-common`]: {
-    en: 'Common Purchase | Common Purchases',
-    fr: 'Achat Communs | Achats Communs',
+    en: 'Common data and factors | Common data and factors',
+    fr: 'Données et facteurs communs | Données et facteurs communs',
   },
   [`${MODULES.Purchase}-description`]: {
     en: 'Review annual purchase data and its carbon footprint.',

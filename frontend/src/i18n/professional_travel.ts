@@ -110,7 +110,7 @@ export default {
   },
   // Legacy keys (keeping for backward compatibility)
   [MODULES.ProfessionalTravel]: {
-    en: 'Professional Travel',
+    en: 'Professional travel',
     fr: 'Voyages professionnels ',
   },
   [`${MODULES.ProfessionalTravel}-description`]: {
@@ -208,5 +208,9 @@ export default {
   [`${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`]: {
     en: 'No headcount members found. Add members in the Headcount module first.',
     fr: 'Aucun membre du personnel trouvé. Ajoutez des membres dans le module Effectifs.',
+  },
+  [`${MODULES.ProfessionalTravel}-field-traveler-not-validated`]: {
+    en: 'You have not been validated in the headcount. Please contact your unit manager.',
+    fr: "Vous n'avez pas été validé dans les effectifs. Veuillez contacter votre responsable d'unité.",
   },
 } as const;

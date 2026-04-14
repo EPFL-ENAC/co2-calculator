@@ -7,7 +7,38 @@ Monitored throughout the project using the [Green IT best practices](https://rwe
 - Minimize resource usage: reduce animations, CSS files and HTTP requests; externalize and minify CSS/JS; keep page weight under 1 MB.
 - Efficient loading: lazy-load SPA routes; memory-cache frequently used data; avoid redundant API calls.
 - Optimized visuals: prefer CSS over images; use SVG/glyphs; optimize images before integration; no client-side raster resizing.
-- Performance practices: minimize reflows; avoid blocking JS; run Lighthouse checks.
+- Performance practices: minimize reflows; avoid blocking JS; run
+  Lighthouse checks on critical pages in CI (login, workspace, results)
+  and on all 24 routes locally via `make lighthouse`.
+
+## Lighthouse CI
+
+Lighthouse runs on every PR that touches the frontend. It audits
+5 critical pages in CI (~2 min) and enforces minimum scores:
+
+| Category       | Min score |
+| -------------- | --------- |
+| Performance    | 80%       |
+| Accessibility  | 70%       |
+| Best Practices | 90%       |
+| SEO            | 90%       |
+
+The ecoindex plugin ([cnumr/lighthouse-plugin-ecoindex][ecoindex])
+measures energy efficiency and carbon impact per page. Note: the
+**Green Web Foundation** check always fails on `localhost` — this is
+expected and not a failure. It passes on deployed public URLs.
+
+Run the full 24-route audit locally:
+
+```bash
+cd frontend
+make lighthouse
+```
+
+See implementation plan #264 for the bypass mechanism
+and known limitations.
+
+[ecoindex]: https://github.com/cnumr/lighthouse-plugin-ecoindex#readme
 
 ### Back-End
 

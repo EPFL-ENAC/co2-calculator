@@ -17,13 +17,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.policy import check_module_permission as _check_module_permission
+from app.core.policy import (
+    check_module_permission as _check_module_permission,
+)
+from app.core.policy import (
+    get_module_permission_decision,
+)
+from app.core.role_priority import pick_role_for_institutional_id
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
     ModuleTypeEnum,
 )
-from app.models.user import User
+from app.models.unit import Unit
+from app.models.user import GlobalScope, RoleName, User
 from app.modules.headcount.schemas import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
@@ -75,6 +82,56 @@ async def get_carbon_report(
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
     return carbon_report_module
+
+
+async def _get_professional_travel_institutional_id_filter(
+    *,
+    db: AsyncSession,
+    unit_id: int,
+    current_user: User,
+    data_entry_type_id: DataEntryTypeEnum,
+) -> Optional[str]:
+    """Return the institutional scope for professional-travel data access."""
+    is_travel_type = data_entry_type_id in (
+        DataEntryTypeEnum.plane,
+        DataEntryTypeEnum.train,
+    )
+    if not is_travel_type:
+        return None
+
+    unit = await db.get(Unit, unit_id)
+    has_full_access = _has_global_or_principal_access_for_unit(
+        current_user=current_user,
+        unit=unit,
+    )
+    if has_full_access:
+        return None
+
+    if current_user.institutional_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Professional travel data is only available to principal/global "
+                "users or users with an institutional scope."
+            ),
+        )
+
+    return current_user.institutional_id
+
+
+def _has_global_or_principal_access_for_unit(
+    current_user: User,
+    unit: Optional[Unit],
+) -> bool:
+    """Return whether the user has global or principal access for the unit."""
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if unit is None or unit.institutional_id is None:
+        return False
+    return (
+        pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
 
 
 async def get_request_context(request: Request) -> dict:
@@ -151,8 +208,18 @@ async def get_module(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
+    travel_institutional_id_filter: Optional[str] = None
+    if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
+        unit = await db.get(Unit, unit_id)
+        if not _has_global_or_principal_access_for_unit(
+            current_user=current_user,
+            unit=unit,
+        ):
+            travel_institutional_id_filter = current_user.institutional_id
+
     module_data = await DataEntryService(db).get_module_data(
         carbon_report_module_id=carbon_report_module_id,
+        travel_institutional_id_filter=travel_institutional_id_filter,
     )
 
     # if headcount compute FTE here
@@ -236,6 +303,11 @@ async def get_stats_by_class(
 # Maps module type → JSON data field to group by.
 _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
+    ModuleTypeEnum.purchase: "purchase_institutional_code",
+}
+
+# Optional: display a different field's value instead of the group key.
+_MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.purchase: "purchase_institutional_description",
 }
 
@@ -277,10 +349,14 @@ async def get_top_class_breakdown(
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
+    label_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
+
     stats = await DataEntryEmissionService(db).get_top_class_breakdown(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_types=data_entry_types,
         group_by_field=group_field,
+        label_field=label_field,
+        report_year=int(year),
     )
     return stats
 
@@ -324,8 +400,47 @@ async def list_headcount_members(
 
     Returns:
         Members ordered by name, each with ``institutional_id`` and ``name``.
+        Users with headcount access for this unit receive the full list;
+        users with only professional_travel access receive only their own record.
     """
-    await _check_module_permission(current_user, "headcount", "view")
+    # Gate: must have headcount.view OR professional_travel.view to call this endpoint
+    travel_decision = await get_module_permission_decision(
+        current_user, "professional-travel", "view"
+    )
+    headcount_decision = await get_module_permission_decision(
+        current_user, "headcount", "view"
+    )
+    # Allow global-scope users (superadmin/backoffice) regardless of module permissions.
+    # This prevents global roles from being blocked by the module-level gate while
+    # still enforcing module permissions for non-global users.
+    is_global = any(isinstance(r.on, GlobalScope) for r in current_user.roles)
+    if not (
+        is_global or headcount_decision.get("allow") or travel_decision.get("allow")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: headcount.view or professional_travel.view "
+            "required",
+        )
+
+    # Data-level scope: determine the user's effective role FOR THIS SPECIFIC UNIT.
+    # `get_module_permission_decision` uses calculate_user_permissions which is
+    # scope-blind (a principal for unit A would appear to have headcount.view for
+    # unit B too).  We instead check the unit's own institutional_id directly.
+    unit = await db.get(Unit, unit_id)
+    unit_iid = unit.institutional_id if unit else None
+
+    # Full access: global roles or principal of this specific unit.
+    # NOTE: having headcount.view permission alone does NOT grant full access —
+    # that permission is scope-blind (a principal for unit A also appears to have
+    # headcount.view for unit B). The role check below is the authoritative guard.
+    has_full_access = any(
+        isinstance(r.on, GlobalScope) for r in current_user.roles
+    ) or (
+        unit_iid is not None
+        and pick_role_for_institutional_id(current_user.roles, unit_iid)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
 
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
@@ -333,10 +448,24 @@ async def list_headcount_members(
         module_type_id=ModuleTypeEnum.headcount,
         db=db,
     )
-    rows = await DataEntryService(db).get_headcount_members(
+    data_entry_service = DataEntryService(db)
+    if has_full_access:
+        rows = await data_entry_service.get_headcount_members(
+            carbon_report_module_id=carbon_report_module_id,
+        )
+        return [HeadcountMemberDropdownItem(**row) for row in rows]
+
+    # Standard / travel-only user: fetch only their own record
+    user_iid = current_user.institutional_id
+    if not user_iid:
+        return []
+    row = await data_entry_service.get_member_by_institutional_id(
         carbon_report_module_id=carbon_report_module_id,
+        institutional_id=user_iid,
     )
-    return [HeadcountMemberDropdownItem(**row) for row in rows]
+    if row is None:
+        return []
+    return [HeadcountMemberDropdownItem(**row)]
 
 
 @router.get(
@@ -412,6 +541,13 @@ async def get_submodule(
             status_code=500,
             detail="Carbon report module ID could not be determined",
         )
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        unit_id=unit_id,
+        current_user=current_user,
+        data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
+    )
+
     submodule_data = await DataEntryService(db).get_submodule_data(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_type_id=data_entry_type_id,
@@ -420,6 +556,7 @@ async def get_submodule(
         sort_by=sort_by,
         sort_order=sort_order,
         filter=filter,
+        institutional_id_filter=institutional_id_filter,
         current_user=UserRead.model_validate(current_user),
         request_context=await get_request_context(request),
         background_tasks=background_tasks,

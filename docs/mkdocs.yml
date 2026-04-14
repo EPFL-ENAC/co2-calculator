@@ -1,5 +1,4 @@
 site_name: EPFL Project Technical Docs
-site_url: ""
 repo_url: https://github.com/epfl-enac/co2-calculator
 theme:
   name: material
@@ -81,6 +80,7 @@ nav:
 
   - Frontend:
       - Overview: frontend/01-overview.md
+      - Design Tokens: frontend/02-design-tokens.md
 
   - Backend:
       - Overview: backend/01-overview.md
@@ -97,7 +97,7 @@ nav:
 
   - Infrastructure:
       - Overview: infra/01-overview.md
-  
+
   - User Documentation:
       - Overview: user-docs/01-overview.md
       - Module Equipment: user-docs/02-equipment.md

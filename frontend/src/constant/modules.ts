@@ -11,7 +11,7 @@ export const MODULES = {
   Commuting: 'commuting',
   Food: 'food',
   Waste: 'waste',
-  GreyEnergy: 'grey-energy',
+  EmbodiedEnergy: 'embodied-energy',
 } as const;
 
 export type BackendModule = keyof typeof MODULES;
@@ -176,7 +176,7 @@ type ChartOnlyProps = {
     | typeof MODULES.Commuting
     | typeof MODULES.Food
     | typeof MODULES.Waste
-    | typeof MODULES.GreyEnergy;
+    | typeof MODULES.EmbodiedEnergy;
   submoduleType?: AllSubmoduleTypes;
 };
 
@@ -193,7 +193,16 @@ export type ConditionalSubmoduleProps =
 
 // Exclude the 4 modules that should be removed
 // TODO: refactor the codebase to remove these 4 modules and then remove this exclusion
-export const MODULES_LIST: Module[] = Object.values(MODULES).slice(0, -4);
+export const MODULES_LIST: Module[] = [
+  MODULES.Headcount,
+  MODULES.ProcessEmissions,
+  MODULES.Buildings,
+  MODULES.EquipmentElectricConsumption,
+  MODULES.ExternalCloudAndAI,
+  MODULES.Purchase,
+  MODULES.ProfessionalTravel,
+  MODULES.ResearchFacilities,
+];
 
 export const MODULES_PATTERN = MODULES_LIST.join('|');
 
@@ -276,7 +285,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Commuting]: 'commuting',
     [MODULES.Food]: 'food',
     [MODULES.Waste]: 'waste',
-    [MODULES.GreyEnergy]: 'grey_energy',
+    [MODULES.EmbodiedEnergy]: 'embodied_energy',
   };
   return moduleMap[frontendModule] || frontendModule;
 }

@@ -5,3 +5,8 @@ declare namespace nodejs {
     VUE_ROUTER_BASE: string | undefined;
   }
 }
+
+interface Window {
+  // Set at runtime by Lighthouse CI (injected into index.html) to bypass auth guards.
+  __LIGHTHOUSE_BYPASS__?: boolean;
+}

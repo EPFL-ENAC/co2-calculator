@@ -7,6 +7,7 @@ import { getModuleTypeId } from 'src/constant/moduleStates';
 export interface DataIngestionJob {
   job_id: number;
   module_type_id: number;
+  data_entry_type_id?: number;
   year: number;
   provider_type: string;
   target_type: number;
@@ -70,6 +71,7 @@ export interface SyncJobStatus {
 export interface SyncJobResponse {
   job_id: number;
   module_type_id?: number;
+  data_entry_type_id?: number;
   year?: number;
   ingestion_method?: IngestionMethod;
   target_type?: TargetType;
@@ -83,6 +85,7 @@ export enum IngestionMethod {
   API = 0,
   CSV = 1,
   MANUAL = 2,
+  COMPUTED = 3,
 }
 
 export enum TargetType {
@@ -124,6 +127,24 @@ export type InitiateSyncParams = {
   data_entry_type_id?: number;
   carbon_report_module_id?: number;
 };
+
+export interface RecalculationStatus {
+  module_type_id: number;
+  data_entry_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  last_factor_job_id: number | null;
+  last_factor_job_result: IngestionResult | null;
+  last_recalculation_job_id: number | null;
+  last_recalculation_job_result: IngestionResult | null;
+}
+
+export interface ModuleRecalculationStatus {
+  module_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  data_entry_types: RecalculationStatus[];
+}
 
 export const useBackofficeDataManagement = defineStore(
   'backofficeDataManagement',
@@ -468,11 +489,16 @@ provider_type
             const isSuccess =
               state === IngestionState.FINISHED &&
               result === IngestionResult.SUCCESS;
+            // WARNING is a terminal state: job finished but with partial issues.
+            // Treat it as completed so callers can reset spinners and display the warning.
+            const isWarning =
+              state === IngestionState.FINISHED &&
+              result === IngestionResult.WARNING;
             const isFailure =
               state === IngestionState.FINISHED &&
               result === IngestionResult.ERROR;
 
-            if (isSuccess) {
+            if (isSuccess || isWarning) {
               onCompleted?.(update);
             }
 
@@ -511,7 +537,7 @@ provider_type
      * Sync units from Accred API.
      * Triggers background task to fetch and upsert all units and principal users.
      */
-    async function syncUnitsFromAccred(): Promise<void> {
+    async function syncUnitsFromAccred(target_year: number): Promise<void> {
       if (loading.value) {
         throw new Error('Another operation is in progress');
       }
@@ -520,7 +546,11 @@ provider_type
       error.value = null;
 
       try {
-        await api.post('sync/units').json();
+        await api
+          .post('sync/units', {
+            json: { target_year },
+          })
+          .json();
       } catch (err: unknown) {
         if (err instanceof Error) {
           error.value = err.message ?? 'Failed to sync units from Accred API';
@@ -561,6 +591,97 @@ provider_type
       }
     }
 
+    /**
+     * Trigger a computed factor recomputation for a given module / data-entry type.
+     * Uses the dedicated /sync/factors endpoint with ingestion_method=COMPUTED.
+     *
+     * Returns the created job_id.
+     */
+    async function initiateComputedFactorSync(
+      moduleTypeId: number,
+      dataEntryTypeId: number,
+      year: number,
+    ): Promise<number> {
+      if (loading.value) throw new Error('Another operation is in progress');
+
+      loading.value = true;
+      error.value = null;
+
+      try {
+        const response = (await api
+          .post(`sync/factors/${moduleTypeId}/${dataEntryTypeId}`, {
+            json: {
+              ingestion_method: IngestionMethod.COMPUTED,
+              target_type: TargetType.FACTORS,
+              year,
+            },
+          })
+          .json()) as { job_id: number };
+
+        return response.job_id;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value =
+            err.message ?? 'Failed to initiate computed factor sync';
+        } else {
+          error.value = 'Failed to initiate computed factor sync';
+        }
+        throw err;
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    /**
+     * Fetch recalculation status for all modules in a given year.
+     */
+    async function fetchRecalculationStatus(
+      year: number,
+    ): Promise<ModuleRecalculationStatus[]> {
+      try {
+        return (await api
+          .get(`sync/recalculation-status`, { searchParams: { year } })
+          .json()) as ModuleRecalculationStatus[];
+      } catch (err: unknown) {
+        console.error('Failed to fetch recalculation status:', err);
+        return [];
+      }
+    }
+
+    /**
+     * Trigger emission recalculation for a single data entry type.
+     * Returns the created job_id.
+     */
+    async function initiateEmissionRecalculation(
+      moduleTypeId: number,
+      dataEntryTypeId: number,
+      year: number,
+    ): Promise<number> {
+      const response = (await api
+        .post(`sync/recalculate-emissions/${moduleTypeId}/${dataEntryTypeId}`, {
+          searchParams: { year },
+        })
+        .json()) as { job_id: number };
+      return response.job_id;
+    }
+
+    /**
+     * Trigger bulk emission recalculation for a module.
+     * Returns the created job_id.
+     */
+    async function initiateModuleEmissionRecalculation(
+      moduleTypeId: number,
+      year: number,
+      onlyStale: boolean,
+    ): Promise<number> {
+      const response = (await api
+        .post(`sync/recalculate-emissions/${moduleTypeId}`, {
+          searchParams: { year, only_stale: onlyStale },
+        })
+        .json()) as { job_id: number };
+      return response.job_id;
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -588,6 +709,10 @@ provider_type
       fetchLatestSyncJobsByYear,
       getPreviousYearSuccessfulJobs,
       initiateSync,
+      initiateComputedFactorSync,
+      fetchRecalculationStatus,
+      initiateEmissionRecalculation,
+      initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       reset,

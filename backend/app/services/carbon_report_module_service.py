@@ -5,9 +5,10 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import ModuleStatus
+from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
@@ -20,7 +21,11 @@ from app.models.module_type import (
 )
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
-from app.schemas.carbon_report import CarbonReportModuleRead
+from app.schemas.carbon_report import (
+    CarbonReportModuleCreate,
+    CarbonReportModuleRead,
+    CarbonReportRead,
+)
 from app.utils.emission_category import EMISSION_SCOPE
 
 logger = get_logger(__name__)
@@ -87,6 +92,41 @@ class CarbonReportModuleService:
         self.session = session
         self.repo = CarbonReportModuleRepository(session)
 
+    async def bulk_create(
+        self, carbon_reports: list[CarbonReportRead]
+    ) -> list[CarbonReportModule]:
+        carbon_report_modules_to_create = [
+            CarbonReportModuleCreate(
+                carbon_report_id=cr.id,
+                module_type_id=int(mt),
+                status=ModuleStatus.NOT_STARTED,
+            )
+            for cr in carbon_reports
+            for mt in ALL_MODULE_TYPE_IDS
+        ]
+        return await self.repo.bulk_create(carbon_report_modules_to_create)
+
+    async def ensure_modules_for_reports(
+        self, carbon_reports: list[CarbonReportRead]
+    ) -> None:
+        for cr in carbon_reports:
+            existing = await self.repo.list_by_report(cr.id)
+            existing_types = {m.module_type_id for m in existing}
+            missing_types = [
+                mt for mt in ALL_MODULE_TYPE_IDS if mt not in existing_types
+            ]
+            if not missing_types:
+                continue
+            carbon_report_modules_to_create = [
+                CarbonReportModuleCreate(
+                    carbon_report_id=cr.id,
+                    module_type_id=int(mt),
+                    status=ModuleStatus.NOT_STARTED,
+                )
+                for mt in missing_types
+            ]
+            await self.repo.bulk_create(carbon_report_modules_to_create)
+
     async def create_all_modules_for_report(
         self, carbon_report_id: int
     ) -> List[CarbonReportModuleRead]:
@@ -102,10 +142,12 @@ class CarbonReportModuleService:
             f"Creating {sanitize(len(module_type_ids))} report modules "
             f"for carbon report {sanitize(carbon_report_id)}"
         )
-        carbon_report_modules = await self.repo.bulk_create(
-            carbon_report_id=carbon_report_id,
-            module_type_ids=module_type_ids,
-            status=ModuleStatus.NOT_STARTED,
+        carbon_report_modules = (
+            await self.repo.bulk_create_carbon_report_modules_of_carbon_report(
+                carbon_report_id=carbon_report_id,
+                module_type_ids=module_type_ids,
+                status=ModuleStatus.NOT_STARTED,
+            )
         )
         return [
             CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules

@@ -4,6 +4,10 @@ import { LOGIN_ROUTES } from '../routes';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
+  // Lighthouse CI injects window.__LIGHTHOUSE_BYPASS__ at runtime to audit
+  // protected pages without a backend. All auth checks are skipped.
+  if (window.__LIGHTHOUSE_BYPASS__) return true;
+
   const auth = useAuthStore();
 
   // Load user if needed
