@@ -28,32 +28,6 @@
     <q-card-section v-if="hasSubtitle" class="q-mx-lg q-my-xl text-subtitle1">
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-section>
-    <q-card-section v-if="hasStudentHelper">
-      <q-card flat bordered class="q-pa-none">
-        <q-expansion-item
-          flat
-          bordered
-          header-class="text-h5 text-weight-medium"
-        >
-          <template #header>
-            <div class="row flex items-center full-width">
-              <q-icon
-                name="o_calculate"
-                size="sm"
-                class="q-mr-sm"
-                color="accent"
-              />
-              <div class="col">
-                {{ $t(`student_helper_title`) }}
-              </div>
-            </div>
-          </template>
-          <q-separator />
-          <StudentFTECalculator @use-value="onUseCalculatedFTE" />
-        </q-expansion-item>
-      </q-card>
-    </q-card-section>
-
     <q-card-section class="q-pa-none">
       <q-form @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
@@ -312,7 +286,6 @@ import {
 } from 'quasar';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import StudentFTECalculator from './StudentFTECalculator.vue';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
@@ -348,22 +321,22 @@ const props = withDefaults(
     moduleType: Module | string;
     hasTooltip?: boolean | string;
     hasSubtitle?: boolean;
-    hasStudentHelper?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
     unitId?: number;
     year?: string | number;
+    formDefaults?: Record<string, unknown>;
   }>(),
   {
     fields: null,
     rowData: null,
     hasTooltip: true,
     hasSubtitle: false,
-    hasStudentHelper: false,
     hasAddWithNote: true,
     addButtonLabelKey: 'common_add_button',
     unitId: undefined,
     year: undefined,
+    formDefaults: undefined,
   },
 );
 
@@ -605,9 +578,11 @@ function init() {
     if (props.rowData && props.rowData[i.id] !== undefined) {
       form[i.id] = props.rowData[i.id];
     } else {
-      // Check if field has a default value
+      // Check if field has a default value (static config or dynamic formDefaults)
       if (i.default !== undefined) {
         form[i.id] = i.default;
+      } else if (props.formDefaults?.[i.id] !== undefined) {
+        form[i.id] = props.formDefaults[i.id] as FieldValue;
       } else {
         switch (effectiveType) {
           case 'checkbox':
@@ -656,9 +631,9 @@ function init() {
   });
 }
 
-// re-init when inputs or rowData change (e.g. dynamic config or edit mode)
+// re-init when inputs, rowData, or external defaults change
 watch(
-  () => [props.fields, props.rowData],
+  () => [props.fields, props.rowData, props.formDefaults],
   () => init(),
   { deep: true, immediate: true },
 );
@@ -872,9 +847,11 @@ function onSubmit() {
 function reset() {
   visibleFields.value.forEach((i) => {
     const effectiveType = i.type;
-    // Check if field has a default value
+    // Check if field has a default value (static config or dynamic formDefaults)
     if (i.default !== undefined) {
       form[i.id] = i.default;
+    } else if (props.formDefaults?.[i.id] !== undefined) {
+      form[i.id] = props.formDefaults[i.id] as FieldValue;
     } else if (effectiveType === 'checkbox' || effectiveType === 'boolean')
       form[i.id] = false;
     else if (effectiveType === 'number') form[i.id] = null;
@@ -917,10 +894,6 @@ function getGridClass(ratio?: string): string {
   if (!numerator || !denominator) return 'form-field--full';
   const span = Math.round((numerator / denominator) * 12);
   return `form-field--span-${span}`;
-}
-
-function onUseCalculatedFTE(value: number) {
-  form['fte'] = value;
 }
 
 async function handleFromLocationSelected(location: {

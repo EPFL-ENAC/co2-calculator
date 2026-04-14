@@ -22,18 +22,23 @@ export default {
   },
   [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`]:
     {
-      en: 'Research Facilities',
-      fr: 'Infrastructures de recherche',
+      en: 'Research Facilities ({count})',
+      fr: 'Infrastructures de recherche ({count})',
     },
   [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title-info-tooltip`]:
     {
       en: 'Emissions from research facilities allocated to the units are calculated based on Process emission, Energy combustion, Building, Equipment, and Purchases emissions, using billing or the number of hours used by your unit as the allocation key. If one or several research facilities are missing in the tool, do not hesitate to contact us so that we can provide you with more details.',
       fr: "Les émissions des infrastructures de recherche attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Combustion d'énergie, Bâtiments, Équipements et Achats en considérant comme clé de répartition les facturations ou le nombre d'heures d'utilisation de votre unité. Si une ou plusieurs infrastructures de recherche manquent dans l'outil, n'hésitez pas à nous contacter afin que nous puissions vous fournir plus de détails.",
     },
-  [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`]:
+  [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}`]:
     {
       en: 'Mice and fish animal facilities',
       fr: 'Animaleries rongeurs et poissons',
+    },
+  [`${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`]:
+    {
+      en: 'Mice and fish animal facilities ({count})',
+      fr: 'Animaleries rongeurs et poissons ({count})',
     },
   [`${MODULES.ResearchFacilities}-${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title-info-tooltip`]:
     {
@@ -41,23 +46,23 @@ export default {
       fr: "Les émissions des animaleries rongeurs et poissons sont attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Combustion d'énergie, Bâtiments, Équipements et Achats en considérant comme clé de répartition le nombre d'hébergements (cages, aquariums) par année.",
     },
   [`${MODULES.ResearchFacilities}.inputs.name`]: {
-    en: 'Name',
-    fr: 'Nom',
+    en: 'Research Facility',
+    fr: 'Infrastructure de recherche',
   },
-  [`${MODULES.ResearchFacilities}.inputs.unit_use`]: {
-    en: 'Unit Use',
-    fr: "Unité d'utilisation",
+  [`${MODULES.ResearchFacilities}.inputs.use_unit`]: {
+    en: 'Unit',
+    fr: 'Unité',
   },
-  [`${MODULES.ResearchFacilities}.inputs.unit_type`]: {
-    en: 'Unit Type',
-    fr: "Type d'unité",
+  [`${MODULES.ResearchFacilities}.inputs.use`]: {
+    en: 'Use',
+    fr: 'Utilisation',
   },
   [`${MODULES.ResearchFacilities}.inputs.type`]: {
     en: 'Type',
     fr: 'Type',
   },
-  [`${MODULES.ResearchFacilities}.inputs.housing_nb`]: {
-    en: 'Housing Units',
+  [`${MODULES.ResearchFacilities}.inputs.nb_housing`]: {
+    en: 'Number of housing',
     fr: "Nombre d'hébergements",
   },
   [`${MODULES.ResearchFacilities}.inputs.housing_nb-tooltip`]: {

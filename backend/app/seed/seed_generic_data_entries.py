@@ -36,6 +36,7 @@ from app.seed.seed_helper import (
     load_factors_map,
     lookup_factor,
 )
+from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 
@@ -152,16 +153,16 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
         data_entry_types=[DataEntryTypeEnum.building],
         module_type=ModuleTypeEnum.buildings,
     ),
-    # DataEntrySeedConfig(
-    #     path=SEED_FOLDER / "researchfacilities_common_data.csv",
-    #     data_entry_types=[DataEntryTypeEnum.research_facilities],
-    #     module_type=ModuleTypeEnum.internal_services,
-    # ),
-    # DataEntrySeedConfig(
-    #     path=SEED_FOLDER / "researchfacilities_animals_data.csv",
-    #     data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
-    #     module_type=ModuleTypeEnum.internal_services,
-    # ),
+    DataEntrySeedConfig(
+        path=SEED_FOLDER / "researchfacilities_common_data.csv",
+        data_entry_types=[DataEntryTypeEnum.research_facilities],
+        module_type=ModuleTypeEnum.research_facilities,
+    ),
+    DataEntrySeedConfig(
+        path=SEED_FOLDER / "researchfacilities_animals_data.csv",
+        data_entry_types=[DataEntryTypeEnum.mice_and_fish_animal_facilities],
+        module_type=ModuleTypeEnum.research_facilities,
+    ),
 ]
 
 
@@ -432,6 +433,18 @@ async def seed_data_entries(
     if emissions:
         await emission_service.bulk_create(emissions)
         await session.commit()
+
+        # Recompute stats for all affected carbon report modules
+        crm_service = CarbonReportModuleService(session)
+        for crm_id in crm_cache.values():
+            try:
+                await crm_service.recompute_stats(crm_id)
+            except Exception as stats_error:
+                logger.warning(
+                    "Failed to recompute stats for carbon_report_module_id=%s: %s",
+                    crm_id,
+                    stats_error,
+                )
 
     label = ", ".join(det.name for det in config.data_entry_types)
     print(

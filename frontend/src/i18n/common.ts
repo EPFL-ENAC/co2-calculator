@@ -324,6 +324,22 @@ export default {
     en: 'CSV sync completed with {count} row error(s).',
     fr: 'Synchronisation CSV terminée avec {count} erreur(s) de ligne.',
   },
+  csv_sync_completed_with_warnings: {
+    en: 'CSV sync completed with {count} warning(s).',
+    fr: 'Synchronisation CSV terminée avec {count} avertissement(s).',
+  },
+  csv_sync_warnings_caption: {
+    en: 'Processed {processed} rows with {skipped} warnings',
+    fr: '{processed} lignes traitées avec {skipped} avertissements',
+  },
+  csv_sync_success_caption: {
+    en: 'Processed {processed} rows successfully',
+    fr: '{processed} lignes traitées avec succès',
+  },
+  csv_sync_failed: {
+    en: 'CSV sync failed. Please check the logs for details.',
+    fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
+  },
   close_error_details: {
     en: 'Close error details',
     fr: "Fermer les détails de l'erreur",
@@ -335,10 +351,6 @@ export default {
   csv_sync_and_more_errors: {
     en: '... and {count} more error(s)',
     fr: '... et {count} autre(s) erreur(s)',
-  },
-  csv_sync_failed: {
-    en: 'CSV sync failed. Please check the logs for details.',
-    fr: 'La synchronisation CSV a échoué. Veuillez vérifier les journaux pour plus de détails.',
   },
   csv_sync_connection_lost: {
     en: 'Connection to sync job lost. Please refresh to check status.',
@@ -387,5 +399,41 @@ export default {
   validation_save_failed: {
     en: 'Save failed',
     fr: "Échec de l'enregistrement",
+  },
+  carbon_footprint_title: {
+    en: '{module} Carbon Footprint',
+    fr: '{module} empreinte carbone ',
+  },
+  'carbon_footprint_title_professional-travel': {
+    en: 'Professional travel carbon footprint',
+    fr: 'Empreinte carbone des voyages professionnels',
+  },
+  'carbon_footprint_title_process-emissions': {
+    en: 'Process emission carbon footprint',
+    fr: "Empreinte carbone de gaz d'emission",
+  },
+  'carbon_footprint_title_equipment-electric-consumption': {
+    en: 'Equipment use carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des équipements",
+  },
+  'carbon_footprint_tooltip_equipment-electric-consumption': {
+    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  },
+  carbon_footprint_title_purchase: {
+    en: 'Purchases carbon footprint',
+    fr: 'Empreinte carbone des achats',
+  },
+  carbon_footprint_title_buildings: {
+    en: 'Energy combustion carbon footprint',
+    fr: "Empreinte carbone de la combustion d'énergie",
+  },
+  'carbon_footprint_title_external-cloud-and-ai': {
+    en: 'Carbon footprint from the use of AI services and external cloud services',
+    fr: "Empreinte carbone liée à l'utilisation des services d'IA et des services cloud externes",
+  },
+  'carbon_footprint_title_research-facilities': {
+    en: 'Carbon footprint from the use of research infrastructures',
+    fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
 };

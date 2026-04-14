@@ -22,6 +22,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.services.exchange_rates_service import ExchangeRatesService
 
 logger = get_logger(__name__)
 
@@ -54,6 +55,7 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
     service_type: Optional[str] = None
     provider: Optional[str] = None
     spent_amount: Optional[float] = None
+    currency: Optional[str] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
@@ -86,8 +88,8 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        valid_currencies = ["chf", "eur"]
-        if v not in valid_currencies:
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
@@ -140,8 +142,8 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        valid_currencies = ["chf", "eur"]
-        if v not in valid_currencies:
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
@@ -224,12 +226,41 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
+
+        def _cloud_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            # Get the year to ensure we get the correct exchange rate for the year
+            # of the purchase
+            year = ctx.get("_year")
+            if year is None:
+                return None
+
+            spent_amount = ctx.get("spent_amount")
+            entry_currency = (ctx.get("currency", "") or "eur").lower()
+            ef = factor_values.get("ef_kg_co2eq_per_currency")
+            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
+            if spent_amount is None or ef is None:
+                return None
+
+            spent_amount_eur = spent_amount
+            if entry_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, entry_currency
+                )
+                spent_amount_eur = spent_amount * exchange_rate
+            ef_eur = ef
+            if ef_currency != "eur":
+                exchange_rate = ExchangeRatesService().get_exchange_rate_to_eur(
+                    year, ef_currency
+                )
+                ef_eur = ef * exchange_rate
+
+            return spent_amount_eur * ef_eur
+
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_id=int(factor_id),
-                formula_key="ef_kg_co2eq_per_currency",
-                quantity_key="spent_amount",
+                formula_func=_cloud_formula,
             )
         ]
 
@@ -266,10 +297,11 @@ class _ExternalCloudFactorValidationMixin:
         valid_currencies = [
             "chf",
             "eur",
+            "usd",
         ]
         if not v:
             raise ValueError("")
-        if v not in valid_currencies:
+        if v.lower() not in valid_currencies:
             raise ValueError("Invalid currency")
         return v
 

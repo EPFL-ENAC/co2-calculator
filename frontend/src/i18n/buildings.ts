@@ -5,6 +5,10 @@ export default {
     en: 'Buildings',
     fr: 'Bâtiments',
   },
+  [`${MODULES.Buildings}-rooms`]: {
+    en: 'Room | Rooms',
+    fr: 'Local | Locaux',
+  },
   [`${MODULES.Buildings}-description`]: {
     en: 'This module estimates the buildings-related carbon footprint (heating, air conditioning, ventilation, and lighting). An additional table is available to include other energy combustion sources if your unit uses a non-centralized energy source.',
     fr: "Ce module permet d'estimer l'empreinte carbone liée au bâtiment (chauffage, climatisation, ventilation et éclairage). Un tableau supplémentaire est disponible pour compléter avec d'autres émissions de combustion d'énergie au cas où votre unité utilise une source d'énergie non-centralisée.",
@@ -142,6 +146,10 @@ export default {
   },
 
   // Energy combustion submodule
+  [`${MODULES.Buildings}-combustion`]: {
+    en: 'Energy Combustion Emissions | Energy Combustions Emissions',
+    fr: "Émissions de combustion d'énergie | Émissions de combustion d'énergie ",
+  },
   [`${MODULES.Buildings}.combustion_table_title`]: {
     en: 'Energy Combustion Emissions ({count}) | Energy Combustions Emissions ({count})',
     fr: "Émissions de combustion d'énergie ({count}) | Émissions de combustion d'énergie ({count})",

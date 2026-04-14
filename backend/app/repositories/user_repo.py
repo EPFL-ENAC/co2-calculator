@@ -41,9 +41,30 @@ class UserRepository:
         return entity
 
     async def get_by_code(self, institutional_id: str) -> Optional[User]:
-        """Get user by institutional_id."""
+        """Get user by institutional_id.
+
+        Deprecated: use get_by_institutional_id_and_provider instead.
+        """
         result = await self.session.exec(
             select(User).where(User.institutional_id == institutional_id)
+        )
+        entity = result.one_or_none()
+        return entity
+
+    async def get_by_institutional_id_and_provider(
+        self,
+        institutional_id: str,
+        provider: UserProvider,
+    ) -> Optional[User]:
+        """Get user by institutional_id scoped to provider.
+
+        This is the primary lookup method to prevent cross-provider collisions.
+        """
+        result = await self.session.exec(
+            select(User).where(
+                User.institutional_id == institutional_id,
+                User.provider == provider,
+            )
         )
         entity = result.one_or_none()
         return entity

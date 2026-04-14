@@ -14,8 +14,13 @@ TEST_AFFILIATION = "testaffiliation"
 
 
 def make_test_user_id(user_id: str) -> str:
-    """Make a consistent 10-digit user ID based on user_id string."""
-    return str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
+    """Make a consistent 10-digit numeric hash prefixed with TEST-.
+
+    This is used to generate institutional_id for test users, ensuring that the same
+    user_id string always maps to the same institutional_id. The TEST- prefix prevents
+    collisions with real institutional IDs (e.g., EPFL IDs like "111756").
+    """
+    return "TEST-" + str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
 
 
 # -- Test Users ---------------------------------------------------------------

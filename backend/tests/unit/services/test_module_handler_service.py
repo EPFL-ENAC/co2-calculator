@@ -169,7 +169,9 @@ async def test_get_taxonomy_builds_tree(service):
     ]
     service.factor_service.list_by_data_entry_type = AsyncMock(return_value=factors)
 
-    result = await service.get_taxonomy(handler, DataEntryTypeEnum.scientific)
+    result = await service.get_taxonomy(
+        handler, DataEntryTypeEnum.scientific, year=2025
+    )
 
     assert result.name == "scientific"
     assert len(result.children) == 2

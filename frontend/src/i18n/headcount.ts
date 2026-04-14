@@ -106,16 +106,11 @@ export default {
 
   [`${MODULES.Headcount}-student-form-title-info-tooltip`]: {
     en: `Due to data-protection rules, students’ names and individual FTE are not shown automatically.`,
-    fr: `En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.te`,
+    fr: `En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.`,
   },
   [`${MODULES.Headcount}-student-form-subtitle`]: {
-    en: ` Please use the Student FTE Calculator Helper below, then enter the aggregated usage time.
-    `,
-    fr: `Veuillez utiliser l’outil d’aide « Calculateur d’EPT Étudiants » ci-dessous, puis entrer le temps d’utilisation agrégé.`,
-  },
-  [`${MODULES.Headcount}-student-student-helper-title`]: {
-    en: 'Student FTE Calculator Helper',
-    fr: 'EPT étudiants - Outil d’aide au calcul',
+    en: 'Enter the aggregated student FTE for your unit over the year.',
+    fr: 'Entrez l’EPT étudiant agrégé pour votre unité sur l’année.',
   },
   [`${MODULES.Headcount}-member-form-title-info-label`]: {
     en: 'fte member tooltip',
@@ -126,31 +121,6 @@ export default {
     fr: 'Texte d’exemple',
   },
 
-  student_helper_title: {
-    en: 'Student FTE Calculator Helper',
-    fr: 'EPT étudiants - Outil d’aide au calcul',
-  },
-
-  student_helper_students_label: {
-    en: 'Number of students',
-    fr: "Nombre d'étudiant·es",
-  },
-  student_helper_duration_label: {
-    en: 'Average duration (months)',
-    fr: 'Durée moyenne (mois)',
-  },
-  student_helper_avg_fte_label: {
-    en: 'Average FTE per student',
-    fr: 'EPT moyen par étudiant·e',
-  },
-  student_helper_calculated_label: {
-    en: 'Total Student FTE',
-    fr: 'EPT annuel calculé',
-  },
-  student_helper_use_button: {
-    en: 'Update',
-    fr: 'Mettre à jour',
-  },
   [`${MODULES.Headcount}-student-form-title-info-label`]: {
     en: 'fte student tooltip',
     fr: 'info-bulle étudiant EPT',
@@ -159,17 +129,9 @@ export default {
     en: 'lorem ipsum',
     fr: 'Texte d’exemple',
   },
-  headcount_student_helper_students_error: {
-    en: 'Please enter a valid number of students (greater than 0).',
-    fr: "Veuillez entrer un nombre valide d'étudiants (supérieur à 0).",
-  },
-  headcount_student_helper_duration_error: {
-    en: 'Duration (months) must be less than or equal to 12 and greater than 0.',
-    fr: 'Durée (mois) doit être inférieure ou égale à 12 et supérieure à 0.',
-  },
-  headcount_student_helper_avg_fte_error: {
-    en: 'Average FTE per student must be between 0 and 1.',
-    fr: "L'EPT moyen par étudiant doit être compris entre 0 et 1.",
+  'headcount-member-error-duplicate-uid': {
+    en: "This user's {label} already exists.",
+    fr: 'Le {label} de cet utilisateur existe déjà.',
   },
   headcount_student: {
     en: 'Student',

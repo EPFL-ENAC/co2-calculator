@@ -24,6 +24,9 @@ class CarbonReportRead(CarbonReportBase):
     """Schema for reading a carbon report."""
 
     id: int
+    stats: Optional[dict] = None
+    completion_progress: Optional[str] = None
+    overall_status: int = ModuleStatus.NOT_STARTED
 
     class Config:
         from_attributes = True
@@ -59,6 +62,7 @@ class CarbonReportModuleRead(BaseModel):
     carbon_report_id: int
     module_type_id: int
     status: int
+    stats: Optional[dict] = None
 
     class Config:
         from_attributes = True

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 import app.core.config as config
 from app.main import app
+from app.models.user import UserProvider
 
 
 @pytest.fixture
@@ -53,11 +54,22 @@ def test_refresh_logs_audit_event(client, monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "decode_jwt",
-        MagicMock(return_value={"type": "refresh", "sub": "1", "user_id": 5}),
+        MagicMock(
+            return_value={
+                "type": "refresh",
+                "sub": "1",
+                "user_id": 5,
+                "institutional_id": "654321",
+                "provider": UserProvider.TEST,
+                "email": "test@example.com",
+            }
+        ),
     )
     mock_user = MagicMock(id=5, email="test@example.com", institutional_id="654321")
     monkeypatch.setattr(
-        auth_module.UserService, "get_by_id", AsyncMock(return_value=mock_user)
+        auth_module.UserService,
+        "get_by_institutional_id_and_provider",
+        AsyncMock(return_value=mock_user),
     )
     create_version_mock = AsyncMock()
     monkeypatch.setattr(

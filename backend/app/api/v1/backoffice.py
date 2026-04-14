@@ -4,13 +4,13 @@ import csv
 import io
 import json
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -39,281 +39,6 @@ from app.services.data_entry_service import DataEntryService
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-# Mock data for backoffice reporting
-MOCK_UNITS_REPORTING = [
-    {
-        "id": 1,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "default", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "in-progress", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 7},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "in-progress", "outlier_values": 3},
-                "professional_travel": {"status": "in-progress", "outlier_values": 2},
-                "buildings": {"status": "default", "outlier_values": 4},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "ALICE",
-        "affiliation": "ENAC",
-        "principal_user": "Charlie Weil",
-        "last_update": datetime.now() - timedelta(days=2),
-    },
-    {
-        "id": 2,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "in-progress", "outlier_values": 2},
-                "professional_travel": {"status": "in-progress", "outlier_values": 3},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "ISREC",
-        "affiliation": "SV",
-        "principal_user": "Benjamin Botros",
-        "last_update": datetime.now() - timedelta(hours=5),
-    },
-    {
-        "id": 3,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 4},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 8},
-            },
-        },
-        "unit": "Network Architecture",
-        "affiliation": "IC",
-        "principal_user": "Nicolas Dubois",
-        "last_update": datetime.now() - timedelta(days=1),
-    },
-    {
-        "id": 4,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "validated", "outlier_values": 0},
-                "buildings": {"status": "validated", "outlier_values": 2},
-                "equipment_electric_consumption": {
-                    "status": "validated",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "validated", "outlier_values": 1},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 1},
-            },
-        },
-        "unit": "Another Unit",
-        "affiliation": "ENAC",
-        "principal_user": "Alice Smith",
-        "last_update": datetime.now() - timedelta(days=1),
-    },
-    {
-        "id": 5,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "validated", "outlier_values": 0},
-                "professional_travel": {"status": "in-progress", "outlier_values": 0},
-                "buildings": {"status": "in-progress", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "validated", "outlier_values": 0},
-                "external_cloud": {"status": "validated", "outlier_values": 0},
-            },
-        },
-        "unit": "Research Group",
-        "affiliation": "SV",
-        "principal_user": "Bob Johnson",
-        "last_update": datetime.now() - timedelta(hours=10),
-    },
-    {
-        "id": 6,
-        "completion": {
-            "2024": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-            "2025": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-            "2026": {
-                "headcount": {"status": "default", "outlier_values": 0},
-                "professional_travel": {"status": "default", "outlier_values": 0},
-                "buildings": {"status": "default", "outlier_values": 0},
-                "equipment_electric_consumption": {
-                    "status": "default",
-                    "outlier_values": 0,
-                },
-                "purchase": {"status": "default", "outlier_values": 0},
-                "research_facilities": {"status": "default", "outlier_values": 0},
-                "external_cloud": {"status": "default", "outlier_values": 0},
-            },
-        },
-        "unit": "New Lab",
-        "affiliation": "IC",
-        "principal_user": "Eve Brown",
-        "last_update": datetime.now() - timedelta(days=5),
-    },
-]
 
 
 class CompletionCounts(BaseModel):
@@ -560,6 +285,12 @@ async def list_backoffice_units(
     return PaginatedUnitReportingData(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
+        emission_breakdown=result.get("emission_breakdown"),
+        validated_units_count=result.get("validated_units_count", 0),
+        in_progress_units_count=result.get("in_progress_units_count", 0),
+        not_started_units_count=result.get("not_started_units_count", 0),
+        total_units_count=result.get("total_units_count", 0),
+        module_status_counts=result.get("module_status_counts"),
     )
 
 
@@ -872,20 +603,16 @@ async def get_backoffice_unit(
 @router.get("/years")
 async def get_available_years(
     current_user: User = Depends(require_permission("backoffice.users", "view")),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get all available years from all units combined.
-    Returns all unique years found across all units' completion data,
+    Get all available years from CarbonReport records in the database,
     sorted in descending order (latest first).
     """
-    all_years: set[str] = set(
-        "2025".split()
-    )  # Mocked for demo, replace with real data extraction
-
-    # Sort years in descending order (latest first)
-    sorted_years = sorted(
-        all_years, key=lambda y: int(y) if y.isdigit() else 0, reverse=True
+    result = await db.exec(
+        select(CarbonReport.year).distinct().order_by(desc(CarbonReport.year))
     )
-    latest_year = sorted_years[0]
-
-    return {"years": sorted_years, "latest": latest_year}
+    years = [str(y) for y in result.all()]
+    if not years:
+        return {"years": [], "latest": ""}
+    return {"years": years, "latest": years[0]}

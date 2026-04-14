@@ -23,6 +23,8 @@ The CO2 Calculator API uses a **permission-based authorization model** where:
 - **Permissions are calculated** dynamically from roles at authentication time
 - **Authorization checks** are performed at multiple levels: route, service, and resource
 
+CF https://github.com/EPFL-ENAC/co2-calculator/issues/414
+
 ### Key Concepts
 
 #### Permissions

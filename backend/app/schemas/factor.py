@@ -13,8 +13,8 @@ FACTOR_META_FIELDS = {
     "classification",
     "values",
     "emission_type_id",
-    "is_conversion",
     "data_entry_type_id",
+    "year",
 }
 
 
@@ -65,10 +65,15 @@ class FactorBase(BaseModel):
     """Base factor schema."""
 
     emission_type_id: int
-    is_conversion: bool = False
     data_entry_type_id: int
     classification: Dict[str, Any] = Field(default_factory=dict)
     values: Dict[str, Any] = Field(default_factory=dict)
+    year: Optional[int] = Field(
+        default=None,
+        description=(
+            "Year for which this factor applies (enables annual factor updates)"
+        ),
+    )
 
 
 class FactorCreate(FactorPayloadMixin, FactorBase):
@@ -82,6 +87,10 @@ class FactorUpdate(FactorPayloadMixin, BaseModel):
 
     classification: Optional[Dict[str, Any]] = None
     values: Optional[Dict[str, Any]] = None
+    year: Optional[int] = Field(
+        default=None,
+        description="Year for which this factor applies",
+    )
 
 
 class FactorRead(FactorBase):
@@ -110,7 +119,6 @@ T = TypeVar("T", bound=BaseModel, contravariant=True)
 class FactorHandler(Protocol[T]):
     data_entry_type: Optional[DataEntryTypeEnum] = None
     emission_type: Optional[EmissionType] = None
-    is_conversion: bool = False
 
     create_dto: Type[FactorCreate]
     update_dto: Type[FactorUpdate]
@@ -166,7 +174,6 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
 
     data_entry_type: Optional[DataEntryTypeEnum] = None
     emission_type: Optional[EmissionType] = None
-    is_conversion: bool = False
 
     # These must be overridden in subclasses
     create_dto: Type[FactorCreate]
@@ -191,8 +198,6 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
         prepared = dict(payload)
         if "emission_type_id" not in prepared and self.emission_type is not None:
             prepared["emission_type_id"] = self.emission_type.value
-        if "is_conversion" not in prepared:
-            prepared["is_conversion"] = self.is_conversion
         if "data_entry_type_id" not in prepared and self.data_entry_type is not None:
             prepared["data_entry_type_id"] = self.data_entry_type.value
         return prepared
@@ -201,7 +206,6 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
         payload = {
             "id": factor.id,
             "emission_type_id": factor.emission_type_id,
-            "is_conversion": factor.is_conversion,
             "data_entry_type_id": factor.data_entry_type_id,
             **(factor.classification or {}),
             **(factor.values or {}),

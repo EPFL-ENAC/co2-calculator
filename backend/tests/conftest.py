@@ -27,6 +27,7 @@ async def db_session():
 
     # Create all tables
     async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)  # Ensure a clean slate
         await conn.run_sync(SQLModel.metadata.create_all)
 
     # Create session factory and session using SQLModel's AsyncSession

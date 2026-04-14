@@ -169,6 +169,7 @@ async def test_resolve_handler_and_validate_missing_factor(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_resolve_handler_and_validate_factor_mismatch(monkeypatch):
+    """Test validation passes when factor requirement is disabled."""
     provider = ModuleUnitSpecificCSVProvider(
         {
             "file_path": "tmp/test.csv",
@@ -182,6 +183,7 @@ async def test_resolve_handler_and_validate_factor_mismatch(monkeypatch):
         require_subkind_for_factor=False,
         kind_field="kind",
         subkind_field=None,
+        category_field=None,
     )
     setup_result = {
         "handlers": [handler],
@@ -196,22 +198,20 @@ async def test_resolve_handler_and_validate_factor_mismatch(monkeypatch):
         MagicMock(return_value=True),
     )
 
-    factor = SimpleNamespace(data_entry_type_id=DataEntryTypeEnum.student.value)
-
     (
         data_entry_type,
         resolved_handler,
         error_msg,
     ) = await provider._resolve_handler_and_validate(
         filtered_row={"kind": "k1"},
-        factor=factor,
+        factor=None,  # No longer used
         stats=stats,
         row_idx=3,
         max_row_errors=5,
         setup_result=setup_result,
     )
 
-    assert data_entry_type is None
-    assert resolved_handler is None
-    assert "mismatch" in error_msg
-    assert stats["rows_skipped"] == 1
+    # Should succeed because require_factor_to_match=False
+    assert data_entry_type == DataEntryTypeEnum.member
+    assert resolved_handler == handler
+    assert error_msg is None

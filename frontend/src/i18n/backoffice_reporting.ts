@@ -1,7 +1,19 @@
 export default {
+  backoffice_reporting_aggregated_results_title: {
+    en: 'Aggregated Results',
+    fr: 'Résultats agrégés',
+  },
+  backoffice_reporting_aggregated_results_per_fte_title: {
+    en: 'Aggregated Results per FTE',
+    fr: 'Résultats agrégés par EPT',
+  },
   backoffice_reporting_year_title: {
     en: 'Reporting Year',
     fr: 'Année du rapport',
+  },
+  backoffice_reporting_usage_statistic: {
+    en: 'Usage statistics',
+    fr: 'Statistiques d’usage',
   },
   backoffice_reporting_year_description: {
     en: 'Select the year to view module completion data for that reporting period.',
@@ -84,8 +96,8 @@ export default {
     fr: 'Statut de validation',
   },
   backoffice_reporting_column_principal_user: {
-    en: 'Principal user',
-    fr: 'Utilisateur principal',
+    en: 'Unit manager',
+    fr: "Responsable de l'unité",
   },
   backoffice_reporting_column_last_update: {
     en: 'Last update',
@@ -173,6 +185,52 @@ export default {
   backoffice_reporting_usage_box_one_unit: {
     en: 'Number of validated modules',
     fr: 'Nombre de modules validées',
+  },
+
+  backoffice_reporting_chart_unit_footprint_title: {
+    en: 'Unit Carbon Footprint',
+    fr: 'Empreinte carbone par unite',
+  },
+  backoffice_reporting_chart_unit_footprint_description: {
+    en: 'One bar per unit using aggregated total carbon footprint (tCO2-eq).',
+    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO2-eq).',
+  },
+  backoffice_reporting_chart_per_fte_title: {
+    en: 'Carbon Footprint per FTE',
+    fr: 'Empreinte carbone par EPT',
+  },
+  backoffice_reporting_chart_per_fte_description: {
+    en: 'Computed as total carbon footprint divided by total FTE (tCO2-eq/FTE).',
+    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO2-eq/EPT).',
+  },
+  backoffice_reporting_chart_no_data: {
+    en: 'No data available for the current filters.',
+    fr: 'Aucune donnee disponible pour les filtres actuels.',
+  },
+  backoffice_reporting_chart_no_fte_data: {
+    en: 'No units with valid FTE data for the current filters.',
+    fr: 'Aucune unite avec des donnees EPT valides pour les filtres actuels.',
+  },
+
+  backoffice_reporting_completion_bar_title: {
+    en: 'Calculator Completion Rate',
+    fr: 'Taux de complétion du calculateur',
+  },
+  backoffice_reporting_completion_bar_helper: {
+    en: 'Each unit has equal weight, independent of FTE size',
+    fr: 'Chaque unité a le même poids, indépendamment de la taille en EPT',
+  },
+  backoffice_reporting_completion_bar_scope: {
+    en: 'in current selection',
+    fr: 'dans la sélection actuelle',
+  },
+  backoffice_reporting_completion_bar_scope_table: {
+    en: 'in current table',
+    fr: 'dans le tableau actuel',
+  },
+  backoffice_reporting_completion_bar_count: {
+    en: '{validated} out of {total} total units validated',
+    fr: '{validated} unités validées sur {total}',
   },
 
   backoffice_reporting_generate_formats: {

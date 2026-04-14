@@ -47,12 +47,14 @@ def _set_auth_cookies(
     response: Response,
     sub: str,
     email: str,
-    user_id: int,
+    institutional_id: str,
+    provider: str,
 ) -> None:
     """
     Helper function to create and set authentication cookies.
 
     Creates both access and refresh tokens and sets them as httpOnly cookies.
+    Uses stable identity fields (institutional_id, provider) instead of DB primary key.
     """
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
@@ -60,7 +62,8 @@ def _set_auth_cookies(
     token_data = {
         "sub": sub,
         "email": email,
-        "user_id": user_id,
+        "institutional_id": institutional_id,
+        "provider": provider,
     }
 
     access_token = create_access_token(
@@ -245,7 +248,8 @@ async def login_test(
     _set_auth_cookies(
         response=response,
         sub=user_info.get("sub", ""),
-        user_id=user.id,
+        institutional_id=user.institutional_id or str(user.id),
+        provider=str(UserProvider.TEST.value),
         email=user.email,
     )
 
@@ -381,7 +385,8 @@ async def auth_callback(
         _set_auth_cookies(
             response=response,
             sub=user_info.get("sub", ""),
-            user_id=user.id,
+            institutional_id=user.institutional_id,
+            provider=str(role_provider.type.value),
             email=user.email,
         )
 
@@ -485,6 +490,7 @@ async def get_me(
     Returns user details including id, email, roles.
     Requires valid auth_token cookie.
     Refreshes roles from provider on each call.
+    Resolves user by stable identity (institutional_id, provider) from JWT.
     """
     if not auth_token:
         raise HTTPException(
@@ -495,7 +501,6 @@ async def get_me(
     try:
         # Decode and validate token
         payload = decode_jwt(auth_token)
-        user_id = payload.get("user_id")
         sub = payload.get("sub")
 
         if not sub:
@@ -503,14 +508,55 @@ async def get_me(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
             )
-        if not user_id:
+
+        # Primary: resolve by stable identity (institutional_id, provider)
+        institutional_id = payload.get("institutional_id")
+        provider_str = payload.get("provider")
+
+        if institutional_id and provider_str:
+            try:
+                provider = UserProvider(int(provider_str))
+            except ValueError:
+                logger.warning(
+                    "Invalid provider in token",
+                    extra={"provider": provider_str},
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token payload",
+                )
+
+            user = await UserService(db).get_by_institutional_id_and_provider(
+                institutional_id=institutional_id,
+                provider=provider,
+            )
+        else:
+            # Fallback for legacy tokens with user_id (temporary migration support)
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token payload",
+                )
+            logger.warning(
+                "Legacy token with user_id detected - logging out user",
+                extra={"user_id": user_id},
+            )
+            # Clear legacy cookies to force clean re-login
+            response = Response()
+            response.delete_cookie(
+                key="auth_token",
+                path=settings.OAUTH_COOKIE_PATH or "/",
+            )
+            response.delete_cookie(
+                key="refresh_token",
+                path=settings.OAUTH_COOKIE_PATH or "/",
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
+                detail="Session expired. Please login again.",
             )
 
-        # Get user from database
-        user = await UserService(db).get_by_id(id=user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -550,6 +596,7 @@ async def refresh_token(
 
     Client should call this when access token expires.
     Returns new access token in cookie.
+    Resolves user by stable identity (institutional_id, provider) from JWT.
     """
     if not refresh_token:
         raise HTTPException(
@@ -573,14 +620,54 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload",
             )
-        user_id = payload.get("user_id")
-        if not user_id:
+
+        # Primary: resolve by stable identity (institutional_id, provider)
+        institutional_id = payload.get("institutional_id")
+        provider_str = payload.get("provider")
+
+        if institutional_id and provider_str:
+            try:
+                provider = UserProvider(int(provider_str))
+            except ValueError:
+                logger.warning(
+                    "Invalid provider in token",
+                    extra={"provider": provider_str},
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token payload",
+                )
+
+            user = await UserService(db).get_by_institutional_id_and_provider(
+                institutional_id=institutional_id,
+                provider=provider,
+            )
+        else:
+            # Fallback for legacy tokens with user_id (temporary migration support)
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token payload",
+                )
+            logger.warning(
+                "Legacy token with user_id detected - logging out user",
+                extra={"user_id": user_id},
+            )
+            # Clear legacy cookies to force clean re-login
+            response.delete_cookie(
+                key="auth_token",
+                path=settings.OAUTH_COOKIE_PATH or "/",
+            )
+            response.delete_cookie(
+                key="refresh_token",
+                path=settings.OAUTH_COOKIE_PATH or "/",
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
+                detail="Session expired. Please login again.",
             )
 
-        user = await UserService(db).get_by_id(user_id)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -600,7 +687,8 @@ async def refresh_token(
         _set_auth_cookies(
             response=response,
             sub=sub,
-            user_id=user.id,
+            institutional_id=user.institutional_id or str(user.id),
+            provider=str(user.provider.value),
             email=user.email,
         )
 
@@ -671,14 +759,39 @@ async def logout(
     if auth_token:
         try:
             payload = decode_jwt(auth_token)
-            user_id = payload.get("user_id")
-            user_email = payload.get("email")
+
+            # Support both new and legacy token formats for logout audit logging
+            institutional_id = payload.get("institutional_id")
+            provider_str = payload.get("provider")
+            user_id_from_token = payload.get("user_id")  # Legacy
 
             handler_id = "unknown"
-            if user_id:
-                user = await UserService(db).get_by_id(user_id)
+            user_email = payload.get("email")
+            user_id = None
+
+            if institutional_id and provider_str:
+                # New token format - resolve by stable identity
+                try:
+                    provider = UserProvider(int(provider_str))
+                    user = await UserService(db).get_by_institutional_id_and_provider(
+                        institutional_id=institutional_id,
+                        provider=provider,
+                    )
+                    if user:
+                        handler_id = user.institutional_id or str(user.id)
+                        user_id = user.id
+                        user_email = user.email
+                except ValueError:
+                    logger.warning(
+                        "Invalid provider in logout token",
+                        extra={"provider": provider_str},
+                    )
+            elif user_id_from_token:
+                # Legacy token format - resolve by user_id
+                user = await UserService(db).get_by_id(user_id_from_token)
                 if user and user.institutional_id:
                     handler_id = user.institutional_id
+                    user_id = user_id_from_token
 
             await _log_auth_audit_event(
                 db=db,

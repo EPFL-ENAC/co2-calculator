@@ -49,7 +49,7 @@ defineEmits<{
 
 interface SelectOption {
   label: string;
-  value: number;
+  value: string;
 }
 
 const loading = ref(false);

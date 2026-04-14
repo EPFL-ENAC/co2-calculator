@@ -370,13 +370,11 @@ async def test_get_emission_breakdown_includes_non_validated_modules(
             DataEntryEmission(
                 data_entry_id=validated_entry.id,
                 emission_type_id=EmissionType.equipment__scientific,
-                scope=3,
                 kg_co2eq=1200.0,
             ),
             DataEntryEmission(
                 data_entry_id=in_progress_entry.id,
                 emission_type_id=EmissionType.professional_travel__plane__eco,
-                scope=3,
                 kg_co2eq=800.0,
             ),
         ]
@@ -388,11 +386,11 @@ async def test_get_emission_breakdown_includes_non_validated_modules(
     result_by_module = {row[0]: row for row in result}
     assert ModuleTypeEnum.equipment_electric_consumption.value in result_by_module
     assert ModuleTypeEnum.professional_travel.value in result_by_module
-    assert result_by_module[ModuleTypeEnum.equipment_electric_consumption.value][3] == (
-        pytest.approx(1200.0)
-    )
+    assert result_by_module[ModuleTypeEnum.equipment_electric_consumption.value][
+        2
+    ] == pytest.approx(1200.0)
     assert result_by_module[ModuleTypeEnum.professional_travel.value][
-        3
+        2
     ] == pytest.approx(800.0)
 
 
@@ -434,13 +432,11 @@ async def test_get_emission_breakdown_excludes_other_reports(db_session: AsyncSe
             DataEntryEmission(
                 data_entry_id=target_entry.id,
                 emission_type_id=EmissionType.equipment__scientific,
-                scope=3,
                 kg_co2eq=500.0,
             ),
             DataEntryEmission(
                 data_entry_id=other_entry.id,
                 emission_type_id=EmissionType.equipment__scientific,
-                scope=3,
                 kg_co2eq=9999.0,
             ),
         ]
@@ -451,7 +447,7 @@ async def test_get_emission_breakdown_excludes_other_reports(db_session: AsyncSe
 
     assert len(result) == 1
     assert result[0][0] == ModuleTypeEnum.equipment_electric_consumption.value
-    assert result[0][3] == pytest.approx(500.0)
+    assert result[0][2] == pytest.approx(500.0)
 
 
 # ======================================================================

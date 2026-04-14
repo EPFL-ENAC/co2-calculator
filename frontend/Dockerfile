@@ -12,8 +12,12 @@ COPY package.json package-lock.json ./
 # Skip postinstall scripts to avoid running any build steps prematurely
 RUN npm ci --ignore-scripts
 
+
 # Copy source code
 COPY . .
+
+# Manually run the quasar prepare script
+RUN npx quasar prepare
 
 # Build the application (creates ./dist)
 RUN npm run build

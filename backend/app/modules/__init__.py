@@ -21,9 +21,15 @@ from app.modules.professional_travel.schemas import (
     ProfessionalTravelTrainHandlerCreate,
 )
 from app.modules.purchase.schemas import (
+    PurchaseAdditionalHandlerCreate,
     PurchaseHandlerCreate,
 )
-from app.modules.research_facilities.schemas import ResearchFacilitiesHandlerCreate
+from app.modules.research_facilities.animals_schemas import (
+    ResearchFacilitiesAnimalHandlerCreate,
+)
+from app.modules.research_facilities.common_schemas import (
+    ResearchFacilitiesCommonHandlerCreate,
+)
 
 __all__ = [
     "BuildingRoomHandlerCreate",
@@ -39,5 +45,7 @@ __all__ = [
     "ProfessionalTravelPlaneHandlerCreate",
     "ProfessionalTravelTrainHandlerCreate",
     "PurchaseHandlerCreate",
-    "ResearchFacilitiesHandlerCreate",
+    "PurchaseAdditionalHandlerCreate",
+    "ResearchFacilitiesCommonHandlerCreate",
+    "ResearchFacilitiesAnimalHandlerCreate",
 ]

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import JSON, Column, Integer
+from sqlalchemy import JSON, Column, Index, Integer, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -72,12 +72,21 @@ class TargetType(int, Enum):
     FACTORS = 1
 
 
-class IngestionStatus(int, Enum):
+class IngestionState(int, Enum):
+    """Lifecycle state of an ingestion job."""
+
     NOT_STARTED = 0
-    PENDING = 1
-    IN_PROGRESS = 2
-    COMPLETED = 3
-    FAILED = 4
+    QUEUED = 1
+    RUNNING = 2
+    FINISHED = 3  # terminal state no more updates expected (error + success)
+
+
+class IngestionResult(int, Enum):
+    """Outcome result of an ingestion job (only valid when state is FINISHED)."""
+
+    SUCCESS = 0
+    WARNING = 1
+    ERROR = 2
 
 
 # ==========================================
@@ -164,14 +173,27 @@ class DataIngestionJobBase(SQLModel):
         description=_provider_comment,
     )
 
-    _status_comment = "Current status of the ingestion job IngestionStatus"
-    status: IngestionStatus = Field(
-        default=IngestionStatus.NOT_STARTED,
+    _state_comment = "Lifecycle state of the ingestion job (IngestionState)"
+    state: Optional[IngestionState] = Field(
+        default=None,
         sa_column=Column(
-            SAEnum(IngestionStatus, name="ingestion_status_enum", native_enum=True),
-            nullable=False,
+            SAEnum(IngestionState, name="ingestion_state_enum", native_enum=True),
+            nullable=True,
         ),
-        description=_status_comment,
+        description=_state_comment,
+    )
+
+    _result_comment = (
+        "NULLABLE: Outcome result of the ingestion job"
+        " (only valid when state is FINISHED)"
+    )
+    result: Optional[IngestionResult] = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(IngestionResult, name="ingestion_result_enum", native_enum=True),
+            nullable=True,
+        ),
+        description=_result_comment,
     )
 
     _status_message_comment = "NULLABLE: Detailed status or error message"
@@ -197,7 +219,30 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    is_current: bool = Field(
+        default=False,
+        description=(
+            "Whether this is the current active job "
+            "for this module/data_entry_type/ingestion_method/target/year combination"
+        ),
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_data_ingestion_jobs_is_current_unique",
+            "module_type_id",
+            "data_entry_type_id",
+            "target_type",
+            "ingestion_method",
+            "year",
+            unique=True,
+            postgresql_where=text("is_current = true"),
+        ),
+    )
 
     def __repr__(self) -> str:
-        return f"""<DataIngestionJob id={self.id}
-            provider={self.provider} status={self.status}>"""
+        return (
+            f"<DataIngestionJob id={self.id} "
+            f"provider={self.provider} status={self.state} "
+            f"result={self.result} is_current={self.is_current}>"
+        )

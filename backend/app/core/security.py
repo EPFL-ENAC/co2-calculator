@@ -18,7 +18,6 @@ from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.db import get_db
 from app.models.user import User
-from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
 security = HTTPBearer()
@@ -79,17 +78,49 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
     token: str = Depends(get_jwt_from_cookie),
 ) -> User:
+    """Get current user from JWT token.
+
+    Resolves user by stable identity (institutional_id, provider) from JWT.
+    Legacy tokens with user_id will fail with authentication error.
+    """
+    from app.models.user import UserProvider
+    from app.services.user_service import UserService
+
     payload = decode_jwt(token)
 
-    user_id = payload.get("user_id")
-    if user_id is None:
+    # Primary: resolve by stable identity (institutional_id, provider)
+    institutional_id = payload.get("institutional_id")
+    provider_str = payload.get("provider")
+
+    if institutional_id and provider_str:
+        try:
+            provider = UserProvider(int(provider_str))
+        except ValueError:
+            logger.error(
+                "Invalid provider in token",
+                extra={"provider": provider_str},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
+
+        user = await UserService(db).get_by_institutional_id_and_provider(
+            institutional_id=institutional_id,
+            provider=provider,
+        )
+    else:
+        # Legacy token with user_id - reject and force re-login
+        user_id = payload.get("user_id")
+        logger.warning(
+            "Legacy token with user_id detected in get_current_user",
+            extra={"user_id": user_id},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Session expired. Please login again.",
         )
 
-    user_repo = UserRepository(db)
-    user = await user_repo.get_by_id(user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
