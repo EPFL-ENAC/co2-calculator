@@ -363,6 +363,7 @@ const chartOption = computed((): EChartsOption => {
     },
     yAxis: {
       type: 'category',
+      inverse: true,
       axisLabel: {
         fontSize: 10,
         width: 150,
