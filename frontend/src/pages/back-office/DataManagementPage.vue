@@ -4,6 +4,7 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import TempFilesBanner from 'src/components/organisms/data-management/TempFilesBanner.vue';
 import { MODULES_LIST } from 'src/constant/modules';
+
 import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
 import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
 
@@ -191,7 +192,12 @@ onMounted(() => {
         color="accent"
         :label="$t('open_year_for_users')"
         class="text-weight-medium text-capitalize q-mt-md"
-      />
+        :disable="yearConfigStore.anyModuleIncomplete"
+      >
+        <q-tooltip v-if="yearConfigStore.anyModuleIncomplete">
+          {{ $t('data_management_open_year_disabled_tooltip') }}
+        </q-tooltip>
+      </q-btn>
     </div>
   </q-page>
 </template>

@@ -18,7 +18,7 @@ import { useI18n } from 'vue-i18n';
 import {
   MODULE_SUBMODULES,
   type SubmoduleConfig,
-} from '../../../constant/backoffice-module-config';
+} from 'src/constant/backoffice-module-config';
 
 const props = defineProps<{
   module: string;
@@ -28,6 +28,7 @@ const props = defineProps<{
 const { t: $t } = useI18n();
 const yearConfigStore = useYearConfigStore();
 const backofficeDataManagement = useBackofficeDataManagement();
+const { isSubmoduleEnabled, isSubmoduleIncomplete } = yearConfigStore;
 
 // ── Injected from ModuleConfig ────────────────────────────────────────────────
 
@@ -207,15 +208,6 @@ function safeFileName(meta: unknown): string | undefined {
 
 // ── Submodule config helpers ──────────────────────────────────────────────────
 
-function isSubmoduleEnabled(sub: SubmoduleConfig): boolean {
-  const moduleKey = String(sub.moduleTypeId);
-  const subKey =
-    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
-  if (!subKey) return true;
-  const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
-  return moduleConfig?.submodules?.[subKey]?.enabled ?? true;
-}
-
 async function updateSubmoduleEnabled(
   sub: SubmoduleConfig,
   value: boolean,
@@ -391,6 +383,16 @@ async function confirmComputedFactorSync(): Promise<void> {
             color="warning"
             class="text-weight-medium"
             :label="$t('data_management_recalculation_needed')"
+          />
+          <q-badge
+            v-if="
+              isSubmoduleEnabled(submodule) && isSubmoduleIncomplete(submodule)
+            "
+            outline
+            rounded
+            color="accent"
+            class="text-weight-medium"
+            :label="$t('common_filter_incomplete')"
           />
         </div>
       </q-item-section>

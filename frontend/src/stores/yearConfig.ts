@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
+import {
+  MODULE_SUBMODULES,
+  MODULE_COMMON_UPLOADS,
+  type SubmoduleConfig as ModuleUploadConfig,
+} from 'src/constant/backoffice-module-config';
+import { MODULES_LIST } from 'src/constant/modules';
 
 export interface FileMetadata {
   path: string;
@@ -260,6 +266,98 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     () => config.value?.latest_jobs ?? [],
   );
 
+  // ── Completeness helpers ────────────────────────────────────────────────────
+
+  function isModuleEnabled(module: string): boolean {
+    const subs =
+      MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
+    const moduleTypeId = subs.length > 0 ? subs[0].moduleTypeId : 0;
+    if (!moduleTypeId) return true;
+    return (
+      config.value?.config?.modules?.[String(moduleTypeId)]?.enabled ?? true
+    );
+  }
+
+  function isSubmoduleEnabled(sub: ModuleUploadConfig): boolean {
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return true;
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    return mod?.submodules?.[subKey]?.enabled ?? true;
+  }
+
+  function _preferredIngestionMethods(targetType: 0 | 1): string[] {
+    if (targetType === 1) {
+      return ['CSV', 'COMPUTED'];
+    }
+    return ['CSV', 'API', 'COMPUTED'];
+  }
+
+  function _pickLatestJobByIngestionMethod(
+    candidates: (typeof latestJobs.value)[number][],
+    targetType: 0 | 1,
+  ) {
+    const preferredMethods = _preferredIngestionMethods(targetType);
+    for (const method of preferredMethods) {
+      const job = candidates.find(
+        (candidate) =>
+          String(candidate.ingestion_method ?? '').toUpperCase() === method,
+      );
+      if (job) return job;
+    }
+    return candidates[0];
+  }
+
+  function _latestJob(sub: ModuleUploadConfig, targetType: 0 | 1) {
+    const candidates = latestJobs.value.filter(
+      (j) =>
+        j.module_type_id === sub.moduleTypeId && j.target_type === targetType,
+    );
+    const scopedCandidates =
+      sub.dataEntryTypeId !== undefined
+        ? candidates.filter(
+            (j) => (j.data_entry_type_id ?? undefined) === sub.dataEntryTypeId,
+          )
+        : candidates;
+
+    // Prefer the ingestion method used for completeness checks instead of
+    // relying on API ordering when multiple current jobs exist.
+    return _pickLatestJobByIngestionMethod(scopedCandidates, targetType);
+  }
+
+  function isSubmoduleIncomplete(sub: ModuleUploadConfig): boolean {
+    if (!sub.noFactors) {
+      const job = _latestJob(sub, 1);
+      if (!job || job.result !== 0) return true;
+    }
+    if (sub.other) {
+      const job = _latestJob(sub, 0);
+      if (!job || job.result !== 0) return true;
+    }
+    return false;
+  }
+
+  function isModuleIncomplete(module: string): boolean {
+    if (!isModuleEnabled(module)) return false;
+    const submodules =
+      MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
+    const commonUploads =
+      MODULE_COMMON_UPLOADS[module as keyof typeof MODULE_COMMON_UPLOADS] ?? [];
+    if (submodules.length === 0 && commonUploads.length === 0) return false;
+    return (
+      submodules.some(
+        (sub) => isSubmoduleEnabled(sub) && isSubmoduleIncomplete(sub),
+      ) || commonUploads.some((common) => isSubmoduleIncomplete(common))
+    );
+  }
+
+  /** True when any enabled module has mandatory uploads missing or failed. */
+  const anyModuleIncomplete = computed(
+    () => !!config.value && MODULES_LIST.some((m) => isModuleIncomplete(m)),
+  );
+
   return {
     // State
     config,
@@ -269,6 +367,12 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound,
     // Computed
     latestJobs,
+    anyModuleIncomplete,
+    // Completeness helpers
+    isModuleEnabled,
+    isSubmoduleEnabled,
+    isModuleIncomplete,
+    isSubmoduleIncomplete,
     // Methods
     fetchConfig,
     createConfig,

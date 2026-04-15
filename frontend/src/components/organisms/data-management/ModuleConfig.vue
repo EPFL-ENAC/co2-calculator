@@ -8,7 +8,7 @@ import {
   MODULE_SUBMODULES,
   MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as SubmoduleConfigItem,
-} from '../../../constant/backoffice-module-config';
+} from 'src/constant/backoffice-module-config';
 
 import {
   useBackofficeDataManagement,
@@ -48,6 +48,8 @@ const props = defineProps<{
 const { t: $t } = useI18n();
 const yearConfigStore = useYearConfigStore();
 const backofficeDataManagement = useBackofficeDataManagement();
+
+const { isModuleEnabled, isModuleIncomplete } = yearConfigStore;
 
 const expanded = ref(false);
 
@@ -199,14 +201,6 @@ function getModuleTypeIdFromName(module: string): number {
   return subs.length > 0 ? subs[0].moduleTypeId : 0;
 }
 
-function isModuleEnabled(module: string): boolean {
-  const moduleTypeId = getModuleTypeIdFromName(module);
-  if (!moduleTypeId) return true;
-  const moduleConfig =
-    yearConfigStore.config?.config?.modules?.[String(moduleTypeId)];
-  return moduleConfig?.enabled ?? true;
-}
-
 async function updateModuleEnabled(
   module: string,
   value: boolean,
@@ -221,15 +215,6 @@ async function updateModuleEnabled(
   } catch {
     Notify.create({ type: 'negative', message: $t('year_config_save_error') });
   }
-}
-
-function isSubmoduleEnabled(sub: SubmoduleConfigItem): boolean {
-  const moduleKey = String(sub.moduleTypeId);
-  const subKey =
-    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
-  if (!subKey) return true;
-  const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
-  return moduleConfig?.submodules?.[subKey]?.enabled ?? true;
 }
 
 function getModuleUncertainty(module: string): UncertaintyTag {
@@ -256,24 +241,6 @@ async function updateModuleUncertainty(
   } catch {
     Notify.create({ type: 'negative', message: $t('year_config_save_error') });
   }
-}
-
-function isModuleIncomplete(module: string): boolean {
-  if (!isModuleEnabled(module)) return false;
-  const submodules =
-    MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
-  if (submodules.length === 0) return false;
-  return submodules.some((sub) => {
-    if (!isSubmoduleEnabled(sub)) return false;
-    const row = getImportRow(sub);
-    const dataIncomplete =
-      row.hasData && (!row.lastDataJob || row.lastDataJob.result !== 0);
-    const factorsIncomplete =
-      row.hasFactors && (!row.lastFactorJob || row.lastFactorJob.result !== 0);
-    const referencesIncomplete =
-      row.hasOtherUpload && (!row.lastDataJob || row.lastDataJob.result !== 0);
-    return dataIncomplete || factorsIncomplete || referencesIncomplete;
-  });
 }
 
 // ── Dialog: data entry ────────────────────────────────────────────────────────

@@ -624,4 +624,12 @@ export default {
     en: 'No stale submodule | One stale submodule | {count} stale submodules',
     fr: 'Aucun sous-module obsolète | Un sous-module obsolète | {count} sous-modules obsolètes',
   },
+  data_management_loading: {
+    en: 'Loading year configuration…',
+    fr: "Chargement de la configuration de l'année…",
+  },
+  data_management_open_year_disabled_tooltip: {
+    en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
+    fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
+  },
 } as const;
