@@ -173,12 +173,12 @@ onMounted(() => {
       </q-card>
 
       <!-- Loading skeleton -->
-      <template v-else-if="yearConfigStore.loading">
+      <template v-else-if="yearConfigStore.loading && !yearConfigStore.config">
         <q-skeleton type="rect" height="80px" class="q-mb-md" />
         <q-skeleton type="rect" height="200px" class="q-mb-md" />
       </template>
 
-      <template v-if="yearConfigStore.config && !yearConfigStore.loading">
+      <template v-if="yearConfigStore.config">
         <temp-files-banner class="q-mb-xl" />
         <template v-for="module in MODULES_LIST" :key="module">
           <ModuleConfig :module="module" :selected-year="selectedYear" />

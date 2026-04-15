@@ -376,9 +376,11 @@ async function confirmComputedFactorSync(): Promise<void> {
     <template #header>
       <q-item-section>
         <div class="row items-center q-gutter-sm">
-          <span class="text-body2 text-weight-medium">{{
-            $t(submodule.labelKey)
-          }}</span>
+          <span
+            class="text-body2 text-weight-medium"
+            :class="!isSubmoduleEnabled(submodule) ? 'text-grey-6' : ''"
+            >{{ $t(submodule.labelKey) }}</span
+          >
           <q-badge
             v-if="
               submodule.dataEntryTypeId !== undefined &&
@@ -421,7 +423,15 @@ async function confirmComputedFactorSync(): Promise<void> {
         />
       </q-card>
       <q-separator class="q-my-xs" />
-      <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
+      <q-card
+        flat
+        class="col q-px-lg q-pt-lg q-pb-md"
+        :style="
+          !isSubmoduleEnabled(submodule)
+            ? 'opacity: 0.45; pointer-events: none'
+            : undefined
+        "
+      >
         <div class="row items-center q-mb-xs">
           <q-icon
             name="legend_toggle"
@@ -460,7 +470,12 @@ async function confirmComputedFactorSync(): Promise<void> {
     <div
       v-if="submoduleShowsImportRow(submodule)"
       class="row q-pa-md"
-      style="gap: 1rem"
+      :style="[
+        { gap: '1rem' },
+        !isSubmoduleEnabled(submodule)
+          ? { opacity: 0.45, pointerEvents: 'none' }
+          : {},
+      ]"
     >
       <!-- Data -->
       <q-card
