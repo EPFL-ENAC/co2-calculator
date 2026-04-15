@@ -1,6 +1,6 @@
 <template>
   <q-input
-    v-if="isStandardUser"
+    v-if="isStandardUser && members.length > 0"
     :model-value="options[0].label"
     readonly
     dense
@@ -72,18 +72,13 @@ interface SelectOption {
 const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
-const isStandardUser = computed(() => {
-  return (
-    members.value.length === 1 &&
-    authStore.user?.institutional_id === members.value[0].institutional_id
-  );
-});
-const isNotValidated = computed(() => {
-  return (
-    members.value.length === 0 &&
-    !hasPermission(authStore.user?.permissions, 'modules.headcount', 'view')
-  );
-});
+const isUnitManager = computed(() =>
+  hasPermission(authStore.user?.permissions, 'modules.headcount', 'view'),
+);
+const isStandardUser = computed(() => !isUnitManager.value);
+const isNotValidated = computed(
+  () => members.value.length === 0 && isStandardUser.value,
+);
 const options = ref<SelectOption[]>([]);
 
 function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {

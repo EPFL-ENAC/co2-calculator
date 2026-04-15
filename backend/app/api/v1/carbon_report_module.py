@@ -123,15 +123,23 @@ def _has_global_or_principal_access_for_unit(
     current_user: User,
     unit: Optional[Unit],
 ) -> bool:
-    """Return whether the user has global or principal access for the unit."""
+    """Return whether the user has global or principal access for the unit.
+
+    Accred roles store the unit code in ``RoleScope.institutional_id``, matching
+    ``Unit.institutional_code``.  Test roles store ``Unit.institutional_id``
+    instead, so we check both fields.
+    """
     if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
         return True
-    if unit is None or unit.institutional_id is None:
+    if unit is None:
         return False
-    return (
-        pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
-        == RoleName.CO2_USER_PRINCIPAL
-    )
+    for field in (unit.institutional_code, unit.institutional_id):
+        if field is not None and (
+            pick_role_for_institutional_id(current_user.roles, field)
+            == RoleName.CO2_USER_PRINCIPAL
+        ):
+            return True
+    return False
 
 
 async def get_request_context(request: Request) -> dict:
@@ -426,20 +434,16 @@ async def list_headcount_members(
     # Data-level scope: determine the user's effective role FOR THIS SPECIFIC UNIT.
     # `get_module_permission_decision` uses calculate_user_permissions which is
     # scope-blind (a principal for unit A would appear to have headcount.view for
-    # unit B too).  We instead check the unit's own institutional_id directly.
+    # unit B too). We instead check the unit's own institutional_code directly.
     unit = await db.get(Unit, unit_id)
-    unit_iid = unit.institutional_id if unit else None
 
     # Full access: global roles or principal of this specific unit.
     # NOTE: having headcount.view permission alone does NOT grant full access —
     # that permission is scope-blind (a principal for unit A also appears to have
     # headcount.view for unit B). The role check below is the authoritative guard.
-    has_full_access = any(
-        isinstance(r.on, GlobalScope) for r in current_user.roles
-    ) or (
-        unit_iid is not None
-        and pick_role_for_institutional_id(current_user.roles, unit_iid)
-        == RoleName.CO2_USER_PRINCIPAL
+    has_full_access = _has_global_or_principal_access_for_unit(
+        current_user=current_user,
+        unit=unit,
     )
 
     carbon_report_module_id = await get_carbon_report_id(
