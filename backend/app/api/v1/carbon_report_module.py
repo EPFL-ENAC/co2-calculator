@@ -125,21 +125,17 @@ def _has_global_or_principal_access_for_unit(
 ) -> bool:
     """Return whether the user has global or principal access for the unit.
 
-    Accred roles store the unit code in ``RoleScope.institutional_id``, matching
-    ``Unit.institutional_code``.  Test roles store ``Unit.institutional_id``
-    instead, so we check both fields.
+    ``RoleScope.institutional_id`` always stores ``Unit.institutional_id``.
     """
     if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
         return True
     if unit is None:
         return False
-    for field in (unit.institutional_code, unit.institutional_id):
-        if field is not None and (
-            pick_role_for_institutional_id(current_user.roles, field)
-            == RoleName.CO2_USER_PRINCIPAL
-        ):
-            return True
-    return False
+    return (
+        unit.institutional_id is not None
+        and pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        == RoleName.CO2_USER_PRINCIPAL
+    )
 
 
 async def get_request_context(request: Request) -> dict:

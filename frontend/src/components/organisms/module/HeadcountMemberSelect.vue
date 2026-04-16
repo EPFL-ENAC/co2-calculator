@@ -1,6 +1,6 @@
 <template>
   <q-input
-    v-if="isStandardUser && members.length > 0"
+    v-if="!canEditHeadcount && members.length > 0"
     :model-value="options[0].label"
     readonly
     dense
@@ -72,12 +72,11 @@ interface SelectOption {
 const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
-const isUnitManager = computed(() =>
-  hasPermission(authStore.user?.permissions, 'modules.headcount', 'view'),
+const canEditHeadcount = computed(() =>
+  hasPermission(authStore.user?.permissions, 'modules.headcount', 'edit'),
 );
-const isStandardUser = computed(() => !isUnitManager.value);
 const isNotValidated = computed(
-  () => members.value.length === 0 && isStandardUser.value,
+  () => members.value.length === 0 && !canEditHeadcount.value,
 );
 const options = ref<SelectOption[]>([]);
 
@@ -94,7 +93,7 @@ onMounted(async () => {
   try {
     members.value = await getHeadcountMembers(props.unitId, props.year);
     options.value = buildOptions(members.value);
-    if (isStandardUser.value && options.value.length > 0) {
+    if (!canEditHeadcount.value && options.value.length > 0) {
       emit('update:modelValue', options.value[0].value);
     }
   } catch {
