@@ -440,6 +440,17 @@ class DataEntryEmissionService:
         First deletes existing emissions for this data entry, then creates new ones.
         Returns the list of created/updated emissions.
         """
+        # Strip any stored kg_co2eq from data before recomputing so that the
+        # CSV override in prepare_create does not suppress the formula.
+        # (e.g. a changed number_of_trips).
+        if data_entry_response.data.get("kg_co2eq") is not None:
+            clean_data = {
+                k: v for k, v in data_entry_response.data.items() if k != "kg_co2eq"
+            }
+            data_entry_response = data_entry_response.model_copy(
+                update={"data": clean_data}
+            )
+
         # Prepare the emission records
         prepared_emissions = await self.prepare_create(data_entry_response)
         if not prepared_emissions:

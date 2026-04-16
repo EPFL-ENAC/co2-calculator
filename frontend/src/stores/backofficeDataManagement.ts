@@ -24,6 +24,7 @@ export interface ImportRow {
   labelDataEntryKey?: string;
   moduleTypeId: number;
   dataEntryTypeId?: number;
+  reductionObjectiveTypeId?: number; // # Reduction-objective CSV row models 0: institutional_footprint; 1: population_projections; 2: unit_scenarios;
   factorVariant?: 'plane' | 'train';
   hasFactors: boolean;
   hasApi: boolean;
@@ -87,10 +88,14 @@ export enum IngestionMethod {
   MANUAL = 2,
   COMPUTED = 3,
 }
-
+// institutional_footprint
+// population_projections
+// unit_scenarios
 export enum TargetType {
   DATA_ENTRIES = 0,
   FACTORS = 1,
+  REDUCTION_OBJECTIVES = 2,
+  REFERENCE_DATA = 3,
 }
 
 export enum EntityType {
@@ -363,6 +368,9 @@ provider_type
         if (data_entry_type_id !== undefined && data_entry_type_id !== null) {
           mergedConfig.data_entry_type_id = data_entry_type_id;
         }
+        if (module_type_id !== undefined && module_type_id !== null) {
+          mergedConfig.module_type_id = module_type_id;
+        }
         if (
           carbon_report_module_id !== undefined &&
           carbon_report_module_id !== null
@@ -385,8 +393,10 @@ provider_type
           requestBody.file_path = file_path;
         }
 
+        const urlPath = `sync/dispatch`;
+
         const response = (await api
-          .post(`sync/data-entries/${module_type_id}`, {
+          .post(urlPath, {
             json: requestBody,
           })
           .json()) as { job_id: number };

@@ -184,6 +184,7 @@ export const professionalTravel: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   hasSubmodules: true,
   formStructure: 'perSubmodule',
   numberFormatOptions: {

@@ -152,12 +152,15 @@ class TestCSVUploadBasic:
             "ingestion_method": IngestionMethod.csv.value,
             "target_type": 0,
             "year": 2025,
-            "data_entry_type_id": 1,  # member
             "file_path": file_path,
+            "config": {
+                "module_type_id": ModuleTypeEnum.headcount.value,
+                "data_entry_type_id": 1,  # member
+            },
         }
 
         response = client.post(
-            f"/api/v1/sync/data-entries/{ModuleTypeEnum.headcount.value}",
+            "/api/v1/sync/dispatch",
             json=ingestion_request,
             headers={"Authorization": f"Bearer {test_user.email}"},
         )

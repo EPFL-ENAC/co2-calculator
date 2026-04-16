@@ -175,7 +175,8 @@ export const equipmentElectricConsumption: ModuleConfig = {
   type: MODULES.EquipmentElectricConsumption as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: false,
+  hasTooltip: true,
+  hasTooltipSubText: true,
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0], // fixed threshold; configurable via backoffice later
     value: 100, // kg CO₂-eq; implicit coloring only

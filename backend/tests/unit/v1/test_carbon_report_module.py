@@ -47,7 +47,7 @@ def _global():
 def _mock_db(unit_iid=UNIT_IID, unit_found=True):
     db = MagicMock()
     unit = MagicMock()
-    unit.institutional_id = unit_iid
+    unit.institutional_code = unit_iid
     db.get = AsyncMock(return_value=unit if unit_found else None)
     return db
 

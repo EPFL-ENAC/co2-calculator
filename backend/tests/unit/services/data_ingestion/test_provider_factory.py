@@ -56,9 +56,11 @@ def test_get_provider_by_keys_api_provider():
 
 @pytest.mark.asyncio
 async def test_create_provider_valid_entity_type():
-    config = {"entity_type": EntityType.MODULE_PER_YEAR.value}
+    config = {
+        "entity_type": EntityType.MODULE_PER_YEAR.value,
+        "module_type_id": ModuleTypeEnum.headcount,
+    }
     provider = await ProviderFactory.create_provider(
-        module_type_id=ModuleTypeEnum.headcount,
         ingestion_method=IngestionMethod.csv,
         target_type=TargetType.DATA_ENTRIES,
         config=config,
@@ -73,10 +75,9 @@ async def test_create_provider_valid_entity_type():
 @pytest.mark.asyncio
 async def test_create_provider_missing_entity_type():
     provider = await ProviderFactory.create_provider(
-        module_type_id=ModuleTypeEnum.headcount,
         ingestion_method=IngestionMethod.csv,
         target_type=TargetType.DATA_ENTRIES,
-        config={},
+        config={"module_type_id": ModuleTypeEnum.headcount},
         user=MagicMock(spec=User),
         job_session=None,
         data_session=MagicMock(),
@@ -87,9 +88,8 @@ async def test_create_provider_missing_entity_type():
 
 @pytest.mark.asyncio
 async def test_create_provider_invalid_entity_type():
-    config = {"entity_type": "not-valid"}
+    config = {"entity_type": "not-valid", "module_type_id": ModuleTypeEnum.headcount}
     provider = await ProviderFactory.create_provider(
-        module_type_id=ModuleTypeEnum.headcount,
         ingestion_method=IngestionMethod.csv,
         target_type=TargetType.DATA_ENTRIES,
         config=config,
@@ -103,9 +103,11 @@ async def test_create_provider_invalid_entity_type():
 
 @pytest.mark.asyncio
 async def test_create_provider_no_matching_provider():
-    config = {"entity_type": EntityType.MODULE_PER_YEAR.value}
+    config = {
+        "entity_type": EntityType.MODULE_PER_YEAR.value,
+        "module_type_id": ModuleTypeEnum.headcount,
+    }
     provider = await ProviderFactory.create_provider(
-        module_type_id=ModuleTypeEnum.headcount,
         ingestion_method=IngestionMethod.api,
         target_type=TargetType.DATA_ENTRIES,
         config=config,
@@ -139,6 +141,49 @@ def test_get_provider_by_keys_common_computed_5tuple():
         data_entry_type_id=DataEntryTypeEnum.research_facilities,
     )
     assert provider_class is ResearchFacilitiesCommonFactorUpdateProvider
+
+
+def test_get_provider_by_keys_invalid_data_entry_type_id():
+    """Invalid data_entry_type_id → det=None, falls back to 4-tuple."""
+    provider_class = ProviderFactory.get_provider_by_keys(
+        ModuleTypeEnum.headcount,
+        IngestionMethod.csv,
+        TargetType.DATA_ENTRIES,
+        EntityType.MODULE_UNIT_SPECIFIC,
+        data_entry_type_id=99999,  # invalid
+    )
+    # Falls through to 4-tuple lookup which should still match
+    assert provider_class is ModuleUnitSpecificCSVProvider
+
+
+def test_get_provider_by_keys_data_entry_type_without_module_type():
+    """data_entry_type_id provided but module_type_id=None → ValueError."""
+    with pytest.raises(ValueError, match="module_type_id is required"):
+        ProviderFactory.get_provider_by_keys(
+            module_type_id=None,
+            ingestion_method=IngestionMethod.computed,
+            target_type=TargetType.FACTORS,
+            entity_type=EntityType.MODULE_PER_YEAR,
+            data_entry_type_id=DataEntryTypeEnum.mice_and_fish_animal_facilities,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_provider_data_session_none_raises():
+    """Provider found but data_session is None → ValueError."""
+    config = {
+        "entity_type": EntityType.MODULE_PER_YEAR.value,
+        "module_type_id": ModuleTypeEnum.headcount,
+    }
+    with pytest.raises(ValueError, match="Data session is required"):
+        await ProviderFactory.create_provider(
+            ingestion_method=IngestionMethod.csv,
+            target_type=TargetType.DATA_ENTRIES,
+            config=config,
+            user=MagicMock(spec=User),
+            job_session=None,
+            data_session=None,
+        )
 
 
 def test_providers_by_class_name_includes_computed_providers():
