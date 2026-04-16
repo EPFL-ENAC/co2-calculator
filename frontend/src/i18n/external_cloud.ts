@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.ExternalCloudAndAI]: {
@@ -107,5 +107,20 @@ export default {
   [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
     en: 'Number of users (fte)',
     fr: "Nombre d'utilisateurs (EPT)",
+  },
+  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-table-title-info-tooltip`]:
+    {
+      en: 'External Cloud Tooltip',
+      fr: 'External Cloud Tooltip',
+    },
+  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}-table-title-info-tooltip`]:
+    {
+      en: 'External AI Tooltip',
+      fr: 'External AI Tooltip',
+    },
+
+  [`${MODULES.ExternalCloudAndAI}-title-tooltip-subtext`]: {
+    en: 'You can add data one at a time using the Add button below, or upload several entries at once using a file that follows the template.',
+    fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
   },
 } as const;

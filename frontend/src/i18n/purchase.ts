@@ -149,9 +149,49 @@ export default {
       en: 'Additional Purchases ({count})',
       fr: 'Achats supplémentaires ({count})',
     },
+
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase Scientific Tooltip',
+      fr: 'Purchase Scientific Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase It Equipment Tooltip',
+      fr: 'Purchase It Equipment Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase ConsumablePurchases Tooltip',
+      fr: 'Purchase ConsumablePurchases Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase BioProductPurchases Tooltip',
+      fr: 'Purchase BioProductPurchases Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ServicePurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase Serivices Tooltip',
+      fr: 'Purchase Serivices Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.VehiclePurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase Vehicules Tooltip',
+      fr: 'Purchase Vehicules Tooltip',
+    },
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.OtherPurchases}-table-title-info-tooltip`]:
+    {
+      en: 'Purchase Other Purchases Tooltip',
+      fr: 'Purchase Other Purchases Tooltip',
+    },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title-info-tooltip`]:
     {
       en: 'Enter annual consumption values if your unit uses any of the items listed below.',
       fr: 'Saisissez les consommations annuelles si votre unité utilise les éléments listés ci-dessous.',
     },
+  [`${MODULES.Purchase}-title-tooltip-subtext`]: {
+    en: 'Purchase Title Tooltip',
+    fr: 'Purchase Title Tooltip',
+  },
 } as const;

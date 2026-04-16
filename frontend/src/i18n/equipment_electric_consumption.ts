@@ -1,9 +1,13 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_EQUIPMENT_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.EquipmentElectricConsumption]: {
     en: 'Equipment',
     fr: 'Équipements',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-subtext`]: {
+    en: 'Equipment title tooltip',
+    fr: 'Tiooltip sur le module équipement',
   },
   [`${MODULES.EquipmentElectricConsumption}-common`]: {
     en: 'Common data and factors | Common data and factors',
@@ -13,10 +17,7 @@ export default {
     en: 'Estimate the electrical consumption of all equipment in your unit',
     fr: 'Estimez la consommation électrique de tous les équipements dans votre unité',
   },
-  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-title`]: {
-    en: 'About Equipment Electric Consumption',
-    fr: 'À propos de la consommation électrique des équipements',
-  },
+
   [`${MODULES.EquipmentElectricConsumption}-title-subtext`]: {
     en: `This module allows you to estimate the electrical consumption of the scientific, IT, and other equipment in your unit. The equipment list comes from the equipment inventory carried out by your unit for the faculty. Please fill in the following columns:
 Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task. If your equipement active or standby use is different from the one used by default, please contact the administrator.
@@ -134,5 +135,20 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     {
       en: 'Equivalent to {freezers} freezers a full year.',
       fr: 'Équivalent à {freezers} congélateurs pendant une année complète.',
+    },
+  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Scientific}-table-title-info-tooltip`]:
+    {
+      en: 'Equipment Scientific Tooltip',
+      fr: 'Equipment Scientific Tooltip',
+    },
+  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.IT}-table-title-info-tooltip`]:
+    {
+      en: 'Equipment IT Tooltip',
+      fr: 'Equipment IT Tooltip',
+    },
+  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Other}-table-title-info-tooltip`]:
+    {
+      en: 'Equipment Other Tooltip',
+      fr: 'Equipment Other Tooltip',
     },
 } as const;

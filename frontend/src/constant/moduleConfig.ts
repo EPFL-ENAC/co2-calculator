@@ -140,6 +140,7 @@ export interface ModuleConfig {
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;
   hasTooltip: boolean;
+  hasTooltipSubText?: boolean;
   hasSubmodules: boolean;
   isCollapsible?: boolean;
   uncertainty?: 'high' | 'medium' | 'low';

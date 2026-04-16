@@ -110,6 +110,7 @@ export const headcount: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   name: 'Headcount',
   description:
     'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',

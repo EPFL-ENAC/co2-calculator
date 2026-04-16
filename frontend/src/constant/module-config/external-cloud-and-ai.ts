@@ -177,6 +177,7 @@ export const externalCloudAndAi: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   description: 'Track external cloud services and AI usage',
   hasSubmodules: true,
   formStructure: 'perSubmodule',
