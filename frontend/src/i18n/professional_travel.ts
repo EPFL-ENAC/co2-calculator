@@ -1,4 +1,7 @@
-import { MODULES } from 'src/constant/modules';
+import {
+  MODULES,
+  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
+} from 'src/constant/modules';
 
 export default {
   // Table (Chapter 5)
@@ -126,8 +129,8 @@ export default {
     fr: 'Empreinte CO₂ totale déplacements',
   },
   [`${MODULES.ProfessionalTravel}-title-tooltip-title`]: {
-    en: '',
-    fr: '',
+    en: 'Professional Travel Title Tooltip',
+    fr: 'Professional Travel Title Tooltip',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {
@@ -212,5 +215,20 @@ export default {
   [`${MODULES.ProfessionalTravel}-field-traveler-not-validated`]: {
     en: 'You have not been validated in the headcount. Please contact your unit manager.',
     fr: "Vous n'avez pas été validé dans les effectifs. Veuillez contacter votre responsable d'unité.",
+  },
+  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane}-table-title-info-tooltip`]:
+    {
+      en: 'Professional Travel Plane Tooltip',
+      fr: 'Professional Travel Plane Tooltip',
+    },
+  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train}-table-title-info-tooltip`]:
+    {
+      en: 'Professional Travel Train Tooltip',
+      fr: 'Professional Travel Train Tooltip',
+    },
+
+  [`${MODULES.ProfessionalTravel}-title-tooltip-subtext`]: {
+    en: 'Professional Travel Title Tooltip',
+    fr: 'Professional Travel Title Tooltip',
   },
 } as const;

@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_PROCESSES_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.ProcessEmissions]: {
@@ -52,5 +52,15 @@ export default {
   [`${MODULES.ProcessEmissions}.work_in_progress`]: {
     en: 'work in progress, please validate to confirm your entries',
     fr: "en cours jusqu'à validation de vos entrées",
+  },
+  [`${MODULES.ProcessEmissions}-${SUBMODULE_PROCESSES_TYPES.ProcessEmissions}-table-title-info-tooltip`]:
+    {
+      en: 'Process Emissions Tooltip',
+      fr: 'Process Emissions Tooltip',
+    },
+
+  [`${MODULES.ProcessEmissions}-title-tooltip-subtext`]: {
+    en: 'The amount of each greenhouse gas emitted should be estimated before entering the value in the calculator (e.g. taking into account that only X% of the SF₆ used is ultimately emitted)',
+    fr: 'La quantité de chaque gaz à effet de serre émise doit être estimée avant de saisir la valeur dans le calculateur (par ex. en prenant en compte que seulement X % du SF₆ utilisé est finalement émis)',
   },
 } as const;

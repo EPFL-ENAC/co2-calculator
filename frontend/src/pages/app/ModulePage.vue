@@ -8,6 +8,7 @@
         :has-description="currentModuleConfig.hasDescription"
         :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
         :has-tooltip="currentModuleConfig.hasTooltip"
+        :has-tooltip-sub-text="currentModuleConfig.hasTooltipSubText ?? false"
       />
       <!-- module summary -->
       <module-total-result
