@@ -69,7 +69,7 @@ def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID
     )
 
     mock_unit = MagicMock()
-    mock_unit.institutional_id = unit_institutional_id
+    mock_unit.institutional_code = unit_institutional_id
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.get_carbon_report_id",
         AsyncMock(return_value=1),
@@ -182,6 +182,14 @@ def test_principal_for_other_unit_sees_only_own_record(client, monkeypatch):
     # headcount_decision would be True from the principal role (scope-blind check),
     # but data filter must use the unit-scoped role — which is STD here.
     _wire(monkeypatch, module, user, _allow_headcount_only)
+    try:
+        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 1
+        assert data[0]["institutional_id"] == "11111"
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_global_role_sees_all_members(client, monkeypatch):

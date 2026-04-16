@@ -200,7 +200,9 @@ class AccredUnitProvider(UnitProvider):
             label_fr=unit_raw.get("labelfr") or None,
             label_en=unit_raw.get("labelen") or None,
             level=unit_raw["level"],
-            parent_institutional_code=unit_raw.get("parentid"),
+            parent_institutional_code=str(unit_raw["parentid"])
+            if unit_raw.get("parentid") is not None
+            else None,
             parent_institutional_id=get_parent_institutional_id(
                 unit_raw["level"], unit_raw
             ),

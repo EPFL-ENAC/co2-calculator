@@ -1,4 +1,3 @@
-import re
 from typing import Any, Optional
 
 from pydantic import BaseModel, ValidationInfo, field_validator
@@ -26,7 +25,6 @@ from app.schemas.factor import (
 )
 
 logger = get_logger(__name__)
-
 
 POSITION_CATEGORY_VALUES = {
     "professor",
@@ -61,6 +59,11 @@ class HeadCountCreate(DataEntryCreate):
     user_institutional_id: str
     note: Optional[str] = None
 
+    @field_validator("user_institutional_id", mode="before")
+    @classmethod
+    def validate_user_institutional_id(cls, v: str) -> str:
+        return v.strip()
+
     @field_validator("fte", mode="after")
     @classmethod
     def validate_fte(cls, v: Optional[float]) -> Optional[float]:
@@ -81,14 +84,6 @@ class HeadCountCreate(DataEntryCreate):
             allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
             raise ValueError(f"position_category must be one of: {allowed_values}")
         return v
-
-    @field_validator("user_institutional_id", mode="after")
-    @classmethod
-    def validate_user_institutional_id(cls, v: str) -> str:
-        normalized = v.strip()
-        if not re.fullmatch(r"\d+", normalized):
-            raise ValueError("user_institutional_id must contain only digits")
-        return normalized
 
 
 class HeadCountStudentCreate(DataEntryCreate):

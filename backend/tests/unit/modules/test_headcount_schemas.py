@@ -60,12 +60,3 @@ def test_headcount_create_strips_whitespace_in_user_institutional_id() -> None:
         user_institutional_id=" 12345 ",
     )
     assert item.user_institutional_id == "12345"
-
-
-def test_headcount_create_rejects_non_digit_user_institutional_id() -> None:
-    with pytest.raises(ValidationError):
-        HeadCountCreate(
-            **_base_create_payload(),
-            name="Alice",
-            user_institutional_id="12A45",
-        )
