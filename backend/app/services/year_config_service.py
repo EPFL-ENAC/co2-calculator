@@ -42,6 +42,9 @@ def generate_default_year_config() -> Dict[str, Any]:
     return {
         "modules": modules,
         "reduction_objectives": {
+            "institutional_footprint": [],
+            "population_projections": [],
+            "unit_scenarios": [],
             "files": {
                 "institutional_footprint": None,
                 "population_projections": None,
@@ -84,35 +87,6 @@ def get_submodule_config(
         return None
     submodules = module_config.get("submodules", {})
     return submodules.get(str(data_entry_type.value))
-
-
-def update_module_threshold(
-    config: Dict[str, Any],
-    module_type: ModuleTypeEnum,
-    data_entry_type: DataEntryTypeEnum,
-    threshold: float | None,
-) -> Dict[str, Any]:
-    """Update threshold for a specific submodule.
-
-    Args:
-        config: Year configuration JSON.
-        module_type: Module type.
-        data_entry_type: Data entry type.
-        threshold: New threshold value (None to clear).
-
-    Returns:
-        Updated configuration.
-    """
-    module_config = get_module_config(config, module_type)
-    if not module_config:
-        return config
-
-    submodule_config = get_submodule_config(module_config, data_entry_type)
-    if not submodule_config:
-        return config
-
-    submodule_config["threshold"] = threshold
-    return config
 
 
 def check_threshold_exceeded(
