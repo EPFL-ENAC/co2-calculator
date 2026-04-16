@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, provide } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import TempFilesBanner from 'src/components/organisms/data-management/TempFilesBanner.vue';
@@ -7,8 +7,13 @@ import { MODULES_LIST } from 'src/constant/modules';
 
 import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
 import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
+import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
 
-import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import {
+  useBackofficeDataManagement,
+  TargetType,
+  type ImportRow,
+} from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -101,6 +106,23 @@ watch(
 onMounted(() => {
   // intentionally empty — loading is handled by the yearConfigStore.loading watcher
 });
+
+// ── Data-entry dialog (provided to child components like ReductionObjectivesSection) ──
+const showDataEntryDialog = ref(false);
+const dialogCurrentRow = ref<ImportRow | null>(null);
+const dialogTargetType = ref<TargetType | null>(null);
+
+function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
+  dialogCurrentRow.value = row;
+  dialogTargetType.value = targetType;
+  showDataEntryDialog.value = true;
+}
+
+provide('openDataEntryDialog', openDataEntryDialog);
+
+async function handleDialogCompleted() {
+  await yearConfigStore.fetchConfig(selectedYear.value);
+}
 </script>
 
 <template>
@@ -199,5 +221,14 @@ onMounted(() => {
         </q-tooltip>
       </q-btn>
     </div>
+
+    <data-entry-dialog
+      v-model="showDataEntryDialog"
+      :row="dialogCurrentRow || ({} as ImportRow)"
+      :year="selectedYear"
+      :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
+      @completed="handleDialogCompleted"
+      @progressing="handleDialogCompleted"
+    />
   </q-page>
 </template>

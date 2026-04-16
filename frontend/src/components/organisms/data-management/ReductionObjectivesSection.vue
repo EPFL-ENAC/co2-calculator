@@ -4,10 +4,14 @@ import {
   useYearConfigStore,
   type ReductionObjectiveGoal,
 } from 'src/stores/yearConfig';
-import { Notify, Loading } from 'quasar';
+import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-
+import { inject } from 'vue';
+import {
+  TargetType,
+  type ImportRow,
+} from 'src/stores/backofficeDataManagement';
 const props = defineProps<{
   selectedYear: number;
 }>();
@@ -16,6 +20,10 @@ const yearConfigStore = useYearConfigStore();
 const { t: $t } = useI18n();
 
 const reductionObjectivesExpanded = ref(false);
+
+const openDataEntryDialog = inject<
+  (row: ImportRow, targetType: TargetType | null) => void
+>('openDataEntryDialog')!;
 
 /** Default empty goal for a slot. */
 function emptyGoal(): ReductionObjectiveGoal {
@@ -102,12 +110,9 @@ async function saveReductionGoals(): Promise<void> {
 }
 
 /** File refs for reduction objective CSV uploads. */
-const footprintFile = ref<File | null>(null);
-const populationFile = ref<File | null>(null);
-const scenariosFile = ref<File | null>(null);
-
 /** Uploaded file names derived from the store. */
 const uploadedFileNames = computed(() => {
+  // TODO: add a way to download the files in .path
   const files = yearConfigStore.config?.config?.reduction_objectives?.files;
   return {
     footprint: files?.institutional_footprint?.filename ?? null,
@@ -115,26 +120,6 @@ const uploadedFileNames = computed(() => {
     scenarios: files?.unit_scenarios?.filename ?? null,
   };
 });
-
-/** Handle a reduction-objective file upload. */
-async function handleReductionFileUpload(
-  category: 'footprint' | 'population' | 'scenarios',
-  file: File | null,
-): Promise<void> {
-  if (!file) return;
-  Loading.show({ message: $t('uploading_file') });
-  try {
-    await yearConfigStore.uploadFile(props.selectedYear, category, file);
-    if (category === 'footprint') footprintFile.value = null;
-    if (category === 'population') populationFile.value = null;
-    if (category === 'scenarios') scenariosFile.value = null;
-    Notify.create({ type: 'positive', message: $t('file_upload_success') });
-  } catch {
-    Notify.create({ type: 'negative', message: $t('file_upload_error') });
-  } finally {
-    Loading.hide();
-  }
-}
 </script>
 
 <template>
@@ -185,21 +170,22 @@ async function handleReductionFileUpload(
             <q-icon name="check" /> {{ uploadedFileNames.footprint }}
           </div>
           <div class="row q-gutter-md q-mt-lg">
-            <q-file
-              v-model="footprintFile"
-              outlined
-              dense
-              accept=".csv"
+            <q-btn
+              :color="'red'"
+              icon="add"
+              size="sm"
               :label="$t('common_upload_csv')"
-              class="col"
-              @update:model-value="
-                handleReductionFileUpload('footprint', $event)
+              class="text-weight-medium"
+              :disable="false"
+              @click="
+                openDataEntryDialog(
+                  {
+                    reductionObjectiveTypeId: 0, // footprint
+                  } as ImportRow,
+                  TargetType.REDUCTION_OBJECTIVES,
+                )
               "
-            >
-              <template #prepend>
-                <q-icon name="o_upload" />
-              </template>
-            </q-file>
+            />
           </div>
         </q-card>
         <q-card
@@ -228,21 +214,22 @@ async function handleReductionFileUpload(
             <q-icon name="check" /> {{ uploadedFileNames.population }}
           </div>
           <div class="row q-gutter-md q-mt-lg">
-            <q-file
-              v-model="populationFile"
-              outlined
-              dense
-              accept=".csv"
+            <q-btn
+              :color="'red'"
+              icon="add"
+              size="sm"
               :label="$t('common_upload_csv')"
-              class="col"
-              @update:model-value="
-                handleReductionFileUpload('population', $event)
+              class="text-weight-medium"
+              :disable="false"
+              @click="
+                openDataEntryDialog(
+                  {
+                    reductionObjectiveTypeId: 1, // population
+                  } as ImportRow,
+                  TargetType.REDUCTION_OBJECTIVES,
+                )
               "
-            >
-              <template #prepend>
-                <q-icon name="o_upload" />
-              </template>
-            </q-file>
+            />
           </div>
         </q-card>
         <q-card flat class="col q-px-lg q-py-xl border-right">
@@ -267,21 +254,22 @@ async function handleReductionFileUpload(
             <q-icon name="check" /> {{ uploadedFileNames.scenarios }}
           </div>
           <div class="row q-gutter-md q-mt-lg">
-            <q-file
-              v-model="scenariosFile"
-              outlined
-              dense
-              accept=".csv"
+            <q-btn
+              :color="'red'"
+              icon="add"
+              size="sm"
               :label="$t('common_upload_csv')"
-              class="col"
-              @update:model-value="
-                handleReductionFileUpload('scenarios', $event)
+              class="text-weight-medium"
+              :disable="false"
+              @click="
+                openDataEntryDialog(
+                  {
+                    reductionObjectiveTypeId: 2, // scenarios
+                  } as ImportRow,
+                  TargetType.REDUCTION_OBJECTIVES,
+                )
               "
-            >
-              <template #prepend>
-                <q-icon name="o_upload" />
-              </template>
-            </q-file>
+            />
           </div>
         </q-card>
       </q-card>

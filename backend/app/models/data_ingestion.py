@@ -73,6 +73,8 @@ class TargetType(int, Enum):
 
     DATA_ENTRIES = 0
     FACTORS = 1
+    REDUCTION_OBJECTIVES = 2
+    REFERENCE_DATA = 3
 
 
 class IngestionState(int, Enum):

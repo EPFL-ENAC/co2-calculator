@@ -37,6 +37,8 @@ router = APIRouter()
 class SyncRequestConfig(BaseModel):
     carbon_report_module_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
+    reduction_objective_type_id: Optional[int] = None
+    module_type_id: Optional[ModuleTypeEnum] = None
 
 
 class SyncRequest(BaseModel):
@@ -90,9 +92,8 @@ class ModuleRecalculationStatus(BaseModel):
     data_entry_types: list[RecalculationStatus]
 
 
-@router.post("/data-entries/{module_type_id}", response_model=SyncStatusResponse)
+@router.post("/dispatch", response_model=SyncStatusResponse)
 async def sync_module_data_entries(
-    module_type_id: ModuleTypeEnum,
     syncRequest: SyncRequest,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -157,7 +158,6 @@ async def sync_module_data_entries(
     config["year"] = syncRequest.year
 
     provider = await ProviderFactory.create_provider(
-        module_type_id=ModuleTypeEnum(module_type_id),
         ingestion_method=syncRequest.ingestion_method,
         target_type=syncRequest.target_type,
         config=config,
@@ -170,7 +170,7 @@ async def sync_module_data_entries(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"""Provider '{syncRequest.ingestion_method}'
-                not supported for module '{module_type_id}'""",
+                not supported""",
         )
 
     if not await provider.validate_connection():
@@ -185,8 +185,13 @@ async def sync_module_data_entries(
     data_entry_type_id = config.get("data_entry_type_id") or getattr(
         syncRequest, "data_entry_type_id", None
     )
+    module_type_id = config.get("module_type_id") or getattr(
+        syncRequest, "module_type_id", None
+    )
+    if module_type_id is not None:
+        module_type_id = ModuleTypeEnum(module_type_id)
     job_id = await provider.create_job(
-        module_type_id=ModuleTypeEnum(module_type_id),
+        module_type_id=module_type_id,
         data_entry_type_id=data_entry_type_id,
         entity_type=entity_type,
         year=syncRequest.year,

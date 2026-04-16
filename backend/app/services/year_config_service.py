@@ -42,6 +42,9 @@ def generate_default_year_config() -> Dict[str, Any]:
     return {
         "modules": modules,
         "reduction_objectives": {
+            "institutional_footprint": [],
+            "population_projections": [],
+            "unit_scenarios": [],
             "files": {
                 "institutional_footprint": None,
                 "population_projections": None,

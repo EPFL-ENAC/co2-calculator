@@ -27,6 +27,9 @@ export interface ReductionObjectives {
     unit_scenarios: FileMetadata | null;
   };
   goals: ReductionObjectiveGoal[];
+  institutional_footprint: [];
+  population_projections: [];
+  unit_scenarios: [];
 }
 
 export interface SubmoduleConfig {
@@ -89,14 +92,6 @@ export interface YearConfigurationUpdate {
     reduction_objectives?: Partial<ReductionObjectives>;
   };
 }
-
-export interface FileUploadResponse {
-  success: boolean;
-  file: FileMetadata;
-  message: string;
-}
-
-export type FileCategory = 'footprint' | 'population' | 'scenarios';
 
 export const useYearConfigStore = defineStore('yearConfig', () => {
   // State
@@ -184,40 +179,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
         error.value = err.message ?? 'Failed to update configuration';
       } else {
         error.value = 'Failed to update configuration';
-      }
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function uploadFile(
-    year: number,
-    category: FileCategory,
-    file: File,
-  ): Promise<FileUploadResponse> {
-    loading.value = true;
-    error.value = null;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('category', category);
-
-    try {
-      const response = (await api
-        .post(`year-configuration/${year}/upload`, {
-          body: formData,
-        })
-        .json()) as FileUploadResponse;
-
-      // Refresh config after upload
-      await fetchConfig(year);
-      return response;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        error.value = err.message ?? 'Failed to upload file';
-      } else {
-        error.value = 'Failed to upload file';
       }
       throw err;
     } finally {
@@ -377,7 +338,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     fetchConfig,
     createConfig,
     updateConfig,
-    uploadFile,
     checkThreshold,
     reset,
   };
