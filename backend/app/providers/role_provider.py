@@ -524,11 +524,19 @@ class AccredRoleProvider(RoleProvider):
                 if auth.get("state") != "active":
                     continue
 
-                accred_unit_id = auth.get("accredunitid")
-
-                if not accred_unit_id:
+                accred_unit_institutional_code = auth.get("accredunitid")
+                accred_unit_institutional_id = (
+                    auth.get("reason").get("resource").get("cf")
+                )
+                if not accred_unit_institutional_code:
                     logger.warning(
                         "Authorization missing accredunitid, skipping",
+                        extra={"auth_name": auth_name, "user_id": user_id},
+                    )
+                    continue
+                if not accred_unit_institutional_id:
+                    logger.warning(
+                        "Authorization missing cf, skipping",
                         extra={"auth_name": auth_name, "user_id": user_id},
                     )
                     continue
@@ -551,7 +559,9 @@ class AccredRoleProvider(RoleProvider):
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(institutional_id=str(accred_unit_id)),
+                            on=RoleScope(
+                                institutional_id=str(accred_unit_institutional_id)
+                            ),
                         )
                     )
 
