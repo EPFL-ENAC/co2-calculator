@@ -134,6 +134,16 @@ class UnitUserService:
 
         return True
 
+    async def delete_all_for_user(self, user_id: int) -> int:
+        """Delete all unit associations for a user. Returns count of deleted rows."""
+        count = await self.unit_user_repo.delete_by_user_id(user_id)
+        if count > 0:
+            logger.info(
+                "Deleted all UnitUser associations for user",
+                extra={"user_id": user_id, "deleted_count": count},
+            )
+        return count
+
     async def count(self, filters: Optional[dict] = None) -> int:
         """Count UnitUser associations."""
         return await self.unit_user_repo.count(filters)
