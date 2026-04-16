@@ -385,10 +385,8 @@ class AccredRoleProvider(RoleProvider):
 
             position = data.get("position", {})
             if not position:
-                logger.info(
-                    "No position found in Accred API", extra={"user_id": user_id}
-                )
-                return {}
+                # default to "Unknown" in case of missing position
+                position = {"labelen": "Unknown"}
             logger.info(
                 "Fetched user from Accred API",
                 extra={"user_id": user_id},
