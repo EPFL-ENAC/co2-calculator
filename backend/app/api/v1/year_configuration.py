@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import io
 import os
 from datetime import datetime
 from typing import Any, Dict
@@ -11,6 +12,7 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     HTTPException,
     UploadFile,
     status,
@@ -35,6 +37,7 @@ from app.schemas.year_configuration import (
     YearConfigurationCreate,
     YearConfigurationResponse,
     YearConfigurationUpdate,
+    validate_reduction_objective_csv,
 )
 from app.services.year_config_service import (
     check_threshold_exceeded,
@@ -511,6 +514,8 @@ async def update_year_configuration(
     if payload.config is not None:
         result.config = _deep_merge(result.config, payload.config)
 
+    db.add(result)
+
     new_snapshot = {
         "is_started": result.is_started,
         "is_reports_synced": result.is_reports_synced,
@@ -566,7 +571,7 @@ async def update_year_configuration(
 async def upload_reduction_objective_file(
     year: int,
     file: UploadFile = File(..., description="File to upload"),
-    category: FileCategory = File(..., description="File category"),
+    category: FileCategory = Form(..., description="File category"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -603,7 +608,22 @@ async def upload_reduction_objective_file(
             detail=f"File type not allowed. Allowed: {allowed_extensions}",
         )
 
-    # Save file
+    # Read file content
+    content = await file.read()
+
+    # For CSV uploads: validate rows before persisting anything
+    parsed_rows: list[dict] | None = None
+    if file_ext == ".csv":
+        try:
+            parsed_rows = validate_reduction_objective_csv(content, category)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"errors": exc.args[0]},
+            )
+
+    # Save file (re-wrap content so save_uploaded_file can read() it again)
+    file.file = io.BytesIO(content)
     file_metadata = await save_uploaded_file(file, category, year)
 
     # Map category to config key
@@ -643,8 +663,21 @@ async def upload_reduction_objective_file(
                 "population_projections": None,
                 "unit_scenarios": None,
             },
+            "institutional_footprint": None,
+            "population_projections": None,
+            "unit_scenarios": None,
             "goals": [],
         }
+    else:
+        # Ensure the three parsed-data keys exist in case this config was created
+        # before the feature was added (old rows won't have them).
+        ro = result.config["reduction_objectives"]
+        for key in (
+            "institutional_footprint",
+            "population_projections",
+            "unit_scenarios",
+        ):
+            ro.setdefault(key, None)
 
     result.config["reduction_objectives"]["files"][config_key] = {
         "path": file_metadata.path,
@@ -652,8 +685,13 @@ async def upload_reduction_objective_file(
         "uploaded_at": file_metadata.uploaded_at,
     }
 
+    # If the upload was a CSV, store the parsed rows alongside the metadata
+    if parsed_rows is not None:
+        result.config["reduction_objectives"][config_key] = parsed_rows
+
     # Reassign the whole dict so SQLAlchemy detects the change
     result.config = {**result.config}
+    db.add(result)
 
     # Create audit entry with diff
     new_snapshot = {
@@ -684,7 +722,7 @@ async def upload_reduction_objective_file(
             "user_id": current_user.id,
             "year": year,
             "category": category,
-            "filename": file_metadata.filename,
+            "uploaded_filename": file_metadata.filename,
         },
     )
 

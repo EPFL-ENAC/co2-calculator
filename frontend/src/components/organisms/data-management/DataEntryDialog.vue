@@ -66,6 +66,15 @@ watch(showDialog, (newVal) => {
   emit('update:modelValue', newVal);
 });
 
+function handleEnterKey() {
+  if (isUploading.value || isConnecting.value || isCopying.value) return;
+  if (selectedFiles.value && selectedFiles.value.length > 0) {
+    uploadFiles();
+  } else if (allApiFieldsFilled.value) {
+    connectAndSync();
+  }
+}
+
 function resetDialog() {
   activeTab.value = 'upload';
   selectedFiles.value = [];
@@ -262,14 +271,29 @@ async function initiateSync(
     year: props.year,
     provider_type: providerType === 'copy' ? 'csv' : providerType,
     target_type: props.targetType,
+    config: {},
   };
 
   if (props.row.dataEntryTypeId !== undefined) {
     syncParams.data_entry_type_id = props.row.dataEntryTypeId;
   }
 
-  if (props.row.factorVariant !== undefined) {
+  if (props.row.reductionObjectiveTypeId !== undefined) {
+    const existingConfig = syncParams.config as
+      | Record<string, unknown>
+      | undefined;
     syncParams.config = {
+      ...existingConfig,
+      reduction_objective_type_id: props.row.reductionObjectiveTypeId,
+    };
+  }
+
+  if (props.row.factorVariant !== undefined) {
+    const existingConfig = syncParams.config as
+      | Record<string, unknown>
+      | undefined;
+    syncParams.config = {
+      ...existingConfig,
       factor_variant: props.row.factorVariant,
     };
   }
@@ -287,7 +311,7 @@ async function initiateSync(
       source_job_id: sourceJobId,
     };
   }
-  const jobId = await dataManagementStore.initiateSync({
+  const syncPayload = {
     module_type_id: props.row.moduleTypeId,
     year: props.year,
     provider_type: providerType === 'copy' ? 'csv' : providerType,
@@ -295,7 +319,8 @@ async function initiateSync(
     data_entry_type_id: props.row.dataEntryTypeId,
     config: syncParams.config as Record<string, unknown>,
     file_path: filePath,
-  });
+  };
+  const jobId = await dataManagementStore.initiateSync(syncPayload);
 
   // Subscribe to job updates
   dataManagementStore.subscribeToJobUpdates(
@@ -396,6 +421,7 @@ async function initiateSync(
     class="modal modal--lg"
     persistent
     @keyup.escape="showDialog = false"
+    @keyup.enter="handleEnterKey"
   >
     <q-card class="column" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
@@ -569,6 +595,7 @@ async function initiateSync(
 
       <q-card-section class="q-pt-sm">
         <q-btn
+          aria-label="data-entry-save"
           :label="
             selectedFiles && selectedFiles.length > 0
               ? $t('data_management_upload')
