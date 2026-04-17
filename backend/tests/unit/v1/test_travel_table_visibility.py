@@ -34,9 +34,9 @@ def _make_user(institutional_id, roles):
     return user
 
 
-def _make_unit(institutional_code):
+def _make_unit(institutional_id):
     unit = MagicMock()
-    unit.institutional_code = institutional_code
+    unit.institutional_id = institutional_id
     return unit
 
 
