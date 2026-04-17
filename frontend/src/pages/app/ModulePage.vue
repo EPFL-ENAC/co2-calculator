@@ -5,17 +5,17 @@
     <div class="module-page">
       <module-title
         :type="currentModuleType"
-        :has-description="currentModuleConfig.hasDescription"
-        :has-description-subtext="currentModuleConfig.hasDescriptionSubtext"
-        :has-tooltip="currentModuleConfig.hasTooltip"
-        :has-tooltip-sub-text="currentModuleConfig.hasTooltipSubText ?? false"
+        :has-description="staticModuleConfig.hasDescription"
+        :has-description-subtext="staticModuleConfig.hasDescriptionSubtext"
+        :has-tooltip="staticModuleConfig.hasTooltip"
+        :has-tooltip-sub-text="staticModuleConfig.hasTooltipSubText ?? false"
       />
       <!-- module summary -->
       <module-total-result
         v-if="!forbiddenModules.includes(currentModuleType)"
         :data="totalResult"
         :type="currentModuleType"
-        :module-config="currentModuleConfig"
+        :module-config="staticModuleConfig"
       />
       <q-card class="container container--pa-none" flat>
         <div class="q-px-lg">
@@ -62,17 +62,16 @@ const currentModuleType = computed(() => $route.params.module as Module);
 import { useTimelineStore } from 'src/stores/modules';
 const timelineStore = useTimelineStore();
 
-const currentModuleConfig: Ref<ModuleConfig> = computed(
-  () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,
-);
-
 const workspaceStore = useWorkspaceStore();
 
 const moduleStore = useModuleStore();
 
 const forbiddenModules: Module[] = [];
 
-// COMPUTED
+const staticModuleConfig: Ref<ModuleConfig> = computed(
+  () => MODULES_CONFIG[currentModuleType.value] as ModuleConfig,
+);
+
 const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);

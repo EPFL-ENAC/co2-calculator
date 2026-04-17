@@ -5,8 +5,9 @@ import {
   MODULE_SUBMODULES,
   MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as ModuleUploadConfig,
+  type SubmoduleConfig as StaticSubmoduleConfig,
 } from 'src/constant/backoffice-module-config';
-import { MODULES_LIST } from 'src/constant/modules';
+import { MODULES_LIST, type Module } from 'src/constant/modules';
 
 interface FileMetadata {
   path: string;
@@ -55,6 +56,19 @@ export interface ModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, SubmoduleConfig>;
+}
+
+export interface UnifiedModuleConfig {
+  enabled: boolean;
+  uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
+  submodules: Record<string, UnifiedSubmoduleConfig>;
+}
+
+export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
+  key: string;
+  labelKey: string;
+  moduleTypeId: number;
+  dataEntryTypeId?: number;
 }
 
 interface YearConfig {
@@ -172,6 +186,152 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     () => config.value?.latest_jobs ?? [],
   );
 
+  // ── Unified module config helper ────────────────────────────────────────────
+
+  function buildModuleTypeIdMapping(): Partial<Record<Module, number>> {
+    const mapping: Partial<Record<Module, number>> = {};
+    for (const modName of Object.keys(MODULE_SUBMODULES) as Module[]) {
+      const subs = MODULE_SUBMODULES[modName];
+      if (subs && subs.length > 0) {
+        mapping[modName] = subs[0].moduleTypeId;
+      }
+    }
+    return mapping;
+  }
+
+  function invertMapping(
+    mapping: Partial<Record<Module, number>>,
+  ): Record<number, Module> {
+    const inverted: Record<number, Module> = {} as Record<number, Module>;
+    for (const [moduleName, typeId] of Object.entries(mapping)) {
+      inverted[typeId] = moduleName as Module;
+    }
+    return inverted;
+  }
+
+  function mergeSubmoduleConfigs(
+    backendSubmodules: Record<string, SubmoduleConfig>,
+    staticSubmodules: StaticSubmoduleConfig[],
+  ): Record<string, UnifiedSubmoduleConfig> {
+    const merged: Record<string, UnifiedSubmoduleConfig> = {};
+
+    for (const staticSub of staticSubmodules) {
+      const subKey =
+        staticSub.dataEntryTypeId !== undefined
+          ? String(staticSub.dataEntryTypeId)
+          : staticSub.key;
+      const backendSub = backendSubmodules[subKey];
+
+      if (backendSub) {
+        merged[staticSub.key] = {
+          ...backendSub,
+          key: staticSub.key,
+          labelKey: staticSub.labelKey,
+          moduleTypeId: staticSub.moduleTypeId,
+          dataEntryTypeId: staticSub.dataEntryTypeId,
+        };
+      } else {
+        merged[staticSub.key] = {
+          enabled: true,
+          threshold: null,
+          key: staticSub.key,
+          labelKey: staticSub.labelKey,
+          moduleTypeId: staticSub.moduleTypeId,
+          dataEntryTypeId: staticSub.dataEntryTypeId,
+        };
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Merged module config keyed by FRONTEND module names.
+   * Combines backend runtime config with static submodule definitions.
+   */
+  const unifiedModuleConfig = computed(() => {
+    if (!config.value?.config?.modules) return {};
+
+    const mapping = buildModuleTypeIdMapping();
+    const reverseMapping = invertMapping(mapping);
+
+    return Object.fromEntries(
+      Object.entries(config.value.config.modules).map(
+        ([backendId, modConfig]) => {
+          const moduleName = reverseMapping[parseInt(backendId)];
+          if (!moduleName) return [backendId, modConfig];
+
+          const staticSubmodules = MODULE_SUBMODULES[moduleName] || [];
+          const unifiedSubmodules = mergeSubmoduleConfigs(
+            modConfig.submodules,
+            staticSubmodules,
+          );
+
+          return [
+            moduleName,
+            {
+              ...modConfig,
+              submodules: unifiedSubmodules,
+            },
+          ];
+        },
+      ),
+    );
+  });
+
+  /** Get unified config for a module by frontend name. */
+  function getModule(moduleName: Module): UnifiedModuleConfig | null {
+    return (
+      (unifiedModuleConfig.value[moduleName] as UnifiedModuleConfig) || null
+    );
+  }
+
+  /** Get unified config for a submodule by module and submodule key. */
+  function getSubmodule(
+    moduleName: Module,
+    subKey: string,
+  ): UnifiedSubmoduleConfig | null {
+    return (
+      (unifiedModuleConfig.value[moduleName]?.submodules[
+        subKey
+      ] as UnifiedSubmoduleConfig) || null
+    );
+  }
+
+  /** Get module name from a submodule config. */
+  function getModuleNameFromSubmodule(sub: ModuleUploadConfig): Module | null {
+    for (const moduleName of Object.keys(MODULE_SUBMODULES) as Module[]) {
+      const subs = MODULE_SUBMODULES[moduleName];
+      if (subs?.some((s) => s.key === sub.key)) {
+        return moduleName;
+      }
+    }
+    return null;
+  }
+
+  // ── Module visibility helpers ───────────────────────────────────────────────
+
+  /** Check if a module is enabled and visible to users. */
+  function isModuleVisible(module: Module): boolean {
+    const config = getModule(module);
+    return config?.enabled ?? false;
+  }
+
+  /** Check if a submodule is enabled and visible. */
+  function isSubmoduleVisible(moduleName: Module, subKey: string): boolean {
+    const sub = getSubmodule(moduleName, subKey);
+    return sub?.enabled ?? false;
+  }
+
+  /** Get list of currently visible (enabled) modules in timeline order. */
+  const visibleModules = computed(() => {
+    if (!config.value?.config?.modules) return [];
+    return Object.keys(unifiedModuleConfig.value).filter((key) => {
+      const modConfig = unifiedModuleConfig.value[key] as UnifiedModuleConfig;
+      return modConfig?.enabled ?? false;
+    }) as Module[];
+  });
+
   // ── Completeness helpers ────────────────────────────────────────────────────
 
   function isModuleEnabled(module: string): boolean {
@@ -264,6 +424,15 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     () => !!config.value && MODULES_LIST.some((m) => isModuleIncomplete(m)),
   );
 
+  function getModuleConfig(module: Module): ModuleConfig | null {
+    const moduleTypeIdMap = buildModuleTypeIdMapping();
+    const targetTypeId = moduleTypeIdMap[module];
+    if (!targetTypeId) return null;
+
+    const backendKey = String(targetTypeId);
+    return config.value?.config?.modules?.[backendKey] ?? null;
+  }
+
   return {
     // State
     config,
@@ -272,7 +441,15 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     // Computed
     latestJobs,
     anyModuleIncomplete,
-    // Completeness helpers
+    unifiedModuleConfig,
+    visibleModules,
+    // Helpers
+    getModule,
+    getSubmodule,
+    getModuleNameFromSubmodule,
+    getModuleConfig,
+    isModuleVisible,
+    isSubmoduleVisible,
     isModuleEnabled,
     isSubmoduleEnabled,
     isModuleIncomplete,

@@ -9,6 +9,7 @@ import {
   MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as SubmoduleConfigItem,
 } from 'src/constant/backoffice-module-config';
+import type { Module } from 'src/constant/modules';
 
 import {
   useBackofficeDataManagement,
@@ -49,7 +50,7 @@ const { t: $t } = useI18n();
 const yearConfigStore = useYearConfigStore();
 const backofficeDataManagement = useBackofficeDataManagement();
 
-const { isModuleEnabled, isModuleIncomplete } = yearConfigStore;
+const { isModuleEnabled, isModuleIncomplete, getModule } = yearConfigStore;
 
 const expanded = ref(false);
 
@@ -201,6 +202,10 @@ function getModuleTypeIdFromName(module: string): number {
   return subs.length > 0 ? subs[0].moduleTypeId : 0;
 }
 
+function getUnifiedModuleConfig(module: string) {
+  return getModule(module as Module);
+}
+
 async function updateModuleEnabled(
   module: string,
   value: boolean,
@@ -218,11 +223,8 @@ async function updateModuleEnabled(
 }
 
 function getModuleUncertainty(module: string): UncertaintyTag {
-  const moduleTypeId = getModuleTypeIdFromName(module);
-  if (!moduleTypeId) return 'medium';
-  const moduleConfig =
-    yearConfigStore.config?.config?.modules?.[String(moduleTypeId)];
-  return moduleConfig?.uncertainty_tag ?? 'medium';
+  const unifiedConfig = getUnifiedModuleConfig(module);
+  return unifiedConfig?.uncertainty_tag ?? 'medium';
 }
 
 async function updateModuleUncertainty(
