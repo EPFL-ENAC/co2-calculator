@@ -8,6 +8,7 @@ from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from fastapi_csrf_protect import CsrfProtect
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -479,6 +480,24 @@ async def auth_callback(
             )
 
 
+@router.get("/csrf")
+async def get_csrf_token(response: Response):
+    """Issue CSRF token pair for Double Submit Cookie bootstrap/recovery."""
+    if not settings.CSRF_ENABLED:
+        return {
+            "csrf_enabled": False,
+            "csrf_token": None,
+        }
+
+    csrf_protect = CsrfProtect()
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return {
+        "csrf_enabled": True,
+        "csrf_token": csrf_token,
+    }
+
+
 @router.get("/me", response_model=UserRead, response_model_exclude_none=True)
 async def get_me(
     auth_token: Optional[str] = Cookie(None),
@@ -753,6 +772,10 @@ async def logout(
         max_age=0,
         path="/",
     )
+
+    if settings.CSRF_ENABLED:
+        csrf_protect = CsrfProtect()
+        csrf_protect.unset_csrf_cookie(response)
 
     logger.info("User logged out")
 

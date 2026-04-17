@@ -1,9 +1,12 @@
 """FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+from typing import cast
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from fastapi_csrf_protect import CsrfProtect
+from fastapi_csrf_protect.exceptions import CsrfProtectError
 from starlette.middleware.sessions import SessionMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -23,11 +26,54 @@ logger = get_logger(__name__)
 
 # Get settings
 settings = get_settings()
+csrf_protected_methods = cast(tuple[str, ...], settings.csrf_protected_methods_set)
+
+
+def _load_csrf_config() -> list[tuple[str, object]]:
+    """Build fastapi-csrf-protect configuration from application settings."""
+    return [
+        ("secret_key", settings.csrf_effective_secret_key),
+        ("header_name", settings.CSRF_HEADER_NAME),
+        ("methods", set(csrf_protected_methods)),
+        ("cookie_key", settings.CSRF_COOKIE_KEY),
+        ("cookie_path", settings.CSRF_COOKIE_PATH),
+        ("cookie_samesite", settings.CSRF_COOKIE_SAMESITE),
+        ("cookie_secure", settings.CSRF_COOKIE_SECURE),
+        ("httponly", settings.CSRF_COOKIE_HTTPONLY),
+        ("max_age", settings.CSRF_COOKIE_MAX_AGE),
+        ("token_location", "header"),
+    ]
+
+
+def _is_api_version_path(path: str) -> bool:
+    """Check whether request path is under the versioned API prefix."""
+    api_prefix = settings.API_VERSION.rstrip("/")
+    proxied_api_prefix = f"{settings.API_DOCS_PREFIX.rstrip('/')}{api_prefix}"
+    return (
+        path == api_prefix
+        or path.startswith(f"{api_prefix}/")
+        or path == proxied_api_prefix
+        or path.startswith(f"{proxied_api_prefix}/")
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
+    if settings.CSRF_ENABLED:
+        CsrfProtect.load_config(_load_csrf_config)
+        app.state.csrf_protect = CsrfProtect()
+        logger.info(
+            "CSRF protection enabled",
+            extra={
+                "csrf_header_name": settings.CSRF_HEADER_NAME,
+                "csrf_methods": list(csrf_protected_methods),
+                "csrf_cookie_key": settings.CSRF_COOKIE_KEY,
+            },
+        )
+    else:
+        logger.info("CSRF protection disabled")
+
     logger.info(
         "Starting application",
         extra={
@@ -211,6 +257,40 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
 app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
 app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
+
+
+@app.exception_handler(CsrfProtectError)
+async def csrf_error_handler(_: Request, exc: CsrfProtectError) -> JSONResponse:
+    """Return stable JSON for CSRF failures so frontend can react consistently."""
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={
+            "error": "csrf_validation_failed",
+            "detail": "CSRF validation failed",
+            "reason": exc.message,
+        },
+    )
+
+
+@app.middleware("http")
+async def csrf_guard_middleware(request: Request, call_next):
+    """Validate CSRF for configured mutating API methods before route handlers."""
+    if not settings.CSRF_ENABLED:
+        return await call_next(request)
+
+    if request.method not in csrf_protected_methods:
+        return await call_next(request)
+
+    if not _is_api_version_path(request.url.path):
+        return await call_next(request)
+
+    csrf_protect: CsrfProtect = request.app.state.csrf_protect
+    try:
+        await csrf_protect.validate_csrf(request)
+    except CsrfProtectError as exc:
+        return await csrf_error_handler(request, exc)
+    return await call_next(request)
+
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
