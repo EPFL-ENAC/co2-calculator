@@ -2,7 +2,6 @@
 import { ref, watch, onMounted, provide } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
-import TempFilesBanner from 'src/components/organisms/data-management/TempFilesBanner.vue';
 import { MODULES_LIST } from 'src/constant/modules';
 
 import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
