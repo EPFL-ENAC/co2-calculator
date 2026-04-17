@@ -65,6 +65,7 @@ class EmissionBreakdownCategoryRow(TypedDict):
     category: str
     category_key: str
     emissions: list[EmissionBreakdownValue]
+    parent_keys_order: list[str]
 
 
 EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
@@ -596,6 +597,8 @@ def _build_category_row(
     }
     emissions: list[EmissionBreakdownValue] = []
     parent_sums: dict[str, float] = {}
+    parent_keys_order: list[str] = []
+    seen_bar_keys: set[str] = set()
     for emission_type, kg_co2eq in sorted(values_kg.items(), key=lambda i: i[0].value):
         if kg_co2eq <= 0:
             continue
@@ -608,7 +611,12 @@ def _build_category_row(
         parent_key = emission.get("parent_key")
         if parent_key is not None:
             parent_sums[parent_key] = parent_sums.get(parent_key, 0.0) + value
+        bar_key = parent_key if parent_key is not None else key
+        if bar_key not in seen_bar_keys:
+            seen_bar_keys.add(bar_key)
+            parent_keys_order.append(bar_key)
     flat["emissions"] = emissions
+    flat["parent_keys_order"] = parent_keys_order
     flat.update(parent_sums)
     return flat
 

@@ -212,3 +212,106 @@ def test_build_treemap_basic():
 def test_build_treemap_zero_total():
     assert build_treemap([]) == []
     assert build_treemap([("zero", 0.0)]) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# parent_keys_order contract
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_parent_keys_order_child_emission_uses_parent_bar_key():
+    """A depth-2 emission (plane__eco) contributes its *parent* key ('plane')
+    to parent_keys_order, not its own leaf key ('eco')."""
+    rows = [
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            5_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    assert "parent_keys_order" in travel
+    assert travel["parent_keys_order"] == ["plane"]
+    # The child leaf key must NOT leak into parent_keys_order
+    assert "eco" not in travel["parent_keys_order"]
+
+
+def test_parent_keys_order_multiple_children_same_parent_deduplicated():
+    """Multiple children of the same parent (plane__business + plane__eco)
+    must produce exactly one 'plane' entry in parent_keys_order, and the
+    parent sum must equal the combined tonnage."""
+    rows = [
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__business.value,
+            3_000.0,
+        ),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            7_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    assert travel["parent_keys_order"] == ["plane"]
+    assert travel["plane"] == pytest.approx(10.0)
+
+
+def test_parent_keys_order_reflects_first_seen_value_sorted_order():
+    """parent_keys_order follows the first-seen ordering produced by iterating
+    emission types in ascending EmissionType.value order.
+
+    train__class_1 (50101) < plane__eco (50203), so 'train' must appear
+    before 'plane' regardless of the order rows are supplied in."""
+    rows = [
+        # Deliberately listed in reverse value order to prove input order
+        # does not drive parent_keys_order -- only EmissionType.value sort does.
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,  # 50203
+            6_000.0,
+        ),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__train__class_1.value,  # 50101
+            4_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    # train (50101) is encountered first in the ascending value scan
+    assert travel["parent_keys_order"] == ["train", "plane"]
+
+
+def test_parent_keys_order_standalone_leaf_uses_own_key():
+    """An emission type with no logical parent (level-1 subcategory leaf)
+    uses its own leaf key directly as the bar key and appears in
+    parent_keys_order in ascending EmissionType.value order."""
+    # equipment__scientific (80100) and equipment__it (80200) are both
+    # level-1 leaves: no parent_key is set, so bar_key == key.
+    rows = [
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,  # 80100
+            8_000.0,
+        ),
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__it.value,  # 80200
+            2_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    equipment = _row_by_category(result["module_breakdown"], "equipment")
+
+    # 80100 < 80200 -> "scientific" is first-seen, then "it"
+    assert equipment["parent_keys_order"] == ["scientific", "it"]
