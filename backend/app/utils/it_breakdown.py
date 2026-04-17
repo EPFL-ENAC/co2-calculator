@@ -10,10 +10,20 @@ Aggregates IT-related emissions from four source modules:
   facility emissions (Scope 3)
 """
 
-from typing import Any
+from typing import Any, TypedDict
 
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
+
+
+class ITSqlTotals(TypedDict):
+    """Pre-computed SQL totals passed into ``build_it_breakdown``."""
+
+    it_total_kg: float
+    overall_total_kg: float
+    validated_it_kg: float
+    validated_source_total_kg: float
+
 
 # ---------------------------------------------------------------------------
 # IT category definitions
@@ -71,6 +81,22 @@ _IT_CATEGORY_MODULE_IDS: dict[str, set[int]] = {
     IT_CATEGORY_RESEARCH: {ModuleTypeEnum.research_facilities.value},
 }
 
+
+def get_validated_source_module_type_ids(
+    validated_module_type_ids: set[int],
+) -> list[int]:
+    """Return all IT source module type IDs whose category is fully validated.
+
+    A category is considered fully validated when every module type ID it
+    maps to is present in *validated_module_type_ids*.
+    """
+    result: list[int] = []
+    for mod_ids in _IT_CATEGORY_MODULE_IDS.values():
+        if mod_ids.issubset(validated_module_type_ids):
+            result.extend(mod_ids)
+    return result
+
+
 # Ordered list of IT categories for deterministic output
 IT_CATEGORIES_ORDER: list[str] = [
     IT_CATEGORY_EQUIPMENT,
@@ -96,22 +122,23 @@ def _categorize_it_emission(emission_type: EmissionType) -> str | None:
 def build_it_breakdown(
     rows: list[tuple[int, int, float]],
     total_fte: float = 0.0,
-    total_emissions_kg: float = 0.0,
     validated_module_type_ids: set[int] | None = None,
     top_class_detail: dict[str, list[dict[str, Any]]] | None = None,
     exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
+    *,
+    sql_totals: ITSqlTotals,
 ) -> dict[str, Any]:
     """Build an IT-focused emission breakdown from raw aggregated rows.
 
     Args:
         rows: Aggregated tuples of ``(module_type_id, emission_type_id, kg_co2eq)``.
         total_fte: Total headcount FTE for per-person normalization.
-        total_emissions_kg: Total emissions (all modules) in kg for percentage
-            calculation. When zero, recomputed from ``rows`` after applying
-            ``exclude_module_type_ids`` (matches chart breakdown behaviour).
         validated_module_type_ids: Set of validated module type IDs.
         exclude_module_type_ids: Module type IDs to omit (same as emission
             breakdown / results summary).
+        sql_totals: Pre-computed SQL totals from
+            ``DataEntryEmissionService.get_it_emission_sql_totals``
+            typed as :class:`ITSqlTotals`.
 
     Returns:
         A dictionary with ``total_it_tonnes_co2eq``, ``total_it_per_fte``,
@@ -119,10 +146,6 @@ def build_it_breakdown(
     """
     exclude = exclude_module_type_ids or frozenset()
     filtered_rows = [r for r in rows if r[0] not in exclude]
-    # Align % of total with chart breakdown when modules are excluded.
-    if exclude:
-        total_emissions_kg = sum(kg for _, _, kg in filtered_rows)
-
     validated_ids = validated_module_type_ids or set()
 
     # Accumulate kg per IT category and per emission type within cloud/AI
@@ -149,26 +172,16 @@ def build_it_breakdown(
                 key = "ai"
             cloud_ai_detail[key] = cloud_ai_detail.get(key, 0.0) + kg_co2eq
 
-    total_it_kg = sum(category_kg.values())
+    total_it_kg = sql_totals["it_total_kg"]
+    effective_total_kg = sql_totals["overall_total_kg"]
+    validated_it_kg = sql_totals["validated_it_kg"]
+    total_validated_source_kg = sql_totals["validated_source_total_kg"]
+
     total_it_tonnes = total_it_kg / 1000.0
     total_it_per_fte = (total_it_kg / total_fte / 1000.0) if total_fte > 0 else 0.0
 
     percentage_of_total = (
-        (total_it_kg / total_emissions_kg * 100.0) if total_emissions_kg > 0 else 0.0
-    )
-
-    # IT share within validated IT source modules only
-    validated_source_module_ids: set[int] = set()
-    for mod_ids in _IT_CATEGORY_MODULE_IDS.values():
-        if mod_ids.issubset(validated_ids):
-            validated_source_module_ids |= mod_ids
-    validated_it_kg = sum(
-        category_kg[cat]
-        for cat, mod_ids in _IT_CATEGORY_MODULE_IDS.items()
-        if mod_ids.issubset(validated_ids)
-    )
-    total_validated_source_kg = sum(
-        kg for mid, _, kg in filtered_rows if mid in validated_source_module_ids
+        (total_it_kg / effective_total_kg * 100.0) if effective_total_kg > 0 else 0.0
     )
     percentage_of_source_modules = (
         (validated_it_kg / total_validated_source_kg * 100.0)

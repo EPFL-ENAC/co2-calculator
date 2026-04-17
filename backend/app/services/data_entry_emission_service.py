@@ -21,6 +21,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -498,6 +499,26 @@ class DataEntryEmissionService:
         """
         return await self.repo.get_emission_breakdown_with_quantity(
             carbon_report_id=carbon_report_id,
+        )
+
+    async def get_it_emission_sql_totals(
+        self,
+        carbon_report_id: int,
+        it_emission_type_ids: list[int],
+        validated_source_module_type_ids: list[int],
+        exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
+    ) -> ITSqlTotals:
+        """Compute IT emission totals in SQL.
+
+        Delegates to the repository. Returns a dict with
+        ``it_total_kg``, ``overall_total_kg``, ``validated_source_total_kg``,
+        and ``validated_it_kg``.
+        """
+        return await self.repo.get_it_emission_sql_totals(
+            carbon_report_id=carbon_report_id,
+            it_emission_type_ids=it_emission_type_ids,
+            validated_source_module_type_ids=validated_source_module_type_ids,
+            exclude_module_type_ids=exclude_module_type_ids,
         )
 
     async def get_embodied_energy_by_building(
