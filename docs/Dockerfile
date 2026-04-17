@@ -1,8 +1,8 @@
 # Stage 1: Build MkDocs site
-FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
 
-# Install build dependencies and git
-RUN apk add --no-cache gcc g++ musl-dev libffi-dev openssl-dev git
+# Install git (required for mkdocs-git-authors-plugin)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -13,8 +13,9 @@ RUN uv venv /app/.venv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies (production only)
-RUN uv sync --frozen --no-dev
+# Install dependencies (production only), using BuildKit cache to avoid re-downloading
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # Copy documentation source
 COPY src/ ./src/
