@@ -21,14 +21,26 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v2.8.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@v3.0.4
     secrets:
       token: ${{ secrets.CD_TOKEN }}
-      registry_token: ${{ secrets.GITHUB_TOKEN }}
+      registry_token: ${{ secrets.QUAY_TOKEN }}
     with:
-      # Optional inputs can be passed here
       ORG: epfl
       REPO: co2-calculator
-      build_context: '[ "./frontend", "./backend", "./docs" ]' # context paths to build
+      build_context: '[ "./frontend", "./backend", "./docs" ]'
       helm_chart_name: co2-calculator
       helm_chart_version: ${{ needs.publish-chart.outputs.chart_version }}
+      registries: |
+        [
+          {
+            "registry": "ghcr.io",
+            "argo_repositories": ["EPFL-ENAC/enack8s-app-config"]
+          },
+          {
+            "registry": "quay-its.epfl.ch",
+            "registry_path": "svc1751",
+            "registry_username": "svc1751+ghaction",
+            "argo_repositories": ["EPFL-ENAC/openshift-app-config"]
+          }
+        ]

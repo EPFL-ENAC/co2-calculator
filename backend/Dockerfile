@@ -1,18 +1,19 @@
 # =========================
 # 1- Builder Stage
 # =========================
-FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
 
 WORKDIR /app
 
 # Install git for dependencies from git repositories
-RUN apk add --no-cache git
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests first
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies into a Linux-native venv
-RUN uv sync --frozen --no-dev --no-cache --compile-bytecode
+# Install dependencies into a Linux-native venv, using BuildKit cache to avoid re-downloading
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --compile-bytecode
 
 # Install OpenTelemetry instrumentation packages
 # https://opentelemetry.io/docs/zero-code/python/troubleshooting/#bootstrap-using-uv
@@ -27,12 +28,12 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
-FROM python:3.12-alpine3.23 AS runtime
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-RUN addgroup -g 1001 appgroup && \
-  adduser -D -H -u 1001 -G appgroup appuser && \
+RUN groupadd -g 1001 appgroup && \
+  useradd -M -s /sbin/nologin -u 1001 -g appgroup appuser && \
   chown -R appuser:appgroup /app
 
 USER appuser
@@ -53,7 +54,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT}/ready || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:' + __import__('os').environ.get('PORT','8000') + '/ready')" || exit 1
 
 # Use environment variables in CMD
 CMD ["sh", "-c", "exec opentelemetry-instrument uvicorn app.main:app --host $HOST --port $PORT --workers $WORKERS"]
