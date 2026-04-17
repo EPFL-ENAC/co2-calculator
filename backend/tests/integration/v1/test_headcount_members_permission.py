@@ -69,7 +69,7 @@ def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID
     )
 
     mock_unit = MagicMock()
-    mock_unit.institutional_code = unit_institutional_id
+    mock_unit.institutional_id = unit_institutional_id
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.get_carbon_report_id",
         AsyncMock(return_value=1),

@@ -49,6 +49,7 @@ class TestRoleProviderIntegration:
                         "name": f"{RoleName.CO2_USER_STD.value}",
                         "state": "active",
                         "accredunitid": "100",
+                        "reason": {"resource": {"cf": "100"}},
                     }
                 ]
             }

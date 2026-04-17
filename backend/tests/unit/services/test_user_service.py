@@ -1,6 +1,7 @@
 """Tests for UserService.unit_membership_sync_user and upsert_user sync logic."""
 
 import pytest
+from fastapi import HTTPException
 from sqlmodel import select
 
 from app.models.unit import Unit
@@ -125,6 +126,341 @@ class TestUnitMembershipSyncUser:
 
         rows = await _get_unit_users(db_session, user.id)
         assert len(rows) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests for get_uniq_unit_institutional_id_from_roles
+# ---------------------------------------------------------------------------
+
+
+class TestGetUniqUnitInstitutionalIdFromRoles:
+    def _svc(self):
+        from unittest.mock import MagicMock
+
+        return UserService(MagicMock())
+
+    def test_none_roles(self):
+        assert self._svc().get_uniq_unit_institutional_id_from_roles(None) == []
+
+    def test_empty_roles(self):
+        assert self._svc().get_uniq_unit_institutional_id_from_roles([]) == []
+
+    def test_extracts_unique_ids(self):
+        roles = [
+            _role(RoleName.CO2_USER_STD, "CF_A"),
+            _role(RoleName.CO2_USER_PRINCIPAL, "CF_A"),
+            _role(RoleName.CO2_USER_STD, "CF_B"),
+        ]
+        result = self._svc().get_uniq_unit_institutional_id_from_roles(roles)
+        assert sorted(result) == ["CF_A", "CF_B"]
+
+    def test_skips_roles_without_institutional_id(self):
+        role_no_id = Role(role=RoleName.CO2_USER_STD, on=RoleScope())
+        result = self._svc().get_uniq_unit_institutional_id_from_roles([role_no_id])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for _build_policy_input
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPolicyInput:
+    def _svc(self):
+        from unittest.mock import MagicMock
+
+        return UserService(MagicMock())
+
+    def test_builds_correct_structure(self):
+        user = User(
+            id=1,
+            institutional_id="100",
+            email="u@test.com",
+            provider=UserProvider.TEST,
+            roles=[],
+        )
+        result = self._svc()._build_policy_input(user, "read")
+        assert result["action"] == "read"
+        assert result["resource_type"] == "user"
+        assert result["user"]["id"] == 1
+        assert result["user"]["email"] == "u@test.com"
+        assert result["user"]["roles"] == []
+
+    def test_none_roles_defaults(self):
+        user = User(
+            id=2,
+            institutional_id="200",
+            email="u2@test.com",
+            provider=UserProvider.TEST,
+            roles=None,
+        )
+        result = self._svc()._build_policy_input(user, "create")
+        assert result["user"]["roles"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for _upsert_user_identity
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertUserIdentity:
+    async def test_raises_without_provider(self, db_session):
+        svc = UserService(db_session)
+        with pytest.raises(ValueError, match="Provider is required"):
+            await svc._upsert_user_identity(
+                id=None,
+                institutional_id="123",
+                email="test@test.com",
+                provider=None,
+            )
+
+    async def test_creates_new_user(self, db_session):
+        svc = UserService(db_session)
+        user = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="NEW_001",
+            email="new@test.com",
+            display_name="New",
+            provider=UserProvider.TEST,
+        )
+        assert user.id is not None
+        assert user.institutional_id == "NEW_001"
+
+    async def test_updates_existing_user(self, db_session):
+        svc = UserService(db_session)
+        user1 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="UPD_001",
+            email="upd@test.com",
+            display_name="V1",
+            provider=UserProvider.TEST,
+        )
+        await db_session.commit()
+
+        user2 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="UPD_001",
+            email="upd@test.com",
+            display_name="V2",
+            provider=UserProvider.TEST,
+        )
+        assert user2.id == user1.id
+        assert user2.display_name == "V2"
+
+    async def test_provider_mismatch_raises(self, db_session):
+        svc = UserService(db_session)
+        user = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="MIS_001",
+            email="mis@test.com",
+            provider=UserProvider.TEST,
+        )
+        await db_session.commit()
+
+        with pytest.raises(ValueError, match="provider mismatch"):
+            await svc._upsert_user_identity(
+                id=user.id,
+                institutional_id="MIS_DIFFERENT",
+                email="mis2@test.com",
+                provider=UserProvider.ACCRED,
+            )
+
+    async def test_email_fallback_same_provider(self, db_session):
+        svc = UserService(db_session)
+        user1 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="EMAIL_001",
+            email="shared@test.com",
+            provider=UserProvider.TEST,
+        )
+        await db_session.commit()
+
+        # Lookup by different institutional_id but same email+provider → update
+        user2 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="EMAIL_002",
+            email="shared@test.com",
+            provider=UserProvider.TEST,
+        )
+        assert user2.id == user1.id
+
+    async def test_email_fallback_different_provider_uses_different_email(
+        self, db_session
+    ):
+        """Cross-provider with different email creates a new user."""
+        svc = UserService(db_session)
+        user1 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="EP_001",
+            email="cross@test.com",
+            provider=UserProvider.TEST,
+        )
+        await db_session.commit()
+
+        # Different provider AND different email → new user
+        user2 = await svc._upsert_user_identity(
+            id=None,
+            institutional_id="EP_002",
+            email="cross_accred@test.com",
+            provider=UserProvider.ACCRED,
+        )
+        assert user2.id != user1.id
+        assert user2.institutional_id == "EP_002"
+
+
+# ---------------------------------------------------------------------------
+# Tests for list_users (policy-gated)
+# ---------------------------------------------------------------------------
+
+
+class TestListUsers:
+    async def test_list_users_denied(self, db_session):
+        from unittest.mock import patch
+
+        svc = UserService(db_session)
+        user = _make_user()
+        db_session.add(user)
+        await db_session.flush()
+
+        with patch(
+            "app.services.user_service.query_policy",
+            return_value={"allow": False, "reason": "no access"},
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await svc.list_users(user)
+            assert exc_info.value.status_code == 403
+
+    async def test_list_users_allowed(self, db_session):
+        from unittest.mock import patch
+
+        svc = UserService(db_session)
+        user = _make_user()
+        db_session.add(user)
+        await db_session.flush()
+
+        with patch(
+            "app.services.user_service.query_policy",
+            return_value={"allow": True, "filters": {}},
+        ):
+            result = await svc.list_users(user)
+            assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# Tests for get_user (policy-gated)
+# ---------------------------------------------------------------------------
+
+
+class TestGetUser:
+    async def test_get_user_not_found(self, db_session):
+        svc = UserService(db_session)
+        current = _make_user()
+        db_session.add(current)
+        await db_session.flush()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await svc.get_user(99999, current)
+        assert exc_info.value.status_code == 404
+
+    async def test_get_user_denied_returns_404(self, db_session):
+        from unittest.mock import patch
+
+        svc = UserService(db_session)
+        current = _make_user(institutional_id="CUR", email="cur@test.com")
+        target = _make_user(institutional_id="TGT", email="tgt@test.com")
+        db_session.add_all([current, target])
+        await db_session.flush()
+
+        with patch(
+            "app.services.user_service.query_policy",
+            return_value={"allow": False},
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await svc.get_user(target.id, current)
+            assert exc_info.value.status_code == 404
+
+    async def test_get_user_allowed(self, db_session):
+        from unittest.mock import patch
+
+        svc = UserService(db_session)
+        current = _make_user(institutional_id="CUR2", email="cur2@test.com")
+        target = _make_user(institutional_id="TGT2", email="tgt2@test.com")
+        db_session.add_all([current, target])
+        await db_session.flush()
+
+        with patch(
+            "app.services.user_service.query_policy",
+            return_value={"allow": True},
+        ):
+            result = await svc.get_user(target.id, current)
+            assert result.id == target.id
+
+
+# ---------------------------------------------------------------------------
+# Tests for CRUD operations
+# ---------------------------------------------------------------------------
+
+
+class TestCrudOperations:
+    async def test_create_user(self, db_session):
+        svc = UserService(db_session)
+        current = _make_user()
+        db_session.add(current)
+        await db_session.flush()
+
+        user = await svc.create_user(
+            {"id": "NEW_CRUD", "email": "crud@test.com", "display_name": "CRUD User"},
+            current,
+        )
+        assert user.id is not None
+        assert user.email == "crud@test.com"
+
+    async def test_delete_user(self, db_session):
+        svc = UserService(db_session)
+        current = _make_user(institutional_id="DEL_CUR", email="delcur@test.com")
+        target = _make_user(institutional_id="DEL_TGT", email="deltgt@test.com")
+        db_session.add_all([current, target])
+        await db_session.flush()
+
+        deleted = await svc.delete_user(target.id, current)
+        assert deleted is True
+
+    async def test_delete_nonexistent(self, db_session):
+        svc = UserService(db_session)
+        current = _make_user()
+        db_session.add(current)
+        await db_session.flush()
+
+        deleted = await svc.delete_user(99999, current)
+        assert deleted is False
+
+    async def test_get_by_id(self, db_session):
+        svc = UserService(db_session)
+        user = _make_user()
+        db_session.add(user)
+        await db_session.flush()
+
+        found = await svc.get_by_id(user.id)
+        assert found is not None
+        assert found.id == user.id
+
+    async def test_get_by_email(self, db_session):
+        svc = UserService(db_session)
+        user = _make_user(email="unique_lookup@test.com")
+        db_session.add(user)
+        await db_session.flush()
+
+        found = await svc.get_by_email("unique_lookup@test.com")
+        assert found is not None
+
+    async def test_count(self, db_session):
+        svc = UserService(db_session)
+        user = _make_user()
+        db_session.add(user)
+        await db_session.flush()
+
+        c = await svc.count()
+        assert c >= 1
 
     async def test_role_upgrade(self, db_session):
         """User was CO2_USER_STD on a unit, now CO2_USER_PRINCIPAL — role is updated."""

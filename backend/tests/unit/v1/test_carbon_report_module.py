@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 import app.api.v1.carbon_report_module as crm
 from app.core.role_priority import pick_role_for_institutional_id, role_priority_case
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, RoleScope
 
@@ -47,7 +48,7 @@ def _global():
 def _mock_db(unit_iid=UNIT_IID, unit_found=True):
     db = MagicMock()
     unit = MagicMock()
-    unit.institutional_code = unit_iid
+    unit.institutional_id = unit_iid
     db.get = AsyncMock(return_value=unit if unit_found else None)
     return db
 
@@ -333,3 +334,122 @@ def test_role_priority_case_produces_sqlalchemy_case():
     result = role_priority_case(column)
     # Just verifies the function runs and returns something (SQLAlchemy case obj)
     assert result is not None
+
+
+# ── _has_global_or_principal_access_for_unit ──────────────────────────────────
+
+
+class TestHasGlobalOrPrincipalAccess:
+    def test_global_role_returns_true(self):
+        user = _user(roles=[_global()])
+        assert crm._has_global_or_principal_access_for_unit(user, None) is True
+
+    def test_principal_for_matching_unit(self):
+        user = _user(roles=[_principal(UNIT_IID)])
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        assert crm._has_global_or_principal_access_for_unit(user, unit) is True
+
+    def test_std_for_matching_unit(self):
+        user = _user(roles=[_std(UNIT_IID)])
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        assert crm._has_global_or_principal_access_for_unit(user, unit) is False
+
+    def test_unit_none(self):
+        user = _user(roles=[_principal(UNIT_IID)])
+        assert crm._has_global_or_principal_access_for_unit(user, None) is False
+
+    def test_unit_no_institutional_id(self):
+        user = _user(roles=[_principal(UNIT_IID)])
+        unit = MagicMock()
+        unit.institutional_id = None
+        assert crm._has_global_or_principal_access_for_unit(user, unit) is False
+
+    def test_no_roles(self):
+        user = _user(roles=[])
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        assert crm._has_global_or_principal_access_for_unit(user, unit) is False
+
+
+# ── _get_professional_travel_institutional_id_filter ──────────────────────────
+
+
+class TestGetProfessionalTravelFilter:
+    @pytest.mark.asyncio
+    async def test_non_travel_type_returns_none(self):
+        db = _mock_db()
+        user = _user(roles=[_std(UNIT_IID)])
+        result = await crm._get_professional_travel_institutional_id_filter(
+            db=db,
+            unit_id=1,
+            current_user=user,
+            data_entry_type_id=DataEntryTypeEnum.scientific,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_plane_principal_returns_none(self):
+        db = _mock_db()
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        db.get = AsyncMock(return_value=unit)
+        user = _user(roles=[_principal(UNIT_IID)])
+
+        result = await crm._get_professional_travel_institutional_id_filter(
+            db=db,
+            unit_id=1,
+            current_user=user,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_plane_std_returns_institutional_id(self):
+        db = _mock_db()
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        db.get = AsyncMock(return_value=unit)
+        user = _user("MY_IID", roles=[_std(UNIT_IID)])
+
+        result = await crm._get_professional_travel_institutional_id_filter(
+            db=db,
+            unit_id=1,
+            current_user=user,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+        )
+        assert result == "MY_IID"
+
+    @pytest.mark.asyncio
+    async def test_train_std_no_institutional_id_raises(self):
+        db = _mock_db()
+        unit = MagicMock()
+        unit.institutional_id = UNIT_IID
+        db.get = AsyncMock(return_value=unit)
+        user = _user(institutional_id=None, roles=[_std(UNIT_IID)])
+        user.institutional_id = None
+
+        with pytest.raises(HTTPException) as exc:
+            await crm._get_professional_travel_institutional_id_filter(
+                db=db,
+                unit_id=1,
+                current_user=user,
+                data_entry_type_id=DataEntryTypeEnum.train,
+            )
+        assert exc.value.status_code == 403
+
+
+# ── _MODULE_TOP_CLASS config dicts ────────────────────────────────────────────
+
+
+def test_module_top_class_group_field_mapping():
+    assert (
+        ModuleTypeEnum.equipment_electric_consumption
+        in crm._MODULE_TOP_CLASS_GROUP_FIELD
+    )
+    assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_GROUP_FIELD
+
+
+def test_module_top_class_label_field_mapping():
+    assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_LABEL_FIELD
