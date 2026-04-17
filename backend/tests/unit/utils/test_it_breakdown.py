@@ -14,6 +14,20 @@ from app.utils.it_breakdown import (
 )
 
 
+def _sql(
+    it_kg: float,
+    overall_kg: float,
+    validated_it_kg: float = 0.0,
+    validated_source_kg: float = 0.0,
+) -> dict:
+    return {
+        "it_total_kg": it_kg,
+        "overall_total_kg": overall_kg,
+        "validated_it_kg": validated_it_kg,
+        "validated_source_total_kg": validated_source_kg,
+    }
+
+
 def _cat_by_key(categories: list[dict], key: str) -> dict:
     return next(c for c in categories if c["category_key"] == key)
 
@@ -37,7 +51,9 @@ class TestBuildItBreakdown:
                 2_000.0,
             ),
         ]
-        result = build_it_breakdown(rows, total_fte=10.0, total_emissions_kg=20_000.0)
+        result = build_it_breakdown(
+            rows, total_fte=10.0, sql_totals=_sql(10_000, 20_000)
+        )
 
         assert result["total_it_tonnes_co2eq"] == pytest.approx(10.0)
         assert result["total_it_per_fte"] == pytest.approx(1.0)
@@ -54,7 +70,7 @@ class TestBuildItBreakdown:
         assert cloud["tonnes_co2eq"] == pytest.approx(2.0)
 
     def test_empty_input_returns_zero_filled(self):
-        result = build_it_breakdown([], total_fte=10.0, total_emissions_kg=100_000.0)
+        result = build_it_breakdown([], total_fte=10.0, sql_totals=_sql(0, 100_000))
 
         assert result["total_it_tonnes_co2eq"] == 0.0
         assert result["total_it_per_fte"] == 0.0
@@ -72,7 +88,7 @@ class TestBuildItBreakdown:
                 5_000.0,
             ),
         ]
-        result = build_it_breakdown(rows, total_fte=0.0, total_emissions_kg=5_000.0)
+        result = build_it_breakdown(rows, total_fte=0.0, sql_totals=_sql(5_000, 5_000))
 
         assert result["total_it_per_fte"] == 0.0
         assert result["total_it_tonnes_co2eq"] == pytest.approx(5.0)
@@ -85,7 +101,7 @@ class TestBuildItBreakdown:
                 5_000.0,
             ),
         ]
-        result = build_it_breakdown(rows, total_emissions_kg=0.0)
+        result = build_it_breakdown(rows, sql_totals=_sql(5_000, 0))
 
         assert result["percentage_of_total"] == 0.0
 
@@ -107,7 +123,7 @@ class TestBuildItBreakdown:
                 8_000.0,
             ),
         ]
-        result = build_it_breakdown(rows, total_emissions_kg=20_000.0)
+        result = build_it_breakdown(rows, sql_totals=_sql(2_000, 20_000))
 
         assert result["total_it_tonnes_co2eq"] == pytest.approx(2.0)
 
@@ -129,7 +145,7 @@ class TestBuildItBreakdown:
                 1_000.0,
             ),
         ]
-        result = build_it_breakdown(rows)
+        result = build_it_breakdown(rows, sql_totals=_sql(8_000, 8_000))
 
         assert result["scope_breakdown"]["scope_2"] == pytest.approx(4.0)
         assert result["scope_breakdown"]["scope_3"] == pytest.approx(4.0)
@@ -157,7 +173,7 @@ class TestBuildItBreakdown:
                 300.0,
             ),
         ]
-        result = build_it_breakdown(rows)
+        result = build_it_breakdown(rows, sql_totals=_sql(3_800, 3_800))
         cloud = _cat_by_key(result["categories"], IT_CATEGORY_CLOUD_AI)
 
         emissions = {e["key"]: e["value"] for e in cloud["emissions"]}
@@ -176,6 +192,7 @@ class TestBuildItBreakdown:
         result = build_it_breakdown(
             [],
             validated_module_type_ids=validated,
+            sql_totals=_sql(0, 0),
         )
         assert result["validated"] is True
         assert result["partially_validated"] is False
@@ -186,13 +203,16 @@ class TestBuildItBreakdown:
         result = build_it_breakdown(
             [],
             validated_module_type_ids=validated,
+            sql_totals=_sql(0, 0),
         )
         assert result["validated"] is False
         assert result["partially_validated"] is True
         assert result["validated_sources"] == [IT_CATEGORY_EQUIPMENT]
 
     def test_validation_none(self):
-        result = build_it_breakdown([], validated_module_type_ids=set())
+        result = build_it_breakdown(
+            [], validated_module_type_ids=set(), sql_totals=_sql(0, 0)
+        )
         assert result["validated"] is False
         assert result["partially_validated"] is False
         assert result["validated_sources"] == []
@@ -210,7 +230,7 @@ class TestBuildItBreakdown:
                 7_000.0,
             ),
         ]
-        result = build_it_breakdown(rows)
+        result = build_it_breakdown(rows, sql_totals=_sql(10_000, 10_000))
 
         equip = _cat_by_key(result["categories"], IT_CATEGORY_EQUIPMENT)
         purch = _cat_by_key(result["categories"], IT_CATEGORY_PURCHASES)
@@ -218,7 +238,7 @@ class TestBuildItBreakdown:
         assert purch["percentage"] == pytest.approx(70.0)
 
     def test_categories_order_is_deterministic(self):
-        result = build_it_breakdown([])
+        result = build_it_breakdown([], sql_totals=_sql(0, 0))
         keys = [c["category_key"] for c in result["categories"]]
         assert keys == IT_CATEGORIES_ORDER
 
@@ -231,7 +251,7 @@ class TestBuildItBreakdown:
                 1_000.0,
             ),
         ]
-        result = build_it_breakdown(rows)
+        result = build_it_breakdown(rows, sql_totals=_sql(1_000, 1_000))
         assert result["total_it_tonnes_co2eq"] == pytest.approx(1.0)
 
     def test_exclude_modules_drops_research_and_recomputes_percentage_denominator(self):
@@ -250,8 +270,8 @@ class TestBuildItBreakdown:
         exclude = {ModuleTypeEnum.research_facilities.value}
         result = build_it_breakdown(
             rows,
-            total_emissions_kg=10_000.0,
             exclude_module_type_ids=exclude,
+            sql_totals=_sql(1_000, 1_000),
         )
         assert result["total_it_tonnes_co2eq"] == pytest.approx(1.0)
         assert result["percentage_of_total"] == pytest.approx(100.0)
@@ -269,6 +289,7 @@ class TestBuildItBreakdown:
             [],
             validated_module_type_ids=validated,
             exclude_module_type_ids=exclude,
+            sql_totals=_sql(0, 0),
         )
         assert result["validated"] is True
         assert IT_CATEGORY_RESEARCH not in result["validated_sources"]

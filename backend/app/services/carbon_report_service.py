@@ -15,6 +15,7 @@ from app.schemas.carbon_report import (
     CarbonReportUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 logger = get_logger(__name__)
 
@@ -149,12 +150,17 @@ class CarbonReportService:
         # Calculate grand total
         total = scope1_total + scope2_total + scope3_total
 
+        # Pre-compute IT total so IT-breakdown endpoints can read it from cached stats
+        _it_et_id_strs = {str(et.value) for et in IT_EMISSION_TYPES}
+        it_total_kg = sum(v for k, v in by_emission_type.items() if k in _it_et_id_strs)
+
         # Build aggregated stats dict
         stats = {
             "scope1": scope1_total,
             "scope2": scope2_total,
             "scope3": scope3_total,
             "total": total,
+            "it_total_kg": it_total_kg,
             "by_emission_type": by_emission_type,
             "computed_at": datetime.now(timezone.utc).isoformat(),
             "entry_count": total_entry_count,
