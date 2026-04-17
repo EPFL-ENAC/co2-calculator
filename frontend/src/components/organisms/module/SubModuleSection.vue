@@ -38,7 +38,7 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
-          :threshold="threshold"
+          :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
           :submodule-type="submodule.id"
@@ -95,9 +95,11 @@ import type {
   Threshold,
   ConditionalSubmoduleProps,
   EnumSubmoduleType,
+  Module,
 } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 interface Option {
   label: string;
@@ -148,9 +150,32 @@ type CommonProps = {
 
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
+const yearConfigStore = useYearConfigStore();
 const props = defineProps<SubModuleSectionProps>();
-
 const authStore = useAuthStore();
+
+const submoduleKey = computed(() => {
+  return props.submodule.id;
+});
+
+const backendThreshold = computed<Threshold | null>(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return null;
+
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+    return null;
+  }
+
+  return {
+    type: MODULES_THRESHOLD_TYPES[0],
+    value: subConfig.threshold,
+  };
+});
+
+const effectiveThreshold = computed<Threshold>(() => {
+  return backendThreshold.value || props.threshold;
+});
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {

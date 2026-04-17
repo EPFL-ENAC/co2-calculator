@@ -18,12 +18,14 @@ import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 import { useTimelineStore } from 'src/stores/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 const moduleStore = useModuleStore();
+const yearConfigStore = useYearConfigStore();
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -74,6 +76,7 @@ const moduleCardsWithStatus = computed(() => {
       ...card,
       badge:
         getBadgeForStatus(timelineStore.itemStates[card.module]) ?? undefined,
+      isDisabled: !yearConfigStore.isModuleVisible(card.module),
     }),
   );
 });
@@ -238,14 +241,24 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
                 size="sm"
                 class="text-weight-medium btn-secondary"
                 :disable="
-                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                  !hasModulePermission(
+                    moduleCard.module,
+                    PermissionAction.EDIT,
+                  ) || moduleCard.isDisabled
                 "
                 :to="
-                  hasModulePermission(moduleCard.module, PermissionAction.EDIT)
+                  hasModulePermission(
+                    moduleCard.module,
+                    PermissionAction.EDIT,
+                  ) && !moduleCard.isDisabled
                     ? { name: 'module', params: { module: moduleCard.module } }
                     : undefined
                 "
-              />
+              >
+                <q-tooltip v-if="moduleCard.isDisabled">
+                  {{ $t('module_disabled') }}
+                </q-tooltip>
+              </q-btn>
             </div>
             <div
               v-if="

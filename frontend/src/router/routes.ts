@@ -8,6 +8,7 @@ import {
   requirePermission,
   requireModuleEditPermission,
 } from './guards/permissionGuard';
+import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -108,7 +109,10 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
-                beforeEnter: requireModuleEditPermission(),
+                beforeEnter: [
+                  requireModuleEditPermission(),
+                  moduleEnabledGuard(),
+                ],
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry (edit permission required)',

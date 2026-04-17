@@ -28,7 +28,8 @@ const props = defineProps<{
 const { t: $t } = useI18n();
 const yearConfigStore = useYearConfigStore();
 const backofficeDataManagement = useBackofficeDataManagement();
-const { isSubmoduleEnabled, isSubmoduleIncomplete } = yearConfigStore;
+const { isSubmoduleEnabled, isSubmoduleIncomplete, getModule } =
+  yearConfigStore;
 
 // ── Injected from ModuleConfig ────────────────────────────────────────────────
 
@@ -208,6 +209,13 @@ function safeFileName(meta: unknown): string | undefined {
 
 // ── Submodule config helpers ──────────────────────────────────────────────────
 
+const { getModuleNameFromSubmodule } = yearConfigStore;
+
+function getUnifiedModuleConfigFromSub(sub: SubmoduleConfig) {
+  const moduleName = getModuleNameFromSubmodule(sub);
+  return moduleName ? getModule(moduleName) : null;
+}
+
 async function updateSubmoduleEnabled(
   sub: SubmoduleConfig,
   value: boolean,
@@ -231,12 +239,8 @@ async function updateSubmoduleEnabled(
 }
 
 function getSubmoduleThreshold(sub: SubmoduleConfig): number | null {
-  const moduleKey = String(sub.moduleTypeId);
-  const subKey =
-    sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
-  if (!subKey) return null;
-  const moduleConfig = yearConfigStore.config?.config?.modules?.[moduleKey];
-  return moduleConfig?.submodules?.[subKey]?.threshold ?? null;
+  const unifiedModule = getUnifiedModuleConfigFromSub(sub);
+  return unifiedModule?.submodules[sub.key]?.threshold ?? null;
 }
 
 async function updateSubmoduleThreshold(
@@ -247,18 +251,18 @@ async function updateSubmoduleThreshold(
   const subKey =
     sub.dataEntryTypeId !== undefined ? String(sub.dataEntryTypeId) : undefined;
   if (!subKey) return;
-  const existingModule = yearConfigStore.config?.config?.modules?.[moduleKey];
-  if (!existingModule) return;
-  const existingSub = existingModule.submodules?.[subKey];
+  const unifiedModule = getUnifiedModuleConfigFromSub(sub);
+  if (!unifiedModule) return;
+  const existingSub = unifiedModule.submodules[sub.key];
   if (!existingSub) return;
   try {
     await yearConfigStore.updateConfig(props.selectedYear, {
       config: {
         modules: {
           [moduleKey]: {
-            ...existingModule,
+            ...unifiedModule,
             submodules: {
-              ...existingModule.submodules,
+              ...unifiedModule.submodules,
               [subKey]: { ...existingSub, threshold: value },
             },
           },
