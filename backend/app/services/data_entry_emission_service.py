@@ -27,6 +27,26 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
+def _pick_emission_type_id(
+    comp_emission_type: EmissionType, factor_emission_type_id: int
+) -> int:
+    """Return the more specific emission_type_id between computation and factor.
+
+    When a factor stores a generic parent (e.g. buildings__rooms,
+    professional_travel__plane)
+    but the computation targets a specific leaf, the computation's type must be used so
+    the emission is recognised in EMISSION_SCOPE.  When the factor is more specific
+    (e.g. headcount food sub-types), the factor's type is preferred.
+    """
+    try:
+        factor_et = EmissionType(factor_emission_type_id)
+        if factor_et.level > comp_emission_type.level:
+            return factor_emission_type_id
+    except ValueError:
+        pass
+    return comp_emission_type.value
+
+
 class DataEntryEmissionService:
     """Service for data entry business logic."""
 
@@ -165,7 +185,9 @@ class DataEntryEmissionService:
                         results.append(
                             DataEntryEmission(
                                 data_entry_id=data_entry.id,
-                                emission_type_id=factor.emission_type_id,
+                                emission_type_id=_pick_emission_type_id(
+                                    comp.emission_type, factor.emission_type_id
+                                ),
                                 primary_factor_id=factor.id,
                                 kg_co2eq=float(csv_kg_co2eq),
                                 meta={
@@ -214,7 +236,9 @@ class DataEntryEmissionService:
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
-                            emission_type_id=factor.emission_type_id,
+                            emission_type_id=_pick_emission_type_id(
+                                comp.emission_type, factor.emission_type_id
+                            ),
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
                             meta={
