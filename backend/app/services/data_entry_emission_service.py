@@ -20,12 +20,25 @@ from app.repositories.data_entry_emission_repo import (
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    resolve_emission_types,
+)
 from app.utils.emission_category import additional_value_unit
 from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
 logger = get_logger(__name__)
+
+
+def _emission_depth(et: EmissionType) -> int:
+    """Count parent chain length (0 = root)."""
+    depth = 0
+    p = et.parent
+    while p is not None:
+        depth += 1
+        p = p.parent
+    return depth
 
 
 def _pick_emission_type_id(
@@ -34,14 +47,14 @@ def _pick_emission_type_id(
     """Return the more specific emission_type_id between computation and factor.
 
     When a factor stores a generic parent (e.g. buildings__rooms,
-    professional_travel__plane)
-    but the computation targets a specific leaf, the computation's type must be used so
-    the emission is recognised in EMISSION_SCOPE.  When the factor is more specific
-    (e.g. headcount food sub-types), the factor's type is preferred.
+    professional_travel__plane) but the computation targets a specific leaf,
+    the computation's type must be used so the emission has a known scope/category.
+    When the factor is more specific (e.g. headcount food sub-types), the
+    factor's type is preferred.
     """
     try:
         factor_et = EmissionType(factor_emission_type_id)
-        if factor_et.level > comp_emission_type.level:
+        if _emission_depth(factor_et) > _emission_depth(comp_emission_type):
             return factor_emission_type_id
     except ValueError:
         pass
@@ -175,6 +188,7 @@ class DataEntryEmissionService:
                                 emission_type_id=emission_type.value,
                                 primary_factor_id=None,
                                 kg_co2eq=float(csv_kg_co2eq),
+                                scope=emission_type.scope,
                                 meta={
                                     "factors_used": [],
                                     **ctx,
@@ -183,14 +197,16 @@ class DataEntryEmissionService:
                         )
                         continue
                     for factor in factors:
+                        _et_id = _pick_emission_type_id(
+                            comp.emission_type, factor.emission_type_id
+                        )
                         results.append(
                             DataEntryEmission(
                                 data_entry_id=data_entry.id,
-                                emission_type_id=_pick_emission_type_id(
-                                    comp.emission_type, factor.emission_type_id
-                                ),
+                                emission_type_id=_et_id,
                                 primary_factor_id=factor.id,
                                 kg_co2eq=float(csv_kg_co2eq),
+                                scope=EmissionType(_et_id).scope,
                                 meta={
                                     "factors_used": [
                                         {"id": factor.id, "values": factor.values}
@@ -234,6 +250,9 @@ class DataEntryEmissionService:
                         )
                         quantity = base_qty * multiplier
                     quantity_unit: str | None = (factor.values or {}).get("unit")
+                    _et_id = _pick_emission_type_id(
+                        comp.emission_type, factor.emission_type_id
+                    )
                     additional_value: float | None = (
                         quantity
                         if (
@@ -245,12 +264,11 @@ class DataEntryEmissionService:
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
-                            emission_type_id=_pick_emission_type_id(
-                                comp.emission_type, factor.emission_type_id
-                            ),
+                            emission_type_id=_et_id,
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
                             additional_value=additional_value,
+                            scope=EmissionType(_et_id).scope,
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -261,6 +279,30 @@ class DataEntryEmissionService:
                             },
                         )
                     )
+
+        rollup_type = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION.get(
+            DataEntryTypeEnum(data_entry.data_entry_type)
+        )
+        if rollup_type is not None and len(results) > 1:
+            total_kg = sum(r.kg_co2eq or 0.0 for r in results)
+            primary_factor_id = min(
+                (
+                    r.primary_factor_id
+                    for r in results
+                    if r.primary_factor_id is not None
+                ),
+                default=None,
+            )
+            results.append(
+                DataEntryEmission(
+                    data_entry_id=data_entry.id,
+                    emission_type_id=rollup_type.value,
+                    primary_factor_id=primary_factor_id,
+                    kg_co2eq=total_kg,
+                    scope=None,
+                    meta={"is_rollup": True},
+                )
+            )
 
         return results
 

@@ -70,6 +70,7 @@ erDiagram
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
+    INTEGER scope
   }
   data_ingestion_jobs {
     INTEGER data_entry_type_id "indexed"

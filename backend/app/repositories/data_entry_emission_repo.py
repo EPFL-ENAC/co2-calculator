@@ -12,7 +12,18 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.utils.data_entry_emission_type_map import ROLLUP_EMISSION_TYPE_IDS
 from app.utils.it_breakdown import ITSqlTotals
+
+
+def _is_leaf_emission() -> ColumnElement[bool]:
+    """Exclude rollup rows from aggregation to prevent double-counting."""
+    if not ROLLUP_EMISSION_TYPE_IDS:
+        return col(DataEntryEmission.scope).isnot(None)
+    return and_(
+        col(DataEntryEmission.scope).isnot(None),
+        col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS),
+    )
 
 
 class DataEntryEmissionRepository:
@@ -85,6 +96,7 @@ class DataEntryEmissionRepository:
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
+                _is_leaf_emission(),
             )
             .group_by(group_field)
         )
@@ -180,6 +192,7 @@ class DataEntryEmissionRepository:
                 CarbonReport.unit_id == unit_id,
                 CarbonReportModule.status == ModuleStatus.VALIDATED,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(year_expr)
             .order_by(year_expr.asc())
@@ -227,6 +240,7 @@ class DataEntryEmissionRepository:
                 col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 CarbonReportModule.status == ModuleStatus.VALIDATED,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(col(CarbonReportModule.module_type_id))
         )
@@ -267,6 +281,7 @@ class DataEntryEmissionRepository:
             .where(
                 col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(
                 col(CarbonReportModule.module_type_id),
@@ -326,6 +341,7 @@ class DataEntryEmissionRepository:
             .where(
                 col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(
                 col(CarbonReportModule.module_type_id),
@@ -383,6 +399,7 @@ class DataEntryEmissionRepository:
             base_where.append(
                 col(CarbonReportModule.module_type_id).notin_(exclude_module_type_ids)
             )
+        base_where.append(_is_leaf_emission())
 
         query = (
             select(

@@ -2,29 +2,63 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Callable, Optional
+from enum import Enum, IntEnum, StrEnum
+from typing import Callable, Optional, TypedDict
 
 from sqlalchemy import ForeignKey
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
 
 from app.models.data_entry import DataEntryTypeEnum
 
+# =============================================================================
+# Scope / Category metadata — source of truth for chart categorisation
+# =============================================================================
+
+
+class Scope(IntEnum):
+    scope1 = 1
+    scope2 = 2
+    scope3 = 3
+
+
+class EmissionCategory(StrEnum):
+    # scope 1
+    process_emissions = "process_emissions"
+    buildings_energy_combustion = "buildings_energy_combustion"
+    # scope 2
+    buildings_room = "buildings_room"
+    equipment = "equipment"
+    # scope 3
+    external_cloud_and_ai = "external_cloud_and_ai"
+    purchases = "purchases"
+    research_facilities = "research_facilities"
+    professional_travel = "professional_travel"
+    # additional breakdown
+    commuting = "commuting"
+    food = "food"
+    waste = "waste"
+    embodied_energy = "embodied_energy"
+
+
+class EmissionMeta(TypedDict):
+    scope: Scope
+    category: EmissionCategory
+
+
+# =============================================================================
+# EmissionType enum
+# =============================================================================
+
 
 class EmissionType(int, Enum):
     """
-    6-digit positional scheme: XX YY ZZ
-      - XX = category      (01-99)
-      - YY = subcategory   (01-99, 00 = category-level leaf)
-      - ZZ = item          (01-99, 00 = subcategory-level leaf)
+    Explicit parent/scope/category lookup via private dicts defined below.
 
-    Example:
-      050000 = Professional Travel (category)
-      050100 = Professional Travel > Trains (subcategory)
-      050101 = Professional Travel > Trains > Class 1 (item)
+    The integer values use a positional scheme (kept for DB compatibility):
+      6-digit: XX YY ZZ  (XX = category, YY = subcategory, ZZ = item)
+      8-digit: XX YY ZZ WW (4th level, buildings room types)
 
-    Extensible to 8-digits (XX YY ZZ WW) for a 4th level:
-      06010101 = Buildings > Rooms > Lighting > Office
+    Use the .parent, .scope, .category properties instead of integer arithmetic.
     """
 
     # -------------------------------------------------------------------------
@@ -59,6 +93,11 @@ class EmissionType(int, Enum):
     commuting__powered_two_wheeler = 30003
     commuting__public_transport = 30004
     commuting__car = 30005
+
+    # -------------------------------------------------------------------------
+    # Headcount rollup (not part of scope/category mapping)
+    # -------------------------------------------------------------------------
+    headcount = 40000
 
     # -------------------------------------------------------------------------
     # Professional Travel
@@ -185,20 +224,8 @@ class EmissionType(int, Enum):
     external__ai__provider_others = 110206
 
     # -------------------------------------------------------------------------
-    # Helpers
+    # Properties — explicit lookups via private dicts defined below
     # -------------------------------------------------------------------------
-
-    @property
-    def level(self) -> int:
-        v = self.value
-        if v >= 1_000_000:
-            # 8-digit WW level (e.g. 6010101 = buildings > rooms > lighting > office)
-            return 3
-        if v % 100 != 0:
-            return 2
-        if v % 10000 != 0:
-            return 1
-        return 0
 
     @property
     def path(self) -> str:
@@ -206,42 +233,715 @@ class EmissionType(int, Enum):
         return self.name
 
     @property
-    def parent_value(self) -> int | None:
-        """Returns the int value of the logical parent, or None if root."""
-        v = self.value
-        if v >= 1_000_000:
-            # 8-digit WW level: parent is the ZZ code (v // 100)
-            return v // 100
-        if v % 100 != 0:
-            # item → subcategory
-            return (v // 100) * 100
-        if v % 10000 != 0:
-            # subcategory → category
-            return (v // 10000) * 10000
-        return None
+    def scope(self) -> "Scope | None":
+        meta = _SCOPE_CATEGORY_MAP.get(self.value)
+        return meta["scope"] if meta else None
+
+    @property
+    def category(self) -> "EmissionCategory | None":
+        meta = _SCOPE_CATEGORY_MAP.get(self.value)
+        return meta["category"] if meta else None
 
     @property
     def parent(self) -> "EmissionType | None":
-        pv = self.parent_value
-        if pv is None:
-            return None
-        try:
-            return EmissionType(pv)
-        except ValueError:
-            return None
+        pv = _PARENT_MAP.get(self.value)
+        return EmissionType(pv) if pv is not None else None
 
-    def children(self) -> list["EmissionType"]:
-        """Returns direct children (one level down)."""
-        results = []
-        for e in type(self):
-            if e.parent_value == self.value and e != self:
-                results.append(e)
-        return results
+
+# =============================================================================
+# Explicit parent map — every non-root value → its parent value
+# =============================================================================
+
+_PARENT_MAP: dict[int, int] = {
+    # food
+    EmissionType.food__vegetarian.value: EmissionType.food.value,
+    EmissionType.food__non_vegetarian.value: EmissionType.food.value,
+    # waste
+    EmissionType.waste__incineration.value: EmissionType.waste.value,
+    EmissionType.waste__composting.value: EmissionType.waste.value,
+    EmissionType.waste__biogas.value: EmissionType.waste.value,
+    EmissionType.waste__biogas__organic_waste_food_leftovers.value: (
+        EmissionType.waste__biogas.value
+    ),
+    EmissionType.waste__biogas__cooking_vegetable_oil.value: (
+        EmissionType.waste__biogas.value
+    ),
+    EmissionType.waste__recycling.value: EmissionType.waste.value,
+    EmissionType.waste__recycling__paper.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__cardboard.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__plastics.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__glass.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__ferrous_metals.value: (
+        EmissionType.waste__recycling.value
+    ),
+    EmissionType.waste__recycling__non_ferrous_metals.value: (
+        EmissionType.waste__recycling.value
+    ),
+    EmissionType.waste__recycling__electronics.value: (
+        EmissionType.waste__recycling.value
+    ),
+    EmissionType.waste__recycling__wood.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__pet.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__aluminum.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__textile.value: EmissionType.waste__recycling.value,
+    EmissionType.waste__recycling__toner_and_ink_cartridges.value: (
+        EmissionType.waste__recycling.value
+    ),
+    EmissionType.waste__recycling__inert_waste.value: (
+        EmissionType.waste__recycling.value
+    ),
+    # commuting
+    EmissionType.commuting__walking.value: EmissionType.commuting.value,
+    EmissionType.commuting__cycling.value: EmissionType.commuting.value,
+    EmissionType.commuting__powered_two_wheeler.value: EmissionType.commuting.value,
+    EmissionType.commuting__public_transport.value: EmissionType.commuting.value,
+    EmissionType.commuting__car.value: EmissionType.commuting.value,
+    # professional_travel
+    EmissionType.professional_travel__train.value: (
+        EmissionType.professional_travel.value
+    ),
+    EmissionType.professional_travel__train__class_1.value: (
+        EmissionType.professional_travel__train.value
+    ),
+    EmissionType.professional_travel__train__class_2.value: (
+        EmissionType.professional_travel__train.value
+    ),
+    EmissionType.professional_travel__plane.value: (
+        EmissionType.professional_travel.value
+    ),
+    EmissionType.professional_travel__plane__first.value: (
+        EmissionType.professional_travel__plane.value
+    ),
+    EmissionType.professional_travel__plane__business.value: (
+        EmissionType.professional_travel__plane.value
+    ),
+    EmissionType.professional_travel__plane__eco.value: (
+        EmissionType.professional_travel__plane.value
+    ),
+    # buildings
+    EmissionType.buildings__rooms.value: EmissionType.buildings.value,
+    EmissionType.buildings__rooms__lighting.value: EmissionType.buildings__rooms.value,
+    EmissionType.buildings__rooms__lighting__office.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__lighting__laboratories.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__lighting__archives.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__lighting__libraries.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__lighting__auditoriums.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__lighting__miscellaneous.value: (
+        EmissionType.buildings__rooms__lighting.value
+    ),
+    EmissionType.buildings__rooms__cooling.value: EmissionType.buildings__rooms.value,
+    EmissionType.buildings__rooms__cooling__office.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__cooling__laboratories.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__cooling__archives.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__cooling__libraries.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__cooling__auditoriums.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__cooling__miscellaneous.value: (
+        EmissionType.buildings__rooms__cooling.value
+    ),
+    EmissionType.buildings__rooms__ventilation.value: (
+        EmissionType.buildings__rooms.value
+    ),
+    EmissionType.buildings__rooms__ventilation__office.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__ventilation__laboratories.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__ventilation__archives.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__ventilation__libraries.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__ventilation__auditoriums.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__ventilation__miscellaneous.value: (
+        EmissionType.buildings__rooms__ventilation.value
+    ),
+    EmissionType.buildings__rooms__heating_elec.value: (
+        EmissionType.buildings__rooms.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__office.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__laboratories.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__archives.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__libraries.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__auditoriums.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_elec__miscellaneous.value: (
+        EmissionType.buildings__rooms__heating_elec.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal.value: (
+        EmissionType.buildings__rooms.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__office.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__laboratories.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__archives.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__libraries.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__auditoriums.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__rooms__heating_thermal__miscellaneous.value: (
+        EmissionType.buildings__rooms__heating_thermal.value
+    ),
+    EmissionType.buildings__combustion.value: EmissionType.buildings.value,
+    EmissionType.buildings__combustion__natural_gas.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__combustion__heating_oil.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__combustion__biomethane.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__combustion__pellets.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__combustion__forest_chips.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__combustion__wood_logs.value: (
+        EmissionType.buildings__combustion.value
+    ),
+    EmissionType.buildings__embodied_energy.value: EmissionType.buildings.value,
+    # process_emissions
+    EmissionType.process_emissions__ch4.value: EmissionType.process_emissions.value,
+    EmissionType.process_emissions__co2.value: EmissionType.process_emissions.value,
+    EmissionType.process_emissions__n2o.value: EmissionType.process_emissions.value,
+    EmissionType.process_emissions__refrigerants.value: (
+        EmissionType.process_emissions.value
+    ),
+    # equipment
+    EmissionType.equipment__scientific.value: EmissionType.equipment.value,
+    EmissionType.equipment__it.value: EmissionType.equipment.value,
+    EmissionType.equipment__other.value: EmissionType.equipment.value,
+    # purchases
+    EmissionType.purchases__goods_and_services.value: EmissionType.purchases.value,
+    EmissionType.purchases__scientific_equipment.value: EmissionType.purchases.value,
+    EmissionType.purchases__it_equipment.value: EmissionType.purchases.value,
+    EmissionType.purchases__consumable_accessories.value: EmissionType.purchases.value,
+    EmissionType.purchases__biological_chemical_gaseous.value: (
+        EmissionType.purchases.value
+    ),
+    EmissionType.purchases__services.value: EmissionType.purchases.value,
+    EmissionType.purchases__vehicles.value: EmissionType.purchases.value,
+    EmissionType.purchases__other.value: EmissionType.purchases.value,
+    EmissionType.purchases__additional.value: EmissionType.purchases.value,
+    EmissionType.purchases__additional__ln2.value: (
+        EmissionType.purchases__additional.value
+    ),
+    # research_facilities
+    EmissionType.research_facilities__facilities.value: (
+        EmissionType.research_facilities.value
+    ),
+    EmissionType.research_facilities__animal.value: (
+        EmissionType.research_facilities.value
+    ),
+    # external
+    EmissionType.external__clouds.value: EmissionType.external.value,
+    EmissionType.external__clouds__virtualisation.value: (
+        EmissionType.external__clouds.value
+    ),
+    EmissionType.external__clouds__calcul.value: EmissionType.external__clouds.value,
+    EmissionType.external__clouds__stockage.value: EmissionType.external__clouds.value,
+    EmissionType.external__ai.value: EmissionType.external.value,
+    EmissionType.external__ai__provider_google.value: EmissionType.external__ai.value,
+    EmissionType.external__ai__provider_mistral_ai.value: (
+        EmissionType.external__ai.value
+    ),
+    EmissionType.external__ai__provider_anthropic.value: (
+        EmissionType.external__ai.value
+    ),
+    EmissionType.external__ai__provider_openai.value: EmissionType.external__ai.value,
+    EmissionType.external__ai__provider_cohere.value: EmissionType.external__ai.value,
+    EmissionType.external__ai__provider_others.value: EmissionType.external__ai.value,
+}
+
+# =============================================================================
+# Scope/category map — only nodes that represent actual data rows
+# =============================================================================
+
+_SCOPE_CATEGORY_MAP: dict[int, EmissionMeta] = {
+    # Additional Categories — scope 3
+    EmissionType.food.value: {"scope": Scope.scope3, "category": EmissionCategory.food},
+    EmissionType.food__vegetarian.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.food,
+    },
+    EmissionType.food__non_vegetarian.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.food,
+    },
+    EmissionType.waste.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__incineration.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__composting.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas__organic_waste_food_leftovers.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas__cooking_vegetable_oil.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__paper.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__cardboard.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__plastics.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__glass.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__ferrous_metals.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__non_ferrous_metals.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__electronics.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__wood.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__pet.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__aluminum.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__textile.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__toner_and_ink_cartridges.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__inert_waste.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.commuting.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__walking.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__cycling.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__powered_two_wheeler.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__public_transport.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__car.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    # Professional Travel — all scope 3
+    EmissionType.professional_travel__train__class_1.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.professional_travel,
+    },
+    EmissionType.professional_travel__train__class_2.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.professional_travel,
+    },
+    EmissionType.professional_travel__plane__first.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.professional_travel,
+    },
+    EmissionType.professional_travel__plane__business.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.professional_travel,
+    },
+    EmissionType.professional_travel__plane__eco.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.professional_travel,
+    },
+    # Buildings — scope 2 except heating_thermal (scope 1)
+    EmissionType.buildings__rooms__lighting.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_thermal.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    # Room-type granularity (8-digit WW items)
+    EmissionType.buildings__rooms__lighting__office.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__laboratories.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__archives.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__libraries.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__auditoriums.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__lighting__miscellaneous.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__office.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__laboratories.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__archives.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__libraries.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__auditoriums.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__cooling__miscellaneous.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__office.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__laboratories.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__archives.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__libraries.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__auditoriums.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__ventilation__miscellaneous.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__office.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__laboratories.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__archives.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__libraries.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__auditoriums.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_elec__miscellaneous.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.buildings_room,
+    },
+    EmissionType.buildings__rooms__heating_thermal__office.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__laboratories.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__archives.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__libraries.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__auditoriums.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__rooms__heating_thermal__miscellaneous.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    # Combustion fuel-type granularity
+    EmissionType.buildings__combustion.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__natural_gas.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__heating_oil.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__biomethane.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__pellets.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__forest_chips.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__combustion__wood_logs.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.buildings_energy_combustion,
+    },
+    EmissionType.buildings__embodied_energy.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.embodied_energy,
+    },
+    # Process Emissions — all scope 1
+    EmissionType.process_emissions__ch4.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.process_emissions,
+    },
+    EmissionType.process_emissions__co2.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.process_emissions,
+    },
+    EmissionType.process_emissions__n2o.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.process_emissions,
+    },
+    EmissionType.process_emissions__refrigerants.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.process_emissions,
+    },
+    # Equipment — all scope 2
+    EmissionType.equipment__scientific.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.equipment,
+    },
+    EmissionType.equipment__it.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.equipment,
+    },
+    EmissionType.equipment__other.value: {
+        "scope": Scope.scope2,
+        "category": EmissionCategory.equipment,
+    },
+    # Purchases — scope 3 except additional (scope 1)
+    EmissionType.purchases__goods_and_services.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__scientific_equipment.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__it_equipment.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__consumable_accessories.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__biological_chemical_gaseous.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__services.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__vehicles.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__other.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__additional.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.purchases,
+    },
+    EmissionType.purchases__additional__ln2.value: {
+        "scope": Scope.scope1,
+        "category": EmissionCategory.purchases,
+    },
+    # Research Facilities — all scope 3
+    EmissionType.research_facilities__facilities.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.research_facilities,
+    },
+    EmissionType.research_facilities__animal.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.research_facilities,
+    },
+    # External Clouds & AI — all scope 3
+    EmissionType.external__clouds__virtualisation.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__clouds__calcul.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__clouds__stockage.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_google.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_mistral_ai.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_anthropic.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_openai.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_cohere.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+    EmissionType.external__ai__provider_others.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.external_cloud_and_ai,
+    },
+}
+
+
+# =============================================================================
+# Tree traversal helpers
+# =============================================================================
+
+
+def get_children(root: EmissionType) -> list[EmissionType]:
+    """Get direct children of a node (one level down)."""
+    return [e for e in EmissionType if _PARENT_MAP.get(e.value) == root.value]
 
 
 def get_subtree_leaves(root: EmissionType) -> list[int]:
     """Get all leaf emission_type_id values under a given node (recursive)."""
-    kids = root.children()
+    kids = [e for e in EmissionType if _PARENT_MAP.get(e.value) == root.value]
     if not kids:
         return [root.value]
     result: list[int] = []
@@ -253,7 +953,8 @@ def get_subtree_leaves(root: EmissionType) -> list[int]:
 def get_all_nodes(root: EmissionType) -> list[EmissionType]:
     """Get all nodes (root + intermediates + leaves) under a given node."""
     result: list[EmissionType] = [root]
-    for child in root.children():
+    kids = [e for e in EmissionType if _PARENT_MAP.get(e.value) == root.value]
+    for child in kids:
         result.extend(get_all_nodes(child))
     return result
 
@@ -372,6 +1073,11 @@ class DataEntryEmissionBase(SQLModel):
             "Unit is inferred from emission_type_id "
             "(e.g. km for commuting and travel, kg for food and waste)."
         ),
+    )
+    scope: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+        description="Scope (1/2/3) for leaf rows; NULL for rollup rows",
     )
     meta: dict = Field(
         default_factory=dict,

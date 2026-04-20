@@ -12,6 +12,7 @@ from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
+    get_children,
     get_subtree_leaves,
 )
 from app.models.module_type import (
@@ -26,7 +27,6 @@ from app.schemas.carbon_report import (
     CarbonReportModuleRead,
     CarbonReportRead,
 )
-from app.utils.emission_category import EMISSION_SCOPE
 
 logger = get_logger(__name__)
 
@@ -63,17 +63,15 @@ def compute_module_stats(
         if val is not None and val != 0:
             by_et[str(node.value)] = val
             # Scope totals only for actual leaves (data rows)
-            scope = EMISSION_SCOPE.get(node)
-            if scope is not None:
-                scope_val = scope["scope"] if isinstance(scope, dict) else scope
-                scope_totals[f"scope{int(scope_val)}"] += val
+            if node.scope is not None:
+                scope_totals[f"scope{int(node.scope)}"] += val
         add_val = additional_values.get(str(node.value))
         if add_val is not None and add_val != 0:
             by_additional[str(node.value)] = add_val
 
     # 2. Compute rollups for non-leaf nodes from their subtree leaves
     for node in all_nodes:
-        if node.children():  # non-leaf
+        if get_children(node):  # non-leaf
             leaf_ids = get_subtree_leaves(node)
             rollup = sum(leaf_emissions.get(str(lid), 0) or 0 for lid in leaf_ids)
             if rollup != 0:
