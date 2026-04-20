@@ -36,8 +36,8 @@ export default {
     fr: 'Sélectionnez votre espace de travail',
   },
   workspace_setup_workspace_description: {
-    en: 'You have access to multiple laboratories. Please select which one you want to work on:',
-    fr: 'Vous avez accès à plusieurs laboratoires. Veuillez sélectionner celui sur lequel vous souhaitez travailler :',
+    en: 'Choose whether you want to use the calculator or the simulator:',
+    fr: 'Choisissez si vous souhaitez utiliser le calculateur ou le simulateur :',
   },
   workspace_setup_year_description: {
     en: 'Choose which year to evaluate',

@@ -12,7 +12,7 @@ export default {
     fr: 'Mise à jour du calculateur',
   },
   calculator_update_last_update: {
-    en: 'Last Update: 17 march 2026',
+    en: 'Last Update: 17 March 2026',
     fr: 'Dernière mise à jour : 17 mars 2026',
   },
   calculator_update_entry_title: {
