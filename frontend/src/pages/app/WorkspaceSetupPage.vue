@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import type { Unit } from 'src/stores/workspace';
@@ -8,20 +8,19 @@ import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSele
 import YearSelector from 'src/components/organisms/workspace-selector/YearSelector.vue';
 import type { YearData } from 'src/components/organisms/workspace-selector/YearSelector.vue';
 import type { CarbonReport } from 'src/stores/workspace';
+import { MODULE_STATES } from 'src/constant/moduleStates';
+import { MODULES_LIST } from 'src/constant/modules';
+
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
 const router = useRouter();
 const route = useRoute();
 
+const selectedWorkspace = ref<'calculator' | 'simulator' | null>(null);
+
 // --- COMPUTED ---
 const unitsWithRoles = computed(() => workspaceStore.units);
-
-const workspaceNotSelected = computed(() => {
-  return (
-    workspaceStore.selectedUnit === null || workspaceStore.selectedYear === null
-  );
-});
 
 const yearsCount = computed(
   () => workspaceStore.availableCarbonReportYears.length,
@@ -59,15 +58,43 @@ const routeUnitParam = computed(
     `${workspaceStore.selectedUnit?.id}-${workspaceStore.selectedUnit?.name.replace(/\s+/g, '-').toLowerCase()}`,
 );
 
+const validatedModulesCount = computed(
+  () =>
+    Object.values(timelineStore.itemStates).filter(
+      (s) => s === MODULE_STATES.Validated,
+    ).length,
+);
+
+const confirmationReady = computed(() => {
+  if (!workspaceStore.selectedUnit || !selectedWorkspace.value) return false;
+  if (selectedWorkspace.value === 'simulator') return true;
+  return workspaceStore.selectedYear !== null;
+});
+
+const simulatorYear = computed(() => {
+  const reports = workspaceStore.carbonReports;
+  if (reports.length > 0) {
+    return reports.reduce((a, b) => (a.year > b.year ? a : b)).year;
+  }
+  return new Date().getFullYear() - 1;
+});
+
 // --- ACTIONS ---
 
 const handleUnitSelect = async (unit: Unit) => {
   workspaceStore.setUnit(unit);
   workspaceStore.setYear(null);
+  selectedWorkspace.value = null;
   await Promise.all([
     workspaceStore.fetchCarbonReportsForUnit(unit.id),
     moduleStore.getYearlyValidatedEmissions(unit.id),
   ]);
+  // Show real module progress for the most recent report straight away
+  const reports = workspaceStore.carbonReports;
+  if (reports.length > 0) {
+    const mostRecent = reports.reduce((a, b) => (a.year > b.year ? a : b));
+    await timelineStore.fetchModuleStates(mostRecent.id);
+  }
 };
 
 const handleYearSelect = async (year: number) => {
@@ -78,7 +105,6 @@ const handleYearSelect = async (year: number) => {
         workspaceStore.selectedUnit.id,
         year,
       );
-    // Fetch module statuses for the selected inventory
     if (inv?.id) {
       await timelineStore.fetchModuleStates(inv.id);
     }
@@ -90,8 +116,6 @@ const handleConfirm = () => {
   const year = workspaceStore.selectedYear;
 
   if (unit && year) {
-    // Navigate to the dashboard with the clean URL structure
-    // We slugify the name for the URL: ID-NAME
     router.push({
       name: 'workspace-dashboard',
       params: {
@@ -103,13 +127,34 @@ const handleConfirm = () => {
   }
 };
 
+const handleConfirmSimulator = () => {
+  const unit = workspaceStore.selectedUnit;
+  if (unit) {
+    router.push({
+      name: 'simulations',
+      params: {
+        ...route.params,
+        unit: `${unit.id}-${unit.name.replace(/\s+/g, '-').toLowerCase()}`,
+        year: simulatorYear.value,
+      },
+    });
+  }
+};
+
+const handleWorkspaceSelect = (workspace: 'calculator' | 'simulator') => {
+  selectedWorkspace.value = workspace;
+  if (workspace === 'simulator') {
+    workspaceStore.setYear(null);
+  }
+};
+
 const reset = () => {
   workspaceStore.reset();
   timelineStore.reset();
+  selectedWorkspace.value = null;
 };
 
 onMounted(async () => {
-  // Clear any old selection leftovers when entering setup
   workspaceStore.reset();
   timelineStore.reset();
   await workspaceStore.getUnits();
@@ -118,15 +163,15 @@ onMounted(async () => {
 
 <template>
   <q-page class="page-grid">
-    <!-- Welcome (only if workspace not fully selected) -->
-    <q-card v-if="workspaceNotSelected" flat class="container">
+    <!-- Welcome (only if not ready to confirm) -->
+    <q-card flat class="container">
       <h1 class="text-h2 q-mb-xs">{{ $t('workspace_setup_title') }}</h1>
       <p class="text-body1 q-mb-none">
         {{ $t('workspace_setup_description') }}
       </p>
     </q-card>
 
-    <!-- Lab Selection -->
+    <!-- Step 1: Lab Selection — always shown -->
     <q-card flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_unit_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
@@ -158,8 +203,95 @@ onMounted(async () => {
       </div>
     </q-card>
 
-    <!-- Year Selection -->
-    <q-card v-if="workspaceStore.selectedUnit" flat class="container">
+    <!-- Step 2: Calculator / Simulator -->
+    <q-card v-if="workspaceStore.selectedUnit !== null" flat class="container">
+      <h2 class="text-h3 q-mb-xs">
+        {{ $t('workspace_setup_workspace_title') }}
+      </h2>
+      <p class="text-body2 text-secondary q-mb-xl">
+        {{ $t('workspace_setup_workspace_description') }}
+      </p>
+
+      <div class="row q-gutter-lg">
+        <!-- Calculator -->
+        <q-card
+          flat
+          class="col q-pa-none cursor-pointer lab-selector-item"
+          :class="{
+            'lab-selector-item--selected': selectedWorkspace === 'calculator',
+          }"
+          :style="{ border: selectedWorkspace === 'calculator' ? '1px solid var(--q-accent)' : '1px solid rgba(0,0,0,0.12)' }"
+          @click="handleWorkspaceSelect('calculator')"
+        >
+          <q-card-section class="q-pb-sm">
+            <div class="row items-center q-gutter-sm">
+              <q-icon name="o_calculate" size="sm" color="accent" />
+              <h3 class="text-h4 text-weight-bold">
+                {{ $t('calculator_title') }}
+              </h3>
+            </div>
+            <p class="text-body2 text-secondary q-mt-sm q-mb-none">
+              {{ $t('workspace_setup_calculator_description') }}
+            </p>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <div class="row items-center justify-between q-mb-xs">
+              <span class="text-body2 text-weight-medium">
+                {{ $t('workspace_setup_calculator_current_progress') }}
+              </span>
+              <span class="text-body2 text-weight-medium">
+                {{ validatedModulesCount }}/{{ MODULES_LIST.length }}
+              </span>
+            </div>
+            <div class="progress-segments q-my-sm">
+              <div
+                v-for="i in MODULES_LIST.length"
+                :key="i"
+                class="segment"
+                :class="{
+                  filled: i <= validatedModulesCount,
+                  selected: selectedWorkspace === 'calculator',
+                }"
+              ></div>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Simulator -->
+        <q-card
+          flat
+          class="col q-pa-none cursor-pointer lab-selector-item"
+          :class="{
+            'lab-selector-item--selected': selectedWorkspace === 'simulator',
+          }"
+          :style="{ border: selectedWorkspace === 'simulator' ? '1px solid var(--q-accent)' : '1px solid rgba(0,0,0,0.12)' }"
+          @click="handleWorkspaceSelect('simulator')"
+        >
+          <q-card-section class="q-pb-sm">
+            <div class="row items-center q-gutter-sm">
+              <q-icon name="o_schema" size="sm" color="accent" />
+              <h3 class="text-h4 text-weight-bold">
+                {{ $t('workspace_setup_simulator_title') }}
+              </h3>
+            </div>
+            <p class="text-body2 text-secondary q-mt-sm q-mb-none">
+              {{ $t('workspace_setup_simulator_description') }}
+            </p>
+          </q-card-section>
+          <q-separator />
+          <q-card-section>
+            <span class="text-h4 text-weight-bold">3</span>
+            <p class="text-body2 text-secondary q-mt-xs q-mb-none">
+              {{ $t('workspace_setup_simulator_completed_simulations') }}
+            </p>
+          </q-card-section>
+        </q-card>
+      </div>
+    </q-card>
+
+    <!-- Step 3: Year Selection — calculator path only -->
+    <q-card v-if="selectedWorkspace === 'calculator'" flat class="container">
       <h2 class="text-h3 q-mb-xs">{{ $t('workspace_setup_year_title') }}</h2>
       <p class="text-body2 text-secondary q-mb-xl">
         {{ $t('workspace_setup_year_description') }}
@@ -188,8 +320,8 @@ onMounted(async () => {
       />
     </q-card>
 
-    <!-- Confirmation -->
-    <q-card v-if="!workspaceNotSelected" flat class="container q-gutter-lg">
+    <!-- Step 4: Confirmation -->
+    <q-card v-if="confirmationReady" flat class="container q-gutter-lg">
       <h2 class="text-h3 q-ml-none q-mb-lg">
         {{ $t('workspace_setup_confirm_selection') }}
       </h2>
@@ -206,7 +338,7 @@ onMounted(async () => {
           </p>
         </q-card>
         <q-card
-          v-if="hasMultipleYears"
+          v-if="hasMultipleYears && workspaceStore.selectedYear"
           flat
           class="container q-mt-md"
           style="flex: 2 1 0"
@@ -232,7 +364,7 @@ onMounted(async () => {
           @click="reset"
         />
         <q-btn
-          v-if="workspaceSelected"
+          v-if="workspaceSelected && selectedWorkspace === 'calculator'"
           color="accent"
           :label="$t('workspace_setup_confirm_selection')"
           unelevated
@@ -248,6 +380,16 @@ onMounted(async () => {
             },
           }"
           @click="handleConfirm"
+        />
+        <q-btn
+          v-if="selectedWorkspace === 'simulator'"
+          color="accent"
+          :label="$t('workspace_setup_continue_simulator')"
+          unelevated
+          no-caps
+          size="md"
+          class="text-weight-medium"
+          @click="handleConfirmSimulator"
         />
       </div>
     </q-card>
