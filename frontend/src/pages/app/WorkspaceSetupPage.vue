@@ -131,7 +131,7 @@ const handleConfirmSimulator = () => {
   const unit = workspaceStore.selectedUnit;
   if (unit) {
     router.push({
-      name: 'simulations',
+      name: 'simulation',
       params: {
         ...route.params,
         unit: `${unit.id}-${unit.name.replace(/\s+/g, '-').toLowerCase()}`,

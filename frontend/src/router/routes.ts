@@ -130,8 +130,8 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'simulations',
-                name: 'simulations',
+                path: 'simulation',
+                name: 'simulation',
                 component: () => import('pages/app/SimulationsPage.vue'),
                 meta: {
                   requiresAuth: true,
@@ -140,22 +140,22 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'simulations/add',
-                name: 'simulation-add',
-                component: () => import('pages/app/AddSimulationPage.vue'),
+                path: `simulation/explore/:explore(${SIMULATION_ID_PATTERN})`,
+                name: 'simulation-explore',
+                component: () => import('pages/app/SimulationExplorePage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Create new simulation',
+                  note: 'Simulation - Explore a simulation',
                   breadcrumb: true,
                 },
               },
               {
-                path: `simulations/edit/:simulationId(${SIMULATION_ID_PATTERN})`,
-                name: 'simulation-edit',
-                component: () => import('pages/app/EditSimulationPage.vue'),
+                path: `simulation/plan/:plan(${SIMULATION_ID_PATTERN})`,
+                name: 'simulation-plan',
+                component: () => import('pages/app/SimulationPlanPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Edit existing simulation',
+                  note: 'Simulation - Plan a simulation',
                   breadcrumb: true,
                 },
               },
