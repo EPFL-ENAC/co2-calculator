@@ -120,16 +120,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: `:module(${MODULES_PATTERN})-results`,
-                name: 'module-results',
-                component: () => import('pages/app/ModuleResultsPage.vue'),
-                meta: {
-                  requiresAuth: true,
-                  note: 'Results - Module-specific results and analysis',
-                  breadcrumb: true,
-                },
-              },
-              {
                 path: 'results',
                 name: 'results',
                 component: () => import('pages/app/ResultsPage.vue'),
