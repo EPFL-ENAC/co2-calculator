@@ -1,0 +1,296 @@
+import { computed, ref } from 'vue';
+import {
+  useBackofficeDataManagement,
+  IngestionMethod,
+  IngestionState,
+  IngestionResult,
+  TargetType,
+  type ImportRow,
+  type SyncJobResponse,
+  type JobUpdatePayload,
+} from 'src/stores/backofficeDataManagement';
+import { useYearConfigStore, type SyncJobSummary } from 'src/stores/yearConfig';
+import { Notify } from 'quasar';
+import { useI18n } from 'vue-i18n';
+import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
+
+interface UseSubmoduleConfigOptions {
+  module: string;
+  selectedYear: number;
+}
+
+export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
+  const { t: $t } = useI18n();
+  const yearConfigStore = useYearConfigStore();
+  const backofficeDataManagement = useBackofficeDataManagement();
+  const {
+    isSubmoduleEnabled,
+    isSubmoduleIncomplete,
+    getModule,
+    getModuleNameFromSubmodule,
+  } = yearConfigStore;
+
+  function findJob(
+    jobs: SyncJobSummary[],
+    moduleTypeId: number,
+    targetType: number | null,
+    dataEntryTypeId?: number,
+    ingestionMethod?: IngestionMethod,
+  ): SyncJobSummary | undefined {
+    const candidates = jobs.filter(
+      (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
+    );
+    if (dataEntryTypeId !== undefined) {
+      return candidates.find(
+        (j) =>
+          j.data_entry_type_id === dataEntryTypeId &&
+          j.ingestion_method === ingestionMethod?.valueOf(),
+      );
+    }
+    return candidates[0];
+  }
+
+  function toSyncJobResponse(job: SyncJobSummary): SyncJobResponse {
+    return {
+      job_id: job.job_id,
+      module_type_id: job.module_type_id,
+      data_entry_type_id: job.data_entry_type_id,
+      year: job.year,
+      target_type: job.target_type as TargetType,
+      state: job.state as IngestionState,
+      result: job.result as IngestionResult,
+      status_message: job.status_message,
+      meta: job.meta,
+    };
+  }
+
+  function getImportRow(sub: SubmoduleConfig): ImportRow {
+    const jobs = yearConfigStore.latestJobs;
+    const dataJob = findJob(
+      jobs,
+      sub.moduleTypeId,
+      0,
+      sub.dataEntryTypeId,
+      IngestionMethod.CSV,
+    );
+    const apiDataJob = sub.hasApi
+      ? findJob(
+          jobs,
+          sub.moduleTypeId,
+          0,
+          sub.dataEntryTypeId,
+          IngestionMethod.API,
+        )
+      : undefined;
+    const factorJob = findJob(
+      jobs,
+      sub.moduleTypeId,
+      1,
+      sub.dataEntryTypeId,
+      IngestionMethod.CSV,
+    );
+    return {
+      key: sub.key,
+      labelKey: sub.labelKey,
+      moduleTypeId: sub.moduleTypeId,
+      dataEntryTypeId: sub.dataEntryTypeId,
+      hasData: !sub.noData,
+      hasFactors: !sub.noFactors,
+      hasApi: sub.hasApi ?? false,
+      other: sub.other,
+      hasOtherUpload: !!sub.other,
+      isDisabled: sub.isDisabled ?? false,
+      lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
+      lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
+      lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
+    };
+  }
+
+  function submoduleShowsImportRow(sub: SubmoduleConfig): boolean {
+    const row = getImportRow(sub);
+    return row.hasData || row.hasFactors || row.hasOtherUpload;
+  }
+
+  function downloadLastCsv(row: ImportRow, targetType: TargetType) {
+    const job =
+      targetType === TargetType.DATA_ENTRIES
+        ? row.lastDataJob
+        : row.lastFactorJob;
+    if (!job?.meta) return;
+    const filePath = (job.meta as Record<string, unknown>)
+      .processed_file_path as string;
+    if (!filePath) return;
+    const a = document.createElement('a');
+    a.href = `/api/v1/files/${filePath}`;
+    a.download = filePath.split('/').pop() || filePath;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function getUnifiedModuleConfigFromSub(sub: SubmoduleConfig) {
+    const moduleName = getModuleNameFromSubmodule(sub);
+    return moduleName ? getModule(moduleName) : null;
+  }
+
+  async function updateSubmoduleEnabled(
+    sub: SubmoduleConfig,
+    value: boolean,
+  ): Promise<void> {
+    const moduleKey = String(sub.moduleTypeId);
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return;
+    try {
+      await yearConfigStore.updateConfig(options.selectedYear, {
+        config: {
+          modules: {
+            [moduleKey]: { submodules: { [subKey]: { enabled: value } } },
+          },
+        },
+      });
+      Notify.create({ type: 'positive', message: $t('year_config_saved') });
+    } catch {
+      Notify.create({
+        type: 'negative',
+        message: $t('year_config_save_error'),
+      });
+    }
+  }
+
+  function getSubmoduleThreshold(sub: SubmoduleConfig): number | null {
+    const unifiedModule = getUnifiedModuleConfigFromSub(sub);
+    return unifiedModule?.submodules[sub.key]?.threshold ?? null;
+  }
+
+  async function updateSubmoduleThreshold(
+    sub: SubmoduleConfig,
+    value: number | null,
+  ): Promise<void> {
+    const moduleKey = String(sub.moduleTypeId);
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return;
+    const unifiedModule = getUnifiedModuleConfigFromSub(sub);
+    if (!unifiedModule) return;
+    const existingSub = unifiedModule.submodules[sub.key];
+    if (!existingSub) return;
+    try {
+      await yearConfigStore.updateConfig(options.selectedYear, {
+        config: {
+          modules: {
+            [moduleKey]: {
+              ...unifiedModule,
+              submodules: {
+                ...unifiedModule.submodules,
+                [subKey]: { ...existingSub, threshold: value },
+              },
+            },
+          },
+        },
+      });
+      Notify.create({ type: 'positive', message: $t('year_config_saved') });
+    } catch {
+      Notify.create({
+        type: 'negative',
+        message: $t('year_config_save_error'),
+      });
+    }
+  }
+
+  const computedFactorRunning = ref<Record<string, boolean>>({});
+  const anyComputedFactorRunning = computed(() =>
+    Object.values(computedFactorRunning.value).some(Boolean),
+  );
+
+  async function confirmComputedFactorSync(
+    sub: SubmoduleConfig,
+    onCompleted: () => Promise<void>,
+  ): Promise<void> {
+    if (sub.dataEntryTypeId === undefined) return;
+    computedFactorRunning.value[sub.key] = true;
+    try {
+      const jobId = await backofficeDataManagement.initiateComputedFactorSync(
+        sub.moduleTypeId,
+        sub.dataEntryTypeId,
+        options.selectedYear,
+      );
+      backofficeDataManagement.subscribeToJobUpdates(
+        jobId,
+        (payload?: JobUpdatePayload) => {
+          const result = payload?.result;
+          if (result === IngestionResult.WARNING) {
+            Notify.create({
+              type: 'warning',
+              message: $t('data_management_compute_factors_warning'),
+              caption: payload?.status_message ?? '',
+              position: 'top',
+              timeout: 5000,
+            });
+          } else if (result === IngestionResult.SUCCESS) {
+            Notify.create({
+              type: 'positive',
+              message: $t('data_management_compute_factors_success'),
+              position: 'top',
+              timeout: 5000,
+            });
+          } else {
+            Notify.create({
+              type: 'negative',
+              message: $t('data_management_compute_factors_error'),
+              caption: payload?.status_message ?? '',
+              position: 'top',
+              timeout: 5000,
+            });
+          }
+          computedFactorRunning.value[sub.key] = false;
+          void onCompleted();
+        },
+        (payload?: JobUpdatePayload) => {
+          Notify.create({
+            type: 'negative',
+            message: $t('data_management_compute_factors_error'),
+            caption: payload?.status_message ?? '',
+            position: 'top',
+            timeout: 5000,
+          });
+          computedFactorRunning.value[sub.key] = false;
+          void onCompleted();
+        },
+        () => {
+          computedFactorRunning.value[sub.key] = false;
+        },
+        () => {
+          void onCompleted();
+        },
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      Notify.create({
+        type: 'negative',
+        message: $t('data_management_compute_factors_error'),
+        caption: msg,
+        position: 'top',
+      });
+      computedFactorRunning.value[sub.key] = false;
+    }
+  }
+
+  return {
+    isSubmoduleEnabled,
+    isSubmoduleIncomplete,
+    getImportRow,
+    submoduleShowsImportRow,
+    downloadLastCsv,
+    updateSubmoduleEnabled,
+    getSubmoduleThreshold,
+    updateSubmoduleThreshold,
+    computedFactorRunning,
+    anyComputedFactorRunning,
+    confirmComputedFactorSync,
+  };
+}

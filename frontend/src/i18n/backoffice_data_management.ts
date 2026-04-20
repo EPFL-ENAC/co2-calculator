@@ -219,6 +219,10 @@ export default {
     en: 'ReUpload Factors',
     fr: 'Re-téléverser des facteurs',
   },
+  data_management_reupload_reference: {
+    en: 'ReUpload Reference',
+    fr: 'Re-téléverser référence',
+  },
   data_management_import_title: {
     en: 'Import {type}',
     fr: 'Importer {type}',

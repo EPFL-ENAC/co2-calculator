@@ -69,4 +69,29 @@ for dir in $staged_dirs; do
   esac
 done
 
+# Check component sizes (warn only)
+echo "Checking component sizes..."
+MAX_LINES=500
+large_files=""
+for file in $frontend_files; do
+  if [[ "$file" == *.vue ]]; then
+    if [ -f "$file" ]; then
+      lines=$(wc -l < "$file")
+      if [ $lines -gt $MAX_LINES ]; then
+        large_files="${large_files}⚠️  ${file} (${lines} lines)"$'\n'
+      fi
+    fi
+  fi
+done
+
+if [ -n "$large_files" ]; then
+  echo ""
+  echo "Component Size Warning:"
+  echo "$large_files"
+  echo "💡 Tip: Extract logic to composables or split into smaller components"
+  echo "       Reference: .github/instructions/co2-calculator-rules.md.instructions.md"
+  echo ""
+  # Don't block commit - just warn
+fi
+
 echo "Pre-commit formatting complete!"
