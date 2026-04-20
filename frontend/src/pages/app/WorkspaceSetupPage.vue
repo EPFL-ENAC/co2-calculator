@@ -220,7 +220,12 @@ onMounted(async () => {
           :class="{
             'lab-selector-item--selected': selectedWorkspace === 'calculator',
           }"
-          :style="{ border: selectedWorkspace === 'calculator' ? '1px solid var(--q-accent)' : '1px solid rgba(0,0,0,0.12)' }"
+          :style="{
+            border:
+              selectedWorkspace === 'calculator'
+                ? '1px solid var(--q-accent)'
+                : '1px solid rgba(0,0,0,0.12)',
+          }"
           @click="handleWorkspaceSelect('calculator')"
         >
           <q-card-section class="q-pb-sm">
@@ -265,7 +270,12 @@ onMounted(async () => {
           :class="{
             'lab-selector-item--selected': selectedWorkspace === 'simulator',
           }"
-          :style="{ border: selectedWorkspace === 'simulator' ? '1px solid var(--q-accent)' : '1px solid rgba(0,0,0,0.12)' }"
+          :style="{
+            border:
+              selectedWorkspace === 'simulator'
+                ? '1px solid var(--q-accent)'
+                : '1px solid rgba(0,0,0,0.12)',
+          }"
           @click="handleWorkspaceSelect('simulator')"
         >
           <q-card-section class="q-pb-sm">

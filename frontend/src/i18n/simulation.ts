@@ -1,4 +1,12 @@
 export default {
+  documentation_editing_rows_simulation_topic: {
+    en: 'Simulation',
+    fr: 'Simulation',
+  },
+  documentation_editing_rows_simulation_description: {
+    en: 'Find all text related to the CO₂ simulator pages.',
+    fr: 'Trouvez tous les textes liés aux pages du simulateur CO₂.',
+  },
   simulation_title: {
     en: 'Welcome to the CO₂ Simulator',
     fr: 'Bienvenue dans le Simulateur de CO₂',
