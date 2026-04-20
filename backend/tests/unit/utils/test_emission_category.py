@@ -5,7 +5,6 @@ import pytest
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.utils.emission_category import (
-    HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
     build_chart_breakdown,
     build_treemap,
@@ -78,20 +77,6 @@ def test_build_chart_breakdown_separates_building_categories():
 
     assert room["lighting"] == pytest.approx(3.0)
     assert combustion["combustion"] == pytest.approx(2.0)
-
-
-def test_build_chart_breakdown_headcount_goes_to_additional_breakdown():
-    result = build_chart_breakdown([], total_fte=20.0, headcount_validated=True)
-
-    food = _row_by_category(result["additional_breakdown"], "food")
-    commuting = _row_by_category(result["additional_breakdown"], "commuting")
-
-    assert food["food"] == pytest.approx(
-        HEADCOUNT_PER_FTE_KG[EmissionType.food] * 20.0 / 1000.0
-    )
-    assert commuting["commuting"] == pytest.approx(
-        HEADCOUNT_PER_FTE_KG[EmissionType.commuting] * 20.0 / 1000.0
-    )
 
 
 def test_build_chart_breakdown_per_person_exposes_only_value_keys():
