@@ -26,6 +26,9 @@ import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+
+const yearConfigStore = useYearConfigStore();
 
 /** Keeps ECharts-heavy bundles out of the initial Results route chunk (Lighthouse / TTI). */
 const ChartChunkSkeleton = () =>
@@ -201,20 +204,20 @@ function afterPaint(cb: () => void) {
   });
 }
 
-onMounted(() => {
-  void fetchResultsSummary();
+onMounted(async () => {
+  await fetchResultsSummary();
 
   // Phase 1: after first paint, mount charts + start data fetches.
-  afterPaint(() => {
+  afterPaint(async () => {
     mountPrimaryCharts.value = true;
-    void fetchEmissionBreakdown();
-    void fetchItBreakdown();
+    await fetchEmissionBreakdown();
+    await fetchItBreakdown();
   });
 
   // Phase 2: below-fold sections after charts have started.
-  afterPaint(() => {
+  afterPaint(async () => {
     mountBelowFold.value = true;
-    void loadModulesConfig();
+    await loadModulesConfig();
   });
 });
 
@@ -225,12 +228,12 @@ watch(
     currentYear.value,
     hideResearchFacilities.value,
   ],
-  () => {
+  async () => {
     moduleStore.invalidateEmissionBreakdown();
-    void fetchResultsSummary();
-    afterPaint(() => {
-      void fetchEmissionBreakdown();
-      void fetchItBreakdown();
+    await fetchResultsSummary();
+    afterPaint(async () => {
+      await fetchEmissionBreakdown();
+      await fetchItBreakdown();
     });
   },
 );
@@ -690,15 +693,22 @@ const getUncertainty = (
                   <div class="text-h5 text-weight-medium">{{ $t(module) }}</div>
                   <q-badge
                     v-if="
-                      viewUncertainties && getModuleConfig(module)?.uncertainty
+                      viewUncertainties &&
+                      !['none', null].includes(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      )
                     "
                     outline
                     rounded
                     :color="
-                      getUncertainty(getModuleConfig(module)?.uncertainty).color
+                      getUncertainty(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      ).color
                     "
                     :label="
-                      getUncertainty(getModuleConfig(module)?.uncertainty).label
+                      getUncertainty(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      ).label
                     "
                     class="q-ml-sm"
                   />

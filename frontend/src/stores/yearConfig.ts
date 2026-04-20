@@ -317,6 +317,13 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return config?.enabled ?? false;
   }
 
+  function getModuleUncertaintyTag(
+    module: Module,
+  ): 'low' | 'medium' | 'high' | 'none' | null {
+    const config = getModule(module);
+    return config?.uncertainty_tag ?? null;
+  }
+
   /** Check if a submodule is enabled and visible. */
   function isSubmoduleVisible(moduleName: Module, subKey: string): boolean {
     const sub = getSubmodule(moduleName, subKey);
@@ -454,6 +461,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     isSubmoduleEnabled,
     isModuleIncomplete,
     isSubmoduleIncomplete,
+    getModuleUncertaintyTag,
     // Methods
     fetchConfig,
     createConfig,
