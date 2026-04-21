@@ -27,6 +27,7 @@ import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
 
 const yearConfigStore = useYearConfigStore();
 
@@ -627,31 +628,12 @@ const getUncertainty = (
         </div>
       </q-card>
 
-      <q-card v-if="mountBelowFold" flat bordered class="q-pa-lg defer-render">
-        <div class="flex justify-between items-center">
-          <div>
-            <h2 class="text-h2 text-weight-medium">
-              {{ $t('results_objectives_2040_title') }}
-            </h2>
-            <span class="text-body1 text-secondary">{{
-              $t('results_objectives_2040_subtitle')
-            }}</span>
-          </div>
-        </div>
-        <q-card-section class="q-px-none q-pt-lg q-pb-none">
-          <div class="objectives-placeholder-frame">
-            <img
-              src="/placeholder.svg"
-              alt=""
-              width="1380"
-              height="500"
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
-              class="objectives-placeholder-image"
-            />
-          </div>
-        </q-card-section>
+      <!-- Reduction Objective -->
+      <q-card v-if="mountBelowFold" flat bordered class="defer-render">
+        <ReductionObjectiveChart
+          :hide-research-facilities="hideResearchFacilities"
+          :hide-additional-data="hideAdditionalData"
+        />
       </q-card>
 
       <div v-if="mountBelowFold" class="defer-render">

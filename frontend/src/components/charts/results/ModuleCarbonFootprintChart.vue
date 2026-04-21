@@ -6,7 +6,11 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors, getChartSubcategoryColor } from 'src/constant/charts';
+import {
+  colors,
+  getChartSubcategoryColor,
+  RESULTS_CATEGORY_LABEL_KEYS,
+} from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -331,20 +335,7 @@ function recalculateScopeRects() {
   });
 }
 
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  commuting: 'charts-commuting-category', // Headcount
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  process_emissions: 'charts-process-emissions-category',
-  buildings_room: 'charts-buildings-room-category',
-  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  embodied_energy: 'charts-embodied-energy-category',
-  equipment: 'equipment-electric-consumption',
-  external_cloud_and_ai: 'external-cloud-and-ai',
-  purchases: 'purchase',
-  professional_travel: 'professional-travel',
-  research_facilities: 'charts-research-facilities-category',
-};
+const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 function translateCategory(
   entry: Record<string, unknown>,
@@ -359,7 +350,7 @@ function normalizeCategoryRowKeys(
 ): Record<string, unknown> {
   const cat = String(entry.category ?? entry.category_key ?? '');
   // Backend sometimes uses `other` for purchases; keep equipment `other` untouched.
-  if (cat === 'purchases' || cat === 'purchase') {
+  if (cat === 'purchases') {
     const next = { ...entry };
     if (next.other_purchases == null && next.other != null) {
       next.other_purchases = next.other;
@@ -458,10 +449,10 @@ const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
   'charts-buildings-energy-combustion-category',
   'charts-buildings-room-category',
-  'equipment-electric-consumption',
-  'external-cloud-and-ai',
-  'professional-travel',
-  'purchase',
+  'charts-equipment-electric-consumption-category',
+  'charts-external-cloud-category',
+  'charts-professional-travel-category',
+  'charts-purchases-category',
   'charts-research-facilities-category',
 ];
 
