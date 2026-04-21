@@ -18,15 +18,6 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits<{
-  (e: 'dataUpload', row: ImportRow, targetType: TargetType): void;
-  (e: 'factorUpload', row: ImportRow, targetType: TargetType): void;
-  (e: 'referenceCompleted'): void;
-  (e: 'referenceProgressing'): void;
-  (e: 'download', row: ImportRow, targetType: TargetType): void;
-  (e: 'recalculate', sub: SubmoduleConfig): void;
-  (e: 'computeFactors', sub: SubmoduleConfig): void;
-}>();
 
 const {
   isSubmoduleEnabled,
@@ -53,6 +44,10 @@ const triggerTypeRecalculation = inject<
   (sub: SubmoduleConfig) => Promise<void>
 >('triggerTypeRecalculation')!;
 
+const openDataEntryDialog = inject<
+  (row: ImportRow, targetType: TargetType | null) => void
+>('openDataEntryDialog')!;
+
 const handleJobCompleted = inject<() => Promise<void>>('handleJobCompleted')!;
 const handleJobProgressing = inject<() => Promise<void>>(
   'handleJobProgressing',
@@ -71,12 +66,10 @@ async function handleComputedFactorConfirm() {
 }
 
 async function handleReferenceCompleted() {
-  emit('referenceCompleted');
   await handleJobCompleted();
 }
 
 async function handleReferenceProgressing() {
-  emit('referenceProgressing');
   await handleJobProgressing();
 }
 </script>
@@ -213,7 +206,7 @@ async function handleReferenceProgressing() {
           ]
         "
         :recalc-status="getRecalcStatus(submodule)"
-        @upload="(row) => emit('dataUpload', row, TargetType.DATA_ENTRIES)"
+        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @download="downloadLastCsv"
         @recalculate="() => triggerTypeRecalculation(submodule)"
       />
@@ -224,7 +217,7 @@ async function handleReferenceProgressing() {
         :module="''"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
-        @upload="(row) => emit('factorUpload', row, TargetType.FACTORS)"
+        @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
         @download="downloadLastCsv"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"

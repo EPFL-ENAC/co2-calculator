@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 interface Props {
   module: string;
+  selectedYear: number;
 }
 
 const props = defineProps<Props>();
@@ -16,7 +17,7 @@ const {
   updateModuleUncertainty,
 } = useModuleConfig({
   module: props.module,
-  selectedYear: 2024,
+  selectedYear: props.selectedYear,
 });
 </script>
 
@@ -51,7 +52,11 @@ const {
 
   <q-separator class="q-my-xs" />
 
-  <q-card flat class="q-pa-none row">
+  <q-card
+    flat
+    class="q-pa-none row"
+    :style="!isModuleEnabled(props.module) ? 'opacity: 0.45; pointer-events: none' : undefined"
+  >
     <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
       <div class="row items-center q-mb-xs">
         <q-icon name="o_help_center" color="accent" size="xs" class="q-mr-sm" />
@@ -67,6 +72,7 @@ const {
         val="none"
         :label="$t('data_management_uncertainty_none')"
         color="accent"
+        :disable="!isModuleEnabled(props.module)"
         @update:model-value="updateModuleUncertainty(props.module, 'none')"
       />
       <q-radio
@@ -74,6 +80,7 @@ const {
         val="low"
         :label="$t('data_management_uncertainty_low')"
         color="accent"
+        :disable="!isModuleEnabled(props.module)"
         @update:model-value="updateModuleUncertainty(props.module, 'low')"
       />
       <q-radio
@@ -81,6 +88,7 @@ const {
         val="medium"
         :label="$t('data_management_uncertainty_medium')"
         color="accent"
+        :disable="!isModuleEnabled(props.module)"
         @update:model-value="updateModuleUncertainty(props.module, 'medium')"
       />
       <q-radio
@@ -88,6 +96,7 @@ const {
         val="high"
         :label="$t('data_management_uncertainty_high')"
         color="accent"
+        :disable="!isModuleEnabled(props.module)"
         @update:model-value="updateModuleUncertainty(props.module, 'high')"
       />
     </q-card>

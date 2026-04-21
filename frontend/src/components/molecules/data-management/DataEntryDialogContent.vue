@@ -5,7 +5,7 @@ import type {
   ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { TargetType } from 'src/stores/backofficeDataManagement';
-import { watch } from 'vue';
+import { watch, toRef } from 'vue';
 
 interface Props {
   modelValue: boolean;
@@ -43,9 +43,9 @@ const {
   connectAndSync,
   copyFromPreviousYear,
 } = useDataEntryDialog({
-  row: props.row,
-  year: props.year,
-  targetType: props.targetType,
+  row: toRef(props, 'row'),
+  year: toRef(props, 'year'),
+  targetType: toRef(props, 'targetType'),
   onComplete: (job: SyncJobResponse) => emit('completed', job),
   onProgressing: (job: SyncJobResponse) => emit('progressing', job),
 });

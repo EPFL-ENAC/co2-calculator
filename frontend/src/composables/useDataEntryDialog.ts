@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, type Ref } from 'vue';
 import { useFilesStore, type FileObject } from 'src/stores/files';
 import {
   useBackofficeDataManagement,
@@ -11,9 +11,9 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 interface UseDataEntryDialogOptions {
-  row: ImportRow;
-  year: number;
-  targetType: TargetType;
+  row: Ref<ImportRow>;
+  year: Ref<number>;
+  targetType: Ref<TargetType>;
   onComplete: (job: SyncJobResponse) => void;
   onProgressing: (job: SyncJobResponse) => void;
 }
@@ -40,7 +40,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
 
   const allApiFieldsFilled = computed(
     () =>
-      options.row.hasApi &&
+      options.row.value.hasApi &&
       !!apiServerUrl.value &&
       !!apiClientId.value &&
       !!apiSecretId.value &&
@@ -49,14 +49,14 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
 
   const showOverwriteWarning = computed(() => {
     const lastJob =
-      options.targetType === TargetType.DATA_ENTRIES.valueOf()
-        ? options.row.lastDataJob
-        : options.row.lastFactorJob;
+      options.targetType.value === TargetType.DATA_ENTRIES.valueOf()
+        ? options.row.value.lastDataJob
+        : options.row.value.lastFactorJob;
     return !!lastJob && lastJob.result !== 2;
   });
 
   const showOverwriteWarningAPI = computed(() => {
-    const lastJob = options.row?.hasApi ? options.row?.lastApiDataJob : null;
+    const lastJob = options.row.value?.hasApi ? options.row.value?.lastApiDataJob : null;
     return !!lastJob && lastJob?.result !== 2;
   });
 
@@ -74,12 +74,12 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   }
 
   async function loadPreviousYearJobs() {
-    const previousYear = options.year - 1;
+    const previousYear = options.year.value - 1;
     try {
       const jobs = await dataManagementStore.getPreviousYearSuccessfulJobs(
         previousYear,
-        options.row.moduleTypeId,
-        options.targetType,
+        options.row.value.moduleTypeId,
+        options.targetType.value,
       );
       previousYearJobs.value = jobs;
       if (jobs.length > 0) {
@@ -176,34 +176,34 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     sourceJobId?: number,
   ) {
     const syncParams: Record<string, unknown> = {
-      module_type_id: options.row.moduleTypeId,
-      year: options.year,
+      module_type_id: options.row.value.moduleTypeId,
+      year: options.year.value,
       provider_type: providerType === 'copy' ? 'csv' : providerType,
-      target_type: options.targetType,
+      target_type: options.targetType.value,
       config: {},
     };
 
-    if (options.row.dataEntryTypeId !== undefined) {
-      syncParams.data_entry_type_id = options.row.dataEntryTypeId;
+    if (options.row.value.dataEntryTypeId !== undefined) {
+      syncParams.data_entry_type_id = options.row.value.dataEntryTypeId;
     }
 
-    if (options.row.reductionObjectiveTypeId !== undefined) {
+    if (options.row.value.reductionObjectiveTypeId !== undefined) {
       const existingConfig = syncParams.config as
         | Record<string, unknown>
         | undefined;
       syncParams.config = {
         ...existingConfig,
-        reduction_objective_type_id: options.row.reductionObjectiveTypeId,
+        reduction_objective_type_id: options.row.value.reductionObjectiveTypeId,
       };
     }
 
-    if (options.row.factorVariant !== undefined) {
+    if (options.row.value.factorVariant !== undefined) {
       const existingConfig = syncParams.config as
         | Record<string, unknown>
         | undefined;
       syncParams.config = {
         ...existingConfig,
-        factor_variant: options.row.factorVariant,
+        factor_variant: options.row.value.factorVariant,
       };
     }
 
@@ -222,11 +222,11 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     }
 
     const syncPayload = {
-      module_type_id: options.row.moduleTypeId,
-      year: options.year,
+      module_type_id: options.row.value.moduleTypeId,
+      year: options.year.value,
       provider_type: providerType === 'copy' ? 'csv' : providerType,
-      target_type: options.targetType,
-      data_entry_type_id: options.row.dataEntryTypeId,
+      target_type: options.targetType.value,
+      data_entry_type_id: options.row.value.dataEntryTypeId,
       config: syncParams.config as Record<string, unknown>,
       file_path: filePath,
     };
@@ -269,7 +269,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
           options.onComplete({
             job_id: payload.job_id,
             module_type_id: payload.module_type_id,
-            year: payload.year ?? options.year,
+            year: payload.year ?? options.year.value,
             target_type: payload.target_type,
             state: payload.state ?? 3,
             result: payload.result ?? 0,
@@ -309,7 +309,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
         options.onProgressing({
           job_id: payload.job_id,
           module_type_id: payload.module_type_id,
-          year: payload.year ?? options.year,
+          year: payload.year ?? options.year.value,
           target_type: payload.target_type,
           state: payload.state ?? 3,
           result: payload.result ?? 0,

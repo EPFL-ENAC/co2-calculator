@@ -61,8 +61,9 @@ const hasErrorOrWarn = computed(() => hasErrorOrWarning(props.lastJob));
 const errorDetails = computed(() => getErrorDetails(props.lastJob));
 
 function handleUpload() {
-  // This should be called by parent with proper row data
-  // Placeholder for now
+  if (props.row && props.targetType !== undefined) {
+    emit('upload', props.row, props.targetType);
+  }
 }
 
 function handleDownload() {

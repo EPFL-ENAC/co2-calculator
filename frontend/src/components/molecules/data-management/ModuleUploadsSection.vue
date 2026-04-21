@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { inject } from 'vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
@@ -7,7 +8,6 @@ import {
 } from 'src/stores/backofficeDataManagement';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
-import type { SubmoduleConfig as SubmoduleConfigItem } from 'src/constant/backoffice-module-config';
 
 interface Props {
   module: string;
@@ -16,12 +16,10 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits<{
-  (e: 'dataUpload', row: ImportRow, targetType: TargetType): void;
-  (e: 'factorUpload', row: ImportRow, targetType: TargetType): void;
-  (e: 'download', row: ImportRow, targetType: TargetType): void;
-  (e: 'recalculate', sub: SubmoduleConfigItem): void;
-}>();
+
+const openDataEntryDialog = inject<
+  (row: ImportRow, targetType: TargetType | null) => void
+>('openDataEntryDialog')!;
 
 const { getImportRow, downloadLastCsv, commonUploads, submodules } =
   useModuleConfig({
@@ -82,7 +80,7 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
               ]
             "
             :recalc-status="getRecalcStatus(common)"
-            @upload="(row) => emit('dataUpload', row, TargetType.DATA_ENTRIES)"
+            @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
             @download="downloadLastCsv"
             @recalculate="() => triggerTypeRecalculation(common)"
           />
@@ -90,7 +88,7 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
           <UploadCardFactors
             v-if="getImportRow(common).hasFactors"
             :row="getImportRow(common)"
-            @upload="(row) => emit('factorUpload', row, TargetType.FACTORS)"
+            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
             @download="downloadLastCsv"
             @recalculate="() => triggerTypeRecalculation(common)"
           />

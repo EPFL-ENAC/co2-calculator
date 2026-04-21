@@ -21,11 +21,14 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
-  useModuleConfig({
-    module: props.module,
-    selectedYear: props.selectedYear,
-  });
+const {
+  getModuleTypeIdFromName,
+  isModuleEnabled,
+  isModuleIncomplete,
+} = useModuleConfig({
+  module: props.module,
+  selectedYear: props.selectedYear,
+});
 
 const {
   recalculationStatus,
@@ -156,18 +159,12 @@ defineExpose({ refreshRecalculationStatus });
         </q-item-section>
       </template>
 
-      <ModuleConfigSection :module="module" />
+      <ModuleConfigSection :module="module" :selected-year="selectedYear" />
 
       <ModuleUploadsSection
         :module="module"
         :selected-year="selectedYear"
         :is-module-enabled="isModuleEnabled(module)"
-        @data-upload="openDataEntryDialog($event, TargetType.DATA_ENTRIES)"
-        @factor-upload="openDataEntryDialog($event, TargetType.FACTORS)"
-        @download="(row, targetType) => {}"
-        @recalculate="(sub) => triggerTypeRecalculation(sub)"
-        @job-completed="handleJobCompleted"
-        @job-progressing="handleJobProgressing"
       >
         <template #submodules>
           <SubmoduleConfig :module="module" :selected-year="selectedYear" />
