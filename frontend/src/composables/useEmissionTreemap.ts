@@ -24,11 +24,44 @@ export interface EmissionTreemapCategory {
   children: EmissionTreemapChild[];
 }
 
+/**
+ * Normalize raw emission parent_key / key values to canonical chart keys.
+ * Purchases subcategories use several alternate backend names that must be
+ * mapped to the canonical keys used in CATEGORY_CHART_KEYS and color schemes.
+ */
+const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
+  ['other_purchase', 'other_purchases'],
+  ['other', 'other_purchases'],
+  ['additional', 'additional'],
+  ['scientific_equipment', 'scientific_equipment'],
+  ['it_equipment', 'it_equipment'],
+  ['consumable', 'consumable_accessories'],
+  ['biological_chemical_gaseous', 'biological_chemical_gaseous'],
+  ['service', 'services'],
+  ['vehicle', 'vehicles'],
+  ['vehicule', 'vehicles'],
+];
+
+export function normalizeParentKey(
+  categoryKey: string,
+  rawKey: string,
+): string {
+  const baseKey = String(rawKey ?? '').split('__')[0] ?? '';
+  if (!baseKey) return baseKey;
+  if (categoryKey === 'purchases') {
+    const match = PURCHASES_PREFIX_MAP.find(([prefix]) =>
+      baseKey.startsWith(prefix),
+    );
+    if (match) return match[1]!;
+  }
+  return baseKey;
+}
+
 // Mirrors backend CATEGORY_CHART_KEYS in emission_breakdown.py
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
-  process_emissions: ['ch4', 'co2', 'n2o', 'refrigerants'],
+  process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
   buildings_energy_combustion: ['combustion', 'heating_thermal'],
-  buildings_room: ['lighting', 'cooling', 'ventilation', 'heating_elec'],
+  buildings_room: ['heating_elec', 'lighting', 'cooling', 'ventilation'],
   equipment: ['scientific', 'it', 'other'],
   external_cloud_and_ai: ['clouds', 'ai'],
   purchases: [
@@ -38,7 +71,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'biological_chemical_gaseous',
     'services',
     'vehicles',
-    'other',
+    'other_purchases',
     'additional',
   ],
   research_facilities: ['facilities', 'animal'],
@@ -110,9 +143,10 @@ export function buildModuleTreemapData(
       children = [];
       for (const parentKey of subKeys) {
         for (const emission of rawEmissions) {
-          const emParentKey = emission.parent_key
+          const rawParentKey = emission.parent_key
             ? String(emission.parent_key)
             : String(emission.key);
+          const emParentKey = normalizeParentKey(cat, rawParentKey);
           if (emParentKey !== parentKey) continue;
           const val = Number(emission.value) || 0;
           if (val <= 0) continue;

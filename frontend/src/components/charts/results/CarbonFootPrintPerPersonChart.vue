@@ -50,11 +50,6 @@ const validatedPPKeys = computed(() => {
   if (!props.validatedCategories) return new Set<string>();
   const keys = new Set(props.validatedCategories);
 
-  // Per-person data merges both buildings categories into one key.
-  if (keys.has('buildings_room') || keys.has('buildings_energy_combustion')) {
-    keys.add('buildings');
-  }
-
   return new Set(keys);
 });
 
@@ -122,7 +117,7 @@ const additionalSeriesData = computed(() => {
         y: 'commuting',
       },
       itemStyle: {
-        color: colors.value.skyBlue.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.commuting,
       },
       label: {
         show: false,
@@ -167,7 +162,7 @@ const additionalSeriesData = computed(() => {
         y: 'embodied_energy',
       },
       itemStyle: {
-        color: colors.value.skyBlue.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.embodied_energy,
       },
       label: {
         show: false,
@@ -187,22 +182,37 @@ const chartOption = computed((): EChartsOption => {
         y: 'process_emissions',
       },
       itemStyle: {
-        color: colors.value.apricot.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.process_emissions,
       },
       label: {
         show: false,
       },
     },
     {
-      name: t('buildings'),
+      name: t('charts-buildings-energy-combustion-category'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'buildings',
+        y: 'buildings_energy_combustion',
       },
       itemStyle: {
-        color: colors.value.lilac.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_energy_combustion,
+      },
+      label: {
+        show: false,
+      },
+    },
+    {
+      name: t('charts-buildings-room-category'),
+      type: 'bar' as const,
+      stack: 'total',
+      encode: {
+        x: 'category',
+        y: 'buildings_room',
+      },
+      itemStyle: {
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_room,
       },
       label: {
         show: false,
@@ -217,22 +227,22 @@ const chartOption = computed((): EChartsOption => {
         y: 'equipment',
       },
       itemStyle: {
-        color: colors.value.mauve.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
       },
       label: {
         show: false,
       },
     },
     {
-      name: t('research-facilities'),
+      name: t('external-cloud-and-ai'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'research_facilities',
+        y: 'external_cloud_and_ai',
       },
       itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
       },
       label: {
         show: false,
@@ -269,15 +279,15 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     {
-      name: t('external-cloud-and-ai'),
+      name: t('research-facilities'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'external_cloud_and_ai',
+        y: 'research_facilities',
       },
       itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
+        color: colors.value.paleYellowGreen.darker,
       },
       label: {
         show: false,
@@ -397,7 +407,8 @@ const chartOption = computed((): EChartsOption => {
       dimensions: [
         'category',
         'process_emissions',
-        'buildings',
+        'buildings_room',
+        'buildings_energy_combustion',
         'equipment',
         'research_facilities',
         'professional_travel',

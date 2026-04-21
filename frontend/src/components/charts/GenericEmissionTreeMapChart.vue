@@ -35,6 +35,7 @@ const LABEL_KEY_MAP: Record<string, string> = {
   // equipment
   scientific: 'charts-scientific-subcategory',
   it: 'charts-equipment-it',
+  other: 'charts-other-equipment-subcategory',
   // external cloud & AI
   stockage: 'charts-stockage-subcategory',
   virtualisation: 'charts-virtualisation-subcategory',
@@ -49,8 +50,9 @@ const LABEL_KEY_MAP: Record<string, string> = {
   consumable_accessories: 'charts-consumables-subcategory',
   biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
   services: 'charts-services-subcategory',
-  vehicles: 'charts-other-purchases-subcategory',
-  additional: 'charts-other-purchases-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
+  additional: 'charts-additional-purchases-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
@@ -117,7 +119,7 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: cat.color,
         borderColor: '#fff',
-        borderWidth: 1,
+        borderWidth: 0,
       },
       label: {
         show: pct >= 0.09,

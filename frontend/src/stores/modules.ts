@@ -776,6 +776,7 @@ export const useModuleStore = defineStore('modules', () => {
   ) {
     state.loadingTopClassBreakdown = true;
     state.errorTopClassBreakdown = null;
+    state.topClassBreakdown = [];
     try {
       const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();

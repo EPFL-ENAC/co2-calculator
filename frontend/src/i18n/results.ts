@@ -449,9 +449,21 @@ export default {
     en: 'Services',
     fr: 'Services',
   },
-  'charts-other-purchases-subcategory': {
-    en: 'Other Equipment',
+  'charts-vehicles-subcategory': {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  'charts-additional-purchases-subcategory': {
+    en: 'Additional purchases',
+    fr: 'Achats supplémentaires',
+  },
+  'charts-other-equipment-subcategory': {
+    en: 'Other equipment',
     fr: 'Autre équipement',
+  },
+  'charts-other-purchases-subcategory': {
+    en: 'Other purchases',
+    fr: 'Autres achats',
   },
   'charts-gc-subcategory': {
     en: 'GC',
