@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
-import { TargetType, IngestionState } from 'src/stores/backofficeDataManagement';
+import {
+  TargetType,
+  IngestionState,
+} from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
   SyncJobResponse,
@@ -120,7 +123,7 @@ function handleCancel() {
 
     <!-- Upload button row -->
     <div class="row justify-between items-center full-width">
-      <div class="row items-center" style="gap: 0.5rem">
+      <div class="row q-mr-xs items-center" style="gap: 0.5rem">
         <q-spinner-rings v-if="isLoading" color="grey" />
         <q-btn
           :color="buttonColor"
@@ -180,7 +183,7 @@ function handleCancel() {
         class="row items-center no-wrap"
         style="gap: 0.75rem"
       >
-        <div class="column items-end">
+        <div class="row items-end">
           <div class="row items-center text-body2 text-weight-medium">
             <span class="text-positive q-mr-xs">✓</span>
             {{ jobInfo.fileName }}
@@ -228,7 +231,11 @@ function handleCancel() {
       </div>
 
       <!-- Stuck job: cancel button -->
-      <div v-if="isJobStuck" class="row items-center no-wrap" style="gap: 0.5rem">
+      <div
+        v-if="isJobStuck"
+        class="row items-center no-wrap"
+        style="gap: 0.5rem"
+      >
         <q-spinner-rings color="grey" size="sm" />
         <span class="text-caption text-grey-7">{{
           $t('data_management_job_in_progress')

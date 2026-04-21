@@ -138,19 +138,13 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         ? String(sub.dataEntryTypeId)
         : undefined;
     if (!subKey) return;
-    const unifiedModule = getUnifiedModuleConfigFromSub(sub);
-    if (!unifiedModule) return;
-    const existingSub = unifiedModule.submodules[sub.key];
-    if (!existingSub) return;
     try {
       await yearConfigStore.updateConfig(options.selectedYear, {
         config: {
           modules: {
             [moduleKey]: {
-              ...unifiedModule,
               submodules: {
-                ...unifiedModule.submodules,
-                [subKey]: { ...existingSub, threshold: value },
+                [subKey]: { threshold: value },
               },
             },
           },

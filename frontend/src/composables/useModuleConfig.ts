@@ -55,7 +55,9 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
   function getImportRow(sub: SubmoduleConfigItem): ImportRow {
     const mod =
       yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
-    const subConfig = mod?.submodules?.[String(sub.dataEntryTypeId)];
+    const subConfig = sub.dataEntryTypeId
+      ? mod?.submodules?.[String(sub.dataEntryTypeId)]
+      : undefined;
     return {
       key: sub.key,
       labelKey: sub.labelKey,
@@ -67,9 +69,13 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
       other: sub.other,
       hasOtherUpload: !!sub.other,
       isDisabled: sub.isDisabled ?? false,
-      lastDataJob: toSyncJobResponse(subConfig?.latest_data_job),
+      lastDataJob: toSyncJobResponse(
+        subConfig?.latest_data_job ?? mod?.latest_common_data_job,
+      ),
       lastApiDataJob: toSyncJobResponse(subConfig?.latest_api_data_job),
-      lastFactorJob: toSyncJobResponse(subConfig?.latest_factor_job),
+      lastFactorJob: toSyncJobResponse(
+        subConfig?.latest_factor_job ?? mod?.latest_common_factor_job,
+      ),
     };
   }
 

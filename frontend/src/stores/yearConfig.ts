@@ -59,12 +59,16 @@ export interface ModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, SubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
 }
 
 export interface UnifiedModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, UnifiedSubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
 }
 
 export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
@@ -383,11 +387,15 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       ? mod?.submodules?.[String(sub.dataEntryTypeId)]
       : undefined;
     if (!sub.noFactors) {
-      const job = subConfig?.latest_factor_job;
+      const job = subConfig?.latest_factor_job ?? mod?.latest_common_factor_job;
       if (!job || job.result !== 0) return true;
     }
     if (sub.other) {
-      const job = subConfig?.latest_data_job;
+      const job = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
+      if (!job || job.result !== 0) return true;
+    }
+    if (!sub.noData && !sub.dataEntryTypeId) {
+      const job = mod?.latest_common_data_job;
       if (!job || job.result !== 0) return true;
     }
     return false;

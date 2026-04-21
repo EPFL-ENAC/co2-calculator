@@ -114,16 +114,23 @@ def _enrich_config_with_jobs(
         3: "latest_reference_job",
     }
     INGESTION_METHOD_API = 0
+    common_target_type_map = {
+        0: "latest_common_data_job",
+        1: "latest_common_factor_job",
+    }
     modules = config.get("modules", {})
     for module_key, module_val in modules.items():
         if not isinstance(module_val, dict):
+            continue
+        try:
+            m_id = int(module_key)
+        except (ValueError, TypeError):
             continue
         submodules = module_val.get("submodules", {})
         for sub_key, sub_val in submodules.items():
             if not isinstance(sub_val, dict):
                 continue
             try:
-                m_id = int(module_key)
                 s_id = int(sub_key)
             except (ValueError, TypeError):
                 continue
@@ -134,6 +141,9 @@ def _enrich_config_with_jobs(
             sub_val["latest_api_data_job"] = (
                 api_data_job.model_dump() if api_data_job else None
             )
+        for target_val, field_name in common_target_type_map.items():
+            common_job = _pick_latest_job(job_lookup, m_id, None, target_val)
+            module_val[field_name] = common_job.model_dump() if common_job else None
     return config
 
 
@@ -142,7 +152,7 @@ def _pick_latest_job(
         tuple[int | None, int | None, int | None, int | None], SyncJobSummary
     ],
     module_id: int,
-    sub_id: int,
+    sub_id: int | None,
     target_val: int,
 ) -> SyncJobSummary | None:
     """Pick the most recent job across all ingestion methods for a given target type.
