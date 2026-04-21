@@ -33,6 +33,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+.zed
 
 # SEED DATA
 seed_data/

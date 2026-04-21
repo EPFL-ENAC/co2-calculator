@@ -90,6 +90,10 @@ export default {
     en: 'Surface (m²)',
     fr: 'Surface (m²)',
   },
+  [`${MODULES.Buildings}.inputs.room_allocation_ratio`]: {
+    en: 'Allocation ratio',
+    fr: 'Ratio alloué',
+  },
   [`${MODULES.Buildings}.inputs.heating_kwh_per_square_meter`]: {
     en: 'Heating (kWh/m²)',
     fr: 'Chauffage (kWh/m²)',
