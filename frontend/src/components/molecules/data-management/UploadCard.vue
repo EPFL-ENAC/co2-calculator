@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
-import { TargetType } from 'src/stores/backofficeDataManagement';
+import { TargetType, IngestionState } from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
   SyncJobResponse,
@@ -51,6 +51,7 @@ const emit = defineEmits<{
   (e: 'download', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
+  (e: 'cancel', jobId: number): void;
 }>();
 
 const { cardStyle, getJobInfo, hasErrorOrWarning, getErrorDetails } =
@@ -59,6 +60,11 @@ const { cardStyle, getJobInfo, hasErrorOrWarning, getErrorDetails } =
 const jobInfo = computed(() => getJobInfo(props.lastJob));
 const hasErrorOrWarn = computed(() => hasErrorOrWarning(props.lastJob));
 const errorDetails = computed(() => getErrorDetails(props.lastJob));
+const isJobStuck = computed(
+  () =>
+    props.lastJob?.state === IngestionState.RUNNING ||
+    props.lastJob?.state === IngestionState.QUEUED,
+);
 
 function handleUpload() {
   if (props.row && props.targetType !== undefined) {
@@ -81,6 +87,12 @@ function handleRecalculate() {
 function handleComputeFactors() {
   if (props.row) {
     emit('compute-factors', props.row);
+  }
+}
+
+function handleCancel() {
+  if (props.lastJob?.job_id) {
+    emit('cancel', props.lastJob.job_id);
   }
 }
 </script>
@@ -213,6 +225,23 @@ function handleComputeFactors() {
             </div>
           </q-tooltip>
         </q-icon>
+      </div>
+
+      <!-- Stuck job: cancel button -->
+      <div v-if="isJobStuck" class="row items-center no-wrap" style="gap: 0.5rem">
+        <q-spinner-rings color="grey" size="sm" />
+        <span class="text-caption text-grey-7">{{
+          $t('data_management_job_in_progress')
+        }}</span>
+        <q-btn
+          color="negative"
+          outline
+          icon="cancel"
+          size="sm"
+          :label="$t('data_management_cancel_job')"
+          class="text-weight-medium"
+          @click="handleCancel"
+        />
       </div>
     </div>
 

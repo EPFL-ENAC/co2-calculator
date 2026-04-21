@@ -427,6 +427,45 @@ async def get_latest_jobs_by_year(
     ]
 
 
+@router.post("/jobs/{job_id}/cancel", response_model=SyncJobResponse)
+async def cancel_job(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+):
+    """
+    Cancel a stuck ingestion job.
+
+    Sets the job to FINISHED/ERROR and unsets is_current so the user
+    can re-upload. Only jobs in NOT_STARTED, QUEUED, or RUNNING state
+    can be cancelled.
+
+    **Required Permission**: `backoffice.data_management.sync`
+    """
+    repo = DataIngestionRepository(db)
+    job = await repo.cancel_job(job_id)
+    if not job or job.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found or not cancellable",
+        )
+    await db.commit()
+    return SyncJobResponse(
+        job_id=job.id,
+        module_type_id=job.module_type_id,
+        data_entry_type_id=job.data_entry_type_id,
+        year=job.year,
+        ingestion_method=job.ingestion_method,
+        target_type=job.target_type,
+        state=job.state,
+        result=job.result,
+        status_message=job.status_message,
+        meta=job.meta,
+    )
+
+
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(

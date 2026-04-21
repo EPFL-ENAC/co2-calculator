@@ -658,6 +658,36 @@ provider_type
       return response.job_id;
     }
 
+    async function cancelJob(jobId: number, year: number): Promise<void> {
+      try {
+        const response = (await api
+          .post(`sync/jobs/${jobId}/cancel`)
+          .json()) as SyncJobResponse;
+
+        if (year !== null && syncJobs.value[year]) {
+          const jobIndex = syncJobs.value[year].findIndex(
+            (j: DataIngestionJob) => j.job_id === jobId,
+          );
+          if (jobIndex !== -1) {
+            syncJobs.value[year].splice(jobIndex, 1, {
+              ...syncJobs.value[year][jobIndex],
+              state: response.state,
+              result: response.result,
+              status_message: response.status_message || '',
+              meta: response.meta,
+            });
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value = err.message ?? 'Failed to cancel job';
+        } else {
+          error.value = 'Failed to cancel job';
+        }
+        throw err;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -690,6 +720,7 @@ provider_type
       initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
+      cancelJob,
       reset,
       syncUnitsFromAccred,
     };

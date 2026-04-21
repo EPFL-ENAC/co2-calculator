@@ -3,6 +3,7 @@ import { inject } from 'vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
+  useBackofficeDataManagement,
   TargetType,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
@@ -31,6 +32,12 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
   useRecalculation({
     selectedYear: props.selectedYear,
   });
+
+const backofficeStore = useBackofficeDataManagement();
+
+async function handleCancelJob(jobId: number) {
+  await backofficeStore.cancelJob(jobId, props.selectedYear);
+}
 </script>
 
 <template>
@@ -82,6 +89,7 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
             @recalculate="() => triggerTypeRecalculation(common)"
+            @cancel="handleCancelJob"
           />
           <UploadCardFactors
             v-if="getImportRow(common).hasFactors"
@@ -89,6 +97,7 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
             @recalculate="() => triggerTypeRecalculation(common)"
+            @cancel="handleCancelJob"
           />
         </div>
       </div>

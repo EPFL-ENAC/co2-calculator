@@ -636,4 +636,12 @@ export default {
     en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
     fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
   },
+  data_management_job_in_progress: {
+    en: 'Job in progress…',
+    fr: 'Traitement en cours…',
+  },
+  data_management_cancel_job: {
+    en: 'Cancel',
+    fr: 'Annuler',
+  },
 } as const;

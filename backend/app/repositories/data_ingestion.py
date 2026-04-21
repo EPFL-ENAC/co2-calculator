@@ -208,6 +208,47 @@ class DataIngestionRepository:
             logger.error(f"Failed to mark job {job.id} as current: {e}")
             raise
 
+    async def cancel_job(self, job_id: int) -> Optional[DataIngestionJob]:
+        """
+        Cancel a stuck job by setting it to FINISHED/ERROR and unsetting is_current.
+
+        Only jobs in NOT_STARTED, QUEUED, or RUNNING state can be cancelled.
+
+        Args:
+            job_id: The ID of the job to cancel
+
+        Returns:
+            The updated job, or None if not found or not cancellable
+        """
+        stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
+        exec_result = await self.session.execute(stmt)
+        job = exec_result.scalar_one_or_none()
+        if not job:
+            return None
+
+        if job.state not in (
+            IngestionState.NOT_STARTED,
+            IngestionState.QUEUED,
+            IngestionState.RUNNING,
+        ):
+            logger.warning(f"Job {job_id} state {job.state} not cancellable")
+            return None
+
+        job.state = IngestionState.FINISHED
+        job.result = IngestionResult.ERROR
+        job.status_message = "Cancelled by user"
+        job.is_current = False
+        merged_meta = {
+            **self.sanitize_for_json(job.meta or {}),
+            "cancelled": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        job.meta = merged_meta
+        await self.session.flush()
+        await self.session.refresh(job)
+        logger.info(f"Job {job_id} cancelled")
+        return job
+
     async def _get_jobs_by_state(
         self, states: list[IngestionState], negate: bool = False
     ) -> list[DataIngestionJob]:

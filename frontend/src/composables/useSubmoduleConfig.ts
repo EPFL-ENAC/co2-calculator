@@ -30,7 +30,9 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
     getModuleNameFromSubmodule,
   } = yearConfigStore;
 
-  function toSyncJobResponse(job?: SyncJobSummary | null): SyncJobResponse | undefined {
+  function toSyncJobResponse(
+    job?: SyncJobSummary | null,
+  ): SyncJobResponse | undefined {
     if (!job) return undefined;
     return {
       job_id: job.job_id,
@@ -47,7 +49,8 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   }
 
   function getImportRow(sub: SubmoduleConfig): ImportRow {
-    const mod = yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
+    const mod =
+      yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
     const subConfig = mod?.submodules?.[String(sub.dataEntryTypeId)];
     return {
       key: sub.key,
@@ -77,8 +80,8 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         ? row.lastDataJob
         : row.lastFactorJob;
     if (!job?.meta) return;
-    const filePath = (job.meta as Record<string, unknown>)
-      .processed_file_path as string;
+    const jobMeta = job.meta as Record<string, unknown>;
+    const filePath = jobMeta?.processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
     a.href = `/api/v1/files/${filePath}`;

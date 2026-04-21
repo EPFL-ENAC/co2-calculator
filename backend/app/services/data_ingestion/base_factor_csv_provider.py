@@ -16,7 +16,6 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
-from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.data_ingestion.base_csv_provider import (
@@ -71,7 +70,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         self._files_store: Any = None
-        self._repo: Any = None
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -97,12 +95,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             self._files_store = make_files_store()
         return self._files_store
-
-    @property
-    def repo(self) -> Any:
-        if self._repo is None:
-            self._repo = DataIngestionRepository(self.data_session)
-        return self._repo
 
     async def validate_connection(self) -> bool:
         logger.info(f"Validating connection for {self.__class__.__name__}")
@@ -235,15 +227,12 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     batch = []
 
                     if stats["batches_processed"] % 5 == 0 and self.job_id is not None:
-                        await self._update_job_and_sync(
-                            repo=self.repo,
-                            job_id=self.job_id,
+                        await self._update_job(
                             status_message=f"Processing: {stats['rows_processed']}",
                             state=IngestionState.RUNNING,
                             result=None,
-                            metadata=dict(stats),
+                            extra_metadata=dict(stats),
                         )
-                        await self.data_session.flush()
 
             return await self._finalize_and_commit(
                 batch, factor_service, stats, setup_result
@@ -252,13 +241,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             if self.job_id is not None:
-                await self._update_job_and_sync(
-                    repo=self.repo,
-                    job_id=self.job_id,
+                await self._update_job(
                     status_message=f"Processing failed: {str(e)}",
                     state=IngestionState.FINISHED,
                     result=IngestionResult.ERROR,
-                    metadata={"error": str(e)},
+                    extra_metadata={"error": str(e)},
                 )
             raise
 
@@ -266,13 +253,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.year is None:
             raise ValueError("year is required for factor CSV ingestion")
         if self.job_id is not None:
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
+            await self._update_job(
                 status_message="Starting CSV processing",
                 state=IngestionState.RUNNING,
                 result=None,
-                metadata={},
+                extra_metadata={},
             )
         await self.data_session.flush()
 
@@ -542,23 +527,37 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
         await self.data_session.flush()
 
-        if self.job_id is not None:
-            result = self._compute_ingestion_result(stats)
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
-                status_message="CSV processing completed",
-                state=IngestionState.FINISHED,
-                result=result,
-                metadata={**dict(stats), **metadata_update},
-            )
+        status_message = (
+            f"Processed {stats['rows_processed']} rows: "
+            f"{stats['rows_skipped']} skipped, "
+            f"{stats['row_errors_count']} errors, "
+            f"{stats['factors_deleted']} existing factors deleted"
+        )
+        result = self._compute_ingestion_result(stats)
+
+        metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
+        metadata_for_job["stats"] = stats
+        metadata_for_job.update(metadata_update)
+        await self._update_job(
+            status_message=status_message,
+            state=IngestionState.FINISHED,
+            result=result,
+            extra_metadata=metadata_for_job,
+        )
 
         logger.info(
             f"CSV processing completed: {stats['rows_processed']} rows processed, "
-            f"{stats['rows_skipped']} rows skipped, {stats['row_errors_count']} errors"
+            f"{stats['rows_skipped']} skipped, "
+            f"{stats['row_errors_count']} errors, "
             f"{stats['factors_deleted']} existing factors deleted"
         )
-        return dict(stats)
+        return {
+            "state": IngestionState.FINISHED,
+            "result": result,
+            "inserted": stats["rows_processed"],
+            "skipped": stats["rows_skipped"],
+            "stats": stats,
+        }
 
     @abstractmethod
     async def _setup_handlers_and_context(self) -> Dict[str, Any]:

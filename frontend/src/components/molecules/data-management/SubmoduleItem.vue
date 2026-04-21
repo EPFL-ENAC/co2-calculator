@@ -3,6 +3,7 @@ import { ref, inject, type Ref } from 'vue';
 import { useSubmoduleConfig } from 'src/composables/useSubmoduleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
+  useBackofficeDataManagement,
   TargetType,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
@@ -40,6 +41,8 @@ const { getRecalcStatus } = useRecalculation({
   selectedYear: props.selectedYear,
 });
 
+const backofficeStore = useBackofficeDataManagement();
+
 const triggerTypeRecalculation = inject<
   (sub: SubmoduleConfig) => Promise<void>
 >('triggerTypeRecalculation')!;
@@ -71,6 +74,11 @@ async function handleReferenceCompleted() {
 
 async function handleReferenceProgressing() {
   await handleJobProgressing();
+}
+
+async function handleCancelJob(jobId: number) {
+  await backofficeStore.cancelJob(jobId, props.selectedYear);
+  await handleJobCompleted();
 }
 </script>
 
@@ -209,6 +217,7 @@ async function handleReferenceProgressing() {
         :on-download="downloadLastCsv"
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
+        @cancel="handleCancelJob"
       />
       <UploadCardFactors
         v-if="getImportRow(submodule).hasFactors"
@@ -216,10 +225,15 @@ async function handleReferenceProgressing() {
         :module="''"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
-        :on-download="downloadLastCsv"
+        :on-download="
+          (e, y) => {
+            downloadLastCsv(e, y);
+          }
+        "
         @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
+        @cancel="handleCancelJob"
       />
 
       <UploadCardReferences
