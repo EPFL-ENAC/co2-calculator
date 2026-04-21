@@ -531,13 +531,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         processed_path = f"processed/{self.job_id}/{filename}"
         logger.info(f"Moving file from {processing_path} to {processed_path}")
         move_result = await self.files_store.move_file(processing_path, processed_path)
+        metadata_update: Dict[str, Any] = {}
         if not move_result:
-            raise ValueError("Failed to move file to processed path")
+            logger.warning(
+                f"Failed to move file from {processing_path} to {processed_path}"
+            )
+            metadata_update["processed_file_path"] = processing_path
+        else:
+            metadata_update = {"processed_file_path": processed_path}
 
         await self.data_session.flush()
 
         if self.job_id is not None:
-            # Compute result dynamically based on success rate
             result = self._compute_ingestion_result(stats)
             await self._update_job_and_sync(
                 repo=self.repo,
@@ -545,7 +550,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 status_message="CSV processing completed",
                 state=IngestionState.FINISHED,
                 result=result,
-                metadata=dict(stats),
+                metadata={**dict(stats), **metadata_update},
             )
 
         logger.info(
