@@ -21,6 +21,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.models.data_ingestion import IngestionResult
+
 # Type definitions
 UncertaintyTag = Literal["low", "medium", "high", "none"]
 FileCategory = Literal["footprint", "population", "scenarios"]
@@ -345,6 +347,24 @@ class SubmoduleConfig(BaseModel):
         default=None,
         description="Fixed threshold in kgCO2eq (null if not set)",
     )
+    latest_data_job: Optional[SyncJobSummary] = Field(
+        default=None,
+        description="Latest data entries sync job (read-only, injected by API)",
+    )
+    latest_api_data_job: Optional[SyncJobSummary] = Field(
+        default=None,
+        description=(
+            "Latest API-sourced data entries sync job (read-only, injected by API)"
+        ),
+    )
+    latest_factor_job: Optional[SyncJobSummary] = Field(
+        default=None,
+        description="Latest factors sync job (read-only, injected by API)",
+    )
+    latest_reference_job: Optional[SyncJobSummary] = Field(
+        default=None,
+        description="Latest reference data sync job (read-only, injected by API)",
+    )
 
     @field_validator("threshold")
     @classmethod
@@ -424,6 +444,28 @@ class YearConfigurationUpdate(BaseModel):
         return self
 
 
+class RecalculationStatusEntry(BaseModel):
+    """Per-(module_type_id, data_entry_type_id) recalculation status."""
+
+    module_type_id: int
+    data_entry_type_id: int
+    year: int
+    needs_recalculation: bool
+    last_factor_job_id: Optional[int] = None
+    last_factor_job_result: Optional[IngestionResult] = None
+    last_recalculation_job_id: Optional[int] = None
+    last_recalculation_job_result: Optional[IngestionResult] = None
+
+
+class ModuleRecalculationStatusEntry(BaseModel):
+    """Per-module rollup — true if any data_entry_type needs recalculation."""
+
+    module_type_id: int
+    year: int
+    needs_recalculation: bool
+    data_entry_types: List[RecalculationStatusEntry]
+
+
 class YearConfigurationResponse(BaseModel):
     """Schema for year configuration response with enriched submodule data."""
 
@@ -431,9 +473,11 @@ class YearConfigurationResponse(BaseModel):
     is_started: bool
     is_reports_synced: bool
     config: Dict[str, Any]
-    latest_jobs: List[SyncJobSummary] = Field(
+    recalculation_status: List[ModuleRecalculationStatusEntry] = Field(
         default_factory=list,
-        description="All current ingestion jobs for this year",
+        description=(
+            "Per-module recalculation status for this year (read-only, injected by API)"
+        ),
     )
     updated_at: datetime
 

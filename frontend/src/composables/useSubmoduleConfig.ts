@@ -1,9 +1,9 @@
 import { computed, ref } from 'vue';
 import {
   useBackofficeDataManagement,
-  IngestionMethod,
   IngestionState,
   IngestionResult,
+  IngestionMethod,
   TargetType,
   type ImportRow,
   type SyncJobResponse,
@@ -30,32 +30,14 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
     getModuleNameFromSubmodule,
   } = yearConfigStore;
 
-  function findJob(
-    jobs: SyncJobSummary[],
-    moduleTypeId: number,
-    targetType: number | null,
-    dataEntryTypeId?: number,
-    ingestionMethod?: IngestionMethod,
-  ): SyncJobSummary | undefined {
-    const candidates = jobs.filter(
-      (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
-    );
-    if (dataEntryTypeId !== undefined) {
-      return candidates.find(
-        (j) =>
-          j.data_entry_type_id === dataEntryTypeId &&
-          j.ingestion_method === ingestionMethod?.valueOf(),
-      );
-    }
-    return candidates[0];
-  }
-
-  function toSyncJobResponse(job: SyncJobSummary): SyncJobResponse {
+  function toSyncJobResponse(job?: SyncJobSummary | null): SyncJobResponse | undefined {
+    if (!job) return undefined;
     return {
       job_id: job.job_id,
       module_type_id: job.module_type_id,
       data_entry_type_id: job.data_entry_type_id,
       year: job.year,
+      ingestion_method: job.ingestion_method as IngestionMethod,
       target_type: job.target_type as TargetType,
       state: job.state as IngestionState,
       result: job.result as IngestionResult,
@@ -65,30 +47,8 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   }
 
   function getImportRow(sub: SubmoduleConfig): ImportRow {
-    const jobs = yearConfigStore.latestJobs;
-    const dataJob = findJob(
-      jobs,
-      sub.moduleTypeId,
-      0,
-      sub.dataEntryTypeId,
-      IngestionMethod.CSV,
-    );
-    const apiDataJob = sub.hasApi
-      ? findJob(
-          jobs,
-          sub.moduleTypeId,
-          0,
-          sub.dataEntryTypeId,
-          IngestionMethod.API,
-        )
-      : undefined;
-    const factorJob = findJob(
-      jobs,
-      sub.moduleTypeId,
-      1,
-      sub.dataEntryTypeId,
-      IngestionMethod.CSV,
-    );
+    const mod = yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
+    const subConfig = mod?.submodules?.[String(sub.dataEntryTypeId)];
     return {
       key: sub.key,
       labelKey: sub.labelKey,
@@ -100,9 +60,9 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
       other: sub.other,
       hasOtherUpload: !!sub.other,
       isDisabled: sub.isDisabled ?? false,
-      lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
-      lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
-      lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
+      lastDataJob: toSyncJobResponse(subConfig?.latest_data_job),
+      lastApiDataJob: toSyncJobResponse(subConfig?.latest_api_data_job),
+      lastFactorJob: toSyncJobResponse(subConfig?.latest_factor_job),
     };
   }
 
