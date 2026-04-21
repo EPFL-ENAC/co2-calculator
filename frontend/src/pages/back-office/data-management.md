@@ -56,10 +56,10 @@ graph TD
 | **Molecule** | `SubmoduleItem.vue`              | 250   | Individual submodule row with status                              |
 | **Molecule** | `ModuleRecalculationDialog.vue`  | 86    | Module-wide recalculation confirmation                            |
 | **Molecule** | `ComputedFactorDialog.vue`       | 57    | Computed factor regeneration dialog                               |
-| **Molecule** | `UploadCard.vue`                 | -     | Base upload card with drag-drop                                   |
-| **Molecule** | `UploadCardData.vue`             | -     | Data upload (CSV/API/copy)                                        |
-| **Molecule** | `UploadCardFactors.vue`          | -     | Factor upload (CSV/computed)                                      |
-| **Molecule** | `UploadCardReferences.vue`       | -     | Reference data upload                                             |
+| **Molecule** | `UploadCard.vue`                 | 278   | Base upload card with download, cancel, status                    |
+| **Molecule** | `UploadCardData.vue`             | 66    | Data upload (CSV/API/copy)                                        |
+| **Molecule** | `UploadCardFactors.vue`          | 89    | Factor upload (CSV/computed)                                      |
+| **Molecule** | `UploadCardReferences.vue`       | 408   | Self-contained reference data upload with SSE + cancel            |
 
 ---
 
@@ -68,10 +68,10 @@ graph TD
 ```mermaid
 graph LR
     subgraph Composables
-        UDED[useDataEntryDialog.ts<br/>345 lines]
-        UMC[useModuleConfig.ts<br/>208 lines]
-        UREC[useRecalculation.ts<br/>205 lines]
-        USC[useSubmoduleConfig.ts<br/>296 lines]
+        UDED[useDataEntryDialog.ts<br/>347 lines]
+        UMC[useModuleConfig.ts<br/>177 lines]
+        UREC[useRecalculation.ts<br/>200 lines]
+        USC[useSubmoduleConfig.ts<br/>253 lines]
     end
 
     UDED --> FS[Files Store]
@@ -83,10 +83,10 @@ graph LR
 
 | Composable              | Lines | Responsibility                                                     |
 | ----------------------- | ----- | ------------------------------------------------------------------ |
-| `useDataEntryDialog.ts` | 345   | CSV upload, API connection, previous year copy, SSE job monitoring |
-| `useModuleConfig.ts`    | 208   | Module enable/disable, uncertainty management, job status lookup   |
-| `useRecalculation.ts`   | 205   | Recalculation status tracking, trigger module/type recalculation   |
-| `useSubmoduleConfig.ts` | 296   | Submodule enable/disable, threshold configuration                  |
+| `useDataEntryDialog.ts` | 347   | CSV upload, API connection, previous year copy, SSE job monitoring |
+| `useModuleConfig.ts`    | 177   | Module enable/disable, uncertainty management, job status lookup   |
+| `useRecalculation.ts`   | 200   | Recalculation status tracking, trigger module/type recalculation   |
+| `useSubmoduleConfig.ts` | 253   | Submodule enable/disable, threshold configuration                  |
 
 ---
 
@@ -228,6 +228,7 @@ classDiagram
         +initiateEmissionRecalculation(moduleTypeId, dataEntryTypeId, year)
         +initiateModuleEmissionRecalculation(moduleTypeId, year, onlyStale)
         +subscribeToJobUpdates(jobId, callbacks)
+        +cancelJob(jobId, year)
         +syncUnitsFromAccred(targetYear)
         +getPreviousYearSuccessfulJobs(year, moduleTypeId, targetType)
 
@@ -292,7 +293,6 @@ classDiagram
         +updateConfig(year, payload)
 
         #Computed
-        +latestJobs: SyncJobSummary[]
         +unifiedModuleConfig: Record~string, UnifiedModuleConfig~
         +visibleModules: Module[]
         +anyModuleIncomplete: boolean
@@ -316,7 +316,7 @@ erDiagram
         boolean is_started
         boolean is_reports_synced
         YearConfig config
-        SyncJobSummary[] latest_jobs
+        RecalculationStatusEntry[] recalculation_status
         string updated_at
     }
 
@@ -329,12 +329,17 @@ erDiagram
         boolean enabled
         string uncertainty_tag
         Record~string, SubmoduleConfig~ submodules
+        SyncJobSummary latest_common_data_job
+        SyncJobSummary latest_common_factor_job
     }
 
     SubmoduleConfig {
         boolean enabled
         number|null threshold
-        SyncJobSummary|null latest_job
+        SyncJobSummary|null latest_data_job
+        SyncJobSummary|null latest_api_data_job
+        SyncJobSummary|null latest_factor_job
+        SyncJobSummary|null latest_reference_job
     }
 
     ReductionObjectives {
@@ -357,6 +362,8 @@ erDiagram
     YearConfigurationResponse ||--|| YearConfig : contains
     YearConfig ||--o{ ModuleConfig : has
     ModuleConfig ||--o{ SubmoduleConfig : has
+    ModuleConfig ||--o| SyncJobSummary : latest_common_data_job
+    ModuleConfig ||--o| SyncJobSummary : latest_common_factor_job
     YearConfig ||--|| ReductionObjectives : has
     ReductionObjectives ||--o{ ReductionObjectiveGoal : has
 ```
@@ -459,6 +466,7 @@ flowchart LR
         S5[POST /sync/factors/{moduleId}/{dataTypeId}]
         S6[POST /sync/recalculate-emissions/{moduleId}]
         S7[POST /sync/units]
+        S8[POST /sync/jobs/{jobId}/cancel]
     end
 
     subgraph Files
@@ -556,7 +564,7 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
     subgraph Backend
-        B[{"1": {enabled: true,<br/>uncertainty_tag: "medium",<br/>submodules: {...}}}]
+        B[{"1": {enabled: true,<br/>uncertainty_tag: "medium",<br/>submodules: {...},<br/>latest_common_data_job: null,<br/>latest_common_factor_job: null}}]
     end
 
     subgraph Static
@@ -572,6 +580,24 @@ flowchart LR
     Merge --> U
 ```
 
+### 3b. Common Upload Job Resolution
+
+Modules like Equipment and Purchase have "common uploads" (no `dataEntryTypeId`). Their jobs have `data_entry_type_id = None` in the DB, so they cannot be keyed under a specific submodule. Instead, the backend injects them at the **module level**:
+
+```
+ModuleConfig
+├── submodules
+│   ├── "10" → { latest_data_job: null, latest_factor_job: null }  (scientific, noData)
+│   ├── "11" → { latest_data_job: null, latest_factor_job: null }  (it, noData)
+│   └── "12" → { latest_data_job: null, latest_factor_job: null }  (other, noData)
+├── latest_common_data_job   → { job_id: 5, ... }  ← common data upload
+└── latest_common_factor_job → { job_id: 6, ... }  ← common factor upload
+```
+
+In `getImportRow()`, when `dataEntryTypeId` is undefined (common uploads), the composable falls back to `mod.latest_common_data_job` / `mod.latest_common_factor_job`.
+
+> **Important**: Config updates (e.g. `updateSubmoduleThreshold`) must send only **targeted partial updates** — never spread the `unifiedModule` object back to the backend, as it contains string-keyed submodules and frontend-only fields that would leak into the DB.
+
 ### 4. Job Status Flow
 
 ```mermaid
@@ -585,9 +611,14 @@ stateDiagram-v2
     FINISHED --> [*]: result = WARNING
     FINISHED --> [*]: result = ERROR
 
+    RUNNING --> CANCELLED: cancelJob
+    QUEUED --> CANCELLED: cancelJob
+    CANCELLED --> [*]: result = ERROR, cancelled = true
+
     note right of RUNNING
       SSE stream active
       Real-time updates
+      Cancel button visible
     end note
 ```
 
@@ -660,13 +691,13 @@ frontend/src/
 │           ├── UploadCardFactors.vue
 │           └── UploadCardReferences.vue
 ├── composables/
-│   ├── useDataEntryDialog.ts           # 345 lines
-│   ├── useModuleConfig.ts              # 208 lines
-│   ├── useRecalculation.ts             # 205 lines
-│   └── useSubmoduleConfig.ts           # 296 lines
+│   ├── useDataEntryDialog.ts           # 347 lines
+│   ├── useModuleConfig.ts              # 177 lines
+│   ├── useRecalculation.ts             # 200 lines
+│   └── useSubmoduleConfig.ts           # 253 lines
 ├── stores/
-│   ├── backofficeDataManagement.ts     # 732 lines
-│   └── yearConfig.ts                   # 470 lines
+│   ├── backofficeDataManagement.ts     # 728 lines
+│   └── yearConfig.ts                   # 480 lines
 ├── constant/
 │   ├── backoffice-module-config.ts     # 225 lines
 │   └── modules.ts
@@ -723,6 +754,8 @@ frontend/src/
 - `data_management_connection_failed`
 - `data_management_no_previous_jobs`
 - `data_management_copy_failed`
+- `data_management_job_in_progress`
+- `data_management_cancel_job`
 
 ### Config
 
@@ -756,6 +789,12 @@ flowchart TD
 
     Symptom -->|Cannot copy| S5[Check previous year]
     S5 --> Fix5[Must have state=FINISHED<br/>result=SUCCESS]
+
+    Symptom -->|Job stuck RUNNING| S6[Backend may have restarted]
+    S6 --> Fix6[Use cancel button or<br/>POST /sync/jobs/{id}/cancel]
+
+    Symptom -->|Common upload<br/>no status/download| S7[Check latest_common_data_job<br/>at module level in config]
+    S7 --> Fix7[Ensure backend enrichment<br/>includes common jobs]
 
     Fix1 --> Resolved
     Fix2 --> Resolved
@@ -803,6 +842,6 @@ flowchart TD
 - [ ] Import year configuration from JSON
 - [ ] Real-time collaboration (multiple admins)
 - [ ] Audit trail for configuration changes
-- [ ] Progress indicators for long-running uploads
+- [x] Progress indicators for long-running uploads (SSE + cancel button)
 - [ ] Bulk operations (enable/disable multiple modules)
 - [ ] Template configurations for new years
