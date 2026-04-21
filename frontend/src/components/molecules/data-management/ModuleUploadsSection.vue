@@ -79,15 +79,15 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
               ]
             "
             :recalc-status="getRecalcStatus(common)"
+            :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-            @download="downloadLastCsv"
             @recalculate="() => triggerTypeRecalculation(common)"
           />
           <UploadCardFactors
             v-if="getImportRow(common).hasFactors"
             :row="getImportRow(common)"
+            :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
-            @download="downloadLastCsv"
             @recalculate="() => triggerTypeRecalculation(common)"
           />
         </div>

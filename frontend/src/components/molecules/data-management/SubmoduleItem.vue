@@ -206,19 +206,18 @@ async function handleReferenceProgressing() {
           ]
         "
         :recalc-status="getRecalcStatus(submodule)"
+        :on-download="downloadLastCsv"
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-        @download="downloadLastCsv"
         @recalculate="() => triggerTypeRecalculation(submodule)"
       />
-
       <UploadCardFactors
         v-if="getImportRow(submodule).hasFactors"
         :row="getImportRow(submodule)"
         :module="''"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
+        :on-download="downloadLastCsv"
         @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
-        @download="downloadLastCsv"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
       />

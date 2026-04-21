@@ -15,6 +15,7 @@ interface Props {
   isDisabled?: boolean;
   computedFactorRunning?: boolean;
   anyComputedFactorRunning?: boolean;
+  onDownload?: (row: ImportRow, targetType: TargetType) => void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -22,11 +23,11 @@ const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
   computedFactorRunning: false,
   anyComputedFactorRunning: false,
+  onDownload: undefined,
 });
 
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType): void;
-  (e: 'download', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
 }>();
@@ -50,7 +51,7 @@ function handleUpload() {
 }
 
 function handleDownload(row: ImportRow, targetType: TargetType) {
-  emit('download', row, targetType);
+  props.onDownload?.(row, targetType);
 }
 
 function handleRecalculate(item: ImportRow) {

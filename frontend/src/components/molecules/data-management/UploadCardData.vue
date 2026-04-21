@@ -13,17 +13,18 @@ interface Props {
   isDisabled?: boolean;
   recalcRunning?: boolean;
   recalcStatus?: RecalculationStatusEntry;
+  onDownload?: (row: ImportRow, targetType: TargetType) => void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
   recalcRunning: false,
   recalcStatus: undefined,
+  onDownload: undefined,
 });
 
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType): void;
-  (e: 'download', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
 }>();
 
@@ -34,7 +35,7 @@ function handleUpload() {
 }
 
 function handleDownload(row: ImportRow, targetType: TargetType) {
-  emit('download', row, targetType);
+  props.onDownload?.(row, targetType);
 }
 
 function handleRecalculate(item: ImportRow) {
