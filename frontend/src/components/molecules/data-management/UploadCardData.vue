@@ -4,17 +4,15 @@ import {
   TargetType,
   IngestionState,
 } from 'src/stores/backofficeDataManagement';
-import type {
-  ImportRow,
-  RecalculationStatus,
-} from 'src/stores/backofficeDataManagement';
+import type { ImportRow } from 'src/stores/backofficeDataManagement';
+import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
 import UploadCard from './UploadCard.vue';
 
 interface Props {
   row: ImportRow;
   isDisabled?: boolean;
   recalcRunning?: boolean;
-  recalcStatus?: RecalculationStatus;
+  recalcStatus?: RecalculationStatusEntry;
 }
 
 const props = withDefaults(defineProps<Props>(), {

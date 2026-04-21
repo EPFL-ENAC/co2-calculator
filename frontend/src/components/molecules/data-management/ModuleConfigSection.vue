@@ -55,7 +55,11 @@ const {
   <q-card
     flat
     class="q-pa-none row"
-    :style="!isModuleEnabled(props.module) ? 'opacity: 0.45; pointer-events: none' : undefined"
+    :style="
+      !isModuleEnabled(props.module)
+        ? 'opacity: 0.45; pointer-events: none'
+        : undefined
+    "
   >
     <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
       <div class="row items-center q-mb-xs">

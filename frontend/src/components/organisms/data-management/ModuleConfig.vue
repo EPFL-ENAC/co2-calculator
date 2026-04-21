@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, provide } from 'vue';
+import { ref, provide } from 'vue';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
@@ -21,21 +21,17 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const {
-  getModuleTypeIdFromName,
-  isModuleEnabled,
-  isModuleIncomplete,
-} = useModuleConfig({
-  module: props.module,
-  selectedYear: props.selectedYear,
-});
+const yearConfigStore = useYearConfigStore();
+
+const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
+  useModuleConfig({
+    module: props.module,
+    selectedYear: props.selectedYear,
+  });
 
 const {
-  recalculationStatus,
   recalcRunning,
   recalcTypeRunning,
-  refreshRecalculationStatus,
-  getRecalcStatus,
   confirmModuleRecalculation,
   triggerTypeRecalculation,
   staleTypesForModule,
@@ -64,36 +60,19 @@ function openRecalcDialog(moduleTypeId: number) {
 }
 
 async function handleJobCompleted() {
-  const yearConfigStore = useYearConfigStore();
   await yearConfigStore.fetchConfig(props.selectedYear);
-  await refreshRecalculationStatus();
 }
 
 async function handleJobProgressing() {
-  const yearConfigStore = useYearConfigStore();
   await yearConfigStore.fetchConfig(props.selectedYear);
 }
 
 provide('openDataEntryDialog', openDataEntryDialog);
-provide('getRecalcStatus', getRecalcStatus);
-provide('refreshRecalculationStatus', refreshRecalculationStatus);
+provide('getRecalcStatus', yearConfigStore.getRecalcStatus);
 provide('handleJobCompleted', handleJobCompleted);
 provide('handleJobProgressing', handleJobProgressing);
 provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
-
-onMounted(() => {
-  void refreshRecalculationStatus();
-});
-
-watch(
-  () => props.selectedYear,
-  () => {
-    void refreshRecalculationStatus();
-  },
-);
-
-defineExpose({ refreshRecalculationStatus });
 </script>
 
 <template>
@@ -124,8 +103,9 @@ defineExpose({ refreshRecalculationStatus });
             />
             <q-badge
               v-if="
-                recalculationStatus[getModuleTypeIdFromName(module)]
-                  ?.needs_recalculation
+                yearConfigStore.recalculationStatus[
+                  getModuleTypeIdFromName(module)
+                ]?.needs_recalculation
               "
               outline
               rounded
@@ -144,8 +124,9 @@ defineExpose({ refreshRecalculationStatus });
             />
             <q-btn
               v-if="
-                recalculationStatus[getModuleTypeIdFromName(module)]
-                  ?.needs_recalculation
+                yearConfigStore.recalculationStatus[
+                  getModuleTypeIdFromName(module)
+                ]?.needs_recalculation
               "
               flat
               dense

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { RecalculationStatus } from 'src/stores/backofficeDataManagement';
+import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
 
 interface Props {
   modelValue: boolean;
   moduleTypeId: number | null;
-  staleTypes: RecalculationStatus[];
+  staleTypes: RecalculationStatusEntry[];
   onlyStale: boolean;
 }
 

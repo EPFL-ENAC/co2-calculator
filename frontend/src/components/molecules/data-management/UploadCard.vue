@@ -5,8 +5,8 @@ import { TargetType } from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
   SyncJobResponse,
-  RecalculationStatus,
 } from 'src/stores/backofficeDataManagement';
+import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
 
 interface Props {
   title: string;
@@ -21,7 +21,7 @@ interface Props {
   lastJob?: SyncJobResponse;
   targetType?: TargetType;
   hasRecalcButton?: boolean;
-  recalcStatus?: RecalculationStatus;
+  recalcStatus?: RecalculationStatusEntry;
   recalcRunning?: boolean;
   hasComputedFactorButton?: boolean;
   computedFactorRunning?: boolean;

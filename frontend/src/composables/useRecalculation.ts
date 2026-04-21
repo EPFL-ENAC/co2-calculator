@@ -3,9 +3,11 @@ import {
   useBackofficeDataManagement,
   IngestionResult,
   type JobUpdatePayload,
-  type ModuleRecalculationStatus,
-  type RecalculationStatus,
 } from 'src/stores/backofficeDataManagement';
+import {
+  useYearConfigStore,
+  type RecalculationStatusEntry,
+} from 'src/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { SubmoduleConfig as SubmoduleConfigItem } from 'src/constant/backoffice-module-config';
@@ -17,29 +19,20 @@ interface UseRecalculationOptions {
 export function useRecalculation(options: UseRecalculationOptions) {
   const { t: $t } = useI18n();
   const backofficeDataManagement = useBackofficeDataManagement();
+  const yearConfigStore = useYearConfigStore();
 
-  const recalculationStatus = ref<Record<number, ModuleRecalculationStatus>>(
-    {},
-  );
   const recalcRunning = ref<Record<number, boolean>>({});
   const recalcTypeRunning = ref<Record<string, boolean>>({});
 
-  async function refreshRecalculationStatus(): Promise<void> {
-    const statuses = await backofficeDataManagement.fetchRecalculationStatus(
-      options.selectedYear,
-    );
-    const map: Record<number, ModuleRecalculationStatus> = {};
-    for (const s of statuses) {
-      map[s.module_type_id] = s;
-    }
-    recalculationStatus.value = map;
+  async function refreshAfterRecalc(): Promise<void> {
+    await yearConfigStore.fetchConfig(options.selectedYear);
   }
 
   function getRecalcStatus(
     sub: SubmoduleConfigItem,
-  ): RecalculationStatus | undefined {
+  ): RecalculationStatusEntry | undefined {
     if (sub.dataEntryTypeId === undefined) return undefined;
-    return recalculationStatus.value[sub.moduleTypeId]?.data_entry_types.find(
+    return yearConfigStore.recalculationStatus[sub.moduleTypeId]?.data_entry_types.find(
       (d) => d.data_entry_type_id === sub.dataEntryTypeId,
     );
   }
@@ -84,7 +77,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
             });
           }
           recalcRunning.value[moduleTypeId] = false;
-          void refreshRecalculationStatus();
+          void refreshAfterRecalc();
         },
         (payload?: JobUpdatePayload) => {
           Notify.create({
@@ -95,7 +88,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
             timeout: 5000,
           });
           recalcRunning.value[moduleTypeId] = false;
-          void refreshRecalculationStatus();
+          void refreshAfterRecalc();
         },
         () => {
           recalcRunning.value[moduleTypeId] = false;
@@ -155,7 +148,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
             });
           }
           recalcTypeRunning.value[key] = false;
-          void refreshRecalculationStatus();
+          void refreshAfterRecalc();
         },
         (payload?: JobUpdatePayload) => {
           Notify.create({
@@ -166,7 +159,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
             timeout: 5000,
           });
           recalcTypeRunning.value[key] = false;
-          void refreshRecalculationStatus();
+          void refreshAfterRecalc();
         },
         () => {
           recalcTypeRunning.value[key] = false;
@@ -184,19 +177,17 @@ export function useRecalculation(options: UseRecalculationOptions) {
     }
   }
 
-  function staleTypesForModule(moduleTypeId: number): RecalculationStatus[] {
+  function staleTypesForModule(moduleTypeId: number): RecalculationStatusEntry[] {
     return (
-      recalculationStatus.value[moduleTypeId]?.data_entry_types.filter(
+      yearConfigStore.recalculationStatus[moduleTypeId]?.data_entry_types.filter(
         (d) => d.needs_recalculation,
       ) ?? []
     );
   }
 
   return {
-    recalculationStatus,
     recalcRunning,
     recalcTypeRunning,
-    refreshRecalculationStatus,
     getRecalcStatus,
     confirmModuleRecalculation,
     triggerTypeRecalculation,

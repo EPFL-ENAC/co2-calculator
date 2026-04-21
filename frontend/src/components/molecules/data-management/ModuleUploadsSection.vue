@@ -40,7 +40,6 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
     "
   >
     <q-separator class="q-my-xs" />
-
     <template v-if="commonUploads.length">
       <div
         v-for="common in commonUploads"
@@ -84,7 +83,6 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
             @download="downloadLastCsv"
             @recalculate="() => triggerTypeRecalculation(common)"
           />
-
           <UploadCardFactors
             v-if="getImportRow(common).hasFactors"
             :row="getImportRow(common)"
