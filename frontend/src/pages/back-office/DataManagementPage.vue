@@ -29,7 +29,9 @@ if (currentYear > MIN_YEARS) {
     availableYears.value.push(year);
   }
 }
-const queryYear = route.query.year ? parseInt(route.query.year as string, 10) : null;
+const queryYear = route.query.year
+  ? parseInt(route.query.year as string, 10)
+  : null;
 const selectedYear = ref<number>(
   queryYear && availableYears.value.includes(queryYear)
     ? queryYear

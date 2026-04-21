@@ -32,7 +32,9 @@ export function useRecalculation(options: UseRecalculationOptions) {
     sub: SubmoduleConfigItem,
   ): RecalculationStatusEntry | undefined {
     if (sub.dataEntryTypeId === undefined) return undefined;
-    return yearConfigStore.recalculationStatus[sub.moduleTypeId]?.data_entry_types.find(
+    return yearConfigStore.recalculationStatus[
+      sub.moduleTypeId
+    ]?.data_entry_types.find(
       (d) => d.data_entry_type_id === sub.dataEntryTypeId,
     );
   }
@@ -177,11 +179,13 @@ export function useRecalculation(options: UseRecalculationOptions) {
     }
   }
 
-  function staleTypesForModule(moduleTypeId: number): RecalculationStatusEntry[] {
+  function staleTypesForModule(
+    moduleTypeId: number,
+  ): RecalculationStatusEntry[] {
     return (
-      yearConfigStore.recalculationStatus[moduleTypeId]?.data_entry_types.filter(
-        (d) => d.needs_recalculation,
-      ) ?? []
+      yearConfigStore.recalculationStatus[
+        moduleTypeId
+      ]?.data_entry_types.filter((d) => d.needs_recalculation) ?? []
     );
   }
 

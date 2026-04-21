@@ -122,27 +122,24 @@ function getErrorDetails(): {
   };
 }
 
-  function downloadLastCsv(): void {
-    if (!lastJob.value?.meta) return;
-    const filePath = (lastJob.value.meta as Record<string, unknown>)
-      .processed_file_path as string;
-    if (!filePath) return;
-    const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
-    a.download = filePath.split('/').pop() || filePath;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+function downloadLastCsv(): void {
+  if (!lastJob.value?.meta) return;
+  const filePath = (lastJob.value.meta as Record<string, unknown>)
+    .processed_file_path as string;
+  if (!filePath) return;
+  const a = document.createElement('a');
+  a.href = `/api/v1/files/${filePath}`;
+  a.download = filePath.split('/').pop() || filePath;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
-  async function handleCancelJob() {
-    if (!lastJob.value?.job_id) return;
-    await backofficeDataManagement.cancelJob(
-      lastJob.value.job_id,
-      props.year,
-    );
-    lastJob.value = undefined;
-  }
+async function handleCancelJob() {
+  if (!lastJob.value?.job_id) return;
+  await backofficeDataManagement.cancelJob(lastJob.value.job_id, props.year);
+  lastJob.value = undefined;
+}
 
 async function handleUpload() {
   if (props.isDisabled || props.row.isDisabled) return;
@@ -310,7 +307,11 @@ function isErrorOrWarning(): boolean {
         </q-btn>
       </div>
 
-      <div v-if="isJobStuck" class="row items-center no-wrap" style="gap: 0.5rem">
+      <div
+        v-if="isJobStuck"
+        class="row items-center no-wrap"
+        style="gap: 0.5rem"
+      >
         <q-spinner-rings color="grey" size="sm" />
         <span class="text-caption text-grey-7">{{
           $t('data_management_job_in_progress')

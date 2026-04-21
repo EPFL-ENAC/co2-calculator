@@ -429,15 +429,15 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return config.value?.config?.modules?.[backendKey] ?? null;
   }
 
-  const recalculationStatus = computed<Record<number, ModuleRecalculationStatusEntry>>(
-    () => {
-      const map: Record<number, ModuleRecalculationStatusEntry> = {};
-      for (const s of config.value?.recalculation_status ?? []) {
-        map[s.module_type_id] = s;
-      }
-      return map;
-    },
-  );
+  const recalculationStatus = computed<
+    Record<number, ModuleRecalculationStatusEntry>
+  >(() => {
+    const map: Record<number, ModuleRecalculationStatusEntry> = {};
+    for (const s of config.value?.recalculation_status ?? []) {
+      map[s.module_type_id] = s;
+    }
+    return map;
+  });
 
   function getRecalcStatus(
     moduleTypeId: number,

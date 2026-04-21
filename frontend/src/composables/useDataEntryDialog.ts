@@ -56,7 +56,9 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   });
 
   const showOverwriteWarningAPI = computed(() => {
-    const lastJob = options.row.value?.hasApi ? options.row.value?.lastApiDataJob : null;
+    const lastJob = options.row.value?.hasApi
+      ? options.row.value?.lastApiDataJob
+      : null;
     return !!lastJob && lastJob?.result !== 2;
   });
 
