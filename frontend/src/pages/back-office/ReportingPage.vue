@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { Module } from 'src/constant/modules';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
-import {
-  type UnitFilters,
-  type PaginationState,
-  useBackofficeStore,
-} from 'src/stores/backoffice';
+import type { UnitFilters } from 'src/stores/backoffice';
+import { useBackofficeStore } from 'src/stores/backoffice';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import ModuleSelector, {
@@ -89,29 +86,6 @@ const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
 const tableTotal = computed(() => units.value?.total_units_count ?? 0);
 const paginationMeta = computed(() => units.value?.pagination);
 
-// Pagination state
-const paginationState = ref<PaginationState>({
-  page: 1,
-  pageSize: 10,
-  sortBy: 'unit_name',
-  descending: false,
-});
-
-// Sync pagination state with API response
-watch(
-  paginationMeta,
-  (meta) => {
-    if (meta) {
-      paginationState.value = {
-        ...paginationState.value,
-        page: meta.page,
-        pageSize: meta.page_size,
-      };
-    }
-  },
-  { immediate: true },
-);
-
 const usageStats = computed<ReportingStats>(() => ({
   [MODULE_STATES.Default]: units.value?.not_started_units_count ?? 0,
   [MODULE_STATES.InProgress]: units.value?.in_progress_units_count ?? 0,
@@ -159,7 +133,7 @@ async function fetchUnits() {
     backofficeStore.units = null;
     return;
   }
-  await backofficeStore.getUnits(unitFilters.value, paginationState.value);
+  await backofficeStore.getUnits(unitFilters.value);
 }
 
 onMounted(async () => {
@@ -278,12 +252,11 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       </div>
       <div class="q-mt-xl">
         <UnitsTable
-          v-model:pagination="paginationState"
           :units="tableRows"
           :pagination-meta="paginationMeta"
           :loading="loading"
+          @request-data="fetchUnits"
           @view-unit="handleViewUnit"
-          @update:pagination="fetchUnits"
         />
       </div>
 

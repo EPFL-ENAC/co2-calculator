@@ -234,9 +234,9 @@ async def list_backoffice_units(
             "total_carbon_footprint"
         ),
     ),
-    sort_desc: bool = Query(
-        False,
-        description="Sort in descending order",
+    sort_order: Optional[str] = Query(
+        None,
+        description="Sort order: 'asc' for ascending, 'desc' for descending",
     ),
     current_user: User = Depends(require_permission("backoffice.users", "view")),
     db: AsyncSession = Depends(get_db),
@@ -259,7 +259,7 @@ async def list_backoffice_units(
         page=page,
         page_size=page_size,
         sort_by=sort_by,
-        sort_desc=sort_desc,
+        sort_order=sort_order,
     )
     # Convert the data to UnitReportingData instances
     unit_reporting_data = []

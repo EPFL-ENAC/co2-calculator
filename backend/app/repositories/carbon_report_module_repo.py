@@ -347,7 +347,7 @@ class CarbonReportModuleRepository:
         page: int = 1,
         page_size: int = 50,
         sort_by: Optional[str] = None,
-        sort_desc: bool = False,
+        sort_order: Optional[str] = None,
     ) -> dict:
         """
         Retrieves the aggregated reporting data using a Deferred Join strategy.
@@ -487,7 +487,8 @@ class CarbonReportModuleRepository:
         elif sort_by in ("highest_result_category", "total_carbon_footprint"):
             order_col = CarbonReport.stats
 
-        if sort_desc:
+        # Apply sort order - default to ascending if not specified
+        if sort_order == "desc":
             units_stmt = units_stmt.order_by(desc(order_col))
         else:
             units_stmt = units_stmt.order_by(order_col)

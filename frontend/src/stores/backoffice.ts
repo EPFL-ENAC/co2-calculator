@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { api } from 'src/api/http';
 import type { ModuleState } from 'src/constant/moduleStates';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE_UNITS = 50;
+const DEFAULT_PAGE_SIZE_UNITS = 10;
 
 // interface ModuleCompletion {
 //   status: ModuleState;
@@ -71,7 +71,6 @@ export interface PaginationState {
 }
 
 export const useBackofficeStore = defineStore('backoffice', () => {
-  // should be paginated already!
   const units = ref<BackofficeUnitDataPagination | null>(null);
   const unit = ref<BackofficeUnitData | null>(null);
 
@@ -87,6 +86,13 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   const latestYear = ref<string>('');
   const yearsLoading = ref(false);
   const yearsErrors = ref<Error[]>([]);
+
+  const unitsPagination = reactive<PaginationState>({
+    page: DEFAULT_PAGE,
+    pageSize: DEFAULT_PAGE_SIZE_UNITS,
+    sortBy: undefined,
+    descending: false,
+  });
 
   // const affiliations = computed(() => {
   //   const uniqueAffiliations = new Set<string>();
@@ -127,23 +133,29 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   //   }
   // }
 
-  async function getUnits(
-    filters?: UnitFilters,
-    pagination?: PaginationState,
-  ) {
+  async function getUnits(filters?: UnitFilters) {
+    console.log('📡 [BackofficeStore] getUnits called with pagination:', JSON.stringify(unitsPagination, null, 2));
+    
     try {
       unitsLoading.value = true;
       unitsErrors.value = [];
 
       const searchParams = new URLSearchParams();
-      searchParams.append(
-        'page',
-        String(pagination?.page ?? DEFAULT_PAGE),
-      );
-      searchParams.append(
-        'page_size',
-        String(pagination?.pageSize ?? DEFAULT_PAGE_SIZE_UNITS),
-      );
+      searchParams.append('page', String(unitsPagination.page));
+      searchParams.append('page_size', String(unitsPagination.pageSize));
+
+      // Send sort parameters if sortBy is set
+      if (unitsPagination.sortBy) {
+        searchParams.append('sort_by', unitsPagination.sortBy);
+        searchParams.append(
+          'sort_order',
+          unitsPagination.descending ? 'desc' : 'asc',
+        );
+        console.log('🔀 [BackofficeStore] Sort params:', {
+          sort_by: unitsPagination.sortBy,
+          sort_order: unitsPagination.descending ? 'desc' : 'asc',
+        });
+      }
 
       // Add hierarchy filters
       if (filters?.path_affiliation && filters.path_affiliation.length > 0) {
@@ -286,6 +298,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
     latestYear,
     yearsLoading,
     yearsErrors,
+    unitsPagination,
     // affiliations,
     // availableUnits,
     // getAllUnits,
