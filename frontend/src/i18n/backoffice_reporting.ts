@@ -75,6 +75,10 @@ export default {
     en: 'Institutes',
     fr: 'Instituts',
   },
+  backoffice_reporting_filter_affiliation_label: {
+    en: 'Affiliation',
+    fr: 'Affiliation',
+  },
   backoffice_reporting_filter_units_label: {
     en: 'Units',
     fr: 'Unités',

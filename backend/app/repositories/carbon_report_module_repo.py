@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from math import ceil
 from typing import Any, List, Optional
 
-from sqlmodel import col, func, or_, select
+from sqlalchemy import Integer, cast
+from sqlmodel import col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ModuleStatus
+from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -271,33 +272,35 @@ class CarbonReportModuleRepository:
 
     async def _resolve_hierarchy_unit_ids(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
     ) -> Optional[set[int]]:
         """
-        Build the effective unit ID filter with intersection semantics across levels.
+        Build the effective unit ID filter with OR semantics.
+
+        - Affiliation filter: Gets all descendants (Lvl2+3)
+        - Units filter: Gets direct units (Lvl4)
+        - Result: Union of both sets (OR logic)
 
         Returns:
-            - None when no hierarchy filters were provided (no-op)
-            - set of unit IDs when at least one hierarchy filter is provided
+            - None when no hierarchy filters provided
+            - set of unit IDs (possibly empty) when at least one
+              filter was provided
         """
-        filter_sets: List[set[int]] = []
+        all_ids: set[int] = set()
+        any_filter = False
 
-        if path_lvl2:
-            filter_sets.append(await self._get_descendant_unit_ids(path_lvl2))
-        if path_lvl3:
-            filter_sets.append(await self._get_descendant_unit_ids(path_lvl3))
-        if path_lvl4:
-            filter_sets.append(await self._get_direct_unit_ids(path_lvl4))
+        if path_affiliation is not None:
+            any_filter = True
+            all_ids.update(await self._get_descendant_unit_ids(path_affiliation))
+        if path_lvl4 is not None:
+            any_filter = True
+            all_ids.update(await self._get_direct_unit_ids(path_lvl4))
 
-        if not filter_sets:
+        if not any_filter:
             return None
 
-        effective_ids = filter_sets[0]
-        for ids in filter_sets[1:]:
-            effective_ids = effective_ids.intersection(ids)
-        return effective_ids
+        return all_ids
 
     @staticmethod
     def _apply_report_filters(
@@ -336,15 +339,16 @@ class CarbonReportModuleRepository:
 
     async def get_reporting_overview(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
-        modules: Optional[List[str]] = None,  # complex TBD
-        years: Optional[List[int]] = None,  # Default to first year for overview for now
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
         page: int = 1,
         page_size: int = 50,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> dict:
         """
         Retrieves the aggregated reporting data using a Deferred Join strategy.
@@ -356,8 +360,7 @@ class CarbonReportModuleRepository:
             )
 
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
 
@@ -470,12 +473,60 @@ class CarbonReportModuleRepository:
         # if unit_ids:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
-        # Apply limits here!
-        units_stmt = (
-            units_stmt.order_by(col(Unit.name))
-            .limit(page_size)
-            .offset((page - 1) * page_size)
-        )
+        # Build order by clause
+        order_col: Any = Unit.name
+        use_case_for_nulls = False
+        null_value_for_sort = 0
+
+        if sort_by == "unit_name":
+            order_col = Unit.name
+        elif sort_by == "affiliation":
+            order_col = Unit.path_name
+        elif sort_by == "validation_status":
+            # Extract numerator from "X/Y" format and sort numerically
+            completed_part = func.split_part(CarbonReport.completion_progress, "/", 1)
+            order_col = cast(completed_part, Integer)
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "principal_user":
+            order_col = User.display_name
+        elif sort_by == "last_update":
+            order_col = CarbonReport.last_updated
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "total_carbon_footprint":
+            # Extract 'total' from JSON stats, treat NULL/missing as 0
+            order_col = col(CarbonReport.stats)["total"].as_float()
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "highest_result_category":
+            # Sort by module_id from stats JSON
+            order_col = col(CarbonReport.stats)[
+                "highest_category_module_id"
+            ].as_integer()
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+
+        # Apply sort order with NULL handling
+        from sqlalchemy import case
+
+        if use_case_for_nulls:
+            order_col_for_sort = case(
+                (order_col.is_(None), null_value_for_sort), else_=order_col
+            )
+            if sort_order == "desc":
+                units_stmt = units_stmt.order_by(desc(order_col_for_sort))
+            else:
+                units_stmt = units_stmt.order_by(order_col_for_sort)
+        else:
+            if sort_order == "desc":
+                units_stmt = units_stmt.order_by(desc(order_col))
+            else:
+                units_stmt = units_stmt.order_by(order_col)
+
+        # Apply pagination - if page_size is 0, no limit (show all)
+        if page_size > 0:
+            units_stmt = units_stmt.limit(page_size).offset((page - 1) * page_size)
 
         paginated_units = (await self.session.exec(units_stmt)).all()
 
@@ -560,7 +611,7 @@ class CarbonReportModuleRepository:
             if u.last_updated is not None:
                 last_update_dt = datetime.fromtimestamp(u.last_updated, tz=timezone.utc)
 
-            completion_progress = u.completion_progress or "0/8"
+            completion_progress = u.completion_progress or DEFAULT_COMPLETION_PROGRESS
             completion_status_value = self._get_completion_status_from_progress(
                 completion_progress
             )
@@ -606,7 +657,7 @@ class CarbonReportModuleRepository:
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": ceil(total / page_size),
+            "total_pages": ceil(total / page_size) if page_size > 0 else 1,
             "emission_breakdown": emission_breakdown,
             "validated_units_count": validated_units_count,
             "in_progress_units_count": in_progress_units_count,
@@ -617,8 +668,7 @@ class CarbonReportModuleRepository:
 
     async def get_usage_report(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -630,8 +680,7 @@ class CarbonReportModuleRepository:
         last updated timestamp.
 
         Args:
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -644,8 +693,7 @@ class CarbonReportModuleRepository:
             the filters.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.
@@ -747,8 +795,7 @@ class CarbonReportModuleRepository:
     async def get_detailed_report(
         self,
         data_entry_type: DataEntryTypeEnum,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -761,8 +808,7 @@ class CarbonReportModuleRepository:
 
         Args:
             data_entry_type: The type of data entry to filter by
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -783,8 +829,7 @@ class CarbonReportModuleRepository:
               the top-level dictionary.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.
@@ -904,8 +949,7 @@ class CarbonReportModuleRepository:
 
     async def get_results_report(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -916,8 +960,7 @@ class CarbonReportModuleRepository:
         including scope totals and breakdowns by emission type.
 
         Args:
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -927,8 +970,7 @@ class CarbonReportModuleRepository:
             and breakdown by emission type.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.

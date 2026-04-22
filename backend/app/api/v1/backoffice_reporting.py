@@ -17,6 +17,48 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+@router.get("/affiliations", response_model=List[UnitRead])
+async def list_affiliations(
+    unit_type_labels: Annotated[list[str] | None, Query()] = None,
+    name: Optional[str] = Query(
+        None, description="Filter by unit name (partial match)"
+    ),
+    page: int = 1,
+    page_size: Annotated[int, Query(le=100)] = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("backoffice.users", "view")),
+):
+    """
+    List affiliation units (Level 2 and Level 3).
+
+    Returns merged list of:
+    - Level 2: Service central, Faculté
+    - Level 3: Institut
+
+    Each unit includes its unit_type_label for UI distinction.
+    """
+    # 1. Initialize query with SQLModel's select
+    query = select(Unit).where(col(Unit.is_active))
+
+    # 2. Filter by level (2 or 3 only)
+    query = query.where(col(Unit.level).in_([2, 3]))
+
+    # 3. Dynamic Filtering
+    if unit_type_labels:
+        query = query.where(col(Unit.unit_type_label).in_(unit_type_labels))
+
+    if name:
+        query = query.where(col(Unit.name).ilike(f"%{name}%"))
+
+    # 4. Sorting and Pagination
+    offset = (page - 1) * page_size
+    query = query.order_by(Unit.name).offset(offset).limit(page_size)
+
+    # 5. Execution
+    result = await db.exec(query)
+    return result.all()
+
+
 @router.get("/units", response_model=List[UnitRead])
 async def list_units(
     level: int | None = None,

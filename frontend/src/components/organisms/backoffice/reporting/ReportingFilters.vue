@@ -7,8 +7,7 @@ const emit = defineEmits<{
   (
     e: 'update:filters',
     filters: {
-      path_lvl2: number[];
-      path_lvl3: number[];
+      path_affiliation: number[];
       path_lvl4: number[];
       completion_status: number | string;
     },
@@ -18,29 +17,19 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const unitFiltersStore = useUnitFiltersStore();
 
-// Selected units for each level
-const selectedLevel2Units = ref<number[]>([]);
-const selectedLevel3Units = ref<number[]>([]);
+// Selected affiliation units (merged Lvl2 + Lvl3)
+const selectedAffiliationUnits = ref<number[]>([]);
 const selectedLevel4Units = ref<number[]>([]);
 
 const completion = ref('');
 
-// Initialize with first page of data for each level
-// unitFiltersStore.setSearchQueryLevel2('');
-// unitFiltersStore.setSearchQueryLevel3('');
-// unitFiltersStore.setSearchQueryLevel4('');
-
-// LVL2: http://localhost:8000/api/v1/backoffice-reporting/units?level=2&unit_type_labels=Service%20central&unit_type_labels=Facult%C3%A9
-// LVL3: http://localhost:8000/api/v1/backoffice-reporting/units?level=3&unit_type_label=Institut
-// LVL4: http://localhost:8000/api/v1/backoffice-reporting/units?level=4&parent_unit_type_label=Institut
-
 function handleFiltersChange() {
   // Clear store search queries when filters are empty
-  if (!selectedLevel2Units.value || selectedLevel2Units.value.length === 0) {
-    unitFiltersStore.setSearchQueryLevel2('');
-  }
-  if (!selectedLevel3Units.value || selectedLevel3Units.value.length === 0) {
-    unitFiltersStore.setSearchQueryLevel3('');
+  if (
+    !selectedAffiliationUnits.value ||
+    selectedAffiliationUnits.value.length === 0
+  ) {
+    unitFiltersStore.setSearchQueryAffiliation('');
   }
   if (!selectedLevel4Units.value || selectedLevel4Units.value.length === 0) {
     unitFiltersStore.setSearchQueryLevel4('');
@@ -48,8 +37,7 @@ function handleFiltersChange() {
 
   // Emit filter update
   emit('update:filters', {
-    path_lvl2: selectedLevel2Units.value || [],
-    path_lvl3: selectedLevel3Units.value || [],
+    path_affiliation: selectedAffiliationUnits.value || [],
     path_lvl4: selectedLevel4Units.value || [],
     completion_status: completion.value,
   });
@@ -57,10 +45,10 @@ function handleFiltersChange() {
 </script>
 <template>
   <div class="row q-mb-md">
-    <div class="grid-4-col full-width">
-      <!-- Error message display for Level 2 -->
+    <div class="grid-3-col full-width">
+      <!-- Error message display for Affiliation -->
       <q-banner
-        v-if="unitFiltersStore.errorLevel2 !== null"
+        v-if="unitFiltersStore.errorAffiliation !== null"
         dense
         class="bg-negative text-white q-mb-sm"
       >
@@ -73,17 +61,17 @@ function handleFiltersChange() {
             flat
             color="white"
             :label="$t('common_retry')"
-            @click="unitFiltersStore.setSearchQueryLevel2('')"
+            @click="unitFiltersStore.setSearchQueryAffiliation('')"
           />
         </template>
       </q-banner>
 
-      <!-- Level 2 Units Dropdown
-       service central, faculté
+      <!-- Affiliation Units Dropdown (merged Lvl2 + Lvl3)
+       Facultés, Services centraux, Instituts
        -->
       <q-select
-        v-model="selectedLevel2Units"
-        :options="unitFiltersStore.dataLevel2"
+        v-model="selectedAffiliationUnits"
+        :options="unitFiltersStore.dataAffiliation"
         option-value="value"
         option-label="label"
         multiple
@@ -94,68 +82,31 @@ function handleFiltersChange() {
         input-debounce="300"
         emit-value
         map-options
-        :loading="unitFiltersStore.loadingLevel2"
-        :label="`${$t('backoffice_reporting_filter_units_lvl2_label')}`"
+        :loading="unitFiltersStore.loadingAffiliation"
+        :label="`${$t('backoffice_reporting_filter_affiliation_label')}`"
         filled
         clearable
         class="full-width"
-        @filter="unitFiltersStore.filterLevel2Units"
-        @virtual-scroll="unitFiltersStore.onScrollLevel2"
+        @filter="unitFiltersStore.filterAffiliationUnits"
+        @virtual-scroll="unitFiltersStore.onScrollAffiliation"
         @update:model-value="handleFiltersChange"
-        @clear="unitFiltersStore.setSearchQueryLevel2('')"
+        @clear="unitFiltersStore.setSearchQueryAffiliation('')"
       >
         <template #prepend>
           <q-icon name="o_business" color="grey-6" size="xs" />
         </template>
-      </q-select>
-
-      <!-- Error message display for Level 3 -->
-      <q-banner
-        v-if="unitFiltersStore.errorLevel3 !== null"
-        dense
-        class="bg-negative text-white q-mb-sm"
-      >
-        <template #avatar>
-          <q-icon name="error" />
-        </template>
-        {{ $t('common_error_message') }}
-        <template #action>
-          <q-btn
-            flat
-            color="white"
-            :label="$t('common_retry')"
-            @click="unitFiltersStore.setSearchQueryLevel3('')"
-          />
-        </template>
-      </q-banner>
-
-      <!-- Level 3 Units Dropdown
-       institut -->
-      <q-select
-        v-model="selectedLevel3Units"
-        :options="unitFiltersStore.dataLevel3"
-        option-value="value"
-        option-label="label"
-        multiple
-        use-chips
-        dense
-        outlined
-        use-input
-        input-debounce="300"
-        emit-value
-        map-options
-        :loading="unitFiltersStore.loadingLevel3"
-        :label="`${$t('backoffice_reporting_filter_units_lvl3_label')}`"
-        filled
-        clearable
-        class="full-width"
-        @filter="unitFiltersStore.filterLevel3Units"
-        @virtual-scroll="unitFiltersStore.onScrollLevel3"
-        @update:model-value="handleFiltersChange"
-        @clear="unitFiltersStore.setSearchQueryLevel3('')"
-      >
-        <template #prepend>
-          <q-icon name="o_business" color="grey-6" size="xs" />
+        <template #option="scope">
+          <q-item v-bind="scope.itemProps">
+            <q-item-section avatar>
+              <q-icon name="o_business" color="grey-6" size="xs" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>{{ scope.opt.label }}</q-item-label>
+              <q-item-label caption>
+                {{ scope.opt.unit_type_label }}
+              </q-item-label>
+            </q-item-section>
+          </q-item>
         </template>
       </q-select>
 
