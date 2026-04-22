@@ -41,6 +41,8 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_category',
+    minColumnWidth: 150,
+    maxColumnWidth: 150,
     disableUntilField: 'room_name',
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
@@ -82,6 +84,7 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
+    maxColumnWidth: 80,
   },
   {
     id: 'heating_kwh_per_square_meter',
@@ -94,6 +97,7 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_thermostat',
     tooltip: `${MODULES.Buildings}.tooltips.heating`,
+    maxColumnWidth: 120,
   },
   {
     id: 'cooling_kwh_per_square_meter',
@@ -106,6 +110,7 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_ac_unit',
     tooltip: `${MODULES.Buildings}.tooltips.cooling`,
+    maxColumnWidth: 120,
   },
   {
     id: 'ventilation_kwh_per_square_meter',
@@ -118,6 +123,7 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_air',
     tooltip: `${MODULES.Buildings}.tooltips.ventilation`,
+    maxColumnWidth: 120,
   },
   {
     id: 'lighting_kwh_per_square_meter',
@@ -130,6 +136,7 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_light_mode',
     tooltip: `${MODULES.Buildings}.tooltips.lighting`,
+    maxColumnWidth: 120,
   },
   {
     id: 'kg_co2eq',

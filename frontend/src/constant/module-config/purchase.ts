@@ -43,6 +43,7 @@ const purchaseFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/4',
     icon: 'o_category',
+    maxColumnWidth: 200,
   },
   {
     id: 'quantity',
