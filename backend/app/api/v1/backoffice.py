@@ -781,7 +781,7 @@ async def report_usage(
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress, 
+        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress,
         'headcount:2' for validated)""",
     ),
     years: Optional[List[int]] = Query(
@@ -867,7 +867,7 @@ async def report_detailed(
     modules: Optional[List[str]] = Query(
         None,
         description="""Filter by module states, format: 'module_name:state'
-        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress, 
+        (e.g., 'headcount:0' for default, 'headcount:1' for in-progress,
         'headcount:2' for validated)""",
     ),
     years: Optional[List[int]] = Query(
