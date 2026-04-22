@@ -123,6 +123,8 @@ export const useBackofficeStore = defineStore('backoffice', () => {
       unitsErrors.value = [];
 
       const searchParams = new URLSearchParams();
+      searchParams.append('page', '1');
+      searchParams.append('page_size', '10');
 
       // Add hierarchy filters
       if (filters?.path_affiliation && filters.path_affiliation.length > 0) {
