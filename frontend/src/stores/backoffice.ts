@@ -4,6 +4,9 @@ import { api } from 'src/api/http';
 import type { ModuleState } from 'src/constant/moduleStates';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE_UNITS = 50;
+
 // interface ModuleCompletion {
 //   status: ModuleState;
 //   outlier_values: number;
@@ -58,6 +61,13 @@ export interface UnitFilters {
   outlier_values?: boolean | null;
   search?: string;
   modules?: Array<{ module: string; state: ModuleState }>;
+}
+
+export interface PaginationState {
+  page: number;
+  pageSize: number;
+  sortBy?: string;
+  descending?: boolean;
 }
 
 export const useBackofficeStore = defineStore('backoffice', () => {
@@ -117,14 +127,23 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   //   }
   // }
 
-  async function getUnits(filters?: UnitFilters) {
+  async function getUnits(
+    filters?: UnitFilters,
+    pagination?: PaginationState,
+  ) {
     try {
       unitsLoading.value = true;
       unitsErrors.value = [];
 
       const searchParams = new URLSearchParams();
-      searchParams.append('page', '1');
-      searchParams.append('page_size', '10');
+      searchParams.append(
+        'page',
+        String(pagination?.page ?? DEFAULT_PAGE),
+      );
+      searchParams.append(
+        'page_size',
+        String(pagination?.pageSize ?? DEFAULT_PAGE_SIZE_UNITS),
+      );
 
       // Add hierarchy filters
       if (filters?.path_affiliation && filters.path_affiliation.length > 0) {

@@ -226,6 +226,18 @@ async def list_backoffice_units(
         le=MAX_PAGE_SIZE_UNITS,
         description="Number of items per page",
     ),
+    sort_by: Optional[str] = Query(
+        None,
+        description=(
+            "Field to sort by: unit_name, affiliation, validation_status, "
+            "principal_user, last_update, highest_result_category, "
+            "total_carbon_footprint"
+        ),
+    ),
+    sort_desc: bool = Query(
+        False,
+        description="Sort in descending order",
+    ),
     current_user: User = Depends(require_permission("backoffice.users", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -246,6 +258,8 @@ async def list_backoffice_units(
         years=filters.years,
         page=page,
         page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
     )
     # Convert the data to UnitReportingData instances
     unit_reporting_data = []

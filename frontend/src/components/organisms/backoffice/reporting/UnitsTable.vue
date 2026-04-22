@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { formatRelativeTime } from 'src/utils/date';
-
-const ROWS_PER_PAGE = 20;
-const { locale, t } = useI18n();
-const showAllRows = ref(false);
+import type { PaginationState } from 'src/stores/backoffice';
 
 interface UnitReportingData {
   id: string | number;
@@ -19,14 +16,38 @@ interface UnitReportingData {
   total_carbon_footprint: number; // (tCO₂-eq)
 }
 
+interface PaginationMeta {
+  page: number;
+  page_size: number;
+  total_pages: number;
+  total: number;
+}
+
+const { locale, t } = useI18n();
+
 const props = defineProps<{
   units: Array<UnitReportingData>;
+  pagination?: PaginationState;
+  paginationMeta?: PaginationMeta;
   loading: boolean;
 }>();
 
 const emit = defineEmits<{
+  'update:pagination': [pagination: PaginationState];
   viewUnit: [unitId: string | number];
 }>();
+
+const paginationState = computed({
+  get: () => ({
+    page: props.pagination?.page ?? 1,
+    pageSize: props.pagination?.pageSize ?? 10,
+    sortBy: props.pagination?.sortBy ?? 'unit_name',
+    descending: props.pagination?.descending ?? false,
+  }),
+  set: (newState: PaginationState) => {
+    emit('update:pagination', newState);
+  },
+});
 
 const columns = computed<QTableColumn[]>(() => [
   {
@@ -86,8 +107,16 @@ const columns = computed<QTableColumn[]>(() => [
   },
 ]);
 
+const paginationOptions = [10, 25, 50, 100, 5000];
+
 const pagination = computed(() => ({
-  rowsPerPage: showAllRows.value ? 0 : ROWS_PER_PAGE,
+  page: paginationState.value.page,
+  rowsPerPage: paginationState.value.pageSize,
+  rowsPerPageOptions: paginationOptions,
+  sortBy: paginationState.value.sortBy,
+  descending: paginationState.value.descending,
+  serverPagination: true,
+  totalPages: props.paginationMeta?.total_pages ?? 0,
 }));
 </script>
 
@@ -111,7 +140,48 @@ const pagination = computed(() => ({
     :loading="props.loading"
     flat
     bordered
+    @request="
+      (request: {
+        pagination: {
+          page: number;
+          rowsPerPage: number;
+          sortBy: string;
+          descending: boolean;
+        };
+      }) => {
+        emit('update:pagination', {
+          page: request.pagination.page,
+          pageSize: request.pagination.rowsPerPage,
+          sortBy: request.pagination.sortBy,
+          descending: request.pagination.descending,
+        });
+      }
+    "
   >
+    <template #pagination="scope">
+      <q-btn
+        icon="chevron_left"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isFirstPage"
+        @click="scope.prevPage"
+      />
+      <div class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
+      <q-btn
+        icon="chevron_right"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isLastPage"
+        @click="scope.nextPage"
+      />
+    </template>
+
     <template #body-cell-unit_name="p">
       <q-td :props="p" class="text-weight-bold">
         {{ p.row.unit_name }}

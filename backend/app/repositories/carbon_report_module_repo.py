@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from math import ceil
 from typing import Any, List, Optional
 
-from sqlmodel import col, func, or_, select
+from sqlmodel import col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
@@ -342,10 +342,12 @@ class CarbonReportModuleRepository:
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
-        modules: Optional[List[str]] = None,  # complex TBD
-        years: Optional[List[int]] = None,  # Default to first year for overview for now
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
         page: int = 1,
         page_size: int = 50,
+        sort_by: Optional[str] = None,
+        sort_desc: bool = False,
     ) -> dict:
         """
         Retrieves the aggregated reporting data using a Deferred Join strategy.
@@ -470,12 +472,27 @@ class CarbonReportModuleRepository:
         # if unit_ids:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
-        # Apply limits here!
-        units_stmt = (
-            units_stmt.order_by(col(Unit.name))
-            .limit(page_size)
-            .offset((page - 1) * page_size)
-        )
+        # Build order by clause
+        order_col: Any = Unit.name
+        if sort_by == "unit_name":
+            order_col = Unit.name
+        elif sort_by == "affiliation":
+            order_col = Unit.path_name
+        elif sort_by == "validation_status":
+            order_col = CarbonReport.completion_progress
+        elif sort_by == "principal_user":
+            order_col = User.display_name
+        elif sort_by == "last_update":
+            order_col = CarbonReport.last_updated
+        elif sort_by in ("highest_result_category", "total_carbon_footprint"):
+            order_col = CarbonReport.stats
+
+        if sort_desc:
+            units_stmt = units_stmt.order_by(desc(order_col))
+        else:
+            units_stmt = units_stmt.order_by(order_col)
+
+        units_stmt = units_stmt.limit(page_size).offset((page - 1) * page_size)
 
         paginated_units = (await self.session.exec(units_stmt)).all()
 
