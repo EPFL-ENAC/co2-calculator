@@ -151,5 +151,5 @@ async def test_process_csv_in_batches_deletes_existing_factors(monkeypatch):
     mock_factor_service.bulk_delete_by_data_entry_type.assert_called_once()
 
     # Verify stats include factors_deleted
-    assert "factors_deleted" in result
-    assert result["factors_deleted"] == 5
+    assert "factors_deleted" in result["stats"]
+    assert result["stats"]["factors_deleted"] == 5

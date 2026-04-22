@@ -36,7 +36,10 @@ interface ReductionObjectives {
 export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
-  latest_job?: SyncJobSummary | null;
+  latest_data_job?: SyncJobSummary | null;
+  latest_api_data_job?: SyncJobSummary | null;
+  latest_factor_job?: SyncJobSummary | null;
+  latest_reference_job?: SyncJobSummary | null;
 }
 
 export interface SyncJobSummary {
@@ -56,12 +59,16 @@ export interface ModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, SubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
 }
 
 export interface UnifiedModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, UnifiedSubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
 }
 
 export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
@@ -69,6 +76,24 @@ export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
   labelKey: string;
   moduleTypeId: number;
   dataEntryTypeId?: number;
+}
+
+export interface RecalculationStatusEntry {
+  module_type_id: number;
+  data_entry_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  last_factor_job_id?: number | null;
+  last_factor_job_result?: number | null;
+  last_recalculation_job_id?: number | null;
+  last_recalculation_job_result?: number | null;
+}
+
+export interface ModuleRecalculationStatusEntry {
+  module_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  data_entry_types: RecalculationStatusEntry[];
 }
 
 interface YearConfig {
@@ -81,7 +106,7 @@ export interface YearConfigurationResponse {
   is_started: boolean;
   is_reports_synced: boolean;
   config: YearConfig;
-  latest_jobs: SyncJobSummary[];
+  recalculation_status: ModuleRecalculationStatusEntry[];
   updated_at: string;
 }
 
@@ -180,11 +205,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       loading.value = false;
     }
   }
-
-  /** All current ingestion jobs for the loaded year. */
-  const latestJobs = computed<SyncJobSummary[]>(
-    () => config.value?.latest_jobs ?? [],
-  );
 
   // ── Unified module config helper ────────────────────────────────────────────
 
@@ -361,52 +381,21 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.enabled ?? true;
   }
 
-  function _preferredIngestionMethods(targetType: 0 | 1): string[] {
-    if (targetType === 1) {
-      return ['CSV', 'COMPUTED'];
-    }
-    return ['CSV', 'API', 'COMPUTED'];
-  }
-
-  function _pickLatestJobByIngestionMethod(
-    candidates: (typeof latestJobs.value)[number][],
-    targetType: 0 | 1,
-  ) {
-    const preferredMethods = _preferredIngestionMethods(targetType);
-    for (const method of preferredMethods) {
-      const job = candidates.find(
-        (candidate) =>
-          String(candidate.ingestion_method ?? '').toUpperCase() === method,
-      );
-      if (job) return job;
-    }
-    return candidates[0];
-  }
-
-  function _latestJob(sub: ModuleUploadConfig, targetType: 0 | 1) {
-    const candidates = latestJobs.value.filter(
-      (j) =>
-        j.module_type_id === sub.moduleTypeId && j.target_type === targetType,
-    );
-    const scopedCandidates =
-      sub.dataEntryTypeId !== undefined
-        ? candidates.filter(
-            (j) => (j.data_entry_type_id ?? undefined) === sub.dataEntryTypeId,
-          )
-        : candidates;
-
-    // Prefer the ingestion method used for completeness checks instead of
-    // relying on API ordering when multiple current jobs exist.
-    return _pickLatestJobByIngestionMethod(scopedCandidates, targetType);
-  }
-
   function isSubmoduleIncomplete(sub: ModuleUploadConfig): boolean {
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    const subConfig = sub.dataEntryTypeId
+      ? mod?.submodules?.[String(sub.dataEntryTypeId)]
+      : undefined;
     if (!sub.noFactors) {
-      const job = _latestJob(sub, 1);
+      const job = subConfig?.latest_factor_job ?? mod?.latest_common_factor_job;
       if (!job || job.result !== 0) return true;
     }
     if (sub.other) {
-      const job = _latestJob(sub, 0);
+      const job = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
+      if (!job || job.result !== 0) return true;
+    }
+    if (!sub.noData && !sub.dataEntryTypeId) {
+      const job = mod?.latest_common_data_job;
       if (!job || job.result !== 0) return true;
     }
     return false;
@@ -440,21 +429,42 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return config.value?.config?.modules?.[backendKey] ?? null;
   }
 
+  const recalculationStatus = computed<
+    Record<number, ModuleRecalculationStatusEntry>
+  >(() => {
+    const map: Record<number, ModuleRecalculationStatusEntry> = {};
+    for (const s of config.value?.recalculation_status ?? []) {
+      map[s.module_type_id] = s;
+    }
+    return map;
+  });
+
+  function getRecalcStatus(
+    moduleTypeId: number,
+    dataEntryTypeId?: number,
+  ): RecalculationStatusEntry | undefined {
+    if (dataEntryTypeId === undefined) return undefined;
+    return recalculationStatus.value[moduleTypeId]?.data_entry_types.find(
+      (d) => d.data_entry_type_id === dataEntryTypeId,
+    );
+  }
+
   return {
     // State
     config,
     loading,
     notFound,
     // Computed
-    latestJobs,
     anyModuleIncomplete,
     unifiedModuleConfig,
     visibleModules,
+    recalculationStatus,
     // Helpers
     getModule,
     getSubmodule,
     getModuleNameFromSubmodule,
     getModuleConfig,
+    getRecalcStatus,
     isModuleVisible,
     isSubmoduleVisible,
     isModuleEnabled,

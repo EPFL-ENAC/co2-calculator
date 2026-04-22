@@ -5,6 +5,25 @@ applyTo: "backend/**, frontend/**"
 
 You are a senior software engineer. Follow ALL rules strictly. No explanations unless asked. Output production-ready code only.
 
+# RTK — Token-Optimized CLI
+
+**SUPER IMPORTANT**: Always prefix shell commands with `rtk` to save 60-90% tokens.
+
+## Rule
+
+- ALL shell commands MUST use `rtk` prefix
+- Examples:
+  - `rtk git status` (not `git status`)
+  - `rtk npm run lint` (not `npm run lint`)
+  - `rtk pytest` (not `pytest`)
+  - `rtk wc -l file.vue` (not `wc -l file.vue`)
+
+## Meta commands
+
+- `rtk gain` - Token savings dashboard
+- `rtk gain --history` - Per-command savings history
+- `rtk discover` - Find missed rtk opportunities
+
 # COMMUNICATION
 
 - Always respond in English.
@@ -89,7 +108,18 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Logic**: No business logic in templates; extract to Composables (`useX`). Keep business calculations in composables/store logic, not in presentational chart components.
 - **Composables**: Prefer module/domain-specific composables instead of overloading unrelated shared composables.
 - **Legacy logic**: Remove legacy logic when replacement is validated (do not keep dead dual paths).
-- **State**: Pinia (strongly typed). Components ≤300 lines.
+- **State**: Pinia (strongly typed).
+- **Component Size (SUPER IMPORTANT)**: Components ≤500 lines (hard limit).
+  - When approaching 400 lines: PLAN refactoring immediately
+  - When exceeding 500 lines: VIOLATION - must split
+  - Extraction strategies:
+    - Extract reusable UI patterns → `components/molecules/`
+    - Extract feature-specific compositions → `components/organisms/`
+    - Extract business logic → `composables/useX.ts`
+    - Extract complex templates → sub-components
+  - Examples from this codebase:
+    - ModuleConfig refactored to extract UploadCard components
+    - useUploadCard composable extracted shared logic
 - **Cleanliness**: No `console.log`, no unused variables.
 - **Reactivity**: Ensure selector-driven defaults refresh reactively when dependencies change (module, room, room type, heating type, factor). Avoid duplicating option-loading logic across modules. Ensure dependent form fields update immediately when source selectors change (room, room type, heating type, etc.).
 - **UI continuity**: Preserve UI state after create/update — no disappearing charts, no forced navigation to refresh data. Avoid flicker and stale values in reactive UI updates.
@@ -109,6 +139,33 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 
 - **Backend**: `pytest` with fixtures. Mock all external services. No real DB in unit tests.
 - **Frontend**: `Vitest` for composables and business logic; separate from UI components.
+
+# COMPONENT SIZE ENFORCEMENT
+
+## Why
+
+- Maintainability: Smaller components are easier to understand and modify
+- Testability: Easier to write focused unit tests
+- Reusability: Small components can be reused across features
+- Performance: Better tree-shaking and code splitting
+
+## Enforcement
+
+- **Warning**: Components >500 lines trigger pre-commit warning (see `scripts/pre-commit-hook.sh`)
+- **Action Required**: Refactor when approaching 400 lines
+- **Exceptions**: Chart components may exceed limit if justified (document in comment)
+
+## How to Split
+
+1. **Identify concerns**: UI rendering, business logic, data fetching
+2. **Extract logic**: Move to composables (`useX.ts`)
+3. **Extract UI**: Move reusable patterns to molecules
+4. **Split templates**: Break large templates into sub-components
+5. **Use composition**: Compose small components instead of one large component
+
+## Current Technical Debt
+
+See GitHub issue for list of components exceeding 500 lines requiring refactoring.
 
 # NEVER
 

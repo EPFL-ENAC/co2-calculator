@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, provide } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import { MODULES_LIST } from 'src/constant/modules';
@@ -18,6 +19,8 @@ import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 // TODO: fix the available years dynamically
+const route = useRoute();
+const router = useRouter();
 const MIN_YEARS = 2024;
 const availableYears = ref<number[]>([]);
 const currentYear = new Date().getFullYear();
@@ -26,8 +29,13 @@ if (currentYear > MIN_YEARS) {
     availableYears.value.push(year);
   }
 }
+const queryYear = route.query.year
+  ? parseInt(route.query.year as string, 10)
+  : null;
 const selectedYear = ref<number>(
-  availableYears.value[availableYears.value.length - 1],
+  queryYear && availableYears.value.includes(queryYear)
+    ? queryYear
+    : availableYears.value[availableYears.value.length - 1],
 );
 
 const backofficeDataManagement = useBackofficeDataManagement();
@@ -51,6 +59,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch(selectedYear, (year) => {
+  void router.replace({ query: { ...route.query, year: String(year) } });
+});
 
 const handleCreateYear = async () => {
   try {

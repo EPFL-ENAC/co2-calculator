@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import EntityType
+from app.models.data_ingestion import EntityType, IngestionState
 from app.services.data_ingestion import base_factor_csv_provider
 from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVProvider
 
@@ -27,6 +27,7 @@ def _build_stats():
         "batches_processed": 0,
         "row_errors": [],
         "row_errors_count": 0,
+        "factors_deleted": 0,
     }
 
 
@@ -280,10 +281,10 @@ async def test_finalize_and_commit_move_file_failure():
     provider._files_store.move_file = AsyncMock(return_value=False)
     provider.data_session.flush = AsyncMock()
 
-    with pytest.raises(ValueError, match="Failed to move file"):
-        await provider._finalize_and_commit(
-            batch=[],
-            factor_service=MagicMock(),
-            stats=_build_stats(),
-            setup_result={"processing_path": "processing/x", "filename": "x.csv"},
-        )
+    result = await provider._finalize_and_commit(
+        batch=[],
+        factor_service=MagicMock(),
+        stats=_build_stats(),
+        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+    )
+    assert result["state"] == IngestionState.FINISHED
