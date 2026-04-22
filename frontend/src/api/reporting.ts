@@ -37,14 +37,9 @@ function _applyReportFilters(
   unitFilters: UnitFilters,
   withModules: boolean = true,
 ): void {
-  if (unitFilters.path_lvl2) {
-    unitFilters.path_lvl2.forEach((v) =>
-      searchParams.append('path_lvl2', String(v)),
-    );
-  }
-  if (unitFilters.path_lvl3) {
-    unitFilters.path_lvl3.forEach((v) =>
-      searchParams.append('path_lvl3', String(v)),
+  if (unitFilters.path_affiliation) {
+    unitFilters.path_affiliation.forEach((v) =>
+      searchParams.append('path_affiliation', String(v)),
     );
   }
   if (unitFilters.path_lvl4) {

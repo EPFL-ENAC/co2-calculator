@@ -271,33 +271,31 @@ class CarbonReportModuleRepository:
 
     async def _resolve_hierarchy_unit_ids(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
     ) -> Optional[set[int]]:
         """
-        Build the effective unit ID filter with intersection semantics across levels.
+        Build the effective unit ID filter with OR semantics.
+
+        - Affiliation filter: Gets all descendants (Lvl2+3)
+        - Units filter: Gets direct units (Lvl4)
+        - Result: Union of both sets (OR logic)
 
         Returns:
-            - None when no hierarchy filters were provided (no-op)
-            - set of unit IDs when at least one hierarchy filter is provided
+            - None when no hierarchy filters provided
+            - set of unit IDs when at least one filter is provided
         """
-        filter_sets: List[set[int]] = []
+        all_ids: set[int] = set()
 
-        if path_lvl2:
-            filter_sets.append(await self._get_descendant_unit_ids(path_lvl2))
-        if path_lvl3:
-            filter_sets.append(await self._get_descendant_unit_ids(path_lvl3))
+        if path_affiliation:
+            all_ids.update(await self._get_descendant_unit_ids(path_affiliation))
         if path_lvl4:
-            filter_sets.append(await self._get_direct_unit_ids(path_lvl4))
+            all_ids.update(await self._get_direct_unit_ids(path_lvl4))
 
-        if not filter_sets:
+        if not all_ids:
             return None
 
-        effective_ids = filter_sets[0]
-        for ids in filter_sets[1:]:
-            effective_ids = effective_ids.intersection(ids)
-        return effective_ids
+        return all_ids
 
     @staticmethod
     def _apply_report_filters(
@@ -336,8 +334,7 @@ class CarbonReportModuleRepository:
 
     async def get_reporting_overview(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -356,8 +353,7 @@ class CarbonReportModuleRepository:
             )
 
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
 
@@ -617,8 +613,7 @@ class CarbonReportModuleRepository:
 
     async def get_usage_report(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -630,8 +625,7 @@ class CarbonReportModuleRepository:
         last updated timestamp.
 
         Args:
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -644,8 +638,7 @@ class CarbonReportModuleRepository:
             the filters.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.
@@ -747,8 +740,7 @@ class CarbonReportModuleRepository:
     async def get_detailed_report(
         self,
         data_entry_type: DataEntryTypeEnum,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -761,8 +753,7 @@ class CarbonReportModuleRepository:
 
         Args:
             data_entry_type: The type of data entry to filter by
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -783,8 +774,7 @@ class CarbonReportModuleRepository:
               the top-level dictionary.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.
@@ -904,8 +894,7 @@ class CarbonReportModuleRepository:
 
     async def get_results_report(
         self,
-        path_lvl2: Optional[List[str]] = None,
-        path_lvl3: Optional[List[str]] = None,
+        path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
@@ -916,8 +905,7 @@ class CarbonReportModuleRepository:
         including scope totals and breakdowns by emission type.
 
         Args:
-            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
-            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
             completion_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
@@ -927,8 +915,7 @@ class CarbonReportModuleRepository:
             and breakdown by emission type.
         """
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
         )
         # If hierarchy filters were provided but matched no units, return no results.

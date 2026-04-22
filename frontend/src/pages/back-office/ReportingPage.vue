@@ -56,19 +56,16 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
 const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
 // Track selected hierarchy filters from ReportingFilters
-const selectedPathLvl2 = ref<number[]>([]);
-const selectedPathLvl3 = ref<number[]>([]);
+const selectedPathAffiliation = ref<number[]>([]);
 const selectedPathLvl4 = ref<number[]>([]);
 const selectedCompletionStatus = ref<string | number>('');
 
 function handleFiltersUpdate(payload: {
-  path_lvl2: number[];
-  path_lvl3: number[];
+  path_affiliation: number[];
   path_lvl4: number[];
   completion_status: string | number;
 }) {
-  selectedPathLvl2.value = payload.path_lvl2;
-  selectedPathLvl3.value = payload.path_lvl3;
+  selectedPathAffiliation.value = payload.path_affiliation;
   selectedPathLvl4.value = payload.path_lvl4;
   selectedCompletionStatus.value = payload.completion_status;
   fetchUnits();
@@ -116,10 +113,8 @@ const unitFilters = computed<UnitFilters>(() => {
   });
 
   return {
-    path_lvl2:
-      selectedPathLvl2.value.length > 0 ? selectedPathLvl2.value : undefined,
-    path_lvl3:
-      selectedPathLvl3.value.length > 0 ? selectedPathLvl3.value : undefined,
+    path_affiliation:
+      selectedPathAffiliation.value.length > 0 ? selectedPathAffiliation.value : undefined,
     path_lvl4:
       selectedPathLvl4.value.length > 0 ? selectedPathLvl4.value : undefined,
     years: selectedYears.value,

@@ -230,10 +230,9 @@ def _is_unit_complete(completion: dict, years: list[str] | None = None) -> bool:
 
 @router.get("/units", response_model=PaginatedUnitReportingData)
 async def list_backoffice_units(
-    path_lvl2: Optional[List[str]] = Query(
-        None, description="Filter by VP and Faculties"
+    path_affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliations (Faculties, Services, Institutes)"
     ),
-    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
     path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
@@ -268,8 +267,7 @@ async def list_backoffice_units(
             detail="At least one year must be specified for reporting overview",
         )
     # data = await carbon_report_repo.get_reporting_overview(
-    #    path_lvl2=path_lvl2,
-    #    path_lvl3=path_lvl3,
+    #    path_affiliation=path_affiliation,
     #    path_lvl4=path_lvl4,
     #    completion_status=completion_status,
     #    search=search,
@@ -279,8 +277,7 @@ async def list_backoffice_units(
     #    page_size=page_size,
     # )
     result = await carbon_report_module_repo.get_reporting_overview(
-        path_lvl2=path_lvl2,
-        path_lvl3=path_lvl3,
+        path_affiliation=path_affiliation,
         path_lvl4=path_lvl4,
         completion_status=completion_status,
         search=search,
@@ -623,10 +620,9 @@ def _get_module_type_name(data_entry_type_id: int) -> str:
 
 @router.get("/export")
 async def export_reporting(
-    path_lvl2: Optional[List[str]] = Query(
-        None, description="Filter by VP and Faculties"
+    path_affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliations (Faculties, Services, Institutes)"
     ),
-    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
     path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
@@ -657,8 +653,7 @@ async def export_reporting(
     """Export unit reporting data as CSV or JSON file download."""
     # Get all matching records for export
     reporting_data = await list_backoffice_units(
-        path_lvl2=path_lvl2,
-        path_lvl3=path_lvl3,
+        path_affiliation=path_affiliation,
         path_lvl4=path_lvl4,
         completion_status=completion_status,
         search=search,
@@ -761,10 +756,9 @@ async def get_available_years(
 
 @router.get("/report/usage")
 async def report_usage(
-    path_lvl2: Optional[List[str]] = Query(
-        None, description="Filter by VP and Faculties"
+    path_affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliations (Faculties, Services, Institutes)"
     ),
-    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
     path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
@@ -796,8 +790,7 @@ async def report_usage(
 
     try:
         data = await CarbonReportModuleRepository(db).get_usage_report(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
             completion_status=completion_status,
             search=search,
@@ -847,10 +840,9 @@ async def report_usage(
 
 @router.get("/report/detailed")
 async def report_detailed(
-    path_lvl2: Optional[List[str]] = Query(
-        None, description="Filter by VP and Faculties"
+    path_affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliations (Faculties, Services, Institutes)"
     ),
-    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
     path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
@@ -890,8 +882,7 @@ async def report_detailed(
                 try:
                     data = await CarbonReportModuleRepository(db).get_detailed_report(
                         data_entry_type=data_entry_type,
-                        path_lvl2=path_lvl2,
-                        path_lvl3=path_lvl3,
+                        path_affiliation=path_affiliation,
                         path_lvl4=path_lvl4,
                         completion_status=completion_status,
                         search=search,
@@ -956,10 +947,9 @@ async def report_detailed(
 
 @router.get("/report/results")
 async def report_results(
-    path_lvl2: Optional[List[str]] = Query(
-        None, description="Filter by VP and Faculties"
+    path_affiliation: Optional[List[str]] = Query(
+        None, description="Filter by affiliations (Faculties, Services, Institutes)"
     ),
-    path_lvl3: Optional[List[str]] = Query(None, description="Filter by Institutes"),
     path_lvl4: Optional[List[str]] = Query(
         None, description="Filter by unit name(s) - can specify multiple"
     ),
@@ -985,8 +975,7 @@ async def report_results(
 
     try:
         data = await CarbonReportModuleRepository(db).get_results_report(
-            path_lvl2=path_lvl2,
-            path_lvl3=path_lvl3,
+            path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
             completion_status=completion_status,
             search=search,

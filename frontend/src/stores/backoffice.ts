@@ -51,8 +51,7 @@ interface BackofficeUnitDataPagination {
 }
 
 export interface UnitFilters {
-  path_lvl2?: Array<number | string>;
-  path_lvl3?: Array<number | string>;
+  path_affiliation?: Array<number | string>;
   path_lvl4?: Array<number | string>;
   years?: string[];
   completion_status?: number | string;
@@ -126,15 +125,9 @@ export const useBackofficeStore = defineStore('backoffice', () => {
       const searchParams = new URLSearchParams();
 
       // Add hierarchy filters
-      if (filters?.path_lvl2 && filters.path_lvl2.length > 0) {
-        filters.path_lvl2.forEach((v) =>
-          searchParams.append('path_lvl2', String(v)),
-        );
-      }
-
-      if (filters?.path_lvl3 && filters.path_lvl3.length > 0) {
-        filters.path_lvl3.forEach((v) =>
-          searchParams.append('path_lvl3', String(v)),
+      if (filters?.path_affiliation && filters.path_affiliation.length > 0) {
+        filters.path_affiliation.forEach((v) =>
+          searchParams.append('path_affiliation', String(v)),
         );
       }
 
