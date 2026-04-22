@@ -84,12 +84,12 @@ function onRequest(request: {
     finalDescending = false;
     console.log('🆕 [UnitsTable] New column, starting with ascending');
   }
-  
+
   backofficeStore.unitsPagination.page = request.pagination.page;
   backofficeStore.unitsPagination.pageSize = request.pagination.rowsPerPage;
   backofficeStore.unitsPagination.sortBy = finalSortBy;
   backofficeStore.unitsPagination.descending = finalDescending;
-  
+
   console.log(
     '✅ [UnitsTable] Store updated to:',
     JSON.stringify(backofficeStore.unitsPagination, null, 2),
@@ -194,6 +194,7 @@ const columns = computed<QTableColumn[]>(() => [
     :binary-state-sort="true"
     :rows="props.units"
     :columns="columns"
+    :server-pagination="true"
     row-key="id"
     :loading="props.loading"
     class="co2-table border shadow-0"

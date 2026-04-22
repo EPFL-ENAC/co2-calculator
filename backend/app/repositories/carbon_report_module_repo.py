@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from math import ceil
 from typing import Any, List, Optional
 
+from sqlalchemy import Integer, cast
 from sqlmodel import col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -474,24 +475,62 @@ class CarbonReportModuleRepository:
 
         # Build order by clause
         order_col: Any = Unit.name
+        use_case_for_nulls = False
+        null_value_for_sort = 0
+
         if sort_by == "unit_name":
             order_col = Unit.name
         elif sort_by == "affiliation":
             order_col = Unit.path_name
         elif sort_by == "validation_status":
-            order_col = CarbonReport.completion_progress
+            # Extract numerator from "X/Y" format and sort numerically
+            completed_part = func.split_part(CarbonReport.completion_progress, "/", 1)
+            order_col = cast(completed_part, Integer)
+            use_case_for_nulls = True
+            null_value_for_sort = 0
         elif sort_by == "principal_user":
             order_col = User.display_name
         elif sort_by == "last_update":
             order_col = CarbonReport.last_updated
-        elif sort_by in ("highest_result_category", "total_carbon_footprint"):
-            order_col = CarbonReport.stats
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "total_carbon_footprint":
+            # Extract 'total' from JSON stats, treat NULL/missing as 0
+            order_col = col(CarbonReport.stats)["total"].as_float()
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "highest_result_category":
+            # Sort by module_id from stats JSON
+            order_col = (
+                col(CarbonReport.stats)["highest_category_module_id"].as_integer(),
+            )
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+        elif sort_by == "highest_result_category":
+            # Sort by module_id from stats JSON
+            order_col = (
+                col(CarbonReport.stats)["highest_category_module_id"].as_integer(),
+            )
 
-        # Apply sort order - default to ascending if not specified
-        if sort_order == "desc":
-            units_stmt = units_stmt.order_by(desc(order_col))
+            use_case_for_nulls = True
+            null_value_for_sort = 0
+
+        # Apply sort order with NULL handling
+        from sqlalchemy import case
+
+        if use_case_for_nulls:
+            order_col_for_sort = case(
+                (order_col.is_(None), null_value_for_sort), else_=order_col
+            )
+            if sort_order == "desc":
+                units_stmt = units_stmt.order_by(desc(order_col_for_sort))
+            else:
+                units_stmt = units_stmt.order_by(order_col_for_sort)
         else:
-            units_stmt = units_stmt.order_by(order_col)
+            if sort_order == "desc":
+                units_stmt = units_stmt.order_by(desc(order_col))
+            else:
+                units_stmt = units_stmt.order_by(order_col)
 
         # Apply pagination - if page_size is 0, no limit (show all)
         if page_size > 0:

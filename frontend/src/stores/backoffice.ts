@@ -146,7 +146,8 @@ export const useBackofficeStore = defineStore('backoffice', () => {
       const searchParams = new URLSearchParams();
       searchParams.append('page', String(unitsPagination.page));
       // Send 0 for "all" (no pagination), otherwise send actual page size
-      const apiPageSize = unitsPagination.pageSize >= 5000 ? 0 : unitsPagination.pageSize;
+      const apiPageSize =
+        unitsPagination.pageSize >= 5000 ? 0 : unitsPagination.pageSize;
       searchParams.append('page_size', String(apiPageSize));
 
       // Send sort parameters if sortBy is set
