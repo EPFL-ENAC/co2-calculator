@@ -136,6 +136,7 @@ async def update_carbon_report_module_status(
             ),
         )
 
+    await report_service.recompute_report_stats(carbon_report_id)
     await report_service.recompute_report_progress(carbon_report_id)
     await db.commit()
     return result

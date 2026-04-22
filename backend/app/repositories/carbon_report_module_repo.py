@@ -501,17 +501,9 @@ class CarbonReportModuleRepository:
             null_value_for_sort = 0
         elif sort_by == "highest_result_category":
             # Sort by module_id from stats JSON
-            order_col = (
-                col(CarbonReport.stats)["highest_category_module_id"].as_integer(),
-            )
-            use_case_for_nulls = True
-            null_value_for_sort = 0
-        elif sort_by == "highest_result_category":
-            # Sort by module_id from stats JSON
-            order_col = (
-                col(CarbonReport.stats)["highest_category_module_id"].as_integer(),
-            )
-
+            order_col = col(CarbonReport.stats)[
+                "highest_category_module_id"
+            ].as_integer()
             use_case_for_nulls = True
             null_value_for_sort = 0
 
