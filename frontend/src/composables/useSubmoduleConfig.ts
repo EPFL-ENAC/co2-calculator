@@ -26,6 +26,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   const {
     isSubmoduleEnabled,
     isSubmoduleIncomplete,
+    isSubmoduleInputsDeactivated,
     getModule,
     getModuleNameFromSubmodule,
   } = yearConfigStore;
@@ -111,6 +112,35 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         config: {
           modules: {
             [moduleKey]: { submodules: { [subKey]: { enabled: value } } },
+          },
+        },
+      });
+      Notify.create({ type: 'positive', message: $t('year_config_saved') });
+    } catch {
+      Notify.create({
+        type: 'negative',
+        message: $t('year_config_save_error'),
+      });
+    }
+  }
+
+  async function updateSubmoduleInputsDeactivated(
+    sub: SubmoduleConfig,
+    value: boolean,
+  ): Promise<void> {
+    const moduleKey = String(sub.moduleTypeId);
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return;
+    try {
+      await yearConfigStore.updateConfig(options.selectedYear, {
+        config: {
+          modules: {
+            [moduleKey]: {
+              submodules: { [subKey]: { inputs_deactivated: value } },
+            },
           },
         },
       });
@@ -240,10 +270,12 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   return {
     isSubmoduleEnabled,
     isSubmoduleIncomplete,
+    isSubmoduleInputsDeactivated,
     getImportRow,
     submoduleShowsImportRow,
     downloadLastCsv,
     updateSubmoduleEnabled,
+    updateSubmoduleInputsDeactivated,
     getSubmoduleThreshold,
     updateSubmoduleThreshold,
     computedFactorRunning,

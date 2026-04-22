@@ -37,6 +37,7 @@ interface ReductionObjectives {
 export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
+  inputs_deactivated?: boolean;
   latest_data_job?: SyncJobSummary | null;
   latest_api_data_job?: SyncJobSummary | null;
   latest_factor_job?: SyncJobSummary | null;
@@ -255,6 +256,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
         merged[staticSub.key] = {
           enabled: true,
           threshold: null,
+          inputs_deactivated: false,
           key: staticSub.key,
           labelKey: staticSub.labelKey,
           moduleTypeId: staticSub.moduleTypeId,
@@ -382,6 +384,16 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.enabled ?? true;
   }
 
+  function isSubmoduleInputsDeactivated(sub: ModuleUploadConfig): boolean {
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return false;
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    return mod?.submodules?.[subKey]?.inputs_deactivated ?? false;
+  }
+
   function isSubmoduleIncomplete(sub: ModuleUploadConfig): boolean {
     const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
     const subConfig = sub.dataEntryTypeId
@@ -470,6 +482,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     isSubmoduleVisible,
     isModuleEnabled,
     isSubmoduleEnabled,
+    isSubmoduleInputsDeactivated,
     isModuleIncomplete,
     isSubmoduleIncomplete,
     getModuleUncertaintyTag,
