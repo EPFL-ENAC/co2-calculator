@@ -35,6 +35,7 @@ import {
   normalizeParentKey,
 } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
@@ -101,9 +102,11 @@ export interface TopClassBreakdownItem {
 const props = defineProps<{
   categoryRows: EmissionBreakdownCategoryRow[];
   topClassBreakdown?: TopClassBreakdownItem[];
+  printMode?: boolean;
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 
 const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 
@@ -364,34 +367,37 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          color?: string;
-          seriesIndex?: number;
-          data?: Record<string, unknown>;
-        };
-        const dimKey = segmentKeys[p.seriesIndex ?? 0];
-        const row = p.data;
-        const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) {
-          emitTooltip(null);
-          return '';
-        }
-        emitTooltip({
-          rows: [
-            {
-              label: p.seriesName ?? '',
-              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-              color: p.color ?? '#888',
-            },
-          ],
-        });
-        return '';
-      },
-    },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'item',
+          formatter: (params: unknown) => {
+            const p = params as {
+              seriesName?: string;
+              color?: string;
+              seriesIndex?: number;
+              data?: Record<string, unknown>;
+            };
+            const dimKey = segmentKeys[p.seriesIndex ?? 0];
+            const row = p.data;
+            const val =
+              row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
+            if (val <= 0) {
+              emitTooltip(null);
+              return '';
+            }
+            emitTooltip({
+              rows: [
+                {
+                  label: p.seriesName ?? '',
+                  value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+                  color: p.color ?? '#888',
+                },
+              ],
+            });
+            return '';
+          },
+        },
     legend: { show: false },
     grid: {
       left: '3%',
@@ -427,7 +433,8 @@ const chartOption = computed((): EChartsOption => {
 
 const chartHeight = computed(() => {
   const barCount = chartData.value.bars.length;
-  return Math.max(200, barCount * 60 + 60);
+  const natural = Math.max(200, barCount * 60 + 60);
+  return isPrintMode.value ? Math.min(natural, 500) : natural;
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();

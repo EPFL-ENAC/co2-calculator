@@ -13,50 +13,61 @@
       </span>
     </template>
     <template v-else>
-      <div class="flex w-full items-center justify-between q-mx-lg">
-        <div class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black">
-          {{ carbonFootprintTitle }}
-        </div>
-        <div class="flex items-center no-wrap q-gutter-xs">
-          <q-btn
-            v-if="emissionTypeInfoKey && moduleChartView === 'type'"
-            flat
-            round
-            dense
-            icon="info_outline"
-            size="sm"
-            class="text-grey-7"
-            :aria-label="t('emission-type-breakdown-info-aria')"
+      <template v-if="!isPrintMode">
+        <div class="flex w-full items-center justify-between q-mx-lg">
+          <div
+            class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black"
           >
-            <q-tooltip
-              anchor="bottom right"
-              self="top right"
-              :offset="[0, 8]"
-              max-width="320px"
-              class="text-body2"
+            {{ carbonFootprintTitle }}
+          </div>
+          <div
+            v-if="showControls"
+            class="flex items-center no-wrap q-gutter-xs"
+          >
+            <q-btn
+              v-if="emissionTypeInfoKey && moduleChartView === 'type'"
+              flat
+              round
+              dense
+              icon="info_outline"
+              size="sm"
+              class="text-grey-7"
+              :aria-label="t('emission-type-breakdown-info-aria')"
             >
-              {{ t(emissionTypeInfoKey) }}
-            </q-tooltip>
-          </q-btn>
-          <div class="chart-view-toggle">
-            <q-btn
-              unelevated
-              dense
-              :style="moduleChartView === 'type' ? activeButtonStyle : {}"
-              :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
-              icon="stacked_bar_chart"
-              size="sm"
-              @click="moduleChartView = 'type'"
-            />
-            <q-btn
-              unelevated
-              dense
-              :style="moduleChartView === 'breakdown' ? activeButtonStyle : {}"
-              :class="moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''"
-              icon="grid_view"
-              size="sm"
-              @click="moduleChartView = 'breakdown'"
-            />
+              <q-tooltip
+                anchor="bottom right"
+                self="top right"
+                :offset="[0, 8]"
+                max-width="320px"
+                class="text-body2"
+              >
+                {{ t(emissionTypeInfoKey) }}
+              </q-tooltip>
+            </q-btn>
+            <div class="chart-view-toggle">
+              <q-btn
+                unelevated
+                dense
+                :style="moduleChartView === 'type' ? activeButtonStyle : {}"
+                :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
+                icon="stacked_bar_chart"
+                size="sm"
+                @click="moduleChartView = 'type'"
+              />
+              <q-btn
+                unelevated
+                dense
+                :style="
+                  moduleChartView === 'breakdown' ? activeButtonStyle : {}
+                "
+                :class="
+                  moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''
+                "
+                icon="grid_view"
+                size="sm"
+                @click="moduleChartView = 'breakdown'"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -76,6 +87,7 @@
             :show-evolution-dialog="
               type === MODULES.ProfessionalTravel && showEvolutionChart
             "
+            :print-mode="printMode"
           />
           <span v-else class="text-body2 text-secondary">
             {{ $t('no-chart-data') }}
@@ -87,6 +99,7 @@
             :key="type"
             :category-rows="moduleCategoryRows"
             :top-class-breakdown="topClassBreakdownData"
+            :print-mode="printMode"
           />
 
           <span v-else class="text-body2 text-secondary">
@@ -108,6 +121,7 @@ import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTr
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 import {
   buildModuleTreemapData,
   CATEGORY_CHART_KEYS,
@@ -122,11 +136,28 @@ import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakd
 const props = defineProps<{
   type: Module;
   showEvolutionChart?: boolean;
+  forcedView?: 'breakdown' | 'type';
+  showControls?: boolean;
+  printMode?: boolean;
 }>();
 
 const { t, te } = useI18n();
 
-const moduleChartView = ref<'breakdown' | 'type'>('type');
+const moduleChartView = ref<'breakdown' | 'type'>(props.forcedView ?? 'type');
+
+const isPrintMode = usePrintMode();
+const showControls = computed(() => {
+  if (isPrintMode.value) return false;
+  return props.showControls !== false && !props.forcedView;
+});
+
+watch(
+  () => props.forcedView,
+  (v) => {
+    if (!v) return;
+    moduleChartView.value = v;
+  },
+);
 
 const emissionTypeInfoKey = computed(() =>
   getEmissionTypeBreakdownInfoKey(props.type),

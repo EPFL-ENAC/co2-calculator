@@ -28,6 +28,7 @@ import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
+import { useRoute, useRouter } from 'vue-router';
 
 const yearConfigStore = useYearConfigStore();
 
@@ -138,6 +139,8 @@ const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
 const colorblindStore = useColorblindStore();
+const router = useRouter();
+const route = useRoute();
 const colorblindMode = computed({
   get: () => colorblindStore.enabled,
   set: (v: boolean) => colorblindStore.setEnabled(v),
@@ -343,8 +346,19 @@ const loadModulesConfig = async () => {
 const getModuleConfig = (module: string) => modulesConfig.value?.[module];
 
 const downloadPDF = () => {
-  // Open browser print dialog where user can save as PDF
-  window.print();
+  const resolved = router.resolve({
+    name: 'results-print',
+    params: {
+      language: String(route.params.language ?? 'en'),
+      unit: workspaceStore.selectedParams?.unit ?? route.params.unit,
+      year: String(currentYear.value),
+    },
+    query: {
+      hideResearchFacilities: hideResearchFacilities.value ? '1' : '0',
+      hideAdditionalData: hideAdditionalData.value ? '1' : '0',
+    },
+  });
+  window.open(resolved.href, '_blank');
 };
 
 const getUncertainty = (

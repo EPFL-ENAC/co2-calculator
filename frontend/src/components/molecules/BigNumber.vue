@@ -12,6 +12,7 @@ const props = withDefaults(
     comparisonHighlight?: string;
     color?: string;
     tooltipPlacement?: 'title' | 'comparison';
+    printMode?: boolean;
   }>(),
   {
     bordered: true,
@@ -21,6 +22,7 @@ const props = withDefaults(
     comparisonHighlight: undefined,
     color: undefined,
     tooltipPlacement: 'title',
+    printMode: false,
   },
 );
 
@@ -56,11 +58,16 @@ const comparisonParts = computed(() => {
   <q-card
     flat
     :bordered="bordered"
-    :class="['container', 'container--pa-none', 'big-number']"
+    :class="[
+      'container',
+      'container--pa-none',
+      'big-number',
+      { 'big-number--print': printMode },
+    ]"
   >
     <q-card-section class="flex items-center q-mb-xs">
       <q-icon
-        v-if="$slots.tooltip && tooltipPlacement === 'title'"
+        v-if="$slots.tooltip && tooltipPlacement === 'title' && !printMode"
         name="o_info"
         size="xs"
         color="primary"
@@ -98,7 +105,9 @@ const comparisonParts = computed(() => {
         style="width: 50%"
       >
         <q-icon
-          v-if="$slots.tooltip && tooltipPlacement === 'comparison'"
+          v-if="
+            $slots.tooltip && tooltipPlacement === 'comparison' && !printMode
+          "
           name="o_info"
           size="xs"
           color="primary"
@@ -140,5 +149,36 @@ const comparisonParts = computed(() => {
   align-self: flex-end;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+@media print {
+  .big-number.q-card--bordered {
+    outline: 1px solid rgba(0, 0, 0, 0.2) !important;
+    border-radius: 4px !important;
+  }
+}
+
+.big-number--print {
+  :deep(.q-card-section) {
+    padding: 8px 10px 4px;
+  }
+
+  .big-number__value :deep(.text-h1) {
+    font-size: 1.4rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .text-body1 {
+    font-size: 0.75rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .text-body2 {
+    font-size: 0.7rem !important;
+  }
+
+  .text-caption {
+    font-size: 0.65rem !important;
+  }
 }
 </style>
