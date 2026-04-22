@@ -552,13 +552,6 @@ MODULE_TYPE_TO_PER_FTE_KEY: dict[int, str] = {
 }
 
 
-HEADCOUNT_PER_FTE_KG: dict[EmissionType, float] = {
-    EmissionType.food: 420.0,
-    EmissionType.waste: 125.0,
-    EmissionType.commuting: 1375.0,
-}
-
-
 def _resolve_emission_type(emission_type_id: int) -> EmissionType | None:
     try:
         return EmissionType(emission_type_id)
@@ -639,8 +632,7 @@ def build_chart_breakdown(
             headcount-derived additional categories.
         headcount_validated: Whether headcount module is validated for the
             report. When ``True`` and ``total_fte > 0``, additional categories
-            are synthesized from real DB rows (or ``HEADCOUNT_PER_FTE_KG`` as
-            fallback when no sub-type rows are present).
+            are sourced from real DB sub-type rows.
         buildings_validated: Whether buildings module is validated. Controls
             validation status for embodied_energy additional category.
         validated_module_type_ids: Set of validated module type IDs used to
@@ -658,16 +650,13 @@ def build_chart_breakdown(
           (``embodied_energy``) when present.
         - ``per_person_breakdown``: snake_case metric keys normalized by FTE.
         - ``validated_categories``: validated category keys (snake_case).
-        - ``total_tonnes_co2eq``: global total including real emissions and
-          synthesized headcount emissions when applicable.
+        - ``total_tonnes_co2eq``: global total of all DB-sourced emissions in tonnes.
         - ``total_fte``: passthrough total FTE.
 
     Notes:
         - Unknown emission_type IDs are ignored.
         - Headcount sub-type rows (food__, waste__, commuting__) flow into
           ``additional_breakdown`` directly.
-        - If no sub-type rows exist for a category and headcount is validated,
-          falls back to ``HEADCOUNT_PER_FTE_KG`` synthetic totals.
         - If ``total_fte <= 0``, per-person values are ``0.0`` and additional
           headcount rows remain empty even when headcount is validated.
     """
@@ -727,37 +716,18 @@ def build_chart_breakdown(
     ]
 
     # Build additional_breakdown from real DB sub-type rows.
-    # Fall back to HEADCOUNT_PER_FTE_KG synthetic values per category when that
-    # category has no real rows (backward compatibility with pre-emit_per_factor data).
-    fallback_data: dict[EmissionType, float] = (
-        {et: per_fte_kg * total_fte for et, per_fte_kg in HEADCOUNT_PER_FTE_KG.items()}
-        if headcount_validated and total_fte > 0
-        else {}
-    )
-
     additional_breakdown = []
-    fallback_kg_applied = 0.0
     for category in ADDITIONAL_BREAKDOWN_ORDER:
         real_cat = additional_data.get(category, {})
-        if real_cat:
-            additional_breakdown.append(
-                _build_category_row(
-                    category,
-                    real_cat,
-                    additional_quantities.get(category),
-                )
+        additional_breakdown.append(
+            _build_category_row(
+                category,
+                real_cat,
+                additional_quantities.get(category),
             )
-        else:
-            # Fallback: synthesize from HEADCOUNT_PER_FTE_KG for headcount categories
-            fallback_cat = {
-                et: kg
-                for et, kg in fallback_data.items()
-                if EMISSION_SCOPE[et]["category"] is category
-            }
-            additional_breakdown.append(_build_category_row(category, fallback_cat))
-            fallback_kg_applied += sum(fallback_cat.values())
+        )
 
-    additional_total_kg = additional_kg + fallback_kg_applied
+    additional_total_kg = additional_kg
 
     per_person: dict[str, float] = {
         pp_key: (module_totals_kg.get(mid, 0.0) / total_fte / 1000.0)
@@ -768,12 +738,6 @@ def build_chart_breakdown(
     if headcount_validated and total_fte > 0:
         for category in _HEADCOUNT_ADDITIONAL:
             cat_kg = sum(additional_data.get(category, {}).values())
-            if cat_kg <= 0:
-                cat_kg = sum(
-                    kg
-                    for et, kg in fallback_data.items()
-                    if EMISSION_SCOPE[et]["category"] is category
-                )
             per_person[category.value] = cat_kg / total_fte / 1000.0
 
     total_tonnes = (real_kg + additional_total_kg) / 1000.0

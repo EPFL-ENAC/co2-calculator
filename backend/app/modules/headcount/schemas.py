@@ -190,7 +190,6 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
                 formula_key="ef_kg_co2eq_per_unit",
                 quantity_key="fte",
                 multiplier_key="number_of_unit_per_fte",
-                emit_per_factor=True,
             )
         ]
 
@@ -246,7 +245,6 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
                 formula_key="ef_kg_co2eq_per_unit",
                 quantity_key="fte",
                 multiplier_key="number_of_unit_per_fte",
-                emit_per_factor=True,
             )
         ]
 
