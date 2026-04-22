@@ -65,7 +65,7 @@ const CLOUD_AI_LABEL_MAP: Record<string, string> = {
 
 /** Map category_key → single color (dark shade) */
 const categoryColor = computed(() => ({
-  equipment_it: colors.value.periwinkle.dark,
+  equipment_it: colors.value.plum.dark,
   purchases_it: colors.value.lightGreen.dark,
   external_cloud_and_ai:
     CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,

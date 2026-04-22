@@ -18,12 +18,10 @@
         :module-config="staticModuleConfig"
       />
       <q-card class="container container--pa-none" flat>
-        <div class="q-px-lg">
-          <module-charts
-            :type="currentModuleType"
-            :show-evolution-chart="false"
-          />
-        </div>
+        <module-charts
+          :type="currentModuleType"
+          :show-evolution-chart="false"
+        />
       </q-card>
       <!-- module tables iteration -->
       <module-table-section

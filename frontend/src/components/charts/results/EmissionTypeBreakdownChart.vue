@@ -27,7 +27,10 @@ use([
 ]);
 
 import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
-import { CATEGORY_CHART_KEYS } from 'src/composables/useEmissionTreemap';
+import {
+  CATEGORY_CHART_KEYS,
+  normalizeParentKey,
+} from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
@@ -64,14 +67,15 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   wood_logs: 'charts-wood-logs-subcategory',
   scientific: 'charts-scientific-subcategory',
   it: 'charts-equipment-it',
-  other: 'charts-other-purchases-subcategory',
+  other: 'charts-other-equipment-subcategory',
   scientific_equipment: 'charts-scientific-subcategory',
   it_equipment: 'charts-equipment-it',
   consumable_accessories: 'charts-consumables-subcategory',
   biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
   services: 'charts-services-subcategory',
-  vehicles: 'charts-other-purchases-subcategory',
-  additional: 'charts-other-purchases-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  additional: 'charts-additional-purchases-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
   goods_and_services: 'charts-services-subcategory',
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
@@ -146,6 +150,20 @@ function sortBarsByDisplayOrder(
   });
 }
 
+function canonicalizeCategoryKey(raw: string): string {
+  const key = String(raw ?? '');
+  // API occasionally returns singular `purchase` while frontend uses `purchases`.
+  if (key === 'purchase') return 'purchases';
+  return key;
+}
+
+function getRowCategoryKey(row: EmissionBreakdownCategoryRow): string {
+  // Some endpoints return only `category` and omit `category_key`.
+  return canonicalizeCategoryKey(
+    String(row.category_key ?? row.category ?? ''),
+  );
+}
+
 const chartData = computed(() => {
   const emptyResult = {
     bars: [] as Record<string, unknown>[],
@@ -159,7 +177,9 @@ const chartData = computed(() => {
 
   // --- Top-class breakdown mode ---
   if (props.topClassBreakdown?.length) {
-    const categoryKey = props.categoryRows[0]?.category_key ?? '';
+    const categoryKey = props.categoryRows[0]
+      ? getRowCategoryKey(props.categoryRows[0])
+      : '';
     const bars: Record<string, unknown>[] = [];
     const segmentKeysSet = new Set<string>();
     const barCategoryMap = new Map<string, string>();
@@ -167,10 +187,11 @@ const chartData = computed(() => {
     let segCounter = 0;
 
     for (const subcategory of props.topClassBreakdown) {
+      const normalizedName = normalizeParentKey(categoryKey, subcategory.name);
       const compoundKey = `${categoryKey}_${subcategory.name}`;
       const barData: Record<string, unknown> = { xx_category: compoundKey };
       barCategoryMap.set(compoundKey, categoryKey);
-      barLabelMap.set(compoundKey, subcategory.name);
+      barLabelMap.set(compoundKey, normalizedName);
 
       for (const child of subcategory.children) {
         // Use a numeric suffix to guarantee unique, parseable segment keys
@@ -203,24 +224,31 @@ const chartData = computed(() => {
   const barLabelMap = new Map<string, string>(); // compoundKey → display barName
 
   for (const row of props.categoryRows) {
+    const categoryKey = getRowCategoryKey(row);
+    if (!categoryKey) continue;
+    const allowedParents = CATEGORY_CHART_KEYS[categoryKey] ?? [];
     for (const emission of row.emissions) {
       const value = Number(emission.value) || 0;
       if (value <= 0) continue;
 
-      const barName = emission.parent_key ?? emission.key;
+      const rawBarName = emission.parent_key ?? emission.key;
+      const barName = normalizeParentKey(categoryKey, String(rawBarName));
+      if (allowedParents.length > 0 && !allowedParents.includes(barName)) {
+        continue;
+      }
       const collapseAiChildren =
-        row.category_key === 'external_cloud_and_ai' && barName === 'ai';
+        categoryKey === 'external_cloud_and_ai' && barName === 'ai';
       const segmentKey = collapseAiChildren ? barName : emission.key;
-      const compoundKey = `${row.category_key}_${barName}`;
+      const compoundKey = `${categoryKey}_${barName}`;
 
       if (!barMap.has(compoundKey)) {
         barMap.set(compoundKey, {});
-        barCategoryMap.set(compoundKey, row.category_key);
+        barCategoryMap.set(compoundKey, categoryKey);
         barLabelMap.set(compoundKey, barName);
       }
       const bar = barMap.get(compoundKey)!;
       // Segment keys must also be unique per compound key to avoid collisions across categories
-      const compoundSegment = `${row.category_key}_${segmentKey}`;
+      const compoundSegment = `${categoryKey}_${segmentKey}`;
       bar[compoundSegment] = (bar[compoundSegment] ?? 0) + value;
     }
   }
@@ -273,19 +301,23 @@ function translateSubcategory(key: string): string {
   return i18nKey ? t(i18nKey) : subcategoryKey;
 }
 
-function translateBar(barName: string): string {
-  // Try subcategory label first, then category label
-  const subKey = SUBCATEGORY_LABEL_MAP[barName];
+function translateBar(categoryKey: string, barName: string): string {
+  const baseName =
+    String(barName ?? '').split('__')[0] ?? String(barName ?? '');
+  const subKey = SUBCATEGORY_LABEL_MAP[baseName];
   if (subKey) return t(subKey);
-  const catKey = CATEGORY_LABEL_MAP[barName];
+  const catKey = CATEGORY_LABEL_MAP[baseName];
   if (catKey) return t(catKey);
-  return barName;
+  return baseName || barName;
 }
 
 const shadeOrder = ['darker', 'dark', 'default', 'light', 'lighter'] as const;
 
-// Track index per category so each bar within a category gets a distinct shade
-const segmentColorMap = computed(() => {
+// Maps bar compound key → its designated color.
+// Using a per-bar map (rather than per-segment) ensures each bar row gets its
+// own distinct shade even when multiple bars share the same segment keys
+// (e.g. buildings_room subcategories all share room-type segment keys).
+const barColorMap = computed(() => {
   const map: Record<string, string> = {};
   const { bars, barCategoryMap, barLabelMap } = chartData.value;
   const categoryBarIndex = new Map<string, number>();
@@ -299,23 +331,18 @@ const segmentColorMap = computed(() => {
 
     const scale = CHART_CATEGORY_COLOR_SCALES.value[catKey];
     const specificBarColor = getChartSubcategoryColor(catKey, barName, '');
-    const barColor =
+    map[compoundKey] =
       specificBarColor ||
       (scale ? scale[shadeOrder[barIndex % shadeOrder.length]] : '#999999');
-
-    for (const [key, val] of Object.entries(bar)) {
-      if (key === 'xx_category') continue;
-      if (typeof val === 'number' && val > 0) {
-        map[key] = barColor;
-      }
-    }
   });
 
   return map;
 });
 
-function getSegmentColor(segmentKey: string): string {
-  return segmentColorMap.value[segmentKey] ?? '#999999';
+function getBarColor(dataIndex: number): string {
+  const bar = chartData.value.bars[dataIndex];
+  if (!bar) return '#999999';
+  return barColorMap.value[bar.xx_category as string] ?? '#999999';
 }
 
 const chartOption = computed((): EChartsOption => {
@@ -325,9 +352,13 @@ const chartOption = computed((): EChartsOption => {
 
   const source = bars.map((bar) => ({
     ...bar,
-    [barKey]: translateBar(
-      barLabelMap.get(bar[barKey] as string) ?? (bar[barKey] as string),
-    ),
+    [barKey]: (() => {
+      const compoundKey = bar[barKey] as string;
+      const categoryKey = chartData.value.barCategoryMap.get(compoundKey) ?? '';
+      const rawBarName =
+        barLabelMap.get(compoundKey) ?? (bar[barKey] as string);
+      return translateBar(categoryKey, rawBarName);
+    })(),
   }));
 
   const series = segmentKeys.map((key) => ({
@@ -339,18 +370,15 @@ const chartOption = computed((): EChartsOption => {
       x: key,
     },
     itemStyle: {
-      color: getSegmentColor(key),
+      color: (params: unknown) =>
+        getBarColor((params as { dataIndex: number }).dataIndex),
       borderColor: '#fff',
       borderWidth: 1,
     },
     // Between IT Focus (32px) and default auto width (often very thick)
-    barWidth: 60,
+    barWidth: 58,
     label: { show: false },
-    emphasis: {
-      focus: 'series' as const,
-      blurScope: 'coordinateSystem' as const,
-    },
-    blur: { itemStyle: { opacity: 0.4 } },
+    emphasis: { disabled: true },
   }));
 
   return {
@@ -411,8 +439,8 @@ const chartHeight = computed(() => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none q-mb-md">
-    <q-card-section class="flex justify-center items-center">
+  <div class="q-mb-md">
+    <div class="flex justify-center items-center">
       <v-chart
         v-if="chartData.bars.length"
         class="chart"
@@ -423,8 +451,8 @@ const chartHeight = computed(() => {
       <span v-else class="text-body2 text-secondary">
         {{ $t('no-chart-data') }}
       </span>
-    </q-card-section>
-  </q-card>
+    </div>
+  </div>
 </template>
 
 <style scoped>

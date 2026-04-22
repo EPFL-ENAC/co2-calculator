@@ -719,7 +719,7 @@ const getUncertainty = (
               <template v-if="resultsCategoryExpanded[module]">
                 <q-separator />
 
-                <div class="q-px-lg">
+                <div>
                   <!-- Module has results in the summary -->
                   <template v-if="getModuleResult(module)">
                     <!-- Per-module treemap -->
@@ -731,7 +731,7 @@ const getUncertainty = (
                         "
                       />
                     </template>
-                    <q-card flat class="grid-3-col q-mb-lg">
+                    <q-card flat class="grid-3-col q-mb-lg q-px-lg">
                       <BigNumber
                         :title="
                           getTotalModuleCarbonFootprintTitle(module as Module)

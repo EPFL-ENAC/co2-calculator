@@ -354,6 +354,23 @@ function translateCategory(
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
 }
 
+function normalizeCategoryRowKeys(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const cat = String(entry.category ?? entry.category_key ?? '');
+  // Backend sometimes uses `other` for purchases; keep equipment `other` untouched.
+  if (cat === 'purchases' || cat === 'purchase') {
+    const next = { ...entry };
+    if (next.other_purchases == null && next.other != null) {
+      next.other_purchases = next.other;
+    }
+    // Prevent collisions with equipment's `other` series key.
+    delete next.other;
+    return next;
+  }
+  return entry;
+}
+
 function zeroNumericValues(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -477,6 +494,7 @@ const datasetSource = computed(() => {
         const category = String(entry.category ?? '');
         return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
       })
+      .map(normalizeCategoryRowKeys)
       .map(translateCategory),
   );
 
@@ -497,6 +515,7 @@ const datasetSource = computed(() => {
           return { ...entry, __validated: true };
         })
         .map(withAdditionalCategoryTotals)
+        .map(normalizeCategoryRowKeys)
         .map(translateCategory),
     );
     allData = [...baseData, ...additionalData];
@@ -732,6 +751,21 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
+      name: t('charts-heating-elec-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'heating_elec' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_room',
+          'heating_elec',
+          colors.value.lilac.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
       name: t('charts-lighting-subcategory'),
       type: 'bar' as const,
       stack: 'total',
@@ -776,21 +810,6 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    {
-      name: t('charts-heating-elec-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'heating_elec',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
     // Equipment — subcategories: scientific, it, other
     {
       name: t('charts-scientific-subcategory'),
@@ -802,7 +821,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'scientific',
-          colors.value.mauve.darker,
+          colors.value.plum.darker,
         ),
       },
       label: { show: false },
@@ -814,12 +833,12 @@ const chartOption = computed((): EChartsOption => {
       animation: true,
       encode: { x: 'category', y: 'it' },
       itemStyle: {
-        color: getSubcategoryColor('equipment', 'it', colors.value.mauve.dark),
+        color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
       },
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-other-equipment-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -828,7 +847,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'other',
-          colors.value.mauve.default,
+          colors.value.plum.default,
         ),
       },
       label: { show: false },
@@ -910,7 +929,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-vehicles-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -926,6 +945,21 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-other-purchases-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'other_purchases' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'purchases',
+          'other_purchases',
+          colors.value.lavender.dark,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-additional-purchases-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -1168,6 +1202,7 @@ const chartOption = computed((): EChartsOption => {
         'biological_chemical_gaseous',
         'services',
         'vehicles',
+        'other_purchases',
         'additional',
         'plane',
         'train',

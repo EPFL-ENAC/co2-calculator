@@ -7,9 +7,9 @@ This module is the backend contract for chart-related category semantics:
     ``category``, ``category_key``, and an ``emissions`` list, with extra
     flattened YY/parent keys for charting convenience.
 - ``per_person_breakdown`` keys are snake_case and stable:
-    ``process_emissions``, ``buildings``, ``equipment``,
-    ``research_facilities``, ``professional_travel``, ``purchases``,
-    ``external_cloud_and_ai``, plus headcount keys
+    ``process_emissions``, ``buildings_room``, ``buildings_energy_combustion``,
+    ``equipment``, ``research_facilities``, ``professional_travel``,
+    ``purchases``, ``external_cloud_and_ai``, plus headcount keys
     ``commuting``, ``food``, ``waste`` when applicable.
 """
 
@@ -648,7 +648,9 @@ def build_chart_breakdown(
           categories. Contains headcount-derived categories (``commuting``,
           ``food``, ``waste``) and building-derived embodied energy
           (``embodied_energy``) when present.
-        - ``per_person_breakdown``: snake_case metric keys normalized by FTE.
+        - ``per_person_breakdown``: category-level snake_case metric keys
+          normalized by FTE. Buildings is split into ``buildings_room`` and
+          ``buildings_energy_combustion`` (not a single ``buildings`` key).
         - ``validated_categories``: validated category keys (snake_case).
         - ``total_tonnes_co2eq``: global total of all DB-sourced emissions in tonnes.
         - ``total_fte``: passthrough total FTE.
@@ -730,13 +732,20 @@ def build_chart_breakdown(
     additional_total_kg = additional_kg
 
     per_person: dict[str, float] = {
-        pp_key: (module_totals_kg.get(mid, 0.0) / total_fte / 1000.0)
-        if total_fte > 0
-        else 0.0
-        for mid, pp_key in MODULE_TYPE_TO_PER_FTE_KEY.items()
+        category.value: (
+            sum(category_data.get(category, {}).values()) / total_fte / 1000.0
+            if total_fte > 0
+            else 0.0
+        )
+        for category in MODULE_BREAKDOWN_ORDER
+        if CATEGORY_TO_MODULE_PER_UNIT.get(category) not in exclude_module_type_ids
     }
     if headcount_validated and total_fte > 0:
         for category in _HEADCOUNT_ADDITIONAL:
+            cat_kg = sum(additional_data.get(category, {}).values())
+            per_person[category.value] = cat_kg / total_fte / 1000.0
+    if buildings_validated and total_fte > 0:
+        for category in _BUILDINGS_ADDITIONAL:
             cat_kg = sum(additional_data.get(category, {}).values())
             per_person[category.value] = cat_kg / total_fte / 1000.0
 

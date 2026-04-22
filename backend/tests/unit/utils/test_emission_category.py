@@ -90,13 +90,14 @@ def test_build_chart_breakdown_per_person_exposes_only_value_keys():
     per_person = result["per_person_breakdown"]
 
     assert per_person == {
-        "buildings": pytest.approx(0.0),
+        "process_emissions": pytest.approx(0.0),
+        "buildings_energy_combustion": pytest.approx(0.0),
+        "buildings_room": pytest.approx(0.0),
         "equipment": pytest.approx(0.8),
+        "external_cloud_and_ai": pytest.approx(0.0),
+        "purchases": pytest.approx(0.0),
         "research_facilities": pytest.approx(0.0),
         "professional_travel": pytest.approx(0.2),
-        "purchases": pytest.approx(0.0),
-        "external_cloud_and_ai": pytest.approx(0.0),
-        "process_emissions": pytest.approx(0.0),
     }
 
 
@@ -144,9 +145,7 @@ def test_build_chart_breakdown_excludes_single_module():
 
     categories = [r["category"] for r in result_excluded["module_breakdown"]]
     assert "research_facilities" not in categories
-    assert result_excluded["per_person_breakdown"][
-        "research_facilities"
-    ] == pytest.approx(0.0)
+    assert "research_facilities" not in result_excluded["per_person_breakdown"]
     assert result_excluded["total_tonnes_co2eq"] < result_full["total_tonnes_co2eq"]
 
 

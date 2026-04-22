@@ -3,6 +3,18 @@ import { useColorblindStore } from 'src/stores/colorblind';
 import { storeToRefs } from 'pinia';
 import { MODULES } from './modules';
 
+/** Interpolate between two `#RRGGBB` colours. */
+function lerpHex(a: string, b: string, t: number): string {
+  const mix = (i: number) => {
+    const av = parseInt(a.slice(i, i + 2), 16);
+    const bv = parseInt(b.slice(i, i + 2), 16);
+    return Math.round(av + (bv - av) * t)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return '#' + mix(1) + mix(3) + mix(5);
+}
+
 // Get the store instance and export colorblindMode for backward compatibility
 const colorblindStore = useColorblindStore();
 const { enabled: colorblindMode } = storeToRefs(colorblindStore);
@@ -109,6 +121,23 @@ const colorDefinitions = {
       default: '#C0D3EB',
       light: '#D9E5F4',
       lighter: '#EDF3FA',
+    },
+  },
+  // 5.25 — between lilac (pink) and lavender (violet)
+  plum: {
+    default: {
+      darker: '#C19ACD',
+      dark: '#CFB0DA',
+      default: '#DDC6E6',
+      light: '#EADCF1',
+      lighter: '#F3ECF7',
+    },
+    colorblind: {
+      darker: '#6385C6',
+      dark: '#7FA0D6',
+      default: '#9FBBE6',
+      light: '#C1D4F2',
+      lighter: '#E0EBF9',
     },
   },
   // 5.5 — midpoints between periwinkle steps, giving 9 shades total for waste
@@ -292,6 +321,7 @@ export const colors = computed(() => {
     lavender: colorDefinitions.lavender[mode],
     mauve: colorDefinitions.mauve[mode],
     lilac: colorDefinitions.lilac[mode],
+    plum: colorDefinitions.plum[mode],
     cobalt: colorDefinitions.cobalt[mode],
     periwinkle: colorDefinitions.periwinkle[mode],
     skyBlue: colorDefinitions.skyBlue[mode],
@@ -307,10 +337,10 @@ export const colors = computed(() => {
 
 // Maps chart category name → hex color (matches ModuleCarbonFootprintChart color ordering)
 export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
-  process_emissions: colors.value.apricot.darker,
-  buildings_energy_combustion: colors.value.lilac.light,
+  process_emissions: colors.value.peach.darker,
+  buildings_energy_combustion: colors.value.apricot.darker,
   buildings_room: colors.value.lilac.darker,
-  equipment: colors.value.mauve.darker,
+  equipment: colors.value.plum.darker,
   external_cloud_and_ai: colors.value.lavender.dark,
   purchases: colors.value.lavender.darker,
   research_facilities: colors.value.paleYellowGreen.darker,
@@ -323,10 +353,10 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
-  process_emissions: colors.value.apricot,
-  buildings_energy_combustion: colors.value.lilac,
+  process_emissions: colors.value.peach,
+  buildings_energy_combustion: colors.value.apricot,
   buildings_room: colors.value.lilac,
-  equipment: colors.value.lilac,
+  equipment: colors.value.plum,
   external_cloud_and_ai: colors.value.lavender,
   purchases: colors.value.lightGreen,
   research_facilities: colors.value.paleYellowGreen,
@@ -341,10 +371,10 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
-      lighting: colors.value.lilac.dark,
-      cooling: colors.value.lilac.default,
-      ventilation: colors.value.lilac.light,
-      heating_elec: colors.value.lilac.lighter,
+      heating_elec: colors.value.lilac.dark,
+      lighting: colors.value.lilac.default,
+      cooling: colors.value.lilac.light,
+      ventilation: colors.value.lilac.lighter,
       heating_thermal: colors.value.lilac.lighter,
       office: colors.value.lilac.darker,
       laboratories: colors.value.lilac.dark,
@@ -364,15 +394,15 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       wood_logs: colors.value.yellow.darker,
     },
     process_emissions: {
-      co2: colors.value.apricot.darker,
-      ch4: colors.value.apricot.dark,
-      n2o: colors.value.apricot.default,
-      refrigerants: colors.value.apricot.light,
+      co2: colors.value.peach.darker,
+      ch4: colors.value.peach.dark,
+      n2o: colors.value.peach.default,
+      refrigerants: colors.value.peach.light,
     },
     equipment: {
-      scientific: colors.value.periwinkle.darker,
-      it: colors.value.periwinkle.dark,
-      other: colors.value.periwinkle.default,
+      scientific: colors.value.plum.darker,
+      it: colors.value.plum.dark,
+      other: colors.value.plum.default,
     },
     professional_travel: {
       plane: colors.value.babyBlue.darker,
@@ -393,17 +423,26 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       facilities: colors.value.paleYellowGreen.darker,
       animal: colors.value.paleYellowGreen.dark,
     },
-    purchases: {
-      scientific_equipment: colors.value.lightGreen.darker,
-      it_equipment: colors.value.lightGreen.dark,
-      consumable_accessories: colors.value.lightGreen.default,
-      biological_chemical_gaseous: colors.value.lightGreen.light,
-      services: colors.value.lightGreen.lighter,
-      vehicles: colors.value.lightGreen.default,
-      other: colors.value.lightGreen.dark,
-      additional: colors.value.lightGreen.light,
-      ln2: colors.value.lightGreen.darker,
-    },
+    purchases: (() => {
+      const keys = [
+        'scientific_equipment',
+        'it_equipment',
+        'consumable_accessories',
+        'biological_chemical_gaseous',
+        'services',
+        'vehicles',
+        'other_purchases',
+        'additional',
+      ];
+      const { darker, lighter } = colors.value.lightGreen;
+      const shade = (i: number) =>
+        lerpHex(darker, lighter, i / (keys.length - 1));
+      return {
+        ...Object.fromEntries(keys.map((k, i) => [k, shade(i)])),
+        other: shade(6),
+        ln2: lighter,
+      };
+    })(),
     commuting: {
       walking: colors.value.aqua.darker,
       cycling: colors.value.aqua.dark,
