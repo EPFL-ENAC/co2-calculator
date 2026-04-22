@@ -199,12 +199,18 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         if surface is None or kwh_per_m2 is None or ef is None:
             return None
 
+        # normalize ratio to [0, 1]
+        try:
+            ratio_nb = float(ratio) if ratio is not None else 1.0
+            if ratio_nb < 0:
+                ratio_nb = 0
+            if ratio_nb > 1.0:
+                ratio_nb = 1.0
+        except (TypeError, ValueError):
+            ratio_nb = 1.0
+
         conversion_factor = factor_values.get("conversion_factor") or 1.0
-        kwh = (
-            float(surface)
-            * float(kwh_per_m2)
-            * (float(ratio) if ratio is not None else 1.0)
-        )
+        kwh = float(surface) * float(kwh_per_m2) * ratio_nb
         return kwh * float(ef) * float(conversion_factor)
 
     def resolve_computations(
