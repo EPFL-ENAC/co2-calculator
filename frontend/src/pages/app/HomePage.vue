@@ -156,29 +156,25 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
           </div>
         </div>
       </q-card>
-      <q-card flat class="container">
-        <h3 class="text-h4 text-weight-medium">
-          {{ $t('home_simulations_title') }}
-        </h3>
-        <h3 class="text-h5 text-weight-medium text-secondary">
-          {{ $t('home_simulations_subtitle') }}
-        </h3>
-        <div class="flex justify-between items-end q-mt-xl">
-          <q-btn
-            color="accent"
-            :label="$t('home_simulations_btn')"
-            unelevated
-            no-caps
-            size="md"
-            class="text-weight-medium"
-            :to="{ name: 'simulations' }"
-          />
-          <div class="column items-end">
-            <p class="text-h1 text-weight-medium q-mb-none">3</p>
-            <p class="text-secondary text-body2 q-mb-none">
-              {{ $t('home_simulations_units') }}
-            </p>
+      <q-card flat class="container column justify-between">
+        <div class="row items-center justify-between q-mb-xl">
+          <div class="row items-center q-gutter-sm">
+            <q-icon name="o_notifications" color="accent" size="sm" />
+            <h3 class="text-h4 text-weight-medium">
+              {{ $t('calculator_update_title') }}
+            </h3>
           </div>
+          <span class="text-body2 text-secondary">
+            {{ $t('calculator_update_last_update') }}
+          </span>
+        </div>
+        <div>
+          <h4 class="text-h5 text-weight-medium q-mb-xs">
+            {{ $t('calculator_update_entry_title') }}
+          </h4>
+          <p class="text-body2 text-secondary q-mb-none">
+            {{ $t('calculator_update_entry_body') }}
+          </p>
         </div>
       </q-card>
     </div>
