@@ -1,9 +1,10 @@
 """CarbonReportModule repository for database operations."""
 
+from datetime import datetime, timezone
 from math import ceil
 from typing import Any, List, Optional
 
-from sqlmodel import and_, case, col, desc, func, or_, select
+from sqlmodel import col, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
@@ -436,6 +437,8 @@ class CarbonReportModuleRepository:
             col(User.display_name).label("principal_user_name"),
             col(CarbonReport.id).label("carbon_report_id"),
             col(CarbonReport.completion_progress).label("completion_progress"),
+            col(CarbonReport.last_updated).label("last_updated"),
+            col(CarbonReport.stats).label("report_stats"),
         ]
 
         # 2. Unpack them into the select statement
@@ -475,10 +478,7 @@ class CarbonReportModuleRepository:
         )
 
         paginated_units = (await self.session.exec(units_stmt)).all()
-        page_report_ids = [u.carbon_report_id for u in paginated_units]
 
-        # Build an aggregated emission breakdown from module stats by_emission_type
-        # so frontend can reuse result-page charts with reporting filters.
         module_stats_stmt = select(
             CarbonReportModule.module_type_id,
             CarbonReportModule.status,
@@ -545,107 +545,26 @@ class CarbonReportModuleRepository:
             validated_module_type_ids=validated_module_type_ids,
         )
 
-        # --- STEP 3: The Heavy Math (Restricted to max 50 reports) ---
-        # We no longer need to join CarbonReport here,
-        # because we already have the specific IDs
-        # 1. Define the columns in a list to bypass overload limits
-        module_totals_cte_columns: List[Any] = [
-            col(CarbonReportModule.id).label("module_id"),
-            CarbonReportModule.carbon_report_id,
-            CarbonReportModule.module_type_id,
-            CarbonReportModule.status,
-            func.max(DataEntry.updated_at).label("updated_at"),
-            func.sum(func.coalesce(DataEntryEmission.kg_co2eq, 0) / 1000.0).label(
-                "tco2_total"
-            ),
-        ]
-
-        # 2. Build the query using unpacking (*)
-        module_totals_cte = (
-            select(*module_totals_cte_columns)
-            .join(
-                DataEntry,
-                DataEntry.carbon_report_module_id == CarbonReportModule.id,
-                isouter=True,
-            )
-            .join(
-                DataEntryEmission,
-                DataEntryEmission.data_entry_id == DataEntry.id,
-                isouter=True,
-            )
-            .where(col(CarbonReportModule.carbon_report_id).in_(page_report_ids))
-            # Combine into a single group_by
-            .group_by(
-                CarbonReportModule.id,
-                CarbonReportModule.carbon_report_id,
-                CarbonReportModule.module_type_id,
-                CarbonReportModule.status,
-            )
-            .cte("module_totals")
-        )
-
-        highest_rank_sub = (
-            select(
-                module_totals_cte.c.carbon_report_id,
-                module_totals_cte.c.module_type_id,
-                func.row_number()
-                .over(
-                    partition_by=module_totals_cte.c.carbon_report_id,
-                    order_by=desc(module_totals_cte.c.tco2_total),
-                )
-                .label("rn"),
-            )
-            .where(module_totals_cte.c.status == ModuleStatus.VALIDATED)
-            .subquery()
-        )
-
-        # 1. Group your columns into a list
-        columns = [
-            module_totals_cte.c.carbon_report_id,
-            func.count(
-                case((module_totals_cte.c.status == ModuleStatus.VALIDATED, 1))
-            ).label("val_count"),
-            func.count(module_totals_cte.c.module_id).label("total_count"),
-            func.max(module_totals_cte.c.updated_at).label("last_update"),
-            func.sum(module_totals_cte.c.tco2_total).label("total_footprint"),
-            highest_rank_sub.c.module_type_id.label("highest_cat_id"),
-        ]
-
-        # 2. Unpack them into select()
-        agg_stmt = (
-            select(*columns)
-            .outerjoin(
-                highest_rank_sub,
-                and_(
-                    highest_rank_sub.c.carbon_report_id
-                    == module_totals_cte.c.carbon_report_id,
-                    highest_rank_sub.c.rn == 1,
-                ),
-            )
-            .group_by(
-                module_totals_cte.c.carbon_report_id,
-                highest_rank_sub.c.module_type_id,
-            )
-        )
-
-        agg_results = (await self.session.exec(agg_stmt)).all()
-
-        # --- STEP 4: Merge in Python ---
-        # Create a dictionary mapping report_id to its aggregations for O(1) lookup
-        agg_map = {row.carbon_report_id: row for row in agg_results}
-
+        # --- STEP 3: Use cached stats from CarbonReport ---
+        # Build reporting data using pre-computed stats
         reporting_data = []
         for u in paginated_units:
             aff = u.path_name if u.path_name and len(u.path_name) > 0 else "N/A"
 
-            # Get the aggregations for this specific unit's report,
-            # or default empty values
-            aggs = agg_map.get(u.carbon_report_id)
+            report_stats = u.report_stats if isinstance(u.report_stats, dict) else {}
+            total_footprint_kg = report_stats.get("total", 0) or 0
+            total_footprint_tonnes = total_footprint_kg / 1000.0
+            highest_category_module_id = report_stats.get("highest_category_module_id")
 
-            completion_progress = u.completion_progress or "0/7"
+            last_update_dt = None
+            if u.last_updated is not None:
+                last_update_dt = datetime.fromtimestamp(u.last_updated, tz=timezone.utc)
+
+            completion_progress = u.completion_progress or "0/8"
             completion_status_value = self._get_completion_status_from_progress(
                 completion_progress
             )
+
             reporting_data.append(
                 {
                     "id": u.unit_id,
@@ -653,13 +572,11 @@ class CarbonReportModuleRepository:
                     "affiliation": aff,
                     "validation_status": completion_progress,
                     "principal_user": u.principal_user_name or "Unknown",
-                    "last_update": aggs.last_update if aggs else None,
+                    "last_update": last_update_dt,
                     "highest_result_category": self._map_module_id_to_name(
-                        aggs.highest_cat_id if aggs else None
+                        highest_category_module_id
                     ),
-                    "total_carbon_footprint": round(float(aggs.total_footprint or 0), 2)
-                    if aggs
-                    else 0.0,
+                    "total_carbon_footprint": round(total_footprint_tonnes, 2),
                     "view_url": f"/backoffice/unit/{u.unit_id}",
                     "completion": completion_status_value,
                     "completion_progress": completion_progress,
@@ -806,14 +723,22 @@ class CarbonReportModuleRepository:
         cursor = await self.session.stream(statement)
         async for partition in cursor.partitions(500):
             for row in partition:
+                last_updated_iso = None
+                if row.last_updated is not None:
+                    last_updated_iso = datetime.fromtimestamp(
+                        row.last_updated, tz=timezone.utc
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                module_status_str = ModuleStatus(row.status).name
+
                 report.append(
                     {
                         "year": row.year,
                         "unit_institutional_id": row.unit_institutional_id,
                         "unit_path_name": row.unit_path_name,
                         "module_name": ModuleTypeEnum(row.module_type_id).name,
-                        "module_status": row.status,
-                        "last_updated": row.last_updated,
+                        "module_status": module_status_str,
+                        "last_updated": last_updated_iso,
                     }
                 )
 
