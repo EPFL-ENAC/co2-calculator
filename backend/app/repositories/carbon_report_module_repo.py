@@ -283,16 +283,20 @@ class CarbonReportModuleRepository:
 
         Returns:
             - None when no hierarchy filters provided
-            - set of unit IDs when at least one filter is provided
+            - set of unit IDs (possibly empty) when at least one
+              filter was provided
         """
         all_ids: set[int] = set()
+        any_filter = False
 
-        if path_affiliation:
+        if path_affiliation is not None:
+            any_filter = True
             all_ids.update(await self._get_descendant_unit_ids(path_affiliation))
-        if path_lvl4:
+        if path_lvl4 is not None:
+            any_filter = True
             all_ids.update(await self._get_direct_unit_ids(path_lvl4))
 
-        if not all_ids:
+        if not any_filter:
             return None
 
         return all_ids
