@@ -1135,6 +1135,7 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
     cellClasses(row, col),
     'table-cell',
     { 'column-max-width': col.maxColumnWidth },
+    { 'column-min-width': col.minColumnWidth },
   ];
 }
 

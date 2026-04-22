@@ -104,6 +104,13 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
             )
         return v
 
+    @field_validator("room_allocation_ratio", mode="after")
+    @classmethod
+    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("room_allocation_ratio must be between 0 and 1")
+        return v
+
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
@@ -119,6 +126,13 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
             raise ValueError(
                 f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
             )
+        return v
+
+    @field_validator("room_allocation_ratio", mode="after")
+    @classmethod
+    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("room_allocation_ratio must be between 0 and 1")
         return v
 
 
@@ -199,15 +213,9 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         if surface is None or kwh_per_m2 is None or ef is None:
             return None
 
-        # normalize ratio to [0, 1]
-        try:
-            ratio_nb = float(ratio) if ratio is not None else 1.0
-            if ratio_nb < 0:
-                ratio_nb = 0
-            if ratio_nb > 1.0:
-                ratio_nb = 1.0
-        except (TypeError, ValueError):
-            ratio_nb = 1.0
+        # ratio is already validated to be in [0, 1],
+        # set a default value of 1.0 if not provided
+        ratio_nb = float(ratio) if ratio is not None else 1.0
 
         conversion_factor = factor_values.get("conversion_factor") or 1.0
         kwh = float(surface) * float(kwh_per_m2) * ratio_nb

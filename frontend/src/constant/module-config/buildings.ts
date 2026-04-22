@@ -81,6 +81,7 @@ const roomFields: ModuleField[] = [
     sortable: true,
     editableInline: false,
     readOnlyWhenFilled: true,
+    default: 1,
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
