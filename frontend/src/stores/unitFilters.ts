@@ -69,7 +69,8 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
         }),
       );
 
-      dataAffiliation.value = page === 1 ? mapped : [...dataAffiliation.value, ...mapped];
+      dataAffiliation.value =
+        page === 1 ? mapped : [...dataAffiliation.value, ...mapped];
 
       paginationAffiliation.value = {
         page: 1,
@@ -146,7 +147,10 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
     void nextTick(() => fetchAffiliationUnits(query, 1));
   };
 
-  const filterAffiliationUnits = (val: string, update: (cb: () => void) => void) => {
+  const filterAffiliationUnits = (
+    val: string,
+    update: (cb: () => void) => void,
+  ) => {
     update(() => {
       setSearchQueryAffiliation(val);
     });
@@ -211,7 +215,8 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
   const canLoadMoreAffiliation = computed(
     () =>
       !loadingAffiliation.value &&
-      paginationAffiliation.value.page < paginationAffiliation.value.total_pages,
+      paginationAffiliation.value.page <
+        paginationAffiliation.value.total_pages,
   );
   const canLoadMoreLevel4 = computed(
     () =>
@@ -223,7 +228,10 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
   const onScrollAffiliation = ({ to }: { to: number }) => {
     const threshold = dataAffiliation.value.length - 5;
     if (to >= threshold && canLoadMoreAffiliation.value) {
-      fetchAffiliationUnits(searchQueryAffiliation.value, currentPageAffiliation.value);
+      fetchAffiliationUnits(
+        searchQueryAffiliation.value,
+        currentPageAffiliation.value,
+      );
     }
   };
 

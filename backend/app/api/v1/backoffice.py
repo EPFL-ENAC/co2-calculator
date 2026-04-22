@@ -222,9 +222,9 @@ async def list_backoffice_units(
     ),
     page_size: int = Query(
         DEFAULT_PAGE_SIZE_UNITS,
-        ge=MIN_PAGE_SIZE,
+        ge=0,
         le=MAX_PAGE_SIZE_UNITS,
-        description="Number of items per page",
+        description="Number of items per page (0 for all items)",
     ),
     sort_by: Optional[str] = Query(
         None,

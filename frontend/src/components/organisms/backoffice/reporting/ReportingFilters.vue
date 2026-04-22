@@ -25,7 +25,10 @@ const completion = ref('');
 
 function handleFiltersChange() {
   // Clear store search queries when filters are empty
-  if (!selectedAffiliationUnits.value || selectedAffiliationUnits.value.length === 0) {
+  if (
+    !selectedAffiliationUnits.value ||
+    selectedAffiliationUnits.value.length === 0
+  ) {
     unitFiltersStore.setSearchQueryAffiliation('');
   }
   if (!selectedLevel4Units.value || selectedLevel4Units.value.length === 0) {

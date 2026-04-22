@@ -493,7 +493,9 @@ class CarbonReportModuleRepository:
         else:
             units_stmt = units_stmt.order_by(order_col)
 
-        units_stmt = units_stmt.limit(page_size).offset((page - 1) * page_size)
+        # Apply pagination - if page_size is 0, no limit (show all)
+        if page_size > 0:
+            units_stmt = units_stmt.limit(page_size).offset((page - 1) * page_size)
 
         paginated_units = (await self.session.exec(units_stmt)).all()
 
@@ -624,7 +626,7 @@ class CarbonReportModuleRepository:
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": ceil(total / page_size),
+            "total_pages": ceil(total / page_size) if page_size > 0 else 1,
             "emission_breakdown": emission_breakdown,
             "validated_units_count": validated_units_count,
             "in_progress_units_count": in_progress_units_count,

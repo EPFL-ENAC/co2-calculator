@@ -116,7 +116,9 @@ const unitFilters = computed<UnitFilters>(() => {
 
   return {
     path_affiliation:
-      selectedPathAffiliation.value.length > 0 ? selectedPathAffiliation.value : undefined,
+      selectedPathAffiliation.value.length > 0
+        ? selectedPathAffiliation.value
+        : undefined,
     path_lvl4:
       selectedPathLvl4.value.length > 0 ? selectedPathLvl4.value : undefined,
     years: selectedYears.value,

@@ -134,15 +134,20 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   // }
 
   async function getUnits(filters?: UnitFilters) {
-    console.log('📡 [BackofficeStore] getUnits called with pagination:', JSON.stringify(unitsPagination, null, 2));
-    
+    console.log(
+      '📡 [BackofficeStore] getUnits called with pagination:',
+      JSON.stringify(unitsPagination, null, 2),
+    );
+
     try {
       unitsLoading.value = true;
       unitsErrors.value = [];
 
       const searchParams = new URLSearchParams();
       searchParams.append('page', String(unitsPagination.page));
-      searchParams.append('page_size', String(unitsPagination.pageSize));
+      // Send 0 for "all" (no pagination), otherwise send actual page size
+      const apiPageSize = unitsPagination.pageSize >= 5000 ? 0 : unitsPagination.pageSize;
+      searchParams.append('page_size', String(apiPageSize));
 
       // Send sort parameters if sortBy is set
       if (unitsPagination.sortBy) {

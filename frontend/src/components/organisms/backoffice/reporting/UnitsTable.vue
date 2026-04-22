@@ -49,12 +49,18 @@ function onRequest(request: {
   const currentDescending = backofficeStore.unitsPagination.descending;
   const newSortBy = request.pagination.sortBy;
 
+  console.log('🔍 [UnitsTable] onRequest received:', {
+    page: request.pagination.page,
+    rowsPerPage: request.pagination.rowsPerPage,
+    sortBy: newSortBy,
+  });
+
   console.log('🔍 [UnitsTable] Sort change detection:', {
     current: { sortBy: currentSortBy, descending: currentDescending },
     new: { sortBy: newSortBy },
   });
 
-  let finalDescending = false;
+  let finalDescending;
   let finalSortBy = newSortBy;
 
   if (!newSortBy) {
@@ -78,12 +84,12 @@ function onRequest(request: {
     finalDescending = false;
     console.log('🆕 [UnitsTable] New column, starting with ascending');
   }
-
+  
   backofficeStore.unitsPagination.page = request.pagination.page;
   backofficeStore.unitsPagination.pageSize = request.pagination.rowsPerPage;
   backofficeStore.unitsPagination.sortBy = finalSortBy;
   backofficeStore.unitsPagination.descending = finalDescending;
-
+  
   console.log(
     '✅ [UnitsTable] Store updated to:',
     JSON.stringify(backofficeStore.unitsPagination, null, 2),
@@ -92,7 +98,7 @@ function onRequest(request: {
   emit('request-data');
 }
 
-const paginationOptions = [10, 25, 50, 100, 5000];
+const paginationOptions = [10, 25, 50, 100, { label: 'All', value: 5000 }];
 
 const pagination = computed(() => ({
   page: backofficeStore.unitsPagination.page,
@@ -184,11 +190,11 @@ const columns = computed<QTableColumn[]>(() => [
     </span>
   </div>
   <q-table
+    v-model:pagination="pagination"
     :binary-state-sort="true"
     :rows="props.units"
     :columns="columns"
     row-key="id"
-    :pagination="pagination"
     :loading="props.loading"
     class="co2-table border shadow-0"
     flat
