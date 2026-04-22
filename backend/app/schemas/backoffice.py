@@ -1,9 +1,9 @@
 """Backoffice reporting schemas for API request/response validation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from app.core.constants import ModuleStatus
 
@@ -22,10 +22,10 @@ class UnitReportingData(BaseModel):
     principal_user: str
 
     # Date of last module validation
-    last_update: Optional[datetime]
+    last_update: Optional[datetime] = None
 
     # Name of the module with the highest tCO2-eq
-    highest_result_category: Optional[str]
+    highest_result_category: Optional[str] = None
 
     # Numeric value for the sum of emissions
     total_carbon_footprint: float = Field(..., description="Total tCO2-eq")
@@ -42,8 +42,15 @@ class UnitReportingData(BaseModel):
     # Progress string from carbon_reports.completion_progress (e.g. "5/7")
     completion_progress: Optional[str] = None
 
+    @field_serializer("last_update")
+    def serialize_last_update(self, dt: Optional[datetime]) -> Optional[str]:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+
     class Config:
-        # Allows using the field names or the original aliases
         populate_by_name = True
 
 

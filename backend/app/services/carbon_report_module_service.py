@@ -260,13 +260,18 @@ class CarbonReportModuleService:
         )
 
         await self.repo.update_stats(carbon_report_module_id, stats)
+
+        now_utc = int(datetime.now(timezone.utc).timestamp())
+        module.last_updated = now_utc
+        self.session.add(module)
+
         logger.info(
             f"Stats recomputed for module {sanitize(carbon_report_module_id)}: "
             f"total={stats['total']:.2f} kgCO2eq, "
-            f"{len(stats['by_emission_type'])} emission types"
+            f"{len(stats['by_emission_type'])} emission types, "
+            f"last_updated={now_utc}"
         )
 
-        # Trigger parent carbon report stats recomputation
         from app.services.carbon_report_service import CarbonReportService
 
         report_service = CarbonReportService(self.session)
