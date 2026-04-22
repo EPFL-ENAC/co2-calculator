@@ -18,13 +18,13 @@ class TestGetModuleStatus:
         assert get_module_status({"status": "validated"}) == "validated"
 
     def test_dict_without_status(self):
-        assert get_module_status({}) == "default"
+        assert get_module_status({}) == "not_started"
 
     def test_string_value(self):
         assert get_module_status("in-progress") == "in-progress"
 
     def test_non_string_non_dict(self):
-        assert get_module_status(42) == "default"
+        assert get_module_status(42) == "not_started"
 
 
 # ---------------------------------------------------------------------------

@@ -24,12 +24,12 @@ class ModuleStatus(IntEnum):
 
 
 # =============================================================================
-# Status Priority Order
+# Status to ModuleStatus Mapping
 # =============================================================================
-STATUS_ORDER = {
-    "validated": 3,
-    "in-progress": 2,
-    "default": 1,
+STATUS_TO_ENUM = {
+    "validated": ModuleStatus.VALIDATED,
+    "in-progress": ModuleStatus.IN_PROGRESS,
+    "not_started": ModuleStatus.NOT_STARTED,
 }
 
 

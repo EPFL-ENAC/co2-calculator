@@ -34,7 +34,7 @@ from app.core.constants import (
     MAX_PAGE_SIZE_EXPORT,
     MAX_PAGE_SIZE_UNITS,
     MIN_PAGE_SIZE,
-    STATUS_ORDER,
+    STATUS_TO_ENUM,
     UNKNOWN_AFFILIATION,
     UNKNOWN_STATUS,
     UNKNOWN_UNIT,
@@ -125,8 +125,8 @@ def get_module_status(module_data: dict | str) -> str:
     """Extract status from module data
     (handles both old string format and new object format)."""
     if isinstance(module_data, dict):
-        return module_data.get("status", "default")
-    return module_data if isinstance(module_data, str) else "default"
+        return module_data.get("status", "not_started")
+    return module_data if isinstance(module_data, str) else "not_started"
 
 
 def get_module_outlier_values(module_data: dict | str) -> int:
@@ -201,9 +201,9 @@ def get_completion_for_years(completion: dict, years: list[str] | None = None) -
                 }
             else:
                 # Use best status, sum outlier values
-                if STATUS_ORDER.get(new_status, 0) > STATUS_ORDER.get(
-                    current_status, 0
-                ):
+                if STATUS_TO_ENUM.get(
+                    new_status, ModuleStatus.NOT_STARTED
+                ) > STATUS_TO_ENUM.get(current_status, ModuleStatus.NOT_STARTED):
                     aggregated[module_name]["status"] = new_status
                 current_outlier = aggregated[module_name].get("outlier_values", 0)
                 if isinstance(current_outlier, int):
