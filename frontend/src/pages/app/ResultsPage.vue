@@ -546,7 +546,9 @@ const getUncertainty = (
             resultsSummary.unit_totals.total_fte == null
               ? $t('results_carbon_footprint_per_FTE_no_headcount')
               : $t('results_carbon_footprint_per_fte', {
-                  FTE: resultsSummary.unit_totals.total_fte,
+                  FTE: $nOrDash(resultsSummary.unit_totals.total_fte, {
+                    options: { maximumFractionDigits: 1 },
+                  }),
                 })
           "
           :number="
@@ -811,7 +813,10 @@ const getUncertainty = (
                                 'results_carbon_footprint_per_FTE_no_headcount',
                               )
                             : $t('results_carbon_footprint_per_fte', {
-                                FTE: resultsSummary.unit_totals.total_fte,
+                                FTE: $nOrDash(
+                                  resultsSummary.unit_totals.total_fte,
+                                  { options: { maximumFractionDigits: 1 } },
+                                ),
                               })
                         "
                         :number="
