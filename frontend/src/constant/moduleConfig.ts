@@ -72,6 +72,7 @@ export interface ModuleField {
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
+  minColumnWidth?: number;
   maxColumnWidth?: number;
   hideIn?: {
     table?: boolean;

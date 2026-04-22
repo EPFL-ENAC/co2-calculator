@@ -69,7 +69,10 @@
           :props="scope"
           :align="col.align"
           class="q-pa-xs"
-          :class="{ 'column-max-width': col.maxColumnWidth }"
+          :class="{
+            'column-max-width': col.maxColumnWidth,
+            'column-min-width': col.minColumnWidth,
+          }"
           :style="getColumnStyle(col)"
         >
           <span>{{ col.label }}</span>
@@ -738,6 +741,7 @@ type TableViewColumn = {
   optionsId?: string;
   tooltip?: string;
   type: ModuleField['type'];
+  minColumnWidth?: number;
   maxColumnWidth?: number;
   readOnlyWhen?: ModuleField['readOnlyWhen'];
   readOnlyDisplayField?: string;
@@ -789,6 +793,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             options,
             tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
             type: f.type,
+            minColumnWidth: f.minColumnWidth,
             maxColumnWidth: f.maxColumnWidth,
             readOnlyWhen: f.readOnlyWhen,
             readOnlyDisplayField: f.readOnlyDisplayField,
@@ -821,6 +826,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           optionsId: f.optionsId,
           tooltip,
           type: f.type,
+          minColumnWidth: f.minColumnWidth,
           maxColumnWidth: f.maxColumnWidth,
           readOnlyWhen: f.readOnlyWhen,
           readOnlyDisplayField: f.readOnlyDisplayField,
@@ -845,6 +851,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       options: undefined,
       tooltip: undefined,
       type: 'text',
+      minColumnWidth: undefined,
       maxColumnWidth: undefined,
     });
   }
@@ -1113,8 +1120,14 @@ function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
 }
 
 function getColumnStyle(col: TableViewColumn) {
-  if (!col.maxColumnWidth) return {};
-  return { '--max-column-width': `${col.maxColumnWidth}px` };
+  const style: Record<string, string> = {};
+  if (col.minColumnWidth) {
+    style['--min-column-width'] = `${col.minColumnWidth}px`;
+  }
+  if (col.maxColumnWidth) {
+    style['--max-column-width'] = `${col.maxColumnWidth}px`;
+  }
+  return style;
 }
 
 function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
@@ -1122,6 +1135,7 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
     cellClasses(row, col),
     'table-cell',
     { 'column-max-width': col.maxColumnWidth },
+    { 'column-min-width': col.minColumnWidth },
   ];
 }
 
@@ -1526,6 +1540,11 @@ onUnmounted(() => {
   word-wrap: break-word;
 }
 
+.column-min-width {
+  min-width: var(--min-column-width, 100%);
+  white-space: normal;
+}
+
 .column-max-width {
   max-width: var(--max-column-width, 100%);
   white-space: normal;
@@ -1533,10 +1552,6 @@ onUnmounted(() => {
 
 .table-search {
   min-width: 240px;
-}
-
-.inline-input {
-  width: 120px;
 }
 
 .row-new {

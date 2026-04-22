@@ -40,6 +40,7 @@ export function useBuildingRoomDynamicOptions(
         form['room_name'] = null;
         form['room_type'] = null;
         form['room_surface_square_meter'] = null;
+        form['room_allocation_ratio'] = 1;
         form['heating_kwh_per_square_meter'] = null;
         form['cooling_kwh_per_square_meter'] = null;
         form['ventilation_kwh_per_square_meter'] = null;
@@ -52,6 +53,7 @@ export function useBuildingRoomDynamicOptions(
         form['room_name'] = null;
         form['room_type'] = null;
         form['room_surface_square_meter'] = null;
+        form['room_allocation_ratio'] = 1;
         form['heating_kwh_per_square_meter'] = null;
         form['cooling_kwh_per_square_meter'] = null;
         form['ventilation_kwh_per_square_meter'] = null;
