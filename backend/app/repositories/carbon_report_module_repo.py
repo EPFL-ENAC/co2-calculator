@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 from sqlmodel import col, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ModuleStatus
+from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -556,7 +556,7 @@ class CarbonReportModuleRepository:
             if u.last_updated is not None:
                 last_update_dt = datetime.fromtimestamp(u.last_updated, tz=timezone.utc)
 
-            completion_progress = u.completion_progress or "0/8"
+            completion_progress = u.completion_progress or DEFAULT_COMPLETION_PROGRESS
             completion_status_value = self._get_completion_status_from_progress(
                 completion_progress
             )

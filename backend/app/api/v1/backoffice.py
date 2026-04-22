@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_db
 from app.core.constants import (
     DEFAULT_CARBON_FOOTPRINT,
+    DEFAULT_COMPLETION_PROGRESS,
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE_EXPORT,
     DEFAULT_PAGE_SIZE_UNITS,
@@ -250,7 +251,7 @@ async def list_backoffice_units(
     unit_reporting_data = []
     for item in result.get("data", []):
         if isinstance(item, dict):
-            completion = item.get("completion_progress", "0/8")
+            completion = item.get("completion_progress", DEFAULT_COMPLETION_PROGRESS)
             completion_status = ModuleStatus.NOT_STARTED
             left, right = completion.split("/")
             if left == right and left != "0":

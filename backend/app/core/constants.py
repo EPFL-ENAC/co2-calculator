@@ -2,6 +2,8 @@
 
 from enum import IntEnum
 
+from app.models.module_type import ModuleTypeEnum
+
 
 # =============================================================================
 # Module Status
@@ -90,3 +92,10 @@ DEFAULT_CARBON_FOOTPRINT = 0.0
 # Year Validation
 # =============================================================================
 YEAR_LENGTH = 4
+
+
+# =============================================================================
+# Module Completion
+# =============================================================================
+TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
+DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
