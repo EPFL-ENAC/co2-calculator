@@ -46,6 +46,7 @@ async def test_resolve_primary_factor_id_with_subkind(service):
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
         subkind="SubA1",
+        year=None,
     )
 
 
@@ -66,6 +67,7 @@ async def test_resolve_primary_factor_id_no_subkind_field(service):
         data_entry_type=DataEntryTypeEnum.energy_combustion,
         kind="natural_gas",
         subkind=None,
+        year=None,
     )
 
 
@@ -100,6 +102,7 @@ async def test_resolve_primary_factor_id_merges_existing_data(service):
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
         subkind="SubB1",
+        year=None,
     )
 
 
