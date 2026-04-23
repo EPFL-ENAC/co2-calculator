@@ -343,7 +343,7 @@ class DataEntryEmissionService:
                 emission_factors = []
                 for node in all_nodes:
                     node_factors = await factor_service.list_by_emission_type(
-                        EmissionType(node)
+                        EmissionType(node), year=year
                     )
                     emission_factors.extend(node_factors)
                 # we should also filter by data_entry_type in case we have factors
@@ -365,7 +365,9 @@ class DataEntryEmissionService:
             #     Returns all factors for this entry type
             elif q.data_entry_type is not None:
                 result.extend(
-                    await factor_service.list_by_data_entry_type(q.data_entry_type)
+                    await factor_service.list_by_data_entry_type(
+                        q.data_entry_type, year=year
+                    )
                 )
 
         return result

@@ -48,7 +48,7 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         # Load factors for this specific data entry type
         logger.info(f"Loading factors for data_entry_type={configured_data_entry_type}")
         type_factors = await load_factors_map(
-            self.data_session, configured_data_entry_type
+            self.data_session, configured_data_entry_type, self.year
         )
         factors_map = type_factors
 

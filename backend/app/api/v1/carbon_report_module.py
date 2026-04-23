@@ -710,6 +710,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 
@@ -820,6 +821,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 

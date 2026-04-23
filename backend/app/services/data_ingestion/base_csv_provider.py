@@ -837,16 +837,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
+                year_value = self.year or 0
                 # Build lookup key same way as load_factors_map does
                 key_full = (
                     f"{data_entry_type.value}:"
+                    f"{year_value}:"
                     f"{(kind_value or '').lower()}:"
                     f"{(subkind_value or '').lower()}"
                 )
                 factor = setup_result["factors_map"].get(key_full)
                 # Fallback: try without subkind
                 if not factor and subkind_value:
-                    key_kind = f"{data_entry_type.value}:{(kind_value or '').lower()}"
+                    key_kind = (
+                        f"{data_entry_type.value}:"
+                        f"{year_value}:"
+                        f"{(kind_value or '').lower()}"
+                    )
                     factor = setup_result["factors_map"].get(key_kind)
                 if factor:
                     primary_factor_id = factor.id

@@ -75,7 +75,7 @@ class ModuleHandlerService:
         data_entry_type: DataEntryTypeEnum,
         item_data: dict,
         existing_data: dict | None,
-        year: Optional[int] = None,
+        year: int,
     ) -> dict:
         """Resolve primary_factor_id when classification fields change.
 

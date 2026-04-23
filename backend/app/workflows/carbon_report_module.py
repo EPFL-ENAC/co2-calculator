@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,7 +37,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: Optional[int] = None,
+        year: int,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -159,7 +157,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: Optional[int] = None,
+        year: int,
     ) -> DataEntryResponse:
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
