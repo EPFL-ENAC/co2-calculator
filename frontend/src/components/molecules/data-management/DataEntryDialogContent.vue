@@ -77,19 +77,40 @@ watch(showDialog, (newVal) => {
     <q-card class="column" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
-          {{
-            $t('data_management_import_title', {
-              type: $t(TargetType[props.targetType]),
-            })
-          }}
-          <span
+          <!--
+            Reduction objectives share a single TargetType (REDUCTION_OBJECTIVES)
+            for all three CSV types (footprint, population, scenarios), so
+            $t(TargetType[targetType]) would always show "REDUCTION_OBJECTIVES".
+            Instead we use the card's labelKey as the title noun directly,
+            e.g. "Import Institution's Carbon Footprint Data".
+          -->
+          <template
             v-if="
-              props.row.dataEntryTypeId == undefined && props.row.moduleTypeId
+              props.row.reductionObjectiveTypeId !== undefined &&
+              props.row.labelKey
             "
           >
-            {{ props.row.moduleTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
-          </span>
-          {{ props.row.dataEntryTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
+            {{
+              $t('data_management_import_title', {
+                type: $t(props.row.labelKey),
+              })
+            }}
+          </template>
+          <template v-else>
+            {{
+              $t('data_management_import_title', {
+                type: $t(TargetType[props.targetType]),
+              })
+            }}
+            <span
+              v-if="
+                props.row.dataEntryTypeId == undefined && props.row.moduleTypeId
+              "
+            >
+              {{ props.row.moduleTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
+            </span>
+            {{ props.row.dataEntryTypeId ? `- ${$t(props.row.labelKey)}` : '' }}
+          </template>
         </div>
         <q-btn
           v-close-popup

@@ -200,7 +200,12 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
             csvButtonLabel(reductionFiles?.institutional_footprint)
           "
           button-icon="upload"
-          :row="{ reductionObjectiveTypeId: 0 } as ImportRow"
+          :row="
+            {
+              reductionObjectiveTypeId: 0,
+              labelKey: 'data_management_institution_carbon_footprint_title',
+            } as ImportRow
+          "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.institutional_footprint)"
           @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
@@ -216,7 +221,12 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :button-color="csvButtonColor(reductionFiles?.population_projections)"
           :button-label="csvButtonLabel(reductionFiles?.population_projections)"
           button-icon="upload"
-          :row="{ reductionObjectiveTypeId: 1 } as ImportRow"
+          :row="
+            {
+              reductionObjectiveTypeId: 1,
+              labelKey: 'data_management_population_projections_title',
+            } as ImportRow
+          "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.population_projections)"
           @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
@@ -232,7 +242,12 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :button-color="csvButtonColor(reductionFiles?.unit_scenarios)"
           :button-label="csvButtonLabel(reductionFiles?.unit_scenarios)"
           button-icon="upload"
-          :row="{ reductionObjectiveTypeId: 2 } as ImportRow"
+          :row="
+            {
+              reductionObjectiveTypeId: 2,
+              labelKey: 'data_management_unit_reduction_scenarios_title',
+            } as ImportRow
+          "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.unit_scenarios)"
           @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
