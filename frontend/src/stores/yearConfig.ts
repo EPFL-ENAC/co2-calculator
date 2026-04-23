@@ -9,10 +9,11 @@ import {
 } from 'src/constant/backoffice-module-config';
 import { MODULES_LIST, type Module } from 'src/constant/modules';
 
-interface FileMetadata {
+export interface FileMetadata {
   path: string;
   filename: string;
   uploaded_at: string;
+  rows_processed?: number;
 }
 
 export interface ReductionObjectiveGoal {

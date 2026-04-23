@@ -34,6 +34,9 @@ class FileMetadata(BaseModel):
     path: str = Field(..., description="Storage path for the file")
     filename: str = Field(..., description="Original filename")
     uploaded_at: str = Field(..., description="Upload timestamp in ISO format")
+    rows_processed: Optional[int] = Field(
+        default=None, description="Number of rows successfully ingested"
+    )
 
 
 # ---------------------------------------------------------------------------
