@@ -61,10 +61,10 @@ class ExternalCloudHandlerResponse(DataEntryResponseGen):
 
 
 class ExternalAIHandlerResponse(DataEntryResponseGen):
-    provider: str
-    usage_type: str
+    provider: Optional[str] = None
+    usage_type: Optional[str] = None
     requests_per_user_per_day: Optional[str] = None
-    user_count: int
+    user_count: Optional[int] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
@@ -383,15 +383,16 @@ class ExternalAIModuleHandler(BaseModuleHandler):
     }
 
     def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
+        primary_factor = data_entry.data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **data_entry.data,
-                "provider": data_entry.data["primary_factor"].get("provider")
+                "provider": primary_factor.get("provider")
                 or data_entry.data.get("provider"),
-                "usage_type": data_entry.data["primary_factor"].get("usage_type")
+                "usage_type": primary_factor.get("usage_type")
                 or data_entry.data.get("usage_type"),
             }
         )
