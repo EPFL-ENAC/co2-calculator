@@ -384,7 +384,7 @@ async def test_setup_skips_factors_without_id(monkeypatch):
     handler.create_dto.model_fields = {}
 
     monkeypatch.setattr(
-        csv_providers_module.ModuleUnitSpecificCSVProvider.BaseModuleHandler,
+        csv_providers_module.module_unit_specific.BaseModuleHandler,
         "get_by_type",
         MagicMock(return_value=handler),
     )
@@ -489,7 +489,7 @@ async def test_resolve_handler_from_category_field():
 @pytest.mark.asyncio
 async def test_all_data_entry_types_return_factor_id_to_factor(monkeypatch):
     """Every valid DataEntryTypeEnum must return factor_id_to_factor in setup."""
-    for entry_type in DataEntryTypeEnum:
+    for entry_type in list(DataEntryTypeEnum):
         provider = ModuleUnitSpecificCSVProvider(
             {
                 "file_path": "tmp/test.csv",
