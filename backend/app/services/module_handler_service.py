@@ -30,6 +30,7 @@ class ModuleHandlerService:
         handler: "ModuleHandler",
         payload: dict,
         data_entry_type_id: DataEntryTypeEnum,
+        year: int,
         existing_data: Optional[dict] = None,
     ) -> dict:
         """Resolve and set primary_factor_id on the payload.
@@ -41,6 +42,9 @@ class ModuleHandlerService:
             handler: The module handler for this data entry type
             payload: The data payload to enrich
             data_entry_type_id: The data entry type enum
+            year: Carbon-report year. Required — without it the factor lookup
+                  spans all years and raises MultipleResultsFound when the same
+                  classification exists in more than one year.
             existing_data: Existing data entry data for merging on updates
         """
         if handler.kind_field is None:
@@ -59,6 +63,7 @@ class ModuleHandlerService:
             data_entry_type=data_entry_type_id,
             kind=kind,
             subkind=subkind if subkind else None,
+            year=year,
         )
         payload["primary_factor_id"] = factor.id if factor else None
         return payload
@@ -70,6 +75,7 @@ class ModuleHandlerService:
         data_entry_type: DataEntryTypeEnum,
         item_data: dict,
         existing_data: dict | None,
+        year: int,
     ) -> dict:
         """Resolve primary_factor_id when classification fields change.
 
@@ -79,13 +85,14 @@ class ModuleHandlerService:
             data_entry_type: The data entry type enum
             item_data: The incoming item data from the request
             existing_data: The existing data entry data
+            year: Carbon-report year passed through to resolve_primary_factor_id.
         """
         handler_kind_field = handler.kind_field or ""
         handler_subkind_field = handler.subkind_field or ""
 
         if existing_data is None:
             return await self.resolve_primary_factor_id(
-                handler, update_payload, data_entry_type, existing_data=None
+                handler, update_payload, data_entry_type, existing_data=None, year=year
             )
 
         kind_changed = (handler_kind_field in item_data) and (
@@ -105,6 +112,7 @@ class ModuleHandlerService:
                 update_payload,
                 data_entry_type,
                 existing_data=existing_data,
+                year=year,
             )
 
         return update_payload
