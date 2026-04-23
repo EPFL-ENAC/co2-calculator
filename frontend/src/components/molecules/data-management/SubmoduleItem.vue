@@ -222,7 +222,7 @@ async function handleCancelJob(jobId: number) {
       <UploadCardFactors
         v-if="getImportRow(submodule).hasFactors"
         :row="getImportRow(submodule)"
-        :module="''"
+        :module="submodule.key"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
         :on-download="

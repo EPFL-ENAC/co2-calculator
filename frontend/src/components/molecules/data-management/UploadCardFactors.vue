@@ -44,7 +44,7 @@ const description = computed(() => {
 });
 
 const hasComputedFactor = computed(() => {
-  return props.module === 'research_facilities';
+  return props.module === 'research-facilities';
 });
 
 function handleUpload() {
