@@ -101,7 +101,7 @@ function handleCancel() {
 </script>
 
 <template>
-  <q-card flat class="q-pa-lg" :style="cardStyle(buttonColor)">
+  <q-card flat class="q-pa-lg column" :style="cardStyle(buttonColor)">
     <!-- Title and description -->
     <div class="row items-center q-mb-xs">
       <div class="text-body2 text-weight-bold">
@@ -122,7 +122,7 @@ function handleCancel() {
     </div>
 
     <!-- Upload button row -->
-    <div class="row justify-between items-center full-width">
+    <div class="row justify-between items-center full-width" style="margin-top: auto">
       <div class="row q-mr-xs items-center" style="gap: 0.5rem">
         <q-spinner-rings v-if="isLoading" color="grey" />
         <q-btn
@@ -183,16 +183,19 @@ function handleCancel() {
         class="row items-center no-wrap"
         style="gap: 0.75rem"
       >
-        <div class="row items-end">
+        <div class="column">
           <div class="row items-center text-body2 text-weight-medium">
             <span class="text-positive q-mr-xs">✓</span>
             {{ jobInfo.fileName }}
           </div>
           <div class="text-caption text-grey-7">
-            {{ jobInfo.rowsProcessed }}
-            {{ $t('data_management_rows_imported') }}
+            <span v-if="jobInfo.rowsProcessed !== undefined">
+              {{ jobInfo.rowsProcessed }}
+              {{ $t('data_management_rows_imported') }}
+            </span>
             <span v-if="jobInfo.timestamp">
-              • {{ jobInfo.timestamp.toLocaleDateString() }}
+              {{ jobInfo.rowsProcessed !== undefined ? '•' : '' }}
+              {{ jobInfo.timestamp.toLocaleDateString() }}
             </span>
           </div>
         </div>

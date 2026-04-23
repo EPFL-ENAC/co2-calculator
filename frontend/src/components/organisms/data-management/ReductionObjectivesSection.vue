@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import {
   useYearConfigStore,
   type ReductionObjectiveGoal,
+  type FileMetadata,
 } from 'src/stores/yearConfig';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -11,7 +12,10 @@ import { inject } from 'vue';
 import {
   TargetType,
   type ImportRow,
+  type SyncJobResponse,
 } from 'src/stores/backofficeDataManagement';
+import UploadCard from 'src/components/molecules/data-management/UploadCard.vue';
+
 const props = defineProps<{
   selectedYear: number;
 }>();
@@ -62,10 +66,17 @@ watch(
   { immediate: true },
 );
 
-/** True when at least one goal has meaningful data filled. */
-const hasReductionGoals = computed(() =>
-  localGoals.value.some((g) => g.target_year > 0 && g.reference_year > 0),
-);
+/** True when all mandatory fields are filled: 3 CSV files + first goal. */
+const isComplete = computed(() => {
+  const files = yearConfigStore.config?.config?.reduction_objectives?.files;
+  return (
+    !!files?.institutional_footprint &&
+    !!files?.population_projections &&
+    !!files?.unit_scenarios &&
+    localGoals.value[0].target_year > 0 &&
+    localGoals.value[0].reference_year > 0
+  );
+});
 
 /** True when all filled-in goals pass validation (percentage displayed as 0–100). */
 const goalsAreValid = computed(() =>
@@ -109,17 +120,41 @@ async function saveReductionGoals(): Promise<void> {
   }
 }
 
-/** File refs for reduction objective CSV uploads. */
-/** Uploaded file names derived from the store. */
-const uploadedFileNames = computed(() => {
-  // TODO: add a way to download the files in .path
-  const files = yearConfigStore.config?.config?.reduction_objectives?.files;
+/** Convert a FileMetadata entry into a minimal SyncJobResponse so UploadCard can render file info and download. */
+function fileMetaToJob(file: FileMetadata | null | undefined): SyncJobResponse | undefined {
+  if (!file) return undefined;
   return {
-    footprint: files?.institutional_footprint?.filename ?? null,
-    population: files?.population_projections?.filename ?? null,
-    scenarios: files?.unit_scenarios?.filename ?? null,
+    job_id: 0,
+    meta: {
+      file_path: file.filename,
+      processed_file_path: file.path,
+      timestamp: file.uploaded_at,
+      rows_processed: file.rows_processed,
+    },
   };
-});
+}
+
+function downloadFile(file: FileMetadata | null | undefined): void {
+  if (!file?.path) return;
+  const a = document.createElement('a');
+  a.href = `/api/v1/files/${file.path}`;
+  a.download = file.filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+const reductionFiles = computed(
+  () => yearConfigStore.config?.config?.reduction_objectives?.files,
+);
+
+function csvButtonColor(file: FileMetadata | null | undefined): string {
+  return file ? 'positive' : 'accent';
+}
+
+function csvButtonLabel(file: FileMetadata | null | undefined): string {
+  return file ? $t('data_management_reupload_data') : $t('common_upload_csv');
+}
 </script>
 
 <template>
@@ -135,7 +170,7 @@ const uploadedFileNames = computed(() => {
               {{ $t('data_management_reduction_objectives') }}</span
             >
             <q-badge
-              v-if="!hasReductionGoals"
+              v-if="!isComplete"
               outline
               rounded
               color="accent"
@@ -148,131 +183,50 @@ const uploadedFileNames = computed(() => {
       </template>
       <q-separator />
       <!-- File Upload Section -->
-      <q-card flat class="q-pa-none row">
-        <q-card
-          flat
-          class="col q-px-lg q-py-xl"
-          style="border-right: 1px solid #d5d5d5"
-        >
-          <div class="row items-start align-center q-my-xs">
-            <q-icon name="barefoot" color="accent" size="xs" class="q-mr-sm" />
-            <div class="text-body1 text-weight-medium">
-              {{ $t('data_management_institution_carbon_footprint_title') }}
-            </div>
-          </div>
-          <div class="text-body2 text-secondary">
-            {{ $t('data_management_institution_carbon_footprint_description') }}
-          </div>
-          <div
-            v-if="uploadedFileNames.footprint"
-            class="text-caption text-positive q-mt-sm"
-          >
-            <q-icon name="check" /> {{ uploadedFileNames.footprint }}
-          </div>
-          <div class="row q-gutter-md q-mt-lg">
-            <q-btn
-              :color="'red'"
-              icon="add"
-              size="sm"
-              :label="$t('common_upload_csv')"
-              class="text-weight-medium"
-              :disable="false"
-              @click="
-                openDataEntryDialog(
-                  {
-                    reductionObjectiveTypeId: 0, // footprint
-                  } as ImportRow,
-                  TargetType.REDUCTION_OBJECTIVES,
-                )
-              "
-            />
-          </div>
-        </q-card>
-        <q-card
-          flat
-          class="col q-px-lg q-py-xl"
-          style="border-right: 1px solid #d5d5d5"
-        >
-          <div class="row items-start align-center q-mb-xs">
-            <q-icon
-              name="o_groups_2"
-              color="accent"
-              size="xs"
-              class="q-mr-sm"
-            />
-            <div class="text-body1 text-weight-medium">
-              {{ $t('data_management_population_projections_title') }}
-            </div>
-          </div>
-          <div class="text-body2 text-secondary">
-            {{ $t('data_management_population_projections_description') }}
-          </div>
-          <div
-            v-if="uploadedFileNames.population"
-            class="text-caption text-positive q-mt-sm"
-          >
-            <q-icon name="check" /> {{ uploadedFileNames.population }}
-          </div>
-          <div class="row q-gutter-md q-mt-lg">
-            <q-btn
-              :color="'red'"
-              icon="add"
-              size="sm"
-              :label="$t('common_upload_csv')"
-              class="text-weight-medium"
-              :disable="false"
-              @click="
-                openDataEntryDialog(
-                  {
-                    reductionObjectiveTypeId: 1, // population
-                  } as ImportRow,
-                  TargetType.REDUCTION_OBJECTIVES,
-                )
-              "
-            />
-          </div>
-        </q-card>
-        <q-card flat class="col q-px-lg q-py-xl border-right">
-          <div class="row items-start align-center q-mb-xs">
-            <q-icon
-              name="o_square_foot"
-              color="accent"
-              size="xs"
-              class="q-mr-sm"
-            />
-            <div class="text-body1 text-weight-medium">
-              {{ $t('data_management_unit_reduction_scenarios_title') }}
-            </div>
-          </div>
-          <div class="text-body2 text-secondary">
-            {{ $t('data_management_unit_reduction_scenarios_description') }}
-          </div>
-          <div
-            v-if="uploadedFileNames.scenarios"
-            class="text-caption text-positive q-mt-sm"
-          >
-            <q-icon name="check" /> {{ uploadedFileNames.scenarios }}
-          </div>
-          <div class="row q-gutter-md q-mt-lg">
-            <q-btn
-              :color="'red'"
-              icon="add"
-              size="sm"
-              :label="$t('common_upload_csv')"
-              class="text-weight-medium"
-              :disable="false"
-              @click="
-                openDataEntryDialog(
-                  {
-                    reductionObjectiveTypeId: 2, // scenarios
-                  } as ImportRow,
-                  TargetType.REDUCTION_OBJECTIVES,
-                )
-              "
-            />
-          </div>
-        </q-card>
-      </q-card>
+      <div class="row q-pa-md q-gutter-md">
+        <UploadCard
+          class="col"
+          :title="$t('data_management_institution_carbon_footprint_title')"
+          :description="$t('data_management_institution_carbon_footprint_description')"
+          :show-mandatory-indicator="true"
+          :button-color="csvButtonColor(reductionFiles?.institutional_footprint)"
+          :button-label="csvButtonLabel(reductionFiles?.institutional_footprint)"
+          button-icon="upload"
+          :row="({ reductionObjectiveTypeId: 0 } as ImportRow)"
+          :target-type="TargetType.REDUCTION_OBJECTIVES"
+          :last-job="fileMetaToJob(reductionFiles?.institutional_footprint)"
+          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @download="downloadFile(reductionFiles?.institutional_footprint)"
+        />
+        <UploadCard
+          class="col"
+          :title="$t('data_management_population_projections_title')"
+          :description="$t('data_management_population_projections_description')"
+          :show-mandatory-indicator="true"
+          :button-color="csvButtonColor(reductionFiles?.population_projections)"
+          :button-label="csvButtonLabel(reductionFiles?.population_projections)"
+          button-icon="upload"
+          :row="({ reductionObjectiveTypeId: 1 } as ImportRow)"
+          :target-type="TargetType.REDUCTION_OBJECTIVES"
+          :last-job="fileMetaToJob(reductionFiles?.population_projections)"
+          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @download="downloadFile(reductionFiles?.population_projections)"
+        />
+        <UploadCard
+          class="col"
+          :title="$t('data_management_unit_reduction_scenarios_title')"
+          :description="$t('data_management_unit_reduction_scenarios_description')"
+          :show-mandatory-indicator="true"
+          :button-color="csvButtonColor(reductionFiles?.unit_scenarios)"
+          :button-label="csvButtonLabel(reductionFiles?.unit_scenarios)"
+          button-icon="upload"
+          :row="({ reductionObjectiveTypeId: 2 } as ImportRow)"
+          :target-type="TargetType.REDUCTION_OBJECTIVES"
+          :last-job="fileMetaToJob(reductionFiles?.unit_scenarios)"
+          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @download="downloadFile(reductionFiles?.unit_scenarios)"
+        />
+      </div>
       <q-separator />
       <!-- Goals Section -->
       <q-item-section class="q-pt-xl q-pb-sm q-px-md">
