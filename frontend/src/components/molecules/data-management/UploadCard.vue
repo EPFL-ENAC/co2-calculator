@@ -122,7 +122,10 @@ function handleCancel() {
     </div>
 
     <!-- Upload button row -->
-    <div class="row justify-between items-center full-width" style="margin-top: auto">
+    <div
+      class="row justify-between items-center full-width"
+      style="margin-top: auto"
+    >
       <div class="row q-mr-xs items-center" style="gap: 0.5rem">
         <q-spinner-rings v-if="isLoading" color="grey" />
         <q-btn
