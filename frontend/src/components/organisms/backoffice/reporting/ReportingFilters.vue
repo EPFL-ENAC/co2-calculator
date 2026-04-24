@@ -9,7 +9,7 @@ const emit = defineEmits<{
     filters: {
       path_affiliation: number[];
       path_lvl4: number[];
-      completion_status: number | string;
+      completion_status: number | string | undefined;
     },
   ): void;
 }>();
@@ -39,7 +39,7 @@ function handleFiltersChange() {
   emit('update:filters', {
     path_affiliation: selectedAffiliationUnits.value || [],
     path_lvl4: selectedLevel4Units.value || [],
-    completion_status: completion.value,
+    completion_status: completion.value ?? undefined,
   });
 }
 </script>
@@ -163,13 +163,25 @@ function handleFiltersChange() {
         v-model="completion"
         outlined
         dense
+        clearable
         :options="[
-          { label: t('backoffice_reporting_csv_validated'), value: 2 },
-          { label: t('backoffice_reporting_csv_in_progress'), value: 1 },
-          { label: t('backoffice_reporting_csv_default'), value: 0 },
+          {
+            label: t('backoffice_reporting_filter_completion_not_started'),
+            value: 0,
+          },
+          {
+            label: t('backoffice_reporting_filter_completion_in_progress'),
+            value: 1,
+          },
+          {
+            label: t('backoffice_reporting_filter_completion_completed'),
+            value: 2,
+          },
         ]"
         option-value="value"
         option-label="label"
+        emit-value
+        map-options
         :label="$t('backoffice_reporting_row_completion_label')"
         class="full-width"
         style="flex-grow: 1"

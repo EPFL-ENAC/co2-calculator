@@ -84,8 +84,8 @@ export default {
     fr: 'Unités',
   },
   backoffice_reporting_row_completion_label: {
-    en: 'Statut de validation',
-    fr: 'Validation status',
+    en: 'Completion status',
+    fr: "Statut d'avancement",
   },
   backoffice_reporting_column_unit: {
     en: 'Unit',
@@ -161,6 +161,19 @@ export default {
     en: 'Comprehensive report including both usage statistics and CO₂-eq results, ideal for executive summaries and annual reporting.',
     fr: "Rapport complet incluant à la fois les statistiques d'utilisation et les résultats de CO₂-éq, idéal pour les synthèses et les rapports annuels.",
   },
+  backoffice_reporting_filter_completion_not_started: {
+    en: 'Not started',
+    fr: 'Non commencé',
+  },
+  backoffice_reporting_filter_completion_in_progress: {
+    en: 'In Progress',
+    fr: 'En cours',
+  },
+  backoffice_reporting_filter_completion_completed: {
+    en: 'Completed',
+    fr: 'Complété',
+  },
+
   backoffice_reporting_csv_validated: {
     en: 'Validated',
     fr: 'Validé',

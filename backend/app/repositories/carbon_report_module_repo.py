@@ -721,7 +721,7 @@ class CarbonReportModuleRepository:
         )
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status:
+        if completion_status is not None:
             statement = statement.where(
                 col(CarbonReport.overall_status) == int(completion_status)
             )
@@ -878,7 +878,7 @@ class CarbonReportModuleRepository:
         # Additional filters based on provided parameters
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status:
+        if completion_status is not None:
             statement = statement.where(
                 col(CarbonReport.overall_status) == int(completion_status)
             )
@@ -992,7 +992,7 @@ class CarbonReportModuleRepository:
         )
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status:
+        if completion_status is not None:
             statement = statement.where(
                 col(CarbonReport.overall_status) == int(completion_status)
             )
