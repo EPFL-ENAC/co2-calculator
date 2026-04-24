@@ -62,8 +62,9 @@ export const useFactorsStore = defineStore('factors', () => {
     submodule: AllSubmoduleTypes,
     equipmentClass: string,
     subClass?: string | null,
+    year?: string | number | null,
   ): Promise<ValueFactorResponse | null> {
-    return await getFactorValues(submodule, equipmentClass, subClass);
+    return await getFactorValues(submodule, equipmentClass, subClass, year);
   }
 
   return {

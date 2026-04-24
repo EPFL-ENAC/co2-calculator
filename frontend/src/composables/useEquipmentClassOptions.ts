@@ -34,6 +34,7 @@ export function useEquipmentClassOptions<
   entity: TEntity,
   submoduleType: Ref<AllSubmoduleTypes>,
   config: FieldConfig = {},
+  year?: Ref<string | number | undefined>,
 ) {
   const classFieldId = config.classFieldId ?? '';
   const subClassFieldId = config.subClassFieldId ?? '';
@@ -135,9 +136,12 @@ export function useEquipmentClassOptions<
       return;
     }
 
+    const yearValue = year?.value;
+    if (yearValue == null) return;
+
     loadingPowerFactor.value = true;
     try {
-      const pf = await store.fetchPowerFactor(sub, cls, subCls);
+      const pf = await store.fetchPowerFactor(sub, cls, subCls, yearValue);
       if (pf) {
         if (primaryValueFieldId && primaryValueFieldId in entity)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
