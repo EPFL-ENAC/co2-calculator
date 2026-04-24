@@ -92,7 +92,7 @@ watch(showDialog, (newVal) => {
           >
             {{
               $t('data_management_import_title', {
-                type: $t(props.row.labelKey),
+                type: $t(props.row.labelKey).toLocaleLowerCase(),
               })
             }}
           </template>

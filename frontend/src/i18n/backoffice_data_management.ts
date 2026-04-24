@@ -368,8 +368,8 @@ export default {
     fr: 'Objectifs de réduction',
   },
   data_management_institution_carbon_footprint_title: {
-    en: "Upload Institution's Carbon Footprint Data",
-    fr: "Téléverser les données d'empreinte carbone de l'institution",
+    en: "Institution's Carbon Footprint Data",
+    fr: "Les données d'empreinte carbone de l'institution",
   },
   data_management_module_activation_title: {
     en: 'Module Activation',
@@ -432,16 +432,16 @@ export default {
     fr: "Le jeu de données global de l'empreinte carbone de votre institution utilisé comme référence pour les objectifs de réduction et les rapports.",
   },
   data_management_population_projections_title: {
-    en: 'Upload Population Projections',
-    fr: 'Téléverser les projections de population',
+    en: 'Population Projections',
+    fr: 'Les projections de population',
   },
   data_management_population_projections_description: {
     en: 'Projected headcount for your institution — used to normalise per-capita emissions over time.',
     fr: 'Effectif projeté de votre institution — utilisé pour normaliser les émissions par habitant au fil du temps.',
   },
   data_management_unit_reduction_scenarios_title: {
-    en: 'Upload Unit Reduction Scenarios',
-    fr: 'Téléverser les scénarios de réduction unitaires',
+    en: 'Unit Reduction Scenarios',
+    fr: 'Les scénarios de réduction unitaires',
   },
   data_management_unit_reduction_scenarios_description: {
     en: 'Per-unit emission reduction pathways used in activity-level projections. ',
