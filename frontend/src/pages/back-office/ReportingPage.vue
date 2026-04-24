@@ -13,7 +13,7 @@ import ModuleSelector, {
 } from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
 import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
 import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
-import { type ReportingStats } from 'src/api/reporting';
+import { type ReportingStats } from 'src/api/backoffice';
 import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
 import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
