@@ -19,12 +19,20 @@ export const API_LOGOUT_URL = 'auth/logout';
 export const loginPageName = '/en/login';
 
 const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
+const isSimulationRoute = () => location.pathname.includes('/simulation/');
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
   retry: { limit: 1, statusCodes: [401] },
   hooks: {
+    beforeRequest: [
+      (request) => {
+        if (isSimulationRoute()) {
+          request.headers.set('X-Co2-Simulation', '1');
+        }
+      },
+    ],
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying
       async ({ request }) => {

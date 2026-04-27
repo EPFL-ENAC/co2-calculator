@@ -3,7 +3,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -17,6 +17,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger, setup_logging
+from app.core.simulation_mode import SIMULATION_MODE
 
 # Setup logging
 setup_logging()
@@ -217,6 +218,16 @@ app = FastAPI(
     root_path=settings.API_DOCS_PREFIX,
     lifespan=lifespan,
 )
+
+@app.middleware("http")
+async def _simulation_mode_middleware(request: Request, call_next):
+    token = SIMULATION_MODE.set(request.headers.get("X-Co2-Simulation") == "1")
+    try:
+        return await call_next(request)
+    finally:
+        SIMULATION_MODE.reset(token)
+
+
 
 # NO CORS origins configured allowed on this instance
 

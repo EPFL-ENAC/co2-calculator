@@ -79,6 +79,7 @@
           <q-btn
             color="accent"
             :label="$t('simulation_explore_btn')"
+            :to="{ name: 'simulation-explore', params: { explore: 'new' } }"
             unelevated
             no-caps
             size="md"

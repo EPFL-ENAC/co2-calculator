@@ -154,7 +154,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -164,7 +164,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -174,7 +174,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Plan a simulation',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {

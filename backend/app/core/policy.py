@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.simulation_mode import SIMULATION_MODE
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import (
     GlobalScope,
@@ -541,6 +542,9 @@ async def check_module_permission(
     Raises:
         HTTPException: 403 if permission denied
     """
+    if SIMULATION_MODE.get():
+        return
+
     module_name = (
         module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
     )

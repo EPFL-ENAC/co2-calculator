@@ -35,6 +35,27 @@ const hasBackOfficeAccess = computed(() => {
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const logoRoute = computed(() => {
+  const routeName = String(route.name ?? '');
+  const isSimulation =
+    routeName === 'simulation' ||
+    routeName === 'simulation-explore' ||
+    routeName === 'simulation-plan';
+
+  if (isSimulation) {
+    return {
+      name: 'simulation',
+      params: {
+        language: route.params.language || 'en',
+      },
+    };
+  }
+
+  return {
+    name: 'workspace-setup',
+  };
+});
 </script>
 
 <template>
@@ -43,9 +64,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
-          :to="{
-            name: 'workspace-setup',
-          }"
+          :to="logoRoute"
           :aria-label="$t('home')"
           :title="$t('home')"
           class="toolbar-home-link row items-center no-wrap"

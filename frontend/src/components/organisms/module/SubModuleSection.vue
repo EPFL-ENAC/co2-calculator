@@ -1,6 +1,6 @@
 <template>
   <q-expansion-item
-    v-if="submodule.tableNameKey"
+    v-if="submodule.tableNameKey && collapsible"
     v-model="moduleStore.state.expandedSubmodules[submodule.id]"
     flat
     header-class="text-h5 text-weight-medium"
@@ -85,6 +85,81 @@
       </template>
     </q-card-section>
   </q-expansion-item>
+
+  <q-card
+    v-else-if="submodule.tableNameKey"
+    flat
+    class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
+  >
+    <q-card-section>
+      <div class="row flex items-center full-width">
+        <div class="col text-h5 text-weight-medium">
+          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+        </div>
+        <q-icon
+          v-if="hasTableTooltip"
+          :name="outlinedInfo"
+          size="sm"
+          class="cursor-pointer q-mr-sm"
+          :aria-label="
+            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
+          "
+        >
+          <q-tooltip
+            v-if="hasTableTooltip"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip"
+          >
+            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+          </q-tooltip>
+        </q-icon>
+      </div>
+    </q-card-section>
+    <q-separator />
+    <q-card-section class="q-pa-none">
+      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
+        <module-table
+          :module-fields="submodule.moduleFields"
+          :unit-id="unitId"
+          :year="year"
+          :threshold="effectiveThreshold"
+          :has-top-bar="submodule.hasTableTopBar"
+          :module-type="moduleType"
+          :submodule-type="submodule.id"
+          :module-config="moduleConfig"
+          :submodule-config="submodule"
+          :disable="disable"
+        />
+      </div>
+      <q-separator />
+      <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
+        <module-form
+          ref="formRef"
+          :fields="submodule.moduleFields"
+          :submodule-type="submodule.type"
+          :module-type="moduleType"
+          :item="item"
+          :has-subtitle="submodule.hasFormSubtitle"
+          :has-add-with-note="submodule.hasFormAddWithNote"
+          :add-button-label-key="submodule.addButtonLabelKey"
+          :has-tooltip="submodule.hasFormTooltip"
+          :unit-id="unitId"
+          :year="year"
+          :form-defaults="formDefaults"
+          @submit="submitForm"
+        />
+      </div>
+      <div
+        v-else-if="submodule.moduleFields && !disable && !canEdit"
+        class="q-mx-lg q-my-md"
+      >
+        <q-badge color="warning" class="q-px-md q-py-sm">
+          {{ $t('common_view_only') }}
+        </q-badge>
+      </div>
+    </q-card-section>
+  </q-card>
 </template>
 
 <script setup lang="ts">
@@ -161,7 +236,12 @@ type CommonProps = {
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
 const yearConfigStore = useYearConfigStore();
-const props = defineProps<SubModuleSectionProps>();
+const props = withDefaults(
+  defineProps<SubModuleSectionProps & { collapsible?: boolean }>(),
+  {
+    collapsible: true,
+  },
+);
 const authStore = useAuthStore();
 
 const submoduleKey = computed(() => {
