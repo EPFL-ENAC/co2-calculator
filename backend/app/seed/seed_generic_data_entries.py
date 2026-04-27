@@ -1,51 +1,29 @@
 """Generic CSV-based data entry seeder with emission computation.
 
-Reads ``seed_data/*_data.csv`` files, creates DataEntry rows,
-resolves factors via kind/subkind, and computes emissions through the
-standard ``DataEntryEmissionService`` pipeline.
+Reads ``seed_data/*_data.csv`` files and delegates the full ingestion
+pipeline (factor lookup, batch inserts, emission computation, stats
+recomputation) to ``LocalDataEntryCSVProvider``.
 """
 
 import asyncio
-import csv
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import get_args
 
-from pydantic import BaseModel
-from sqlalchemy import select
-from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-# Ensure all handlers are registered before use
-import app.modules.buildings.schemas as _b  # noqa: F401
-import app.modules.equipment_electric_consumption.schemas as _eq  # noqa: F401
-import app.modules.external_cloud_and_ai.schemas as _ec  # noqa: F401
-import app.modules.headcount.schemas as _hc  # noqa: F401
-import app.modules.process_emissions.schemas as _pe  # noqa: F401
-import app.modules.professional_travel.schemas as _pt  # noqa: F401
-import app.modules.purchase.schemas as _pu  # noqa: F401
-from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.location import Location, TransportModeEnum
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.location import TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.schemas.data_entry import BaseModuleHandler
-from app.seed.seed_helper import (
-    get_carbon_report_module_id,
-    load_factors_map,
-    lookup_factor,
+from app.services.data_ingestion.csv_providers.local_seed import (
+    LocalDataEntryCSVProvider,
 )
-from app.services.carbon_report_module_service import CarbonReportModuleService
-from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.services.data_entry_service import DataEntryService
 
 logger = get_logger(__name__)
-settings = get_settings()
 
 SEED_FOLDER = Path(__file__).parent.parent.parent / "seed_data"
 YEAR = 2025
-EXCLUDE_COLUMNS = {"unit_institutional_id", "kg_co2eq"}
 
 
 @dataclass
@@ -167,76 +145,6 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _get_string_field_names(create_dto: type[BaseModel]) -> set[str]:
-    """Return field names declared as str or Optional[str] in a Pydantic DTO."""
-    result: set[str] = set()
-    for name, info in create_dto.model_fields.items():
-        ann = info.annotation
-        if ann is str or str in get_args(ann):
-            result.add(name)
-    return result
-
-
-def _coerce_value(value: str) -> str | int | float | None:
-    """Try to convert a CSV string to int or float, falling back to str."""
-    if value == "":
-        return None
-    try:
-        f = float(value)
-        if f == int(f) and "." not in value:
-            return int(f)
-        return f
-    except (ValueError, OverflowError):
-        return value
-
-
-async def _resolve_location_id(
-    session: AsyncSession,
-    code: str,
-    transport_mode: TransportModeEnum,
-) -> int | None:
-    """Resolve an IATA code or station name to a location ID."""
-    code = code.strip()
-    if not code:
-        return None
-
-    if transport_mode == TransportModeEnum.plane:
-        stmt = select(col(Location.id)).where(
-            col(Location.iata_code) == code.upper(),
-            col(Location.transport_mode) == transport_mode,
-        )
-    else:
-        stmt = select(col(Location.id)).where(
-            col(Location.name).ilike(code),
-            col(Location.transport_mode) == transport_mode,
-        )
-
-    location_id = (await session.execute(stmt)).scalar_one_or_none()
-    if location_id is None:
-        logger.warning("Location not found: '%s' (mode=%s)", code, transport_mode.value)
-    return location_id
-
-
-async def _resolve_type_from_factors(
-    kind: str,
-    subkind: str | None,
-    data_entry_types: list[DataEntryTypeEnum],
-    factors_cache: dict[DataEntryTypeEnum, dict],
-) -> DataEntryTypeEnum | None:
-    """Resolve data_entry_type by finding which type's factors match."""
-    for det in data_entry_types:
-        fmap = factors_cache.get(det, {})
-        factor = lookup_factor(kind, subkind, fmap)
-        if factor is not None:
-            return det
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Core seeding logic
 # ---------------------------------------------------------------------------
 
@@ -245,227 +153,41 @@ async def seed_data_entries(
     session: AsyncSession,
     config: DataEntrySeedConfig,
 ) -> None:
-    """Seed data entries from a CSV and compute their emissions."""
+    """Seed data entries from a CSV using the standard ingestion pipeline."""
     if not config.path.exists():
         logger.warning("CSV not found, skipping: %s", config.path)
         return
 
-    service = DataEntryService(session)
-
-    # Caches
-    crm_cache: dict[str, int] = {}
-    factors_cache: dict[DataEntryTypeEnum, dict] = {}
-
-    # Pre-load factor maps for types that use kind-based lookup
-    # and collect DTO string fields to preserve their type during coercion
-    string_fields: set[str] = set()
-    for det in config.data_entry_types:
-        handler = BaseModuleHandler.get_by_type(det)
-        if handler.kind_field:
-            factors_cache[det] = await load_factors_map(session, det)
-        if handler.create_dto:
-            string_fields |= _get_string_field_names(handler.create_dto)
-
-    # Resolve data_entry_type helpers
-    det_column = config.data_entry_type_column
-    name_to_enum = {det.name: det for det in config.data_entry_types}
-    fixed_type = (
-        config.data_entry_types[0]
-        if len(config.data_entry_types) == 1 and not det_column
-        else None
-    )
-    multi_type_from_factor = len(config.data_entry_types) > 1 and det_column is None
-
-    data_entries: list[DataEntry] = []
-    skipped = 0
-    unknown_kind = set()
-    unknown_cf = set()
-    # for debug: TO REMOVE BEFORE COMMIT
-    # max_rows = 10  # safety limit to avoid runaway seeds
-    with open(config.path, mode="r", encoding="utf-8-sig", newline="") as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            # if len(data_entries) >= max_rows:
-            #     break
-            # --- resolve data_entry_type ---
-            if det_column:
-                det_name = row.get(det_column, "").strip()
-                data_entry_type = name_to_enum.get(det_name)
-                if data_entry_type is None:
-                    logger.warning(
-                        "Unknown data_entry_type '%s' in %s",
-                        det_name,
-                        config.path.name,
-                    )
-                    skipped += 1
-                    continue
-            elif fixed_type:
-                data_entry_type = fixed_type
-            else:
-                # Will resolve later from factor match
-                data_entry_type = None
-
-            # --- resolve carbon_report_module_id ---
-            unit_code = row.get("unit_institutional_id", "").strip()
-            if unit_code:
-                unit_code = unit_code.zfill(4)
-            if not unit_code:
-                skipped += 1
-                continue
-
-            if unit_code not in crm_cache:
-                try:
-                    crm_cache[unit_code] = await get_carbon_report_module_id(
-                        unit_code, YEAR, config.module_type
-                    )
-                except ValueError as exc:
-                    logger.warning("%s", exc)
-                    unknown_cf.add(unit_code)
-                    skipped += 1
-                    continue
-
-            # --- build data dict from CSV columns ---
-            data: dict[str, str | int | float | None] = {}
-            handler = (
-                BaseModuleHandler.get_by_type(data_entry_type)
-                if data_entry_type
-                else BaseModuleHandler.get_by_type(config.data_entry_types[0])
-            )
-            for csv_col, val in row.items():
-                if csv_col in EXCLUDE_COLUMNS:
-                    continue
-                if det_column and csv_col == det_column:
-                    continue
-
-                # Location resolution for travel
-                if config.location_fields and csv_col in config.location_fields:
-                    if config.transport_mode is None:
-                        logger.error(
-                            "Transport mode must be set for location resolution"
-                        )
-                        continue
-                    loc_id = await _resolve_location_id(
-                        session, val, config.transport_mode
-                    )
-                    data[config.location_fields[csv_col]] = loc_id
-                    continue
-
-                if csv_col in string_fields:
-                    data[csv_col] = val.strip() if val.strip() else None
-                else:
-                    data[csv_col] = _coerce_value(val)
-
-            # --- factor lookup ---
-            kind_field = handler.kind_field
-            subkind_field = handler.subkind_field
-
-            if kind_field:
-                kind_val = str(data.get(kind_field, ""))
-                subkind_raw = data.get(subkind_field, None) if subkind_field else None
-                subkind_val = None
-                if subkind_raw is not None:
-                    subkind_val = str(subkind_raw)
-                # Multi-type without column: resolve from factor
-                if multi_type_from_factor and data_entry_type is None:
-                    data_entry_type = await _resolve_type_from_factors(
-                        kind_val,
-                        subkind_val,
-                        config.data_entry_types,
-                        factors_cache,
-                    )
-                    if data_entry_type is None:
-                        data_entry_type = config.data_entry_types[0]
-                        logger.warning(
-                            "No factor match for kind='%s' — defaulting to %s",
-                            kind_val,
-                            data_entry_type.name,
-                        )
-                        unknown_kind.add(kind_val)
-
-                fmap = factors_cache.get(
-                    data_entry_type or config.data_entry_types[0],
-                    {},
-                )
-                factor = lookup_factor(kind_val, subkind_val, fmap)
-                data["primary_factor_id"] = factor.id if factor else None
-                # update from factor with generic handler for csv upload
-                if factor and handler.factor_value_fields:
-                    for field_name in handler.factor_value_fields:
-                        if field_name not in data or data[field_name] in (None, "", 0):
-                            data[field_name] = factor.values.get(field_name)
-                # Derive type from factor when still unknown
-                if multi_type_from_factor and factor and factor.data_entry_type_id:
-                    matched = DataEntryTypeEnum(factor.data_entry_type_id)
-                    if matched in config.data_entry_types:
-                        data_entry_type = matched
-            # Fallback if type still not resolved
-            if data_entry_type is None:
-                data_entry_type = config.data_entry_types[0]
-
-            entry = DataEntry(
-                carbon_report_module_id=crm_cache[unit_code],
-                data_entry_type_id=data_entry_type.value,
-                data=data,
-            )
-            entry.data_entry_type = data_entry_type
-            data_entries.append(entry)
-
-    if not data_entries:
-        logger.warning(
-            "No data entries produced from %s (skipped=%d)",
-            config.path.name,
-            skipped,
-        )
-        return
-
-    # Bulk create data entries
-    responses = await service.bulk_create(data_entries)
-    await session.commit()
-
-    # Compute and create emissions
-    emission_service = DataEntryEmissionService(session)
-    emissions: list = []
-    for resp in responses:
-        objs = await emission_service.prepare_create(resp)
-        if objs:
-            emissions.extend(objs)
-
-    if emissions:
-        await emission_service.bulk_create(emissions)
-        await session.commit()
-
-        # Recompute stats for all affected carbon report modules
-        crm_service = CarbonReportModuleService(session)
-        for crm_id in crm_cache.values():
-            try:
-                await crm_service.recompute_stats(crm_id)
-            except Exception as stats_error:
-                logger.warning(
-                    "Failed to recompute stats for carbon_report_module_id=%s: %s",
-                    crm_id,
-                    stats_error,
-                )
+    provider_config: dict = {
+        "local_file_path": str(config.path),
+        "module_type_id": config.module_type.value,
+        "year": YEAR,
+        "data_entry_type_id": (
+            config.data_entry_types[0].value
+            if len(config.data_entry_types) == 1
+            else None
+        ),
+        "location_fields": config.location_fields,
+        "transport_mode_value": (
+            config.transport_mode.value if config.transport_mode else None
+        ),
+    }
+    provider = LocalDataEntryCSVProvider(config=provider_config, data_session=session)
+    result = await provider.process_csv_in_batches()
 
     label = ", ".join(det.name for det in config.data_entry_types)
     print(
-        f"Created {len(data_entries)} entries + "
-        f"{len(emissions)} emissions for [{label}]"
+        f"Created {result['inserted']} entries for [{label}]"
+        + (f" ({result['skipped']} skipped)" if result["skipped"] else "")
     )
-    print(f"    Unknown kinds: {list(unknown_kind)}") if unknown_kind else None
-    print(f"    Unknown cf ids: {list(unknown_cf)}") if unknown_cf else None
-    if skipped:
-        print(f"  ({skipped} rows skipped)")
-    logger.info(
-        "Seeded %d entries + %d emissions from %s",
-        len(data_entries),
-        len(emissions),
-        config.path.name,
-    )
+    await session.commit()
+    logger.info("Seeded data entries for [%s].", label)
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 
 async def main() -> None:
