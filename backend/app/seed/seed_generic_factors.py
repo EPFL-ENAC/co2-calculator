@@ -24,6 +24,7 @@ from app.modules.research_facilities import (
 from app.modules.research_facilities import (
     common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
 )
+from app.schemas.factor import BaseFactorHandler
 from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
 
 logger = get_logger(__name__)
@@ -170,12 +171,26 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
 
 async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     """Seed factors from a CSV using the ingestion pipeline."""
+    if not config.data_entry_types:
+        raise ValueError("At least one data_entry_type must be provided")
     first_type = config.data_entry_types[0]
     module_type = get_module_type_for_data_entry_type(first_type)
     if module_type is None:
         raise ValueError(
             f"Cannot determine module_type for data_entry_type: {first_type.name}"
         )
+
+    if config.data_entry_type_column is not None:
+        for det in config.data_entry_types:
+            handler = BaseFactorHandler.get_by_type(det)
+            actual = getattr(handler, "category_field", None)
+            if actual != config.data_entry_type_column:
+                raise ValueError(
+                    f"data_entry_type_column={config.data_entry_type_column!r} "
+                    f"does not match "
+                    f"{type(handler).__name__}.category_field={actual!r} "
+                    f"for data_entry_type={det.name}"
+                )
 
     provider_config: dict = {
         "local_file_path": str(config.path),

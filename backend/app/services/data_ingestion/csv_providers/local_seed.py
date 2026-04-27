@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionState
 from app.services.data_ingestion.base_factor_csv_provider import FactorStatsDict
 from app.services.data_ingestion.csv_providers.factors import (
     ModulePerYearFactorCSVProvider,
@@ -132,7 +133,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
             f"{stats['factors_deleted']} existing factors deleted"
         )
         return {
-            "state": "FINISHED",
+            "state": IngestionState.FINISHED,
             "result": result,
             "inserted": stats["rows_processed"],
             "skipped": stats["rows_skipped"],
