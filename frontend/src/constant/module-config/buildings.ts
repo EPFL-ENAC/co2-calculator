@@ -85,7 +85,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
-    maxColumnWidth: 80,
+    tooltip: `${MODULES.Buildings}.tooltips.ratio`,
+    minColumnWidth: 140,
   },
   {
     id: 'heating_kwh_per_square_meter',
