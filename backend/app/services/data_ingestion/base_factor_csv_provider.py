@@ -170,13 +170,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             listed_entry_types = setup_result.get("valid_entry_types", [])
             # Delete existing factors for this data_entry_type and year
             # This ensures idempotent uploads - no duplicates
-            data_entry_type_to_iterates = []
-            if self.data_entry_type_id is not None:
-                data_entry_type_to_iterates.append(
-                    DataEntryTypeEnum(int(self.data_entry_type_id))
-                )
-            else:
-                data_entry_type_to_iterates.extend(listed_entry_types)
+            data_entry_type_to_iterates = self._get_types_to_delete(listed_entry_types)
             stats["factors_deleted"] = 0
             if len(data_entry_type_to_iterates) > 0 and self.year:
                 for data_entry_type in data_entry_type_to_iterates:
@@ -574,6 +568,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         except ValueError:
             pass
         return value
+
+    def _get_types_to_delete(
+        self, listed_entry_types: list[DataEntryTypeEnum]
+    ) -> list[DataEntryTypeEnum]:
+        """Return the data entry types whose factors should be deleted before ingestion.
+
+        Override in subclasses to restrict deletion to a subset of types
+        (e.g. when a CSV covers only part of a module's types).
+        """
+        if self.data_entry_type_id is not None:
+            return [DataEntryTypeEnum(int(self.data_entry_type_id))]
+        return list(listed_entry_types)
 
     def _record_row_error(
         self,

@@ -1,5 +1,4 @@
 import asyncio
-import csv
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.module_type import get_module_type_for_data_entry_type
 from app.modules.external_cloud_and_ai import (
     schemas as schemas,
 )  # This ensures the handlers are registered
@@ -24,11 +24,7 @@ from app.modules.research_facilities import (
 from app.modules.research_facilities import (
     common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
 )
-from app.schemas.factor import BaseFactorHandler
-from app.seed.seed_helper import (
-    get_factor_emission_type_id,
-)
-from app.services.factor_service import FactorService
+from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -172,81 +168,34 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
 ]
 
 
-def get_float_str_or_none(value: str | None) -> float | str | None:
-    """Convert string to float or return None if empty."""
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return value
-
-
 async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
-    """Seed factors from a CSV according to the given config."""
-    service = FactorService(session)
+    """Seed factors from a CSV using the ingestion pipeline."""
+    first_type = config.data_entry_types[0]
+    module_type = get_module_type_for_data_entry_type(first_type)
+    if module_type is None:
+        raise ValueError(
+            f"Cannot determine module_type for data_entry_type: {first_type.name}"
+        )
 
-    for det in config.data_entry_types:
-        await service.bulk_delete_by_data_entry_type(det)
+    provider_config: dict = {
+        "local_file_path": str(config.path),
+        "module_type_id": module_type.value,
+        "year": 2025,
+        "data_entry_type_id": (
+            config.data_entry_types[0].value
+            if config.data_entry_type_column is None
+            else None
+        ),
+        "explicit_entry_type_ids": [det.value for det in config.data_entry_types],
+    }
 
-    name_to_enum = {det.name: det for det in config.data_entry_types}
-    det_column = config.data_entry_type_column
-    fixed_type = config.data_entry_types[0] if not det_column else None
+    provider = LocalFactorCSVProvider(config=provider_config, data_session=session)
+    result = await provider.process_csv_in_batches()
 
-    def resolve(row: dict) -> DataEntryTypeEnum | None:
-        if det_column:
-            det_name = row.get(det_column, "").strip()
-            det = name_to_enum.get(det_name)
-            if det is None:
-                logger.warning(
-                    f"Unknown data_entry_type '{det_name}' in CSV row {row},"
-                    f" expected one of {list(name_to_enum.keys())}"
-                )
-            return det
-        return fixed_type
-
-    factors = []
-    with open(config.path, mode="r") as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            data_entry_type = resolve(row)
-            if data_entry_type is None:
-                continue
-
-            handler = BaseFactorHandler.get_by_type(data_entry_type)
-            emission_type_id = get_factor_emission_type_id(data_entry_type, row)
-            required = handler.required_columns
-
-            classification = {}
-            for field_name in handler.classification_fields:
-                if not row.get(field_name) and field_name in required:
-                    logger.warning(
-                        f"Missing required classification field '{field_name}'"
-                        f" for {data_entry_type.name} factor: {row}"
-                    )
-                classification[field_name] = row.get(field_name) or None
-
-            values: dict[str, float | int | str | None] = {}
-            for field_name in handler.value_fields:
-                if not row.get(field_name) and field_name in required:
-                    logger.warning(
-                        f"Missing required value field '{field_name}'"
-                        f" for {data_entry_type.name} factor: {row}"
-                    )
-                values[field_name] = get_float_str_or_none(row.get(field_name))
-
-            factor = await service.prepare_create(
-                emission_type_id=emission_type_id,
-                data_entry_type_id=data_entry_type.value,
-                classification=classification,
-                values=values,
-                year=2025,  # Default year for seeded factors
-            )
-            factors.append(factor)
-
-    await service.bulk_create(factors)
     label = ", ".join(det.name for det in config.data_entry_types)
-    print(f"Created {len(factors)} factors for [{label}]")
+    inserted = result.get("inserted", 0)
+    skipped = result.get("skipped", 0)
+    print(f"Created {inserted} factors for [{label}] ({skipped} skipped)")
     await session.commit()
     logger.info(f"Seeded factors for [{label}].")
 
