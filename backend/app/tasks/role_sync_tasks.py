@@ -78,9 +78,10 @@ async def trigger_role_sync_for_user(
                 if result.roles_changed:
                     await sync_service.sync_user_units(user_id, result.new_roles)
 
-                # TODO: Emit SSE event (will be implemented in Task 4)
-                # from app.api.v1.roles_sse import emit_role_update_event
-                # await emit_role_update_event(user_id, result.new_roles)
+                # Emit SSE event
+                from app.api.v1.roles_sse import emit_role_update_event
+
+                await emit_role_update_event(user_id, result.new_roles)
 
             else:
                 logger.debug(
