@@ -8,6 +8,7 @@ recomputation) to ``LocalDataEntryCSVProvider``.
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -158,7 +159,7 @@ async def seed_data_entries(
         logger.warning("CSV not found, skipping: %s", config.path)
         return
 
-    provider_config: dict = {
+    provider_config: dict[str, Any] = {
         "local_file_path": str(config.path),
         "module_type_id": config.module_type.value,
         "year": YEAR,
@@ -187,7 +188,6 @@ async def seed_data_entries(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
 
 
 async def main() -> None:

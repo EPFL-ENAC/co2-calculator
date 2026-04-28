@@ -11,13 +11,13 @@ import csv as csv_module
 import io
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlmodel import col, select
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import IngestionState
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.location import Location, TransportModeEnum
 from app.services.data_ingestion.base_csv_provider import StatsDict
 from app.services.data_ingestion.base_factor_csv_provider import FactorStatsDict
@@ -122,6 +122,19 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
     # ------------------------------------------------------------------
     # Override: skip file-store moves and job DB updates after processing
     # ------------------------------------------------------------------
+
+    async def _update_job(
+        self,
+        status_message: str,
+        extra_metadata: dict | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
+    ) -> None:
+        # Local seed runs do not persist ingestion jobs.
+        logger.debug(
+            "LocalFactorCSVProvider state=%s, message=%s", state, status_message
+        )
+        return None
 
     async def _finalize_and_commit(
         self,
@@ -237,8 +250,12 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         csv_text = local_path.read_text(encoding="utf-8-sig")
 
         # Pre-build location cache for travel CSVs before factor setup
+        if self._location_fields and self._transport_mode is None:
+            raise ValueError(
+                "location_fields requires a valid transport_mode_value in config"
+            )
         location_id_cache: dict[str, int] = {}
-        if self._location_fields and self._transport_mode:
+        if self._location_fields:
             location_id_cache = await self._build_location_cache(csv_text)
 
         # Setup handlers and factors (inherited from ModulePerYearCSVProvider)
@@ -362,6 +379,19 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
     # ------------------------------------------------------------------
     # Override: skip file-store moves and job DB updates after processing
     # ------------------------------------------------------------------
+
+    async def _update_job(
+        self,
+        status_message: str,
+        extra_metadata: dict | None = None,
+        state: Optional[IngestionState] = None,
+        result: Optional[IngestionResult] = None,
+    ) -> None:
+        # Local seed runs do not persist ingestion jobs.
+        logger.debug(
+            "LocalDataEntryCSVProvider state=%s, message=%s", state, status_message
+        )
+        return None
 
     async def _finalize_and_commit(
         self,
