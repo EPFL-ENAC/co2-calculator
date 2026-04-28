@@ -131,12 +131,14 @@ async def test_sync_units_removes_stale_associations(db_session):
         institutional_id="unit1",
         name="Unit 1",
         provider=UserProvider.ACCRED,
+        level=2,
     )
     unit2 = Unit(
         institutional_code="unit2",
         institutional_id="unit2",
         name="Unit 2",
         provider=UserProvider.ACCRED,
+        level=2,
     )
     db_session.add_all([unit1, unit2])
     await db_session.commit()

@@ -1,6 +1,5 @@
 """Background tasks for role synchronization."""
 
-
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider

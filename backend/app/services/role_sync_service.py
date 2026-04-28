@@ -86,17 +86,18 @@ class RoleSyncService:
         new_roles = provider_user.get("roles", [])
 
         # Convert to comparable format
-        old_roles_comparable = [
-            (
-                r.role,
-                r.on.institutional_id if hasattr(r.on, "institutional_id") else None,
-            )
-            for r in old_roles
-        ]
-        new_roles_comparable = [
-            (r.role, r.on.get("institutional_id") if isinstance(r.on, dict) else None)
-            for r in new_roles
-        ]
+        def extract_role_key(role):
+            role_name = role.role if isinstance(role.role, str) else role.role.value
+            if hasattr(role.on, "institutional_id"):
+                unit_id = role.on.institutional_id
+            elif isinstance(role.on, dict):
+                unit_id = role.on.get("institutional_id")
+            else:
+                unit_id = None
+            return (role_name, unit_id)
+
+        old_roles_comparable = [extract_role_key(r) for r in old_roles]
+        new_roles_comparable = [extract_role_key(r) for r in new_roles]
 
         roles_changed = old_roles_comparable != new_roles_comparable
 

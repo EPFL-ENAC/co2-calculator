@@ -89,8 +89,9 @@ async def test_auth_callback_exception(monkeypatch):
 async def test_get_me_invalid_token(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_me(background_tasks=bg_tasks, auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -109,8 +110,9 @@ async def test_get_me_user_missing(monkeypatch, user_attr):
     mock_get_user_by_user_id = AsyncMock(return_value=mock_user)
     monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     db = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_me(background_tasks=bg_tasks, auth_token="token", db=db)
     assert exc.value.status_code in [
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN,
@@ -120,8 +122,9 @@ async def test_get_me_user_missing(monkeypatch, user_attr):
 @pytest.mark.asyncio
 async def test_get_me_no_token():
     db = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token=None, db=db)
+        await auth_module.get_me(background_tasks=bg_tasks, auth_token=None, db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -131,8 +134,9 @@ async def test_get_me_exception(monkeypatch):
         auth_module, "decode_jwt", MagicMock(side_effect=Exception("fail"))
     )
     db = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_me(background_tasks=bg_tasks, auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
