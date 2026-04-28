@@ -48,7 +48,7 @@ class RoleUpdateEvent:
 active_connections: set[asyncio.Queue] = set()
 
 
-@router.get("/roles/stream")
+@router.get("/stream")
 async def stream_role_updates(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
