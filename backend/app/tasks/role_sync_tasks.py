@@ -1,12 +1,9 @@
 """Background tasks for role synchronization."""
 
-import logging
-from typing import Any, Dict
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.user import UserProvider
-from app.providers.role_provider import get_role_provider, RoleProviderNetworkError
+from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.services.role_sync_service import RoleSyncService
 from app.services.user_service import UserService
 

@@ -1,7 +1,8 @@
 """Unit tests for RoleSyncService."""
 
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 
 from app.models.unit import Unit
 from app.models.user import Role, RoleName, RoleScope, User, UserProvider

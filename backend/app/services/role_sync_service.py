@@ -1,18 +1,17 @@
 """Role synchronization service for background role updates."""
 
-import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel
+from typing import Any, Dict, List
 
+from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import User, Role
+from app.models.user import Role
 from app.repositories.user_repo import UserRepository
-from app.services.unit_user_service import UnitUserService
 from app.services.unit_service import UnitService
+from app.services.unit_user_service import UnitUserService
 
 logger = get_logger(__name__)
 settings = get_settings()
