@@ -8,6 +8,7 @@ import {
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
+import { useRoleSyncStore } from './roleSync';
 
 interface User {
   id: string;
@@ -53,6 +54,13 @@ export const useAuthStore = defineStore('auth', () => {
         loading.value = true;
         const u = await api.get('auth/me').json<User>();
         user.value = u;
+
+        // Initialize role sync on first successful auth
+        if (u) {
+          const roleSyncStore = useRoleSyncStore();
+          roleSyncStore.connect();
+        }
+
         return u;
       } catch {
         user.value = null;
