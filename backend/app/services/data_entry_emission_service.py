@@ -21,6 +21,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.emission_category import additional_value_unit
 from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
@@ -233,6 +234,14 @@ class DataEntryEmissionService:
                         )
                         quantity = base_qty * multiplier
                     quantity_unit: str | None = (factor.values or {}).get("unit")
+                    additional_value: float | None = (
+                        quantity
+                        if (
+                            quantity is not None
+                            and additional_value_unit(comp.emission_type) is not None
+                        )
+                        else None
+                    )
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
@@ -241,6 +250,7 @@ class DataEntryEmissionService:
                             ),
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
+                            additional_value=additional_value,
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -495,7 +505,13 @@ class DataEntryEmissionService:
     ) -> list[tuple[int, int, float, float | None]]:
         """Get emission breakdown by module and emission type.
 
-        Returns list of (module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity).
+        Returns list of
+        (
+            module_type_id,
+            emission_type_id,
+            sum_kg_co2eq,
+            sum_additional_value,
+        ).
         """
         return await self.repo.get_emission_breakdown_with_quantity(
             carbon_report_id=carbon_report_id,

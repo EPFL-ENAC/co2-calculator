@@ -62,6 +62,7 @@ erDiagram
     DATETIME updated_at
   }
   data_entry_emissions {
+    FLOAT additional_value
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
     INTEGER emission_type_id "indexed"
