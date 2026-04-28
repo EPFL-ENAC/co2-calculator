@@ -320,6 +320,10 @@ export default {
     en: 'View Only',
     fr: 'Lecture seule',
   },
+  module_submodule_inputs_deactivated_notice: {
+    en: 'Data entry for this section has been deactivated by the administrator.',
+    fr: "La saisie de données pour cette section a été désactivée par l'administrateur.",
+  },
   common_mandatory: {
     en: 'Mandatory',
     fr: 'Obligatoire',
