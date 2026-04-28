@@ -6,7 +6,16 @@ from typing import Any, Optional
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,10 +30,10 @@ from app.core.security import (
 from app.models.audit import AuditChangeTypeEnum
 from app.models.user import UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
-from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
 from app.services.user_service import UserService
+from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
@@ -178,19 +187,13 @@ async def _log_auth_audit_event(
 
 
 @router.get(
-    "/me", response_model=UserRead, response_model_exclude_none=True
+    "/login-test",
 )
-async def get_me(
-    auth_token: Optional[str] = Cookie(None),
+async def login_test(
+    request: Request,
+    role: str = "co2.user.std",
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get current authenticated user information.
-
-    Returns user details including id, email, roles.
-    Requires valid auth_token cookie.
-    Resolves user by stable identity (institutional_id, provider) from JWT.
-    NO LONGER syncs roles synchronously - uses cached DB roles.
     """
     Test login endpoint for development.
 
@@ -488,6 +491,7 @@ async def auth_callback(
 
 @router.get("/me", response_model=UserRead, response_model_exclude_none=True)
 async def get_me(
+    background_tasks: BackgroundTasks,
     auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -496,8 +500,8 @@ async def get_me(
 
     Returns user details including id, email, roles.
     Requires valid auth_token cookie.
-    Refreshes roles from provider on each call.
     Resolves user by stable identity (institutional_id, provider) from JWT.
+    NO LONGER syncs roles synchronously - uses cached DB roles.
     """
     if not auth_token:
         raise HTTPException(
