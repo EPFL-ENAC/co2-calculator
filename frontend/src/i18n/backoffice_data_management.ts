@@ -387,6 +387,18 @@ export default {
     en: 'Enable this submodule to make it visible to your institute.',
     fr: 'Activez ce sous-module pour le rendre visible pour votre institut.',
   },
+  data_management_submodule_inputs_deactivation_title: {
+    en: 'Deactivate input form',
+    fr: 'Désactiver le formulaire de saisie',
+  },
+  data_management_submodule_inputs_deactivation_description: {
+    en: 'When checked, users will not be able to add or edit data entries for this submodule.',
+    fr: 'Lorsque cette option est cochée, les utilisateurs ne pourront pas ajouter ou modifier des entrées de données pour ce sous-module.',
+  },
+  data_management_submodule_inputs_deactivation_label: {
+    en: 'Deactivate input form',
+    fr: 'Désactiver le formulaire de saisie',
+  },
   data_management_uncertainty_title: {
     en: 'Uncertainty',
     fr: 'Incertitude',

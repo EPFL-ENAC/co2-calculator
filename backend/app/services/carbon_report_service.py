@@ -124,6 +124,7 @@ class CarbonReportService:
         scope2_total = 0.0
         scope3_total = 0.0
         by_emission_type: dict[str, float] = {}
+        by_additional_value: dict[str, float] = {}
         total_entry_count = 0
 
         for module in modules:
@@ -143,6 +144,13 @@ class CarbonReportService:
                     if kg_co2eq:
                         current = by_emission_type.get(et_id_str, 0.0)
                         by_emission_type[et_id_str] = current + kg_co2eq
+
+            module_by_add = module_stats.get("by_additional_value", {})
+            if isinstance(module_by_add, dict):
+                for et_id_str, add_val in module_by_add.items():
+                    if add_val:
+                        current = by_additional_value.get(et_id_str, 0.0)
+                        by_additional_value[et_id_str] = current + float(add_val)
 
             # Sum entry counts
             total_entry_count += module_stats.get("entry_count", 0) or 0
@@ -172,6 +180,7 @@ class CarbonReportService:
             "total": total,
             "it_total_kg": it_total_kg,
             "by_emission_type": by_emission_type,
+            "by_additional_value": by_additional_value,
             "computed_at": datetime.now(timezone.utc).isoformat(),
             "entry_count": total_entry_count,
             "highest_category_module_id": highest_category_module_id,

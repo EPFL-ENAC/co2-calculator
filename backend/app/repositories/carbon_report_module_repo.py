@@ -559,7 +559,7 @@ class CarbonReportModuleRepository:
         global_fte_result = (await self.session.exec(global_fte_stmt)).one()
         global_fte = float(global_fte_result or 0.0)
 
-        chart_rows: list[tuple[int, int, float]] = []
+        chart_rows: list[tuple[int, int, float, float | None]] = []
         validated_module_type_ids: set[int] = set()
         headcount_validated = False
 
@@ -575,6 +575,9 @@ class CarbonReportModuleRepository:
             by_emission_type = stats.get("by_emission_type", {})
             if not isinstance(by_emission_type, dict):
                 continue
+            by_additional_value = stats.get("by_additional_value", {})
+            if not isinstance(by_additional_value, dict):
+                by_additional_value = {}
 
             for emission_type_id_raw, kg_value in by_emission_type.items():
                 try:
@@ -585,8 +588,12 @@ class CarbonReportModuleRepository:
                 if not isinstance(kg_value, (int, float)):
                     continue
 
+                add_raw = by_additional_value.get(emission_type_id_raw)
+                add_value = (
+                    float(add_raw) if isinstance(add_raw, (int, float)) else None
+                )
                 chart_rows.append(
-                    (int(module_type_id), emission_type_id, float(kg_value))
+                    (int(module_type_id), emission_type_id, float(kg_value), add_value)
                 )
 
         emission_breakdown = build_chart_breakdown(

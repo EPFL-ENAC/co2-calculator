@@ -47,6 +47,18 @@ class EmissionCategory(StrEnum):
     embodied_energy = "embodied_energy"
 
 
+def additional_value_unit(emission_type: EmissionType) -> str | None:
+    """Unit of the additional_value column for a given EmissionType."""
+    node: EmissionType | None = emission_type
+    while node is not None:
+        if node is EmissionType.commuting or node is EmissionType.professional_travel:
+            return "km"
+        if node is EmissionType.food or node is EmissionType.waste:
+            return "kg"
+        node = node.parent
+    return None
+
+
 class EmissionMeta(TypedDict):
     scope: Scope
     category: EmissionCategory
@@ -615,7 +627,7 @@ def _build_category_row(
 
 
 def build_chart_breakdown(
-    rows: Sequence[tuple[int, int, float] | tuple[int, int, float, float | None]],
+    rows: Sequence[tuple[int, int, float, float | None]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     buildings_validated: bool = False,
@@ -627,7 +639,7 @@ def build_chart_breakdown(
     Args:
         rows: Aggregated tuples of
             ``(module_type_id, emission_type_id, kg_co2eq)`` or
-            ``(module_type_id, emission_type_id, kg_co2eq, sum_quantity)``.
+            ``(module_type_id, emission_type_id, kg_co2eq, sum_additional_value)``.
         total_fte: Total headcount FTE used for per-person normalization and
             headcount-derived additional categories.
         headcount_validated: Whether headcount module is validated for the
@@ -663,6 +675,9 @@ def build_chart_breakdown(
           headcount rows remain empty even when headcount is validated.
     """
     category_data: dict[EmissionCategory, dict[EmissionType, float]] = {}
+    category_quantities: dict[
+        EmissionCategory, dict[EmissionType, tuple[float | None, str | None]]
+    ] = {}
     additional_data: dict[EmissionCategory, dict[EmissionType, float]] = {}
     additional_quantities: dict[
         EmissionCategory, dict[EmissionType, tuple[float | None, str | None]]
@@ -671,17 +686,8 @@ def build_chart_breakdown(
     real_kg = 0.0
     additional_kg = 0.0
 
-    def _additional_quantity_unit(category: EmissionCategory) -> str:
-        if category is EmissionCategory.commuting:
-            return "km"
-        return "kg"
-
     for row in rows:
-        if len(row) == 3:
-            module_type_id, emission_type_id, kg_co2eq = row
-            sum_quantity: float | None = None
-        else:
-            module_type_id, emission_type_id, kg_co2eq, sum_quantity = row
+        module_type_id, emission_type_id, kg_co2eq, sum_additional_value = row
         if module_type_id in exclude_module_type_ids:
             continue
         emission_type = _resolve_emission_type(emission_type_id)
@@ -693,26 +699,30 @@ def build_chart_breakdown(
         category = meta["category"]
         if category in ADDITIONAL_BREAKDOWN_ORDER:
             sub = additional_data.setdefault(category, {})
-            sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
-            if sum_quantity is not None:
+            sub[emission_type] = kg_co2eq
+            unit = additional_value_unit(emission_type)
+            if sum_additional_value is not None and unit is not None:
                 qty_map = additional_quantities.setdefault(category, {})
-                existing_qty, existing_unit = qty_map.get(emission_type, (0.0, None))
-                # quantity_unit is not summed from DB; store alongside quantity sum
-                qty_map[emission_type] = (
-                    (existing_qty or 0.0) + sum_quantity,
-                    existing_unit or _additional_quantity_unit(category),
-                )
+                qty_map[emission_type] = (sum_additional_value, unit)
             additional_kg += kg_co2eq
         else:
             sub = category_data.setdefault(category, {})
             sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
+            unit = additional_value_unit(emission_type)
+            if sum_additional_value is not None and unit is not None:
+                qty_map = category_quantities.setdefault(category, {})
+                qty_map[emission_type] = (sum_additional_value, unit)
             module_totals_kg[module_type_id] = (
                 module_totals_kg.get(module_type_id, 0.0) + kg_co2eq
             )
             real_kg += kg_co2eq
 
     module_breakdown = [
-        _build_category_row(category, category_data.get(category, {}))
+        _build_category_row(
+            category,
+            category_data.get(category, {}),
+            category_quantities.get(category),
+        )
         for category in MODULE_BREAKDOWN_ORDER
         if CATEGORY_TO_MODULE_PER_UNIT.get(category) not in exclude_module_type_ids
     ]

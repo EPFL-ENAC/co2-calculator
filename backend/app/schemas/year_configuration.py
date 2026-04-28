@@ -350,6 +350,10 @@ class SubmoduleConfig(BaseModel):
         default=None,
         description="Fixed threshold in kgCO2eq (null if not set)",
     )
+    inputs_deactivated: bool = Field(
+        default=False,
+        description="When True, the data-entry input form is hidden for end-users",
+    )
     latest_data_job: Optional[SyncJobSummary] = Field(
         default=None,
         description="Latest data entries sync job (read-only, injected by API)",

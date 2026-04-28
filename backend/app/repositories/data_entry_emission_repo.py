@@ -102,6 +102,49 @@ class DataEntryEmissionRepository:
 
         return aggregation
 
+    async def get_stats_pair(
+        self,
+        carbon_report_module_id: int,
+        aggregate_by: str = "emission_type_id",
+        primary_field: str = "kg_co2eq",
+        secondary_field: str = "additional_value",
+    ) -> tuple[Dict[str, float | None], Dict[str, float | None]]:
+        """Aggregate DataEntryEmission data by a field and sum two numeric columns.
+
+        Returns:
+            (by_primary, by_secondary) dicts keyed by ``aggregate_by`` values.
+        """
+        group_field = getattr(DataEntryEmission, aggregate_by)
+        sum_primary = getattr(DataEntryEmission, primary_field)
+        sum_secondary = getattr(DataEntryEmission, secondary_field)
+
+        query = (
+            select(
+                group_field,
+                func.sum(sum_primary).label("primary_total"),
+                func.sum(sum_secondary).label("secondary_total"),
+            )
+            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
+            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
+            .group_by(group_field)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        by_primary: Dict[str, float | None] = {}
+        by_secondary: Dict[str, float | None] = {}
+        for key, primary_total, secondary_total in rows:
+            label = str(key) if key is not None else "unknown"
+            by_primary[label] = (
+                float(primary_total) if primary_total is not None else None
+            )
+            by_secondary[label] = (
+                float(secondary_total) if secondary_total is not None else None
+            )
+
+        return by_primary, by_secondary
+
     async def get_validated_totals_by_unit(
         self,
         unit_id: int,
@@ -247,19 +290,29 @@ class DataEntryEmissionRepository:
         self,
         carbon_report_id: int,
     ) -> list[tuple[int, int, float, float | None]]:
-        """Aggregate emissions and quantity by module_type_id and emission_type_id.
+        """Aggregate emissions and physical quantities by module_type_id and
+        emission_type_id.
 
         Returns:
-            [(module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity), ...]
-            where sum_quantity is summed from meta->>'quantity' (NULL when absent).
+            [
+                (
+                    module_type_id,
+                    emission_type_id,
+                    sum_kg_co2eq,
+                    sum_additional_value,
+                ),
+                ...
+            ]
+            where sum_additional_value is summed from DataEntryEmission
+            columns (NULL when absent).
         """
-        query = (
+        query: Select[Any] = (
             select(
                 col(CarbonReportModule.module_type_id),
                 col(DataEntryEmission.emission_type_id),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
-                func.sum(col(DataEntryEmission.meta)["quantity"].as_float()).label(
-                    "sum_quantity"
+                func.sum(col(DataEntryEmission.additional_value)).label(
+                    "sum_additional_value"
                 ),
             )
             .join(
@@ -288,7 +341,9 @@ class DataEntryEmissionRepository:
                 int(row.module_type_id),
                 int(row.emission_type_id),
                 float(row.total) if row.total is not None else 0.0,
-                float(row.sum_quantity) if row.sum_quantity is not None else None,
+                float(row.sum_additional_value)
+                if row.sum_additional_value is not None
+                else None,
             )
             for row in rows
         ]

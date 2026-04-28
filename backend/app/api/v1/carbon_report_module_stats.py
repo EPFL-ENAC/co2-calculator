@@ -328,7 +328,7 @@ async def get_it_breakdown(
 
     emission_rows_no_qty: list[tuple[int, int, float]] = [
         (module_type_id, emission_type_id, kg_co2eq)
-        for module_type_id, emission_type_id, kg_co2eq, _qty in emission_rows
+        for module_type_id, emission_type_id, kg_co2eq, _add in emission_rows
     ]
 
     return build_it_breakdown(

@@ -44,35 +44,45 @@
           :submodule-type="submodule.id"
           :module-config="moduleConfig"
           :submodule-config="submodule"
-          :disable="disable"
+          :disable="isTableDisabled"
         />
       </div>
       <q-separator />
-      <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
-        <module-form
-          ref="formRef"
-          :fields="submodule.moduleFields"
-          :submodule-type="submodule.type"
-          :module-type="moduleType"
-          :item="item"
-          :has-subtitle="submodule.hasFormSubtitle"
-          :has-add-with-note="submodule.hasFormAddWithNote"
-          :add-button-label-key="submodule.addButtonLabelKey"
-          :has-tooltip="submodule.hasFormTooltip"
-          :unit-id="unitId"
-          :year="year"
-          :form-defaults="formDefaults"
-          @submit="submitForm"
-        />
-      </div>
       <div
-        v-else-if="submodule.moduleFields && !disable && !canEdit"
-        class="q-mx-lg q-my-md"
+        v-if="isInputDeactivated"
+        class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
-        <q-badge color="warning" class="q-px-md q-py-sm">
-          {{ $t('common_view_only') }}
-        </q-badge>
+        <div class="inputs-deactivated-notice__content">
+          <q-icon name="edit_off" size="sm" color="accent" class="q-mb-sm" />
+          <div class="text-body2 text-weight-medium text-center text-primary">
+            {{ $t('module_submodule_inputs_deactivated_notice') }}
+          </div>
+        </div>
       </div>
+      <template v-else>
+        <div v-if="showModuleForm" class="q-mx-lg">
+          <module-form
+            ref="formRef"
+            :fields="submodule.moduleFields"
+            :submodule-type="submodule.type"
+            :module-type="moduleType"
+            :item="item"
+            :has-subtitle="submodule.hasFormSubtitle"
+            :has-add-with-note="submodule.hasFormAddWithNote"
+            :add-button-label-key="submodule.addButtonLabelKey"
+            :has-tooltip="submodule.hasFormTooltip"
+            :unit-id="unitId"
+            :year="year"
+            :form-defaults="formDefaults"
+            @submit="submitForm"
+          />
+        </div>
+        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
+          <q-badge color="warning" class="q-px-md q-py-sm">
+            {{ $t('common_view_only') }}
+          </q-badge>
+        </div>
+      </template>
     </q-card-section>
   </q-expansion-item>
 </template>
@@ -158,6 +168,17 @@ const submoduleKey = computed(() => {
   return props.submodule.id;
 });
 
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  return subConfig?.inputs_deactivated ?? false;
+});
+
+const isTableDisabled = computed(
+  () => props.disable || isInputDeactivated.value,
+);
+
 const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
   if (!unifiedConfig) return null;
@@ -191,6 +212,8 @@ const canEdit = computed(() => {
   );
 });
 
+const isFormDisabled = computed(() => props.disable);
+
 const submoduleCount = computed(
   () =>
     moduleStore.state.data?.data_entry_types_total_items?.[
@@ -213,6 +236,14 @@ const hasModuleForm = computed(() => {
       0
   );
 });
+
+const showModuleForm = computed(
+  () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
+);
+
+const showViewOnlyBadge = computed(
+  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
+);
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
@@ -260,3 +291,19 @@ async function submitForm(payload: Record<string, FieldValue>) {
   }
 }
 </script>
+
+<style scoped>
+.inputs-deactivated-notice {
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+.inputs-deactivated-notice__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+</style>

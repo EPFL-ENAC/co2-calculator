@@ -23,10 +23,12 @@ const props = defineProps<Props>();
 const {
   isSubmoduleEnabled,
   isSubmoduleIncomplete,
+  isSubmoduleInputsDeactivated,
   getImportRow,
   submoduleShowsImportRow,
   downloadLastCsv,
   updateSubmoduleEnabled,
+  updateSubmoduleInputsDeactivated,
   getSubmoduleThreshold,
   updateSubmoduleThreshold,
   computedFactorRunning,
@@ -80,6 +82,9 @@ async function handleCancelJob(jobId: number) {
   await backofficeStore.cancelJob(jobId, props.selectedYear);
   await handleJobCompleted();
 }
+
+const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
+  !isSubmoduleEnabled(sub);
 </script>
 
 <template>
@@ -94,7 +99,7 @@ async function handleCancelJob(jobId: number) {
         <div class="row items-center q-gutter-sm">
           <span
             class="text-body2 text-weight-medium"
-            :class="!isSubmoduleEnabled(submodule) ? 'text-grey-6' : ''"
+            :class="{ 'text-grey-6': !isSubmoduleEnabled(submodule) }"
             >{{ $t(submodule.labelKey) }}</span
           >
           <q-badge
@@ -153,11 +158,31 @@ async function handleCancelJob(jobId: number) {
       <q-card
         flat
         class="col q-px-lg q-pt-lg q-pb-md"
-        :style="
-          !isSubmoduleEnabled(submodule)
-            ? 'opacity: 0.45; pointer-events: none'
-            : undefined
-        "
+        :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
+      >
+        <div class="row items-center q-mb-xs">
+          <q-icon name="edit_off" color="accent" size="xs" class="q-mr-sm" />
+          <div class="text-body2 text-weight-medium">
+            {{ $t('data_management_submodule_inputs_deactivation_title') }}
+          </div>
+        </div>
+        <div class="text-caption text-secondary q-mb-sm">
+          {{ $t('data_management_submodule_inputs_deactivation_description') }}
+        </div>
+        <q-checkbox
+          :model-value="isSubmoduleInputsDeactivated(submodule)"
+          color="accent"
+          :label="$t('data_management_submodule_inputs_deactivation_label')"
+          @update:model-value="
+            (val: boolean) => updateSubmoduleInputsDeactivated(submodule, val)
+          "
+        />
+      </q-card>
+      <q-separator class="q-my-xs" />
+      <q-card
+        flat
+        class="col q-px-lg q-pt-lg q-pb-md"
+        :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
       >
         <div class="row items-center q-mb-xs">
           <q-icon
@@ -198,12 +223,8 @@ async function handleCancelJob(jobId: number) {
     <div
       v-if="submoduleShowsImportRow(submodule)"
       class="row q-pa-md"
-      :style="[
-        { gap: '1rem' },
-        !isSubmoduleEnabled(submodule)
-          ? { opacity: 0.45, pointerEvents: 'none' }
-          : {},
-      ]"
+      :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
+      :style="{ gap: '1rem' }"
     >
       <UploadCardData
         v-if="getImportRow(submodule).hasData"
@@ -253,4 +274,9 @@ async function handleCancelJob(jobId: number) {
   </q-expansion-item>
 </template>
 
-<style scoped></style>
+<style scoped>
+.submodule-item--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+</style>

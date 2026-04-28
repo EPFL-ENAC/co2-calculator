@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 from app.core.constants import ModuleStatus
+from app.models.carbon_report import CarbonReportModule
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
 from app.services.carbon_report_service import CarbonReportService
@@ -102,3 +103,47 @@ async def test_module_status_update(async_session):
     modules = await service.module_service.list_modules(inv.id)
     headcount_mod = next(m for m in modules if m.module_type_id == module_type_id)
     assert headcount_mod.status == ModuleStatus.IN_PROGRESS
+
+
+@pytest.mark.asyncio
+async def test_recompute_report_stats_merges_by_additional_value(async_session):
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+
+    modules = await service.module_service.list_modules(report.id)
+    any_module = modules[0]
+    other_module = modules[1]
+
+    db_any = await async_session.get(CarbonReportModule, any_module.id)
+    db_other = await async_session.get(CarbonReportModule, other_module.id)
+    assert db_any is not None
+    assert db_other is not None
+
+    db_any.stats = {
+        "scope1": 0.0,
+        "scope2": 0.0,
+        "scope3": 1.0,
+        "total": 1.0,
+        "by_emission_type": {"10000": 1.0},
+        "by_additional_value": {"10000": 2.0},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    db_other.stats = {
+        "scope1": 0.0,
+        "scope2": 0.0,
+        "scope3": 3.0,
+        "total": 3.0,
+        "by_emission_type": {"10000": 3.0},
+        "by_additional_value": {"10000": 4.0},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    await async_session.flush()
+
+    await service.recompute_report_stats(report.id)
+
+    fetched = await service.get(report.id)
+    assert fetched is not None
+    assert fetched.stats is not None
+    assert fetched.stats["by_additional_value"]["10000"] == pytest.approx(6.0)
