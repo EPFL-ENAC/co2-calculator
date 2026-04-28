@@ -19,14 +19,24 @@ def _row_by_category(rows: list[dict], category: str) -> dict:
     return next(row for row in rows if row["category"] == category)
 
 
+def _row(
+    module_type_id: int,
+    emission_type_id: int,
+    kg_co2eq: float,
+    distance_km: float | None = None,
+    weight_kg: float | None = None,
+) -> tuple[int, int, float, float | None, float | None]:
+    return (module_type_id, emission_type_id, kg_co2eq, distance_km, weight_kg)
+
+
 def test_build_chart_breakdown_returns_emission_entries_only():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             3_000.0,
@@ -51,9 +61,9 @@ def test_build_chart_breakdown_returns_emission_entries_only():
 
 def test_build_chart_breakdown_aggregates_same_emission_type():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 4_000.0),
-        (4, EmissionType.equipment__scientific.value, 2_000.0),
-        (4, EmissionType.equipment__it.value, 1_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 4_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 2_000.0),
+        _row(4, EmissionType.equipment__it.value, 1_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -64,8 +74,8 @@ def test_build_chart_breakdown_aggregates_same_emission_type():
 
 def test_build_chart_breakdown_separates_building_categories():
     rows = [
-        (3, EmissionType.buildings__rooms__lighting.value, 3_000.0),
-        (3, EmissionType.buildings__combustion.value, 2_000.0),
+        _row(3, EmissionType.buildings__rooms__lighting.value, 3_000.0),
+        _row(3, EmissionType.buildings__combustion.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -81,9 +91,9 @@ def test_build_chart_breakdown_separates_building_categories():
 
 def test_build_chart_breakdown_per_person_exposes_only_value_keys():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 5_000.0),
-        (4, EmissionType.equipment__it.value, 3_000.0),
-        (2, EmissionType.professional_travel__plane__eco.value, 2_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 5_000.0),
+        _row(4, EmissionType.equipment__it.value, 3_000.0),
+        _row(2, EmissionType.professional_travel__plane__eco.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows, total_fte=10.0)
@@ -103,7 +113,7 @@ def test_build_chart_breakdown_per_person_exposes_only_value_keys():
 
 def test_build_chart_breakdown_validated_categories_follow_module_validation():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             1_000.0,
@@ -124,12 +134,12 @@ def test_build_chart_breakdown_validated_categories_follow_module_validation():
 
 def test_build_chart_breakdown_excludes_single_module():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.research_facilities.value,
             EmissionType.research_facilities__facilities.value,
             5_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
@@ -151,17 +161,17 @@ def test_build_chart_breakdown_excludes_single_module():
 
 def test_build_chart_breakdown_excludes_multiple_modules():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.research_facilities.value,
             EmissionType.research_facilities__facilities.value,
             5_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             3_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
@@ -207,7 +217,7 @@ def test_parent_keys_order_child_emission_uses_parent_bar_key():
     """A depth-2 emission (plane__eco) contributes its *parent* key ('plane')
     to parent_keys_order, not its own leaf key ('eco')."""
     rows = [
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             5_000.0,
@@ -228,12 +238,12 @@ def test_parent_keys_order_multiple_children_same_parent_deduplicated():
     must produce exactly one 'plane' entry in parent_keys_order, and the
     parent sum must equal the combined tonnage."""
     rows = [
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__business.value,
             3_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             7_000.0,
@@ -256,12 +266,12 @@ def test_parent_keys_order_reflects_first_seen_value_sorted_order():
     rows = [
         # Deliberately listed in reverse value order to prove input order
         # does not drive parent_keys_order -- only EmissionType.value sort does.
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,  # 50203
             6_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__train__class_1.value,  # 50101
             4_000.0,
@@ -282,12 +292,12 @@ def test_parent_keys_order_standalone_leaf_uses_own_key():
     # equipment__scientific (80100) and equipment__it (80200) are both
     # level-1 leaves: no parent_key is set, so bar_key == key.
     rows = [
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,  # 80100
             8_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__it.value,  # 80200
             2_000.0,

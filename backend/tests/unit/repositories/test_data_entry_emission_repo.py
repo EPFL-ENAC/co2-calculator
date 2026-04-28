@@ -44,7 +44,7 @@ async def test_create_emission(db_session: AsyncSession):
         data_entry_id=data_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
-        meta={"distance_km": 500},
+        distance_km=500.0,
     )
 
     result = await repo.create(emission)
@@ -52,7 +52,7 @@ async def test_create_emission(db_session: AsyncSession):
     assert result.id is not None
     assert result.data_entry_id == data_entry.id
     assert result.kg_co2eq == 250.5
-    assert result.meta["distance_km"] == 500
+    assert result.distance_km == 500.0
 
 
 @pytest.mark.asyncio
@@ -1115,10 +1115,94 @@ async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
 
     result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=200)
     assert len(result) == 1
-    module_type_id, emission_type_id, kg, qty = result[0]
+    module_type_id, emission_type_id, kg, dist_km, wt_kg = result[0]
     assert module_type_id == ModuleTypeEnum.equipment_electric_consumption.value
     assert emission_type_id == EmissionType.equipment__scientific.value
     assert kg == pytest.approx(1500.0)
+    assert dist_km is None
+    assert wt_kg is None
+
+
+@pytest.mark.asyncio
+async def test_emission_breakdown_with_quantity_distance_km(db_session: AsyncSession):
+    """Commuting emission with meta.distance_km → sum_distance_km is populated."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=201,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Alice"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.commuting__cycling,
+            kg_co2eq=10.0,
+            distance_km=4000.0,
+            meta={"quantity": 4000.0, "quantity_unit": "km"},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=201)
+    assert len(result) == 1
+    _, _, kg, dist_km, wt_kg = result[0]
+    assert kg == pytest.approx(10.0)
+    assert dist_km == pytest.approx(4000.0)
+    assert wt_kg is None
+
+
+@pytest.mark.asyncio
+async def test_emission_breakdown_with_quantity_weight_kg(db_session: AsyncSession):
+    """Food emission with meta.weight_kg → sum_weight_kg is populated."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=202,
+        module_type_id=ModuleTypeEnum.headcount.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.member,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Bob"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.food__vegetarian,
+            kg_co2eq=20.0,
+            weight_kg=160.0,
+            meta={"quantity": 160.0, "quantity_unit": "kg"},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=202)
+    assert len(result) == 1
+    _, _, kg, dist_km, wt_kg = result[0]
+    assert kg == pytest.approx(20.0)
+    assert dist_km is None
+    assert wt_kg == pytest.approx(160.0)
 
 
 # ======================================================================

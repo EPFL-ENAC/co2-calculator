@@ -246,21 +246,33 @@ class DataEntryEmissionRepository:
     async def get_emission_breakdown_with_quantity(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, float, float | None]]:
-        """Aggregate emissions and quantity by module_type_id and emission_type_id.
+    ) -> list[tuple[int, int, float, float | None, float | None]]:
+        """Aggregate emissions and physical quantities by module_type_id and
+        emission_type_id.
 
         Returns:
-            [(module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity), ...]
-            where sum_quantity is summed from meta->>'quantity' (NULL when absent).
+            [
+                (
+                    module_type_id,
+                    emission_type_id,
+                    sum_kg_co2eq,
+                    sum_distance_km,
+                    sum_weight_kg,
+                ),
+                ...
+            ]
+            where sum_distance_km and sum_weight_kg are summed from DataEntryEmission
+            columns (NULL when absent).
         """
-        query = (
+        query: Select[Any] = (
             select(
                 col(CarbonReportModule.module_type_id),
                 col(DataEntryEmission.emission_type_id),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
-                func.sum(col(DataEntryEmission.meta)["quantity"].as_float()).label(
-                    "sum_quantity"
-                ),
+                func.sum(col(DataEntryEmission.distance_km)).label("sum_distance_km"),
+            )
+            .add_columns(
+                func.sum(col(DataEntryEmission.weight_kg)).label("sum_weight_kg")
             )
             .join(
                 DataEntry,
@@ -288,7 +300,8 @@ class DataEntryEmissionRepository:
                 int(row.module_type_id),
                 int(row.emission_type_id),
                 float(row.total) if row.total is not None else 0.0,
-                float(row.sum_quantity) if row.sum_quantity is not None else None,
+                float(row.sum_distance_km) if row.sum_distance_km is not None else None,
+                float(row.sum_weight_kg) if row.sum_weight_kg is not None else None,
             )
             for row in rows
         ]

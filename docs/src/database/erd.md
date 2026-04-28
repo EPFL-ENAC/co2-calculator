@@ -64,11 +64,13 @@ erDiagram
   data_entry_emissions {
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
+    FLOAT distance_km
     INTEGER emission_type_id "indexed"
     INTEGER id PK
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
+    FLOAT weight_kg
   }
   data_ingestion_jobs {
     INTEGER data_entry_type_id "indexed"

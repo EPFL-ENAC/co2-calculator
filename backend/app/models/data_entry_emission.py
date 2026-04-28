@@ -365,6 +365,14 @@ class DataEntryEmissionBase(SQLModel):
         nullable=False,
         description="Computed emission value in kg CO2 equivalent",
     )
+    distance_km: float | None = Field(
+        default=None,
+        description="Physical distance in kilometers associated to this emission row",
+    )
+    weight_kg: float | None = Field(
+        default=None,
+        description="Physical weight in kilograms associated to this emission row",
+    )
     meta: dict = Field(
         default_factory=dict,
         sa_column=Column(JSON),

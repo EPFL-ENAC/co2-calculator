@@ -559,7 +559,7 @@ class CarbonReportModuleRepository:
         global_fte_result = (await self.session.exec(global_fte_stmt)).one()
         global_fte = float(global_fte_result or 0.0)
 
-        chart_rows: list[tuple[int, int, float]] = []
+        chart_rows: list[tuple[int, int, float, float | None, float | None]] = []
         validated_module_type_ids: set[int] = set()
         headcount_validated = False
 
@@ -586,7 +586,7 @@ class CarbonReportModuleRepository:
                     continue
 
                 chart_rows.append(
-                    (int(module_type_id), emission_type_id, float(kg_value))
+                    (int(module_type_id), emission_type_id, float(kg_value), None, None)
                 )
 
         emission_breakdown = build_chart_breakdown(

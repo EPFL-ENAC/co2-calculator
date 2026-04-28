@@ -474,13 +474,13 @@ class DataEntryRepository:
         for row in rows:
             # Unpack based on query shape
             if is_travel_entry:
-                data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
+                data_entry, total_kg_co2eq, primary_factor, member_entry, _emission = (
+                    row
+                )
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
-                emission = None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
-                member_entry, emission = None, None
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -508,6 +508,13 @@ class DataEntryRepository:
             }
 
             if is_travel_entry:
+                distance_km = data_entry.data.get("distance_km")
+                if (
+                    distance_km is None
+                    and _emission is not None
+                    and isinstance(_emission.meta, dict)
+                ):
+                    distance_km = _emission.meta.get("distance_km")
                 data_entry.data = {
                     **data_entry.data,
                     **(
@@ -515,11 +522,7 @@ class DataEntryRepository:
                         if member_entry
                         else {}
                     ),
-                    **(
-                        {"distance_km": emission.meta.get("distance_km")}
-                        if emission and emission.meta and "distance_km" in emission.meta
-                        else {}
-                    ),
+                    **({"distance_km": distance_km} if distance_km is not None else {}),
                 }
             if is_buildings_entry and building_room:
                 surface = building_room.room_surface_square_meter

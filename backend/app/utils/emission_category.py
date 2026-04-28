@@ -615,7 +615,7 @@ def _build_category_row(
 
 
 def build_chart_breakdown(
-    rows: Sequence[tuple[int, int, float] | tuple[int, int, float, float | None]],
+    rows: Sequence[tuple[int, int, float, float | None, float | None]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
     buildings_validated: bool = False,
@@ -627,7 +627,8 @@ def build_chart_breakdown(
     Args:
         rows: Aggregated tuples of
             ``(module_type_id, emission_type_id, kg_co2eq)`` or
-            ``(module_type_id, emission_type_id, kg_co2eq, sum_quantity)``.
+            ``(module_type_id, emission_type_id, kg_co2eq, sum_distance_km,``
+            ``sum_weight_kg)``.
         total_fte: Total headcount FTE used for per-person normalization and
             headcount-derived additional categories.
         headcount_validated: Whether headcount module is validated for the
@@ -671,17 +672,8 @@ def build_chart_breakdown(
     real_kg = 0.0
     additional_kg = 0.0
 
-    def _additional_quantity_unit(category: EmissionCategory) -> str:
-        if category is EmissionCategory.commuting:
-            return "km"
-        return "kg"
-
     for row in rows:
-        if len(row) == 3:
-            module_type_id, emission_type_id, kg_co2eq = row
-            sum_quantity: float | None = None
-        else:
-            module_type_id, emission_type_id, kg_co2eq, sum_quantity = row
+        module_type_id, emission_type_id, kg_co2eq, sum_distance_km, sum_weight_kg = row
         if module_type_id in exclude_module_type_ids:
             continue
         emission_type = _resolve_emission_type(emission_type_id)
@@ -693,15 +685,16 @@ def build_chart_breakdown(
         category = meta["category"]
         if category in ADDITIONAL_BREAKDOWN_ORDER:
             sub = additional_data.setdefault(category, {})
-            sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
-            if sum_quantity is not None:
+            sub[emission_type] = kg_co2eq
+            if category is EmissionCategory.commuting:
+                qty, unit = sum_distance_km, "km"
+            elif category in (EmissionCategory.food, EmissionCategory.waste):
+                qty, unit = sum_weight_kg, "kg"
+            else:
+                qty, unit = None, None
+            if qty is not None:
                 qty_map = additional_quantities.setdefault(category, {})
-                existing_qty, existing_unit = qty_map.get(emission_type, (0.0, None))
-                # quantity_unit is not summed from DB; store alongside quantity sum
-                qty_map[emission_type] = (
-                    (existing_qty or 0.0) + sum_quantity,
-                    existing_unit or _additional_quantity_unit(category),
-                )
+                qty_map[emission_type] = (qty, unit)
             additional_kg += kg_co2eq
         else:
             sub = category_data.setdefault(category, {})
