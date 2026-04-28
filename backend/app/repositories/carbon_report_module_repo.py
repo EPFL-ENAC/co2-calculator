@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from math import ceil
 from typing import Any, List, Optional
 
-from sqlalchemy import Integer, cast
+from sqlalchemy import Integer, case, cast
 from sqlmodel import col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -431,28 +431,77 @@ class CarbonReportModuleRepository:
                 "total_pages": 0,
             }
 
-        # --- STEP 2: Paginate just the basic Unit/Report info ---
-        # 1. Group columns into a list to bypass the 4-arg overload limit
-        units_stmt_columns: List[Any] = [
-            col(Unit.id).label("unit_id"),
-            col(Unit.name).label("unit_name"),
-            col(Unit.path_name).label("path_name"),
-            col(User.display_name).label("principal_user_name"),
-            col(CarbonReport.id).label("carbon_report_id"),
-            col(CarbonReport.completion_progress).label("completion_progress"),
-            col(CarbonReport.last_updated).label("last_updated"),
-            col(CarbonReport.stats).label("report_stats"),
-        ]
+        is_multi_year = len(years) > 1
 
-        # 2. Unpack them into the select statement
-        units_stmt = (
-            select(*units_stmt_columns)
-            .join(CarbonReport, CarbonReport.unit_id == Unit.id)
-            .outerjoin(
-                User, User.institutional_id == Unit.principal_user_institutional_id
+        # --- STEP 2: Paginate just the basic Unit/Report info ---
+        if is_multi_year:
+            # Multi-year: aggregate across years — one row per unit.
+            # validated_years_count = number of selected years with VALIDATED status.
+            validated_years_col = func.sum(
+                case(
+                    (
+                        col(CarbonReport.overall_status) == int(ModuleStatus.VALIDATED),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("validated_years_count")
+
+            # Correlated subquery: stats from the most recent selected year.
+            latest_stats_subq = (
+                select(CarbonReport.stats)
+                .where(CarbonReport.unit_id == Unit.id)
+                .where(col(CarbonReport.year).in_(years))
+                .order_by(desc(CarbonReport.year))
+                .limit(1)
+                .correlate(Unit)
+                .scalar_subquery()
             )
-            .where(col(CarbonReport.year).in_(years))
-        )
+
+            units_stmt_columns: List[Any] = [
+                col(Unit.id).label("unit_id"),
+                col(Unit.name).label("unit_name"),
+                col(Unit.path_name).label("path_name"),
+                col(User.display_name).label("principal_user_name"),
+                func.max(col(CarbonReport.id)).label("carbon_report_id"),
+                validated_years_col,
+                func.max(col(CarbonReport.last_updated)).label("last_updated"),
+                latest_stats_subq.label("report_stats"),
+            ]
+
+            units_stmt = (
+                select(*units_stmt_columns)
+                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .outerjoin(
+                    User,
+                    User.institutional_id == Unit.principal_user_institutional_id,
+                )
+                .where(col(CarbonReport.year).in_(years))
+                .group_by(Unit.id, Unit.name, Unit.path_name, User.display_name)
+            )
+        else:
+            # Single year: one row per unit, module-level completion progress.
+            units_stmt_columns = [
+                col(Unit.id).label("unit_id"),
+                col(Unit.name).label("unit_name"),
+                col(Unit.path_name).label("path_name"),
+                col(User.display_name).label("principal_user_name"),
+                col(CarbonReport.id).label("carbon_report_id"),
+                col(CarbonReport.completion_progress).label("completion_progress"),
+                col(CarbonReport.last_updated).label("last_updated"),
+                col(CarbonReport.stats).label("report_stats"),
+            ]
+
+            units_stmt = (
+                select(*units_stmt_columns)
+                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .outerjoin(
+                    User,
+                    User.institutional_id == Unit.principal_user_institutional_id,
+                )
+                .where(col(CarbonReport.year).in_(years))
+            )
+
         units_stmt = self._apply_report_filters(
             units_stmt, hierarchy_unit_ids, completion_status
         )
@@ -483,9 +532,22 @@ class CarbonReportModuleRepository:
         elif sort_by == "affiliation":
             order_col = Unit.path_name
         elif sort_by == "validation_status":
-            # Extract numerator from "X/Y" format and sort numerically
-            completed_part = func.split_part(CarbonReport.completion_progress, "/", 1)
-            order_col = cast(completed_part, Integer)
+            if is_multi_year:
+                order_col = func.sum(
+                    case(
+                        (
+                            col(CarbonReport.overall_status)
+                            == int(ModuleStatus.VALIDATED),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                )
+            else:
+                completed_part = func.split_part(
+                    CarbonReport.completion_progress, "/", 1
+                )
+                order_col = cast(completed_part, Integer)
             use_case_for_nulls = True
             null_value_for_sort = 0
         elif sort_by == "principal_user":
@@ -508,8 +570,6 @@ class CarbonReportModuleRepository:
             null_value_for_sort = 0
 
         # Apply sort order with NULL handling
-        from sqlalchemy import case
-
         if use_case_for_nulls:
             order_col_for_sort = case(
                 (order_col.is_(None), null_value_for_sort), else_=order_col
@@ -618,7 +678,13 @@ class CarbonReportModuleRepository:
             if u.last_updated is not None:
                 last_update_dt = datetime.fromtimestamp(u.last_updated, tz=timezone.utc)
 
-            completion_progress = u.completion_progress or DEFAULT_COMPLETION_PROGRESS
+            if is_multi_year:
+                validated_count = getattr(u, "validated_years_count", 0) or 0
+                completion_progress = f"{validated_count}/{len(years)}"
+            else:
+                completion_progress = (
+                    u.completion_progress or DEFAULT_COMPLETION_PROGRESS
+                )
             completion_status_value = self._get_completion_status_from_progress(
                 completion_progress
             )
