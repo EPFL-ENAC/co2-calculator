@@ -302,6 +302,11 @@ class User(UserBase, table=True):
         nullable=True,
         description="User function/title (e.g., 'Professor', 'PhD Student')",
     )
+    last_roles_sync_at: Optional[datetime] = Field(
+        default=None,
+        nullable=True,
+        description="Last timestamp when roles were synced from provider",
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
