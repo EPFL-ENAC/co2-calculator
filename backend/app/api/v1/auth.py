@@ -21,6 +21,7 @@ from app.core.security import (
 from app.models.audit import AuditChangeTypeEnum
 from app.models.user import UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
+from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
 from app.services.user_service import UserService
@@ -177,13 +178,19 @@ async def _log_auth_audit_event(
 
 
 @router.get(
-    "/login-test",
+    "/me", response_model=UserRead, response_model_exclude_none=True
 )
-async def login_test(
-    request: Request,
-    role: str = "co2.user.std",
+async def get_me(
+    auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Get current authenticated user information.
+
+    Returns user details including id, email, roles.
+    Requires valid auth_token cookie.
+    Resolves user by stable identity (institutional_id, provider) from JWT.
+    NO LONGER syncs roles synchronously - uses cached DB roles.
     """
     Test login endpoint for development.
 
@@ -569,7 +576,14 @@ async def get_me(
                 detail="User email missing",
             )
 
-        # create an issue background to refresh roles periodically? cf #334
+        # Trigger background role sync if needed (non-blocking)
+        # Note: This is fire-and-forget - errors don't affect /me response
+        if user.id is not None:
+            background_tasks.add_task(
+                trigger_role_sync_for_user,
+                user_id=user.id,
+                force=False,
+            )
 
         user_read = UserRead.from_orm(user)
         return user_read
