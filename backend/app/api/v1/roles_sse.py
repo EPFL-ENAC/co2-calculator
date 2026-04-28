@@ -140,6 +140,8 @@ async def emit_role_update_event(user_id: int, roles: list) -> None:
 
     In production, use Redis pub/sub for multi-instance deployment.
     """
+    global active_connections
+
     event = RoleUpdateEvent(
         user_id=user_id,
         roles=roles,
