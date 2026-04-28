@@ -40,6 +40,15 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - Preserve existing user changes in the working tree; never reset unrelated work.
 - Reuse existing patterns used in similar modules (for example, behavior already used in travel-like dynamic forms).
 
+# IMPLEMENTATION PLANS
+
+- All implementation plans (whether produced by Claude, Copilot, or any other agent) MUST be saved under `docs/implementation-plans/` at the repository root.
+- File naming convention: `[issue-id]-[short-kebab-description].md` where `[issue-id]` is the integer GitHub issue id (regex: `^[0-9]+-[a-z0-9-]+\.md$`).
+  - Examples: `840-root-level-rollup-emission-rows.md`, `252-chart-results-endpoint.md`.
+- One plan file per issue scope; if an issue spawns multiple sub-plans, suffix with a discriminator (e.g., `859-seed-1-factors-ingestion.md`, `859-seed-2-data-entries-ingestion.md`).
+- Do not write plans into the working directory, `backend/`, `frontend/`, or scratch locations — always under `docs/implementation-plans/`.
+- If no GitHub issue exists for the work, create one first or ask the user for the id before writing the plan.
+
 # DATA AND UI CONSISTENCY RULES
 
 - Form values, table values, and chart values must stay consistent after create/update.
