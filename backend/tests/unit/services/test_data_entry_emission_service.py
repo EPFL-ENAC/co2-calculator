@@ -247,9 +247,8 @@ class TestMetaExtras:
             results = await service.prepare_create(de)
 
         assert len(results) == 1
-        assert results[0].distance_km == pytest.approx(4000.0)
-        assert results[0].weight_kg is None
-        assert results[0].meta.get("distance_km") == pytest.approx(4000.0)
+        assert results[0].additional_value == pytest.approx(4000.0)
+        assert "distance_km" not in results[0].meta
         assert "weight_kg" not in results[0].meta
 
     @pytest.mark.asyncio
@@ -298,14 +297,13 @@ class TestMetaExtras:
             results = await service.prepare_create(de)
 
         assert len(results) == 1
-        assert results[0].weight_kg == pytest.approx(160.0)
-        assert results[0].distance_km is None
-        assert results[0].meta.get("weight_kg") == pytest.approx(160.0)
+        assert results[0].additional_value == pytest.approx(160.0)
+        assert "weight_kg" not in results[0].meta
         assert "distance_km" not in results[0].meta
 
     @pytest.mark.asyncio
     async def test_non_headcount_emission_has_no_named_quantity_key(self):
-        """Professional travel (plane) should not write distance/weight to meta."""
+        """Professional travel (plane) should not duplicate quantity keys into meta."""
         from app.models.data_entry import DataEntryTypeEnum
         from app.models.data_entry_emission import EmissionType
         from app.schemas.data_entry import DataEntryResponse
@@ -358,13 +356,11 @@ class TestMetaExtras:
 
         assert len(results) == 1
         meta = results[0].meta
-        # Travel inputs may include distance_km in ctx (thus present in meta).
-        # We do not store distance/weight on the emission row for non-headcount
-        # categories.
-        assert "weight_kg" not in meta
+        # Travel inputs may include distance_km in ctx (thus present in meta),
+        # but the emission row persists it in additional_value (source of truth).
         assert meta.get("distance_km") == pytest.approx(1000.0)
-        assert results[0].distance_km is None
-        assert results[0].weight_kg is None
+        assert "weight_kg" not in meta
+        assert results[0].additional_value == pytest.approx(1000.0)
 
 
 # ---------------------------------------------------------------------------

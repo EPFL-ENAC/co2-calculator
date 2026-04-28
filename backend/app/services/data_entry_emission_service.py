@@ -21,6 +21,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.emission_category import additional_value_unit
 from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
@@ -233,17 +234,14 @@ class DataEntryEmissionService:
                         )
                         quantity = base_qty * multiplier
                     quantity_unit: str | None = (factor.values or {}).get("unit")
-                    distance_km: float | None = None
-                    weight_kg: float | None = None
-                    meta_extras: dict = {}
-                    if quantity is not None:
-                        et_name = comp.emission_type.name
-                        if et_name.startswith("commuting"):
-                            distance_km = quantity
-                            meta_extras["distance_km"] = quantity
-                        elif et_name.startswith(("food", "waste")):
-                            weight_kg = quantity
-                            meta_extras["weight_kg"] = quantity
+                    additional_value: float | None = (
+                        quantity
+                        if (
+                            quantity is not None
+                            and additional_value_unit(comp.emission_type) is not None
+                        )
+                        else None
+                    )
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
@@ -252,15 +250,13 @@ class DataEntryEmissionService:
                             ),
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
-                            distance_km=distance_km,
-                            weight_kg=weight_kg,
+                            additional_value=additional_value,
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
                                 ],
                                 "quantity": quantity,
                                 "quantity_unit": quantity_unit,
-                                **meta_extras,
                                 **ctx,
                             },
                         )
@@ -506,7 +502,7 @@ class DataEntryEmissionService:
     async def get_emission_breakdown(
         self,
         carbon_report_id: int,
-    ) -> list[tuple[int, int, float, float | None, float | None]]:
+    ) -> list[tuple[int, int, float, float | None]]:
         """Get emission breakdown by module and emission type.
 
         Returns list of
@@ -514,8 +510,7 @@ class DataEntryEmissionService:
             module_type_id,
             emission_type_id,
             sum_kg_co2eq,
-            sum_distance_km,
-            sum_weight_kg,
+            sum_additional_value,
         ).
         """
         return await self.repo.get_emission_breakdown_with_quantity(

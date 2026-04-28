@@ -44,7 +44,7 @@ async def test_create_emission(db_session: AsyncSession):
         data_entry_id=data_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
-        distance_km=500.0,
+        additional_value=500.0,
     )
 
     result = await repo.create(emission)
@@ -52,7 +52,7 @@ async def test_create_emission(db_session: AsyncSession):
     assert result.id is not None
     assert result.data_entry_id == data_entry.id
     assert result.kg_co2eq == 250.5
-    assert result.distance_km == 500.0
+    assert result.additional_value == 500.0
 
 
 @pytest.mark.asyncio
@@ -1115,17 +1115,16 @@ async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
 
     result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=200)
     assert len(result) == 1
-    module_type_id, emission_type_id, kg, dist_km, wt_kg = result[0]
+    module_type_id, emission_type_id, kg, additional_value = result[0]
     assert module_type_id == ModuleTypeEnum.equipment_electric_consumption.value
     assert emission_type_id == EmissionType.equipment__scientific.value
     assert kg == pytest.approx(1500.0)
-    assert dist_km is None
-    assert wt_kg is None
+    assert additional_value is None
 
 
 @pytest.mark.asyncio
 async def test_emission_breakdown_with_quantity_distance_km(db_session: AsyncSession):
-    """Commuting emission with meta.distance_km → sum_distance_km is populated."""
+    """Commuting emission with additional_value → sum_additional_value is populated."""
     repo = DataEntryEmissionRepository(db_session)
 
     module = CarbonReportModule(
@@ -1150,7 +1149,7 @@ async def test_emission_breakdown_with_quantity_distance_km(db_session: AsyncSes
             data_entry_id=entry.id,
             emission_type_id=EmissionType.commuting__cycling,
             kg_co2eq=10.0,
-            distance_km=4000.0,
+            additional_value=4000.0,
             meta={"quantity": 4000.0, "quantity_unit": "km"},
         )
     )
@@ -1158,15 +1157,14 @@ async def test_emission_breakdown_with_quantity_distance_km(db_session: AsyncSes
 
     result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=201)
     assert len(result) == 1
-    _, _, kg, dist_km, wt_kg = result[0]
+    _, _, kg, additional_value = result[0]
     assert kg == pytest.approx(10.0)
-    assert dist_km == pytest.approx(4000.0)
-    assert wt_kg is None
+    assert additional_value == pytest.approx(4000.0)
 
 
 @pytest.mark.asyncio
 async def test_emission_breakdown_with_quantity_weight_kg(db_session: AsyncSession):
-    """Food emission with meta.weight_kg → sum_weight_kg is populated."""
+    """Food emission with additional_value → sum_additional_value is populated."""
     repo = DataEntryEmissionRepository(db_session)
 
     module = CarbonReportModule(
@@ -1191,7 +1189,7 @@ async def test_emission_breakdown_with_quantity_weight_kg(db_session: AsyncSessi
             data_entry_id=entry.id,
             emission_type_id=EmissionType.food__vegetarian,
             kg_co2eq=20.0,
-            weight_kg=160.0,
+            additional_value=160.0,
             meta={"quantity": 160.0, "quantity_unit": "kg"},
         )
     )
@@ -1199,10 +1197,9 @@ async def test_emission_breakdown_with_quantity_weight_kg(db_session: AsyncSessi
 
     result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=202)
     assert len(result) == 1
-    _, _, kg, dist_km, wt_kg = result[0]
+    _, _, kg, additional_value = result[0]
     assert kg == pytest.approx(20.0)
-    assert dist_km is None
-    assert wt_kg == pytest.approx(160.0)
+    assert additional_value == pytest.approx(160.0)
 
 
 # ======================================================================

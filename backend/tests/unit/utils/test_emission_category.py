@@ -6,6 +6,7 @@ from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.utils.emission_category import (
     MODULE_BREAKDOWN_ORDER,
+    additional_value_unit,
     build_chart_breakdown,
     build_treemap,
 )
@@ -23,10 +24,9 @@ def _row(
     module_type_id: int,
     emission_type_id: int,
     kg_co2eq: float,
-    distance_km: float | None = None,
-    weight_kg: float | None = None,
-) -> tuple[int, int, float, float | None, float | None]:
-    return (module_type_id, emission_type_id, kg_co2eq, distance_km, weight_kg)
+    additional_value: float | None = None,
+) -> tuple[int, int, float, float | None]:
+    return (module_type_id, emission_type_id, kg_co2eq, additional_value)
 
 
 def test_build_chart_breakdown_returns_emission_entries_only():
@@ -40,6 +40,7 @@ def test_build_chart_breakdown_returns_emission_entries_only():
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             3_000.0,
+            1_000.0,
         ),
     ]
 
@@ -55,6 +56,8 @@ def test_build_chart_breakdown_returns_emission_entries_only():
     travel = _row_by_category(result["module_breakdown"], "professional_travel")
     assert travel["eco"] == pytest.approx(3.0)
     assert travel["plane"] == pytest.approx(3.0)  # parent_key sum
+    assert travel["emissions"][0]["quantity"] == pytest.approx(1000.0)
+    assert travel["emissions"][0]["quantity_unit"] == "km"
 
     assert result["total_tonnes_co2eq"] == pytest.approx(13.0)
 
@@ -309,3 +312,10 @@ def test_parent_keys_order_standalone_leaf_uses_own_key():
 
     # 80100 < 80200 -> "scientific" is first-seen, then "it"
     assert equipment["parent_keys_order"] == ["scientific", "it"]
+
+
+def test_additional_value_unit_infers_from_tree():
+    assert additional_value_unit(EmissionType.commuting__cycling) == "km"
+    assert additional_value_unit(EmissionType.food__vegetarian) == "kg"
+    assert additional_value_unit(EmissionType.professional_travel__plane__eco) == "km"
+    assert additional_value_unit(EmissionType.equipment__scientific) is None

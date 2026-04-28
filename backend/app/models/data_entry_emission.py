@@ -365,13 +365,13 @@ class DataEntryEmissionBase(SQLModel):
         nullable=False,
         description="Computed emission value in kg CO2 equivalent",
     )
-    distance_km: float | None = Field(
+    additional_value: float | None = Field(
         default=None,
-        description="Physical distance in kilometers associated to this emission row",
-    )
-    weight_kg: float | None = Field(
-        default=None,
-        description="Physical weight in kilograms associated to this emission row",
+        description=(
+            "Polymorphic physical quantity tied to this emission row. "
+            "Unit is inferred from emission_type_id "
+            "(e.g. km for commuting and travel, kg for food and waste)."
+        ),
     )
     meta: dict = Field(
         default_factory=dict,

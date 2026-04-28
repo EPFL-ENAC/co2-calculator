@@ -508,13 +508,11 @@ class DataEntryRepository:
             }
 
             if is_travel_entry:
-                distance_km = data_entry.data.get("distance_km")
-                if (
-                    distance_km is None
-                    and _emission is not None
-                    and isinstance(_emission.meta, dict)
-                ):
-                    distance_km = _emission.meta.get("distance_km")
+                distance_km = (
+                    float(_emission.additional_value)
+                    if _emission is not None and _emission.additional_value is not None
+                    else data_entry.data.get("distance_km")
+                )
                 data_entry.data = {
                     **data_entry.data,
                     **(
