@@ -17,11 +17,10 @@ async def trigger_role_sync_for_user(
     Trigger background role sync for a user.
 
     This function:
-    1. Fetches user from DB
-    2. Gets role provider
-    3. Fetches fresh roles from provider
-    4. Compares with DB roles
-    5. Updates if changed
+    1. Fetches user from DB to resolve the role provider
+    2. Delegates sync to RoleSyncService, which enforces the TTL gate
+       and only fetches from the provider when needed
+    3. Syncs unit associations if roles changed
 
     Args:
         user_id: User ID to sync
@@ -42,10 +41,11 @@ async def trigger_role_sync_for_user(
             # Get role provider
             role_provider = get_role_provider(user.provider)
 
-            # Fetch fresh user data from provider
+            # Sync roles – provider fetch happens inside service, behind TTL gate
+            sync_service = RoleSyncService(session)
             try:
-                provider_user = await role_provider.get_user_by_user_id(
-                    user.institutional_id or ""
+                result = await sync_service.sync_user_roles(
+                    user_id, role_provider, force=force
                 )
             except RoleProviderNetworkError as e:
                 logger.error(
@@ -53,12 +53,6 @@ async def trigger_role_sync_for_user(
                     extra={"user_id": user_id, "error": str(e)},
                 )
                 return
-
-            # Sync roles
-            sync_service = RoleSyncService(session)
-            result = await sync_service.sync_user_roles(
-                user_id, provider_user, force=force
-            )
 
             if result.has_changed:
                 logger.info(

@@ -1,7 +1,7 @@
 """Role synchronization service for background role updates."""
 
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import List
 
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.core.role_priority import pick_role_for_institutional_id
 from app.models.user import Role
+from app.providers.role_provider import RoleProvider
 from app.repositories.user_repo import UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
@@ -45,15 +46,19 @@ class RoleSyncService:
     async def sync_user_roles(
         self,
         user_id: int,
-        provider_user: Dict[str, Any],
+        role_provider: RoleProvider,
         force: bool = False,
     ) -> RoleSyncResult:
         """
         Sync user roles from provider.
 
+        Fetches fresh user data from the provider only after the TTL gate
+        has been passed, so the external service is never hit for syncs
+        that would be skipped anyway.
+
         Args:
             user_id: User ID to sync
-            provider_user: User data from role provider
+            role_provider: Role provider instance used to fetch live user data
             force: Force sync even if recently synced
 
         Returns:
@@ -64,9 +69,9 @@ class RoleSyncService:
             logger.warning("User not found for role sync", extra={"user_id": user_id})
             return RoleSyncResult(user_id=user_id)
 
-        # Check TTL
+        # Check TTL before hitting the external provider
         if not force and user.last_roles_sync_at:
-            time_since_sync = datetime.utcnow() - user.last_roles_sync_at
+            time_since_sync = datetime.now(timezone.utc) - user.last_roles_sync_at
             if time_since_sync < self.sync_ttl:
                 logger.debug(
                     "Skipping role sync - recently synced",
@@ -79,6 +84,11 @@ class RoleSyncService:
                     user_id=user_id,
                     skipped_due_to_ttl=True,
                 )
+
+        # TTL gate passed – fetch fresh data from the external provider now
+        provider_user = await role_provider.get_user_by_user_id(
+            user.institutional_id or ""
+        )
 
         # Compare roles
         old_roles = user.roles or []
@@ -106,7 +116,7 @@ class RoleSyncService:
                 extra={"user_id": user_id},
             )
             # Still update timestamp
-            user.last_roles_sync_at = datetime.utcnow()
+            user.last_roles_sync_at = datetime.now(timezone.utc)
             await self.session.commit()
             return RoleSyncResult(
                 user_id=user_id,
@@ -117,7 +127,7 @@ class RoleSyncService:
 
         # Update user roles
         user.roles = new_roles
-        user.last_roles_sync_at = datetime.utcnow()
+        user.last_roles_sync_at = datetime.now(timezone.utc)
         await self.session.commit()
         await self.session.refresh(user)
 

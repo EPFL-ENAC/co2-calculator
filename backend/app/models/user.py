@@ -5,6 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
+from sqlalchemy import DateTime
 from sqlalchemy import Enum as SAEnum
 
 if TYPE_CHECKING:
@@ -304,7 +305,7 @@ class User(UserBase, table=True):
     )
     last_roles_sync_at: Optional[datetime] = Field(
         default=None,
-        nullable=True,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
         description="Last timestamp when roles were synced from provider",
     )
 

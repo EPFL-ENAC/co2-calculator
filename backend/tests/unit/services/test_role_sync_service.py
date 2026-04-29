@@ -1,6 +1,7 @@
 """Unit tests for RoleSyncService."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -21,7 +22,7 @@ async def test_sync_roles_detects_changes(db_session):
         roles_raw=[
             {"role": RoleName.CO2_USER_STD.value, "on": {"institutional_id": "unit1"}}
         ],
-        last_roles_sync_at=datetime.utcnow() - timedelta(hours=1),
+        last_roles_sync_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
     db_session.add(user)
     await db_session.commit()
@@ -35,15 +36,18 @@ async def test_sync_roles_detects_changes(db_session):
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="unit2"))
         ],
     }
+    mock_provider = AsyncMock()
+    mock_provider.get_user_by_user_id = AsyncMock(return_value=provider_user)
 
     service = RoleSyncService(db_session)
 
     # Act
-    result = await service.sync_user_roles(user.id, provider_user)
+    result = await service.sync_user_roles(user.id, mock_provider)
 
     # Assert
     assert result.has_changed is True
     assert result.roles_changed is True
+    mock_provider.get_user_by_user_id.assert_awaited_once_with("12345")
     user_updated = await service.user_repo.get_by_id(user.id)
     assert user_updated.last_roles_sync_at is not None
 
@@ -61,7 +65,7 @@ async def test_sync_roles_no_changes(db_session):
         email="test@example.com",
         provider=UserProvider.ACCRED,
         roles_raw=roles_raw,
-        last_roles_sync_at=datetime.utcnow() - timedelta(hours=1),
+        last_roles_sync_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
     db_session.add(user)
     await db_session.commit()
@@ -75,11 +79,13 @@ async def test_sync_roles_no_changes(db_session):
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="unit1"))
         ],
     }
+    mock_provider = AsyncMock()
+    mock_provider.get_user_by_user_id = AsyncMock(return_value=provider_user)
 
     service = RoleSyncService(db_session)
 
     # Act
-    result = await service.sync_user_roles(user.id, provider_user)
+    result = await service.sync_user_roles(user.id, mock_provider)
 
     # Assert
     assert result.has_changed is False
@@ -88,7 +94,8 @@ async def test_sync_roles_no_changes(db_session):
 
 @pytest.mark.asyncio
 async def test_sync_roles_ignores_recent_sync(db_session):
-    """Test that sync respects TTL and skips recent syncs."""
+    """Test that sync respects TTL and skips recent syncs
+    without calling the provider."""
     # Arrange
     user = User(
         id=1,
@@ -98,18 +105,22 @@ async def test_sync_roles_ignores_recent_sync(db_session):
         roles_raw=[
             {"role": RoleName.CO2_USER_STD.value, "on": {"institutional_id": "unit1"}}
         ],
-        last_roles_sync_at=datetime.utcnow(),  # Just synced
+        last_roles_sync_at=datetime.now(timezone.utc),  # Just synced
     )
     db_session.add(user)
     await db_session.commit()
 
+    mock_provider = AsyncMock()
+    mock_provider.get_user_by_user_id = AsyncMock()
+
     service = RoleSyncService(db_session, sync_ttl_minutes=15)
 
     # Act
-    result = await service.sync_user_roles(user.id, {})
+    result = await service.sync_user_roles(user.id, mock_provider)
 
     # Assert
     assert result.skipped_due_to_ttl is True
+    mock_provider.get_user_by_user_id.assert_not_awaited()
 
 
 @pytest.mark.asyncio
