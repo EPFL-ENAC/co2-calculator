@@ -15,7 +15,6 @@ from app.api.v1 import (
     factors,
     files,
     locations,
-    roles_sse,
     taxonomies,
     unit_results,
     units,
@@ -59,4 +58,3 @@ api_router.include_router(
     prefix="/year-configuration",
     tags=["year-configuration"],
 )
-api_router.include_router(roles_sse.router, prefix="/roles", tags=["roles"])

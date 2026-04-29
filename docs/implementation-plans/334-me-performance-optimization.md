@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Reduce `/me` endpoint latency from ~1s to ~8ms by removing synchronous role refresh and implementing background role synchronization with SSE notifications.
+**Goal:** Reduce `/me` endpoint latency from ~1s to ~8ms by removing synchronous role refresh and moving role sync trigger from `/me` to `/refresh` endpoint.
 
 **Architecture:**
 
-- `/me` becomes a pure DB read (no external API calls)
-- Background tasks sync roles periodically or on-demand
-- SSE pushes role change notifications to connected clients
-- Frontend uses SSE + TTL-based fallback for role consistency
+- `/me` becomes a pure DB read (no external API calls, no background sync)
+- `/refresh` triggers background role sync (non-blocking)
+- Background tasks sync roles periodically based on TTL
+- Frontend uses TTL-based fallback for role consistency. No real-time notifications.
 
-**Tech Stack:** FastAPI (BackgroundTasks), SSE (EventSource), Pinia (Vue store), PostgreSQL
+**Tech Stack:** FastAPI (BackgroundTasks), PostgreSQL
 
 ---
 
@@ -21,20 +21,18 @@
 
 **Create:**
 
-- `backend/app/api/v1/roles_sse.py` - SSE endpoint for role updates
 - `backend/app/services/role_sync_service.py` - Background role synchronization logic
 - `backend/app/tasks/role_sync_tasks.py` - Background task wrappers
 
 **Modify:**
 
-- `backend/app/api/v1/auth.py` - Remove sync from `/me`, add SSE trigger
+- `backend/app/api/v1/auth.py` - Remove sync from `/me`, add to `/refresh`
 - `backend/app/services/user_service.py` - Add role comparison logic
 - `backend/app/models/user.py` - Add `last_roles_sync_at` timestamp field
 
 **Frontend Files to Create/Modify:**
 
-- `frontend/src/stores/roleSync.ts` - SSE connection + role state management
-- `frontend/src/api/roles.ts` - Role sync API client
+- May add manual refresh trigger if needed
 
 ---
 
@@ -444,7 +442,7 @@ git commit -m "feat: add role sync service for background role synchronization"
 **Files:**
 
 - Create: `backend/app/tasks/role_sync_tasks.py`
-- Modify: `backend/app/api/v1/auth.py`
+- Modify: `backend/app/api/v1/auth.py` (add to `/refresh` endpoint)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -504,7 +502,6 @@ async def trigger_role_sync_for_user(
     3. Fetches fresh roles from provider
     4. Compares with DB roles
     5. Updates if changed
-    6. Emits SSE event if roles changed
 
     Args:
         user_id: User ID to sync
@@ -560,9 +557,6 @@ async def trigger_role_sync_for_user(
                     if result.roles_changed:
                         await sync_service.sync_user_units(user_id, result.new_roles)
 
-                    # TODO: Emit SSE event (will be implemented in Task 4)
-                    # await emit_role_update_event(user_id, result.new_roles)
-
                 else:
                     logger.debug(
                         "Role sync completed - no changes",
@@ -584,7 +578,7 @@ async def trigger_role_sync_for_user(
 cd backend && uv run pytest tests/unit/tasks/test_role_sync_tasks.py -v
 ```
 
-- [ ] **Step 5: Modify auth.py to trigger background sync**
+- [ ] **Step 5: Modify auth.py to trigger background sync from /refresh**
 
 ```python
 # Add to backend/app/api/v1/auth.py after imports:
@@ -592,116 +586,64 @@ cd backend && uv run pytest tests/unit/tasks/test_role_sync_tasks.py -v
 from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 
 
-# Modify get_me endpoint (around line 482-580):
+# Modify /refresh endpoint (find existing refresh endpoint):
 
-@router.get("/me", response_model=UserRead, response_model_exclude_none=True)
-async def get_me(
-    auth_token: Optional[str] = Cookie(None),
+@router.post("/refresh", response_model=Token)
+async def refresh_access_token(
+    refresh_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get current authenticated user information.
+    Refresh access token.
 
-    Returns user details including id, email, roles.
-    Requires valid auth_token cookie.
-    Resolves user by stable identity (institutional_id, provider) from JWT.
-    NO LONGER syncs roles synchronously - uses cached DB roles.
+    Uses refresh token to get new access token.
+    Triggers background role sync (non-blocking).
     """
-    if not auth_token:
+    if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
 
     try:
-        # Decode and validate token
-        payload = decode_jwt(auth_token)
-        sub = payload.get("sub")
+        # Validate refresh token
+        payload = decode_jwt(refresh_token)
+        user_id = payload.get("user_id")
 
-        if not sub:
+        if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
+                detail="Invalid refresh token",
             )
 
-        # Primary: resolve by stable identity (institutional_id, provider)
-        institutional_id = payload.get("institutional_id")
-        provider_str = payload.get("provider")
-
-        if institutional_id and provider_str:
-            try:
-                provider = UserProvider(int(provider_str))
-            except ValueError:
-                logger.warning(
-                    "Invalid provider in token",
-                    extra={"provider": provider_str},
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-
-            user = await UserService(db).get_by_institutional_id_and_provider(
-                institutional_id=institutional_id,
-                provider=provider,
-            )
-        else:
-            # Fallback for legacy tokens
-            user_id = payload.get("user_id")
-            if not user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-            logger.warning(
-                "Legacy token with user_id detected - logging out user",
-                extra={"user_id": user_id},
-            )
-            response = Response()
-            response.delete_cookie(
-                key="auth_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            response.delete_cookie(
-                key="refresh_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session expired. Please login again.",
-            )
-
+        # Get user
+        user = await UserService(db).get_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
             )
 
-        if not user.email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User email missing",
-            )
+        # Generate new access token
+        access_token = create_access_token(user_id=user_id)
 
-        # Trigger background role sync if needed (non-blocking)
-        # Note: This is fire-and-forget - errors don't affect /me response
-        if user.id is not None:
-            background_tasks.add_task(
-                trigger_role_sync_for_user,
-                user_id=user.id,
-                force=False,
-            )
+        # Trigger background role sync (fire-and-forget)
+        # Note: This is fire-and-forget - errors don't affect /refresh response
+        background_tasks.add_task(
+            trigger_role_sync_for_user,
+            user_id=user_id,
+            force=False,
+        )
 
-        user_read = UserRead.from_orm(user)
-        return user_read
+        return Token(access_token=access_token, token_type="bearer")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to get user info", extra={"error": str(e)})
+        logger.error("Failed to refresh token", extra={"error": str(e)})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid or expired refresh token",
         )
 ```
 
@@ -709,561 +651,12 @@ async def get_me(
 
 ```bash
 cd backend && git add app/tasks/role_sync_tasks.py app/api/v1/auth.py
-git commit -m "feat: trigger background role sync from /me endpoint"
+git commit -m "feat: trigger background role sync from /refresh endpoint"
 ```
 
 ---
 
-## Task 4: Backend - SSE Endpoint for Role Updates
-
-**Files:**
-
-- Create: `backend/app/api/v1/roles_sse.py`
-- Modify: `backend/app/main.py` (register router)
-
-- [ ] **Step 1: Write the failing test**
-
-```python
-"""Integration tests for role SSE endpoint."""
-
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
-
-from app.main import app
-
-
-@pytest.mark.asyncio
-async def test_role_sse_endpoint_requires_auth():
-    """Test that SSE endpoint requires authentication."""
-    client = TestClient(app)
-    response = client.get("/api/v1/roles/stream")
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_role_sse_endpoint_returns_event_stream():
-    """Test that SSE endpoint returns proper event stream."""
-    # This is a basic integration test
-    # Full test would require actual SSE client and role changes
-    pass
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-```bash
-cd backend && uv run pytest tests/integration/test_roles_sse.py -v
-```
-
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-"""Server-Sent Events endpoint for role updates."""
-
-import asyncio
-import json
-import logging
-from typing import AsyncGenerator
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.api.deps import get_current_user, get_db
-from app.core.logging import get_logger
-from app.models.user import User
-
-logger = get_logger(__name__)
-
-router = APIRouter()
-
-
-class RoleUpdateEvent:
-    """SSE event for role updates."""
-
-    def __init__(
-        self,
-        user_id: int,
-        roles: list,
-        timestamp: str,
-    ):
-        self.user_id = user_id
-        self.roles = roles
-        self.timestamp = timestamp
-
-    def to_sse(self) -> str:
-        """Convert to SSE format."""
-        data = {
-            "type": "user_roles_updated",
-            "payload": {
-                "user_id": self.user_id,
-                "roles": self.roles,
-                "timestamp": self.timestamp,
-            },
-        }
-        return f"data: {json.dumps(data)}\n\n"
-
-
-# In-memory connection tracking (use Redis in production for multi-instance)
-active_connections: set[asyncio.Queue] = set()
-
-
-@router.get("/roles/stream")
-async def stream_role_updates(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Server-Sent Events endpoint for role update notifications.
-
-    Clients subscribe to receive real-time notifications when their roles change.
-    Events are emitted when:
-    - Background role sync detects role changes
-    - Admin manually updates user roles
-
-    Connection is kept alive with periodic ping events.
-    """
-    if not current_user or not current_user.id:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
-
-    async def event_generator() -> AsyncGenerator[str, None]:
-        """Generate SSE events for role updates."""
-        # Create queue for this connection
-        queue: asyncio.Queue = asyncio.Queue()
-        active_connections.add(queue)
-
-        try:
-            ping_interval = 30  # seconds
-            ping_counter = 0
-
-            while True:
-                try:
-                    # Wait for event with timeout for ping
-                    event = await asyncio.wait_for(queue.get(), timeout=ping_interval)
-                    yield event
-                except asyncio.TimeoutError:
-                    # Send ping to keep connection alive
-                    ping_counter += 1
-                    if ping_counter >= 10:  # Send data ping every 10 pings
-                        yield "data: {\"type\":\"ping\"}\n\n"
-                        ping_counter = 0
-                    else:
-                        yield ": ping\n\n"  # Comment-only ping
-
-        except asyncio.CancelledError:
-            logger.info(
-                "SSE connection cancelled",
-                extra={"user_id": current_user.id},
-            )
-        except Exception as e:
-            logger.error(
-                "SSE connection error",
-                extra={"user_id": current_user.id, "error": str(e)},
-            )
-        finally:
-            active_connections.discard(queue)
-            logger.info(
-                "SSE connection closed",
-                extra={"user_id": current_user.id},
-            )
-
-    from fastapi.responses import StreamingResponse
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        },
-    )
-
-
-async def emit_role_update_event(user_id: int, roles: list) -> None:
-    """
-    Emit role update event to all connected clients.
-
-    In production, use Redis pub/sub for multi-instance deployment.
-    """
-    from datetime import datetime
-
-    event = RoleUpdateEvent(
-        user_id=user_id,
-        roles=roles,
-        timestamp=datetime.utcnow().isoformat(),
-    )
-
-    # Broadcast to all connections (in-memory for single instance)
-    disconnected = set()
-    for queue in active_connections:
-        try:
-            await queue.put(event.to_sse())
-        except Exception:
-            disconnected.add(queue)
-
-    # Clean up disconnected queues
-    active_connections -= disconnected
-
-    logger.debug(
-        "Role update event emitted",
-        extra={"user_id": user_id, "connections": len(active_connections)},
-    )
-```
-
-- [ ] **Step 4: Register router in main.py**
-
-```python
-# Add to backend/app/main.py:
-
-from app.api.v1.roles_sse import router as roles_sse_router
-
-app.include_router(roles_sse_router, prefix="/api/v1", tags=["roles"])
-```
-
-- [ ] **Step 5: Update role_sync_tasks.py to emit SSE events**
-
-```python
-# Modify trigger_role_sync_for_user in backend/app/tasks/role_sync_tasks.py:
-
-# Add import:
-from app.api.v1.roles_sse import emit_role_update_event
-
-# In the function, after role sync:
-
-if result.has_changed:
-    logger.info(
-        "Role sync completed - changes detected",
-        extra={
-            "user_id": user_id,
-            "roles_changed": result.roles_changed,
-        },
-    )
-
-    # Sync units if roles changed
-    if result.roles_changed:
-        await sync_service.sync_user_units(user_id, result.new_roles)
-
-    # Emit SSE event
-    await emit_role_update_event(user_id, result.new_roles)
-```
-
-- [ ] **Step 6: Run tests and commit**
-
-```bash
-cd backend && uv run pytest tests/integration/test_roles_sse.py -v
-git add app/api/v1/roles_sse.py app/api/v1/roles_sse.py app/main.py
-git commit -m "feat: add SSE endpoint for real-time role update notifications"
-```
-
----
-
-## Task 5: Frontend - Role Sync Store
-
-**Files:**
-
-- Create: `frontend/src/stores/roleSync.ts`
-- Modify: `frontend/src/stores/auth.ts`
-
-- [ ] **Step 1: Write the failing test**
-
-```typescript
-// No Jest/Vitest setup found - skip unit tests for now
-// Manual testing will verify SSE connection and state updates
-```
-
-- [ ] **Step 2: Write implementation**
-
-```typescript
-/**
- * Role Sync Store - SSE connection for real-time role updates
- *
- * Features:
- * - Maintains SSE connection to /api/v1/roles/stream
- * - Auto-reconnects on connection loss
- * - Updates auth store on role changes
- * - Implements TTL-based fallback (re-fetch /me every 15 minutes)
- */
-
-import { defineStore } from "pinia";
-import { ref, onUnmounted } from "vue";
-import { useAuthStore } from "./auth";
-
-interface RoleUpdatePayload {
-  type: "user_roles_updated" | "ping";
-  payload?: {
-    user_id: number;
-    roles: Array<{
-      role: string;
-      on: { unit?: string; affiliation?: string } | "global";
-    }>;
-    timestamp: string;
-  };
-}
-
-export const useRoleSyncStore = defineStore("roleSync", () => {
-  const isConnected = ref(false);
-  const lastEventTime = ref<Date | null>(null);
-  const sse: Ref<EventSource | null> = ref(null);
-  const reconnectAttempts = ref(0);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 3000; // 3 seconds
-
-  const TTL_MS = 15 * 60 * 1000; // 15 minutes
-  let ttlTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function startTTLTimer() {
-    // Clear existing timer
-    if (ttlTimer) {
-      clearTimeout(ttlTimer);
-    }
-
-    // Set new timer to re-fetch /me
-    ttlTimer = setTimeout(async () => {
-      console.log("[RoleSync] TTL expired, re-fetching /me");
-      const authStore = useAuthStore();
-      await authStore.getUser();
-      startTTLTimer(); // Restart timer
-    }, TTL_MS);
-  }
-
-  function connect() {
-    if (sse.value) {
-      sse.value.close();
-    }
-
-    try {
-      sse.value = new EventSource("/api/v1/roles/stream");
-
-      sse.value.onopen = () => {
-        console.log("[RoleSync] SSE connection established");
-        isConnected.value = true;
-        reconnectAttempts.value = 0;
-        startTTLTimer();
-      };
-
-      sse.value.onmessage = (event: MessageEvent) => {
-        try {
-          const data: RoleUpdatePayload = JSON.parse(event.data);
-
-          if (data.type === "ping") {
-            // Keep-alive ping, ignore
-            return;
-          }
-
-          if (data.type === "user_roles_updated" && data.payload) {
-            console.log("[RoleSync] Role update received", data.payload);
-            lastEventTime.value = new Date();
-
-            // Update auth store
-            const authStore = useAuthStore();
-            if (authStore.user) {
-              authStore.user.roles_raw = data.payload.roles;
-              // Re-calculate permissions
-              authStore.user.permissions = calculatePermissions(
-                data.payload.roles,
-              );
-            }
-          }
-        } catch (err) {
-          console.error("[RoleSync] Error parsing SSE message:", err);
-        }
-      };
-
-      sse.value.onerror = () => {
-        console.log("[RoleSync] SSE connection error");
-        isConnected.value = false;
-
-        // Attempt reconnection
-        if (reconnectAttempts.value < maxReconnectAttempts) {
-          reconnectAttempts.value++;
-          console.log(
-            `[RoleSync] Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})`,
-          );
-          setTimeout(connect, reconnectDelay);
-        } else {
-          console.warn(
-            "[RoleSync] Max reconnection attempts reached, using TTL fallback",
-          );
-          // Fallback: rely on TTL-based /me re-fetch
-          startTTLTimer();
-        }
-      };
-    } catch (err) {
-      console.error("[RoleSync] Failed to establish SSE connection:", err);
-      isConnected.value = false;
-    }
-  }
-
-  function disconnect() {
-    if (sse.value) {
-      sse.value.close();
-      sse.value = null;
-    }
-    if (ttlTimer) {
-      clearTimeout(ttlTimer);
-      ttlTimer = null;
-    }
-    isConnected.value = false;
-  }
-
-  // Helper function to calculate permissions from roles
-  function calculatePermissions(
-    roles: Array<{
-      role: string;
-      on: { unit?: string; affiliation?: string } | "global";
-    }>,
-  ): {
-    [key: string]: {
-      view?: boolean;
-      edit?: boolean;
-      export?: boolean;
-    };
-  } {
-    // This should match backend logic in calculate_user_permissions
-    // For now, return empty - will be implemented based on actual permissions logic
-    return {};
-  }
-
-  // Auto-connect on store initialization
-  connect();
-
-  // Cleanup on unmount
-  onUnmounted(() => {
-    disconnect();
-  });
-
-  return {
-    isConnected,
-    lastEventTime,
-    connect,
-    disconnect,
-  };
-});
-```
-
-- [ ] **Step 3: Modify auth.ts to integrate with role sync**
-
-```typescript
-// Add to frontend/src/stores/auth.ts:
-
-import { useRoleSyncStore } from "./roleSync";
-
-// In getUser function, after successful fetch:
-
-async function getUser(): Promise<User | null> {
-  if (inflight) return inflight;
-
-  inflight = (async () => {
-    try {
-      loading.value = true;
-      const u = await api.get("auth/me").json<User>();
-      user.value = u;
-
-      // Initialize role sync on first successful auth
-      if (u) {
-        const roleSyncStore = useRoleSyncStore();
-        roleSyncStore.connect();
-      }
-
-      return u;
-    } catch {
-      user.value = null;
-      return null;
-    } finally {
-      loading.value = false;
-      hasChecked.value = true;
-      inflight = null;
-    }
-  })();
-
-  return inflight;
-}
-```
-
-- [ ] **Step 4: Commit**
-
-```bash
-cd frontend && git add src/stores/roleSync.ts src/stores/auth.ts
-git commit -m "feat: add role sync store with SSE connection and TTL fallback"
-```
-
----
-
-## Task 6: Frontend - Integration Testing
-
-**Files:**
-
-- Modify: `frontend/src/components/layout/Co2Header.vue` (or main App component)
-
-- [ ] **Step 1: Add role sync status indicator (optional, for debugging)**
-
-```vue
-<!-- Add to Co2Header.vue or App.vue -->
-
-<template>
-  <div>
-    <!-- Existing header content -->
-
-    <!-- Role sync status indicator (dev only) -->
-    <div v-if="DEBUG" class="role-sync-status">
-      <span :class="{ connected: roleSync.isConnected }">
-        {{ roleSync.isConnected ? "✓ Roles Synced" : "⚠ Syncing..." }}
-      </span>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { useRoleSyncStore } from "@/stores/roleSync";
-import { computed } from "vue";
-
-const DEBUG = import.meta.env.DEV;
-const roleSync = useRoleSyncStore();
-</script>
-```
-
-- [ ] **Step 2: Manual testing checklist**
-
-```markdown
-## Manual Testing Checklist
-
-### Backend
-
-- [ ] `/me` returns in <50ms (check with curl/Postman)
-- [ ] `/me` does NOT call external APIs (check logs)
-- [ ] Background task triggers role sync (check logs)
-- [ ] SSE endpoint accepts connections (`/api/v1/roles/stream`)
-- [ ] Role changes emit SSE events
-
-### Frontend
-
-- [ ] SSE connection establishes on login
-- [ ] Role updates refresh user state without page reload
-- [ ] Reconnection works after network interruption
-- [ ] TTL fallback re-fetches /me after 15 minutes
-- [ ] Permissions update correctly after role change
-
-### Integration
-
-- [ ] Login → `/me` returns quickly → background sync runs
-- [ ] Change roles in DB → SSE event received → UI updates
-- [ ] Disconnect VPN (role provider down) → `/me` still works
-- [ ] Multiple tabs → all receive SSE updates
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd frontend && git add src/components/layout/Co2Header.vue
-git commit -m "feat: add role sync status indicator for debugging"
-```
-
----
-
-## Task 7: Observability & Safety
+## Task 4: Observability & Safety
 
 **Files:**
 
@@ -1276,7 +669,6 @@ git commit -m "feat: add role sync status indicator for debugging"
 # Already included in role_sync_service.py and role_sync_tasks.py:
 # - Log sync start/end
 # - Log role differences
-# - Log SSE events emitted
 # - Log errors with context
 ```
 
@@ -1316,7 +708,7 @@ git commit -m "feat: add observability and metrics for role sync"
 
 ---
 
-## Task 8: Unit Membership Sync with ACCRED
+## Task 5: Unit Membership Sync with ACCRED
 
 **Files:**
 
@@ -1394,97 +786,11 @@ git commit -m "feat: sync unit memberships on role changes"
 
 ---
 
-## Task 9: Documentation
-
-**Files:**
-
-- Create: `docs/role-sync-architecture.md`
-
-- [ ] **Step 1: Write architecture documentation**
-
-```markdown
-# Role Synchronization Architecture
-
-## Overview
-
-The `/me` endpoint now returns cached roles from the database in ~8ms, instead of synchronously fetching from external providers (~1s).
-
-## Components
-
-### 1. `/me` Endpoint (Fast)
-
-- Validates JWT
-- Fetches user from DB (including cached roles)
-- Returns immediately
-- Triggers background sync (non-blocking)
-
-### 2. Background Role Sync
-
-- Runs asynchronously via FastAPI BackgroundTasks
-- Fetches fresh roles from provider (Accred/JWT/Test)
-- Compares with cached roles
-- Updates DB only if changes detected
-- Emits SSE event on changes
-
-### 3. SSE Connection
-
-- Client subscribes to `/api/v1/roles/stream`
-- Server pushes `user_roles_updated` events
-- Auto-reconnects on connection loss
-- Ping events keep connection alive
-
-### 4. Frontend State Management
-
-- `useRoleSyncStore` manages SSE connection
-- Updates `useAuthStore` on role changes
-- TTL fallback: re-fetch `/me` every 15 minutes
-
-## Consistency Model
-
-**Eventual Consistency:**
-
-- `/me` returns immediately with cached roles
-- Background sync updates roles within 15 minutes (TTL)
-- SSE provides near-real-time updates when connected
-- If SSE fails, TTL ensures eventual convergence
-
-## Safety Guarantees
-
-1. **Authorization always uses DB roles** - No external API calls on `/me`
-2. **Failures don't block `/me`** - Background sync errors logged but don't affect response
-3. **No recursive syncs** - TTL prevents sync storms
-4. **Concurrent sync protection** - BackgroundTasks queue handles serialization
-5. **Unit cleanup** - Removed roles automatically clean up unit associations
-
-## Performance
-
-| Operation           | Before      | After                |
-| ------------------- | ----------- | -------------------- |
-| `/me` latency       | ~1000ms     | ~8ms                 |
-| External API calls  | Per request | Periodic (15 min)    |
-| Role update latency | Immediate   | ~5-15 min (eventual) |
-
-## Monitoring
-
-- Logs: `role_sync_*` events in backend logs
-- SSE connections: Track active connections in logs
-- Errors: `RoleProviderNetworkError` logged with context
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-cd backend && git add docs/role-sync-architecture.md
-git commit -m "docs: add role synchronization architecture documentation"
-```
-
----
-
 ## Self-Review Checklist
 
-- [ ] **Spec coverage:** All 6 tasks from the spec are implemented
+- [ ] **Spec coverage:** All tasks from the spec are implemented
 - [ ] **Placeholder scan:** No "TBD", "TODO", or "implement later" in code
 - [ ] **Type consistency:** All types (Role, UserProvider, etc.) match across files
 - [ ] **Test coverage:** Unit tests for core logic, integration tests for APIs
 - [ ] **Error handling:** Network errors, DB errors, TTL conflicts handled
-- [ ] **Documentation:** Architecture doc explains the approach
+- [ ] **Documentation:** Architecture doc explains the simplified approach without SSE

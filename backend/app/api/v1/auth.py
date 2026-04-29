@@ -491,7 +491,6 @@ async def auth_callback(
 
 @router.get("/me", response_model=UserRead, response_model_exclude_none=True)
 async def get_me(
-    background_tasks: BackgroundTasks,
     auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -580,16 +579,7 @@ async def get_me(
                 detail="User email missing",
             )
 
-        # Trigger background role sync if needed (non-blocking)
-        # Note: This is fire-and-forget - errors don't affect /me response
-        if user.id is not None:
-            background_tasks.add_task(
-                trigger_role_sync_for_user,
-                user_id=user.id,
-                force=False,
-            )
-
-        user_read = UserRead.from_orm(user)
+        user_read = UserRead.model_validate(user)
         return user_read
 
     except HTTPException:
@@ -605,6 +595,7 @@ async def get_me(
 @router.post("/refresh")
 async def refresh_token(
     request: Request,
+    background_tasks: BackgroundTasks,
     refresh_token: Optional[str] = Cookie(None),
     response: Response = Response(),
     db: AsyncSession = Depends(get_db),
@@ -701,6 +692,16 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User ID missing",
             )
+
+        # Trigger background role sync if needed (non-blocking)
+        # Note: This is fire-and-forget - errors don't affect /me response
+        if user.id is not None:
+            background_tasks.add_task(
+                trigger_role_sync_for_user,
+                user_id=user.id,
+                force=False,
+            )
+
         # Set new tokens
         _set_auth_cookies(
             response=response,

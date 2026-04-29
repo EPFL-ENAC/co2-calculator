@@ -22,7 +22,6 @@ async def trigger_role_sync_for_user(
     3. Fetches fresh roles from provider
     4. Compares with DB roles
     5. Updates if changed
-    6. Emits SSE event if roles changed
 
     Args:
         user_id: User ID to sync
@@ -73,11 +72,6 @@ async def trigger_role_sync_for_user(
                 # Sync units if roles changed
                 if result.roles_changed:
                     await sync_service.sync_user_units(user_id, result.new_roles)
-
-                # Emit SSE event
-                from app.api.v1.roles_sse import emit_role_update_event
-
-                await emit_role_update_event(user_id, result.new_roles)
 
             else:
                 logger.debug(
