@@ -428,9 +428,28 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     );
   }
 
+  /** True when reduction objectives goals or CSV files are not fully configured. */
+  const isReductionObjectiveIncomplete = computed(() => {
+    if (!config.value) return false;
+    const ro = config.value.config?.reduction_objectives;
+    if (!ro) return true;
+    const hasGoal = ro.goals.some(
+      (g) => g.target_year > 0 && g.reference_year > 0,
+    );
+    const files = ro.files;
+    const allFilesUploaded =
+      !!files?.institutional_footprint &&
+      !!files?.population_projections &&
+      !!files?.unit_scenarios;
+    return !hasGoal || !allFilesUploaded;
+  });
+
   /** True when any enabled module has mandatory uploads missing or failed. */
   const anyModuleIncomplete = computed(
-    () => !!config.value && MODULES_LIST.some((m) => isModuleIncomplete(m)),
+    () =>
+      !!config.value &&
+      (MODULES_LIST.some((m) => isModuleIncomplete(m)) ||
+        isReductionObjectiveIncomplete.value),
   );
 
   function getModuleConfig(module: Module): ModuleConfig | null {
@@ -469,6 +488,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound,
     // Computed
     anyModuleIncomplete,
+    isReductionObjectiveIncomplete,
     unifiedModuleConfig,
     visibleModules,
     recalculationStatus,

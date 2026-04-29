@@ -218,13 +218,9 @@ const moduleTreemapData = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown?.module_breakdown;
   if (!breakdown || breakdown.length === 0) return [];
   const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
-  const canonicalizeCategoryKey = (raw: unknown): string => {
-    const key = String(raw ?? '');
-    return key === 'purchase' ? 'purchases' : key;
-  };
   const getRowCategoryKey = (row: Record<string, unknown>): string =>
-    canonicalizeCategoryKey(
-      (row as { category_key?: unknown }).category_key ?? row.category,
+    String(
+      (row as { category_key?: unknown }).category_key ?? row.category ?? '',
     );
 
   const filteredKeys = Object.fromEntries(
@@ -241,13 +237,9 @@ const moduleCategoryRows = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown;
   if (!breakdown) return [];
   const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
-  const canonicalizeCategoryKey = (raw: unknown): string => {
-    const key = String(raw ?? '');
-    return key === 'purchase' ? 'purchases' : key;
-  };
   const getRowCategoryKey = (row: Record<string, unknown>): string =>
-    canonicalizeCategoryKey(
-      (row as { category_key?: unknown }).category_key ?? row.category,
+    String(
+      (row as { category_key?: unknown }).category_key ?? row.category ?? '',
     );
 
   return breakdown.module_breakdown.filter((row) =>

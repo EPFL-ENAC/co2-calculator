@@ -8,6 +8,7 @@ import type { EChartsOption } from 'echarts';
 import {
   getChartSubcategoryColor,
   CHART_CATEGORY_COLOR_SCALES,
+  RESULTS_CATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
 import {
   TooltipComponent,
@@ -33,20 +34,7 @@ import {
 } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  process_emissions: 'charts-process-emissions-category',
-  buildings_room: 'charts-buildings-room-category',
-  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  equipment: 'equipment-electric-consumption',
-  external_cloud_and_ai: 'external-cloud-and-ai',
-  purchases: 'purchase',
-  research_facilities: 'charts-research-facilities-category',
-  professional_travel: 'professional-travel',
-  commuting: 'charts-commuting-category',
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  embodied_energy: 'charts-embodied-energy-category',
-};
+const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   co2: 'charts-co2-subcategory',
@@ -150,18 +138,9 @@ function sortBarsByDisplayOrder(
   });
 }
 
-function canonicalizeCategoryKey(raw: string): string {
-  const key = String(raw ?? '');
-  // API occasionally returns singular `purchase` while frontend uses `purchases`.
-  if (key === 'purchase') return 'purchases';
-  return key;
-}
-
 function getRowCategoryKey(row: EmissionBreakdownCategoryRow): string {
   // Some endpoints return only `category` and omit `category_key`.
-  return canonicalizeCategoryKey(
-    String(row.category_key ?? row.category ?? ''),
-  );
+  return String(row.category_key ?? row.category ?? '');
 }
 
 const chartData = computed(() => {

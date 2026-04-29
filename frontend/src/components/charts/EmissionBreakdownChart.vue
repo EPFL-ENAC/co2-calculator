@@ -94,15 +94,8 @@ const categoryRows = computed<EmissionBreakdownCategoryRow[]>(() => {
     categories.includes(String(row.category ?? '')),
   ) as EmissionBreakdownCategoryRow[];
 
-  const canonicalizeCategoryKey = (raw: unknown): string => {
-    const key = String(raw ?? '');
-    return key === 'purchase' ? 'purchases' : key;
-  };
-
   return rows.map((row) => {
-    const categoryKey = canonicalizeCategoryKey(
-      row.category_key ?? row.category,
-    );
+    const categoryKey = String(row.category_key ?? row.category ?? '');
     const allowedBarNames = new Set(CATEGORY_CHART_KEYS[categoryKey] ?? []);
     const isFilterApplicable = row.emissions.some((e) =>
       allowedBarNames.has((e.parent_key ?? e.key) as string),
