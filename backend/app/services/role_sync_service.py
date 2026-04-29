@@ -212,6 +212,7 @@ class RoleSyncService:
                 user_id=user.id,
                 role=chosen_role,
             )
+        await self.session.commit()
 
         logger.info(
             "User units synced",
