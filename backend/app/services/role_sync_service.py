@@ -117,11 +117,16 @@ class RoleSyncService:
             if affiliation is not None:
                 return (role_name, "affiliation", affiliation)
 
-            scope_type = type(role_scope).__name__.lower() if role_scope is not None else "global"
+            scope_type = (
+                type(role_scope).__name__.lower()
+                if role_scope is not None
+                else "global"
+            )
             if scope_type == "globalscope":
                 return (role_name, "global", None)
 
             return (role_name, scope_type, None)
+
         old_roles_comparable = sorted(extract_role_key(r) for r in old_roles)
         new_roles_comparable = sorted(extract_role_key(r) for r in new_roles)
 

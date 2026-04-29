@@ -2,7 +2,7 @@
 """add last_roles_sync_at to users table
 
 Revision ID: 451937f20b2d
-Revises: 4226efc73854
+Revises: 0bf6b8778dd9
 Create Date: 2026-04-28 14:40:08.094924
 
 """

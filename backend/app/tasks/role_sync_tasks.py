@@ -79,3 +79,4 @@ async def trigger_role_sync_for_user(
                 extra={"user_id": user_id, "error": str(e)},
                 exc_info=True,
             )
+            await session.rollback()
