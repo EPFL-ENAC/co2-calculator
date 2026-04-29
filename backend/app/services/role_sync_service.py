@@ -199,6 +199,7 @@ class RoleSyncService:
         if not unit_institutional_ids:
             # No unit roles - delete all associations
             await self.unit_user_service.delete_all_for_user(user.id)
+            await self.session.commit()
             return True
 
         # Resolve unit IDs from database
@@ -215,10 +216,12 @@ class RoleSyncService:
                 },
             )
             await self.unit_user_service.delete_all_for_user(user.id)
+            await self.session.commit()
             return True
 
         # Delete old associations
         await self.unit_user_service.delete_all_for_user(user.id)
+        await self.session.commit()
 
         # Create new associations
         for unit in units:
