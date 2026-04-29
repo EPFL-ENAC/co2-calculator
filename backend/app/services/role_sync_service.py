@@ -97,14 +97,31 @@ class RoleSyncService:
         # Convert to comparable format
         def extract_role_key(role):
             role_name = role.role if isinstance(role.role, str) else role.role.value
-            if hasattr(role.on, "institutional_id"):
-                unit_id = role.on.institutional_id
-            elif isinstance(role.on, dict):
-                unit_id = role.on.get("institutional_id")
-            else:
-                unit_id = None
-            return (role_name, unit_id)
+            role_scope = role.on
 
+            if isinstance(role_scope, dict):
+                institutional_id = role_scope.get("institutional_id")
+                affiliation = role_scope.get("affiliation")
+
+                if institutional_id is not None:
+                    return (role_name, "institutional", institutional_id)
+                if affiliation is not None:
+                    return (role_name, "affiliation", affiliation)
+                return (role_name, "global", None)
+
+            institutional_id = getattr(role_scope, "institutional_id", None)
+            if institutional_id is not None:
+                return (role_name, "institutional", institutional_id)
+
+            affiliation = getattr(role_scope, "affiliation", None)
+            if affiliation is not None:
+                return (role_name, "affiliation", affiliation)
+
+            scope_type = type(role_scope).__name__.lower() if role_scope is not None else "global"
+            if scope_type == "globalscope":
+                return (role_name, "global", None)
+
+            return (role_name, scope_type, None)
         old_roles_comparable = sorted(extract_role_key(r) for r in old_roles)
         new_roles_comparable = sorted(extract_role_key(r) for r in new_roles)
 
