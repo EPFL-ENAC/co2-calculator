@@ -24,7 +24,8 @@ import {
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_CATEGORY_ORDER,
 } from 'src/constant/charts';
-import { formatTonnesForChart } from 'src/utils/number';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractReductionObjectiveEpflTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -221,138 +222,11 @@ function categoryLabel(categoryKey: string): string {
 
 const TOOLTIP_CATEGORY_ORDER = RESULTS_CATEGORY_ORDER;
 
-type TooltipAxisParam = {
-  axisValue?: string;
-  seriesName?: string;
-  value?: number | (number | null)[] | null;
-};
-
-function normalizeTooltipParams(rawParams: unknown): TooltipAxisParam[] {
-  if (!Array.isArray(rawParams)) return [];
-  return rawParams as TooltipAxisParam[];
-}
-
-function tooltipAxisValueToYearLabel(rawAxisValue: unknown): string {
-  // When tooltip is driven by the hidden numeric axis, axisValue can be an index
-  // (e.g. "3.5"). Map it back to the closest year label.
-  const n = Number(rawAxisValue);
-  if (!Number.isFinite(n)) return String(rawAxisValue ?? '');
-
-  const idx = Math.min(
-    Math.max(Math.round(n), 0),
-    Math.max(years.value.length - 1, 0),
-  );
-  return String(years.value[idx] ?? rawAxisValue);
-}
-
-function extractTooltipSeriesValue(
-  raw: TooltipAxisParam['value'],
-): number | null {
-  if (typeof raw === 'number') return raw;
-  if (!Array.isArray(raw)) return null;
-  return (raw.length >= 2 ? raw[1] : raw[0]) as number | null;
-}
-
-function formatTooltipTonnes(value: number | null): string {
-  if (value == null) return '-';
-  if (value < 0) return value.toFixed(1);
-  return formatTonnesForChart(value);
-}
-
-function formatTooltipPopulation(value: number | null): string {
-  if (value == null) return '-';
-  return INT_FORMATTER.format(Math.round(value));
-}
-
 function tooltipSortIndex(seriesName: string): number {
   const idx = TOOLTIP_CATEGORY_ORDER.indexOf(
     seriesName as (typeof TOOLTIP_CATEGORY_ORDER)[number],
   );
   return idx === -1 ? 999 : idx;
-}
-
-function renderTooltipTotalLine(params: TooltipAxisParam[]): string {
-  const p = params.find(
-    (x) => String(x.seriesName) === 'total' && x.value != null,
-  );
-  if (!p) return '';
-
-  const v = extractTooltipSeriesValue(p.value);
-  const formatted = formatTooltipTonnes(v);
-  const dotColor = accentColorHex.value ?? colors.value.cobalt.darker;
-  const label = t('results_objectives_total');
-
-  return `
-    <div class="objective-tooltip__line objective-tooltip__line--total">
-      <span class="objective-tooltip__dot" style="--dot-color:${dotColor};"></span>
-      <span class="objective-tooltip__label objective-tooltip__label--strong">${label}</span>
-      <span class="objective-tooltip__value objective-tooltip__value--strong">${formatted}</span>
-    </div>
-  `;
-}
-
-function renderTooltipCategoryLines(params: TooltipAxisParam[]): string {
-  return params
-    .filter((p) => p.seriesName && p.value != null)
-    .filter(
-      (p) =>
-        String(p.seriesName) !== 'population' &&
-        String(p.seriesName) !== 'total',
-    )
-    .sort((a, b) => {
-      const ak = String(a.seriesName ?? '');
-      const bk = String(b.seriesName ?? '');
-      return tooltipSortIndex(ak) - tooltipSortIndex(bk);
-    })
-    .map((p) => {
-      const key = String(p.seriesName);
-      const color = categoryColor(key);
-      const value = extractTooltipSeriesValue(p.value);
-      const formatted = formatTooltipTonnes(value);
-      const label = categoryLabel(key);
-
-      return `
-        <div class="objective-tooltip__line">
-          <span class="objective-tooltip__dot" style="--dot-color:${color};"></span>
-          <span class="objective-tooltip__label">${label}</span>
-          <span class="objective-tooltip__value">${formatted}</span>
-        </div>
-      `;
-    })
-    .join('');
-}
-
-function renderTooltipPopulationLine(params: TooltipAxisParam[]): string {
-  const p = params.find(
-    (x) => String(x.seriesName) === 'population' && x.value != null,
-  );
-  if (!p) return '';
-
-  const v = extractTooltipSeriesValue(p.value);
-  const formatted = formatTooltipPopulation(v);
-  const label = t('results_objectives_population_forecast');
-
-  return `
-    <div class="objective-tooltip__section">
-      <div class="objective-tooltip__line">
-        <span class="objective-tooltip__dot objective-tooltip__dot--population"></span>
-        <span class="objective-tooltip__label">${label}</span>
-        <span class="objective-tooltip__value">${formatted}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderTooltipContainer(args: {
-  yearLabel: string;
-  totalLine: string;
-  categoryLines: string;
-  populationLine: string;
-}): string {
-  return `<div class="objective-tooltip">
-    <div class="objective-tooltip__title">${args.yearLabel}</div>
-    ${args.totalLine}${args.categoryLines}${args.populationLine}
-  </div>`;
 }
 
 // ── Data fetch ───────────────────────────────────────────────────────────────
@@ -371,6 +245,21 @@ function readCssVarHex(name: string): string | null {
 }
 
 const accentColorHex = ref<string | null>(null);
+
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(
+    extractReductionObjectiveEpflTooltipState(params, {
+      years: years.value,
+      accentColor: accentColorHex.value ?? colors.value.cobalt.darker,
+      totalLabel: t('results_objectives_total'),
+      categoryColor,
+      categoryLabel,
+      tooltipSortIndex,
+      populationLabel: t('results_objectives_population_forecast'),
+      formatPopulation: (v) =>
+        v == null ? '-' : INT_FORMATTER.format(Math.round(v)),
+    }),
+  );
 
 async function ensureYearConfigFetched(): Promise<void> {
   const y = currentYear.value;
@@ -641,17 +530,7 @@ const chartOption = computed<EChartsOption | null>(() => {
       axisPointer: {
         type: 'line',
       },
-      formatter: (rawParams: unknown) => {
-        const params = normalizeTooltipParams(rawParams);
-        const rawAxisValue = params[0]?.axisValue ?? '';
-
-        return renderTooltipContainer({
-          yearLabel: tooltipAxisValueToYearLabel(rawAxisValue),
-          totalLine: renderTooltipTotalLine(params),
-          categoryLines: renderTooltipCategoryLines(params),
-          populationLine: renderTooltipPopulationLine(params),
-        });
-      },
+      formatter: tooltipFormatter,
     },
     legend: { show: false },
     grid: {

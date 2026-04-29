@@ -31,7 +31,8 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import { formatTonnesForChart } from 'src/utils/number';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractModuleCarbonTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
@@ -646,421 +647,432 @@ const validatedLabels = computed(() => {
   );
 });
 
+const seriesArray = computed(() => [
+  // Process Emissions — YY subcategories
+  {
+    name: 'CO₂',
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'co2' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'process_emissions',
+        'co2',
+        colors.value.apricot.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: 'CH4',
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'ch4' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'process_emissions',
+        'ch4',
+        colors.value.apricot.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: 'N2O',
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'n2o' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'process_emissions',
+        'n2o',
+        colors.value.apricot.default,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: 'Refrigerants',
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'refrigerants' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'process_emissions',
+        'refrigerants',
+        colors.value.apricot.light,
+      ),
+    },
+    label: { show: false },
+  },
+
+  {
+    name: t('charts-energy-combustion-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'combustion' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_energy_combustion',
+        'combustion',
+        colors.value.lilac.light,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-heating-thermal-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'heating_thermal' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_energy_combustion',
+        'heating_thermal',
+        colors.value.lilac.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-heating-elec-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'heating_elec' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_room',
+        'heating_elec',
+        colors.value.lilac.light,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-lighting-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'lighting' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_room',
+        'lighting',
+        colors.value.lilac.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-cooling-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'cooling' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_room',
+        'cooling',
+        colors.value.lilac.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-ventilation-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'ventilation' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'buildings_room',
+        'ventilation',
+        colors.value.lilac.default,
+      ),
+    },
+    label: { show: false },
+  },
+  // Equipment — subcategories: scientific, it, other
+  {
+    name: t('charts-scientific-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'scientific' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'equipment',
+        'scientific',
+        colors.value.plum.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-equipment-it'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'it' },
+    itemStyle: {
+      color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-other-equipment-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'other' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'equipment',
+        'other',
+        colors.value.plum.default,
+      ),
+    },
+    label: { show: false },
+  },
+  // Purchases — YY subcategories
+  {
+    name: t('charts-scientific-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'scientific_equipment' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'scientific_equipment',
+        colors.value.lavender.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-equipment-it'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'it_equipment' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'it_equipment',
+        colors.value.lavender.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-consumables-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'consumable_accessories' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'consumable_accessories',
+        colors.value.lavender.default,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-bio-chemicals-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'biological_chemical_gaseous' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'biological_chemical_gaseous',
+        colors.value.lavender.light,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-services-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'services' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'services',
+        colors.value.lavender.lighter,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-vehicles-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'vehicles' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'vehicles',
+        colors.value.lavender.default,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-other-purchases-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'other_purchases' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'other_purchases',
+        colors.value.lavender.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-additional-purchases-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'additional' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'purchases',
+        'additional',
+        colors.value.lavender.light,
+      ),
+    },
+    label: { show: false },
+  },
+  // External cloud & AI — YY subcategories
+  {
+    name: t('charts-clouds-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'clouds' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'external_cloud_and_ai',
+        'clouds',
+        colors.value.lavender.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-ai-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'ai' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'external_cloud_and_ai',
+        'ai',
+        colors.value.lavender.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  // Professional Travel — subcategories: plane, train
+  {
+    name: t('charts-plane-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'plane' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'professional_travel',
+        'plane',
+        colors.value.babyBlue.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-train-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'train' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'professional_travel',
+        'train',
+        colors.value.babyBlue.dark,
+      ),
+    },
+    label: { show: false },
+  },
+  // Research Facilities — subcategories: facilities, animal
+  {
+    name: t('charts-research-facilities-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'facilities' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'research_facilities',
+        'facilities',
+        colors.value.paleYellowGreen.darker,
+      ),
+    },
+    label: { show: false },
+  },
+  {
+    name: t('charts-research-animal-subcategory'),
+    type: 'bar' as const,
+    stack: 'total',
+    animation: true,
+    encode: { x: 'category', y: 'animal' },
+    itemStyle: {
+      color: getSubcategoryColor(
+        'research_facilities',
+        'animal',
+        colors.value.paleYellowGreen.dark,
+      ),
+    },
+    label: { show: false },
+  },
+
+  ...additionalSeriesData.value,
+]);
+
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(
+    extractModuleCarbonTooltipState(
+      params,
+      seriesArray.value,
+      validatedLabels.value,
+      additionalHeadcountLabels.value,
+      additionalBuildingsLabels.value,
+      t,
+    ),
+  );
+
 const chartOption = computed((): EChartsOption => {
-  // Build series array first (will be used to extract mapping)
-  const seriesArray = [
-    // Process Emissions — YY subcategories
-    {
-      name: 'CO₂',
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'co2' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'co2',
-          colors.value.apricot.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: 'CH4',
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ch4' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'ch4',
-          colors.value.apricot.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: 'N2O',
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'n2o' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'n2o',
-          colors.value.apricot.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: 'Refrigerants',
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'refrigerants' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'process_emissions',
-          'refrigerants',
-          colors.value.apricot.light,
-        ),
-      },
-      label: { show: false },
-    },
-
-    {
-      name: t('charts-energy-combustion-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'combustion' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'combustion',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-heating-thermal-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_thermal' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_energy_combustion',
-          'heating_thermal',
-          colors.value.lilac.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-heating-elec-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'heating_elec',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-lighting-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'lighting' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'lighting',
-          colors.value.lilac.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-cooling-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'cooling' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'cooling',
-          colors.value.lilac.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-ventilation-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ventilation' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'ventilation',
-          colors.value.lilac.default,
-        ),
-      },
-      label: { show: false },
-    },
-    // Equipment — subcategories: scientific, it, other
-    {
-      name: t('charts-scientific-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'scientific' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'equipment',
-          'scientific',
-          colors.value.plum.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-equipment-it'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'it' },
-      itemStyle: {
-        color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-other-equipment-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'other' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'equipment',
-          'other',
-          colors.value.plum.default,
-        ),
-      },
-      label: { show: false },
-    },
-    // Purchases — YY subcategories
-    {
-      name: t('charts-scientific-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'scientific_equipment' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'scientific_equipment',
-          colors.value.lavender.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-equipment-it'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'it_equipment' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'it_equipment',
-          colors.value.lavender.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-consumables-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'consumable_accessories' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'consumable_accessories',
-          colors.value.lavender.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-bio-chemicals-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'biological_chemical_gaseous' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'biological_chemical_gaseous',
-          colors.value.lavender.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-services-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'services' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'services',
-          colors.value.lavender.lighter,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-vehicles-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'vehicles' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'vehicles',
-          colors.value.lavender.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-other-purchases-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'other_purchases' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'other_purchases',
-          colors.value.lavender.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-additional-purchases-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'additional' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'additional',
-          colors.value.lavender.light,
-        ),
-      },
-      label: { show: false },
-    },
-    // External cloud & AI — YY subcategories
-    {
-      name: t('charts-clouds-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'clouds' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'external_cloud_and_ai',
-          'clouds',
-          colors.value.lavender.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-ai-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'ai' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'external_cloud_and_ai',
-          'ai',
-          colors.value.lavender.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    // Professional Travel — subcategories: plane, train
-    {
-      name: t('charts-plane-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'plane' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'professional_travel',
-          'plane',
-          colors.value.babyBlue.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-train-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'train' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'professional_travel',
-          'train',
-          colors.value.babyBlue.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    // Research Facilities — subcategories: facilities, animal
-    {
-      name: t('charts-research-facilities-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'facilities' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'research_facilities',
-          'facilities',
-          colors.value.paleYellowGreen.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-research-animal-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'animal' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'research_facilities',
-          'animal',
-          colors.value.paleYellowGreen.dark,
-        ),
-      },
-      label: { show: false },
-    },
-
-    ...additionalSeriesData.value,
-  ];
-
   return {
     animation: false,
     tooltip: {
@@ -1069,59 +1081,7 @@ const chartOption = computed((): EChartsOption => {
         type: 'shadow',
       },
 
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-        const p = arr[0] as {
-          data?: Record<string, unknown>;
-          axisValue?: string;
-          name?: string;
-          seriesName?: string;
-          marker?: string;
-          value?: number | number[];
-        };
-        const data = p.data;
-        const name = p.axisValue || p.name || '';
-        const isValidated = validatedLabels.value.has(name);
-
-        if (!isValidated) {
-          const moduleName = additionalHeadcountLabels.value.has(name)
-            ? t('headcount')
-            : additionalBuildingsLabels.value.has(name)
-              ? t('buildings')
-              : name;
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
-        }
-
-        let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
-
-        arr.reverse().forEach((param: unknown) => {
-          const p = param as {
-            seriesName?: string;
-            seriesIndex?: number;
-            marker?: string;
-            value?: number | number[];
-            data?: Record<string, unknown>;
-          };
-          const series =
-            typeof p.seriesIndex === 'number'
-              ? seriesArray[p.seriesIndex]
-              : seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
-
-          if (!data || !key) return;
-          const dataValue = Number(data[key]) || 0;
-          if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
-            total += dataValue;
-          }
-        });
-
-        const totalDisplay = formatTonnesForChart(total);
-
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
-      },
+      formatter: tooltipFormatter,
     },
 
     grid: {
@@ -1212,7 +1172,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as echarts.SeriesOption[],
+    series: seriesArray.value as echarts.SeriesOption[],
   };
 });
 

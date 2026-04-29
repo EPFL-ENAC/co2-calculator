@@ -9,11 +9,13 @@ import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractItFocusTooltipState } from 'src/utils/chart-tooltip-extractors';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { useTimelineStore } from 'src/stores/modules';
-import { formatTonnesCO2, formatTonnesForChart } from 'src/utils/number';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type { ItBreakdownResponse } from 'src/stores/modules';
 
 use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
@@ -203,6 +205,11 @@ const validatedLabels = computed(
     new Set(categoryBars.value.filter((b) => b.validated).map((b) => b.label)),
 );
 
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(
+    extractItFocusTooltipState(params, validatedLabels.value, t),
+  );
+
 /** Tonnes from categories whose parent module is validated (aligned with visible bars). */
 const displayTotalItTonnes = computed(() =>
   categoryBars.value
@@ -290,21 +297,7 @@ const barChartOption = computed<EChartsOption>(() => {
     animation: false,
     tooltip: {
       trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          marker?: string;
-          value?: number;
-          name?: string;
-        };
-        const name = p.name || '';
-        if (!validatedLabels.value.has(name)) {
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: name })}</span>`;
-        }
-        const val = Number(p.value) || 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
-      },
+      formatter: tooltipFormatter,
     },
     legend: { show: false },
     grid: {

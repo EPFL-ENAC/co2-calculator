@@ -13,6 +13,8 @@ import {
 import VChart from 'vue-echarts';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractEvolutionTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const { t } = useI18n();
 
@@ -113,6 +115,9 @@ const chartData = computed(() => {
   };
 });
 
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(extractEvolutionTooltipState(params));
+
 const chartOption = computed((): EChartsOption => {
   return {
     backgroundColor: 'transparent',
@@ -125,24 +130,7 @@ const chartOption = computed((): EChartsOption => {
     },
     tooltip: {
       trigger: 'axis',
-      formatter: (params: unknown) => {
-        const p = params as Array<{
-          seriesName?: string;
-          value?: number;
-          color?: string;
-          axisValue?: string | number;
-        }>;
-        if (!p || p.length === 0) {
-          return '';
-        }
-        const heading = p[0].axisValue != null ? String(p[0].axisValue) : '';
-        let tooltip = heading ? `<strong>${heading}</strong><br/>` : '';
-        p.forEach((item) => {
-          tooltip += `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${item.color};"></span>`;
-          tooltip += `${item.seriesName}: <strong>${item.value?.toFixed(0)}</strong><br/>`;
-        });
-        return tooltip;
-      },
+      formatter: tooltipFormatter,
     },
     legend: {
       data: [t('plane', 'plane'), t('train', 'train')],

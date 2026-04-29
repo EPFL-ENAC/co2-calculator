@@ -3,6 +3,8 @@ import {
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
 } from 'src/constant/charts';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractDoughnutTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 export type AdditionalCategoryKey =
   | 'commuting'
@@ -79,17 +81,8 @@ export function buildDoughnutOption(
       trigger: 'item',
       appendToBody: true,
       extraCssText: 'z-index: 9999;',
-      formatter: (params: unknown) => {
-        const p = params as { name?: unknown; percent?: unknown };
-        const name = String(p.name ?? '');
-        const percent =
-          typeof p.percent === 'number' ? p.percent : Number(p.percent);
-        const percentDisplay = Number.isFinite(percent) ? percent : 0;
-        const percentText = Number.isFinite(percentDisplay)
-          ? percentDisplay.toFixed(0)
-          : '0';
-        return `${name}: ${percentText}%`;
-      },
+      formatter: (params: unknown) =>
+        renderTooltipHtml(extractDoughnutTooltipState(params)),
     },
     legend: { show: false },
     series: [

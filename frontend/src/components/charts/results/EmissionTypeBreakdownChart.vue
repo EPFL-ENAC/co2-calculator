@@ -32,7 +32,8 @@ import {
   CATEGORY_CHART_KEYS,
   normalizeParentKey,
 } from 'src/composables/useEmissionTreemap';
-import { formatTonnesForChart } from 'src/utils/number';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractEmissionBreakdownTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
@@ -256,6 +257,15 @@ const chartData = computed(() => {
   };
 });
 
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(
+    extractEmissionBreakdownTooltipState(
+      params,
+      chartData.value.segmentKeys,
+      t,
+    ),
+  );
+
 function translateSubcategory(key: string): string {
   // Top-class mode uses numeric segment keys with label overrides
   const override = segmentLabelOverrides.get(key);
@@ -364,19 +374,7 @@ const chartOption = computed((): EChartsOption => {
     animation: false,
     tooltip: {
       trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          marker?: string;
-          seriesIndex?: number;
-          data?: Record<string, unknown>;
-        };
-        const dimKey = segmentKeys[p.seriesIndex ?? 0];
-        const row = p.data;
-        const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
-      },
+      formatter: tooltipFormatter,
     },
     legend: { show: false },
     grid: {

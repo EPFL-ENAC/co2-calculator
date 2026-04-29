@@ -26,7 +26,8 @@ use([
   GraphicComponent,
 ]);
 
-import { formatTonnesForChart } from 'src/utils/number';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractPerPersonTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const props = defineProps<{
   perPersonBreakdown?: Record<string, number> | null;
@@ -171,184 +172,160 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const chartOption = computed((): EChartsOption => {
-  const seriesArray = [
-    {
-      name: t('charts-process-emissions-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'process_emissions',
-      },
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.process_emissions,
-      },
-      label: {
-        show: false,
-      },
+const seriesArray = computed(() => [
+  {
+    name: t('charts-process-emissions-category'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'process_emissions',
     },
-    {
-      name: t('charts-buildings-energy-combustion-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'buildings_energy_combustion',
-      },
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_energy_combustion,
-      },
-      label: {
-        show: false,
-      },
+    itemStyle: {
+      color: CHART_CATEGORY_COLOR_SCHEMES.value.process_emissions,
     },
-    {
-      name: t('charts-buildings-room-category'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'buildings_room',
-      },
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_room,
-      },
-      label: {
-        show: false,
-      },
+    label: {
+      show: false,
     },
-    {
-      name: t('equipment-electric-consumption'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'equipment',
-      },
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
-      },
-      label: {
-        show: false,
-      },
+  },
+  {
+    name: t('charts-buildings-energy-combustion-category'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'buildings_energy_combustion',
     },
-    {
-      name: t('external-cloud-and-ai'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'external_cloud_and_ai',
-      },
-      itemStyle: {
-        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
-      },
-      label: {
-        show: false,
-      },
+    itemStyle: {
+      color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_energy_combustion,
     },
-    {
-      name: t('professional-travel'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'professional_travel',
-      },
-      itemStyle: {
-        color: colors.value.babyBlue.darker,
-      },
-      label: {
-        show: false,
-      },
+    label: {
+      show: false,
     },
-    {
-      name: t('purchase'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'purchases',
-      },
-      itemStyle: {
-        color: colors.value.lightGreen.darker,
-      },
-      label: {
-        show: false,
-      },
+  },
+  {
+    name: t('charts-buildings-room-category'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'buildings_room',
     },
-    {
-      name: t('research-facilities'),
-      type: 'bar' as const,
-      stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'research_facilities',
-      },
-      itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
-      },
-      label: {
-        show: false,
-      },
+    itemStyle: {
+      color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_room,
     },
-    ...(SHOW_OBJECTIVE_BAR
-      ? [
-          {
-            name: t('charts-objective-tick'),
-            type: 'bar' as const,
-            stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'objective2030',
-            },
-            itemStyle: {
-              color: colors.value.skyBlue.darker,
-            },
-            label: {
-              show: false,
-            },
+    label: {
+      show: false,
+    },
+  },
+  {
+    name: t('equipment-electric-consumption'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'equipment',
+    },
+    itemStyle: {
+      color: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
+    },
+    label: {
+      show: false,
+    },
+  },
+  {
+    name: t('external-cloud-and-ai'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'external_cloud_and_ai',
+    },
+    itemStyle: {
+      color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
+    },
+    label: {
+      show: false,
+    },
+  },
+  {
+    name: t('professional-travel'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'professional_travel',
+    },
+    itemStyle: {
+      color: colors.value.babyBlue.darker,
+    },
+    label: {
+      show: false,
+    },
+  },
+  {
+    name: t('purchase'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'purchases',
+    },
+    itemStyle: {
+      color: colors.value.lightGreen.darker,
+    },
+    label: {
+      show: false,
+    },
+  },
+  {
+    name: t('research-facilities'),
+    type: 'bar' as const,
+    stack: 'total',
+    encode: {
+      x: 'category',
+      y: 'research_facilities',
+    },
+    itemStyle: {
+      color: colors.value.paleYellowGreen.darker,
+    },
+    label: {
+      show: false,
+    },
+  },
+  ...(SHOW_OBJECTIVE_BAR
+    ? [
+        {
+          name: t('charts-objective-tick'),
+          type: 'bar' as const,
+          stack: 'total',
+          encode: {
+            x: 'category',
+            y: 'objective2030',
           },
-        ]
-      : []),
-    ...additionalSeriesData.value,
-  ];
+          itemStyle: {
+            color: colors.value.skyBlue.darker,
+          },
+          label: {
+            show: false,
+          },
+        },
+      ]
+    : []),
+  ...additionalSeriesData.value,
+]);
 
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(extractPerPersonTooltipState(params, seriesArray.value));
+
+const chartOption = computed((): EChartsOption => {
   return {
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow',
       },
-
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-
-        const firstParam = arr[0] as Record<string, unknown>;
-        const data = firstParam.data as Record<string, unknown> | undefined;
-        const name = (firstParam.axisValue || firstParam.name || '') as string;
-
-        let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
-
-        arr.reverse().forEach((param) => {
-          const p = param as Record<string, unknown>;
-          const series = seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
-          const dataValue = Number(data?.[key]) || 0;
-
-          if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
-            total += dataValue;
-          }
-        });
-
-        const totalDisplay = formatTonnesForChart(total);
-
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
-      },
+      formatter: tooltipFormatter,
     },
 
     grid: {
@@ -422,7 +399,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as echarts.SeriesOption[],
+    series: seriesArray.value as echarts.SeriesOption[],
   };
 });
 

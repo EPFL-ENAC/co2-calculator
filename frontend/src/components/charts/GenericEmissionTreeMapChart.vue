@@ -14,12 +14,17 @@ import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { extractTreemapTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+
+const tooltipFormatter = (params: unknown) =>
+  renderTooltipHtml(extractTreemapTooltipState(params, t));
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
@@ -162,19 +167,7 @@ const chartOption = computed((): EChartsOption => {
     animation: false,
     tooltip: {
       trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          marker?: string;
-          data?: { value: number; originalValue: number };
-        };
-        const val = p.data?.originalValue ?? 0;
-        if (val <= 0) return '';
-        return (
-          `${p.marker || ''} <strong>${p.seriesName || ''}</strong><br/>` +
-          `${p.seriesName || ''}: <strong>${val.toFixed(1)}</strong>`
-        );
-      },
+      formatter: tooltipFormatter,
     },
     legend: { show: false },
     grid: {
