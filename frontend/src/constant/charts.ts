@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { storeToRefs } from 'pinia';
-import { MODULES } from './modules';
+import { MODULES, type Module } from './modules';
 
 /** Interpolate between two `#RRGGBB` colours. */
 function lerpHex(a: string, b: string, t: number): string {
@@ -341,15 +341,50 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   buildings_energy_combustion: colors.value.apricot.darker,
   buildings_room: colors.value.lilac.darker,
   equipment: colors.value.plum.darker,
-  external_cloud_and_ai: colors.value.lavender.dark,
-  purchases: colors.value.lavender.darker,
+  external_cloud_and_ai: colors.value.lavender.darker,
+  purchases: colors.value.lightGreen.darker,
   research_facilities: colors.value.paleYellowGreen.darker,
   professional_travel: colors.value.babyBlue.darker,
   commuting: colors.value.aqua.darker,
   food: colors.value.mint.darker,
   waste: colors.value.periwinkle.darker,
-  embodied_energy: colors.value.skyBlue.dark,
+  embodied_energy: colors.value.skyBlue.darker,
 }));
+
+/** Category ordering shared across Results charts (Reduction objectives, tooltips, sliders). */
+export const RESULTS_CATEGORY_ORDER = [
+  'process_emissions',
+  'buildings_energy_combustion',
+  'buildings_room',
+  'equipment',
+  'external_cloud_and_ai',
+  'professional_travel',
+  'purchases',
+  'research_facilities',
+  'commuting',
+  'food',
+  'waste',
+  'embodied_energy',
+] as const;
+
+/** Category key → i18n key for consistent Results chart labels. */
+export const RESULTS_CATEGORY_LABEL_KEYS: Record<
+  (typeof RESULTS_CATEGORY_ORDER)[number],
+  string
+> = {
+  process_emissions: 'charts-process-emissions-category',
+  buildings_room: 'charts-buildings-room-category',
+  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
+  equipment: 'charts-equipment-electric-consumption-category',
+  external_cloud_and_ai: 'charts-external-cloud-category',
+  purchases: 'charts-purchases-category',
+  research_facilities: 'charts-research-facilities-category',
+  professional_travel: 'charts-professional-travel-category',
+  commuting: 'charts-commuting-category',
+  food: 'charts-food-category',
+  waste: 'charts-waste-category',
+  embodied_energy: 'charts-embodied-energy-category',
+};
 
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
@@ -515,6 +550,13 @@ export const MODULE_TO_CATEGORIES = computed(
     [MODULES.ResearchFacilities]: ['research_facilities'],
   }),
 );
+
+export function getModuleForCategoryKey(categoryKey: string): Module | null {
+  for (const [mod, categories] of Object.entries(MODULE_TO_CATEGORIES.value)) {
+    if (categories.includes(categoryKey)) return mod as Module;
+  }
+  return null;
+}
 
 // Helper function to add 0.5 opacity to hex color for uncertainty visualization using hex8 format
 export const uncertaintyColor = (hex: string): string => {

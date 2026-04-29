@@ -20,6 +20,7 @@
 **File**: `app/services/data_ingestion/csv_providers/local_seed.py`
 
 Update the module docstring and add these imports:
+
 - `csv as csv_module`, `io`
 - `from types import SimpleNamespace`
 - `from sqlalchemy import select`, `from sqlmodel import col`
@@ -32,14 +33,14 @@ Update the module docstring and add these imports:
 
 Config keys for `LocalDataEntryCSVProvider`:
 
-| Key | Type | Value from seed config |
-|---|---|---|
-| `local_file_path` | `str` | `str(config.path)` |
-| `module_type_id` | `int` | `config.module_type.value` |
-| `data_entry_type_id` | `int \| None` | `types[0].value` if single type, else `None` |
-| `year` | `int` | `YEAR` (2025) |
-| `location_fields` | `dict[str,str] \| None` | `config.location_fields` |
-| `transport_mode_value` | `str \| None` | `config.transport_mode.value` if set |
+| Key                    | Type                    | Value from seed config                       |
+| ---------------------- | ----------------------- | -------------------------------------------- |
+| `local_file_path`      | `str`                   | `str(config.path)`                           |
+| `module_type_id`       | `int`                   | `config.module_type.value`                   |
+| `data_entry_type_id`   | `int \| None`           | `types[0].value` if single type, else `None` |
+| `year`                 | `int`                   | `YEAR` (2025)                                |
+| `location_fields`      | `dict[str,str] \| None` | `config.location_fields`                     |
+| `transport_mode_value` | `str \| None`           | `config.transport_mode.value` if set         |
 
 Override 4 methods:
 
@@ -48,6 +49,7 @@ Override 4 methods:
 **`validate_connection()`**: `return Path(self._local_file_path).is_file()`
 
 **`_setup_and_validate()`**:
+
 1. Read CSV from disk with `utf-8-sig` encoding
 2. If `_location_fields and _transport_mode`: call async `_build_location_cache(csv_text)`
 3. Call `await self._setup_handlers_and_factors()`
@@ -55,16 +57,19 @@ Override 4 methods:
 5. Return same keys as parent + `"location_id_cache"` + `"processing_path": None` (dummy)
 
 **`_build_location_cache(csv_text)`** (new private async method):
+
 - Scan CSV for unique codes in source columns
 - Planes: `SELECT ... WHERE iata_code IN (...) AND transport_mode = plane` → `{code.upper(): id}`
 - Trains: load all train locations → match `{name.lower(): id}` against codes
 - Log warning for unresolved codes
 
 **`_process_row(row, row_idx, setup_result, stats, max_row_errors, unit_to_module_map)`**:
+
 - If `_location_fields`: shallow-copy row; look up each source column in `setup_result["location_id_cache"]`; inject `data_key: str(loc_id)` (skip if `None`)
 - Call `super()._process_row(modified_row, ...)`
 
 **`_finalize_and_commit(batch, data_entry_service, emission_service, stats, setup_result)`**:
+
 - Process final batch, increment `stats["batches_processed"]`
 - `await self.data_session.flush()`
 - `await self._recompute_module_stats()`
@@ -85,6 +90,7 @@ Add import: `from app.services.data_ingestion.csv_providers.local_seed import Lo
 Keep unchanged: `EXCLUDE_COLUMNS`, `SEED_FOLDER`, `YEAR`, `DataEntrySeedConfig`, `DATA_ENTRY_SEEDS`, `main()`
 
 New `seed_data_entries()`:
+
 ```python
 async def seed_data_entries(session: AsyncSession, config: DataEntrySeedConfig) -> None:
     if not config.path.exists():

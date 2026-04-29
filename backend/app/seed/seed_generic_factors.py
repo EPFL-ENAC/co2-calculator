@@ -32,6 +32,7 @@ settings = get_settings()
 versionapi = settings.FORMULA_VERSION_SHA256_SHORT
 
 BACKEND_FOLDER = Path(__file__).parent.parent.parent / "seed_data"
+YEAR = 2025
 
 
 @dataclass
@@ -195,7 +196,7 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     provider_config: dict = {
         "local_file_path": str(config.path),
         "module_type_id": module_type.value,
-        "year": 2025,
+        "year": YEAR,
         "data_entry_type_id": (
             config.data_entry_types[0].value
             if config.data_entry_type_column is None
