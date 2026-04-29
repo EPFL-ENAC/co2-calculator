@@ -19,11 +19,8 @@ from app.utils.it_breakdown import ITSqlTotals
 def _is_leaf_emission() -> ColumnElement[bool]:
     """Exclude rollup rows from aggregation to prevent double-counting."""
     if not ROLLUP_EMISSION_TYPE_IDS:
-        return col(DataEntryEmission.scope).isnot(None)
-    return and_(
-        col(DataEntryEmission.scope).isnot(None),
-        col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS),
-    )
+        return col(DataEntryEmission.id).isnot(None)
+    return col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
 
 
 class DataEntryEmissionRepository:

@@ -35,7 +35,6 @@ def additional_value_unit(emission_type: EmissionType) -> str | None:
     return None
 
 
-
 class EmissionBreakdownValue(TypedDict):
     emission_type: str
     key: str

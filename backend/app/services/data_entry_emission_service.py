@@ -181,40 +181,22 @@ class DataEntryEmissionService:
                         f"emission_type={emission_type.name!r} "
                         f"data_entry_id={data_entry.id!r}"
                     )
-                    if not factors:
-                        results.append(
-                            DataEntryEmission(
-                                data_entry_id=data_entry.id,
-                                emission_type_id=emission_type.value,
-                                primary_factor_id=None,
-                                kg_co2eq=float(csv_kg_co2eq),
-                                scope=emission_type.scope,
-                                meta={
-                                    "factors_used": [],
-                                    **ctx,
-                                },
-                            )
+                    results.append(
+                        DataEntryEmission(
+                            data_entry_id=data_entry.id,
+                            emission_type_id=comp.emission_type.value,
+                            primary_factor_id=None,
+                            kg_co2eq=float(csv_kg_co2eq),
+                            scope=comp.emission_type.scope,
+                            meta={
+                                "factors_used": [
+                                    {"id": factor.id, "values": factor.values}
+                                    for factor in factors
+                                ],
+                                **ctx,
+                            },
                         )
-                        continue
-                    for factor in factors:
-                        _et_id = _pick_emission_type_id(
-                            comp.emission_type, factor.emission_type_id
-                        )
-                        results.append(
-                            DataEntryEmission(
-                                data_entry_id=data_entry.id,
-                                emission_type_id=_et_id,
-                                primary_factor_id=factor.id,
-                                kg_co2eq=float(csv_kg_co2eq),
-                                scope=EmissionType(_et_id).scope,
-                                meta={
-                                    "factors_used": [
-                                        {"id": factor.id, "values": factor.values}
-                                    ],
-                                    **ctx,
-                                },
-                            )
-                        )
+                    )
                     continue
 
                 for factor in factors:

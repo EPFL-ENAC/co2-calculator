@@ -367,9 +367,25 @@ class DataEntryRepository:
                 DataEntryTypeEnum.building
             ].value
             RollupEmission = aliased(DataEntryEmission)
+            # Fallback for legacy rows created before rollups existed.
+            building_emission_agg_q = select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+            ).group_by(col(DataEntryEmission.data_entry_id))
+            if ROLLUP_EMISSION_TYPE_IDS:
+                building_emission_agg_q = building_emission_agg_q.where(
+                    col(DataEntryEmission.emission_type_id).notin_(
+                        ROLLUP_EMISSION_TYPE_IDS
+                    )
+                )
+            building_emission_agg = building_emission_agg_q.subquery()
+            building_total_kg_expr: Any = func.coalesce(
+                col(RollupEmission.kg_co2eq),
+                building_emission_agg.c.total_kg_co2eq,
+            )
             entities: list[Any] = [
                 DataEntry,
-                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore[attr-defined]
+                building_total_kg_expr.label("total_kg_co2eq"),
                 Factor,
                 BuildingRoom,
             ]
@@ -389,11 +405,17 @@ class DataEntryRepository:
                 )
                 .join(
                     BuildingRoom,
-                    DataEntry.data["room_name"].as_string() == BuildingRoom.room_name,
+                    DataEntry.data["room_name"].as_string()
+                    == col(BuildingRoom.room_name),
+                    isouter=True,
+                )
+                .join(
+                    building_emission_agg,
+                    col(building_emission_agg.c.data_entry_id) == col(DataEntry.id),
                     isouter=True,
                 )
             )
-            kg_sort_expr: Any = RollupEmission.kg_co2eq
+            kg_sort_expr = building_total_kg_expr
         elif is_headcount_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # Headcount entries (member/student) produce multiple leaf emissions
