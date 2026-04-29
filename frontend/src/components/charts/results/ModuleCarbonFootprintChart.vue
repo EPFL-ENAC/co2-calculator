@@ -31,7 +31,7 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractModuleCarbonTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const props = defineProps<{
@@ -1060,8 +1060,8 @@ const seriesArray = computed(() => [
   ...additionalSeriesData.value,
 ]);
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
     extractModuleCarbonTooltipState(
       params,
       seriesArray.value,
@@ -1070,7 +1070,7 @@ const tooltipFormatter = (params: unknown) =>
       additionalBuildingsLabels.value,
       t,
     ),
-  );
+});
 
 const chartOption = computed((): EChartsOption => {
   return {
@@ -1081,6 +1081,7 @@ const chartOption = computed((): EChartsOption => {
         type: 'shadow',
       },
 
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
 

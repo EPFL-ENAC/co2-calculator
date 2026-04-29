@@ -14,7 +14,7 @@ import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractTreemapTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
@@ -23,8 +23,9 @@ const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(extractTreemapTooltipState(params, t));
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) => extractTreemapTooltipState(params, t),
+});
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
@@ -167,6 +168,7 @@ const chartOption = computed((): EChartsOption => {
     animation: false,
     tooltip: {
       trigger: 'item',
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
     legend: { show: false },

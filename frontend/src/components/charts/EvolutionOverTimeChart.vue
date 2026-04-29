@@ -13,7 +13,7 @@ import {
 import VChart from 'vue-echarts';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractEvolutionTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const { t } = useI18n();
@@ -115,8 +115,9 @@ const chartData = computed(() => {
   };
 });
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(extractEvolutionTooltipState(params));
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: extractEvolutionTooltipState,
+});
 
 const chartOption = computed((): EChartsOption => {
   return {
@@ -130,6 +131,7 @@ const chartOption = computed((): EChartsOption => {
     },
     tooltip: {
       trigger: 'axis',
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
     legend: {

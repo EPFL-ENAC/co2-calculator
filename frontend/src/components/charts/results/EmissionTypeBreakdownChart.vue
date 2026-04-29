@@ -32,7 +32,7 @@ import {
   CATEGORY_CHART_KEYS,
   normalizeParentKey,
 } from 'src/composables/useEmissionTreemap';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractEmissionBreakdownTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
@@ -257,14 +257,10 @@ const chartData = computed(() => {
   };
 });
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(
-    extractEmissionBreakdownTooltipState(
-      params,
-      chartData.value.segmentKeys,
-      t,
-    ),
-  );
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
+    extractEmissionBreakdownTooltipState(params, chartData.value.segmentKeys, t),
+});
 
 function translateSubcategory(key: string): string {
   // Top-class mode uses numeric segment keys with label overrides
@@ -374,6 +370,7 @@ const chartOption = computed((): EChartsOption => {
     animation: false,
     tooltip: {
       trigger: 'item',
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
     legend: { show: false },

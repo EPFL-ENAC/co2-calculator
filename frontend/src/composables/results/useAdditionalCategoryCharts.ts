@@ -3,7 +3,7 @@ import {
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
 } from 'src/constant/charts';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { createEchartsTooltipFormatter } from 'src/composables/useEchartsTooltip';
 import { extractDoughnutTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 export type AdditionalCategoryKey =
@@ -75,14 +75,18 @@ export function buildDoughnutOption(
     };
   }
 
+  const tooltipFormatter = createEchartsTooltipFormatter((params: unknown) =>
+    extractDoughnutTooltipState(params),
+  );
+
   return {
     animation: false,
     tooltip: {
       trigger: 'item',
+      renderMode: 'html',
       appendToBody: true,
       extraCssText: 'z-index: 9999;',
-      formatter: (params: unknown) =>
-        renderTooltipHtml(extractDoughnutTooltipState(params)),
+      formatter: tooltipFormatter,
     },
     legend: { show: false },
     series: [

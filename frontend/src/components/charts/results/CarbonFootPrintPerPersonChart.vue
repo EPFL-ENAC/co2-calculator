@@ -26,7 +26,7 @@ use([
   GraphicComponent,
 ]);
 
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractPerPersonTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 const props = defineProps<{
@@ -315,8 +315,10 @@ const seriesArray = computed(() => [
   ...additionalSeriesData.value,
 ]);
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(extractPerPersonTooltipState(params, seriesArray.value));
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
+    extractPerPersonTooltipState(params, seriesArray.value),
+});
 
 const chartOption = computed((): EChartsOption => {
   return {
@@ -325,6 +327,7 @@ const chartOption = computed((): EChartsOption => {
       axisPointer: {
         type: 'shadow',
       },
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
 

@@ -9,7 +9,7 @@ import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractItFocusTooltipState } from 'src/utils/chart-tooltip-extractors';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
@@ -205,10 +205,10 @@ const validatedLabels = computed(
     new Set(categoryBars.value.filter((b) => b.validated).map((b) => b.label)),
 );
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
     extractItFocusTooltipState(params, validatedLabels.value, t),
-  );
+});
 
 /** Tonnes from categories whose parent module is validated (aligned with visible bars). */
 const displayTotalItTonnes = computed(() =>

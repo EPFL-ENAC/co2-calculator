@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TooltipState } from 'src/composables/useEchartsTooltip';
+import type { TooltipState } from 'src/types/chartTooltip';
 
 defineProps<{
   tooltipState: TooltipState;

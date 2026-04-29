@@ -24,7 +24,7 @@ import {
   RESULTS_CATEGORY_ORDER,
 } from 'src/constant/charts';
 import { MODULE_STATES } from 'src/constant/moduleStates';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractReductionObjectiveUnitTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 interface Props {
@@ -131,8 +131,8 @@ function tooltipSortIndex(seriesName: string): number {
   return idx === -1 ? 999 : idx;
 }
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
     extractReductionObjectiveUnitTooltipState(params, {
       categoryColor,
       categoryLabel,
@@ -141,7 +141,7 @@ const tooltipFormatter = (params: unknown) =>
       formatPopulation: (v) =>
         v == null ? '-' : INT_FORMATTER.format(Math.round(v)),
     }),
-  );
+});
 
 const validatedEmissionCategoryKeys = computed(() => {
   const list = moduleStore.state.emissionBreakdown?.validated_categories ?? [];
@@ -397,6 +397,7 @@ const chartOption = computed<EChartsOption | null>(() => {
         type: 'cross',
         label: { backgroundColor: '#6a7985' },
       },
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
     legend: { show: false },

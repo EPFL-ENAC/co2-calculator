@@ -24,7 +24,7 @@ import {
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_CATEGORY_ORDER,
 } from 'src/constant/charts';
-import { renderTooltipHtml } from 'src/composables/useEchartsTooltip';
+import { useEchartsTooltip } from 'src/composables/useEchartsTooltip';
 import { extractReductionObjectiveEpflTooltipState } from 'src/utils/chart-tooltip-extractors';
 
 interface Props {
@@ -246,8 +246,8 @@ function readCssVarHex(name: string): string | null {
 
 const accentColorHex = ref<string | null>(null);
 
-const tooltipFormatter = (params: unknown) =>
-  renderTooltipHtml(
+const { formatter: tooltipFormatter } = useEchartsTooltip({
+  buildState: (params: unknown) =>
     extractReductionObjectiveEpflTooltipState(params, {
       years: years.value,
       accentColor: accentColorHex.value ?? colors.value.cobalt.darker,
@@ -259,7 +259,7 @@ const tooltipFormatter = (params: unknown) =>
       formatPopulation: (v) =>
         v == null ? '-' : INT_FORMATTER.format(Math.round(v)),
     }),
-  );
+});
 
 async function ensureYearConfigFetched(): Promise<void> {
   const y = currentYear.value;
@@ -530,6 +530,7 @@ const chartOption = computed<EChartsOption | null>(() => {
       axisPointer: {
         type: 'line',
       },
+      renderMode: 'html',
       formatter: tooltipFormatter,
     },
     legend: { show: false },

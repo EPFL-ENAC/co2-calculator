@@ -1,7 +1,4 @@
-import type {
-  TooltipRow,
-  TooltipState,
-} from '../composables/useEchartsTooltip';
+import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 
 // Inlined to avoid pulling in the i18n boot dependency from number.ts
 function formatTonnesForChart(value: number): string {
