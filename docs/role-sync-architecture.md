@@ -41,8 +41,7 @@ The `/refresh` endpoint triggers background role synchronization, while `/me` re
 1. **Authorization always uses DB roles** - No external API calls on `/me`
 2. **Failures don't block endpoints** - Background sync errors logged but don't affect response
 3. **No recursive syncs** - TTL prevents sync storms
-4. **Concurrent sync protection** - BackgroundTasks queue handles serialization
-5. **Unit cleanup** - Removed roles automatically clean up unit associations
+4. **Unit cleanup** - Removed roles automatically clean up unit associations
 
 ## Performance
 

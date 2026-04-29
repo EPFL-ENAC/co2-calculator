@@ -694,7 +694,7 @@ async def refresh_token(
             )
 
         # Trigger background role sync if needed (non-blocking)
-        # Note: This is fire-and-forget - errors don't affect /me response
+        # Note: This is fire-and-forget - errors don't affect /refresh response
         if user.id is not None:
             background_tasks.add_task(
                 trigger_role_sync_for_user,

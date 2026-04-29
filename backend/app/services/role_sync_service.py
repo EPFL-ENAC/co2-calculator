@@ -6,15 +6,14 @@ from typing import Any, Dict, List
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.role_priority import pick_role_for_institutional_id
 from app.models.user import Role
 from app.repositories.user_repo import UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
 
 logger = get_logger(__name__)
-settings = get_settings()
 
 
 class RoleSyncResult(BaseModel):
@@ -96,8 +95,8 @@ class RoleSyncService:
                 unit_id = None
             return (role_name, unit_id)
 
-        old_roles_comparable = [extract_role_key(r) for r in old_roles]
-        new_roles_comparable = [extract_role_key(r) for r in new_roles]
+        old_roles_comparable = sorted(extract_role_key(r) for r in old_roles)
+        new_roles_comparable = sorted(extract_role_key(r) for r in new_roles)
 
         roles_changed = old_roles_comparable != new_roles_comparable
 
@@ -190,8 +189,6 @@ class RoleSyncService:
         await self.unit_user_service.delete_all_for_user(user.id)
 
         # Create new associations
-        from app.core.role_priority import pick_role_for_institutional_id
-
         for unit in units:
             if unit.id is None or unit.institutional_id is None:
                 continue
