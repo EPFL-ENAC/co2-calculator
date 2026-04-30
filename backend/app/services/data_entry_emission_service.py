@@ -57,7 +57,12 @@ def _pick_emission_type_id(
         if _emission_depth(factor_et) > _emission_depth(comp_emission_type):
             return factor_emission_type_id
     except ValueError:
-        pass
+        logger.debug(
+            "Unknown factor_emission_type_id=%s; "
+            "falling back to computation emission type=%s",
+            factor_emission_type_id,
+            comp_emission_type.value,
+        )
     return comp_emission_type.value
 
 
