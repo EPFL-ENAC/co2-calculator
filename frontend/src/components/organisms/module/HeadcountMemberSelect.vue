@@ -43,7 +43,6 @@ import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission } from 'src/utils/permission';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
@@ -73,7 +72,7 @@ const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
 const canEditHeadcount = computed(() =>
-  hasPermission(authStore.user?.permissions, 'modules.headcount', 'edit'),
+  authStore.hasUserModulePermission(MODULES.Headcount, 'edit'),
 );
 const isNotValidated = computed(
   () => members.value.length === 0 && !canEditHeadcount.value,
