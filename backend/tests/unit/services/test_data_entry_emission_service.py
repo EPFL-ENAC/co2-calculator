@@ -5,9 +5,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    EmissionType,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    ROLLUP_EMISSION_TYPE_IDS,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1333,3 +1341,243 @@ class TestDelegationMethods:
 
 #     # (1 * 5 * 46 * 1 * 1000) / 1000 = 230 kg
 #     assert result["kg_co2eq"] == 230.0
+
+
+# ---------------------------------------------------------------------------
+# prepare_create — rollup row creation
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareCreateRollup:
+    """Verify that prepare_create appends a single rollup row for building entries."""
+
+    @pytest.mark.asyncio
+    async def test_building_gets_rollup_row(self):
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=99,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            carbon_report_module_id=10,
+            data={"room_type": "laboratories", "name": "Lab"},
+        )
+
+        leaf_types = [
+            EmissionType.buildings__rooms__lighting,
+            EmissionType.buildings__rooms__cooling,
+        ]
+        fake_factor = MagicMock()
+        fake_factor.id = 7
+        fake_factor.emission_type_id = EmissionType.buildings__rooms__lighting.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.buildings__rooms__lighting,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=leaf_types,
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=500.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        rollup_et = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[DataEntryTypeEnum.building]
+        rollup_rows = [r for r in results if r.emission_type_id == rollup_et.value]
+        leaf_rows = [r for r in results if r.emission_type_id != rollup_et.value]
+
+        # Must have exactly one rollup row
+        assert len(rollup_rows) == 1, f"Expected 1 rollup row, got {len(rollup_rows)}"
+        rollup = rollup_rows[0]
+
+        # Rollup row properties
+        assert rollup.primary_factor_id == 7
+        assert rollup.meta.get("is_rollup") is True
+        assert rollup.kg_co2eq == pytest.approx(sum(r.kg_co2eq for r in leaf_rows)), (
+            "Rollup kg_co2eq must equal the sum of all leaf rows"
+        )
+
+    @pytest.mark.asyncio
+    async def test_non_building_gets_no_rollup_row(self):
+        """Entry types without a rollup mapping must not get a rollup row."""
+
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=100,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={"name": "Microscope"},
+        )
+
+        fake_factor = MagicMock()
+        fake_factor.id = 3
+        fake_factor.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.equipment__scientific,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=250.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        # All rows should be leaf rows only
+        rollup_rows = [
+            r for r in results if r.emission_type_id in ROLLUP_EMISSION_TYPE_IDS
+        ]
+        assert rollup_rows == [], "Non-building types must not produce a rollup row"
+
+    @pytest.mark.asyncio
+    async def test_csv_override_with_multiple_factors_creates_single_row(self):
+        """CSV kg_co2eq override must not be duplicated per matching factor."""
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=102,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={"name": "Microscope", "kg_co2eq": 300.0},
+        )
+
+        fake_factor_1 = MagicMock()
+        fake_factor_1.id = 11
+        fake_factor_1.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor_1.values = {"factor_kgco2eq": 1.0}
+
+        fake_factor_2 = MagicMock()
+        fake_factor_2.id = 12
+        fake_factor_2.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor_2.values = {"factor_kgco2eq": 2.0}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.equipment__scientific,
+            formula_key="factor_kgco2eq",
+            quantity_key="units",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_fetch_factors",
+                new=AsyncMock(return_value=[fake_factor_1, fake_factor_2]),
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        assert len(results) == 1
+        override_row = results[0]
+        assert override_row.kg_co2eq == 300.0
+        assert override_row.primary_factor_id is None
+        assert len(override_row.meta["factors_used"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_headcount_gets_rollup_row(self):
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=101,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=10,
+            data={"name": "Alice", "fte": 1.0},
+        )
+
+        leaf_types = [EmissionType.food, EmissionType.waste, EmissionType.commuting]
+        fake_factor = MagicMock()
+        fake_factor.id = 7
+        fake_factor.emission_type_id = EmissionType.food.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=leaf_types,
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=100.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        rollup_et = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[DataEntryTypeEnum.member]
+        rollup_rows = [r for r in results if r.emission_type_id == rollup_et.value]
+        leaf_rows = [r for r in results if r.emission_type_id != rollup_et.value]
+
+        assert len(rollup_rows) == 1
+        rollup = rollup_rows[0]
+        assert rollup.scope is None
+        assert rollup.meta.get("is_rollup") is True
+        assert rollup.kg_co2eq == pytest.approx(sum(r.kg_co2eq for r in leaf_rows))

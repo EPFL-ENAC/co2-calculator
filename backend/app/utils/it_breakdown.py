@@ -168,7 +168,7 @@ def build_it_breakdown(
             key = et.name.split("__")[-1]
             # Group AI providers under a single "ai" key
             parent = et.parent
-            if parent is not None and parent.name.startswith("external__ai"):
+            if parent is not None and parent == EmissionType.external__ai:
                 key = "ai"
             cloud_ai_detail[key] = cloud_ai_detail.get(key, 0.0) + kg_co2eq
 
