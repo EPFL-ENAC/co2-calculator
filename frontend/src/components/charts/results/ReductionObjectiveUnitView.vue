@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUpdated, ref } from 'vue';
+import { computed, nextTick, onMounted, onUpdated, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -14,6 +14,15 @@ import {
   TooltipComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
+import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
+import {
+  normalizeAxisParams,
+  extractSeriesValue,
+  formatTooltipTonnes,
+  formatTooltipPopulation,
+} from 'src/utils/chart-tooltip-extractors';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
@@ -24,7 +33,6 @@ import {
   RESULTS_CATEGORY_ORDER,
 } from 'src/constant/charts';
 import { MODULE_STATES } from 'src/constant/moduleStates';
-import { formatTonnesForChart } from 'src/utils/number';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -123,35 +131,17 @@ const ADDITIONAL_UNIT_CATEGORY_KEYS = new Set([
 ]);
 const TOOLTIP_CATEGORY_ORDER = RESULTS_CATEGORY_ORDER;
 
-type TooltipAxisParam = {
-  axisValue?: string;
-  seriesName?: string;
-  value?: number | (number | null)[] | null;
+// ── Teleport tooltip composable ───────────────────────────────────────────────
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
 };
-
-function normalizeTooltipParams(rawParams: unknown): TooltipAxisParam[] {
-  if (!Array.isArray(rawParams)) return [];
-  return rawParams as TooltipAxisParam[];
-}
-
-function extractTooltipSeriesValue(
-  raw: TooltipAxisParam['value'],
-): number | null {
-  if (typeof raw === 'number') return raw;
-  if (!Array.isArray(raw)) return null;
-  return (raw.length >= 2 ? raw[1] : raw[0]) as number | null;
-}
-
-function formatTooltipTonnes(value: number | null): string {
-  if (value == null) return '-';
-  if (value < 0) return value.toFixed(1);
-  return formatTonnesForChart(value);
-}
-
-function formatTooltipPopulation(value: number | null): string {
-  if (value == null) return '-';
-  return INT_FORMATTER.format(Math.round(value));
-}
 
 function tooltipSortIndex(seriesName: string): number {
   const idx = TOOLTIP_CATEGORY_ORDER.indexOf(
@@ -160,62 +150,43 @@ function tooltipSortIndex(seriesName: string): number {
   return idx === -1 ? 999 : idx;
 }
 
-function renderTooltipCategoryLines(params: TooltipAxisParam[]): string {
-  return params
+function buildTooltipState(rawParams: unknown): TooltipState {
+  const params = normalizeAxisParams(rawParams);
+  if (!params.length) return null;
+
+  const title = String(params[0]?.axisValue ?? '');
+
+  const populationParam = params.find(
+    (p) => String(p.seriesName) === 'population' && p.value != null,
+  );
+
+  const rows: TooltipRow[] = params
     .filter((p) => p.seriesName && p.value != null)
     .filter((p) => String(p.seriesName) !== 'population')
-    .sort((a, b) => {
-      const ak = String(a.seriesName ?? '');
-      const bk = String(b.seriesName ?? '');
-      return tooltipSortIndex(ak) - tooltipSortIndex(bk);
-    })
-    .map((p) => {
-      const key = String(p.seriesName);
-      const color = categoryColor(key);
-      const value = extractTooltipSeriesValue(p.value);
-      const formatted = formatTooltipTonnes(value);
-      const label = categoryLabel(key);
-      return `
-        <div style="display:flex;align-items:center;gap:8px;line-height:1.35;">
-          <span style="width:8px;height:8px;border-radius:999px;background:${color};display:inline-block;"></span>
-          <span style="flex:1;opacity:0.9;">${label}</span>
-          <span style="font-variant-numeric:tabular-nums;">${formatted}</span>
-        </div>
-      `;
-    })
-    .join('');
-}
+    .sort(
+      (a, b) =>
+        tooltipSortIndex(String(a.seriesName ?? '')) -
+        tooltipSortIndex(String(b.seriesName ?? '')),
+    )
+    .map(
+      (p): TooltipRow => ({
+        label: categoryLabel(String(p.seriesName)),
+        value: formatTooltipTonnes(extractSeriesValue(p.value)),
+        color: categoryColor(String(p.seriesName)),
+      }),
+    );
 
-function renderTooltipPopulationLine(params: TooltipAxisParam[]): string {
-  const p = params.find(
-    (x) => String(x.seriesName) === 'population' && x.value != null,
-  );
-  if (!p) return '';
+  const separatorRow: TooltipRow | undefined = populationParam
+    ? {
+        label: t('results_objectives_population_forecast'),
+        value: formatTooltipPopulation(
+          extractSeriesValue(populationParam.value),
+        ),
+        color: '#ff0000',
+      }
+    : undefined;
 
-  const v = extractTooltipSeriesValue(p.value);
-  const formatted = formatTooltipPopulation(v);
-  const label = t('results_objectives_population_forecast');
-
-  return `
-    <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.12);">
-      <div style="display:flex;align-items:center;gap:8px;line-height:1.35;">
-        <span style="width:8px;height:8px;border-radius:999px;background:#ff0000;display:inline-block;"></span>
-        <span style="flex:1;opacity:1;">${label}</span>
-        <span style="font-variant-numeric:tabular-nums;">${formatted}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderTooltipContainer(args: {
-  yearLabel: string;
-  categoryLines: string;
-  populationLine: string;
-}): string {
-  return `<div style="min-width:220px;">
-    <div style="font-weight:600;margin-bottom:6px;">${args.yearLabel}</div>
-    ${args.categoryLines}${args.populationLine}
-  </div>`;
+  return { title, rows, separatorRow };
 }
 
 const validatedEmissionCategoryKeys = computed(() => {
@@ -473,14 +444,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         label: { backgroundColor: '#6a7985' },
       },
       formatter: (rawParams: unknown) => {
-        const params = normalizeTooltipParams(rawParams);
-        const yearLabel = String(params[0]?.axisValue ?? '');
-
-        return renderTooltipContainer({
-          yearLabel,
-          categoryLines: renderTooltipCategoryLines(params),
-          populationLine: renderTooltipPopulationLine(params),
-        });
+        emitTooltip(buildTooltipState(rawParams));
+        return '';
       },
     },
     legend: { show: false },
@@ -552,9 +517,11 @@ const chartOption = computed<EChartsOption | null>(() => {
       <div class="objective-chart">
         <VChart
           v-if="chartOption"
+          ref="chartRef"
           :option="chartOption"
           autoresize
           class="objective-chart__canvas"
+          @vue:mounted="onChartReady"
         />
         <div v-else class="objective-chart__empty" />
       </div>
@@ -642,6 +609,13 @@ const chartOption = computed<EChartsOption | null>(() => {
         </div>
       </section>
     </div>
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>
 

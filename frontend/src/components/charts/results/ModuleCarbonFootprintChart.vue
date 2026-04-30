@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -19,6 +19,9 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
+import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -1071,17 +1074,17 @@ const chartOption = computed((): EChartsOption => {
 
       formatter: (params: unknown) => {
         const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-        const p = arr[0] as {
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
+        const first = arr[0] as {
           data?: Record<string, unknown>;
           axisValue?: string;
           name?: string;
-          seriesName?: string;
-          marker?: string;
-          value?: number | number[];
         };
-        const data = p.data;
-        const name = p.axisValue || p.name || '';
+        const data = first.data;
+        const name = String(first.axisValue || first.name || '');
         const isValidated = validatedLabels.value.has(name);
 
         if (!isValidated) {
@@ -1090,37 +1093,54 @@ const chartOption = computed((): EChartsOption => {
             : additionalBuildingsLabels.value.has(name)
               ? t('buildings')
               : name;
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
+          emitTooltip({
+            title: name,
+            rows: [],
+            tone: 'muted',
+            footer: t('results_validate_module_title', { module: moduleName }),
+          });
+          return '';
         }
 
+        const rows: TooltipRow[] = [];
         let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
 
-        arr.reverse().forEach((param: unknown) => {
+        for (const param of [...arr].reverse()) {
           const p = param as {
             seriesName?: string;
             seriesIndex?: number;
-            marker?: string;
-            value?: number | number[];
-            data?: Record<string, unknown>;
           };
           const series =
             typeof p.seriesIndex === 'number'
               ? seriesArray[p.seriesIndex]
               : seriesArray.find((s) => s.name === p.seriesName);
           const key = series?.encode.y;
-
-          if (!data || !key) return;
+          if (!data || !key) continue;
           const dataValue = Number(data[key]) || 0;
           if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
+            rows.push({
+              label: series?.name ?? String(p.seriesName ?? ''),
+              value: formatTonnesForChart(dataValue),
+              color: (series?.itemStyle?.color as string) ?? '#888',
+            });
             total += dataValue;
           }
-        });
+        }
 
-        const totalDisplay = formatTonnesForChart(total);
-
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
+        const state: TooltipState = {
+          title: name,
+          rows,
+          ...(rows.length > 1
+            ? {
+                separatorRow: {
+                  label: t('results_objectives_total'),
+                  value: formatTonnesForChart(total),
+                },
+              }
+            : {}),
+        };
+        emitTooltip(state);
+        return '';
       },
     },
 
@@ -1217,6 +1237,15 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 
 const downloadPNG = async () => {
   const chart = chartRef.value?.chart;
@@ -1379,7 +1408,15 @@ const downloadCSV = () => {
         autoresize
         :option="chartOption"
         @rendered="recalculateScopeRects"
+        @vue:mounted="onChartReady"
       />
+      <Teleport to="body">
+        <tooltip-echarts
+          v-if="tooltip.visible"
+          :tooltip-state="tooltip.data"
+          :style="style"
+        />
+      </Teleport>
     </q-card-section>
   </q-card>
 </template>

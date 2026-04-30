@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -12,10 +12,13 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
+import TooltipEcharts from './results/TooltipEcharts.vue';
+import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
+import { formatTonnesForChart } from 'src/utils/number';
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
@@ -165,15 +168,24 @@ const chartOption = computed((): EChartsOption => {
       formatter: (params: unknown) => {
         const p = params as {
           seriesName?: string;
-          marker?: string;
+          color?: string;
           data?: { value: number; originalValue: number };
         };
         const val = p.data?.originalValue ?? 0;
-        if (val <= 0) return '';
-        return (
-          `${p.marker || ''} <strong>${p.seriesName || ''}</strong><br/>` +
-          `${p.seriesName || ''}: <strong>${val.toFixed(1)}</strong>`
-        );
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
+        emitTooltip({
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
+        });
+        return '';
       },
     },
     legend: { show: false },
@@ -205,6 +217,15 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
+
 const showEvolutionDialogRef = ref(false);
 
 const hasMultipleYears = computed(() => {
@@ -302,7 +323,15 @@ const babyBlueScheme = computed(() => {
       autoresize
       :option="chartOption"
       :style="{ height: height ?? '200px' }"
+      @vue:mounted="onChartReady"
     />
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </q-card-section>
 
   <q-dialog v-model="isEvolutionDialogOpen">
